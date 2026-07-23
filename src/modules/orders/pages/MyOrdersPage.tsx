@@ -1,0 +1,94 @@
+import PageMeta from "../../../components/common/PageMeta";
+import { Link } from "react-router";
+import Badge from "../../../components/ui/badge/Badge";
+import Button from "../../../components/ui/button/Button";
+import { MarketHeader } from "../../marketplace/components/MarketHeader";
+import { useCancelMyOrder, useMyOrders } from "../hooks/useOrders";
+import type { CustomerOrder, OrderStatus } from "../services/ordersService";
+
+const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
+
+const STATUS_COLOR: Record<OrderStatus, "success" | "warning" | "info" | "error" | "light"> = {
+  pending: "warning", confirmed: "info", preparing: "info", ready: "info",
+  out_for_delivery: "info", completed: "success", cancelled: "error",
+};
+
+const STEPS: OrderStatus[] = ["pending", "confirmed", "preparing", "out_for_delivery", "completed"];
+
+export default function MyOrdersPage() {
+  const orders = useMyOrders();
+  const cancel = useCancelMyOrder();
+  const rows = orders.data?.data ?? [];
+
+  const canCancel = (o: CustomerOrder) => o.status === "pending" || o.status === "confirmed";
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <PageMeta title="My Orders | ShopOS" description="Your online orders" />
+      <MarketHeader />
+
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">My Orders</h1>
+          <Link to="/" className="text-sm text-brand-500 hover:text-brand-600">Browse shops →</Link>
+        </div>
+
+        {orders.isLoading ? (
+          <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)}</div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
+            <p className="text-gray-500 dark:text-gray-400">No orders yet.</p>
+            <Link to="/"><Button size="sm" className="mt-3">Start shopping</Button></Link>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {rows.map((o) => (
+              <div key={o.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="font-semibold text-gray-800 dark:text-white/90">{o.order_number}</span>
+                    <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">{o.shop?.business_name}</span>
+                  </div>
+                  <Badge color={STATUS_COLOR[o.status]}>{o.status.replace(/_/g, " ")}</Badge>
+                </div>
+
+                {/* Progress tracker (hidden if cancelled) */}
+                {o.status !== "cancelled" && (
+                  <div className="mb-4 flex items-center gap-1">
+                    {STEPS.filter((s) => s !== "out_for_delivery" || o.fulfillment_type === "delivery").map((step) => {
+                      const reached = STEPS.indexOf(o.status) >= STEPS.indexOf(step) || o.status === "completed";
+                      return <div key={step} className={`h-1.5 flex-1 rounded-full ${reached ? "bg-brand-500" : "bg-gray-200 dark:bg-gray-800"}`} />;
+                    })}
+                  </div>
+                )}
+
+                <div className="mb-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                  {o.items.map((it, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span>{it.quantity} × {it.product_name}{it.variant_name ? ` (${it.variant_name})` : ""}</span>
+                      <span>{money(it.line_total)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-sm dark:border-gray-800">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {o.fulfillment_type === "delivery" ? `Delivery · ${o.delivery_address ?? ""}` : "Pickup"} · {o.payment_method.toUpperCase()}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-gray-800 dark:text-white/90">{money(o.total)}</span>
+                    {canCancel(o) && (
+                      <button className="text-error-500 hover:text-error-600" onClick={() => cancel.mutate(o.id)} disabled={cancel.isPending}>
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

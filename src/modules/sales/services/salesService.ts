@@ -1,0 +1,59 @@
+import { api, apiGet, apiPost } from "../../../common/api/client";
+import { printHtmlDocument } from "../../../common/print";
+import type { Sale, SaleInput, SaleReturn } from "../types";
+
+export const salesService = {
+  list: (params: { search?: string; status?: string; page?: number }) =>
+    apiGet<Sale[]>("/sales", {
+      params: {
+        search: params.search || undefined,
+        status: params.status || undefined,
+        page: params.page ?? 1,
+      },
+    }),
+
+  show: (id: string) => apiGet<Sale>(`/sales/${id}`),
+
+  create: (payload: SaleInput) => apiPost<Sale>("/sales", payload),
+
+  cancel: (id: string, reason?: string) =>
+    apiPost<Sale>(`/sales/${id}/cancel`, { reason }),
+
+  processReturn: (
+    id: string,
+    payload: { items: Array<{ sale_item_id: string; quantity: number }>; reason?: string; refund_method?: string },
+  ) => apiPost<SaleReturn>(`/sales/${id}/returns`, payload),
+
+  exchange: (
+    id: string,
+    payload: {
+      return_items: Array<{ sale_item_id: string; quantity: number }>;
+      items: Array<{ product_id: string; quantity: number; variant_id?: string | null }>;
+      payments?: Array<{ method: string; amount: number }>;
+      channel?: string;
+      reason?: string;
+    },
+  ) => apiPost<{ return: SaleReturn; sale: Sale; difference: number }>(`/sales/${id}/exchange`, payload),
+
+  invoiceUrl: (id: string) =>
+    `${import.meta.env.VITE_API_BASE_URL}/sales/${id}/invoice`,
+
+  // The invoice route sits behind Bearer auth, so a plain <a href> / window.open
+  // navigation 401s (the browser doesn't attach the token). Fetch the HTML
+  // through the authenticated axios client (which also handles token refresh).
+  invoiceHtml: async (id: string): Promise<string> => {
+    const { data } = await api.get<string>(`/sales/${id}/invoice`, {
+      responseType: "text",
+      headers: { Accept: "text/html" },
+      transformResponse: (r) => r, // keep raw HTML — don't try to JSON-parse it
+    });
+    return data;
+  },
+
+  // Fetch (authenticated) + print the invoice via a hidden iframe. Used by the
+  // POS receipt modal and by auto-print when pos_auto_print is on.
+  printInvoice: async (id: string): Promise<void> => {
+    const html = await salesService.invoiceHtml(id);
+    printHtmlDocument(html);
+  },
+};

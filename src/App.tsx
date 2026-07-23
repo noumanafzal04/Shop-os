@@ -1,0 +1,150 @@
+import { lazy, Suspense } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
+import AppLayout from "./layout/AppLayout";
+import { ScrollToTop } from "./components/common/ScrollToTop";
+import {
+  RedirectIfAuthenticated,
+  RequireAuth,
+  RequireRole,
+  RequireSetupComplete,
+} from "./common/routing/guards";
+
+// Route-level code-splitting: each page ships in its own chunk and loads on
+// demand, so the initial bundle stays small (ApexCharts, dropzone, etc. only
+// download when their page is visited).
+const SignIn = lazy(() => import("./pages/AuthPages/SignIn"));
+const SignUp = lazy(() => import("./pages/AuthPages/SignUp"));
+const NotFound = lazy(() => import("./pages/OtherPage/NotFound"));
+const MarketPage = lazy(() => import("./modules/marketplace/pages/MarketPage"));
+const MarketShopPage = lazy(() => import("./modules/marketplace/pages/MarketShopPage"));
+const MyOrdersPage = lazy(() => import("./modules/orders/pages/MyOrdersPage"));
+const OwnerOrdersPage = lazy(() => import("./modules/orders/pages/OwnerOrdersPage"));
+const RidersPage = lazy(() => import("./modules/orders/pages/RidersPage"));
+const AdminDashboard = lazy(() => import("./pages/Dashboard/AdminDashboard"));
+const AdminTenantsPage = lazy(() => import("./modules/admin/pages/AdminTenantsPage"));
+const AdminTenantCreatePage = lazy(() => import("./modules/admin/pages/AdminTenantCreatePage"));
+const AdminTenantDetailPage = lazy(() => import("./modules/admin/pages/AdminTenantDetailPage"));
+const AdminPaymentsPage = lazy(() => import("./modules/admin/pages/AdminPaymentsPage"));
+const AdminPlansPage = lazy(() => import("./modules/admin/pages/AdminPlansPage"));
+const AdminStaffPage = lazy(() => import("./modules/staff/pages/AdminStaffPage"));
+const TenantStaffPage = lazy(() => import("./modules/staff/pages/TenantStaffPage"));
+const AdminAuditPage = lazy(() => import("./modules/admin/pages/AdminAuditPage"));
+const AdminBannersPage = lazy(() => import("./modules/admin/pages/AdminBannersPage"));
+const AdminAnnouncementsPage = lazy(() => import("./modules/admin/pages/AdminAnnouncementsPage"));
+const ShopSettingsPage = lazy(() => import("./modules/shop/pages/ShopSettingsPage"));
+const ShopDashboard = lazy(() => import("./pages/Dashboard/ShopDashboard"));
+const ShopSetupPage = lazy(() => import("./modules/shop/pages/ShopSetupPage"));
+const ProductsPage = lazy(() => import("./modules/catalog/pages/ProductsPage"));
+const ProductFormPage = lazy(() => import("./modules/catalog/pages/ProductFormPage"));
+const CategoriesPage = lazy(() => import("./modules/catalog/pages/CategoriesPage"));
+const CollectionsPage = lazy(() => import("./modules/catalog/pages/CollectionsPage"));
+const LabelsPage = lazy(() => import("./modules/catalog/pages/LabelsPage"));
+const PosPage = lazy(() => import("./modules/pos/pages/PosPage"));
+const SuppliersPage = lazy(() => import("./modules/purchases/pages/SuppliersPage"));
+const CustomersPage = lazy(() => import("./modules/customers/pages/CustomersPage"));
+const CouponsPage = lazy(() => import("./modules/coupons/pages/CouponsPage"));
+const PortfolioPage = lazy(() => import("./modules/shop/pages/PortfolioPage"));
+const PurchaseOrdersPage = lazy(() => import("./modules/purchases/pages/PurchaseOrdersPage"));
+const InventoryPage = lazy(() => import("./modules/inventory/pages/InventoryPage"));
+const SalesPage = lazy(() => import("./modules/sales/pages/SalesPage"));
+const NewSalePage = lazy(() => import("./modules/sales/pages/NewSalePage"));
+const ExpensesPage = lazy(() => import("./modules/expenses/pages/ExpensesPage"));
+const ReportsPage = lazy(() => import("./modules/expenses/pages/ReportsPage"));
+const ReservationsPage = lazy(() => import("./modules/reservations/pages/ReservationsPage"));
+const OwnerReviewsPage = lazy(() => import("./modules/reviews/pages/OwnerReviewsPage"));
+
+function PageFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <ScrollToTop />
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          {/* ── User side (storefront) is the BASE url ────────────── */}
+          <Route path="/" element={<MarketPage />} />
+          <Route path="/shop/:slug" element={<MarketShopPage />} />
+
+          {/* Public auth (bounce authenticated users to their home) */}
+          <Route element={<RedirectIfAuthenticated />}>
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/signup" element={<SignUp />} />
+          </Route>
+
+          {/* Customer orders (auth required, lives on the storefront) */}
+          <Route element={<RequireAuth />}>
+            <Route element={<RequireRole roles={["customer"]} />}>
+              <Route path="/my-orders" element={<MyOrdersPage />} />
+            </Route>
+          </Route>
+
+          {/* ── Admin console: /admin ─────────────────────────────── */}
+          <Route element={<RequireAuth />}>
+            <Route element={<RequireRole roles={["super_admin", "admin_staff"]} />}>
+              <Route path="/admin" element={<AppLayout />}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="tenants" element={<AdminTenantsPage />} />
+                <Route path="tenants/new" element={<AdminTenantCreatePage />} />
+                <Route path="tenants/:id" element={<AdminTenantDetailPage />} />
+                <Route path="payments" element={<AdminPaymentsPage />} />
+                <Route path="plans" element={<AdminPlansPage />} />
+                <Route path="staff" element={<AdminStaffPage />} />
+                <Route path="audit-logs" element={<AdminAuditPage />} />
+                <Route path="banners" element={<AdminBannersPage />} />
+                <Route path="announcements" element={<AdminAnnouncementsPage />} />
+              </Route>
+            </Route>
+
+            {/* ── Shop owner/staff console: /tenant ────────────────── */}
+            <Route element={<RequireRole roles={["shop_owner", "staff"]} />}>
+              {/* Onboarding lives OUTSIDE the setup gate */}
+              <Route path="/tenant/setup" element={<ShopSetupPage />} />
+
+              <Route element={<RequireSetupComplete />}>
+                {/* POS runs FULL-SCREEN — no sidebar/header — so the cashier
+                    gets the whole viewport. It has its own in-page top bar. */}
+                <Route path="/tenant/pos" element={<PosPage />} />
+
+                <Route path="/tenant" element={<AppLayout />}>
+                  <Route index element={<ShopDashboard />} />
+                  <Route path="products" element={<ProductsPage />} />
+                  <Route path="products/new" element={<ProductFormPage />} />
+                  <Route path="products/:id/edit" element={<ProductFormPage />} />
+                  <Route path="categories" element={<CategoriesPage />} />
+                  <Route path="collections" element={<CollectionsPage />} />
+                  <Route path="labels" element={<LabelsPage />} />
+                  <Route path="suppliers" element={<SuppliersPage />} />
+                  <Route path="purchases" element={<PurchaseOrdersPage />} />
+                  <Route path="customers" element={<CustomersPage />} />
+                  <Route path="coupons" element={<CouponsPage />} />
+                  <Route path="portfolio" element={<PortfolioPage />} />
+                  <Route path="inventory" element={<InventoryPage />} />
+                  <Route path="sales" element={<SalesPage />} />
+                  <Route path="sales/new" element={<NewSalePage />} />
+                  <Route path="expenses" element={<ExpensesPage />} />
+                  <Route path="reports" element={<ReportsPage />} />
+                  <Route path="orders" element={<OwnerOrdersPage />} />
+                  <Route path="riders" element={<RidersPage />} />
+                  <Route path="reservations" element={<ReservationsPage />} />
+                  <Route path="reviews" element={<OwnerReviewsPage />} />
+                  <Route path="staff" element={<TenantStaffPage />} />
+                  <Route path="settings" element={<ShopSettingsPage />} />
+                </Route>
+              </Route>
+            </Route>
+          </Route>
+
+          {/* Fallback */}
+          <Route path="/404" element={<NotFound />} />
+          <Route path="*" element={<Navigate to="/404" replace />} />
+        </Routes>
+      </Suspense>
+    </Router>
+  );
+}
