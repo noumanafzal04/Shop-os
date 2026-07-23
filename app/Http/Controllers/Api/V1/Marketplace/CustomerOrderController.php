@@ -1,0 +1,122 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1\Marketplace;
+
+use App\Enums\FulfillmentType;
+use App\Http\Controllers\Controller;
+use App\Models\Order;
+use App\Models\Tenant;
+use App\Services\OrderService;
+use App\Support\ApiResponse;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+class CustomerOrderController extends Controller
+{
+    public function index(Request $request): JsonResponse
+    {
+        $orders = Order::withoutTenancy()
+            ->where('customer_id', $request->user()->id)
+            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name'])
+            ->orderByDesc('placed_at')
+            ->paginate(min((int) $request->query('per_page', 15), 100))
+            ->through(fn (Order $o) => $this->serialize($o));
+
+        return ApiResponse::paginated($orders);
+    }
+
+    public function show(Request $request, string $id): JsonResponse
+    {
+        $order = Order::withoutTenancy()
+            ->where('customer_id', $request->user()->id)
+            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name'])
+            ->findOrFail($id);
+
+        return ApiResponse::ok($this->serialize($order));
+    }
+
+    public function store(Request $request, OrderService $service): JsonResponse
+    {
+        $data = $request->validate([
+            'shop_slug' => ['required', 'string'],
+            'fulfillment_type' => ['required', Rule::enum(FulfillmentType::class)],
+            'delivery_address' => ['required_if:fulfillment_type,delivery', 'nullable', 'string', 'max:500'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'payment_method' => ['sometimes', Rule::in(['cod', 'paid'])],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.product_id' => ['required', 'uuid'],
+            'items.*.variant_id' => ['nullable', 'uuid'],
+            'items.*.product_unit_id' => ['nullable', 'uuid'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:1000'],
+            'items.*.modifier_option_ids' => ['sometimes', 'array', 'max:50'],
+            'items.*.modifier_option_ids.*' => ['uuid'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
+            'coupon_code' => ['nullable', 'string', 'max:40'],
+        ]);
+
+        $shop = Tenant::query()->marketplaceVisible()->where('slug', $data['shop_slug'])->firstOrFail();
+
+        $order = $service->place($request->user(), $shop, $data);
+
+        return ApiResponse::created($this->serialize($order->load('tenant:id,business_name,slug')), "Order {$order->order_number} placed");
+    }
+
+    public function cancel(Request $request, string $id, OrderService $service): JsonResponse
+    {
+        $order = Order::withoutTenancy()
+            ->where('customer_id', $request->user()->id)
+            ->with('items')
+            ->findOrFail($id);
+
+        // Customers may only cancel before the shop starts preparing.
+        if (! in_array($order->status->value, ['pending', 'confirmed'], strict: true)) {
+            return ApiResponse::error('This order can no longer be cancelled — contact the shop.', 409, code: 'ORDER_NOT_CANCELLABLE');
+        }
+
+        $order = $service->cancel($order, 'Cancelled by customer');
+
+        return ApiResponse::ok($this->serialize($order), 'Order cancelled');
+    }
+
+    private function serialize(Order $o): array
+    {
+        return [
+            'id' => $o->id,
+            'order_number' => $o->order_number,
+            'shop' => ['slug' => $o->tenant?->slug, 'business_name' => $o->tenant?->business_name],
+            'status' => $o->status,
+            'fulfillment_type' => $o->fulfillment_type,
+            'payment_method' => $o->payment_method,
+            'payment_status' => $o->payment_status,
+            'delivery_address' => $o->delivery_address,
+            'subtotal' => $o->subtotal,
+            'discount' => $o->discount,
+            'coupon_code' => $o->coupon_code,
+            'delivery_fee' => $o->delivery_fee,
+            'total' => $o->total,
+            // Delivery tracking (Model A): rider name + a friendly stage
+            // derived from the order status. Rider phone is never exposed.
+            'rider' => $o->rider !== null ? [
+                'name' => $o->rider->name,
+                'stage' => match ($o->status->value) {
+                    'out_for_delivery' => 'on_the_way',
+                    'completed' => 'delivered',
+                    default => 'assigned',
+                },
+            ] : null,
+            'items' => $o->items->map(fn ($i) => [
+                'product_name' => $i->product_name,
+                'variant_name' => $i->variant_name,
+                'unit_name' => $i->unit_name,
+                'modifiers' => $i->modifiers,
+                'quantity' => $i->quantity,
+                'unit_price' => $i->unit_price,
+                'line_total' => $i->line_total,
+            ]),
+            'placed_at' => $o->placed_at?->toIso8601String(),
+        ];
+    }
+}
