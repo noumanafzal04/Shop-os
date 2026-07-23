@@ -1,0 +1,11 @@
+# The `main` branch is an overview only — each app lives on its own branch
+# (backend, admin-panel, mobile). Keep the app folders out of main.
+/shopos-backend/
+/shopos-admin-and-user-panel/
+/shopos-mobile/
+
+# OS / editor / tooling junk
+.DS_Store
+.idea/
+.vscode/
+.claude/
