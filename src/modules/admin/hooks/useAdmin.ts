@@ -68,6 +68,18 @@ export function useUpdateModules() {
   });
 }
 
+export function useExtendLimits() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, limits }: { id: string; limits: Record<string, number | null> }) =>
+      adminService.extendLimits(id, limits),
+    onSuccess: (_res, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "tenant", id] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] });
+    },
+  });
+}
+
 export function usePlans() {
   return useQuery({
     queryKey: ["admin", "plans"],

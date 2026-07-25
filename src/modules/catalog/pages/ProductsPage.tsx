@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
@@ -9,14 +9,54 @@ import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import Select from "../../../components/form/Select";
 import Input from "../../../components/form/input/InputField";
+import { useAuthStore } from "../../../stores/authStore";
 import { useCategories, useProductMutations, useProducts } from "../hooks/useCatalog";
-import type { Product } from "../types";
+import type { ItemTypeCode, Product } from "../types";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { ApiError } from "../../../common/types/api";
 import { api } from "../../../common/api/client";
 
+/** Friendly label for each item type (drops the raw product/service split). */
+const TYPE_LABEL: Record<ItemTypeCode, string> = {
+  physical_product: "Product",
+  food_item: "Food",
+  medicine: "Medicine",
+  service: "Service",
+  deal: "Deal",
+};
+const TYPE_COLOR: Record<ItemTypeCode, "primary" | "info" | "success" | "warning" | "light"> = {
+  physical_product: "primary",
+  food_item: "warning",
+  medicine: "info",
+  service: "success",
+  deal: "light",
+};
+
+/** Small square thumbnail — the item's first photo, or an initial tile. */
+function Thumb({ product }: { product: Product }) {
+  const url = (product.images ?? [])[0]?.url;
+  if (url) {
+    return <img src={url} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />;
+  }
+  return (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-sm font-semibold text-gray-400 dark:bg-white/[0.06]">
+      {product.name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
 export default function ProductsPage() {
   const money = useMoney();
+  const navigate = useNavigate();
+  // Plan / module awareness — same signals the product form uses, so the list
+  // only shows columns that apply to this shop.
+  const features = useAuthStore(
+    (s) => (s.user?.tenant as unknown as { features?: Record<string, boolean> })?.features,
+  );
+  const inventoryEnabled = features?.inventory ?? false;
+  const servicesEnabled = features?.services ?? false;
+  const marketplaceEnabled = features?.marketplace ?? false;
+
   const [search, setSearch] = useState("");
   const [type, setType] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -67,6 +107,8 @@ export default function ProductsPage() {
 
   const rows = products.data?.data ?? [];
   const pagination = products.data?.meta.pagination;
+  // Item, Category, Price, [Stock], Status, Actions
+  const colCount = inventoryEnabled ? 6 : 5;
 
   const askDelete = (product: Product) => {
     setTarget(product);
@@ -100,7 +142,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Filters */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input
           placeholder="Search name or SKU…"
           value={search}
@@ -109,18 +151,21 @@ export default function ProductsPage() {
             setPage(1);
           }}
         />
-        <Select
-          options={[
-            { value: "", label: "All types" },
-            { value: "product", label: "Products" },
-            { value: "service", label: "Services" },
-          ]}
-          placeholder="All types"
-          onChange={(v) => {
-            setType(v);
-            setPage(1);
-          }}
-        />
+        {/* Product vs service only matters for shops that offer services. */}
+        {servicesEnabled && (
+          <Select
+            options={[
+              { value: "", label: "All types" },
+              { value: "product", label: "Products" },
+              { value: "service", label: "Services" },
+            ]}
+            placeholder="All types"
+            onChange={(v) => {
+              setType(v);
+              setPage(1);
+            }}
+          />
+        )}
         <Select
           options={[
             { value: "", label: "All categories" },
@@ -135,19 +180,29 @@ export default function ProductsPage() {
             setPage(1);
           }}
         />
-        <label className="flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">
-          <input
-            type="checkbox"
-            checked={lowStock}
-            onChange={(e) => {
-              setLowStock(e.target.checked);
-              setPage(1);
-            }}
-            className="h-4 w-4"
-          />
-          Low stock only
-        </label>
+        {/* Low-stock only makes sense when the shop tracks inventory. */}
+        {inventoryEnabled && (
+          <label className="flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={lowStock}
+              onChange={(e) => {
+                setLowStock(e.target.checked);
+                setPage(1);
+              }}
+              className="h-4 w-4"
+            />
+            Low stock only
+          </label>
+        )}
       </div>
+
+      {/* Result count */}
+      {!products.isLoading && (
+        <p className="mb-3 text-theme-xs text-gray-400">
+          {pagination?.total ?? rows.length} {(pagination?.total ?? rows.length) === 1 ? "item" : "items"}
+        </p>
+      )}
 
       {products.isError && (
         <div className="mb-4">
@@ -161,10 +216,9 @@ export default function ProductsPage() {
             <thead>
               <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 <th className="px-6 py-3 font-medium">Item</th>
-                <th className="px-6 py-3 font-medium">Type</th>
-                <th className="px-6 py-3 font-medium">Category</th>
+                <th className="hidden px-6 py-3 font-medium md:table-cell">Category</th>
                 <th className="px-6 py-3 font-medium">Price</th>
-                <th className="px-6 py-3 font-medium">Stock</th>
+                {inventoryEnabled && <th className="px-6 py-3 font-medium">Stock</th>}
                 <th className="px-6 py-3 font-medium">Status</th>
                 <th className="px-6 py-3 font-medium text-right">Actions</th>
               </tr>
@@ -173,63 +227,102 @@ export default function ProductsPage() {
               {products.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={7} className="px-6 py-4">
-                      <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
+                    <td colSpan={colCount} className="px-6 py-4">
+                      <div className="h-10 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
                     </td>
                   </tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                    {debouncedSearch || type || categoryId || lowStock
-                      ? "Nothing matches these filters."
-                      : "No items yet — add your first product or service."}
+                  <td colSpan={colCount} className="px-6 py-16 text-center">
+                    {debouncedSearch || type || categoryId || lowStock ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Nothing matches these filters.</p>
+                    ) : (
+                      <div className="mx-auto max-w-xs">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-2xl dark:bg-brand-500/10">
+                          🗂️
+                        </div>
+                        <p className="mb-1 text-sm font-medium text-gray-800 dark:text-white/90">No items yet</p>
+                        <p className="mb-4 text-theme-xs text-gray-400">Add your first product or service to start selling.</p>
+                        <Link to="/tenant/products/new">
+                          <Button size="sm">+ Add Item</Button>
+                        </Link>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (
                 rows.map((p) => (
-                  <tr key={p.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
+                  <tr
+                    key={p.id}
+                    onClick={() => navigate(`/tenant/products/${p.id}/edit`)}
+                    className="cursor-pointer text-theme-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/[0.03]"
+                  >
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-800 dark:text-white/90">{p.name}</div>
-                      {p.sku && <div className="text-theme-xs text-gray-400">SKU: {p.sku}</div>}
-                      {p.variants.length > 0 && (
-                        <div className="text-theme-xs text-gray-400">{p.variants.length} variants</div>
-                      )}
+                      <div className="flex items-center gap-3">
+                        <Thumb product={p} />
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-gray-800 dark:text-white/90">{p.name}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-theme-xs text-gray-400">
+                            <Badge size="sm" color={TYPE_COLOR[p.item_type]}>{TYPE_LABEL[p.item_type]}</Badge>
+                            {p.variants.length > 0 && <span>{p.variants.length} variants</span>}
+                            {p.sku && <span>SKU: {p.sku}</span>}
+                            {p.requires_prescription && <span className="text-error-400">℞</span>}
+                          </div>
+                        </div>
+                      </div>
                     </td>
+                    <td className="hidden px-6 py-4 md:table-cell">{p.category?.name ?? "—"}</td>
                     <td className="px-6 py-4">
-                      <Badge size="sm" color={p.type === "service" ? "info" : "primary"}>
-                        {p.type}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4">{p.category?.name ?? "—"}</td>
-                    <td className="px-6 py-4">{money(p.price)}</td>
-                    <td className="px-6 py-4">
-                      {p.type === "service" ? (
-                        "—"
-                      ) : p.low_stock_threshold !== null && p.stock_quantity <= p.low_stock_threshold ? (
-                        <Badge size="sm" color="warning">{p.stock_quantity} low</Badge>
+                      {p.discount_price != null ? (
+                        <span className="flex flex-col leading-tight">
+                          <span className="font-medium text-gray-800 dark:text-white/90">{money(p.discount_price)}</span>
+                          <span className="text-theme-xs text-gray-400 line-through">{money(p.price)}</span>
+                        </span>
                       ) : (
-                        p.stock_quantity
+                        money(p.price)
                       )}
                     </td>
+                    {inventoryEnabled && (
+                      <td className="px-6 py-4">
+                        {!p.track_inventory ? (
+                          <span className="text-gray-400">—</span>
+                        ) : p.low_stock_threshold !== null && p.stock_quantity <= p.low_stock_threshold ? (
+                          <Badge size="sm" color="warning">{p.stock_quantity} low</Badge>
+                        ) : (
+                          p.stock_quantity
+                        )}
+                      </td>
+                    )}
                     <td className="px-6 py-4">
                       <Badge size="sm" color={p.is_active ? "success" : "light"}>
-                        {p.is_active ? "active" : "inactive"}
+                        {p.is_active ? "Active" : "Inactive"}
                       </Badge>
+                      {marketplaceEnabled && !p.visible_in_marketplace && (
+                        <div className="mt-1 text-theme-xs text-gray-400">In-store only</div>
+                      )}
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <Link
-                        to={`/tenant/products/${p.id}/edit`}
-                        className="mr-3 text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                      >
-                        Edit
-                      </Link>
-                      <button
-                        onClick={() => askDelete(p)}
-                        className="text-error-500 hover:text-error-600"
-                      >
-                        Delete
-                      </button>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`/tenant/products/${p.id}/edit`); }}
+                          className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-white/[0.06]"
+                          aria-label={`Edit ${p.name}`}
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+                            <path d="M13.5 3.5l3 3L7 16l-4 1 1-4 9.5-9.5z" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); askDelete(p); }}
+                          className="rounded-lg p-2 text-gray-400 transition hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10"
+                          aria-label={`Delete ${p.name}`}
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+                            <path d="M4 6h12M8 6V4h4v2m1 0l-.5 10h-9L3 6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

@@ -6,45 +6,193 @@ import Badge from "../../../components/ui/badge/Badge";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
-import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
+import { useToast } from "../../../components/ui/toast";
+import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
-import { useAdminTenant, useModuleCatalog, usePayments, usePlans, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import { useAdminTenant, useExtendLimits, useModuleCatalog, usePayments, usePlans, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import type { Plan } from "../services/adminService";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
+import type { Tenant } from "../../auth/types";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
-/** Admin-only editor for a tenant's business type (owners can't change it). */
-function BusinessTypeCard({ tenantId, current }: { tenantId: string; current: string | null }) {
-  const businessTypes = useBusinessTypes();
-  const { update } = useTenantMutations();
-  const [value, setValue] = useState(current ?? "");
-  useEffect(() => { setValue(current ?? ""); }, [current]);
-  const dirty = value !== (current ?? "");
+/** Editable per-tenant limits (orders_month is never capped, so not shown). */
+const EXTENDABLE: Array<{ key: "products" | "branches" | "staff" | "storage_mb"; label: string }> = [
+  { key: "products", label: "Products" },
+  { key: "branches", label: "Branches" },
+  { key: "staff", label: "Staff" },
+  { key: "storage_mb", label: "Storage (MB)" },
+];
+
+/**
+ * Live usage vs the tenant's effective limits, with a per-tenant "Extend"
+ * action. Extend overrides the plan baseline for THIS tenant only; clearing a
+ * field (blank) falls back to the plan.
+ */
+function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
+  const extend = useExtendLimits();
+  const toast = useToast();
+  const modal = useModal();
+  const usage = tenant.limits_usage ?? [];
+  const overrides = tenant.limit_overrides ?? {};
+
+  const [form, setForm] = useState<Record<string, string>>({});
+  const openExtend = () => {
+    setForm(
+      Object.fromEntries(EXTENDABLE.map(({ key }) => [key, overrides[key] != null ? String(overrides[key]) : ""])),
+    );
+    extend.reset();
+    modal.openModal();
+  };
+
+  const planLimit = (key: string): number | null | undefined =>
+    plan?.limits?.[key as keyof NonNullable<Plan["limits"]>];
+  const fmt = (n: number | null | undefined) => (n == null ? "Unlimited" : n.toLocaleString());
+
+  // Field validation shows inline; a general failure is a toast.
+  const extErr = extend.error instanceof ApiError ? extend.error : null;
+  const fieldErr = (key: string) => extErr?.errors[`limits.${key}`]?.[0];
+
+  const save = () => {
+    const limits: Record<string, number | null> = {};
+    for (const { key } of EXTENDABLE) {
+      const v = (form[key] ?? "").trim();
+      limits[key] = v === "" ? null : Number(v);
+    }
+    extend.mutate(
+      { id: tenant.id, limits },
+      {
+        onSuccess: () => {
+          toast.success("Limits updated");
+          modal.closeModal();
+        },
+        onError: (e) => {
+          if (e instanceof ApiError && Object.keys(e.errors).length > 0) return; // inline handles it
+          toast.error(e instanceof ApiError ? e.message : "Couldn't update limits.");
+        },
+      },
+    );
+  };
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-      <div className="mb-1 flex items-center justify-between">
-        <h3 className="font-semibold text-gray-800 dark:text-white/90">Business type</h3>
-        {update.isSuccess && !dirty && <span className="text-theme-xs text-success-600">Saved ✓</span>}
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="font-semibold text-gray-800 dark:text-white/90">Plan usage &amp; limits</h3>
+        <Button size="sm" variant="outline" onClick={openExtend}>Extend</Button>
       </div>
-      <p className="mb-3 text-theme-xs text-gray-400">Drives features, default categories and terminology. Only you (admin) can change this — the owner can't.</p>
-      <div className="flex items-end gap-3">
-        <div className="flex-1">
-          <Select
-            value={value}
-            options={(businessTypes.data ?? []).filter((b) => b.available).map((b) => ({ value: b.code, label: b.label }))}
-            placeholder={businessTypes.isLoading ? "Loading…" : "Choose type"}
-            onChange={setValue}
-          />
+
+      {usage.length === 0 ? (
+        <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+          Assign a plan to meter usage.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {usage.map((u) => {
+            const pct = u.limit && u.limit > 0 ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
+            const bar = pct >= 100 ? "bg-error-500" : pct >= 80 ? "bg-warning-500" : "bg-brand-500";
+            const extended = overrides[u.key] != null;
+            return (
+              <div key={u.key}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                    {u.label}
+                    {extended && <Badge size="sm" color="info">extended</Badge>}
+                  </span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {u.used.toLocaleString()}{" / "}
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      {u.unlimited ? "∞" : u.limit?.toLocaleString()}
+                    </span>
+                  </span>
+                </div>
+                {!u.unlimited && (
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                    <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-        <Button size="sm" disabled={!dirty || !value || update.isPending} onClick={() => update.mutate({ id: tenantId, business_type: value })}>
-          {update.isPending ? "Saving…" : "Save"}
-        </Button>
+      )}
+
+      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Extend limits</h3>
+        <p className="mb-4 text-theme-xs text-gray-400">
+          Raise this tenant’s ceilings past its plan. Leave a field blank to use the plan default.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          {EXTENDABLE.map(({ key, label }) => (
+            <div key={key}>
+              <Label>{label}</Label>
+              <Input
+                type="number"
+                min="1"
+                value={form[key] ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                placeholder={`Plan: ${fmt(planLimit(key))}`}
+              />
+              {fieldErr(key) && <p className="mt-1 text-theme-xs text-error-500">{fieldErr(key)}</p>}
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
+          <Button size="sm" onClick={save} disabled={extend.isPending}>
+            {extend.isPending ? "Saving…" : "Save limits"}
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/** Admin-only editor for a tenant's business type + category (owners can't). */
+function BusinessTypeCard({ tenantId, current, currentCategory }: { tenantId: string; current: string | null; currentCategory: string | null }) {
+  const businessTypes = useBusinessTypes();
+  const { update } = useTenantMutations();
+  const toast = useToast();
+  const [type, setType] = useState(current ?? "");
+  const [category, setCategory] = useState(currentCategory ?? "");
+  useEffect(() => { setType(current ?? ""); }, [current]);
+  useEffect(() => { setCategory(currentCategory ?? ""); }, [currentCategory]);
+
+  const categories = (businessTypes.data ?? []).find((b) => b.code === type)?.categories ?? [];
+  const dirty = type !== (current ?? "") || category !== (currentCategory ?? "");
+
+  const save = () =>
+    update.mutate(
+      { id: tenantId, business_type: type, business_category: category || undefined },
+      {
+        onSuccess: () => toast.success("Business type updated"),
+        onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't update business type."),
+      },
+    );
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+      <h3 className="font-semibold text-gray-800 dark:text-white/90">Business type &amp; category</h3>
+      <p className="mb-3 text-theme-xs text-gray-400">Type drives features &amp; terminology (the owner can’t change it); the category refines it within the type.</p>
+      <div className="grid grid-cols-2 gap-3">
+        <Select
+          value={type}
+          options={(businessTypes.data ?? []).filter((b) => b.available).map((b) => ({ value: b.code, label: b.label }))}
+          placeholder={businessTypes.isLoading ? "Loading…" : "Choose type"}
+          onChange={(v) => { setType(v); setCategory(""); }}
+        />
+        <Select
+          value={category}
+          options={categories.map((c) => ({ value: c.value, label: c.label }))}
+          placeholder={type ? "Choose a category" : "Pick a type first"}
+          onChange={setCategory}
+        />
       </div>
-      {update.error instanceof ApiError && <p className="mt-2 text-theme-xs text-error-500">{update.error.message}</p>}
+      <Button size="sm" className="mt-3" disabled={!dirty || !type || update.isPending} onClick={save}>
+        {update.isPending ? "Saving…" : "Save"}
+      </Button>
     </div>
   );
 }
@@ -100,20 +248,31 @@ export default function AdminTenantDetailPage() {
   const { suspend, activate, remove, restore, assignPlan } = useTenantMutations();
 
   const planModal = useModal();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [planId, setPlanId] = useState("");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const t = tenant.data;
   const paymentRows = payments.data?.data ?? [];
+  const currentPlan = plans.data?.find((p) => p.id === t?.plan?.id);
 
-  const onError = (e: unknown) => setActionError(e instanceof ApiError ? e.message : "Action failed.");
-  const run = (fn: { mutate: (id: string, opts: object) => void }) => {
+  const onError = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "Action failed.");
+  const run = (fn: { mutate: (id: string, opts: object) => void }, success: string) => {
     if (!id) return;
-    setActionError(null);
-    fn.mutate(id, { onError });
+    fn.mutate(id, { onSuccess: () => toast.success(success), onError });
+  };
+
+  const doDelete = async () => {
+    const ok = await confirm({
+      title: "Delete this tenant?",
+      message: "Data is preserved and fully restorable — this is a soft delete.",
+      confirmLabel: "Delete tenant",
+      tone: "danger",
+    });
+    if (ok) run(remove, "Tenant deleted");
   };
 
   const doAssignPlan = () => {
@@ -124,7 +283,13 @@ export default function AdminTenantDetailPage() {
         plan_id: planId,
         payment: amount ? { amount: Number(amount), method, reference: reference || undefined } : undefined,
       },
-      { onSuccess: () => planModal.closeModal(), onError },
+      {
+        onSuccess: () => {
+          toast.success("Plan assigned");
+          planModal.closeModal();
+        },
+        onError,
+      },
     );
   };
 
@@ -147,8 +312,6 @@ export default function AdminTenantDetailPage() {
         </div>
       </div>
 
-      {actionError && <div className="mb-4"><Alert variant="error" title="Action blocked" message={actionError} /></div>}
-
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Info + actions */}
         <div className="space-y-6 lg:col-span-2">
@@ -170,11 +333,14 @@ export default function AdminTenantDetailPage() {
             </dl>
           </div>
 
-          {/* Business type — admin-controlled */}
-          <BusinessTypeCard tenantId={t.id} current={t.business_type ?? null} />
+          {/* Business type + category — admin-controlled */}
+          <BusinessTypeCard tenantId={t.id} current={t.business_type ?? null} currentCategory={t.business_category ?? null} />
 
           {/* Module management */}
           <ModulesCard tenantId={t.id} features={t.features ?? {}} />
+
+          {/* Plan usage & per-tenant limit extension */}
+          <UsageLimitsCard tenant={t} plan={currentPlan} />
 
           {/* Owner accounts */}
           {t.users && t.users.length > 0 && (
@@ -228,21 +394,21 @@ export default function AdminTenantDetailPage() {
         {/* Actions sidebar */}
         <div className="h-fit space-y-3 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
           <h3 className="mb-2 font-semibold text-gray-800 dark:text-white/90">Actions</h3>
-          <Button size="sm" className="w-full" onClick={() => { setPlanId(t.plan?.id ?? ""); setActionError(null); planModal.openModal(); }}>
+          <Button size="sm" className="w-full" onClick={() => { setPlanId(t.plan?.id ?? ""); planModal.openModal(); }}>
             Assign / renew plan
           </Button>
           {t.deleted_at ? (
-            <Button size="sm" variant="outline" className="w-full" onClick={() => run(restore)}>Restore</Button>
+            <Button size="sm" variant="outline" className="w-full" onClick={() => run(restore, "Tenant restored")}>Restore</Button>
           ) : (
             <>
               {t.status === "active" ? (
-                <Button size="sm" variant="outline" className="w-full" onClick={() => run(suspend)} disabled={suspend.isPending}>Suspend</Button>
+                <Button size="sm" variant="outline" className="w-full" onClick={() => run(suspend, "Tenant suspended — all sessions revoked")} disabled={suspend.isPending}>Suspend</Button>
               ) : (
-                <Button size="sm" variant="outline" className="w-full" onClick={() => run(activate)} disabled={activate.isPending}>Activate</Button>
+                <Button size="sm" variant="outline" className="w-full" onClick={() => run(activate, "Tenant activated")} disabled={activate.isPending}>Activate</Button>
               )}
               <button
                 className="w-full rounded-lg border border-error-300 py-2.5 text-sm text-error-500 hover:bg-error-50 dark:border-error-500/40"
-                onClick={() => { if (window.confirm("Soft-delete this tenant? Data is preserved and restorable.")) run(remove); }}
+                onClick={doDelete}
               >
                 Delete tenant
               </button>

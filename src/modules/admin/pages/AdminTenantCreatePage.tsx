@@ -22,6 +22,7 @@ export default function AdminTenantCreatePage() {
     email: "",
     phone: "",
     business_type: "",
+    business_category: "",
     city_id: "",
     plan_id: "",
     owner_name: "",
@@ -29,6 +30,10 @@ export default function AdminTenantCreatePage() {
     owner_password: "",
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Categories to pick WITHIN the chosen type.
+  const typeCategories =
+    (businessTypes.data ?? []).find((t) => t.code === form.business_type)?.categories ?? [];
 
   const apiError = create.error instanceof ApiError ? create.error : null;
   const errorFor = (k: string) => apiError?.errors[k]?.[0];
@@ -43,6 +48,7 @@ export default function AdminTenantCreatePage() {
         email: form.email.trim() || undefined,
         phone: form.phone.trim() || undefined,
         business_type: form.business_type,
+        business_category: form.business_category || undefined,
         city_id: form.city_id || undefined,
         plan_id: form.plan_id || undefined,
         owner: {
@@ -74,17 +80,29 @@ export default function AdminTenantCreatePage() {
               <Input value={form.business_name} onChange={(e) => set("business_name", e.target.value)} />
               {errorFor("business_name") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("business_name")}</p>}
             </div>
-            <div>
-              <Label>Business type <span className="text-error-500">*</span></Label>
-              <Select
-                value={form.business_type}
-                options={(businessTypes.data ?? []).filter((t) => t.available).map((t) => ({ value: t.code, label: t.label }))}
-                placeholder={businessTypes.isLoading ? "Loading…" : "Choose the business type"}
-                onChange={(v) => set("business_type", v)}
-              />
-              <p className="mt-1 text-theme-xs text-gray-400">Drives the tenant's features, default categories and terminology. The owner can't change this.</p>
-              {errorFor("business_type") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("business_type")}</p>}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Business type <span className="text-error-500">*</span></Label>
+                <Select
+                  value={form.business_type}
+                  options={(businessTypes.data ?? []).filter((t) => t.available).map((t) => ({ value: t.code, label: t.label }))}
+                  placeholder={businessTypes.isLoading ? "Loading…" : "Choose the business type"}
+                  onChange={(v) => setForm((f) => ({ ...f, business_type: v, business_category: "" }))}
+                />
+                {errorFor("business_type") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("business_type")}</p>}
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Select
+                  value={form.business_category}
+                  options={typeCategories.map((c) => ({ value: c.value, label: c.label }))}
+                  placeholder={form.business_type ? "Choose a category" : "Pick a type first"}
+                  onChange={(v) => set("business_category", v)}
+                />
+                {errorFor("business_category") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("business_category")}</p>}
+              </div>
             </div>
+            <p className="-mt-2 text-theme-xs text-gray-400">Type drives features &amp; terminology (the owner can't change it); the category refines it within the type.</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Email</Label>

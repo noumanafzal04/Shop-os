@@ -62,6 +62,13 @@ export function useBusinessTypes() {
   });
 }
 
+export function useSubscription() {
+  return useQuery({
+    queryKey: ["shop", "subscription"],
+    queryFn: async () => (await shopService.subscription()).data,
+  });
+}
+
 export function useCompleteSetup() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();

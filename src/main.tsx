@@ -7,15 +7,21 @@ import "flatpickr/dist/flatpickr.css";
 import App from "./App.tsx";
 import { AppWrapper } from "./components/common/PageMeta.tsx";
 import { ThemeProvider } from "./context/ThemeContext.tsx";
+import { ToastProvider } from "./components/ui/toast";
+import { ConfirmProvider } from "./components/ui/confirm";
 import { queryClient } from "./common/api/queryClient.ts";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AppWrapper>
-          <App />
-        </AppWrapper>
+        <ToastProvider>
+          <ConfirmProvider>
+            <AppWrapper>
+              <App />
+            </AppWrapper>
+          </ConfirmProvider>
+        </ToastProvider>
       </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>,

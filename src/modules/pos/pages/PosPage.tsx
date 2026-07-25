@@ -140,9 +140,10 @@ export default function PosPage() {
   const businessType = useAuthStore(
     (s) => (s.user?.tenant as unknown as { business_type?: string })?.business_type,
   );
-  const isRestaurant = businessType === "restaurant";
-  // Food shops browse a visual image grid; high-SKU shops (grocery, pharmacy,
-  // hardware, wholesale…) get a dense, search-first list of rows.
+  // "food" is the current type; "restaurant" is its legacy code (kept for
+  // existing tenants). Food shops browse a visual image grid; high-SKU shops
+  // (mart, pharmacy, retail…) get a dense, search-first list of rows.
+  const isRestaurant = businessType === "food" || businessType === "restaurant";
   const posLayout: "grid" | "list" = isRestaurant ? "grid" : "list";
   const canDiscount = hasPermission("discounts.apply");
   const qc = useQueryClient();

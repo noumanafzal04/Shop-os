@@ -91,7 +91,8 @@ function shopNav(features: Record<string, boolean> | undefined): NavItem[] {
       ],
     },
 
-    // Settings stands alone at the bottom — always one click away.
+    // Settings + subscription stand alone at the bottom — one click away.
+    { icon: <DollarLineIcon />, name: "Subscription", path: "/tenant/subscription" },
     { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
   ];
 }

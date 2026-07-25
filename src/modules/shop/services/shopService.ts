@@ -23,8 +23,47 @@ export interface BusinessType {
   available: boolean;
   features: Record<string, boolean>;
   item_types: string[];
+  /** The categories a tenant picks WITHIN this type (its business_category). */
+  categories: Array<{ value: string; label: string }>;
   default_categories: string[];
   default_expense_categories: string[];
+}
+
+/** The shop's own subscription snapshot (read-only; admin assigns plans). */
+export interface SubscriptionInfo {
+  plan: {
+    id: string;
+    name: string;
+    code: string;
+    description: string | null;
+    price: string | number;
+    billing_period_months: number;
+    online_shop_enabled: boolean;
+    features: Record<string, boolean>;
+  } | null;
+  state: "active" | "grace" | "read_only";
+  subscription_ends_at: string | null;
+  grace_ends_at: string | null;
+  modules: Record<string, boolean>;
+  limits_usage: Array<{
+    key: string;
+    label: string;
+    limit: number | null;
+    used: number;
+    remaining: number | null;
+    unlimited: boolean;
+    enforced: boolean;
+  }>;
+  payments: Array<{
+    id: string;
+    plan_name: string;
+    amount: string;
+    method: string;
+    reference: string | null;
+    period_start: string;
+    period_end: string;
+    paid_at: string;
+  }>;
 }
 
 export interface GalleryImage {
@@ -66,6 +105,7 @@ export const shopService = {
   setup: (payload: SetupPayload) => apiPut<Tenant>("/shop/setup", payload),
   cities: () => apiGet<City[]>("/cities"),
   businessTypes: () => apiGet<BusinessType[]>("/business-types"),
+  subscription: () => apiGet<SubscriptionInfo>("/shop/subscription"),
   settings: () => apiGet<ShopSettings>("/shop/settings"),
   updateSettings: (payload: Partial<ShopSettings>) => apiPut<ShopSettings>("/shop/settings", payload),
 

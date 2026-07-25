@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Label from "../../../components/form/Label";
@@ -65,10 +65,28 @@ function Toggle({
   );
 }
 
+/** A titled card used to group a section of the form. */
+function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+      <div className="mb-3">
+        <p className="text-sm font-medium text-gray-800 dark:text-white/90">{title}</p>
+        {hint && <p className="mt-0.5 text-theme-xs text-gray-400">{hint}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 /**
- * Create/edit an item. Type (product/service) is chosen once at creation —
- * services hide stock/variants, per the common Item model. On edit, stock is
- * read-only (inventory module owns stock movements).
+ * Create/edit a catalog item. The form adapts on two axes so a shop only sees
+ * fields that apply to it:
+ *   1. Item type   — food / medicine / service / product / deal (capabilities).
+ *   2. Plan + modules — POS vs online-only (features.pos), inventory tracking
+ *      (features.inventory), online storefront (features.marketplace/images).
+ * Counter/scanner fields (barcode, packs, scale PLU, wholesale price) only
+ * appear for POS shops, tucked inside a collapsed "Advanced" panel. An
+ * online-only shop sees a short, storefront-focused form.
  */
 export default function ProductFormPage() {
   const { id } = useParams();
@@ -85,6 +103,12 @@ export default function ProductFormPage() {
     (s) => (s.user?.tenant as unknown as { business_type?: string })?.business_type,
   );
   const marketplaceEnabled = features?.marketplace ?? false;
+  // The in-shop till: an online-only plan has POS off, so it never needs the
+  // counter/scanner fields (barcode, packs, scale PLU, wholesale price level).
+  const posEnabled = features?.pos ?? false;
+  // Stock tracking is a module (business-type driven): restaurants/salons run
+  // without it; retail/grocery/pharmacy with it.
+  const inventoryEnabled = features?.inventory ?? false;
   // Images on when the module is on OR the shop sells online (online listings
   // must show photos). Mirrors Tenant::imagesEnabled() on the server.
   const imagesEnabled = (features?.images ?? false) || marketplaceEnabled;
@@ -135,16 +159,23 @@ export default function ProductFormPage() {
   const [variants, setVariants] = useState<FormVariant[]>([]);
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const syncModifiers = useSyncModifiers(id);
 
   // Capability profile of the currently-selected item type.
   const typeInfo = (itemTypesQ.data ?? []).find((t) => t.code === itemType);
   const isService = itemType === "service";
   const isCombo = itemType === "deal";
+  const isMedicine = itemType === "medicine";
+  const isFood = itemType === "food_item";
   const canTrackStock = typeInfo ? typeInfo.inventory !== "never" : !isService;
   const showVariants = typeInfo ? typeInfo.variants !== false : !isService;
   const supportsModifiers = !!typeInfo?.modifiers; // food items
-  const isFood = itemType === "food_item";
+  // Stock is only managed when the item type allows it AND the shop runs the
+  // inventory module. Otherwise no stock UI (and none sent on save).
+  const stockManaged = canTrackStock && inventoryEnabled;
+  // A plain sellable good (has SKU/brand/packs/barcodes); not a service or deal.
+  const isGood = !isService && !isCombo;
 
   // Products this deal can bundle — everything sellable except other deals and
   // the deal itself. Fetched only while editing a combo.
@@ -198,6 +229,14 @@ export default function ProductFormPage() {
       setTrackStock(p.track_inventory);
       setVisibleOnline(p.visible_in_marketplace);
       setCollectionIds((p.collections ?? []).map((c) => c.id));
+      // Reveal Advanced automatically when the item already carries any of its
+      // fields, so an editor doesn't "lose" data behind a collapsed panel.
+      if (
+        (p.sku ?? "") || (p.barcode ?? "") || (p.brand ?? "") || (p.units ?? []).length ||
+        (p.price_tiers ?? []).length || p.wholesale_price != null || (p.barcodes ?? []).length
+      ) {
+        setShowAdvanced(true);
+      }
       setModifierGroups(
         (p.modifier_groups ?? []).map((g) => ({
           name: g.name, type: g.type, min_select: g.min_select, max_select: g.max_select,
@@ -224,15 +263,16 @@ export default function ProductFormPage() {
       description: description.trim() || undefined,
       category_id: categoryId || null,
       sku: sku.trim() || undefined,
-      barcode: barcode.trim() || undefined,
-      plu_code: isService || soldBy !== "weight" ? null : pluCode.trim() || null,
+      // Counter/scanner data only when the shop runs a POS till.
+      barcode: posEnabled ? barcode.trim() || undefined : undefined,
+      plu_code: !posEnabled || isService || soldBy !== "weight" ? null : pluCode.trim() || null,
       brand: brand.trim() || undefined,
       generic_name: genericName.trim() || undefined,
-      requires_prescription: itemType === "medicine" ? requiresRx : undefined,
-      barcodes: isService ? undefined : extraBarcodes.map((b) => b.trim()).filter(Boolean),
-      units: isService || isCombo ? undefined : units
+      requires_prescription: isMedicine ? requiresRx : undefined,
+      barcodes: posEnabled && isGood ? extraBarcodes.map((b) => b.trim()).filter(Boolean) : undefined,
+      units: posEnabled && isGood ? units
         .filter((u) => u.name.trim() && Number(u.factor) > 0)
-        .map((u) => ({ name: u.name.trim(), factor: Number(u.factor), price: u.price ? Number(u.price) : null, barcode: u.barcode.trim() || null })),
+        .map((u) => ({ name: u.name.trim(), factor: Number(u.factor), price: u.price ? Number(u.price) : null, barcode: u.barcode.trim() || null })) : undefined,
       combo_items: isCombo
         ? comboRows.filter((r) => r.component_product_id && Number(r.quantity) > 0)
             .map((r) => ({ component_product_id: r.component_product_id, quantity: Number(r.quantity) }))
@@ -241,11 +281,11 @@ export default function ProductFormPage() {
       price: price,
       cost: cost || undefined,
       discount_price: salePrice || null,
-      wholesale_price: isService ? null : wholesalePrice || null,
-      sold_by: isService ? undefined : soldBy,
-      price_tiers: isService ? undefined : tiers.filter((t) => Number(t.min_qty) > 0 && Number(t.price) > 0),
-      min_order_qty: isService ? undefined : minOrderQty ? Number(minOrderQty) : null,
-      low_stock_threshold: canTrackStock && trackStock && lowStockThreshold ? Number(lowStockThreshold) : undefined,
+      wholesale_price: posEnabled && isGood ? wholesalePrice || null : null,
+      sold_by: isGood ? soldBy : undefined,
+      price_tiers: isGood ? tiers.filter((t) => Number(t.min_qty) > 0 && Number(t.price) > 0) : undefined,
+      min_order_qty: isGood ? (minOrderQty ? Number(minOrderQty) : null) : undefined,
+      low_stock_threshold: stockManaged && trackStock && lowStockThreshold ? Number(lowStockThreshold) : undefined,
       visible_in_marketplace: visibleOnline,
       collection_ids: collectionIds,
       ...(isFood ? { available_from: availableFrom || null, available_until: availableUntil || null } : {}),
@@ -274,7 +314,7 @@ export default function ProductFormPage() {
         {
           ...base,
           item_type: itemType,
-          ...(canTrackStock
+          ...(stockManaged
             ? {
                 track_inventory: trackStock,
                 stock_quantity: trackStock ? Number(stock) || 0 : 0,
@@ -375,6 +415,7 @@ export default function ProductFormPage() {
           </div>
         )}
 
+        {/* ── Essentials ─────────────────────────────────────────────── */}
         <div>
           <Label>
             Name <span className="text-error-500">*</span>
@@ -408,12 +449,6 @@ export default function ProductFormPage() {
             <Input type="number" min="0" step={0.01} value={price} onChange={(e) => setPrice(e.target.value)} />
             {err("price") && <p className="mt-1 text-theme-xs text-error-500">{err("price")}</p>}
           </div>
-          {!isService && !isCombo && (
-            <div>
-              <Label>Cost</Label>
-              <Input type="number" min="0" step={0.01} value={cost} onChange={(e) => setCost(e.target.value)} />
-            </div>
-          )}
           <div>
             <Label>Sale price (optional)</Label>
             <Input type="number" min="0" step={0.01} value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="Discounted price" />
@@ -421,180 +456,49 @@ export default function ProductFormPage() {
               <p className="mt-1 text-theme-xs text-warning-500">Sale price should be below the regular price.</p>
             )}
           </div>
-        </div>
-
-        {/* Wholesale price — the "Wholesale" price level the cashier can pick
-            per line at the POS. Leave blank for retail-only items. */}
-        {!isService && !isCombo && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {isGood && (
             <div>
-              <Label>Wholesale price (optional)</Label>
-              <Input type="number" min="0" step={0.01} value={wholesalePrice} onChange={(e) => setWholesalePrice(e.target.value)} placeholder="Bulk / trade price" />
-              {wholesalePrice && Number(wholesalePrice) >= Number(price || 0) && (
-                <p className="mt-1 text-theme-xs text-warning-500">Wholesale should be below the retail price.</p>
-              )}
-              <p className="mt-1 text-theme-xs text-gray-400">Cashiers can switch a POS line to this rate via the price-level dropdown.</p>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <Label>SKU</Label>
-            <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Unique code" />
-            {err("sku") && <p className="mt-1 text-theme-xs text-error-500">{err("sku")}</p>}
-          </div>
-          {!isService && !isCombo && (
-            <div>
-              <Label>Sold by</Label>
-              <Select
-                key={soldBy}
-                defaultValue={soldBy}
-                options={[
-                  { value: "unit", label: "Unit (whole numbers)" },
-                  { value: "weight", label: "Weight / measure (allows 0.5, 1.25…)" },
-                ]}
-                placeholder="Sold by"
-                onChange={(v) => setSoldBy(v as "unit" | "weight")}
-              />
-              <p className="mt-1 text-theme-xs text-gray-400">Weight lets you sell fractions — e.g. 1.5 kg sugar, 2.5 m cable.</p>
-            </div>
-          )}
-          {!isService && !isCombo && soldBy === "weight" && (
-            <div>
-              <Label>Scale PLU code</Label>
-              <Input value={pluCode} onChange={(e) => setPluCode(e.target.value.replace(/\D/g, ""))} placeholder="e.g. 21" />
-              {err("plu_code") && <p className="mt-1 text-theme-xs text-error-500">{err("plu_code")}</p>}
-              <p className="mt-1 text-theme-xs text-gray-400">The number programmed into your weighing scale for this item. Scanning the scale's printed label rings it up at the weighed amount. (Enable scale barcodes in Settings.)</p>
+              <Label>Cost (optional)</Label>
+              <Input type="number" min="0" step={0.01} value={cost} onChange={(e) => setCost(e.target.value)} placeholder="For profit reports" />
             </div>
           )}
         </div>
 
-        {/* Barcode / brand / unit — physical goods & food */}
-        {!isService && !isCombo && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <Label>Barcode</Label>
-              <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type" />
-              {err("barcode") && <p className="mt-1 text-theme-xs text-error-500">{err("barcode")}</p>}
+        {/* Pharmacy specifics — salt/generic name + prescription flag. */}
+        {isMedicine && (
+          <Section title="Medicine details">
+            <div className="space-y-3">
+              <div>
+                <Label>Salt / generic name</Label>
+                <Input
+                  value={genericName}
+                  onChange={(e) => setGenericName(e.target.value)}
+                  placeholder="e.g. Paracetamol 500mg"
+                />
+                <p className="mt-1 text-theme-xs text-gray-400">
+                  Buyers can find this medicine by its salt as well as its brand name.
+                </p>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={requiresRx}
+                  onChange={(e) => setRequiresRx(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                />
+                Requires a doctor's prescription (℞) — staff are warned at the counter
+              </label>
             </div>
-            <div>
-              <Label>Brand</Label>
-              <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Nestlé" />
-            </div>
-            <div>
-              <Label>Unit</Label>
-              <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="pcs, kg, box…" />
-            </div>
-          </div>
+          </Section>
         )}
 
-        {/* Salt / generic name + prescription flag — pharmacy specifics. */}
-        {itemType === "medicine" && (
-          <div className="space-y-3">
-            <div>
-              <Label>Salt / generic name</Label>
-              <Input
-                value={genericName}
-                onChange={(e) => setGenericName(e.target.value)}
-                placeholder="e.g. Paracetamol 500mg"
-              />
-              <p className="mt-1 text-theme-xs text-gray-400">
-                Buyers can find this medicine by its salt as well as its brand name.
-              </p>
-            </div>
-            <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
-              <input
-                type="checkbox"
-                checked={requiresRx}
-                onChange={(e) => setRequiresRx(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
-              />
-              Requires a doctor's prescription (℞) — staff are warned at the counter
-            </label>
-          </div>
-        )}
-
-        {/* Extra barcodes — a product can carry several (supplier packs, old
-            + new labels). All of them resolve at the POS. */}
-        {!isService && !isCombo && (
-          <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Additional barcodes</p>
-              <button
-                type="button"
-                className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
-                onClick={() => setExtraBarcodes((b) => [...b, ""])}
-              >
-                + Add barcode
-              </button>
-            </div>
-            <p className="mb-3 text-theme-xs text-gray-400">Beyond the primary barcode above — e.g. a different supplier's pack of the same item.</p>
-            {extraBarcodes.length === 0 ? (
-              <p className="text-theme-xs text-gray-400">None yet.</p>
-            ) : (
-              extraBarcodes.map((code, i) => (
-                <div key={i} className="mb-2 flex items-center gap-2">
-                  <Input
-                    value={code}
-                    onChange={(e) => setExtraBarcodes((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))}
-                    placeholder="Scan or type"
-                  />
-                  <button
-                    type="button"
-                    className="text-error-500 hover:text-error-600"
-                    onClick={() => setExtraBarcodes((arr) => arr.filter((_, j) => j !== i))}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Pack sizes (pack-breaking) — sell the same stock as loose units,
-            strips, or boxes. Stock is counted in the base unit above. */}
-        {!isService && !isCombo && (
-          <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Pack sizes</p>
-              <button
-                type="button"
-                className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
-                onClick={() => setUnits((u) => [...u, { name: "", factor: "", price: "", barcode: "" }])}
-              >
-                + Add pack
-              </button>
-            </div>
-            <p className="mb-3 text-theme-xs text-gray-400">
-              Sell this item in bigger packs while stock stays counted in <span className="font-medium">{unit.trim() || "the base unit"}</span> (set “Unit” above, e.g. tablet). A pharmacy can sell a Strip (=10 tablets) or Box (=100). Leave price blank to use base price × pack size.
-            </p>
-            {units.length === 0 ? (
-              <p className="text-theme-xs text-gray-400">None — sold only in the base unit.</p>
-            ) : (
-              units.map((u, i) => (
-                <div key={i} className="mb-2 flex flex-wrap items-center gap-2">
-                  <Input value={u.name} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} placeholder="Pack name (Strip)" className="max-w-40" />
-                  <span className="text-theme-xs text-gray-400">=</span>
-                  <Input type="number" min="0" step={0.001} value={u.factor} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, factor: e.target.value } : x)))} placeholder="10" className="max-w-24" />
-                  <span className="text-theme-xs text-gray-400">{unit.trim() || "base"}(s)</span>
-                  <Input type="number" min="0" step={0.01} value={u.price} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} placeholder="price (optional)" className="max-w-32" />
-                  <Input value={u.barcode} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, barcode: e.target.value } : x)))} placeholder="pack barcode (optional)" className="max-w-40" />
-                  <button type="button" className="text-error-500 hover:text-error-600" onClick={() => setUnits((arr) => arr.filter((_, j) => j !== i))}>✕</button>
-                </div>
-              ))
-            )}
-            {err("units") && <p className="mt-1 text-theme-xs text-error-500">{err("units")}</p>}
-          </div>
-        )}
-
-        {/* Bundle contents (combo/deal) — the products this deal is made of.
-            Selling the deal draws each component's stock down. */}
+        {/* Bundle contents (combo/deal) — the products this deal is made of. */}
         {isCombo && (
-          <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Bundle contents <span className="text-error-500">*</span></p>
+          <Section
+            title="Bundle contents *"
+            hint="The deal sells at the Price above; picking it at the POS deducts stock for each item below. E.g. Burger ×1, Fries ×1, Drink ×1."
+          >
+            <div className="mb-2 flex justify-end">
               <button
                 type="button"
                 className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
@@ -603,9 +507,6 @@ export default function ProductFormPage() {
                 + Add item
               </button>
             </div>
-            <p className="mb-3 text-theme-xs text-gray-400">
-              The deal sells at the <span className="font-medium">Price</span> above; picking it at the POS deducts stock for each item below. E.g. Burger ×1, Fries ×1, Drink ×1.
-            </p>
             {comboRows.length === 0 ? (
               <p className="text-theme-xs text-gray-400">No items yet — add at least one.</p>
             ) : (
@@ -631,47 +532,39 @@ export default function ProductFormPage() {
               <p className="mt-1 text-theme-xs text-warning-500">Create some products first — a deal bundles existing items.</p>
             )}
             {err("combo_items") && <p className="mt-1 text-theme-xs text-error-500">{err("combo_items")}</p>}
-          </div>
+          </Section>
         )}
 
-        {/* Wholesale / bulk pricing — quantity breaks + minimum order */}
-        {!isService && !isCombo && (businessType === "wholesale" || tiers.length > 0) && (
-          <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Bulk pricing (quantity breaks)</p>
-              <button
-                type="button"
-                className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
-                onClick={() => setTiers((t) => [...t, { min_qty: "", price: "" }])}
-              >
-                + Add tier
-              </button>
+        {/* Food menu hours */}
+        {isFood && (
+          <Section title="Available hours (optional)" hint="Leave empty to sell all day. Set a window for breakfast/lunch menus.">
+            <div className="flex items-center gap-3">
+              <Input type="time" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} />
+              <span className="text-sm text-gray-400">to</span>
+              <Input type="time" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} />
             </div>
-            <p className="mb-3 text-theme-xs text-gray-400">Buy more, pay less — e.g. 10+ at Rs 90, 50+ at Rs 80. The deepest tier the quantity reaches wins.</p>
-            {tiers.map((t, i) => (
-              <div key={i} className="mb-2 flex items-center gap-2">
-                <span className="text-theme-xs text-gray-400">From qty</span>
-                <Input type="number" min="0" step={0.001} value={t.min_qty} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, min_qty: e.target.value } : x)))} className="max-w-28" />
-                <span className="text-theme-xs text-gray-400">price each</span>
-                <Input type="number" min="0" step={0.01} value={t.price} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} className="max-w-28" />
-                <button type="button" className="text-error-500 hover:text-error-600" onClick={() => setTiers((arr) => arr.filter((_, j) => j !== i))}>✕</button>
-              </div>
-            ))}
-            <div className="mt-3 max-w-xs">
-              <Label>Minimum order quantity (online)</Label>
-              <Input type="number" min="0" step={0.001} value={minOrderQty} onChange={(e) => setMinOrderQty(e.target.value)} placeholder="e.g. 12" />
-              <p className="mt-1 text-theme-xs text-gray-400">Online orders below this quantity are rejected. POS is not restricted.</p>
-            </div>
-          </div>
+          </Section>
         )}
 
-        {canTrackStock ? (
+        {/* Stock (inventory module + trackable type) — else duration for services */}
+        {isService ? (
+          <div className="max-w-xs">
+            <Label>Duration (minutes)</Label>
+            <Input
+              type="number"
+              min="1"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder="e.g. 30"
+            />
+          </div>
+        ) : stockManaged ? (
           <>
             <Toggle
               checked={trackStock}
               onChange={setTrackStock}
               title="Track stock for this item"
-              hint="Turn off for made-to-order items like food — they're always available and never run out."
+              hint="Turn off for made-to-order items — they're always available and never run out."
             />
             {trackStock && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -704,68 +597,17 @@ export default function ProductFormPage() {
               </div>
             )}
           </>
-        ) : (
-          <div className="max-w-xs">
-            <Label>Duration (minutes)</Label>
-            <Input
-              type="number"
-              min="1"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              placeholder="e.g. 30"
-            />
-          </div>
-        )}
+        ) : null}
 
         <div>
           <Label>Description</Label>
           <TextArea value={description} onChange={setDescription} rows={3} placeholder="Optional details" />
         </div>
 
-        {/* Online visibility — only when this tenant sells online */}
-        {marketplaceEnabled && (
-          <Toggle
-            checked={visibleOnline}
-            onChange={setVisibleOnline}
-            title="Sell this item online"
-            hint="When on, customers can see and order this item in your online shop. Turn off to keep it in-store only."
-          />
-        )}
-
-        {/* Collections — attach to display sections (Popular, Deals…) */}
-        {(collectionsQ.data ?? []).length > 0 && (
-          <div>
-            <Label>Collections</Label>
-            <div className="flex flex-wrap gap-2">
-              {(collectionsQ.data ?? []).map((c) => {
-                const on = collectionIds.includes(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() =>
-                      setCollectionIds((prev) => (on ? prev.filter((x) => x !== c.id) : [...prev, c.id]))
-                    }
-                    className={`rounded-full border px-3 py-1.5 text-theme-xs transition ${
-                      on
-                        ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10"
-                        : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
-                    }`}
-                  >
-                    {on ? "✓ " : ""}{c.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Photos — only when the shop uses product images (module on, or it
-            sells online). Keeps the form neat for walk-in-only shops. */}
+        {/* Photos — when the shop uses product images (module on, or sells online) */}
         {imagesEnabled && (
-        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-          <div className="mb-3 flex items-center justify-between">
-            <Label>Photos</Label>
+        <Section title="Photos">
+          <div className="mb-3 flex items-center justify-end">
             <label className="cursor-pointer rounded-lg border border-brand-500 px-3 py-1.5 text-theme-xs font-medium text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10">
               {images.upload.isPending ? "Uploading…" : "+ Add photos"}
               <input
@@ -840,30 +682,124 @@ export default function ProductFormPage() {
               Add up to 8 photos — they'll be attached when you create the item. The first one is the cover.
             </p>
           )}
-        </div>
+        </Section>
         )}
 
-        {/* Available hours — food menu items */}
-        {isFood && (
-          <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-            <Label>Available hours (optional)</Label>
-            <div className="flex items-center gap-3">
-              <Input type="time" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} />
-              <span className="text-sm text-gray-400">to</span>
-              <Input type="time" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} />
+        {/* Online storefront — visibility + collections (online shops only) */}
+        {marketplaceEnabled && (
+          <Toggle
+            checked={visibleOnline}
+            onChange={setVisibleOnline}
+            title="Sell this item online"
+            hint="When on, customers can see and order this item in your online shop. Turn off to keep it in-store only."
+          />
+        )}
+
+        {(collectionsQ.data ?? []).length > 0 && (
+          <div>
+            <Label>Collections</Label>
+            <div className="flex flex-wrap gap-2">
+              {(collectionsQ.data ?? []).map((c) => {
+                const on = collectionIds.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() =>
+                      setCollectionIds((prev) => (on ? prev.filter((x) => x !== c.id) : [...prev, c.id]))
+                    }
+                    className={`rounded-full border px-3 py-1.5 text-theme-xs transition ${
+                      on
+                        ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10"
+                        : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
+                    }`}
+                  >
+                    {on ? "✓ " : ""}{c.name}
+                  </button>
+                );
+              })}
             </div>
-            <p className="mt-1 text-theme-xs text-gray-400">Leave empty to sell all day. Set a window for breakfast/lunch menus.</p>
           </div>
+        )}
+
+        {/* Variants — products, creation only */}
+        {showVariants && !isEdit && (
+          <Section title="Variants (optional)" hint="e.g. sizes or colors — each with its own SKU, price and stock.">
+            <div className="mb-2 flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setVariants((v) => [...v, { _key: nextKey(), name: "", price: "", stock_quantity: 0 }])
+                }
+              >
+                + Add variant
+              </Button>
+            </div>
+            {variants.map((v, i) => (
+              <div key={v._key} className="mb-2 grid grid-cols-12 items-center gap-2">
+                <div className="col-span-4">
+                  <Input
+                    placeholder="Name e.g. Red / L"
+                    value={v.name}
+                    onChange={(e) =>
+                      setVariants((list) => list.map((x) => (x._key === v._key ? { ...x, name: e.target.value } : x)))
+                    }
+                  />
+                </div>
+                <div className="col-span-3">
+                  <Input
+                    placeholder="SKU"
+                    value={v.sku ?? ""}
+                    onChange={(e) =>
+                      setVariants((list) => list.map((x) => (x._key === v._key ? { ...x, sku: e.target.value } : x)))
+                    }
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Input
+                    type="number"
+                    placeholder="Price"
+                    value={String(v.price)}
+                    onChange={(e) =>
+                      setVariants((list) => list.map((x) => (x._key === v._key ? { ...x, price: e.target.value } : x)))
+                    }
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Input
+                    type="number"
+                    placeholder="Stock"
+                    value={String(v.stock_quantity ?? 0)}
+                    onChange={(e) =>
+                      setVariants((list) =>
+                        list.map((x) => (x._key === v._key ? { ...x, stock_quantity: Number(e.target.value) } : x)),
+                      )
+                    }
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="col-span-1 text-error-500"
+                  onClick={() => setVariants((list) => list.filter((x) => x._key !== v._key))}
+                >
+                  ✕
+                </button>
+                {err(`variants.${i}.name`) && (
+                  <p className="col-span-12 text-theme-xs text-error-500">{err(`variants.${i}.name`)}</p>
+                )}
+                {err(`variants.${i}.sku`) && (
+                  <p className="col-span-12 text-theme-xs text-error-500">{err(`variants.${i}.sku`)}</p>
+                )}
+              </div>
+            ))}
+          </Section>
         )}
 
         {/* Modifiers & add-ons — food items, edit only (needs a saved item) */}
         {supportsModifiers && isEdit && (
-          <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <Label>Modifiers & add-ons</Label>
-                <p className="text-theme-xs text-gray-400">Choices (crust, size) and paid extras (toppings, drinks).</p>
-              </div>
+          <Section title="Modifiers & add-ons" hint="Choices (crust, size) and paid extras (toppings, drinks).">
+            <div className="mb-3 flex justify-end">
               <Button
                 size="sm"
                 variant="outline"
@@ -930,86 +866,196 @@ export default function ProductFormPage() {
                 {syncModifiers.isPending ? "Saving…" : syncModifiers.isSuccess ? "Saved ✓" : "Save modifiers"}
               </Button>
             </div>
-          </div>
+          </Section>
         )}
 
-        {/* Variants — products, creation only (variant editing lands with inventory UI) */}
-        {showVariants && !isEdit && (
-          <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-            <div className="mb-3 flex items-center justify-between">
-              <Label>Variants (optional)</Label>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  setVariants((v) => [...v, { _key: nextKey(), name: "", price: "", stock_quantity: 0 }])
-                }
-              >
-                + Add variant
-              </Button>
-            </div>
-            {variants.length === 0 && (
-              <p className="text-theme-xs text-gray-400">
-                e.g. sizes or colors — each with its own SKU, price and stock.
-              </p>
-            )}
-            {variants.map((v, i) => (
-              <div key={v._key} className="mb-2 grid grid-cols-12 items-center gap-2">
-                <div className="col-span-4">
-                  <Input
-                    placeholder="Name e.g. Red / L"
-                    value={v.name}
-                    onChange={(e) =>
-                      setVariants((list) => list.map((x) => (x._key === v._key ? { ...x, name: e.target.value } : x)))
-                    }
-                  />
+        {/* ── Advanced (collapsed) — codes, packs & pricing extras ─────── */}
+        {(isGood || !isService) && (
+          <div className="rounded-xl border border-gray-200 dark:border-gray-800">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left"
+            >
+              <span className="text-sm font-medium text-gray-800 dark:text-white/90">Advanced options</span>
+              <span className="text-theme-xs text-gray-400">
+                {showAdvanced ? "Hide ▲" : "Show ▼"}
+              </span>
+            </button>
+
+            {showAdvanced && (
+              <div className="space-y-4 border-t border-gray-100 p-4 dark:border-gray-800">
+                {/* SKU + brand + base unit */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <Label>SKU</Label>
+                    <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Unique code" />
+                    {err("sku") && <p className="mt-1 text-theme-xs text-error-500">{err("sku")}</p>}
+                  </div>
+                  {isGood && (
+                    <>
+                      <div>
+                        <Label>Brand</Label>
+                        <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Nestlé" />
+                      </div>
+                      <div>
+                        <Label>Base unit</Label>
+                        <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="pcs, kg, box…" />
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="col-span-3">
-                  <Input
-                    placeholder="SKU"
-                    value={v.sku ?? ""}
-                    onChange={(e) =>
-                      setVariants((list) => list.map((x) => (x._key === v._key ? { ...x, sku: e.target.value } : x)))
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Input
-                    type="number"
-                    placeholder="Price"
-                    value={String(v.price)}
-                    onChange={(e) =>
-                      setVariants((list) => list.map((x) => (x._key === v._key ? { ...x, price: e.target.value } : x)))
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Input
-                    type="number"
-                    placeholder="Stock"
-                    value={String(v.stock_quantity ?? 0)}
-                    onChange={(e) =>
-                      setVariants((list) =>
-                        list.map((x) => (x._key === v._key ? { ...x, stock_quantity: Number(e.target.value) } : x)),
-                      )
-                    }
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="col-span-1 text-error-500"
-                  onClick={() => setVariants((list) => list.filter((x) => x._key !== v._key))}
-                >
-                  ✕
-                </button>
-                {err(`variants.${i}.name`) && (
-                  <p className="col-span-12 text-theme-xs text-error-500">{err(`variants.${i}.name`)}</p>
+
+                {/* Sold by (+ scale PLU for POS weight items) */}
+                {isGood && (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div>
+                      <Label>Sold by</Label>
+                      <Select
+                        key={soldBy}
+                        defaultValue={soldBy}
+                        options={[
+                          { value: "unit", label: "Unit (whole numbers)" },
+                          { value: "weight", label: "Weight / measure (0.5, 1.25…)" },
+                        ]}
+                        placeholder="Sold by"
+                        onChange={(v) => setSoldBy(v as "unit" | "weight")}
+                      />
+                      <p className="mt-1 text-theme-xs text-gray-400">Weight lets you sell fractions — e.g. 1.5 kg sugar.</p>
+                    </div>
+                    {posEnabled && soldBy === "weight" && (
+                      <div>
+                        <Label>Scale PLU code</Label>
+                        <Input value={pluCode} onChange={(e) => setPluCode(e.target.value.replace(/\D/g, ""))} placeholder="e.g. 21" />
+                        {err("plu_code") && <p className="mt-1 text-theme-xs text-error-500">{err("plu_code")}</p>}
+                        <p className="mt-1 text-theme-xs text-gray-400">The number programmed into your weighing scale. (Enable scale barcodes in Settings.)</p>
+                      </div>
+                    )}
+                  </div>
                 )}
-                {err(`variants.${i}.sku`) && (
-                  <p className="col-span-12 text-theme-xs text-error-500">{err(`variants.${i}.sku`)}</p>
+
+                {/* Barcodes — POS/scanner only */}
+                {posEnabled && isGood && (
+                  <>
+                    <div>
+                      <Label>Barcode</Label>
+                      <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type" />
+                      {err("barcode") && <p className="mt-1 text-theme-xs text-error-500">{err("barcode")}</p>}
+                    </div>
+
+                    <div className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                      <div className="mb-1 flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Additional barcodes</p>
+                        <button
+                          type="button"
+                          className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
+                          onClick={() => setExtraBarcodes((b) => [...b, ""])}
+                        >
+                          + Add barcode
+                        </button>
+                      </div>
+                      <p className="mb-3 text-theme-xs text-gray-400">Beyond the primary barcode — e.g. a different supplier's pack of the same item.</p>
+                      {extraBarcodes.length === 0 ? (
+                        <p className="text-theme-xs text-gray-400">None yet.</p>
+                      ) : (
+                        extraBarcodes.map((code, i) => (
+                          <div key={i} className="mb-2 flex items-center gap-2">
+                            <Input
+                              value={code}
+                              onChange={(e) => setExtraBarcodes((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))}
+                              placeholder="Scan or type"
+                            />
+                            <button
+                              type="button"
+                              className="text-error-500 hover:text-error-600"
+                              onClick={() => setExtraBarcodes((arr) => arr.filter((_, j) => j !== i))}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Pack sizes (pack-breaking) */}
+                    <div className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                      <div className="mb-1 flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Pack sizes</p>
+                        <button
+                          type="button"
+                          className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
+                          onClick={() => setUnits((u) => [...u, { name: "", factor: "", price: "", barcode: "" }])}
+                        >
+                          + Add pack
+                        </button>
+                      </div>
+                      <p className="mb-3 text-theme-xs text-gray-400">
+                        Sell in bigger packs while stock stays counted in <span className="font-medium">{unit.trim() || "the base unit"}</span>. A pharmacy can sell a Strip (=10 tablets) or Box (=100). Leave price blank to use base price × pack size.
+                      </p>
+                      {units.length === 0 ? (
+                        <p className="text-theme-xs text-gray-400">None — sold only in the base unit.</p>
+                      ) : (
+                        units.map((u, i) => (
+                          <div key={i} className="mb-2 flex flex-wrap items-center gap-2">
+                            <Input value={u.name} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} placeholder="Pack name (Strip)" className="max-w-40" />
+                            <span className="text-theme-xs text-gray-400">=</span>
+                            <Input type="number" min="0" step={0.001} value={u.factor} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, factor: e.target.value } : x)))} placeholder="10" className="max-w-24" />
+                            <span className="text-theme-xs text-gray-400">{unit.trim() || "base"}(s)</span>
+                            <Input type="number" min="0" step={0.01} value={u.price} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} placeholder="price (optional)" className="max-w-32" />
+                            <Input value={u.barcode} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, barcode: e.target.value } : x)))} placeholder="pack barcode (optional)" className="max-w-40" />
+                            <button type="button" className="text-error-500 hover:text-error-600" onClick={() => setUnits((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                          </div>
+                        ))
+                      )}
+                      {err("units") && <p className="mt-1 text-theme-xs text-error-500">{err("units")}</p>}
+                    </div>
+
+                    {/* Wholesale price level */}
+                    <div className="max-w-xs">
+                      <Label>Wholesale price (optional)</Label>
+                      <Input type="number" min="0" step={0.01} value={wholesalePrice} onChange={(e) => setWholesalePrice(e.target.value)} placeholder="Bulk / trade price" />
+                      {wholesalePrice && Number(wholesalePrice) >= Number(price || 0) && (
+                        <p className="mt-1 text-theme-xs text-warning-500">Wholesale should be below the retail price.</p>
+                      )}
+                      <p className="mt-1 text-theme-xs text-gray-400">Cashiers can switch a POS line to this rate via the price-level dropdown.</p>
+                    </div>
+                  </>
+                )}
+
+                {/* Bulk pricing (quantity breaks) + minimum online order */}
+                {isGood && (
+                  <div className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                    <div className="mb-1 flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Bulk pricing (quantity breaks)</p>
+                      <button
+                        type="button"
+                        className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
+                        onClick={() => setTiers((t) => [...t, { min_qty: "", price: "" }])}
+                      >
+                        + Add tier
+                      </button>
+                    </div>
+                    <p className="mb-3 text-theme-xs text-gray-400">Buy more, pay less — e.g. 10+ at Rs 90, 50+ at Rs 80. The deepest tier the quantity reaches wins.</p>
+                    {tiers.map((t, i) => (
+                      <div key={i} className="mb-2 flex items-center gap-2">
+                        <span className="text-theme-xs text-gray-400">From qty</span>
+                        <Input type="number" min="0" step={0.001} value={t.min_qty} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, min_qty: e.target.value } : x)))} className="max-w-28" />
+                        <span className="text-theme-xs text-gray-400">price each</span>
+                        <Input type="number" min="0" step={0.01} value={t.price} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} className="max-w-28" />
+                        <button type="button" className="text-error-500 hover:text-error-600" onClick={() => setTiers((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                      </div>
+                    ))}
+                    {marketplaceEnabled && (
+                      <div className="mt-3 max-w-xs">
+                        <Label>Minimum order quantity (online)</Label>
+                        <Input type="number" min="0" step={0.001} value={minOrderQty} onChange={(e) => setMinOrderQty(e.target.value)} placeholder="e.g. 12" />
+                        <p className="mt-1 text-theme-xs text-gray-400">Online orders below this quantity are rejected. POS is not restricted.</p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            ))}
+            )}
           </div>
         )}
 

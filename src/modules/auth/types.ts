@@ -5,6 +5,17 @@ export type UserRole =
   | "staff"
   | "customer";
 
+/** One row of a tenant's usage-vs-limit picture (see PlanLimits::snapshot). */
+export interface LimitUsage {
+  key: string;
+  label: string;
+  limit: number | null; // null = unlimited
+  used: number;
+  remaining: number | null;
+  unlimited: boolean;
+  enforced: boolean;
+}
+
 export interface Tenant {
   id: string;
   business_name: string;
@@ -16,6 +27,10 @@ export interface Tenant {
   plan?: { id: string; name: string; code: string };
   online_shop_enabled: boolean;
   features?: Record<string, boolean>;
+  /** Per-tenant limit extensions ({} = plain plan limits). */
+  limit_overrides?: Record<string, number>;
+  /** Live usage vs effective limit — present on the tenant detail view only. */
+  limits_usage?: LimitUsage[];
   status: "active" | "suspended";
   setup_completed: boolean;
   subscription_ends_at: string | null;

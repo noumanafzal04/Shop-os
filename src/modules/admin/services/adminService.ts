@@ -1,6 +1,15 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import type { Tenant } from "../../auth/types";
 
+/** Plan ceilings — null = unlimited for that resource. */
+export interface PlanLimits {
+  products: number | null;
+  branches: number | null;
+  staff: number | null;
+  storage_mb: number | null;
+  orders_month: number | null;
+}
+
 export interface Plan {
   id: string;
   name: string;
@@ -10,6 +19,9 @@ export interface Plan {
   billing_period_months?: number;
   online_shop_enabled: boolean;
   grace_period_days?: number;
+  /** Module flags the plan grants (pos, expenses, marketplace, products). */
+  features?: Record<string, boolean>;
+  limits?: PlanLimits;
   is_active?: boolean;
   tenants_count?: number;
 }
@@ -17,11 +29,21 @@ export interface Plan {
 export interface PlanInput {
   name: string;
   code: string;
-  description?: string;
+  // null explicitly CLEARS the description on update (undefined would be
+  // dropped from the JSON body, leaving the old text in place).
+  description?: string | null;
   price: number;
   billing_period_months: number;
   online_shop_enabled: boolean;
   grace_period_days: number;
+  /** Module selection (POS/Expense/Online); server derives products/expenses. */
+  features?: Record<string, boolean>;
+  // Limits — null/omitted = unlimited.
+  max_products?: number | null;
+  max_branches?: number | null;
+  max_staff?: number | null;
+  max_storage_mb?: number | null;
+  max_orders_month?: number | null;
   is_active?: boolean;
 }
 
@@ -133,6 +155,10 @@ export const adminService = {
   moduleCatalog: () => apiGet<Array<{ key: string; label: string; description: string }>>("/admin/modules"),
   updateModules: (id: string, modules: Record<string, boolean>) =>
     apiPut<Tenant>(`/admin/tenants/${id}/modules`, { modules }),
+
+  /** Extend (or clear, via null) a single tenant's limits past its plan. */
+  extendLimits: (id: string, limits: Record<string, number | null>) =>
+    apiPut<Tenant>(`/admin/tenants/${id}/limits`, { limits }),
 
   plans: () => apiGet<Plan[]>("/admin/plans"),
   createPlan: (payload: PlanInput) => apiPost<Plan>("/admin/plans", payload),
