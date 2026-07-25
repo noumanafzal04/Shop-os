@@ -126,6 +126,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::put('/shop/setup', [ShopController::class, 'setup'])->middleware('permission:settings.manage');
             Route::put('/shop', [ShopController::class, 'update'])->middleware('permission:settings.manage');
             Route::get('/shop/settings', [ShopController::class, 'settings']);
+            Route::get('/shop/subscription', [\App\Http\Controllers\Api\V1\Tenant\SubscriptionController::class, 'show']);
             Route::put('/shop/settings', [ShopController::class, 'updateSettings'])->middleware('permission:settings.manage');
             // Portfolio / gallery (service businesses)
             Route::get('/shop/gallery', [GalleryController::class, 'index']);
@@ -325,6 +326,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/{tenant}', [TenantController::class, 'show'])->middleware('permission:tenants.view');
                 Route::put('/{tenant}', [TenantController::class, 'update'])->middleware('permission:tenants.update');
                 Route::put('/{tenant}/modules', [TenantController::class, 'updateModules'])->middleware('permission:tenants.update');
+                Route::put('/{tenant}/limits', [TenantController::class, 'extendLimits'])->middleware('permission:tenants.update');
                 Route::delete('/{tenant}', [TenantController::class, 'destroy'])->middleware('permission:tenants.delete');
                 Route::post('/{tenant}/suspend', [TenantController::class, 'suspend'])->middleware('permission:tenants.suspend');
                 Route::post('/{tenant}/activate', [TenantController::class, 'activate'])->middleware('permission:tenants.suspend');

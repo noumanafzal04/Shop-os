@@ -32,6 +32,7 @@ class StoreProductRequest extends FormRequest
         $tenantId = $this->user()->tenant_id;
         $itemType = $this->input('item_type', ItemTypes::PHYSICAL);
         $isService = ItemTypes::coarse(is_string($itemType) ? $itemType : ItemTypes::PHYSICAL) === 'service';
+        $isDeal = $itemType === ItemTypes::DEAL;
 
         return [
             'item_type' => ['required', Rule::in(ItemTypes::codes())],
@@ -72,9 +73,13 @@ class StoreProductRequest extends FormRequest
             'units.*.factor' => ['required_with:units', 'numeric', 'min:0.001'],
             'units.*.price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'units.*.barcode' => ['nullable', 'string', 'max:191'],
-            // Combo/deal contents (item_type = deal): component products + qty.
-            'combo_items' => ['nullable', 'array', 'max:30'],
-            'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid'],
+            // Combo/deal contents — ONLY a deal bundles other products.
+            'combo_items' => [$isDeal ? 'nullable' : 'prohibited', 'array', 'max:30'],
+            // 'distinct': the same component twice would decrement its stock
+            // for both rows at sale time but restock only one (the restore key
+            // collapses them) — losing a unit on every cancel/return. Use
+            // quantity for multiples, not repeated rows.
+            'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid', 'distinct'],
             'combo_items.*.quantity' => ['required_with:combo_items', 'numeric', 'min:0.001'],
             'unit' => ['nullable', 'string', 'max:32'],
             'attributes' => ['nullable', 'array'],
@@ -105,15 +110,17 @@ class StoreProductRequest extends FormRequest
             // Service-only fields
             'duration_minutes' => [$isService ? 'nullable' : 'prohibited', 'integer', 'min:1', 'max:1440'],
 
-            // Availability window (food menu hours) — HH:MM[:SS]
-            'available_from' => ['nullable', 'date_format:H:i,H:i:s'],
-            'available_until' => ['nullable', 'date_format:H:i,H:i:s'],
+            // Availability window (food menu hours) — HH:MM[:SS]. Half a
+            // window is meaningless (it would silently mean "always") — both
+            // ends or neither.
+            'available_from' => ['nullable', 'required_with:available_until', 'date_format:H:i,H:i:s'],
+            'available_until' => ['nullable', 'required_with:available_from', 'date_format:H:i,H:i:s'],
 
             'is_active' => ['sometimes', 'boolean'],
             'visible_in_marketplace' => ['sometimes', 'boolean'],
 
-            // Variants (not for services)
-            'variants' => [$isService ? 'prohibited' : 'sometimes', 'array', 'max:100'],
+            // Variants (not for services, and a deal is a fixed bundle)
+            'variants' => [$isService || $isDeal ? 'prohibited' : 'sometimes', 'array', 'max:100'],
             'variants.*.name' => ['required_with:variants', 'string', 'max:100', 'distinct'],
             'variants.*.sku' => [
                 'nullable', 'string', 'max:64', 'distinct',
@@ -127,6 +134,26 @@ class StoreProductRequest extends FormRequest
         ];
     }
 
+    /**
+     * The tenant's business type constrains what it may catalog — a mart
+     * can't create medicines (batch/expiry/Rx machinery it has no business
+     * with), a food shop can't list services, etc. Legacy/null business types
+     * skip the check (they predate the 5-type model).
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($v): void {
+            $businessType = $this->user()->tenant?->business_type;
+            $itemType = $this->input('item_type');
+
+            if ($businessType !== null && is_string($itemType)
+                && in_array($itemType, \App\Support\ItemTypes::codes(), true)
+                && ! in_array($itemType, \App\Support\BusinessTypes::itemTypesFor($businessType), true)) {
+                $v->errors()->add('item_type', 'This item type isn\'t available for your business type.');
+            }
+        });
+    }
+
     public function messages(): array
     {
         return [
@@ -136,8 +163,11 @@ class StoreProductRequest extends FormRequest
             'variants.*.name.distinct' => 'Duplicate variant names in this request.',
             'variants.*.sku.distinct' => 'Duplicate variant SKUs in this request.',
             'stock_quantity.prohibited' => 'This item type does not track stock.',
-            'variants.prohibited' => 'Services cannot have variants.',
+            'variants.prohibited' => 'This item type cannot have variants.',
             'duration_minutes.prohibited' => 'Only services have a duration.',
+            'combo_items.prohibited' => 'Only a deal bundles other products.',
+            'available_from.required_with' => 'Set both ends of the serving window (or neither).',
+            'available_until.required_with' => 'Set both ends of the serving window (or neither).',
         ];
     }
 }

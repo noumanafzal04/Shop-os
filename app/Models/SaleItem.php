@@ -27,6 +27,7 @@ class SaleItem extends Model
             'unit_cost' => 'decimal:2',
             'line_discount' => 'decimal:2',
             'line_total' => 'decimal:2',
+            'tax_rate' => 'decimal:2',
         ];
     }
 

@@ -18,6 +18,8 @@ class SaleReturn extends Model
     {
         return [
             'refund_total' => 'decimal:2',
+            'refund_tax' => 'decimal:2',
+            'refund_credit' => 'decimal:2',
             'returned_at' => 'datetime',
         ];
     }

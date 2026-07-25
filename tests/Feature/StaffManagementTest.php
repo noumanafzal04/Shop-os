@@ -70,7 +70,7 @@ class StaffManagementTest extends TestCase
 
         $this->actingAsUser($staff)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Allowed Mart',
-            'business_type' => 'grocery',
+            'business_type' => 'mart',
             'owner' => ['name' => 'X', 'email' => 'x@x.com', 'password' => 'password123'],
         ])->assertCreated();
     }

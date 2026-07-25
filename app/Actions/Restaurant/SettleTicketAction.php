@@ -16,9 +16,12 @@ use Illuminate\Support\Facades\DB;
  *   - no item_ids  → full settlement (one Sale, tab closes)
  *   - item_ids A, then item_ids B (the rest) → split-by-item (two Sales)
  *
- * The Sale is rung through CreateSaleAction NON-trusted (server-authoritative
- * pricing + tax, identical to a walk-in counter sale) with skip_serving_window
- * so an item ordered earlier isn't rejected at pay-time.
+ * The Sale is rung through CreateSaleAction on the TRUSTED path, carrying the
+ * tab's captured price snapshot (unit_price / line_total / modifiers) exactly
+ * as OrderService::complete does for online orders. The customer pays what the
+ * running total showed them ALL MEAL — a mid-service menu edit (86'ing the
+ * item, changing its price or modifier groups) can neither block settlement
+ * nor silently change the bill. Tax is still computed fresh server-side.
  */
 class SettleTicketAction
 {
@@ -67,15 +70,17 @@ class SettleTicketAction
                 'table_no' => $tableNo,
                 'customer_name' => $data['customer_name'] ?? $ticket->customer_name,
                 'customer_phone' => $data['customer_phone'] ?? $ticket->customer_phone,
+                // The tab's captured snapshot IS the bill — replayed on the
+                // trusted path so live menu state can't reprice or reject it.
                 'items' => $items->map(fn ($i) => array_filter([
                     'product_id' => $i->product_id,
                     'variant_id' => $i->variant_id,
                     'product_unit_id' => $i->product_unit_id,
                     'quantity' => (float) $i->quantity,
-                    'price_level' => $i->price_level,
-                    'modifier_option_ids' => $i->modifier_option_ids ?? [],
+                    'unit_price' => (float) $i->unit_price,
                     'line_discount' => (float) $i->line_discount,
-                    'line_discount_pct' => $i->line_discount_pct !== null ? (float) $i->line_discount_pct : null,
+                    'line_total' => (float) $i->line_total,
+                    'modifiers' => $i->modifiers ?? [],
                 ], fn ($v) => $v !== null))->all(),
                 'discount' => $data['discount'] ?? 0,
                 'coupon_code' => $data['coupon_code'] ?? null,
@@ -83,9 +88,7 @@ class SettleTicketAction
                 'payment_method' => $data['payment_method'] ?? null,
                 'amount_paid' => $data['amount_paid'] ?? 0,
                 'notes' => $data['notes'] ?? "Dine-in tab {$ticket->ticket_number}",
-                // A tab item was ordered while in its serving window; paying the
-                // bill later must never be blocked by that window.
-                'skip_serving_window' => true,
+                'trusted_prices' => true,
             ]);
 
             // Mark exactly the settled items as paid by this sale.

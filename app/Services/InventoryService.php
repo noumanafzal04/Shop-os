@@ -177,6 +177,25 @@ class InventoryService
                     $restoreTo->update([
                         'quantity' => round((float) $restoreTo->quantity + (float) $data['quantity'], 3),
                     ]);
+                } elseif (\App\Models\ProductBatch::withoutTenancy()
+                    ->where('product_id', $product->id)
+                    ->where($scopeVariant)
+                    ->exists()
+                ) {
+                    // Batch-managed target but every lot is expired (or empty
+                    // history): without a lot the returned quantity would sit
+                    // outside batch accounting — unfenced and invisible to
+                    // FEFO. Land it in a fresh undated RESTOCK lot (undated
+                    // sells LAST) so lot totals stay equal to stock and the
+                    // pharmacist can date or write it off from Batches.
+                    \App\Models\ProductBatch::withoutTenancy()->create([
+                        'tenant_id' => $product->tenant_id,
+                        'product_id' => $product->id,
+                        'variant_id' => $batchVariantId,
+                        'batch_number' => 'RESTOCK',
+                        'expiry_date' => null,
+                        'quantity' => round((float) $data['quantity'], 3),
+                    ]);
                 }
             }
 

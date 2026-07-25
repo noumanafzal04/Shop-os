@@ -11,21 +11,25 @@ use Illuminate\Http\JsonResponse;
 class BusinessTypeController extends Controller
 {
     /**
-     * Business-type catalog for onboarding — includes coming-soon types
-     * (available=false) so UIs can show them greyed out.
+     * Business-type catalog for onboarding. The 5 primary types (plus any
+     * coming-soon ones) — `legacy` codes kept only for existing data are hidden.
+     * Each type carries the `categories` a tenant picks within it.
      */
     public function index(): JsonResponse
     {
-        $types = collect(BusinessTypes::all())->map(fn (array $t, string $code) => [
-            'code' => $code,
-            'label' => $t['label'],
-            'examples' => $t['examples'],
-            'available' => $t['available'],
-            'features' => $t['features'],
-            'item_types' => BusinessTypes::itemTypesFor($code),
-            'default_categories' => $t['product_categories'],
-            'default_expense_categories' => $t['expense_categories'],
-        ])->values();
+        $types = collect(BusinessTypes::all())
+            ->reject(fn (array $t) => $t['legacy'] ?? false)
+            ->map(fn (array $t, string $code) => [
+                'code' => $code,
+                'label' => $t['label'],
+                'examples' => $t['examples'],
+                'available' => $t['available'],
+                'features' => $t['features'],
+                'item_types' => BusinessTypes::itemTypesFor($code),
+                'categories' => BusinessTypes::categoriesFor($code),
+                'default_categories' => $t['product_categories'],
+                'default_expense_categories' => $t['expense_categories'],
+            ])->values();
 
         return ApiResponse::ok($types);
     }

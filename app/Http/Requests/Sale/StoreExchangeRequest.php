@@ -27,7 +27,9 @@ class StoreExchangeRequest extends FormRequest
         return [
             // Items handed back from the original sale.
             'return_items' => ['required', 'array', 'min:1'],
-            'return_items.*.sale_item_id' => ['required', 'uuid'],
+            // One row per sale line (see StoreSaleReturnRequest) — duplicate
+            // rows would refund twice but restock once.
+            'return_items.*.sale_item_id' => ['required', 'uuid', 'distinct'],
             'return_items.*.quantity' => ['required', 'numeric', 'min:0.001'],
 
             // Replacement items being bought (server-priced like a sale).

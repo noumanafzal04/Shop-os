@@ -4,6 +4,7 @@ namespace App\Actions\Catalog;
 
 use App\Models\Product;
 use App\Support\ItemTypes;
+use App\Support\PlanLimits;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 
@@ -27,6 +28,12 @@ class CreateProductAction
     public function execute(array $data): array
     {
         $warnings = [];
+
+        // Plan ceiling: block a new catalog item once the shop is at its
+        // products limit (no-op for unlimited plans / unprovisioned tenants).
+        if (($tenant = $this->context->get()) !== null) {
+            PlanLimits::assert($tenant, 'products');
+        }
 
         $product = DB::transaction(function () use ($data): Product {
             $itemType = $data['item_type'] ?? ItemTypes::PHYSICAL;
@@ -87,7 +94,7 @@ class CreateProductAction
             }
 
             foreach ($data['variants'] ?? [] as $variant) {
-                $product->variants()->create([
+                $created = $product->variants()->create([
                     'tenant_id' => $product->tenant_id,
                     'name' => $variant['name'],
                     'sku' => $variant['sku'] ?? null,
@@ -96,6 +103,22 @@ class CreateProductAction
                     'stock_quantity' => $variant['stock_quantity'] ?? 0,
                     'low_stock_threshold' => $variant['low_stock_threshold'] ?? null,
                 ]);
+
+                // Medicine variants get the same day-one lot guarantee as the
+                // product-level opening stock below: every unit is batch-backed
+                // so FEFO and the expired fence see it. Expiry left for the
+                // pharmacist to fill in on the Batches screen.
+                $variantOpening = (float) ($variant['stock_quantity'] ?? 0);
+                if ($itemType === ItemTypes::MEDICINE && $variantOpening > 0) {
+                    $product->batches()->create([
+                        'tenant_id' => $product->tenant_id,
+                        'variant_id' => $created->id,
+                        'batch_number' => 'OPENING',
+                        'expiry_date' => null,
+                        'quantity' => $variantOpening,
+                        'cost' => $variant['cost'] ?? null,
+                    ]);
+                }
             }
 
             if (! empty($data['collection_ids'])) {

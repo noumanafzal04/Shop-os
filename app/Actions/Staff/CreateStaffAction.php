@@ -5,7 +5,9 @@ namespace App\Actions\Staff;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Exceptions\DomainException;
+use App\Models\Tenant;
 use App\Models\User;
+use App\Support\PlanLimits;
 
 /**
  * Creates a staff account — platform staff (admin_staff) or tenant staff
@@ -20,6 +22,15 @@ class CreateStaffAction
     public function execute(User $actor, array $data, UserRole $role, ?string $tenantId = null): User
     {
         $this->guardEscalation($actor, $data['permissions'] ?? []);
+
+        // Plan ceiling on tenant staff seats (platform staff have no tenant to
+        // meter against, so they're never limited here).
+        if ($tenantId !== null && $role === UserRole::Staff) {
+            $tenant = Tenant::query()->find($tenantId);
+            if ($tenant !== null) {
+                PlanLimits::assert($tenant, 'staff');
+            }
+        }
 
         return User::query()->create([
             'tenant_id' => $tenantId,

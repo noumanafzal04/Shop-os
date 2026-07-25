@@ -58,7 +58,9 @@ class UpdateProductRequest extends FormRequest
             'units.*.price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'units.*.barcode' => ['nullable', 'string', 'max:191'],
             'combo_items' => ['sometimes', 'nullable', 'array', 'max:30'],
-            'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid'],
+            // One row per component (see StoreProductRequest) — duplicates lose
+            // stock on cancel/return via colliding restore keys.
+            'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid', 'distinct'],
             'combo_items.*.quantity' => ['required_with:combo_items', 'numeric', 'min:0.001'],
             'unit' => ['nullable', 'string', 'max:32'],
             'attributes' => ['nullable', 'array'],
@@ -80,11 +82,36 @@ class UpdateProductRequest extends FormRequest
             ],
             'low_stock_threshold' => ['nullable', 'numeric', 'min:0'],
             'duration_minutes' => ['nullable', 'integer', 'min:1', 'max:1440'],
-            'available_from' => ['nullable', 'date_format:H:i,H:i:s'],
-            'available_until' => ['nullable', 'date_format:H:i,H:i:s'],
+            // Both ends of the window or neither — half a window would
+            // silently mean "always available".
+            'available_from' => ['nullable', 'required_with:available_until', 'date_format:H:i,H:i:s'],
+            'available_until' => ['nullable', 'required_with:available_from', 'date_format:H:i,H:i:s'],
             'is_active' => ['sometimes', 'boolean'],
             'visible_in_marketplace' => ['sometimes', 'boolean'],
         ];
+    }
+
+    /**
+     * Type-capability gating on UPDATE mirrors create: duration stays
+     * service-only and combo contents stay deal-only — the item's type is
+     * fixed, so these can't leak across types via PUT either.
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($v): void {
+            $product = \App\Models\Product::query()->find($this->route('product'));
+            if ($product === null) {
+                return; // 404s in the controller
+            }
+
+            if ($this->filled('duration_minutes') && $product->type->value !== 'service') {
+                $v->errors()->add('duration_minutes', 'Only services have a duration.');
+            }
+
+            if ($this->filled('combo_items') && ! $product->isCombo()) {
+                $v->errors()->add('combo_items', 'Only a deal bundles other products.');
+            }
+        });
     }
 
     public function messages(): array

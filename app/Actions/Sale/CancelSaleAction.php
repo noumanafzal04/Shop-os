@@ -2,10 +2,12 @@
 
 namespace App\Actions\Sale;
 
-use App\Enums\ItemType;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
+use App\Models\Customer;
+use App\Models\Product;
 use App\Models\Sale;
+use App\Models\StockMovement;
 use App\Services\InventoryService;
 use Illuminate\Support\Facades\DB;
 
@@ -31,52 +33,67 @@ class CancelSaleAction
             throw DomainException::conflict('This sale is already cancelled.', 'SALE_ALREADY_CANCELLED');
         }
 
+        // A sale with returns against it can't be voided wholesale: those
+        // units (and their money) already went back once, and cancel restores
+        // EVERY line — stock and refunds would double. Refund the remaining
+        // items through the returns flow instead.
+        if ($sale->returns()->exists()) {
+            throw DomainException::conflict(
+                'This sale has refunds against it — return the remaining items instead of cancelling.',
+                'SALE_HAS_RETURNS',
+            );
+        }
+
         return DB::transaction(function () use ($sale, $reason): Sale {
-            foreach ($sale->items as $item) {
-                if ($item->product_id === null) {
+            // Restore stock by REVERSING the exact movements this sale recorded
+            // — not by re-reading product recipes. A combo's components can be
+            // edited after the sale (SyncComboItemsAction full-replaces them),
+            // so the live recipe would restore the wrong items; a pack's factor
+            // or a product's tracking could change too. The stock_movements are
+            // the ground truth of what was actually decremented. Each 'out'
+            // becomes an 'in' of the same amount to the same product/variant.
+            // (Cancel is whole-sale only — a sale with returns is refused above
+            // — so reversing every 'out' can't collide with a partial return.)
+            $outMovements = StockMovement::query()
+                ->where('reference_type', 'sale')
+                ->where('reference_id', $sale->id)
+                ->where('quantity_change', '<', 0)
+                ->get();
+
+            foreach ($outMovements as $mv) {
+                // Restore only to products that still exist and are still
+                // tracked (a since-deleted component has nowhere to go back to).
+                $product = Product::query()->whereKey($mv->product_id)->first();
+                if ($product === null || ! $product->track_inventory) {
                     continue;
                 }
 
-                /** @var \App\Models\Product|null $product */
-                $product = $item->product; // withTrashed — a deleted deal still knows its components
+                $this->inventory->adjust([
+                    'product_id' => $mv->product_id,
+                    'variant_id' => $mv->variant_id,
+                    'type' => 'in',
+                    'quantity' => abs((float) $mv->quantity_change),
+                    'reason' => "Cancelled {$sale->invoice_number}",
+                    'reference_type' => 'sale_cancellation',
+                    'reference_id' => $sale->id,
+                    'idempotency_key' => "cancel-mv-{$mv->id}",
+                ]);
+            }
 
-                // A deal restores each component's stock (component qty × sold
-                // deal qty); a normal product restores its OWN stock in BASE
-                // units (sold count × unit_factor — a pack drew factor× out).
-                // Mirrors CreateSaleAction / OrderService::releaseStock so a
-                // combo or pack sale reverses exactly what it decremented.
-                if ($product !== null && $product->isCombo()) {
-                    foreach ($product->comboItems()->with('component')->get() as $ci) {
-                        $component = $ci->component;
-                        if ($component !== null && $component->type === ItemType::Product && $component->track_inventory) {
-                            $this->inventory->adjust([
-                                'product_id' => $component->id,
-                                'type' => 'in',
-                                'quantity' => round((float) $ci->quantity * (float) $item->quantity, 3),
-                                'reason' => "Cancelled {$sale->invoice_number} (deal: {$product->name})",
-                                'reference_type' => 'sale_cancellation',
-                                'reference_id' => $sale->id,
-                                'idempotency_key' => "cancel-{$item->id}-c{$component->id}",
-                            ]);
-                        }
-                    }
-                } elseif (
-                    $item->item_type === ItemType::Product->value
-                    && $product !== null
-                    && ! $product->trashed()
-                    && $product->track_inventory
-                ) {
-                    $this->inventory->adjust([
-                        'product_id' => $item->product_id,
-                        'variant_id' => $item->variant_id,
-                        'type' => 'in',
-                        // Pack sold: restore factor× the sold count (base units).
-                        'quantity' => round((float) $item->quantity * (float) ($item->unit_factor ?? 1), 3),
-                        'reason' => "Cancelled {$sale->invoice_number}",
-                        'reference_type' => 'sale_cancellation',
-                        'reference_id' => $sale->id,
-                        'idempotency_key' => "cancel-{$item->id}",
-                    ]);
+            // Khata symmetry: cancelling a credit sale wipes whatever of its
+            // charge is still un-reversed (a prior partial return may have
+            // already reduced it) — the customer owes nothing for a void sale.
+            if ($sale->customer_id !== null) {
+                $customer = Customer::query()->whereKey($sale->customer_id)->lockForUpdate()->first();
+                $outstanding = $customer?->outstandingCreditForSale($sale->id) ?? 0.0;
+                if ($customer !== null && $outstanding > 0) {
+                    $customer->recordCreditPayment(
+                        $outstanding,
+                        'cancellation',
+                        $sale->invoice_number,
+                        "Sale {$sale->invoice_number} cancelled",
+                        $sale->id,
+                    );
                 }
             }
 

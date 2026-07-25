@@ -66,9 +66,11 @@ class Customer extends BaseModel
 
     /**
      * Record a repayment against the khata (−owed). Balance can go below zero
-     * (an advance / credit in the customer's favour).
+     * (an advance / credit in the customer's favour). Pass the sale id when
+     * the reduction reverses a specific credit sale (return/cancellation) so
+     * the ledger stays traceable per sale.
      */
-    public function recordCreditPayment(float $amount, string $method, ?string $reference = null, ?string $note = null): CustomerLedgerEntry
+    public function recordCreditPayment(float $amount, string $method, ?string $reference = null, ?string $note = null, ?string $saleId = null): CustomerLedgerEntry
     {
         $amount = round($amount, 2);
         $newBalance = round((float) $this->credit_balance - $amount, 2);
@@ -81,9 +83,22 @@ class Customer extends BaseModel
             'balance_after' => $newBalance,
             'method' => $method,
             'reference' => $reference,
+            'sale_id' => $saleId,
             'note' => $note,
             'created_by' => auth()->id(),
         ]);
+    }
+
+    /**
+     * How much of a given sale's khata charge is still un-reversed — the cap
+     * for any further return/cancellation reversal against that sale.
+     */
+    public function outstandingCreditForSale(string $saleId): float
+    {
+        $charged = (float) $this->ledgerEntries()->where('sale_id', $saleId)->where('type', 'charge')->sum('amount');
+        $reversed = (float) $this->ledgerEntries()->where('sale_id', $saleId)->where('type', 'payment')->sum('amount');
+
+        return round(max(0, $charged - $reversed), 2);
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Tenant;
+use App\Support\PlanLimits;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -33,6 +34,14 @@ class TenantResource extends JsonResource
             ]),
             'online_shop_enabled' => $this->online_shop_enabled,
             'features' => $this->features ?? [],
+            // Per-tenant limit extensions (empty = plain plan limits).
+            'limit_overrides' => $this->limit_overrides ?? [],
+            // Live usage-vs-limit — detail view only (loads `users`), to keep
+            // the tenant list free of per-row count queries.
+            'limits_usage' => $this->when(
+                $this->resource->relationLoaded('users'),
+                fn () => PlanLimits::snapshot($this->resource),
+            ),
             // Convenience flag: images on when the module is on OR the shop
             // sells online (online listings must show photos).
             'images_enabled' => $this->imagesEnabled(),

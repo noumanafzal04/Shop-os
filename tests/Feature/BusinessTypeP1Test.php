@@ -36,7 +36,8 @@ class BusinessTypeP1Test extends TestCase
         $city = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
         $this->shop = Tenant::factory()->create([
             'online_shop_enabled' => true, 'setup_completed' => true, 'city_id' => $city->id,
-            'business_type' => 'retail', 'features' => BusinessTypes::defaultFeatures('retail'),
+            'business_type' => null, // type-less (legacy) tenant: these are ITEM-TYPE capability tests, not business-type-constraint tests
+            'features' => BusinessTypes::defaultFeatures('retail'),
             'timezone' => 'Asia/Karachi',
         ]);
         $this->owner = User::factory()->shopOwner($this->shop)->create();

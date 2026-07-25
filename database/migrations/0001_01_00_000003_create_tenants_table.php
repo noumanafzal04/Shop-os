@@ -20,6 +20,12 @@ return new class extends Migration
             $table->string('business_category')->nullable();
             // Effective feature flags (from type defaults, tenant-adjustable).
             $table->json('features')->nullable();
+
+            // Per-tenant limit overrides ("extend his plan"). Sparse map of
+            // {limit_key: value}; a key present here wins over the plan's
+            // baseline for THIS tenant only. Absent/empty → plain plan limits.
+            // e.g. {"products": 5000} lifts just this shop's product ceiling.
+            $table->json('limit_overrides')->nullable();
             $table->foreignUuid('city_id')->nullable()->constrained('cities')->nullOnDelete();
             $table->foreignUuid('plan_id')->nullable()->constrained('plans')->nullOnDelete();
 

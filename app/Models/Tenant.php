@@ -25,6 +25,7 @@ class Tenant extends BaseModel
             'online_shop_enabled' => 'boolean',
             'delivery_fee' => 'decimal:2',
             'features' => 'array',
+            'limit_overrides' => 'array',
             'setup_completed' => 'boolean',
             'subscription_starts_at' => 'datetime',
             'subscription_ends_at' => 'datetime',

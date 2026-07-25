@@ -12,12 +12,23 @@ use App\Support\ItemTypes;
  *   - feature defaults (marketplace, reservations, delivery, inventory, services)
  *   - default product/service categories (template, fully editable after)
  *   - default expense categories (template, fully editable after)
+ *   - the finer `categories` a tenant picks WITHIN the type (its business_category)
  *
  * The effective capability of a tenant is always:
  *   plan allows it (online_shop_enabled) AND business type supports it
  *   AND tenant hasn't disabled it — computed via Tenant::featureEnabled().
  *
- * Types marked available=false (e.g. restaurant) are visible-but-coming-soon.
+ * === The 5 primary types ===
+ * Selectable types are consolidated to FIVE: food, mart, pharmacy, retail,
+ * services. The finer distinction (garments vs electronics, medical store vs
+ * surgical, restaurant vs bakery) is the tenant's `business_category`, chosen
+ * from the type's `categories` list.
+ *
+ * Older narrower codes (grocery, clinic, salon, workshop, service, wholesale,
+ * books, hardware, restaurant) are kept as `legacy` entries: they still resolve
+ * for existing tenants, demo data and imports, but are hidden from the picker
+ * (BusinessTypeController drops `legacy`). Most have been absorbed as a
+ * category of one of the five.
  */
 class BusinessTypes
 {
@@ -27,43 +38,146 @@ class BusinessTypes
      * @return array<string, array{
      *   label: string, examples: string[], available: bool,
      *   features: array<string,bool>,
-     *   product_categories: string[], expense_categories: string[]
+     *   product_categories: string[], expense_categories: string[],
+     *   categories?: array<int, array{value:string,label:string}>,
+     *   legacy?: bool
      * }>
      */
     public static function all(): array
     {
         return [
-            'retail' => [
-                'label' => 'Retail Store',
-                'examples' => ['Garments', 'Shoes', 'Electronics', 'Cosmetics', 'Toys', 'Mobile Accessories', 'Gift Shop', 'Sports'],
+            // ── The 5 primary, selectable types ───────────────────────────
+            'food' => [
+                'label' => 'Food & Restaurant',
+                'examples' => ['Restaurant', 'Fast Food', 'Cafe', 'Bakery', 'Cloud Kitchen', 'Sweets', 'Juice Bar'],
                 'available' => true,
-                'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => true, 'delivery' => true],
-                'product_categories' => ['General'],
-                'expense_categories' => ['Rent', 'Electricity', 'Internet', 'Staff Salary', 'Packaging', 'Marketing', 'Transportation', 'Cleaning', 'Miscellaneous'],
+                // Menu items are products WITHOUT stock tracking; sells online
+                // with delivery. Dine-in (tables + KOT + split-bill) defaults on
+                // — a cloud kitchen can switch it off.
+                'features' => ['products' => true, 'services' => false, 'inventory' => false, 'marketplace' => true, 'reservations' => false, 'delivery' => true, 'dine_in' => true],
+                'product_categories' => ['Starters', 'Main Course', 'Deals', 'Beverages', 'Desserts'],
+                'expense_categories' => ['Ingredients', 'Cooking Gas', 'Staff Salary', 'Rent', 'Cleaning', 'Packaging', 'Delivery', 'Utilities'],
+                'categories' => [
+                    ['value' => 'restaurant', 'label' => 'Restaurant'],
+                    ['value' => 'fast_food', 'label' => 'Fast Food'],
+                    ['value' => 'cafe', 'label' => 'Cafe / Tea'],
+                    ['value' => 'bakery', 'label' => 'Bakery & Sweets'],
+                    ['value' => 'cloud_kitchen', 'label' => 'Cloud Kitchen'],
+                    ['value' => 'juice_corner', 'label' => 'Juice / Shakes'],
+                    ['value' => 'home_kitchen', 'label' => 'Home Kitchen'],
+                ],
             ],
-            'grocery' => [
-                'label' => 'Grocery & General Store',
-                'examples' => ['Grocery', 'Supermarket', 'Mini Mart', 'Convenience Store'],
+            'mart' => [
+                'label' => 'Mart & Grocery',
+                'examples' => ['Grocery', 'Supermarket', 'General Store', 'Mini Mart', 'Convenience Store'],
                 'available' => true,
-                'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => true, 'delivery' => true],
+                'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => false, 'delivery' => true],
                 'product_categories' => ['Food & Beverages', 'Household', 'Personal Care', 'Snacks', 'Dairy'],
                 'expense_categories' => ['Supplier Purchases', 'Packaging', 'Delivery', 'Utilities', 'Rent', 'Staff Salary', 'Spoilage/Wastage'],
+                'categories' => [
+                    ['value' => 'grocery', 'label' => 'Grocery Store'],
+                    ['value' => 'supermarket', 'label' => 'Supermarket'],
+                    ['value' => 'general_store', 'label' => 'General Store'],
+                    ['value' => 'mini_mart', 'label' => 'Mini Mart'],
+                    ['value' => 'convenience_store', 'label' => 'Convenience Store'],
+                    ['value' => 'dairy_shop', 'label' => 'Dairy Shop'],
+                ],
             ],
             'pharmacy' => [
-                'label' => 'Pharmacy',
-                'examples' => ['Medical Store', 'Pharmacy'],
+                'label' => 'Pharmacy & Medical',
+                'examples' => ['Medical Store', 'Pharmacy', 'Surgical Store'],
                 'available' => true,
                 'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => false, 'reservations' => false, 'delivery' => true],
                 'product_categories' => ['Medicines', 'Supplements', 'Medical Supplies', 'Baby Care', 'Personal Care'],
                 'expense_categories' => ['Medicine Purchase', 'Refrigerator Electricity', 'Staff Salary', 'Licensing', 'Rent'],
+                'categories' => [
+                    ['value' => 'medical_store', 'label' => 'Medical Store'],
+                    ['value' => 'surgical', 'label' => 'Surgical Store'],
+                    ['value' => 'homeopathic', 'label' => 'Homeopathic'],
+                    ['value' => 'clinic_pharmacy', 'label' => 'Clinic Pharmacy'],
+                ],
+            ],
+            'retail' => [
+                'label' => 'Retail Store',
+                'examples' => ['Garments', 'Shoes', 'Electronics', 'Cosmetics', 'Mobile Accessories', 'Hardware', 'Books', 'Gift Shop'],
+                'available' => true,
+                'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => true, 'delivery' => true],
+                'product_categories' => ['General'],
+                'expense_categories' => ['Rent', 'Electricity', 'Internet', 'Staff Salary', 'Packaging', 'Marketing', 'Transportation', 'Cleaning', 'Miscellaneous'],
+                'categories' => [
+                    ['value' => 'garments', 'label' => 'Garments & Clothing'],
+                    ['value' => 'footwear', 'label' => 'Footwear'],
+                    ['value' => 'electronics', 'label' => 'Electronics'],
+                    ['value' => 'mobile_accessories', 'label' => 'Mobile & Accessories'],
+                    ['value' => 'cosmetics', 'label' => 'Cosmetics'],
+                    ['value' => 'toys', 'label' => 'Toys'],
+                    ['value' => 'gifts', 'label' => 'Gift Shop'],
+                    ['value' => 'sports', 'label' => 'Sports'],
+                    ['value' => 'books_stationery', 'label' => 'Books & Stationery'],
+                    ['value' => 'hardware', 'label' => 'Hardware & Tools'],
+                    ['value' => 'jewellery', 'label' => 'Jewellery'],
+                    ['value' => 'home_appliances', 'label' => 'Home & Appliances'],
+                    ['value' => 'wholesale', 'label' => 'Wholesale / Distributor'],
+                    ['value' => 'general', 'label' => 'General / Other'],
+                ],
+            ],
+            'services' => [
+                'label' => 'Services',
+                'examples' => ['Salon', 'Barber', 'Spa', 'Mobile Repair', 'Computer Repair', 'Auto Workshop', 'Tailor', 'Laundry', 'Printing'],
+                'available' => true,
+                // A service business lists what it does; customers can view and
+                // contact. Products/inventory stay OFF by default (a workshop or
+                // salon that also sells parts/retail turns them on per-tenant).
+                // Reservations stay OFF too: today's reservation engine holds
+                // PRODUCT stock — it can't book appointments, so defaulting it
+                // on for services would show a feature they can't use. Flips on
+                // when the appointments add-on lands (or per-tenant for one
+                // that also sells reservable products).
+                'features' => ['products' => false, 'services' => true, 'inventory' => false, 'marketplace' => false, 'reservations' => false, 'delivery' => false],
+                'product_categories' => ['Services', 'Packages', 'Retail Products'],
+                'expense_categories' => ['Supplies', 'Equipment Maintenance', 'Staff Salary', 'Rent', 'Utilities', 'Marketing'],
+                'categories' => [
+                    ['value' => 'salon_beauty', 'label' => 'Salon & Beauty'],
+                    ['value' => 'barber', 'label' => 'Barber'],
+                    ['value' => 'spa', 'label' => 'Spa'],
+                    ['value' => 'mobile_repair', 'label' => 'Mobile Repair'],
+                    ['value' => 'computer_repair', 'label' => 'Computer Repair'],
+                    ['value' => 'auto_workshop', 'label' => 'Auto Workshop'],
+                    ['value' => 'tailor', 'label' => 'Tailor'],
+                    ['value' => 'laundry', 'label' => 'Laundry'],
+                    ['value' => 'printing', 'label' => 'Printing'],
+                    ['value' => 'photography', 'label' => 'Photography'],
+                    ['value' => 'clinic', 'label' => 'Clinic / Practice'],
+                    ['value' => 'other', 'label' => 'Other Service'],
+                ],
+            ],
+
+            // ── Legacy codes (hidden from the picker; still resolve) ───────
+            // Absorbed as a category of one of the five above. Kept intact so
+            // existing tenants, demo data and imports keep working.
+            'restaurant' => [
+                'label' => 'Restaurant / Food',
+                'examples' => ['Pizza', 'Fast Food', 'Restaurant', 'Cafe', 'Bakery', 'Cloud Kitchen'],
+                'available' => false,
+                'legacy' => true,
+                'features' => ['products' => true, 'services' => false, 'inventory' => false, 'marketplace' => true, 'reservations' => false, 'delivery' => true, 'dine_in' => true],
+                'product_categories' => ['Pizzas', 'Burgers', 'Starters', 'Deals', 'Beverages', 'Desserts'],
+                'expense_categories' => ['Ingredients', 'Cooking Gas', 'Staff Salary', 'Rent', 'Cleaning', 'Packaging', 'Delivery', 'Utilities'],
+            ],
+            'grocery' => [
+                'label' => 'Grocery & General Store',
+                'examples' => ['Grocery', 'Supermarket', 'Mini Mart', 'Convenience Store'],
+                'available' => false,
+                'legacy' => true,
+                'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => true, 'delivery' => true],
+                'product_categories' => ['Food & Beverages', 'Household', 'Personal Care', 'Snacks', 'Dairy'],
+                'expense_categories' => ['Supplier Purchases', 'Packaging', 'Delivery', 'Utilities', 'Rent', 'Staff Salary', 'Spoilage/Wastage'],
             ],
             'clinic' => [
                 'label' => 'Clinic / Medical Practice',
                 'examples' => ['Clinic', 'Doctor', 'Dental', 'Physiotherapy', 'Diagnostic Lab', 'Veterinary'],
-                'available' => true,
-                // A clinic sells BOTH: medicines/supplies (stock-tracked products
-                // with Rx + expiry) AND consultations/procedures (services, booked
-                // as appointments). No online storefront.
+                'available' => false,
+                'legacy' => true,
                 'features' => ['products' => true, 'services' => true, 'inventory' => true, 'marketplace' => false, 'reservations' => true, 'delivery' => false],
                 'product_categories' => ['Consultations', 'Procedures', 'Medicines', 'Medical Supplies', 'Tests'],
                 'expense_categories' => ['Medicine Purchase', 'Medical Supplies', 'Equipment', 'Staff Salary', 'Licensing', 'Rent', 'Utilities'],
@@ -71,7 +185,8 @@ class BusinessTypes
             'salon' => [
                 'label' => 'Salon & Beauty',
                 'examples' => ['Salon', 'Barber', 'Spa', 'Beauty Clinic'],
-                'available' => true,
+                'available' => false,
+                'legacy' => true,
                 'features' => ['products' => true, 'services' => true, 'inventory' => false, 'marketplace' => false, 'reservations' => false, 'delivery' => false],
                 'product_categories' => ['Hair Services', 'Skin Services', 'Retail Products'],
                 'expense_categories' => ['Beauty Supplies', 'Equipment Maintenance', 'Staff Commission', 'Rent', 'Marketing', 'Utilities'],
@@ -79,7 +194,8 @@ class BusinessTypes
             'workshop' => [
                 'label' => 'Workshop / Auto Repair',
                 'examples' => ['Bike Workshop', 'Car Workshop', 'Mechanic'],
-                'available' => true,
+                'available' => false,
+                'legacy' => true,
                 'features' => ['products' => true, 'services' => true, 'inventory' => true, 'marketplace' => false, 'reservations' => false, 'delivery' => false],
                 'product_categories' => ['Spare Parts', 'Oils & Fluids', 'Services'],
                 'expense_categories' => ['Parts Purchase', 'Tools & Equipment', 'Staff Salary', 'Rent', 'Utilities'],
@@ -87,7 +203,8 @@ class BusinessTypes
             'service' => [
                 'label' => 'Service Business',
                 'examples' => ['Computer Repair', 'Mobile Repair', 'Printing', 'Tailor', 'Laundry'],
-                'available' => true,
+                'available' => false,
+                'legacy' => true,
                 'features' => ['products' => false, 'services' => true, 'inventory' => false, 'marketplace' => false, 'reservations' => false, 'delivery' => false],
                 'product_categories' => ['Services'],
                 'expense_categories' => ['Supplies', 'Equipment Maintenance', 'Staff Salary', 'Rent', 'Utilities', 'Marketing'],
@@ -95,7 +212,8 @@ class BusinessTypes
             'wholesale' => [
                 'label' => 'Wholesale Business',
                 'examples' => ['Wholesale Distributor'],
-                'available' => true,
+                'available' => false,
+                'legacy' => true,
                 'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => false, 'delivery' => true],
                 'product_categories' => ['General Stock'],
                 'expense_categories' => ['Bulk Purchases', 'Warehouse Rent', 'Transportation', 'Staff Salary', 'Utilities'],
@@ -103,7 +221,8 @@ class BusinessTypes
             'books' => [
                 'label' => 'Book & Stationery Store',
                 'examples' => ['Bookshop', 'Stationery'],
-                'available' => true,
+                'available' => false,
+                'legacy' => true,
                 'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => true, 'delivery' => true],
                 'product_categories' => ['Books', 'Stationery', 'Office Supplies', 'Art Supplies'],
                 'expense_categories' => ['Stock Purchase', 'Rent', 'Staff Salary', 'Utilities', 'Packaging'],
@@ -111,21 +230,11 @@ class BusinessTypes
             'hardware' => [
                 'label' => 'Hardware Store',
                 'examples' => ['Hardware', 'Building Materials'],
-                'available' => true,
+                'available' => false,
+                'legacy' => true,
                 'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => true, 'delivery' => true],
                 'product_categories' => ['Tools', 'Plumbing', 'Electrical', 'Paint', 'Building Materials'],
                 'expense_categories' => ['Stock Purchase', 'Transportation', 'Rent', 'Staff Salary', 'Utilities'],
-            ],
-            'restaurant' => [
-                'label' => 'Restaurant / Food',
-                'examples' => ['Pizza', 'Fast Food', 'Restaurant', 'Cafe', 'Bakery', 'Cloud Kitchen'],
-                'available' => true,
-                // Menu items are products WITHOUT stock tracking; sells online
-                // with delivery. Dine-in (tables + KOT + split-bill) is on by
-                // default for restaurants — a cloud kitchen can switch it off.
-                'features' => ['products' => true, 'services' => false, 'inventory' => false, 'marketplace' => true, 'reservations' => false, 'delivery' => true, 'dine_in' => true],
-                'product_categories' => ['Pizzas', 'Burgers', 'Starters', 'Deals', 'Beverages', 'Desserts'],
-                'expense_categories' => ['Ingredients', 'Cooking Gas', 'Staff Salary', 'Rent', 'Cleaning', 'Packaging', 'Delivery', 'Utilities'],
             ],
         ];
     }
@@ -142,6 +251,12 @@ class BusinessTypes
     public static function get(string $code): ?array
     {
         return self::all()[$code] ?? null;
+    }
+
+    /** The categories a tenant may pick within a type (its business_category). */
+    public static function categoriesFor(string $code): array
+    {
+        return self::get($code)['categories'] ?? [];
     }
 
     public static function defaultFeatures(string $code): array
@@ -164,7 +279,7 @@ class BusinessTypes
 
     /**
      * The catalog item types a given business may create — derived from the
-     * type + its feature flags. Restaurants sell food (plus retail drinks),
+     * type + its feature flags. Food shops sell food (plus retail drinks),
      * pharmacies sell medicine (plus retail), service shops sell services,
      * everyone else sells physical products.
      */
@@ -176,7 +291,7 @@ class BusinessTypes
         }
 
         $types = [];
-        if ($code === 'restaurant') {
+        if (in_array($code, ['food', 'restaurant'], true)) {
             $types[] = ItemTypes::FOOD;
         }
         if (in_array($code, ['pharmacy', 'clinic'], true)) {
@@ -188,9 +303,10 @@ class BusinessTypes
         if (! empty($t['features']['services'])) {
             $types[] = ItemTypes::SERVICE;
         }
-        // Combo/deal bundles — for shops that run deals: restaurants, grocery,
-        // retail. (A deal bundles existing products at one price.)
-        if (in_array($code, ['restaurant', 'grocery', 'retail'], true)) {
+        // Combo/deal bundles — for shops that run deals: food, mart, retail
+        // (and their legacy equivalents). A deal bundles existing products at
+        // one price.
+        if (in_array($code, ['food', 'mart', 'retail', 'restaurant', 'grocery'], true)) {
             $types[] = ItemTypes::DEAL;
         }
 

@@ -4,7 +4,13 @@ namespace App\Actions\Catalog;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductBarcode;
+use App\Models\ProductUnit;
+use App\Services\InventoryService;
+use App\Support\BusinessTypes;
 use App\Support\ItemTypes;
+use App\Support\TenantContext;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -33,7 +39,14 @@ class ImportProductsAction
     public function __construct(
         private readonly CreateProductAction $create,
         private readonly UpdateProductAction $update,
+        private readonly InventoryService $inventory,
+        private readonly TenantContext $context,
     ) {}
+
+    /** Barcodes / PLUs already used by EARLIER rows of this same file. */
+    private array $seenBarcodes = [];
+
+    private array $seenPlus = [];
 
     /**
      * @return array{total:int, created:int, updated:int, failed:int, errors:array<array{row:int, messages:string[]}>}
@@ -41,6 +54,9 @@ class ImportProductsAction
     public function execute(string $csv): array
     {
         $rows = $this->parse($csv);
+
+        $this->seenBarcodes = [];
+        $this->seenPlus = [];
 
         $summary = ['total' => 0, 'created' => 0, 'updated' => 0, 'failed' => 0, 'errors' => []];
 
@@ -58,6 +74,16 @@ class ImportProductsAction
             } catch (RowValidationException $e) {
                 $summary['failed']++;
                 $summary['errors'][] = ['row' => $lineNo, 'messages' => $e->messages];
+            } catch (QueryException $e) {
+                // A DB constraint (e.g. a unique index racing this import) must
+                // fail THIS row with a readable message — never 500 the whole
+                // file and strand the rows after it.
+                $summary['failed']++;
+                $summary['errors'][] = ['row' => $lineNo, 'messages' => [
+                    (string) $e->getCode() === '23000'
+                        ? 'A unique value in this row (barcode / PLU / SKU) is already in use.'
+                        : 'Database error while saving this row.',
+                ]];
             }
         }
 
@@ -88,20 +114,53 @@ class ImportProductsAction
             throw new RowValidationException($validator->errors()->all());
         }
 
-        return DB::transaction(function () use ($data): string {
+        // The business type constrains what a shop may catalog — same rule the
+        // HTTP form enforces (a mart can't import medicines).
+        $businessType = $this->context->get()?->business_type;
+        if ($businessType !== null
+            && ! in_array($data['item_type'], BusinessTypes::itemTypesFor($businessType), true)) {
+            throw new RowValidationException(["Item type \"{$data['item_type']}\" isn't available for this business type."]);
+        }
+
+        // Upsert by SKU within the shop.
+        $existing = ! empty($data['sku'])
+            ? Product::query()->where('sku', $data['sku'])->first()
+            : null;
+
+        $this->guardUniqueCodes($data, $existing);
+
+        return DB::transaction(function () use ($data, $existing): string {
             // Resolve category by name (create if missing).
             if (! empty($data['category'])) {
                 $data['category_id'] = Category::query()->firstOrCreate(['name' => $data['category']])->id;
             }
             unset($data['category']);
 
-            // Upsert by SKU within the shop.
-            $existing = ! empty($data['sku'])
-                ? Product::query()->where('sku', $data['sku'])->first()
-                : null;
-
             if ($existing !== null) {
+                // Stock is NEVER mass-assigned on update — a recount goes
+                // through the audited inventory path (lock, negative guard,
+                // stock-movement row), exactly like the Adjust Stock screen.
+                $newStock = $data['stock_quantity'] ?? null;
+                unset($data['stock_quantity']);
+
+                // item_type / type / track_inventory are IMMUTABLE after
+                // creation (UpdateProductRequest prohibits them). normalize()
+                // always fills item_type (defaulting a missing column to
+                // physical_product), so a bare re-import would silently flip an
+                // existing medicine/deal to physical_product — stranding its
+                // stock and mis-routing restore paths. Strip them on update.
+                unset($data['item_type'], $data['type'], $data['track_inventory']);
+
                 $this->update->execute($existing, $data);
+
+                if ($newStock !== null && (float) $newStock !== (float) $existing->stock_quantity) {
+                    $this->inventory->adjust([
+                        'product_id' => $existing->id,
+                        'type' => 'set',
+                        'new_quantity' => (float) $newStock,
+                        'reason' => 'CSV import recount',
+                    ]);
+                }
 
                 return 'updated';
             }
@@ -110,6 +169,57 @@ class ImportProductsAction
 
             return 'created';
         });
+    }
+
+    /**
+     * Duplicate barcode / PLU protection the DB can't fully give us (the
+     * primary barcode column has no unique index): checked against earlier
+     * rows of this file AND everything already in the shop — primary barcodes,
+     * alternate barcodes, and pack barcodes. Violations fail the ROW.
+     */
+    private function guardUniqueCodes(array $data, ?Product $existing): void
+    {
+        $errors = [];
+
+        if (! empty($data['barcode'])) {
+            $code = $data['barcode'];
+            $inShop = Product::query()->where('barcode', $code)
+                ->when($existing !== null, fn ($q) => $q->whereKeyNot($existing->id))
+                ->exists()
+                || ProductBarcode::query()->where('barcode', $code)
+                    ->when($existing !== null, fn ($q) => $q->where('product_id', '!=', $existing->id))
+                    ->exists()
+                || ProductUnit::query()->where('barcode', $code)
+                    ->when($existing !== null, fn ($q) => $q->where('product_id', '!=', $existing->id))
+                    ->exists();
+
+            if (isset($this->seenBarcodes[$code]) || $inShop) {
+                $errors[] = "Barcode {$code} is already in use.";
+            }
+        }
+
+        if (! empty($data['plu_code'])) {
+            $plu = $data['plu_code'];
+            $inShop = Product::query()->where('plu_code', $plu)
+                ->when($existing !== null, fn ($q) => $q->whereKeyNot($existing->id))
+                ->exists();
+
+            if (isset($this->seenPlus[$plu]) || $inShop) {
+                $errors[] = "PLU {$plu} is already in use.";
+            }
+        }
+
+        if ($errors !== []) {
+            throw new RowValidationException($errors);
+        }
+
+        // Row is clear — claim its codes so a later duplicate row fails.
+        if (! empty($data['barcode'])) {
+            $this->seenBarcodes[$data['barcode']] = true;
+        }
+        if (! empty($data['plu_code'])) {
+            $this->seenPlus[$data['plu_code']] = true;
+        }
     }
 
     /** Map a raw CSV row to a clean product-data array with typed values. */

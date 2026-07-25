@@ -16,7 +16,11 @@ return new class extends Migration
             $table->foreignUuid('sale_id')->constrained('sales')->cascadeOnDelete();
             $table->uuid('cash_session_id')->nullable()->index();
             $table->string('return_number'); // RET-000001
-            $table->decimal('refund_total', 12, 2);
+            $table->decimal('refund_total', 12, 2);           // GRAND refund (base + tax)
+            $table->decimal('refund_tax', 12, 2)->default(0); // tax portion of refund_total
+            // Portion settled against the customer's khata instead of paid
+            // out: cash the cashier actually hands over = refund_total − this.
+            $table->decimal('refund_credit', 12, 2)->default(0);
             $table->string('refund_method')->default('cash'); // cash | card | bank_transfer | other
             $table->string('reason')->nullable();
             $table->text('notes')->nullable();

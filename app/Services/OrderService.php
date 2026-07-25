@@ -12,8 +12,10 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Rider;
 use App\Models\Sale;
+use App\Models\StockMovement;
 use App\Models\Tenant;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -128,6 +130,16 @@ class OrderService
                     if ($variant === null) {
                         throw DomainException::unprocessable('An option is no longer available.', 'VARIANT_UNAVAILABLE');
                     }
+                }
+
+                // Prescription items are dispensed in person — a pharmacist
+                // must sight the script. They can be BROWSED online (so the
+                // customer knows the shop stocks them) but never checked out.
+                if ($product->requires_prescription) {
+                    throw DomainException::unprocessable(
+                        "{$product->name} requires a prescription — please visit the pharmacy to purchase it.",
+                        'RX_IN_PERSON_ONLY',
+                    );
                 }
 
                 // Food serving window: a "breakfast 07:00–11:00" item can't be
@@ -252,7 +264,7 @@ class OrderService
             ]);
 
             foreach ($lines as $line) {
-                $order->items()->create([
+                $orderItem = $order->items()->create([
                     'tenant_id' => $shop->id,
                     'product_id' => $line['product']->id,
                     'variant_id' => $line['variant']?->id,
@@ -282,7 +294,12 @@ class OrderService
                                 'reason' => "Order {$order->order_number} (deal: {$line['product']->name})",
                                 'reference_type' => 'order',
                                 'reference_id' => $order->id,
-                                'idempotency_key' => "order-{$order->id}-combo-{$line['product']->id}-{$component->id}",
+                                // Key by the ORDER-ITEM row, not the product —
+                                // two lines of the same product (or a deal
+                                // added twice) must each hold their own stock,
+                                // and releaseStock keys the same way so the
+                                // release matches the hold exactly.
+                                'idempotency_key' => "order-{$order->id}-item-{$orderItem->id}-c{$component->id}",
                             ]);
                         }
                     }
@@ -296,7 +313,9 @@ class OrderService
                         'reason' => "Order {$order->order_number}",
                         'reference_type' => 'order',
                         'reference_id' => $order->id,
-                        'idempotency_key' => "order-{$order->id}-{$line['product']->id}-".($line['variant']?->id ?? 'base'),
+                        // Per order-item (see combo branch) — duplicate product
+                        // lines must not collapse into one hold.
+                        'idempotency_key' => "order-{$order->id}-item-{$orderItem->id}",
                     ]);
                 }
             }
@@ -439,6 +458,11 @@ class OrderService
                 'payment_method' => $order->payment_method === 'paid' ? 'card' : 'cash',
                 'amount_paid' => max(0, $goodsPaid),
                 'trusted_prices' => true,
+                // Replay the money the customer actually paid at checkout: the
+                // order quoted NO tax, so the sale must not invent one — a
+                // GST-rated product would otherwise make completion throw
+                // PAYMENT_INSUFFICIENT on every taxed order.
+                'tax' => 0.0,
                 'notes' => "Online order {$order->order_number}"
                     .($order->coupon_code !== null ? " (coupon {$order->coupon_code})" : ''),
                 'idempotency_key' => "order-sale-{$order->id}",
@@ -459,45 +483,35 @@ class OrderService
 
     private function releaseStock(Order $order): void
     {
-        foreach ($order->items as $item) {
-            /** @var Product|null $product */
-            $product = $item->product_id !== null
-                ? Product::withoutTenancy()->whereKey($item->product_id)->first()
-                : null;
+        // Reverse the exact holds this order placed — read from stock_movements,
+        // NOT the live product recipe. A deal's components can be edited between
+        // placement and release (SyncComboItemsAction full-replaces them); the
+        // recipe read would restore the wrong items. Each hold 'out' becomes an
+        // 'in' of the same amount to the same product/variant. Release is
+        // whole-order (cancel, or complete-then-re-decrement), so reversing
+        // every hold is correct.
+        $holds = StockMovement::query()
+            ->where('reference_type', 'order')
+            ->where('reference_id', $order->id)
+            ->where('quantity_change', '<', 0)
+            ->get();
 
-            if ($product === null) {
+        foreach ($holds as $mv) {
+            $product = Product::withoutTenancy()->whereKey($mv->product_id)->first();
+            if ($product === null || ! $product->track_inventory) {
                 continue;
             }
 
-            // A deal restores each held component; a pack restores base units
-            // (count × factor). Non-inventory (food) items hold nothing.
-            if ($product->isCombo()) {
-                foreach ($product->comboItems()->with('component')->get() as $ci) {
-                    $component = $ci->component;
-                    if ($component !== null && $component->track_inventory) {
-                        $this->inventory->adjust([
-                            'product_id' => $component->id,
-                            'type' => 'in',
-                            'quantity' => round((float) $ci->quantity * (float) $item->quantity, 3),
-                            'reason' => "Order {$order->order_number} released",
-                            'reference_type' => 'order_release',
-                            'reference_id' => $order->id,
-                            'idempotency_key' => "order-release-{$order->id}-{$item->id}-{$component->id}",
-                        ]);
-                    }
-                }
-            } elseif ($product->track_inventory) {
-                $this->inventory->adjust([
-                    'product_id' => $item->product_id,
-                    'variant_id' => $item->variant_id,
-                    'type' => 'in',
-                    'quantity' => round((float) $item->quantity * (float) ($item->unit_factor ?? 1), 3),
-                    'reason' => "Order {$order->order_number} released",
-                    'reference_type' => 'order_release',
-                    'reference_id' => $order->id,
-                    'idempotency_key' => "order-release-{$order->id}-{$item->id}",
-                ]);
-            }
+            $this->inventory->adjust([
+                'product_id' => $mv->product_id,
+                'variant_id' => $mv->variant_id,
+                'type' => 'in',
+                'quantity' => abs((float) $mv->quantity_change),
+                'reason' => "Order {$order->order_number} released",
+                'reference_type' => 'order_release',
+                'reference_id' => $order->id,
+                'idempotency_key' => "order-release-mv-{$mv->id}",
+            ]);
         }
     }
 

@@ -70,11 +70,19 @@ class CreateSaleAction
             $lines = [];
             $subtotal = 0.0;
 
+            // The shop's default tax rate — each line snapshots its effective
+            // rate (product rate else this default) so returns can refund tax.
+            $defaultTaxRate = (float) ($this->context->get()?->setting('default_tax_rate', 0) ?? 0);
+
             foreach ($data['items'] as $item) {
                 /** @var Product|null $product */
+                // The trusted path (order/reservation completion, dine-in
+                // settlement) replays a line captured EARLIER — the product may
+                // have been 86'd/deactivated since, but the customer already
+                // committed; deactivation must never block settling their money.
                 $product = Product::query()
                     ->whereKey($item['product_id'])
-                    ->where('is_active', true)
+                    ->when(! $trusted, fn ($q) => $q->where('is_active', true))
                     ->lockForUpdate()
                     ->first();
 
@@ -93,7 +101,7 @@ class CreateSaleAction
                         ->lockForUpdate()
                         ->first();
 
-                    if ($variant === null || ! $variant->is_active) {
+                    if ($variant === null || (! $trusted && ! $variant->is_active)) {
                         throw DomainException::unprocessable(
                             'A variant in this sale is no longer available.',
                             'VARIANT_UNAVAILABLE',
@@ -147,6 +155,16 @@ class CreateSaleAction
                     );
                 }
 
+                // Wholesale minimum applies at the counter exactly as online —
+                // the same rule the marketplace enforces (OrderService), so a
+                // walk-in can't undercut the item's minimum order quantity.
+                if (! $trusted && $product->min_order_qty !== null && $quantity < (float) $product->min_order_qty) {
+                    throw DomainException::unprocessable(
+                        "Minimum order quantity for {$product->name} is {$product->min_order_qty}.",
+                        'MIN_ORDER_QTY',
+                    );
+                }
+
                 // Price level (retail | wholesale) — a named price list. It
                 // sets the per-unit RETAIL-or-WHOLESALE rate; packs multiply it,
                 // variants keep their own price. Wholesale falls back to retail
@@ -181,8 +199,9 @@ class CreateSaleAction
 
                 // Per-line discount (POS): computed off the SERVER's own line
                 // price. A percentage wins if given; a fixed amount is clamped
-                // so it can never exceed the line (no negative lines). Ignored
-                // on the trusted path (order/reservation completion).
+                // so it can never exceed the line (no negative lines). The
+                // trusted path instead carries the CAPTURED discount forward
+                // for the record (it's already baked into the trusted totals).
                 $lineDiscount = 0.0;
                 if (! $trusted) {
                     if (($pct = (float) ($item['line_discount_pct'] ?? 0)) > 0) {
@@ -190,9 +209,16 @@ class CreateSaleAction
                     } elseif (($amt = (float) ($item['line_discount'] ?? 0)) > 0) {
                         $lineDiscount = min(round($amt, 2), $gross);
                     }
+                } else {
+                    $lineDiscount = round((float) ($item['line_discount'] ?? 0), 2);
                 }
 
-                $lineTotal = round($gross - $lineDiscount, 2);
+                // Trusted callers may pass the exact captured line_total (a
+                // dine-in tab shows a running total all meal — the settled bill
+                // must equal it to the paisa, immune to per-unit rounding).
+                $lineTotal = $trusted && isset($item['line_total'])
+                    ? round((float) $item['line_total'], 2)
+                    : round($gross - $lineDiscount, 2);
                 $subtotal = round($subtotal + $lineTotal, 2);
 
                 $lines[] = [
@@ -207,6 +233,8 @@ class CreateSaleAction
                     'line_discount' => $lineDiscount,
                     'line_total' => $lineTotal,
                     'modifiers' => $modifierSnapshot,
+                    // Effective tax %% snapshot — product rate else shop default.
+                    'tax_rate' => $product->tax_rate !== null ? (float) $product->tax_rate : $defaultTaxRate,
                 ];
             }
 
@@ -237,16 +265,30 @@ class CreateSaleAction
             // `tax` is IGNORED here (it would be a fraud vector) — honored ONLY
             // on the trusted path (order/reservation completion replaying an
             // already-settled sale).
-            if ($trusted) {
-                $tax = round((float) ($data['tax'] ?? 0), 2);
+            if ($trusted && array_key_exists('tax', $data)) {
+                // Order/reservation completion replays the tax settled at
+                // placement time.
+                $tax = round((float) $data['tax'], 2);
+
+                // The per-line tax_rate snapshot must reflect what was ACTUALLY
+                // charged, not the product's catalog rate: an online order /
+                // reservation pickup replays a tax-free quoted total (tax => 0),
+                // so leaving the catalog 17% on the lines would make a later
+                // return refund tax the shop never collected. Blend the settled
+                // tax across the taxable base and stamp every line with it.
+                $taxableBase = round($subtotal - $discount, 2);
+                $blendedRate = $taxableBase > 0 ? round($tax / $taxableBase * 100, 4) : 0.0;
+                foreach ($lines as $i => $line) {
+                    $lines[$i]['tax_rate'] = $blendedRate;
+                }
             } else {
-                $defaultRate = (float) ($this->context->get()?->setting('default_tax_rate', 0) ?? 0);
+                // Computed from each line's snapshotted effective rate — also
+                // serves trusted callers that DIDN'T pre-settle tax (dine-in
+                // settlement prices from the tab snapshot but taxes fresh).
                 $taxableBase = $subtotal - $discount;
                 $tax = 0.0;
                 foreach ($lines as $line) {
-                    $rate = $line['product']->tax_rate !== null
-                        ? (float) $line['product']->tax_rate
-                        : $defaultRate;
+                    $rate = (float) $line['tax_rate'];
                     if ($rate <= 0 || $subtotal <= 0) {
                         continue; // exempt / zero-rated, or nothing to tax
                     }
@@ -334,6 +376,7 @@ class CreateSaleAction
                     'unit_cost' => $line['unit_cost'],
                     'line_discount' => $line['line_discount'],
                     'line_total' => $line['line_total'],
+                    'tax_rate' => $line['tax_rate'],
                 ]);
 
                 if ($line['product']->isCombo()) {
@@ -398,7 +441,24 @@ class CreateSaleAction
                         'CREDIT_REQUIRES_CUSTOMER',
                     );
                 }
-                $customer->chargeCredit($creditTotal, $sale->id, "Sale {$invoiceNumber}");
+                // A khata sale must never produce cash change: the non-credit
+                // tenders should cover the rest of the bill exactly. If money
+                // paid exceeds the total while part is on credit, the cashier
+                // would be told to hand out real cash against a promise-to-pay
+                // (a fat-fingered credit amount turns the POS into a cash
+                // dispenser and inflates the receivable). Reject it.
+                if (round($amountPaid - $total, 2) > 0) {
+                    throw DomainException::unprocessable(
+                        'A credit (khata) sale cannot give cash change — the amount on credit is more than what is owed.',
+                        'CREDIT_EXCEEDS_DUE',
+                    );
+                }
+                // Lock the customer row before the read-modify-write on their
+                // balance, mirroring the return/cancel reversal paths — two POS
+                // terminals ringing khata sales for the same customer must not
+                // lose an update or race past the credit limit.
+                $locked = Customer::query()->whereKey($customer->id)->lockForUpdate()->first();
+                $locked->chargeCredit($creditTotal, $sale->id, "Sale {$invoiceNumber}");
             }
 
             return $sale->load('items', 'payments');

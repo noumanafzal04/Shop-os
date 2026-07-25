@@ -231,6 +231,9 @@ class ReservationService
                     'unit_price' => (float) $reservation->unit_price,
                 ]],
                 'trusted_prices' => true,
+                // The reservation promised unit_price × quantity, tax-free —
+                // charge exactly that at pickup (no recomputed tax on top).
+                'tax' => 0.0,
                 'payment_method' => $payment['payment_method'],
                 'amount_paid' => $payment['amount_paid'],
                 'notes' => "Reservation {$reservation->id}",

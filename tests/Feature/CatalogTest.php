@@ -45,14 +45,19 @@ class CatalogTest extends TestCase
         $response = $this->getJson('/api/v1/business-types')->assertOk();
 
         $codes = collect($response->json('data'))->pluck('code');
+        // The 5 primary types are offered; legacy codes are hidden.
         $this->assertTrue($codes->contains('retail'));
-        $this->assertTrue($codes->contains('salon'));
+        $this->assertTrue($codes->contains('services'));
+        $this->assertTrue($codes->contains('mart'));
+        $this->assertFalse($codes->contains('restaurant')); // legacy, absorbed into "food"
 
-        // Food/restaurant is a live business type: sells online with delivery.
-        $restaurant = collect($response->json('data'))->firstWhere('code', 'restaurant');
-        $this->assertTrue($restaurant['available']);
-        $this->assertTrue($restaurant['features']['marketplace']);
-        $this->assertTrue($restaurant['features']['delivery']);
+        // Food is a live business type: sells online with delivery, and carries
+        // the categories a tenant picks within it.
+        $food = collect($response->json('data'))->firstWhere('code', 'food');
+        $this->assertTrue($food['available']);
+        $this->assertTrue($food['features']['marketplace']);
+        $this->assertTrue($food['features']['delivery']);
+        $this->assertNotEmpty($food['categories']);
     }
 
     public function test_setup_seeds_business_type_templates(): void
@@ -60,20 +65,20 @@ class CatalogTest extends TestCase
         $city = City::query()->create(['name' => 'Karachi', 'is_active' => true]);
 
         // Business type is set by the admin at creation — simulate that here.
-        $this->tenant->update(['business_type' => 'salon']);
+        $this->tenant->update(['business_type' => 'services']);
 
         $this->actingAsUser($this->owner)->putJson('/api/v1/shop/setup', [
-            'business_category' => 'beauty',
+            'business_category' => 'salon_beauty',
             'city_id' => $city->id,
         ])->assertOk();
 
         $tenant = $this->tenant->fresh();
-        $this->assertSame('salon', $tenant->business_type);
-        // Salon matrix: services on, delivery off.
+        $this->assertSame('services', $tenant->business_type);
+        // Services matrix: services on, delivery off.
         $this->assertTrue($tenant->featureEnabled('services'));
         $this->assertFalse($tenant->featureEnabled('delivery'));
 
-        // Templates seeded (salon: 6 expense categories, 3 product categories).
+        // Templates seeded (services: 6 expense categories, 3 product categories).
         $this->assertSame(6, ExpenseCategory::withoutTenancy()->where('tenant_id', $tenant->id)->count());
         $this->assertSame(3, Category::withoutTenancy()->where('tenant_id', $tenant->id)->count());
     }
@@ -83,11 +88,11 @@ class CatalogTest extends TestCase
         $city = City::query()->create(['name' => 'Karachi', 'is_active' => true]);
 
         // Type is admin-set at creation; setup then applies its defaults.
-        $this->tenant->update(['business_type' => 'salon']);
+        $this->tenant->update(['business_type' => 'services']);
 
         foreach (range(1, 2) as $i) {
             $this->actingAsUser($this->owner)->putJson('/api/v1/shop/setup', [
-                'business_category' => 'beauty',
+                'business_category' => 'salon_beauty',
                 'city_id' => $city->id,
             ])->assertOk();
         }

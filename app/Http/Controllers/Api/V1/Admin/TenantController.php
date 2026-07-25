@@ -9,6 +9,7 @@ use App\Actions\Tenant\DeleteTenantAction;
 use App\Actions\Tenant\SuspendTenantAction;
 use App\Actions\Tenant\UpdateTenantAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ExtendTenantLimitsRequest;
 use App\Http\Requests\Admin\UpdateTenantModulesRequest;
 use App\Http\Requests\Tenant\AssignPlanRequest;
 use App\Http\Requests\Tenant\StoreTenantRequest;
@@ -102,6 +103,35 @@ class TenantController extends Controller
         $tenant->forceFill(['features' => $features])->save();
 
         return ApiResponse::ok(new TenantResource($tenant->fresh()->load('city', 'plan')), 'Modules updated');
+    }
+
+    /**
+     * Extend (or clear) a single tenant's plan limits. Sends a sparse map of
+     * {limit_key: value|null}; a value raises this tenant's ceiling past the
+     * plan baseline, null clears the override (back to the plan). Most tenants
+     * share a common plan; this is how the odd one that needs more gets it —
+     * without creating a bespoke plan.
+     */
+    public function extendLimits(ExtendTenantLimitsRequest $request, string $id): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = Tenant::query()->findOrFail($id);
+
+        $overrides = $tenant->limit_overrides ?? [];
+        foreach ($request->validated('limits') as $key => $value) {
+            if ($value === null) {
+                unset($overrides[$key]); // clear → fall back to the plan
+            } else {
+                $overrides[$key] = (int) $value;
+            }
+        }
+
+        $tenant->forceFill(['limit_overrides' => $overrides ?: null])->save();
+
+        return ApiResponse::ok(
+            new TenantResource($tenant->fresh()->load('city', 'plan')),
+            'Limits updated',
+        );
     }
 
     public function suspend(string $id, SuspendTenantAction $action): JsonResponse

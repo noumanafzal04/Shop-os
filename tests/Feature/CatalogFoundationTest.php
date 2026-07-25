@@ -32,7 +32,8 @@ class CatalogFoundationTest extends TestCase
         $city = City::query()->create(['name' => 'Karachi', 'is_active' => true]);
         $this->tenant = Tenant::factory()->create([
             'setup_completed' => true, 'city_id' => $city->id,
-            'business_type' => 'retail', 'features' => BusinessTypes::defaultFeatures('retail'),
+            'business_type' => null, // type-less (legacy) tenant: these are ITEM-TYPE capability tests, not business-type-constraint tests
+            'features' => BusinessTypes::defaultFeatures('retail'),
         ]);
         $this->owner = User::factory()->shopOwner($this->tenant)->create();
     }

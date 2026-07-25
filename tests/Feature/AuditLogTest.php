@@ -37,7 +37,7 @@ class AuditLogTest extends TestCase
 
         $tenant = $this->actingAsUser($admin)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Audited Mart',
-            'business_type' => 'grocery',
+            'business_type' => 'mart',
             'plan_id' => $plan->id,
             'owner' => ['name' => 'O', 'email' => 'o@audit.test', 'password' => 'password123'],
         ])->json('data');
@@ -66,7 +66,7 @@ class AuditLogTest extends TestCase
 
         $this->actingAsUser($admin)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Secret Mart',
-            'business_type' => 'grocery',
+            'business_type' => 'mart',
             'owner' => ['name' => 'O', 'email' => 'secret@audit.test', 'password' => 'password123'],
         ]);
 

@@ -8,10 +8,15 @@ use Illuminate\Database\Seeder;
 class PlanSeeder extends Seeder
 {
     /**
-     * Three plans, three capability bundles. A plan's `features` are the
-     * plan-gated modules it grants; on assignment they're merged over the
-     * shop's business-type defaults (see AssignPlanAction). Modules a plan
-     * doesn't name (products, inventory, images…) come from the business type.
+     * Starter plans. Two orthogonal dimensions:
+     *  - WHICH MODULES a plan grants (its `features`) — merged over the shop's
+     *    business-type defaults on assignment (see AssignPlanAction).
+     *  - HOW MUCH it allows (its limits) — a shared baseline every plan starts
+     *    from. Limits are NOT tiered here on purpose: the model is one common
+     *    baseline for everyone, and the odd tenant who needs more gets a
+     *    per-tenant EXTEND (tenants.limit_overrides) instead of a bespoke plan.
+     *    The Super Admin can create/rename/reprice any plan and set any limits
+     *    from the admin panel — these three are just sensible seeds.
      *
      *   Business/POS            → in-shop till + back-office, NO online
      *   Online Business         → sell online only, NO POS / expense manager
@@ -19,6 +24,16 @@ class PlanSeeder extends Seeder
      */
     public function run(): void
     {
+        // Common baseline limits shared by every seeded plan (NULL = unlimited).
+        // Real ceilings are set by the admin per plan; extensions are per-tenant.
+        $limits = [
+            'max_products' => 1000,
+            'max_branches' => 1,
+            'max_staff' => 15,
+            'max_storage_mb' => 1024,
+            'max_orders_month' => null, // never cap ringing up a sale
+        ];
+
         // In-shop only: POS till, expense manager, reports — no marketplace.
         Plan::query()->updateOrCreate(
             ['code' => 'business-pos'],
@@ -29,7 +44,11 @@ class PlanSeeder extends Seeder
                 'billing_period_months' => 1,
                 'online_shop_enabled' => false,
                 'grace_period_days' => 7,
-                'features' => ['pos' => true, 'expenses' => true, 'marketplace' => false, 'delivery' => false, 'reservations' => false],
+                // Carry the derived 'products' key (= pos || marketplace) so a
+                // seeded plan matches exactly what PlanController::normalizeModules
+                // stores — a first admin-panel edit then changes nothing implicit.
+                'features' => ['pos' => true, 'expenses' => true, 'marketplace' => false, 'products' => true, 'delivery' => false, 'reservations' => false],
+                ...$limits,
                 'is_active' => true,
             ],
         );
@@ -45,7 +64,8 @@ class PlanSeeder extends Seeder
                 'billing_period_months' => 1,
                 'online_shop_enabled' => true,
                 'grace_period_days' => 7,
-                'features' => ['pos' => false, 'expenses' => false, 'marketplace' => true],
+                'features' => ['pos' => false, 'expenses' => false, 'marketplace' => true, 'products' => true],
+                ...$limits,
                 'is_active' => true,
             ],
         );
@@ -60,7 +80,8 @@ class PlanSeeder extends Seeder
                 'billing_period_months' => 1,
                 'online_shop_enabled' => true,
                 'grace_period_days' => 7,
-                'features' => ['pos' => true, 'expenses' => true, 'marketplace' => true],
+                'features' => ['pos' => true, 'expenses' => true, 'marketplace' => true, 'products' => true],
+                ...$limits,
                 'is_active' => true,
             ],
         );

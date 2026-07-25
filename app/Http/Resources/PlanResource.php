@@ -23,6 +23,14 @@ class PlanResource extends JsonResource
             'online_shop_enabled' => $this->online_shop_enabled,
             'grace_period_days' => $this->grace_period_days,
             'features' => $this->features,
+            // Plan limits — null = unlimited for that resource.
+            'limits' => [
+                'products' => $this->max_products,
+                'branches' => $this->max_branches,
+                'staff' => $this->max_staff,
+                'storage_mb' => $this->max_storage_mb,
+                'orders_month' => $this->max_orders_month,
+            ],
             'is_active' => $this->is_active,
             'tenants_count' => $this->whenCounted('tenants'),
         ];

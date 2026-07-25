@@ -5,6 +5,7 @@ namespace App\Actions\Sale;
 use App\Enums\ItemType;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleReturn;
@@ -31,7 +32,7 @@ class ProcessSaleReturnAction
      * @param array{
      *   items: array<array{sale_item_id: string, quantity: float}>,
      *   reason?: ?string, refund_method?: string, notes?: ?string,
-     *   cash_session_id?: ?string
+     *   cash_session_id?: ?string, skip_credit_reversal?: bool
      * } $data
      */
     public function execute(Sale $sale, array $data): SaleReturn
@@ -52,8 +53,18 @@ class ProcessSaleReturnAction
             $saleDiscount = (float) $sale->discount;
             $discountRatio = $saleSubtotal > 0 ? $saleDiscount / $saleSubtotal : 0.0;
 
+            // Tax refunds line-exactly from each line's snapshotted rate; a
+            // legacy line without a snapshot falls back to the sale's overall
+            // effective rate — either way the customer gets back the tax they
+            // paid on what they're returning, never just the pre-tax price.
+            $taxableBase = round($saleSubtotal - $saleDiscount, 2);
+            $fallbackRate = (float) $sale->tax > 0 && $taxableBase > 0
+                ? (float) $sale->tax / $taxableBase * 100
+                : 0.0;
+
             $lines = [];
-            $refundTotal = 0.0;
+            $refundBase = 0.0;
+            $refundTax = 0.0;
 
             foreach ($data['items'] as $row) {
                 $qty = (float) $row['quantity'];
@@ -80,14 +91,28 @@ class ProcessSaleReturnAction
                     );
                 }
 
-                // Refund the price actually PAID per unit — the line's net
-                // (already minus any per-line POS discount), then minus its
-                // share of the sale-level (coupon/cart) discount.
-                $netUnit = (float) $saleItem->quantity > 0
-                    ? (float) $saleItem->line_total / (float) $saleItem->quantity
-                    : (float) $saleItem->unit_price;
-                $lineTotal = round($netUnit * $qty * (1 - $discountRatio), 2);
-                $refundTotal = round($refundTotal + $lineTotal, 2);
+                // Refund the price actually PAID for the returned units, by
+                // CUMULATIVE allocation so sequential partial returns can never
+                // drift past what was paid. Rounding each return in isolation
+                // (netUnit × qty) repeats the same-signed paisa error every
+                // call — three 1-of-3 returns of an 800 line summing to 800.01.
+                // Instead: round the exact cumulative refund for everything
+                // returned so far, then subtract what was already refunded — the
+                // final return absorbs the remainder and the sum lands exact.
+                $linePaid = round((float) $saleItem->line_total * (1 - $discountRatio), 2);
+                $soldQty = (float) $saleItem->quantity;
+                $alreadyRefunded = (float) SaleReturnItem::query()
+                    ->where('sale_item_id', $saleItem->id)
+                    ->sum('line_total');
+                $cumulativeRefund = $soldQty > 0
+                    ? round($linePaid * ($alreadyReturned + $qty) / $soldQty, 2)
+                    : $linePaid;
+                $lineTotal = round($cumulativeRefund - $alreadyRefunded, 2);
+                $refundBase = round($refundBase + $lineTotal, 2);
+
+                // Tax this line carried, prorated to the returned share.
+                $lineRate = $saleItem->tax_rate !== null ? (float) $saleItem->tax_rate : $fallbackRate;
+                $refundTax = round($refundTax + $lineTotal * $lineRate / 100, 2);
 
                 $lines[] = [
                     'tenant_id' => $tenantId,
@@ -109,6 +134,8 @@ class ProcessSaleReturnAction
                 throw DomainException::unprocessable('Select at least one item to return.', 'RETURN_EMPTY');
             }
 
+            $refundTotal = round($refundBase + $refundTax, 2);
+
             $seq = SaleReturn::query()->count() + 1;
 
             /** @var SaleReturn $return */
@@ -118,6 +145,7 @@ class ProcessSaleReturnAction
                 'cash_session_id' => $data['cash_session_id'] ?? null,
                 'return_number' => 'RET-'.str_pad((string) $seq, 6, '0', STR_PAD_LEFT),
                 'refund_total' => $refundTotal,
+                'refund_tax' => $refundTax,
                 // Refund goes back the way the customer paid, unless overridden.
                 'refund_method' => $data['refund_method'] ?? $sale->payment_method->value,
                 'reason' => $data['reason'] ?? null,
@@ -166,6 +194,34 @@ class ProcessSaleReturnAction
                         'reference_id' => $return->id,
                         'idempotency_key' => "return-{$return->id}-{$line['sale_item_id']}",
                     ]);
+                }
+            }
+
+            // Khata symmetry: if this sale was (partly) charged to the
+            // customer's credit, the return reduces what they owe — capped at
+            // the sale's still-un-reversed charge so repeated partial returns
+            // can never over-reverse. Ledger entry carries the sale id.
+            // Exchanges opt OUT (skip_credit_reversal — internal-only, never
+            // accepted from HTTP): there the returned value funds the
+            // replacement sale, so the debt must stay put.
+            if ($sale->customer_id !== null && empty($data['skip_credit_reversal'])) {
+                $customer = Customer::query()->whereKey($sale->customer_id)->lockForUpdate()->first();
+                $outstanding = $customer?->outstandingCreditForSale($sale->id) ?? 0.0;
+                $reverse = round(min($refundTotal, $outstanding), 2);
+                if ($customer !== null && $reverse > 0) {
+                    $customer->recordCreditPayment(
+                        $reverse,
+                        'return',
+                        $return->return_number,
+                        "Return {$return->return_number} against sale {$sale->invoice_number}",
+                        $sale->id,
+                    );
+
+                    // Record the split so the cashier pays out only the CASH
+                    // portion (refund_total − refund_credit) — a khata sale
+                    // returned "for cash" must not hand out money the customer
+                    // never paid.
+                    $return->forceFill(['refund_credit' => $reverse])->save();
                 }
             }
 

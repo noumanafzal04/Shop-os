@@ -45,6 +45,10 @@ class ProcessExchangeAction
                 'refund_method' => 'other',
                 'cash_session_id' => $data['cash_session_id'] ?? null,
                 'notes' => "Exchange against {$sale->invoice_number}",
+                // A khata sale's debt must survive the exchange: the returned
+                // value funds the replacement below, so reversing the charge
+                // here too would double-benefit the customer.
+                'skip_credit_reversal' => true,
             ]);
             $credit = round((float) $return->refund_total, 2);
 

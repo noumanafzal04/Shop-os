@@ -71,6 +71,9 @@ return new class extends Migration
             $table->decimal('unit_cost', 12, 2)->nullable(); // for profit reports
             $table->decimal('line_discount', 12, 2)->default(0); // per-line POS discount
             $table->decimal('line_total', 12, 2);            // = unit_price*qty − line_discount
+            // Effective tax %% snapshot at sale time (product rate else shop
+            // default) — lets a later return refund this line's exact tax.
+            $table->decimal('tax_rate', 5, 2)->nullable();
             $table->timestamps();
 
             $table->index(['tenant_id', 'sale_id']);

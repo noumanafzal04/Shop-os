@@ -19,7 +19,11 @@ class StoreSaleReturnRequest extends FormRequest
 
         return [
             'items' => ['required', 'array', 'min:1'],
-            'items.*.sale_item_id' => ['required', 'uuid'],
+            // 'distinct': two rows for the same line would both pass the
+            // over-return check (it reads prior returns, not this request) and
+            // both refund, but the restock collapses to one idempotency key —
+            // the shop refunds twice yet restocks once. One row per line.
+            'items.*.sale_item_id' => ['required', 'uuid', 'distinct'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'reason' => ['nullable', 'string', 'max:255'],
             'refund_method' => ['sometimes', Rule::in(['cash', 'card', 'bank_transfer', 'other'])],

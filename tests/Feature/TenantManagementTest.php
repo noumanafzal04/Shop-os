@@ -55,7 +55,7 @@ class TenantManagementTest extends TestCase
             'business_name' => 'Karachi General Store',
             'email' => 'store@test.com',
             'phone' => '+923000000001',
-            'business_type' => 'grocery',
+            'business_type' => 'mart',
             'business_category' => 'grocery',
             'owner' => [
                 'name' => 'Ali Khan',

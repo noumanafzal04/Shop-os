@@ -19,6 +19,11 @@ class Plan extends Model
         'online_shop_enabled',
         'grace_period_days',
         'features',
+        'max_products',
+        'max_branches',
+        'max_staff',
+        'max_storage_mb',
+        'max_orders_month',
         'is_active',
     ];
 
@@ -29,6 +34,11 @@ class Plan extends Model
             'online_shop_enabled' => 'boolean',
             'is_active' => 'boolean',
             'features' => 'array',
+            'max_products' => 'integer',
+            'max_branches' => 'integer',
+            'max_staff' => 'integer',
+            'max_storage_mb' => 'integer',
+            'max_orders_month' => 'integer',
         ];
     }
 

@@ -20,6 +20,17 @@ return new class extends Migration
             $table->boolean('online_shop_enabled')->default(false);
             $table->unsignedSmallInteger('grace_period_days')->default(7);
             $table->json('features')->nullable();
+
+            // Plan limits — the baseline ceilings this plan grants. NULL means
+            // UNLIMITED for that resource. A plan is a shared baseline; a single
+            // tenant can be "extended" past these via tenants.limit_overrides
+            // without minting a new plan. Enforced against live usage.
+            $table->unsignedInteger('max_products')->nullable();
+            $table->unsignedSmallInteger('max_branches')->nullable();
+            $table->unsignedSmallInteger('max_staff')->nullable();
+            $table->unsignedInteger('max_storage_mb')->nullable();
+            $table->unsignedInteger('max_orders_month')->nullable();
+
             $table->boolean('is_active')->default(true)->index();
             $table->timestamps();
         });
