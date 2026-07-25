@@ -26,8 +26,12 @@ export default function CashbookPage() {
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Cashbook</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Everything in and out — sales and other income against expenses and refunds — with a
-            running balance. Sales are counted automatically; you don't enter them here.
+            Everything in and out — sales and other income against expenses and refunds. Sales are
+            counted automatically; you don't enter them here.
+          </p>
+          <p className="mt-1 text-theme-xs text-gray-400">
+            This is money <span className="font-medium">booked</span> across all payment types (cash, card, credit) — not
+            the cash drawer. For physical cash at the counter, use the POS shift close.
           </p>
         </div>
         <div className="flex gap-1 rounded-lg border border-gray-200 p-1 dark:border-gray-800">
@@ -54,8 +58,8 @@ export default function CashbookPage() {
         <Card label="Money out" value={money(totals?.money_out ?? 0)} tone="out"
           sub={`Expenses ${money(totals?.expenses ?? 0)} · Refunds ${money(totals?.refunds ?? 0)}`} />
         <Card label="Net this period" value={money(totals?.net ?? 0)} tone={(totals?.net ?? 0) >= 0 ? "in" : "out"} />
-        <Card label="Closing balance" value={money(data?.closing_balance ?? 0)} tone="neutral"
-          sub={`Opened at ${money(data?.opening_balance ?? 0)}`} />
+        <Card label="Cumulative net" value={money(data?.closing_balance ?? 0)} tone="neutral"
+          sub={`Since opening · was ${money(data?.opening_balance ?? 0)} before this period`} />
       </div>
 
       {/* Day-by-day ledger */}
@@ -70,7 +74,7 @@ export default function CashbookPage() {
                 <th className="px-6 py-3 font-medium text-right">Expenses</th>
                 <th className="px-6 py-3 font-medium text-right">Refunds</th>
                 <th className="px-6 py-3 font-medium text-right">Net</th>
-                <th className="px-6 py-3 font-medium text-right">Balance</th>
+                <th className="px-6 py-3 font-medium text-right">Running net</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
