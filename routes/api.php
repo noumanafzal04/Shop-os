@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\V1\Tenant\DiningTableController;
 use App\Http\Controllers\Api\V1\Tenant\RestaurantTicketController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseController;
+use App\Http\Controllers\Api\V1\Tenant\IncomeCategoryController;
+use App\Http\Controllers\Api\V1\Tenant\IncomeController;
 use App\Http\Controllers\Api\V1\Tenant\BatchController;
 use App\Http\Controllers\Api\V1\Tenant\InventoryController;
 use App\Http\Controllers\Api\V1\Tenant\OrderController;
@@ -225,6 +227,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::apiResource('expense-categories', ExpenseCategoryController::class)
                     ->except(['show']);
                 Route::apiResource('expenses', ExpenseController::class)->except(['show']);
+
+                // Income is the other half of the same module.
+                Route::apiResource('income-categories', IncomeCategoryController::class)
+                    ->except(['show']);
+                Route::apiResource('incomes', IncomeController::class)->except(['show']);
+
+                // Cashbook: unified money-in / money-out ledger. DERIVES sales
+                // revenue + refunds + expenses (never duplicates them) and adds
+                // the manual income entries — a day-by-day running balance.
+                Route::get('/cashbook', [ReportController::class, 'cashbook']);
             });
 
             // Reports

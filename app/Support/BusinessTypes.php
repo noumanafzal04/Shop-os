@@ -259,6 +259,25 @@ class BusinessTypes
         return self::get($code)['categories'] ?? [];
     }
 
+    /**
+     * Default INCOME categories seeded on setup. Deliberately type-independent:
+     * these are NON-sales "other income" buckets (sales revenue is derived by
+     * the Cashbook, never entered here), and they mean the same across a shop,
+     * a clinic or a restaurant.
+     *
+     * @return list<string>
+     */
+    public static function defaultIncomeCategories(): array
+    {
+        return [
+            'Other Income',
+            'Owner Investment',
+            'Supplier Refund',
+            'Interest',
+            'Rent Received',
+        ];
+    }
+
     public static function defaultFeatures(string $code): array
     {
         $features = self::get($code)['features'] ?? array_fill_keys(self::FEATURES, false);

@@ -59,6 +59,20 @@ class ReportController extends Controller
         return ApiResponse::ok($reports->tax($context->id(), $p['from'], $p['to']));
     }
 
+    /**
+     * Cashbook: day-by-day money in/out (derived sales + manual income vs
+     * expenses + refunds) with a running balance. Part of the Expense & Income
+     * module (feature:expenses + permission:expenses.manage).
+     */
+    public function cashbook(Request $request, ReportService $reports, TenantContext $context): JsonResponse
+    {
+        $p = $this->period($request, $reports);
+
+        return ApiResponse::ok(
+            $reports->cashbook($context->id(), $p['from'], $p['to'], $p['granularity']),
+        );
+    }
+
     /** Shared period validation + resolution. */
     private function period(Request $request, ReportService $reports): array
     {

@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Enums\SaleStatus;
 use App\Models\Expense;
+use App\Models\Income;
 use App\Models\PurchaseOrder;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\SaleReturn;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -236,6 +238,126 @@ class ReportService
                 'tax_collected' => round((float) (clone $sales)->sum('tax'), 2),
                 'gross_sales' => round((float) (clone $sales)->sum('total'), 2),
             ],
+        ];
+    }
+
+    /**
+     * Cashbook: a unified day-by-day money-IN / money-OUT ledger with a running
+     * balance. Every figure is DERIVED from its own source, so nothing double
+     * counts:
+     *   money in  = sales revenue (non-cancelled sales' total) + manual income
+     *   money out = expenses + refunds paid back (sale_returns)
+     * Sales revenue is NEVER stored in the incomes table, so one sale can't
+     * land on both sides. Partially/fully refunded sales keep their original
+     * revenue on the day it came in AND show the refund on the day it went out,
+     * so the money movement reconciles. Opening balance is the net position
+     * accumulated before the period, so the running balance reads like a book.
+     */
+    public function cashbook(string $tenantId, string $from, string $to, string $granularity = 'day'): array
+    {
+        $fromStart = CarbonImmutable::parse($from)->startOfDay();
+        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+        $format = $granularity === 'month' ? 'Y-m' : 'Y-m-d';
+
+        // A sale that was later refunded still brought its money in — only a
+        // CANCELLED sale never happened.
+        $liveSales = [SaleStatus::Completed, SaleStatus::PartiallyRefunded, SaleStatus::Refunded];
+
+        $salesByBucket = Sale::query()
+            ->where('tenant_id', $tenantId)
+            ->whereIn('status', $liveSales)
+            ->whereBetween('sold_at', [$fromStart, $toEnd])
+            ->get(['sold_at', 'total'])
+            ->groupBy(fn (Sale $s) => $s->sold_at->format($format))
+            ->map(fn (Collection $r) => round((float) $r->sum('total'), 2));
+
+        $incomeByBucket = Income::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->whereBetween('income_date', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->get(['income_date', 'amount'])
+            ->groupBy(fn (Income $i) => $i->income_date->format($format))
+            ->map(fn (Collection $r) => round((float) $r->sum('amount'), 2));
+
+        $expenseByBucket = Expense::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->whereBetween('expense_date', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->get(['expense_date', 'amount'])
+            ->groupBy(fn (Expense $e) => $e->expense_date->format($format))
+            ->map(fn (Collection $r) => round((float) $r->sum('amount'), 2));
+
+        $refundByBucket = SaleReturn::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->whereBetween('returned_at', [$fromStart, $toEnd])
+            ->get(['returned_at', 'refund_total'])
+            ->groupBy(fn (SaleReturn $r) => $r->returned_at->format($format))
+            ->map(fn (Collection $r) => round((float) $r->sum('refund_total'), 2));
+
+        // Opening balance = everything that moved BEFORE the period.
+        $opening = round(
+            (float) Sale::query()->where('tenant_id', $tenantId)
+                ->whereIn('status', $liveSales)->where('sold_at', '<', $fromStart)->sum('total')
+            + (float) Income::withoutTenancy()->where('tenant_id', $tenantId)
+                ->where('income_date', '<', $from)->sum('amount')
+            - (float) Expense::withoutTenancy()->where('tenant_id', $tenantId)
+                ->where('expense_date', '<', $from)->sum('amount')
+            - (float) SaleReturn::withoutTenancy()->where('tenant_id', $tenantId)
+                ->where('returned_at', '<', $fromStart)->sum('refund_total'),
+            2,
+        );
+
+        $days = [];
+        $cursor = $fromStart;
+        $running = $opening;
+        $tSales = $tIncome = $tExpenses = $tRefunds = 0.0;
+
+        while ($cursor <= $toEnd) {
+            $key = $cursor->format($format);
+            $sales = $salesByBucket[$key] ?? 0.0;
+            $income = $incomeByBucket[$key] ?? 0.0;
+            $expenses = $expenseByBucket[$key] ?? 0.0;
+            $refunds = $refundByBucket[$key] ?? 0.0;
+            $moneyIn = round($sales + $income, 2);
+            $moneyOut = round($expenses + $refunds, 2);
+            $net = round($moneyIn - $moneyOut, 2);
+            $running = round($running + $net, 2);
+
+            $tSales += $sales;
+            $tIncome += $income;
+            $tExpenses += $expenses;
+            $tRefunds += $refunds;
+
+            $days[] = [
+                'date' => $key,
+                'sales_revenue' => $sales,
+                'other_income' => $income,
+                'money_in' => $moneyIn,
+                'expenses' => $expenses,
+                'refunds' => $refunds,
+                'money_out' => $moneyOut,
+                'net' => $net,
+                'balance' => $running,
+            ];
+
+            $cursor = $granularity === 'month' ? $cursor->addMonth() : $cursor->addDay();
+        }
+
+        $totalIn = round($tSales + $tIncome, 2);
+        $totalOut = round($tExpenses + $tRefunds, 2);
+
+        return [
+            'period' => ['from' => $from, 'to' => $to, 'granularity' => $granularity],
+            'opening_balance' => $opening,
+            'closing_balance' => round($opening + $totalIn - $totalOut, 2),
+            'totals' => [
+                'sales_revenue' => round($tSales, 2),
+                'other_income' => round($tIncome, 2),
+                'money_in' => $totalIn,
+                'expenses' => round($tExpenses, 2),
+                'refunds' => round($tRefunds, 2),
+                'money_out' => $totalOut,
+                'net' => round($totalIn - $totalOut, 2),
+            ],
+            'days' => $days,
         ];
     }
 

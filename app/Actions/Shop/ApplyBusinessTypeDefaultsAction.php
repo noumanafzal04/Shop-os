@@ -4,6 +4,7 @@ namespace App\Actions\Shop;
 
 use App\Models\Category;
 use App\Models\ExpenseCategory;
+use App\Models\IncomeCategory;
 use App\Models\Tenant;
 use App\Support\BusinessTypes;
 
@@ -46,6 +47,16 @@ class ApplyBusinessTypeDefaultsAction
         if (! ExpenseCategory::query()->where('tenant_id', $tenant->id)->exists()) {
             foreach ($template['expense_categories'] as $name) {
                 ExpenseCategory::query()->create([
+                    'tenant_id' => $tenant->id,
+                    'name' => $name,
+                    'is_default' => true,
+                ]);
+            }
+        }
+
+        if (! IncomeCategory::query()->where('tenant_id', $tenant->id)->exists()) {
+            foreach (BusinessTypes::defaultIncomeCategories() as $name) {
+                IncomeCategory::query()->create([
                     'tenant_id' => $tenant->id,
                     'name' => $name,
                     'is_default' => true,
