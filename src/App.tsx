@@ -41,6 +41,8 @@ const CategoriesPage = lazy(() => import("./modules/catalog/pages/CategoriesPage
 const CollectionsPage = lazy(() => import("./modules/catalog/pages/CollectionsPage"));
 const LabelsPage = lazy(() => import("./modules/catalog/pages/LabelsPage"));
 const PosPage = lazy(() => import("./modules/pos/pages/PosPage"));
+const FloorPage = lazy(() => import("./modules/dinein/pages/FloorPage"));
+const TabPage = lazy(() => import("./modules/dinein/pages/TabPage"));
 const SuppliersPage = lazy(() => import("./modules/purchases/pages/SuppliersPage"));
 const CustomersPage = lazy(() => import("./modules/customers/pages/CustomersPage"));
 const CouponsPage = lazy(() => import("./modules/coupons/pages/CouponsPage"));
@@ -113,6 +115,10 @@ export default function App() {
                 {/* POS runs FULL-SCREEN — no sidebar/header — so the cashier
                     gets the whole viewport. It has its own in-page top bar. */}
                 <Route path="/tenant/pos" element={<PosPage />} />
+
+                {/* Dine-in runs full-screen too (floor → tab workspace). */}
+                <Route path="/tenant/dine-in" element={<FloorPage />} />
+                <Route path="/tenant/dine-in/tickets/:id" element={<TabPage />} />
 
                 <Route path="/tenant" element={<AppLayout />}>
                   <Route index element={<ShopDashboard />} />

@@ -42,6 +42,7 @@ function shopNav(features: Record<string, boolean> | undefined): NavItem[] {
     { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
     // POS till is only for shops on a plan that includes it (not online-only).
     ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
+    ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
     { icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" },
     ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
     ...(has("marketplace") && has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
