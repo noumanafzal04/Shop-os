@@ -22,7 +22,7 @@ class Modules
             'reservations' => ['label' => 'Reservations', 'description' => 'Customers reserve items to collect.'],
             'delivery' => ['label' => 'Delivery', 'description' => 'Delivery fulfilment on online orders.'],
             'dine_in' => ['label' => 'Dine-in / Restaurant', 'description' => 'Tables, running tabs, kitchen tickets (KOT), and split-bill. For restaurants & cafés.'],
-            'expenses' => ['label' => 'Expense Manager', 'description' => 'Track business expenses & categories (optional — a sell-only shop can skip it).'],
+            'expenses' => ['label' => 'Expense & Income Manager', 'description' => 'Track expenses, other income and a day-by-day cashbook (optional — a sell-only shop can skip it).'],
             'images' => ['label' => 'Product Images', 'description' => 'Upload photos for products. Always on when selling online; optional for walk-in-only shops.'],
         ];
     }

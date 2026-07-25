@@ -30,6 +30,9 @@ return new class extends Migration
 
             $table->unique(['tenant_id', 'return_number']);
             $table->index(['tenant_id', 'sale_id']);
+            // The cashbook buckets refunds by returned_at (and scans
+            // returned_at < from for the opening balance) — index it.
+            $table->index(['tenant_id', 'returned_at']);
         });
 
         Schema::create('sale_return_items', function (Blueprint $table) {
