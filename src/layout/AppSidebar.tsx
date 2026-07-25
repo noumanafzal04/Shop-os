@@ -45,7 +45,18 @@ function shopNav(features: Record<string, boolean> | undefined): NavItem[] {
     { icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" },
     ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
     ...(has("marketplace") && has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
-    ...(has("expenses") ? [{ icon: <FileIcon />, name: "Expenses", path: "/tenant/expenses" }] : []),
+    // Expense & Income module — one home for all money in/out.
+    ...(has("expenses")
+      ? [{
+          icon: <FileIcon />,
+          name: "Money",
+          subItems: [
+            { name: "Cashbook", path: "/tenant/cashbook" },
+            { name: "Income", path: "/tenant/income" },
+            { name: "Expenses", path: "/tenant/expenses" },
+          ],
+        }]
+      : []),
 
     // ── Grouped dropdowns ─────────────────────────────────────────
     {

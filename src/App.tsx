@@ -50,6 +50,8 @@ const InventoryPage = lazy(() => import("./modules/inventory/pages/InventoryPage
 const SalesPage = lazy(() => import("./modules/sales/pages/SalesPage"));
 const NewSalePage = lazy(() => import("./modules/sales/pages/NewSalePage"));
 const ExpensesPage = lazy(() => import("./modules/expenses/pages/ExpensesPage"));
+const IncomePage = lazy(() => import("./modules/income/pages/IncomePage"));
+const CashbookPage = lazy(() => import("./modules/income/pages/CashbookPage"));
 const ReportsPage = lazy(() => import("./modules/expenses/pages/ReportsPage"));
 const ReservationsPage = lazy(() => import("./modules/reservations/pages/ReservationsPage"));
 const OwnerReviewsPage = lazy(() => import("./modules/reviews/pages/OwnerReviewsPage"));
@@ -129,6 +131,8 @@ export default function App() {
                   <Route path="sales" element={<SalesPage />} />
                   <Route path="sales/new" element={<NewSalePage />} />
                   <Route path="expenses" element={<ExpensesPage />} />
+                  <Route path="income" element={<IncomePage />} />
+                  <Route path="cashbook" element={<CashbookPage />} />
                   <Route path="reports" element={<ReportsPage />} />
                   <Route path="orders" element={<OwnerOrdersPage />} />
                   <Route path="riders" element={<RidersPage />} />
