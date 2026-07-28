@@ -183,6 +183,24 @@ class ProcessSaleReturnAction
                             ]);
                         }
                     }
+                } elseif ($product !== null && $product->hasRecipe()) {
+                    // Returning a made-to-order dish puts its ingredients back
+                    // (ingredient qty × returned count) — the mirror of the
+                    // recipe depletion at sale time.
+                    foreach ($product->recipeItems()->with('ingredient')->get() as $ri) {
+                        $ingredient = $ri->ingredient;
+                        if ($ingredient !== null && $ingredient->type === ItemType::Product && $ingredient->track_inventory) {
+                            $this->inventory->adjust([
+                                'product_id' => $ingredient->id,
+                                'type' => 'in',
+                                'quantity' => round((float) $ri->quantity * (float) $line['quantity'], 3),
+                                'reason' => "Return {$return->return_number} (recipe: {$product->name})",
+                                'reference_type' => 'sale_return',
+                                'reference_id' => $return->id,
+                                'idempotency_key' => "return-{$return->id}-{$line['sale_item_id']}-i{$ingredient->id}",
+                            ]);
+                        }
+                    }
                 } elseif ($itemType === ItemType::Product->value && $product !== null && $product->track_inventory) {
                     $this->inventory->adjust([
                         'product_id' => $line['product_id'],

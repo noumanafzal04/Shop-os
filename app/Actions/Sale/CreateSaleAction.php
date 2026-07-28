@@ -397,6 +397,27 @@ class CreateSaleAction
                             ]);
                         }
                     }
+                } elseif ($line['product']->hasRecipe()) {
+                    // A made-to-order dish holds no stock of its own — selling it
+                    // draws each raw ingredient down by (ingredient qty × dish
+                    // qty). allow_negative: the dish is already made, so a short
+                    // or under-recorded ingredient must never fail the sale (it
+                    // just shows as negative stock to recount) — and a dine-in
+                    // settle of food already served can never be blocked.
+                    foreach ($line['product']->recipeItems()->with('ingredient')->get() as $ri) {
+                        $ingredient = $ri->ingredient;
+                        if ($ingredient !== null && $ingredient->type === ItemType::Product && $ingredient->track_inventory) {
+                            $this->inventory->adjust([
+                                'product_id' => $ingredient->id,
+                                'type' => 'out',
+                                'quantity' => round((float) $ri->quantity * $line['quantity'], 3),
+                                'reason' => "Sale {$invoiceNumber} (recipe: {$line['product']->name})",
+                                'reference_type' => 'sale',
+                                'reference_id' => $sale->id,
+                                'allow_negative' => true,
+                            ]);
+                        }
+                    }
                 } elseif ($line['product']->type === ItemType::Product && $line['product']->track_inventory) {
                     $this->inventory->adjust([
                         'product_id' => $line['product']->id,

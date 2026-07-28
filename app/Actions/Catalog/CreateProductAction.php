@@ -137,6 +137,10 @@ class CreateProductAction
                 app(SyncComboItemsAction::class)->execute($product, $data['combo_items']);
             }
 
+            if (! empty($data['recipe_items'])) {
+                app(SyncRecipeItemsAction::class)->execute($product, $data['recipe_items']);
+            }
+
             return $product;
         });
 
@@ -151,7 +155,7 @@ class CreateProductAction
         }
 
         return [
-            'product' => $product->load('category', 'variants', 'images', 'collections', 'units', 'comboItems.component:id,name'),
+            'product' => $product->load('category', 'variants', 'images', 'collections', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'),
             'warnings' => $warnings,
         ];
     }

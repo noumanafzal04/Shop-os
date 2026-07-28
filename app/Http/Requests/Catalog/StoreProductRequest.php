@@ -33,6 +33,8 @@ class StoreProductRequest extends FormRequest
         $itemType = $this->input('item_type', ItemTypes::PHYSICAL);
         $isService = ItemTypes::coarse(is_string($itemType) ? $itemType : ItemTypes::PHYSICAL) === 'service';
         $isDeal = $itemType === ItemTypes::DEAL;
+        // Only a made-to-order dish (food) carries a recipe / ingredient list.
+        $isFood = $itemType === ItemTypes::FOOD;
 
         return [
             'item_type' => ['required', Rule::in(ItemTypes::codes())],
@@ -81,6 +83,12 @@ class StoreProductRequest extends FormRequest
             // quantity for multiples, not repeated rows.
             'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid', 'distinct'],
             'combo_items.*.quantity' => ['required_with:combo_items', 'numeric', 'min:0.001'],
+            // Recipe / bill-of-materials — ONLY a food dish consumes ingredients.
+            // 'distinct' for the same reason as combo components (restore key
+            // collapses duplicates → lost stock on return/cancel).
+            'recipe_items' => [$isFood ? 'nullable' : 'prohibited', 'array', 'max:60'],
+            'recipe_items.*.ingredient_product_id' => ['required_with:recipe_items', 'uuid', 'distinct'],
+            'recipe_items.*.quantity' => ['required_with:recipe_items', 'numeric', 'min:0.001'],
             'unit' => ['nullable', 'string', 'max:32'],
             'attributes' => ['nullable', 'array'],
             'attributes.*' => ['nullable', 'string', 'max:255'],
@@ -166,6 +174,7 @@ class StoreProductRequest extends FormRequest
             'variants.prohibited' => 'This item type cannot have variants.',
             'duration_minutes.prohibited' => 'Only services have a duration.',
             'combo_items.prohibited' => 'Only a deal bundles other products.',
+            'recipe_items.prohibited' => 'Only a food dish can have a recipe of ingredients.',
             'available_from.required_with' => 'Set both ends of the serving window (or neither).',
             'available_until.required_with' => 'Set both ends of the serving window (or neither).',
         ];

@@ -40,7 +40,7 @@ class PosController extends Controller
         }
 
         $product = Product::query()
-            ->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name'])
+            ->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
             ->where('is_active', true)
             ->where(fn ($q) => $q->where('barcode', $code)->orWhere('sku', $code)
                 ->orWhereHas('barcodes', fn ($b) => $b->where('barcode', $code)))
@@ -53,7 +53,7 @@ class PosController extends Controller
             $variant = ProductVariant::query()->where('sku', $code)->where('is_active', true)->first()
                 ?? \App\Models\ProductBarcode::query()->where('barcode', $code)->whereNotNull('variant_id')->first()?->variant;
             if ($variant !== null) {
-                $product = Product::query()->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name'])->find($variant->product_id);
+                $product = Product::query()->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])->find($variant->product_id);
                 $variantId = $variant->id;
             }
         }
@@ -63,7 +63,7 @@ class PosController extends Controller
             // preselect that pack on the line.
             $unit = \App\Models\ProductUnit::query()->where('barcode', $code)->first();
             if ($unit !== null) {
-                $product = Product::query()->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name'])
+                $product = Product::query()->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
                     ->where('is_active', true)->find($unit->product_id);
                 $unitId = $product !== null ? $unit->id : null;
             }
@@ -102,7 +102,7 @@ class PosController extends Controller
 
         /** @var Product|null $product */
         $product = Product::query()
-            ->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name'])
+            ->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
             ->where('is_active', true)
             ->whereIn('plu_code', $codes)
             ->first();

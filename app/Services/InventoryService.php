@@ -88,7 +88,13 @@ class InventoryService
 
             $newQuantity = round($current + $delta, 3);
 
-            if ($newQuantity < 0) {
+            // Recipe/BOM ingredient depletion passes allow_negative: a dish is
+            // made to order, so an under-recorded ingredient must never block
+            // the sale (least of all a dine-in settle for food already served).
+            // Stock simply goes negative — a visible "recount / restock" signal.
+            $allowNegative = ! empty($data['allow_negative']);
+
+            if ($newQuantity < 0 && ! $allowNegative) {
                 throw DomainException::unprocessable(
                     "Insufficient stock: only {$current} in stock.",
                     'INSUFFICIENT_STOCK',
@@ -112,7 +118,9 @@ class InventoryService
             // Expired stock is UNSELLABLE. Block any OUT that would dip into
             // quantity sitting in expired batches — the pharmacist must remove
             // the expired batch (a batch-scoped OUT) before that stock moves.
-            if ($data['type'] === 'out' && $batchScope) {
+            // Best-effort recipe depletion (allow_negative) is exempt: it never
+            // blocks, and FEFO below still eats the freshest lots first.
+            if ($data['type'] === 'out' && $batchScope && ! $allowNegative) {
                 $expired = (float) \App\Models\ProductBatch::withoutTenancy()
                     ->where('product_id', $product->id)
                     ->where($scopeVariant)

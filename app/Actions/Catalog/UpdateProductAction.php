@@ -11,6 +11,7 @@ class UpdateProductAction
         private readonly SyncProductBarcodesAction $syncBarcodes,
         private readonly SyncProductUnitsAction $syncUnits,
         private readonly SyncComboItemsAction $syncCombo,
+        private readonly SyncRecipeItemsAction $syncRecipe,
     ) {}
 
     /**
@@ -27,8 +28,10 @@ class UpdateProductAction
         unset($data['units']);
         $comboItems = array_key_exists('combo_items', $data) ? ($data['combo_items'] ?? []) : null;
         unset($data['combo_items']);
+        $recipeItems = array_key_exists('recipe_items', $data) ? ($data['recipe_items'] ?? []) : null;
+        unset($data['recipe_items']);
 
-        DB::transaction(function () use ($product, $data, $collectionIds, $barcodes, $units, $comboItems): void {
+        DB::transaction(function () use ($product, $data, $collectionIds, $barcodes, $units, $comboItems, $recipeItems): void {
             $product->fill($data)->save();
 
             if ($collectionIds !== null) {
@@ -48,9 +51,13 @@ class UpdateProductAction
             if ($comboItems !== null) {
                 $this->syncCombo->execute($product, $comboItems);
             }
+
+            if ($recipeItems !== null) {
+                $this->syncRecipe->execute($product, $recipeItems);
+            }
         });
 
-        $product->load('category', 'variants', 'images', 'collections', 'units', 'comboItems.component:id,name');
+        $product->load('category', 'variants', 'images', 'collections', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name');
 
         $warnings = [];
 

@@ -25,7 +25,7 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         $products = Product::query()
-            ->with(['category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name'])
+            ->with(['category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     // Match name, brand, generic/salt (pharmacy), SKU, primary
@@ -110,7 +110,7 @@ class ProductController extends Controller
     public function show(string $id): JsonResponse
     {
         return ApiResponse::ok(
-            Product::query()->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name'])->findOrFail($id),
+            Product::query()->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])->findOrFail($id),
         );
     }
 

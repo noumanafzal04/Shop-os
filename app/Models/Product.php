@@ -64,6 +64,18 @@ class Product extends BaseModel
         return $this->item_type === ItemTypes::DEAL;
     }
 
+    /** The raw ingredients this dish consumes when sold (recipe / BOM). */
+    public function recipeItems(): HasMany
+    {
+        return $this->hasMany(RecipeItem::class, 'dish_product_id')->orderBy('sort_order');
+    }
+
+    /** Is this dish made from a recipe — selling it depletes ingredients? */
+    public function hasRecipe(): bool
+    {
+        return $this->recipeItems()->exists();
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);

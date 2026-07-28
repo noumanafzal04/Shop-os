@@ -62,6 +62,9 @@ class UpdateProductRequest extends FormRequest
             // stock on cancel/return via colliding restore keys.
             'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid', 'distinct'],
             'combo_items.*.quantity' => ['required_with:combo_items', 'numeric', 'min:0.001'],
+            'recipe_items' => ['sometimes', 'nullable', 'array', 'max:60'],
+            'recipe_items.*.ingredient_product_id' => ['required_with:recipe_items', 'uuid', 'distinct'],
+            'recipe_items.*.quantity' => ['required_with:recipe_items', 'numeric', 'min:0.001'],
             'unit' => ['nullable', 'string', 'max:32'],
             'attributes' => ['nullable', 'array'],
             'attributes.*' => ['nullable', 'string', 'max:255'],
@@ -110,6 +113,10 @@ class UpdateProductRequest extends FormRequest
 
             if ($this->filled('combo_items') && ! $product->isCombo()) {
                 $v->errors()->add('combo_items', 'Only a deal bundles other products.');
+            }
+
+            if ($this->filled('recipe_items') && $product->item_type !== \App\Support\ItemTypes::FOOD) {
+                $v->errors()->add('recipe_items', 'Only a food dish can have a recipe of ingredients.');
             }
         });
     }
