@@ -143,18 +143,28 @@ class DemoDataSeeder extends Seeder
 
     private function seedProducts(Tenant $tenant, array $items, string $businessType): void
     {
+        $mainBranchId = \App\Models\Branch::withoutTenancy()
+            ->where('tenant_id', $tenant->id)->where('is_default', true)->value('id');
+
         foreach ($items as $item) {
             $category = Category::withoutTenancy()
                 ->where('tenant_id', $tenant->id)
                 ->where('name', $item['category'] ?? '')
                 ->first();
+            // Catalog category not in the business-type defaults → create it.
+            if ($category === null && ! empty($item['category'])) {
+                $category = Category::withoutTenancy()->create([
+                    'tenant_id' => $tenant->id, 'name' => $item['category'], 'sort_order' => 99,
+                ]);
+            }
 
             $coarse = $item['type'] ?? 'product';
-            // Derive the richer item_type from the business + coarse type.
+            // Derive the richer item_type from the business + coarse type
+            // (primary codes food/pharmacy + their legacy aliases).
             $itemType = match (true) {
                 $coarse === 'service' => ItemTypes::SERVICE,
-                $businessType === 'restaurant' => ItemTypes::FOOD,
-                $businessType === 'pharmacy' => ItemTypes::MEDICINE,
+                in_array($businessType, ['food', 'restaurant'], true) => ItemTypes::FOOD,
+                in_array($businessType, ['pharmacy', 'clinic'], true) => ItemTypes::MEDICINE,
                 default => ItemTypes::PHYSICAL,
             };
 
@@ -177,8 +187,15 @@ class DemoDataSeeder extends Seeder
                 'duration_minutes' => $item['duration'] ?? null,
             ]);
 
+            // Phase 2: per-branch on-hand at Main mirrors the rollup.
+            \App\Models\BranchStock::withoutTenancy()->create([
+                'tenant_id' => $tenant->id, 'branch_id' => $mainBranchId,
+                'product_id' => $product->id, 'variant_id' => null,
+                'quantity' => $product->stock_quantity,
+            ]);
+
             foreach ($item['variants'] ?? [] as $variant) {
-                $product->variants()->create([
+                $created = $product->variants()->create([
                     'tenant_id' => $tenant->id,
                     'name' => $variant['name'],
                     'sku' => $variant['sku'] ?? null,
@@ -186,6 +203,11 @@ class DemoDataSeeder extends Seeder
                     'cost' => $variant['cost'] ?? null,
                     'stock_quantity' => $variant['stock'] ?? 0,
                     'low_stock_threshold' => $variant['low_at'] ?? null,
+                ]);
+                \App\Models\BranchStock::withoutTenancy()->create([
+                    'tenant_id' => $tenant->id, 'branch_id' => $mainBranchId,
+                    'product_id' => $product->id, 'variant_id' => $created->id,
+                    'quantity' => $created->stock_quantity,
                 ]);
             }
 
@@ -449,140 +471,233 @@ class DemoDataSeeder extends Seeder
 
     // ─────────────────────────────────────────────────────────────────
 
+
+    /**
+     * One tenant per PRIMARY business type, each on a fitting plan, each with a
+     * 50-item type-appropriate catalog (see catalogFor).
+     *   Owners: tenant1@app.com … tenant5@app.com / password
+     */
     private function tenantBlueprints(): array
     {
         return [
-            [
-                'name' => 'Fashion Hub', 'type' => 'retail', 'category' => 'garments', 'online' => true,
-                'items' => [
-                    ['name' => 'Classic T-Shirt', 'category' => 'General', 'sku' => 'FH-TS-01', 'price' => 1200, 'cost' => 700, 'stock' => 40, 'low_at' => 10,
-                        'variants' => [
-                            ['name' => 'Black / M', 'sku' => 'FH-TS-01-BM', 'price' => 1200, 'cost' => 700, 'stock' => 15],
-                            ['name' => 'Black / L', 'sku' => 'FH-TS-01-BL', 'price' => 1200, 'cost' => 700, 'stock' => 12],
-                            ['name' => 'White / M', 'sku' => 'FH-TS-01-WM', 'price' => 1100, 'cost' => 650, 'stock' => 3, 'low_at' => 5],
-                        ]],
-                    ['name' => 'Denim Jeans', 'category' => 'General', 'sku' => 'FH-DJ-02', 'price' => 3500, 'cost' => 2100, 'stock' => 25, 'low_at' => 5],
-                    ['name' => 'Hoodie Premium', 'category' => 'General', 'sku' => 'FH-HD-03', 'price' => 4200, 'cost' => 2600, 'stock' => 4, 'low_at' => 5],
-                    ['name' => 'Sneakers Street', 'category' => 'General', 'sku' => 'FH-SN-04', 'price' => 6500, 'cost' => 4200, 'stock' => 18, 'low_at' => 4],
-                    ['name' => 'Summer Kurti', 'category' => 'General', 'sku' => 'FH-KU-05', 'price' => 2200, 'cost' => 1300, 'stock' => 0, 'low_at' => 3],
-                    ['name' => 'Baseball Cap', 'category' => 'General', 'sku' => 'FH-CP-06', 'price' => 800, 'cost' => 400, 'stock' => 60],
-                ],
-            ],
-            [
-                'name' => 'Daily Needs Grocery', 'type' => 'grocery', 'category' => 'grocery', 'online' => true,
-                'items' => [
-                    ['name' => 'Basmati Rice 5kg', 'category' => 'Food & Beverages', 'sku' => 'GR-RC-01', 'price' => 2400, 'cost' => 2050, 'stock' => 80, 'low_at' => 20],
-                    ['name' => 'Cooking Oil 1L', 'category' => 'Food & Beverages', 'sku' => 'GR-OL-02', 'price' => 620, 'cost' => 540, 'stock' => 120, 'low_at' => 30],
-                    ['name' => 'Fresh Milk 1L', 'category' => 'Dairy', 'sku' => 'GR-MK-03', 'price' => 220, 'cost' => 190, 'stock' => 45, 'low_at' => 15],
-                    ['name' => 'Dishwash Liquid', 'category' => 'Household', 'sku' => 'GR-DW-04', 'price' => 350, 'cost' => 260, 'stock' => 12, 'low_at' => 15],
-                    ['name' => 'Potato Chips Family', 'category' => 'Snacks', 'sku' => 'GR-CH-05', 'price' => 150, 'cost' => 110, 'stock' => 200],
-                    ['name' => 'Shampoo Sachet Box', 'category' => 'Personal Care', 'sku' => 'GR-SH-06', 'price' => 480, 'cost' => 380, 'stock' => 0, 'low_at' => 10],
-                    ['name' => 'Green Tea 100 Bags', 'category' => 'Food & Beverages', 'sku' => 'GR-GT-07', 'price' => 550, 'cost' => 430, 'stock' => 35],
-                ],
-            ],
-            [
-                'name' => 'City Care Pharmacy', 'type' => 'pharmacy', 'category' => 'pharmacy', 'online' => false,
-                'items' => [
-                    ['name' => 'Paracetamol 500mg (strip)', 'category' => 'Medicines', 'sku' => 'PH-PC-01', 'price' => 60, 'cost' => 42, 'stock' => 300, 'low_at' => 50],
-                    ['name' => 'Vitamin C 1000mg', 'category' => 'Supplements', 'sku' => 'PH-VC-02', 'price' => 450, 'cost' => 330, 'stock' => 40, 'low_at' => 10],
-                    ['name' => 'Digital Thermometer', 'category' => 'Medical Supplies', 'sku' => 'PH-TH-03', 'price' => 850, 'cost' => 600, 'stock' => 15, 'low_at' => 5],
-                    ['name' => 'Baby Diapers M (36)', 'category' => 'Baby Care', 'sku' => 'PH-BD-04', 'price' => 1650, 'cost' => 1350, 'stock' => 22, 'low_at' => 8],
-                    ['name' => 'Hand Sanitizer 250ml', 'category' => 'Personal Care', 'sku' => 'PH-HS-05', 'price' => 280, 'cost' => 190, 'stock' => 4, 'low_at' => 10],
-                ],
-            ],
-            [
-                'name' => 'Glamour Salon', 'type' => 'salon', 'category' => 'salon', 'online' => false,
-                'items' => [
-                    ['name' => 'Haircut (Gents)', 'category' => 'Hair Services', 'type' => 'service', 'price' => 800, 'duration' => 30],
-                    ['name' => 'Hair Color Full', 'category' => 'Hair Services', 'type' => 'service', 'price' => 3500, 'duration' => 90],
-                    ['name' => 'Facial Deluxe', 'category' => 'Skin Services', 'type' => 'service', 'price' => 2500, 'duration' => 60],
-                    ['name' => 'Beard Trim', 'category' => 'Hair Services', 'type' => 'service', 'price' => 400, 'duration' => 15],
-                    ['name' => 'Argan Hair Oil', 'category' => 'Retail Products', 'sku' => 'SL-AO-01', 'price' => 1200, 'cost' => 750, 'stock' => 18, 'low_at' => 5],
-                ],
-            ],
-            [
-                'name' => 'Speedy Auto Workshop', 'type' => 'workshop', 'category' => 'car workshop', 'online' => false,
-                'items' => [
-                    ['name' => 'Oil Change Service', 'category' => 'Services', 'type' => 'service', 'price' => 1500, 'duration' => 45],
-                    ['name' => 'Full Tuning', 'category' => 'Services', 'type' => 'service', 'price' => 6000, 'duration' => 180],
-                    ['name' => 'Engine Oil 4L', 'category' => 'Oils & Fluids', 'sku' => 'WS-EO-01', 'price' => 4800, 'cost' => 3900, 'stock' => 25, 'low_at' => 6],
-                    ['name' => 'Brake Pads (set)', 'category' => 'Spare Parts', 'sku' => 'WS-BP-02', 'price' => 3200, 'cost' => 2200, 'stock' => 10, 'low_at' => 4],
-                    ['name' => 'Air Filter', 'category' => 'Spare Parts', 'sku' => 'WS-AF-03', 'price' => 900, 'cost' => 550, 'stock' => 3, 'low_at' => 5],
-                ],
-            ],
-            [
-                'name' => 'FixIt Computer Repair', 'type' => 'service', 'category' => 'computer repair', 'online' => false,
-                'items' => [
-                    ['name' => 'Laptop Checkup', 'category' => 'Services', 'type' => 'service', 'price' => 1000, 'duration' => 60],
-                    ['name' => 'OS Installation', 'category' => 'Services', 'type' => 'service', 'price' => 1500, 'duration' => 90],
-                    ['name' => 'Screen Replacement (labour)', 'category' => 'Services', 'type' => 'service', 'price' => 2000, 'duration' => 120],
-                    ['name' => 'Data Recovery Basic', 'category' => 'Services', 'type' => 'service', 'price' => 3500, 'duration' => 240],
-                ],
-            ],
-            [
-                'name' => 'Mega Distributors', 'type' => 'wholesale', 'category' => 'wholesale distributor', 'online' => true,
-                'items' => [
-                    ['name' => 'Sugar 50kg Bag', 'category' => 'General Stock', 'sku' => 'WD-SG-01', 'price' => 8500, 'cost' => 8100, 'stock' => 60, 'low_at' => 15],
-                    ['name' => 'Flour 20kg Bag', 'category' => 'General Stock', 'sku' => 'WD-FL-02', 'price' => 2900, 'cost' => 2700, 'stock' => 90, 'low_at' => 20],
-                    ['name' => 'Beverage Crate (24)', 'category' => 'General Stock', 'sku' => 'WD-BV-03', 'price' => 1450, 'cost' => 1300, 'stock' => 150, 'low_at' => 30],
-                    ['name' => 'Soap Carton (72)', 'category' => 'General Stock', 'sku' => 'WD-SP-04', 'price' => 5200, 'cost' => 4700, 'stock' => 8, 'low_at' => 10],
-                ],
-            ],
-            [
-                'name' => 'Readers Corner', 'type' => 'books', 'category' => 'bookshop', 'online' => true,
-                'items' => [
-                    ['name' => 'O-Level Physics Notes', 'category' => 'Books', 'sku' => 'BK-PH-01', 'price' => 950, 'cost' => 600, 'stock' => 30, 'low_at' => 8],
-                    ['name' => 'Urdu Novel Bestseller', 'category' => 'Books', 'sku' => 'BK-UN-02', 'price' => 1250, 'cost' => 850, 'stock' => 20, 'low_at' => 5],
-                    ['name' => 'A4 Register 200pg', 'category' => 'Stationery', 'sku' => 'BK-RG-03', 'price' => 320, 'cost' => 210, 'stock' => 100, 'low_at' => 25],
-                    ['name' => 'Gel Pen Box (12)', 'category' => 'Stationery', 'sku' => 'BK-GP-04', 'price' => 540, 'cost' => 360, 'stock' => 45],
-                    ['name' => 'Water Colors Set', 'category' => 'Art Supplies', 'sku' => 'BK-WC-05', 'price' => 780, 'cost' => 520, 'stock' => 2, 'low_at' => 5],
-                ],
-            ],
-            [
-                'name' => 'BuildRight Hardware', 'type' => 'hardware', 'category' => 'hardware', 'online' => true,
-                'items' => [
-                    ['name' => 'Hammer Steel Grip', 'category' => 'Tools', 'sku' => 'HW-HM-01', 'price' => 1150, 'cost' => 780, 'stock' => 25, 'low_at' => 6],
-                    ['name' => 'Drill Machine 13mm', 'category' => 'Tools', 'sku' => 'HW-DR-02', 'price' => 9500, 'cost' => 7200, 'stock' => 8, 'low_at' => 3],
-                    ['name' => 'PVC Pipe 1in (ft)', 'category' => 'Plumbing', 'sku' => 'HW-PP-03', 'price' => 95, 'cost' => 70, 'stock' => 500, 'low_at' => 100],
-                    ['name' => 'Wall Paint White 4L', 'category' => 'Paint', 'sku' => 'HW-WP-04', 'price' => 3400, 'cost' => 2650, 'stock' => 14, 'low_at' => 5],
-                    ['name' => 'Extension Socket 5m', 'category' => 'Electrical', 'sku' => 'HW-ES-05', 'price' => 1250, 'cost' => 900, 'stock' => 0, 'low_at' => 5],
-                ],
-            ],
-            [
-                // Food shop: sells online with delivery, menu items are NOT
-                // stock-tracked ('track' => false) — always available.
-                'name' => 'Cheesy Slice Pizza', 'type' => 'restaurant', 'category' => 'pizza', 'online' => true,
-                'items' => [
-                    ['name' => 'Chicken Tikka Pizza', 'category' => 'Pizzas', 'track' => false, 'price' => 1200, 'cost' => 500,
-                        'description' => 'Loaded with spicy chicken tikka, capsicum and mozzarella.',
-                        'variants' => [
-                            ['name' => 'Small 7"', 'price' => 800],
-                            ['name' => 'Medium 9"', 'price' => 1200],
-                            ['name' => 'Large 12"', 'price' => 1700],
-                        ],
-                        'modifiers' => [
-                            ['name' => 'Crust', 'type' => 'modifier', 'min' => 1, 'max' => 1, 'options' => [
-                                ['Original', 0], ['Thin', 0], ['Stuffed', 250],
-                            ]],
-                            ['name' => 'Extra Toppings', 'type' => 'addon', 'min' => 0, 'max' => 5, 'options' => [
-                                ['Extra Cheese', 150], ['Jalapeños', 80], ['Extra Chicken', 200], ['Olives', 100],
-                            ]],
-                        ],
-                    ],
-                    ['name' => 'Fajita Pizza', 'category' => 'Pizzas', 'track' => false, 'price' => 1300, 'cost' => 550,
-                        'variants' => [
-                            ['name' => 'Small 7"', 'price' => 850],
-                            ['name' => 'Medium 9"', 'price' => 1300],
-                            ['name' => 'Large 12"', 'price' => 1800],
-                        ],
-                    ],
-                    ['name' => 'Zinger Burger', 'category' => 'Burgers', 'track' => false, 'price' => 550, 'cost' => 250],
-                    ['name' => 'Loaded Fries', 'category' => 'Starters', 'track' => false, 'price' => 450, 'cost' => 180],
-                    ['name' => 'Family Deal (2 Pizzas + Drink)', 'category' => 'Deals', 'track' => false, 'price' => 2999, 'cost' => 1400],
-                    ['name' => 'Soft Drink 500ml', 'category' => 'Beverages', 'track' => false, 'price' => 120, 'cost' => 70],
-                    ['name' => 'Chocolate Lava Cake', 'category' => 'Desserts', 'track' => false, 'price' => 350, 'cost' => 150],
-                ],
-            ],
+            ['name' => 'Karahi House',          'type' => 'food',     'category' => 'restaurant',   'online' => true,  'items' => $this->catalogFor('food')],
+            ['name' => 'FreshMart Grocery',     'type' => 'mart',     'category' => 'supermarket',  'online' => true,  'items' => $this->catalogFor('mart')],
+            ['name' => 'MediPlus Pharmacy',     'type' => 'pharmacy', 'category' => 'medical_store','online' => false, 'items' => $this->catalogFor('pharmacy')],
+            ['name' => 'Trendz Retail',         'type' => 'retail',   'category' => 'garments',     'online' => true,  'items' => $this->catalogFor('retail')],
+            ['name' => 'GlowUp Salon & Studio', 'type' => 'services', 'category' => 'salon_beauty', 'online' => false, 'items' => $this->catalogFor('services')],
         ];
+    }
+
+    /** A 50-item catalog tuned to the business type. */
+    private function catalogFor(string $type): array
+    {
+        return match ($type) {
+            'food' => $this->foodCatalog(),
+            'mart' => $this->martCatalog(),
+            'pharmacy' => $this->pharmacyCatalog(),
+            'retail' => $this->retailCatalog(),
+            'services' => $this->servicesCatalog(),
+            default => [],
+        };
+    }
+
+    /** Tracked physical goods: cost ≈ 62% of price, healthy stock, low-at 10. */
+    private function stocked(array $groups): array
+    {
+        $out = [];
+        foreach ($groups as $category => $rows) {
+            foreach ($rows as [$name, $price]) {
+                $out[] = [
+                    'name' => $name, 'category' => $category, 'price' => $price,
+                    'cost' => (int) round($price * 0.62),
+                    'stock' => random_int(15, 140), 'low_at' => 10,
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /** Made-to-order items (food): no stock tracking, food-margin cost. */
+    private function madeToOrder(array $groups): array
+    {
+        $out = [];
+        foreach ($groups as $category => $rows) {
+            foreach ($rows as [$name, $price]) {
+                $out[] = [
+                    'name' => $name, 'category' => $category, 'price' => $price,
+                    'cost' => (int) round($price * 0.4), 'track' => false,
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /** Service items: type=service, a duration, no stock. rows = [name, price, minutes]. */
+    private function serviceItems(array $groups): array
+    {
+        $out = [];
+        foreach ($groups as $category => $rows) {
+            foreach ($rows as [$name, $price, $duration]) {
+                $out[] = [
+                    'name' => $name, 'category' => $category, 'type' => 'service',
+                    'price' => $price, 'duration' => $duration,
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    private function foodCatalog(): array
+    {
+        return $this->madeToOrder([
+            'Starters' => [
+                ['Chicken Samosa', 120], ['Spring Rolls', 180], ['Garlic Bread', 250], ['Chicken Wings', 450],
+                ['Loaded Fries', 400], ['Vegetable Pakora', 150], ['Chicken Corn Soup', 300], ['Hot & Sour Soup', 320],
+                ['Nachos Supreme', 480], ['Mozzarella Sticks', 420],
+            ],
+            'Main Course' => [
+                ['Chicken Biryani', 450], ['Beef Biryani', 500], ['Mutton Pulao', 650], ['Chicken Karahi Half', 900],
+                ['Chicken Karahi Full', 1700], ['Beef Nihari', 550], ['Butter Chicken', 780], ['Daal Makhani', 400],
+                ['Palak Paneer', 520], ['Seekh Kebab Plate', 600], ['Chapli Kebab', 350], ['Chicken Handi', 850],
+                ['Fish Fry', 700], ['Grilled Chicken', 680], ['Zinger Burger', 550],
+            ],
+            'Deals' => [
+                ['Family Deal', 2999], ['Couple Deal', 1799], ['Solo Lunch Deal', 650], ['Party Platter', 4500], ['Ramzan Special', 1299],
+            ],
+            'Beverages' => [
+                ['Soft Drink 500ml', 120], ['Fresh Lime', 180], ['Mango Shake', 300], ['Cold Coffee', 350],
+                ['Kashmiri Chai', 220], ['Green Tea', 150], ['Mineral Water', 80], ['Sweet Lassi', 200],
+                ['Fresh Orange Juice', 320], ['Mint Margarita', 280],
+            ],
+            'Desserts' => [
+                ['Gulab Jamun', 180], ['Kheer', 220], ['Vanilla Ice Cream', 150], ['Chocolate Brownie', 350],
+                ['Cheesecake Slice', 420], ['Ras Malai', 250], ['Fruit Trifle', 300], ['Molten Lava Cake', 380],
+                ['Kulfa', 200], ['Gajar Halwa', 260],
+            ],
+        ]);
+    }
+
+    private function martCatalog(): array
+    {
+        return $this->stocked([
+            'Food & Beverages' => [
+                ['Basmati Rice 5kg', 2400], ['Cooking Oil 1L', 620], ['Sugar 1kg', 180], ['Wheat Flour 10kg', 1300],
+                ['Tea 950g', 1450], ['Red Chilli Powder 200g', 260], ['Turmeric 200g', 180], ['Salt 800g', 60],
+                ['Chana Daal 1kg', 320], ['White Beans 1kg', 400], ['Ketchup 1L', 480], ['Vinegar 800ml', 220],
+                ['Cooking Oil 5L', 2800], ['Basmati Rice 1kg', 520], ['Instant Noodles Pack', 350],
+            ],
+            'Household' => [
+                ['Dishwash Liquid', 350], ['Laundry Detergent 1kg', 650], ['Floor Cleaner 1L', 420], ['Toilet Cleaner', 320],
+                ['Garbage Bags 30pc', 280], ['Air Freshener', 380], ['Steel Scrubber', 90], ['Tissue Box', 250],
+                ['Aluminium Foil', 300], ['Matchbox Pack', 60],
+            ],
+            'Personal Care' => [
+                ['Shampoo 400ml', 480], ['Bath Soap Pack', 320], ['Toothpaste 150g', 250], ['Toothbrush', 120],
+                ['Hand Wash', 350], ['Face Wash', 420], ['Body Lotion', 550], ['Shaving Cream', 380],
+                ['Hair Oil 200ml', 300], ['Deodorant', 480],
+            ],
+            'Snacks' => [
+                ['Potato Chips Family', 150], ['Biscuits Pack', 120], ['Chocolate Bar', 200], ['Namkeen 250g', 180],
+                ['Popcorn', 100], ['Juice Box', 90], ['Wafer Rolls', 160], ['Salted Peanuts', 140],
+            ],
+            'Dairy' => [
+                ['Fresh Milk 1L', 220], ['Yogurt 1kg', 320], ['Butter 200g', 480], ['Cheese Slices', 550],
+                ['Cream 200ml', 260], ['Eggs Dozen', 340], ['Paneer 250g', 400],
+            ],
+        ]);
+    }
+
+    private function pharmacyCatalog(): array
+    {
+        return $this->stocked([
+            'Medicines' => [
+                ['Panadol 500mg', 30], ['Disprin', 20], ['Brufen 400mg', 45], ['Augmentin 625mg', 350], ['Ponstan Forte', 60],
+                ['Flagyl 400mg', 80], ['Risek 20mg', 250], ['Nexium 40mg', 320], ['Panadol Extra', 50], ['Calpol Syrup', 90],
+                ['Ventolin Inhaler', 450], ['Amoxil 500mg', 180], ['Septran DS', 70], ['Loprin 75mg', 40], ['Concor 5mg', 220],
+                ['Glucophage 500mg', 120], ['Zyrtec 10mg', 160], ['Arinac Forte', 85], ['Neurobion Tablets', 240], ['Surbex Z', 380],
+            ],
+            'Supplements' => [
+                ['Vitamin C 1000mg', 450], ['Calcium D3', 520], ['Omega 3 Fish Oil', 780], ['Multivitamin', 650], ['Vitamin D3 Sachet', 90],
+                ['Iron Folic', 280], ['Zinc Tablets', 320], ['Protein Powder', 3200], ['Biotin', 590], ['Magnesium', 480],
+            ],
+            'Medical Supplies' => [
+                ['Surgical Mask Box', 350], ['Hand Sanitizer 500ml', 320], ['Digital Thermometer', 850], ['BP Monitor', 4500],
+                ['Glucometer', 3200], ['Cotton Roll', 120], ['Bandage Roll', 90], ['First Aid Kit', 1200],
+            ],
+            'Baby Care' => [
+                ['Baby Diapers M 40pc', 1450], ['Baby Wipes', 320], ['Baby Lotion', 380], ['Baby Shampoo', 420],
+                ['Feeding Bottle', 550], ['Baby Formula 400g', 1600],
+            ],
+            'Personal Care' => [
+                ['Antiseptic Liquid', 280], ['Sunblock SPF50', 780], ['Lip Balm', 220], ['Moisturizer', 480],
+                ['Medicated Soap', 180], ['Hair Removal Cream', 350],
+            ],
+        ]);
+    }
+
+    private function retailCatalog(): array
+    {
+        return $this->stocked([
+            'Garments' => [
+                ['Classic T-Shirt', 1200], ['Polo Shirt', 1600], ['Denim Jeans', 3500], ['Formal Shirt', 2400],
+                ['Hoodie Premium', 4200], ['Summer Kurti', 2200], ['Ladies Abaya', 4500], ['Kids T-Shirt', 800],
+                ['Cotton Trousers', 2200], ['Winter Jacket', 6500], ['Waistcoat', 3200], ['Shalwar Kameez', 3800],
+            ],
+            'Footwear' => [
+                ['Street Sneakers', 6500], ['Leather Loafers', 5500], ['Casual Sandals', 1800], ['Sports Joggers', 4500],
+                ['Peshawari Chappal', 2800], ['Kids Shoes', 1500], ['Formal Shoes', 4800], ['Slippers', 600],
+            ],
+            'Electronics' => [
+                ['Bluetooth Speaker', 3500], ['Power Bank 10000mAh', 2800], ['LED Bulb 12W', 350], ['Extension Cord', 650],
+                ['USB Fan', 900], ['Wall Clock', 1200], ['Dry Iron', 2400], ['Electric Kettle', 3200],
+                ['Hair Dryer', 2800], ['Table Lamp', 1500],
+            ],
+            'Mobile & Accessories' => [
+                ['Phone Cover', 450], ['Tempered Glass', 300], ['USB-C Cable', 350], ['Fast Charger', 1200],
+                ['Wired Earphones', 600], ['Wireless Earbuds', 3500], ['Car Charger', 550], ['Selfie Stick', 800],
+                ['Memory Card 32GB', 1100], ['Phone Stand', 400],
+            ],
+            'Cosmetics' => [
+                ['Matte Lipstick', 650], ['Foundation', 1200], ['Kajal', 250], ['Nail Polish', 200], ['Face Powder', 850],
+                ['Mascara', 700], ['Perfume 50ml', 2500], ['Body Spray', 480], ['Makeup Kit', 3500], ['Eyeliner', 350],
+            ],
+        ]);
+    }
+
+    private function servicesCatalog(): array
+    {
+        $services = $this->serviceItems([
+            'Hair Services' => [
+                ['Haircut (Gents)', 800, 30], ['Haircut (Ladies)', 1500, 45], ['Hair Color Full', 3500, 90],
+                ['Hair Highlights', 4500, 120], ['Beard Trim', 400, 15], ['Hair Wash & Blow Dry', 1200, 40],
+                ['Kids Haircut', 500, 20], ['Hair Straightening', 6000, 150], ['Head Massage', 900, 30], ['Hair Spa', 2500, 60],
+            ],
+            'Skin & Beauty' => [
+                ['Deluxe Facial', 2500, 60], ['Basic Facial', 1500, 45], ['Threading', 300, 15], ['Full Arms Waxing', 800, 30],
+                ['Manicure', 1200, 40], ['Pedicure', 1500, 45], ['Bridal Makeup', 15000, 180], ['Party Makeup', 6000, 90],
+            ],
+            'Spa' => [
+                ['Full Body Massage', 4000, 90], ['Foot Reflexology', 2000, 45], ['Hot Stone Massage', 5000, 75],
+                ['Steam Bath', 1500, 30], ['Body Scrub', 3000, 60], ['Aroma Therapy', 3500, 60], ['Back Massage', 1800, 40],
+            ],
+            'Packages' => [
+                ['Bridal Package', 25000, 300], ['Groom Package', 8000, 150], ['Monthly Grooming', 5000, 60],
+                ['Spa Day Package', 9000, 180], ['Couple Spa', 12000, 150],
+            ],
+        ]);
+
+        $retail = $this->stocked([
+            'Retail Products' => [
+                ['Pro Shampoo', 850], ['Hair Serum', 1200], ['Hair Wax', 650], ['Pro Face Wash', 900], ['Pro Moisturizer', 1100],
+                ['Pro Sunblock', 1300], ['Argan Hair Oil', 1500], ['Beard Oil', 800], ['Nail Polish Kit', 600], ['Makeup Remover', 550],
+                ['Hair Mask', 1400], ['Pro Conditioner', 950], ['Pro Body Lotion', 1050], ['Signature Perfume', 3500], ['Comb Set', 350],
+                ['Pro Hair Dryer', 4500], ['Hair Straightener', 5500], ['Trimmer', 3200], ['Towel Set', 1200], ['Cosmetic Bag', 900],
+            ],
+        ]);
+
+        return array_merge($services, $retail);
     }
 }
