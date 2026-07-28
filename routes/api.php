@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\Tenant\RiderController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\Tenant\SaleController;
+use App\Http\Controllers\Api\V1\Tenant\SearchController;
 use App\Http\Controllers\Api\V1\Tenant\ShopController;
 use App\Http\Controllers\Api\V1\Tenant\StaffController as TenantStaffController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
@@ -124,6 +125,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // 'subscription': read-only mode blocks writes after grace expiry.
         Route::middleware(['role:shop_owner,staff', 'subscription'])->group(function (): void {
             Route::get('/dashboard', [DashboardController::class, 'index']);
+            // Global search (⌘K palette) — self-gates each group by permission.
+            Route::get('/search', [SearchController::class, 'index']);
             Route::get('/shop', [ShopController::class, 'show']);
             Route::put('/shop/setup', [ShopController::class, 'setup'])->middleware('permission:settings.manage');
             Route::put('/shop', [ShopController::class, 'update'])->middleware('permission:settings.manage');
