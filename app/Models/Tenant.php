@@ -18,6 +18,22 @@ class Tenant extends BaseModel
 
     protected $table = 'tenants';
 
+    protected static function booted(): void
+    {
+        // Every tenant always has exactly one default "Main" branch — created
+        // silently the moment the tenant exists, via any path (admin action,
+        // seeder, factory). This upholds the "a tenant has ≥1 branch" invariant
+        // so a single-shop owner never has to think about branches.
+        static::created(function (Tenant $tenant): void {
+            $tenant->branches()->create([
+                'name' => 'Main',
+                'code' => 'MAIN',
+                'is_default' => true,
+                'is_active' => true,
+            ]);
+        });
+    }
+
     protected function casts(): array
     {
         return [
@@ -49,6 +65,11 @@ class Tenant extends BaseModel
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function branches(): HasMany
+    {
+        return $this->hasMany(Branch::class);
     }
 
     public function reviews(): HasMany

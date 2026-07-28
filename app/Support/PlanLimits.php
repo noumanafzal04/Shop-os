@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Enums\UserRole;
 use App\Exceptions\DomainException;
+use App\Models\Branch;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\Tenant;
@@ -37,7 +38,7 @@ class PlanLimits
         'products' => ['column' => 'max_products', 'label' => 'products', 'enforced' => true],
         'staff' => ['column' => 'max_staff', 'label' => 'staff members', 'enforced' => true],
         'orders_month' => ['column' => 'max_orders_month', 'label' => 'orders this month', 'enforced' => false],
-        'branches' => ['column' => 'max_branches', 'label' => 'branches', 'enforced' => false],
+        'branches' => ['column' => 'max_branches', 'label' => 'branches', 'enforced' => true],
         'storage_mb' => ['column' => 'max_storage_mb', 'label' => 'MB of storage', 'enforced' => false],
     ];
 
@@ -75,8 +76,11 @@ class PlanLimits
             'staff' => $tenant->users()->where('role', UserRole::Staff)->count(),
             'orders_month' => Sale::withoutTenancy()->where('tenant_id', $tenant->id)
                 ->where('created_at', '>=', now()->startOfMonth())->count(),
-            // Not yet metered — subsystems land later.
-            'branches', 'storage_mb' => 0,
+            // The default "Main" branch counts — a max_branches of 1 means the
+            // single Main branch and no more (raising it unlocks extra sites).
+            'branches' => Branch::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
+            // Not yet metered — subsystem lands later.
+            'storage_mb' => 0,
             default => 0,
         };
     }

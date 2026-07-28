@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\Tenant\RiderController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\Tenant\SaleController;
+use App\Http\Controllers\Api\V1\Tenant\BranchController;
 use App\Http\Controllers\Api\V1\Tenant\SearchController;
 use App\Http\Controllers\Api\V1\Tenant\ShopController;
 use App\Http\Controllers\Api\V1\Tenant\StaffController as TenantStaffController;
@@ -138,6 +139,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::post('/shop/gallery', [GalleryController::class, 'store']);
             Route::delete('/shop/gallery/{image}', [GalleryController::class, 'destroy']);
             Route::post('/shop/logo', [ShopController::class, 'uploadLogo'])->middleware('permission:settings.manage');
+
+            // Branches — physical locations under the tenant (multi-branch).
+            // Every tenant has a default Main branch; adding more is gated by
+            // the plan's max_branches.
+            Route::middleware('permission:settings.manage')->group(function (): void {
+                Route::get('branches', [BranchController::class, 'index']);
+                Route::post('branches', [BranchController::class, 'store']);
+                Route::put('branches/{branch}', [BranchController::class, 'update']);
+                Route::delete('branches/{branch}', [BranchController::class, 'destroy']);
+            });
 
             // Catalog: categories + collections + items (products & services)
             Route::middleware('permission:products.manage')->group(function (): void {
