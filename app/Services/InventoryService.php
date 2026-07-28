@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Exceptions\DomainException;
+use App\Models\Branch;
+use App\Models\BranchStock;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
@@ -31,11 +33,13 @@ class InventoryService
 
     /**
      * @param array{
-     *   product_id: string, variant_id?: ?string,
+     *   product_id: string, variant_id?: ?string, branch_id?: ?string,
      *   type: 'in'|'out'|'set', quantity?: int, new_quantity?: int,
      *   reason?: ?string, idempotency_key?: ?string,
      *   reference_type?: ?string, reference_id?: ?string
      * } $data
+     *
+     * branch_id defaults to the tenant's default "Main" branch when omitted.
      */
     public function adjust(array $data): StockMovement
     {
@@ -77,7 +81,53 @@ class InventoryService
             }
 
             $target = $variant ?? $product;
-            $current = (float) $target->stock_quantity;
+
+            // Which branch's stock does this touch? Callers that don't care
+            // (the vast majority — single-branch shops) get the tenant's
+            // default "Main" branch, so behaviour is unchanged.
+            $defaultBranchId = Branch::withoutTenancy()
+                ->where('tenant_id', $product->tenant_id)
+                ->where('is_default', true)
+                ->value('id');
+            $branchId = $data['branch_id'] ?? $defaultBranchId;
+
+            // Per-branch on-hand is the source of truth. Lock it (the product
+            // row lock above already serialises adjusts for this product).
+            $stockRow = BranchStock::withoutTenancy()
+                ->where('branch_id', $branchId)
+                ->where('product_id', $product->id)
+                ->where('variant_id', $variant?->id)
+                ->lockForUpdate()
+                ->first();
+            // Missing row on the DEFAULT branch → seed on-hand from the legacy
+            // rollup (product/variant.stock_quantity), which historically lived
+            // entirely at Main. This makes products created outside the
+            // branch_stock path (tests, direct creates, pre-migration data)
+            // self-heal on first adjust. Other branches start empty.
+            $current = $stockRow !== null
+                ? (float) $stockRow->quantity
+                : ($branchId === $defaultBranchId ? (float) $target->stock_quantity : 0.0);
+
+            // When touching a NON-default branch, first make sure the default
+            // branch's row exists (seeded from the legacy rollup). Otherwise the
+            // rollup recompute below would sum only existing rows and silently
+            // drop stock that had only ever lived in product.stock_quantity.
+            if ($branchId !== $defaultBranchId) {
+                $hasDefaultRow = BranchStock::withoutTenancy()
+                    ->where('branch_id', $defaultBranchId)
+                    ->where('product_id', $product->id)
+                    ->where('variant_id', $variant?->id)
+                    ->exists();
+                if (! $hasDefaultRow) {
+                    BranchStock::withoutTenancy()->create([
+                        'tenant_id' => $product->tenant_id,
+                        'branch_id' => $defaultBranchId,
+                        'product_id' => $product->id,
+                        'variant_id' => $variant?->id,
+                        'quantity' => (float) $target->stock_quantity,
+                    ]);
+                }
+            }
 
             // Quantities are decimal(12,3) — weight/length items sell fractions.
             $delta = match ($data['type']) {
@@ -110,10 +160,15 @@ class InventoryService
             // must neither re-deplete nor re-fill other batches.
             $batchScope = ($data['reference_type'] ?? null) !== 'batch';
             $batchVariantId = $variant?->id;
-            // Match this target's lots only (NULL variant → product-level lots).
-            $scopeVariant = fn ($q) => $batchVariantId === null
-                ? $q->whereNull('variant_id')
-                : $q->where('variant_id', $batchVariantId);
+            // Match this target's lots only, at THIS branch (NULL variant →
+            // product-level lots). Lots are per-branch, mirroring stock.
+            $scopeVariant = function ($q) use ($batchVariantId, $branchId) {
+                $q->where('branch_id', $branchId);
+
+                return $batchVariantId === null
+                    ? $q->whereNull('variant_id')
+                    : $q->where('variant_id', $batchVariantId);
+            };
 
             // Expired stock is UNSELLABLE. Block any OUT that would dip into
             // quantity sitting in expired batches — the pharmacist must remove
@@ -141,7 +196,27 @@ class InventoryService
                 }
             }
 
-            $target->forceFill(['stock_quantity' => $newQuantity])->save();
+            // Write the per-branch on-hand (the source of truth)…
+            if ($stockRow !== null) {
+                $stockRow->forceFill(['quantity' => $newQuantity])->save();
+            } else {
+                $stockRow = BranchStock::withoutTenancy()->create([
+                    'tenant_id' => $product->tenant_id,
+                    'branch_id' => $branchId,
+                    'product_id' => $product->id,
+                    'variant_id' => $variant?->id,
+                    'quantity' => $newQuantity,
+                ]);
+            }
+
+            // …then refresh the denormalised rollup so every existing read
+            // (marketplace, low-stock, product display) sees the total across
+            // branches. Single-branch shops: rollup == the one Main row.
+            $rollup = (float) BranchStock::withoutTenancy()
+                ->where('product_id', $product->id)
+                ->where('variant_id', $variant?->id)
+                ->sum('quantity');
+            $target->forceFill(['stock_quantity' => round($rollup, 3)])->save();
 
             // FEFO batch depletion: stock OUT eats the earliest-expiring
             // NON-EXPIRED batches first (expired quantity was fenced off
@@ -198,6 +273,7 @@ class InventoryService
                     // pharmacist can date or write it off from Batches.
                     \App\Models\ProductBatch::withoutTenancy()->create([
                         'tenant_id' => $product->tenant_id,
+                        'branch_id' => $branchId,
                         'product_id' => $product->id,
                         'variant_id' => $batchVariantId,
                         'batch_number' => 'RESTOCK',
@@ -231,6 +307,7 @@ class InventoryService
 
             return StockMovement::query()->create([
                 'tenant_id' => $product->tenant_id,
+                'branch_id' => $branchId,
                 'product_id' => $product->id,
                 'variant_id' => $variant?->id,
                 'type' => $data['type'],

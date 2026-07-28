@@ -42,8 +42,12 @@ class BatchController extends Controller
             'cost' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $batch = DB::transaction(function () use ($product, $data, $inventory): ProductBatch {
+        $mainBranchId = \App\Models\Branch::withoutTenancy()
+            ->where('tenant_id', $product->tenant_id)->where('is_default', true)->value('id');
+
+        $batch = DB::transaction(function () use ($product, $data, $inventory, $mainBranchId): ProductBatch {
             $batch = ProductBatch::query()->create([
+                'branch_id' => $mainBranchId,
                 'product_id' => $product->id,
                 'variant_id' => $data['variant_id'] ?? null,
                 'batch_number' => $data['batch_number'],
@@ -56,6 +60,7 @@ class BatchController extends Controller
                 $inventory->adjust([
                     'product_id' => $product->id,
                     'variant_id' => $data['variant_id'] ?? null,
+                    'branch_id' => $mainBranchId,
                     'type' => 'in',
                     'quantity' => (float) $data['quantity'],
                     'reason' => "Batch {$data['batch_number']} received",
@@ -105,6 +110,7 @@ class BatchController extends Controller
                 $inventory->adjust([
                     'product_id' => $batch->product_id,
                     'variant_id' => $batch->variant_id,
+                    'branch_id' => $batch->branch_id,
                     'type' => 'out',
                     'quantity' => $remaining,
                     'reason' => "Batch {$batch->batch_number} removed/expired",

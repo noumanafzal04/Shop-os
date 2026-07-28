@@ -76,6 +76,20 @@ class CreateProductAction
                 'visible_in_marketplace' => $data['visible_in_marketplace'] ?? true,
             ]);
 
+            // Multi-branch: opening stock lands at the tenant's default "Main"
+            // branch. branch_stock is the per-branch source of truth;
+            // product.stock_quantity (set above) is its sum-across-branches
+            // rollup — so the product-level Main row mirrors it exactly.
+            $mainBranchId = \App\Models\Branch::withoutTenancy()
+                ->where('tenant_id', $product->tenant_id)->where('is_default', true)->value('id');
+            \App\Models\BranchStock::withoutTenancy()->create([
+                'tenant_id' => $product->tenant_id,
+                'branch_id' => $mainBranchId,
+                'product_id' => $product->id,
+                'variant_id' => null,
+                'quantity' => $product->stock_quantity,
+            ]);
+
             // Pharmacy: opening stock must be backed by a lot from day one so
             // stock_quantity and batch totals never start out of step (the
             // rest of the batch loop — PO receipts, returns, FEFO — keeps them
@@ -86,6 +100,7 @@ class CreateProductAction
             if ($itemType === ItemTypes::MEDICINE && $openingStock > 0) {
                 $product->batches()->create([
                     'tenant_id' => $product->tenant_id,
+                    'branch_id' => $mainBranchId,
                     'batch_number' => 'OPENING',
                     'expiry_date' => $data['expiry_date'] ?? null,
                     'quantity' => $openingStock,
@@ -104,6 +119,16 @@ class CreateProductAction
                     'low_stock_threshold' => $variant['low_stock_threshold'] ?? null,
                 ]);
 
+                // Per-branch on-hand for this variant at Main (mirrors the
+                // variant's rollup stock_quantity).
+                \App\Models\BranchStock::withoutTenancy()->create([
+                    'tenant_id' => $product->tenant_id,
+                    'branch_id' => $mainBranchId,
+                    'product_id' => $product->id,
+                    'variant_id' => $created->id,
+                    'quantity' => $created->stock_quantity,
+                ]);
+
                 // Medicine variants get the same day-one lot guarantee as the
                 // product-level opening stock below: every unit is batch-backed
                 // so FEFO and the expired fence see it. Expiry left for the
@@ -112,6 +137,7 @@ class CreateProductAction
                 if ($itemType === ItemTypes::MEDICINE && $variantOpening > 0) {
                     $product->batches()->create([
                         'tenant_id' => $product->tenant_id,
+                        'branch_id' => $mainBranchId,
                         'variant_id' => $created->id,
                         'batch_number' => 'OPENING',
                         'expiry_date' => null,

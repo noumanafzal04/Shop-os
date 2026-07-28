@@ -125,6 +125,10 @@ class ReceivePurchaseOrderAction
                     if ($wantsBatch || $isBatchTracked) {
                         ProductBatch::query()->create([
                             'tenant_id' => $product->tenant_id,
+                            // Same branch the adjust() above credited (default
+                            // Main) — lots and on-hand must not drift apart.
+                            'branch_id' => \App\Models\Branch::withoutTenancy()
+                                ->where('tenant_id', $product->tenant_id)->where('is_default', true)->value('id'),
                             'product_id' => $product->id,
                             'variant_id' => $item->variant_id,
                             'batch_number' => $row['batch_number'] ?? $po->po_number,
