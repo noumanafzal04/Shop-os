@@ -37,7 +37,7 @@ const SubscriptionPage = lazy(() => import("./modules/shop/pages/SubscriptionPag
 const ShopDashboard = lazy(() => import("./pages/Dashboard/ShopDashboard"));
 const ShopSetupPage = lazy(() => import("./modules/shop/pages/ShopSetupPage"));
 const ProductsPage = lazy(() => import("./modules/catalog/pages/ProductsPage"));
-const ProductFormPage = lazy(() => import("./modules/catalog/pages/ProductFormPage"));
+const ProductEditorRoute = lazy(() => import("./modules/catalog/pages/ProductEditorRoute"));
 const CategoriesPage = lazy(() => import("./modules/catalog/pages/CategoriesPage"));
 const CollectionsPage = lazy(() => import("./modules/catalog/pages/CollectionsPage"));
 const LabelsPage = lazy(() => import("./modules/catalog/pages/LabelsPage"));
@@ -124,9 +124,10 @@ export default function App() {
 
                 <Route path="/tenant" element={<AppLayout />}>
                   <Route index element={<ShopDashboard />} />
-                  <Route path="products" element={<ProductsPage />} />
-                  <Route path="products/new" element={<ProductFormPage />} />
-                  <Route path="products/:id/edit" element={<ProductFormPage />} />
+                  <Route path="products" element={<ProductsPage />}>
+                    <Route path="new" element={<ProductEditorRoute />} />
+                    <Route path=":id/edit" element={<ProductEditorRoute />} />
+                  </Route>
                   <Route path="categories" element={<CategoriesPage />} />
                   <Route path="collections" element={<CollectionsPage />} />
                   <Route path="labels" element={<LabelsPage />} />

@@ -1,6 +1,4 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router";
-import PageMeta from "../../../components/common/PageMeta";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
 import TextArea from "../../../components/form/input/TextArea";
@@ -88,10 +86,13 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
  * appear for POS shops, tucked inside a collapsed "Advanced" panel. An
  * online-only shop sees a short, storefront-focused form.
  */
-export default function ProductFormPage() {
-  const { id } = useParams();
+/**
+ * Product create/edit — a slide-over drawer hosted over the item list, with
+ * the form split into tabs so it reads cleanly instead of one long scroll.
+ * `id` present ⇒ edit; absent ⇒ create. `onClose` returns to the list.
+ */
+export default function ProductEditor({ id, onClose }: { id?: string; onClose: () => void }) {
   const isEdit = !!id;
-  const navigate = useNavigate();
 
   const hasPermission = useAuthStore((s) => s.hasPermission);
   // Select STABLE references — never build a new object in the selector
@@ -160,7 +161,7 @@ export default function ProductFormPage() {
   const [variants, setVariants] = useState<FormVariant[]>([]);
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [tab, setTab] = useState<"details" | "media" | "options" | "advanced">("details");
   const syncModifiers = useSyncModifiers(id);
 
   // Capability profile of the currently-selected item type.
@@ -240,14 +241,6 @@ export default function ProductFormPage() {
       setTrackStock(p.track_inventory);
       setVisibleOnline(p.visible_in_marketplace);
       setCollectionIds((p.collections ?? []).map((c) => c.id));
-      // Reveal Advanced automatically when the item already carries any of its
-      // fields, so an editor doesn't "lose" data behind a collapsed panel.
-      if (
-        (p.sku ?? "") || (p.barcode ?? "") || (p.brand ?? "") || (p.units ?? []).length ||
-        (p.price_tiers ?? []).length || p.wholesale_price != null || (p.barcodes ?? []).length
-      ) {
-        setShowAdvanced(true);
-      }
       setModifierGroups(
         (p.modifier_groups ?? []).map((g) => ({
           name: g.name, type: g.type, min_select: g.min_select, max_select: g.max_select,
@@ -314,11 +307,11 @@ export default function ProductFormPage() {
 
     const finish = (w: string[]) => {
       if (w.length > 0) {
-        // Below-cost etc: show the warning, stay on page briefly via list.
+        // Below-cost etc: surface the warning briefly, then close the drawer.
         setWarnings(w);
-        setTimeout(() => navigate("/tenant/products"), 1600);
+        setTimeout(onClose, 1600);
       } else {
-        navigate("/tenant/products");
+        onClose();
       }
     };
 
@@ -379,31 +372,71 @@ export default function ProductFormPage() {
     return <Alert variant="error" title="No access" message="You don't have permission to manage items." />;
   }
 
+  // Tabs shown depend on the item type + shop capabilities — hide empty ones.
+  const tabs = [
+    { key: "details", label: "Details" },
+    ...(imagesEnabled || marketplaceEnabled || (collectionsQ.data ?? []).length
+      ? [{ key: "media", label: "Media & online" }] : []),
+    ...((showVariants && !isEdit) || (supportsModifiers && isEdit)
+      ? [{ key: "options", label: "Variants & options" }] : []),
+    ...(isGood || !isService ? [{ key: "advanced", label: "Codes & packs" }] : []),
+  ] as const;
+  const activeTab = tabs.some((t) => t.key === tab) ? tab : "details";
+
   return (
-    <>
-      <PageMeta title={isEdit ? "Edit Item | ShopOS" : "New Item | ShopOS"} description="Catalog item" />
+    <div className="fixed inset-0 z-[100000] flex justify-end">
+      <div className="absolute inset-0 bg-gray-900/30 dark:bg-black/50" onClick={onClose} aria-hidden="true" />
 
-      <div className="mb-6">
-        <Link to="/tenant/products" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">
-          ← Back to items
-        </Link>
-        <h2 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">
-          {isEdit ? `Edit ${existing.data?.name ?? "item"}` : "Add Item"}
-        </h2>
-      </div>
-
-      {generalError && (
-        <div className="mb-5 max-w-2xl">
-          <Alert variant="error" title="Couldn't save" message={generalError} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative flex h-full w-full max-w-3xl flex-col bg-white shadow-theme-lg dark:bg-gray-900"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+          <h2 className="truncate text-lg font-semibold text-gray-800 dark:text-white/90">
+            {isEdit ? `Edit ${existing.data?.name ?? "item"}` : "Add item"}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
+          >
+            ✕
+          </button>
         </div>
-      )}
-      {warnings.map((w) => (
-        <div key={w} className="mb-5 max-w-2xl">
-          <Alert variant="warning" title="Saved with warning" message={w} />
-        </div>
-      ))}
 
-      <form onSubmit={submit} className="max-w-2xl space-y-5">
+        {/* Tabs */}
+        <div className="flex gap-1 overflow-x-auto border-b border-gray-100 px-4 dark:border-gray-800">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key as typeof tab)}
+              className={`relative whitespace-nowrap px-3 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === t.key
+                  ? "text-brand-600 dark:text-brand-400"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              }`}
+            >
+              {t.label}
+              {activeTab === t.key && (
+                <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-5 overflow-y-auto p-6">
+            {generalError && <Alert variant="error" title="Couldn't save" message={generalError} />}
+            {warnings.map((w) => (
+              <Alert key={w} variant="warning" title="Saved with warning" message={w} />
+            ))}
+
+            {/* ═══════════════ TAB: Details ═══════════════ */}
+            <div className={activeTab === "details" ? "space-y-5" : "hidden"}>
         {/* Item type — chosen once at creation; immutable after */}
         {!isEdit ? (
           allowedTypes.length > 1 && (
@@ -672,7 +705,10 @@ export default function ProductFormPage() {
           )}
           {err("description") && <p className="mt-1 text-theme-xs text-error-500">{err("description")}</p>}
         </div>
+            </div>
 
+            {/* ═══════════════ TAB: Media & online ═══════════════ */}
+            <div className={activeTab === "media" ? "space-y-5" : "hidden"}>
         {/* Photos — when the shop uses product images (module on, or sells online) */}
         {imagesEnabled && (
         <Section title="Photos">
@@ -797,6 +833,10 @@ export default function ProductFormPage() {
           </div>
         )}
 
+            </div>
+
+            {/* ═══════════════ TAB: Variants & options ═══════════════ */}
+            <div className={activeTab === "options" ? "space-y-5" : "hidden"}>
         {/* Variants — products, creation only */}
         {showVariants && !isEdit && (
           <Section title="Variants (optional)" hint="e.g. sizes or colors — each with its own SKU, price and stock.">
@@ -949,22 +989,13 @@ export default function ProductFormPage() {
           </Section>
         )}
 
-        {/* ── Advanced (collapsed) — codes, packs & pricing extras ─────── */}
-        {(isGood || !isService) && (
-          <div className="rounded-xl border border-gray-200 dark:border-gray-800">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left"
-            >
-              <span className="text-sm font-medium text-gray-800 dark:text-white/90">Advanced options</span>
-              <span className="text-theme-xs text-gray-400">
-                {showAdvanced ? "Hide ▲" : "Show ▼"}
-              </span>
-            </button>
+            </div>
 
-            {showAdvanced && (
-              <div className="space-y-4 border-t border-gray-100 p-4 dark:border-gray-800">
+            {/* ═══════════════ TAB: Codes & packs ═══════════════ */}
+            <div className={activeTab === "advanced" ? "space-y-5" : "hidden"}>
+        {/* Codes, packs & pricing extras */}
+        {(isGood || !isService) && (
+              <div className="space-y-4">
                 {/* SKU + brand + base unit */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
@@ -1153,27 +1184,27 @@ export default function ProductFormPage() {
                   </div>
                 )}
               </div>
-            )}
-          </div>
         )}
+            </div>{/* end Codes & packs tab */}
+          </div>{/* end scroll area */}
 
-        <div className="flex gap-3">
-          <Button size="sm" disabled={mutation.isPending || uploadingNew || !name.trim() || !price}>
-            {uploadingNew
-              ? "Uploading photos…"
-              : mutation.isPending
-                ? "Saving…"
-                : isEdit
-                  ? "Save changes"
-                  : "Create item"}
-          </Button>
-          <Link to="/tenant/products">
-            <Button size="sm" variant="outline">
+          {/* Footer — always visible; submits the form from any tab */}
+          <div className="flex items-center gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
+            <Button size="sm" disabled={mutation.isPending || uploadingNew || !name.trim() || !price}>
+              {uploadingNew
+                ? "Uploading photos…"
+                : mutation.isPending
+                  ? "Saving…"
+                  : isEdit
+                    ? "Save changes"
+                    : "Create item"}
+            </Button>
+            <Button size="sm" variant="outline" type="button" onClick={onClose}>
               Cancel
             </Button>
-          </Link>
-        </div>
-      </form>
-    </>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

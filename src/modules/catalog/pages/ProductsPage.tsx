@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
-import { Link, useNavigate } from "react-router";
+import { Link, Outlet, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
@@ -466,6 +466,9 @@ export default function ProductsPage() {
           </Button>
         </div>
       </Modal>
+
+      {/* Product editor drawer (routes: /products/new, /products/:id/edit) */}
+      <Outlet />
     </>
   );
 }

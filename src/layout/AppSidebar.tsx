@@ -35,7 +35,11 @@ type NavItem = {
  * feature → no Online Orders; no reservations feature → no Reservations).
  */
 function shopNav(features: Record<string, boolean> | undefined): NavItem[] {
-  const has = (key: string) => features?.[key] ?? true;
+  // A capability shows only when its flag is explicitly on. Types that don't
+  // offer a feature omit its key entirely (e.g. pharmacy has no `dine_in`), so
+  // a missing key must read as OFF — never default to true, or a pharmacy ends
+  // up with a Dine-in link.
+  const has = (key: string) => features?.[key] ?? false;
 
   return [
     // ── Daily essentials ──────────────────────────────────────────
