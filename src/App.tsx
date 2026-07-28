@@ -26,6 +26,7 @@ const AdminTenantCreatePage = lazy(() => import("./modules/admin/pages/AdminTena
 const AdminTenantDetailPage = lazy(() => import("./modules/admin/pages/AdminTenantDetailPage"));
 const AdminPaymentsPage = lazy(() => import("./modules/admin/pages/AdminPaymentsPage"));
 const AdminPlansPage = lazy(() => import("./modules/admin/pages/AdminPlansPage"));
+const AdminConfigPage = lazy(() => import("./modules/admin/pages/AdminConfigPage"));
 const AdminStaffPage = lazy(() => import("./modules/staff/pages/AdminStaffPage"));
 const TenantStaffPage = lazy(() => import("./modules/staff/pages/TenantStaffPage"));
 const AdminAuditPage = lazy(() => import("./modules/admin/pages/AdminAuditPage"));
@@ -99,6 +100,7 @@ export default function App() {
                 <Route path="tenants/:id" element={<AdminTenantDetailPage />} />
                 <Route path="payments" element={<AdminPaymentsPage />} />
                 <Route path="plans" element={<AdminPlansPage />} />
+                <Route path="config" element={<AdminConfigPage />} />
                 <Route path="staff" element={<AdminStaffPage />} />
                 <Route path="audit-logs" element={<AdminAuditPage />} />
                 <Route path="banners" element={<AdminBannersPage />} />

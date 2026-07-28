@@ -109,50 +109,24 @@ function shopNav(features: Record<string, boolean> | undefined): NavItem[] {
   ];
 }
 
-const adminNavItems: NavItem[] = [
-  {
-    icon: <GridIcon />,
-    name: "Dashboard",
-    path: "/admin",
-  },
-  {
-    icon: <GroupIcon />,
-    name: "Tenants",
-    path: "/admin/tenants",
-  },
-  {
-    icon: <DollarLineIcon />,
-    name: "Billing & Payments",
-    path: "/admin/payments",
-  },
-  {
-    icon: <ListIcon />,
-    name: "Plans",
-    path: "/admin/plans",
-  },
-  {
-    icon: <BoxCubeIcon />,
-    name: "Banners / Ads",
-    path: "/admin/banners",
-  },
-  {
-    icon: <ChatIcon />,
-    name: "Announcements",
-    path: "/admin/announcements",
-  },
-  {
-    icon: <UserCircleIcon />,
-    name: "Platform Staff",
-    path: "/admin/staff",
-  },
-  {
-    icon: <FileIcon />,
-    name: "Audit Log",
-    path: "/admin/audit-logs",
-  },
+// Admin nav is split into two labelled groups for a clean, scannable sidebar:
+// "Manage" = the day-to-day platform operations, "Platform" = configuration
+// and oversight the owner touches less often.
+const adminMainItems: NavItem[] = [
+  { icon: <GridIcon />, name: "Dashboard", path: "/admin" },
+  { icon: <GroupIcon />, name: "Tenants", path: "/admin/tenants" },
+  { icon: <ListIcon />, name: "Plans", path: "/admin/plans" },
+  { icon: <DollarLineIcon />, name: "Billing & Payments", path: "/admin/payments" },
 ];
 
-const othersItems: NavItem[] = [];
+const adminPlatformItems: NavItem[] = [
+  { icon: <BoltIcon />, name: "Configuration", path: "/admin/config" },
+  { icon: <BoxCubeIcon />, name: "Banners / Ads", path: "/admin/banners" },
+  { icon: <ChatIcon />, name: "Announcements", path: "/admin/announcements" },
+  { icon: <UserCircleIcon />, name: "Platform Staff", path: "/admin/staff" },
+  { icon: <FileIcon />, name: "Audit Log", path: "/admin/audit-logs" },
+];
+
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
@@ -163,7 +137,11 @@ const AppSidebar: React.FC = () => {
   );
 
   const isAdmin = role === "super_admin" || role === "admin_staff";
-  const navItems = isAdmin ? adminNavItems : shopNav(features);
+  const navItems = isAdmin ? adminMainItems : shopNav(features);
+  // Second labelled group: platform config for admins; unused on the shop side.
+  const othersItems: NavItem[] = isAdmin ? adminPlatformItems : [];
+  const mainLabel = isAdmin ? "Manage" : "Menu";
+  const othersLabel = "Platform";
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
@@ -412,13 +390,30 @@ const AppSidebar: React.FC = () => {
                 }`}
               >
                 {isExpanded || isHovered || isMobileOpen ? (
-                  "Menu"
+                  mainLabel
                 ) : (
                   <HorizontaLDots className="size-6" />
                 )}
               </h2>
               {renderMenuItems(navItems, "main")}
             </div>
+
+            {othersItems.length > 0 && (
+              <div>
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                    !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    othersLabel
+                  ) : (
+                    <HorizontaLDots className="size-6" />
+                  )}
+                </h2>
+                {renderMenuItems(othersItems, "others")}
+              </div>
+            )}
           </div>
         </nav>
       </div>
