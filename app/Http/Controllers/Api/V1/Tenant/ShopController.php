@@ -53,7 +53,13 @@ class ShopController extends Controller
     /** Effective shop settings (defaults merged with saved overrides). */
     public function settings(): JsonResponse
     {
-        return ApiResponse::ok($this->context->get()->allSettings());
+        $tenant = $this->context->get();
+
+        // Effective branch ceiling drives whether the owner sees branch UI
+        // (single-branch tenants never do). null = unlimited.
+        return ApiResponse::ok($tenant->allSettings() + [
+            'max_branches' => \App\Support\PlanLimits::limit($tenant, 'branches'),
+        ]);
     }
 
     /** Persist a partial settings update (merged over what's stored). */
