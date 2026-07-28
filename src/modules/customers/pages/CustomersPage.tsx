@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -17,7 +18,13 @@ import type { Customer } from "../services/customersService";
 export default function CustomersPage() {
   const money = useMoney();
   const hasPermission = useAuthStore((s) => s.hasPermission);
-  const [search, setSearch] = useState("");
+  // Seed the filter from ?q= so the ⌘K palette can deep-link into a filtered list.
+  const [searchParams] = useSearchParams();
+  const qParam = searchParams.get("q") ?? "";
+  const [search, setSearch] = useState(qParam);
+  useEffect(() => {
+    if (qParam) setSearch(qParam);
+  }, [qParam]);
   const customers = useCustomers({ search: search || undefined });
   const { create, update, remove, recordPayment } = useCustomerMutations();
   const [payAmount, setPayAmount] = useState("");

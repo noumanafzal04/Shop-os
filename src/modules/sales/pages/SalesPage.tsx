@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
@@ -28,7 +28,13 @@ const STATUS_COLOR: Record<SaleStatus, "success" | "error" | "warning" | "info">
 
 export default function SalesPage() {
   const money = useMoney();
-  const [search, setSearch] = useState("");
+  // Seed the filter from ?q= so the ⌘K palette can deep-link into a filtered list.
+  const [searchParams] = useSearchParams();
+  const qParam = searchParams.get("q") ?? "";
+  const [search, setSearch] = useState(qParam);
+  useEffect(() => {
+    if (qParam) setSearch(qParam);
+  }, [qParam]);
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const debounced = useDebouncedValue(search, 350);
