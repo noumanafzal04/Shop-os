@@ -18,6 +18,7 @@ import {
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { useUiMode, type UiMode } from "../context/UiModeContext";
+import { useShopSettings } from "../modules/shop/hooks/useShop";
 import { useAuthStore } from "../stores/authStore";
 import { homeForRole } from "../common/routing/guards";
 
@@ -35,7 +36,8 @@ type NavItem = {
  * appear when the business has the matching feature enabled (no marketplace
  * feature → no Online Orders; no reservations feature → no Reservations).
  */
-function shopNav(features: Record<string, boolean> | undefined, mode: UiMode): NavItem[] {
+function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, multiBranch: boolean): NavItem[] {
+  const branchItem: NavItem = { icon: <BoxCubeIcon />, name: "Branches", path: "/tenant/branches" };
   // A capability shows only when its flag is explicitly on. Types that don't
   // offer a feature omit its key entirely (e.g. pharmacy has no `dine_in`), so
   // a missing key must read as OFF — never default to true, or a pharmacy ends
@@ -63,6 +65,7 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode): N
       ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
       { icon: <BoxIcon />, name: "Products", path: "/tenant/products" },
       ...(has("expenses") ? [expenseManager] : []),
+      ...(multiBranch ? [branchItem] : []),
       { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
     ];
   }
@@ -78,6 +81,8 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode): N
     ...(has("marketplace") && has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
     // Expense & Income module — one home for all money in/out.
     ...(has("expenses") ? [expenseManager] : []),
+    // Multi-branch: a locations manager appears only when the plan allows >1.
+    ...(multiBranch ? [branchItem] : []),
 
     // ── Grouped dropdowns ─────────────────────────────────────────
     {
@@ -157,8 +162,12 @@ const AppSidebar: React.FC = () => {
   );
 
   const { mode, toggleMode } = useUiMode();
+  const shopSettings = useShopSettings();
+  // Multi-branch UI shows only when the plan allows more than one branch
+  // (max_branches null = unlimited → true; 1 → false).
+  const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
   const isAdmin = role === "super_admin" || role === "admin_staff";
-  const navItems = isAdmin ? adminMainItems : shopNav(features, mode);
+  const navItems = isAdmin ? adminMainItems : shopNav(features, mode, multiBranch);
   // Second labelled group: platform config for admins; unused on the shop side.
   const othersItems: NavItem[] = isAdmin ? adminPlatformItems : [];
   const mainLabel = isAdmin ? "Manage" : "Menu";

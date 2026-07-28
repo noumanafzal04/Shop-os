@@ -4,10 +4,15 @@ import { useAuthStore } from "../../../stores/authStore";
 import { shopService, type SetupPayload, type ShopSettings } from "../services/shopService";
 
 export function useShopSettings() {
+  // /shop/settings is owner/staff-only — don't fire it for admins or customers
+  // (it would 403). Other roles just get the default formatting.
+  const role = useAuthStore((s) => s.user?.role);
+  const isShop = role === "shop_owner" || role === "staff";
   return useQuery({
     queryKey: ["shop-settings"],
     queryFn: async () => (await shopService.settings()).data,
     staleTime: 5 * 60 * 1000,
+    enabled: isShop,
   });
 }
 

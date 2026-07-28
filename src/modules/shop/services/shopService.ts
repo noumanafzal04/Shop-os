@@ -102,6 +102,8 @@ export interface ShopSettings {
   scale_barcode_enabled: boolean;
   scale_barcode_prefix: string;
   scale_barcode_mode: "weight" | "price";
+  /** Effective branch ceiling (null = unlimited). Drives multi-branch UI. */
+  max_branches: number | null;
 }
 
 export const shopService = {

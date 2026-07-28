@@ -33,6 +33,7 @@ const AdminAuditPage = lazy(() => import("./modules/admin/pages/AdminAuditPage")
 const AdminBannersPage = lazy(() => import("./modules/admin/pages/AdminBannersPage"));
 const AdminAnnouncementsPage = lazy(() => import("./modules/admin/pages/AdminAnnouncementsPage"));
 const ShopSettingsPage = lazy(() => import("./modules/shop/pages/ShopSettingsPage"));
+const BranchesPage = lazy(() => import("./modules/branches/pages/BranchesPage"));
 const SubscriptionPage = lazy(() => import("./modules/shop/pages/SubscriptionPage"));
 const ShopDashboard = lazy(() => import("./pages/Dashboard/ShopDashboard"));
 const ShopSetupPage = lazy(() => import("./modules/shop/pages/ShopSetupPage"));
@@ -148,6 +149,7 @@ export default function App() {
                   <Route path="reservations" element={<ReservationsPage />} />
                   <Route path="reviews" element={<OwnerReviewsPage />} />
                   <Route path="staff" element={<TenantStaffPage />} />
+                  <Route path="branches" element={<BranchesPage />} />
                   <Route path="settings" element={<ShopSettingsPage />} />
                   <Route path="subscription" element={<SubscriptionPage />} />
                 </Route>
