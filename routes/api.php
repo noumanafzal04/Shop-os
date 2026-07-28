@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\Tenant\SaleController;
 use App\Http\Controllers\Api\V1\Tenant\BranchController;
 use App\Http\Controllers\Api\V1\Tenant\SearchController;
+use App\Http\Controllers\Api\V1\Tenant\TransferController;
 use App\Http\Controllers\Api\V1\Tenant\ShopController;
 use App\Http\Controllers\Api\V1\Tenant\StaffController as TenantStaffController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
@@ -165,6 +166,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('products/{product}/images', [ProductImageController::class, 'store']);
                 Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy']);
                 Route::post('products/{product}/barcode', [ProductController::class, 'generateBarcode']);
+                // Cross-branch availability ("check other branches").
+                Route::get('products/{product}/branch-stock', [ProductController::class, 'branchStock']);
                 Route::put('products/{product}/modifier-groups', [ProductController::class, 'syncModifiers']);
             });
 
@@ -236,6 +239,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('/products/{product}/batches', [BatchController::class, 'store']);
                 Route::patch('/batches/{batch}', [BatchController::class, 'update']);
                 Route::delete('/batches/{batch}', [BatchController::class, 'destroy']);
+
+                // Branch-to-branch transfers (multi-branch).
+                Route::get('/transfers', [TransferController::class, 'index']);
+                Route::post('/transfers', [TransferController::class, 'store']);
             });
 
             // Expense categories (templates from business type, editable).

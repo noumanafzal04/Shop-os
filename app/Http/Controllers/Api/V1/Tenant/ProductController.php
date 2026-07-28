@@ -174,6 +174,33 @@ class ProductController extends Controller
         );
     }
 
+    /**
+     * Cross-branch availability — this product's on-hand at every active branch
+     * (0 where a branch holds none). Powers the "check other branches" lookup.
+     */
+    public function branchStock(string $id): JsonResponse
+    {
+        /** @var Product $product */
+        $product = Product::query()->findOrFail($id);
+
+        $rows = \App\Models\Branch::query()
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_default'])
+            ->map(fn ($b) => [
+                'branch_id' => $b->id,
+                'branch' => $b->name,
+                'is_default' => $b->is_default,
+                'quantity' => (float) \App\Models\BranchStock::query()
+                    ->where('branch_id', $b->id)
+                    ->where('product_id', $product->id)
+                    ->sum('quantity'),
+            ]);
+
+        return ApiResponse::ok($rows);
+    }
+
     /** Replace the whole modifier-group set for a menu item. */
     public function syncModifiers(SyncModifierGroupsRequest $request, string $id, SyncModifierGroupsAction $action): JsonResponse
     {

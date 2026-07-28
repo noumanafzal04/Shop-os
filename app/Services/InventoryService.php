@@ -248,7 +248,7 @@ class InventoryService
             // those are created by their own flows (Batches page, PO receive).
             if ($data['type'] === 'in' && $batchScope
                 && in_array($data['reference_type'] ?? null,
-                    ['sale_return', 'sale_cancellation', 'order_release', 'reservation_release'], true)) {
+                    ['sale_return', 'sale_cancellation', 'order_release', 'reservation_release', 'transfer'], true)) {
                 $restoreTo = \App\Models\ProductBatch::withoutTenancy()
                     ->where('product_id', $product->id)
                     ->where($scopeVariant)
