@@ -29,6 +29,36 @@ class CustomerController extends Controller
         return ApiResponse::paginated($customers);
     }
 
+    /** Export the customer directory to CSV — honours the list search filter. */
+    public function export(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $header = ['name', 'phone', 'email', 'address', 'credit_balance', 'credit_limit', 'sales_count', 'total_spent', 'last_seen_at', 'notes'];
+
+        $rows = Customer::query()
+            ->withCount(['sales as sales_count' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value)])
+            ->withSum(['sales as sales_total' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value)], 'total')
+            ->when($request->query('search'), fn ($q, $s) => $q->where(function ($q) use ($s): void {
+                $q->where('name', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%");
+            }))
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Customer $c) => [
+                $c->name,
+                $c->phone,
+                $c->email,
+                $c->address,
+                $c->credit_balance,
+                $c->credit_limit,
+                $c->sales_count,
+                $c->sales_total ?? 0,
+                $c->last_seen_at?->toDateTimeString(),
+                $c->notes,
+            ])
+            ->all();
+
+        return \App\Support\CsvExport::stream('customers-'.now()->format('Y-m-d').'.csv', $header, $rows);
+    }
+
     public function store(StoreCustomerRequest $request): JsonResponse
     {
         $customer = Customer::query()->create($request->validated());

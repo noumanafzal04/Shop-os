@@ -107,6 +107,66 @@ class ProductController extends Controller
         }, 'products-import-template.csv', ['Content-Type' => 'text/csv']);
     }
 
+    /**
+     * Export the item catalog to CSV. Honours the same filters as index() so a
+     * merchant can "export what I'm looking at", and emits the SAME columns as
+     * the import template — an exported file round-trips straight back through
+     * /products/import for bulk edits.
+     */
+    public function export(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $header = ['name', 'item_type', 'sku', 'barcode', 'barcodes', 'plu_code', 'brand', 'generic_name', 'requires_prescription', 'category', 'unit', 'sold_by', 'price', 'cost', 'discount_price', 'tax_rate', 'stock_quantity', 'low_stock_threshold', 'min_order_qty', 'is_active', 'visible_in_marketplace'];
+
+        $rows = Product::query()
+            ->with(['category:id,name', 'barcodes:id,product_id,barcode'])
+            ->when($request->query('search'), function ($q, $search): void {
+                $q->where(function ($q) use ($search): void {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('brand', 'like', "%{$search}%")
+                        ->orWhere('generic_name', 'like', "%{$search}%")
+                        ->orWhere('sku', 'like', "%{$search}%")
+                        ->orWhere('barcode', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
+            ->when($request->query('item_type'), fn ($q, $t) => $q->where('item_type', $t))
+            ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
+            ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
+            ->when($request->boolean('low_stock'), function ($q): void {
+                $q->where('track_inventory', true)
+                    ->whereNotNull('low_stock_threshold')
+                    ->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
+            })
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Product $p) => [
+                $p->name,
+                $p->item_type,
+                $p->sku,
+                $p->barcode,
+                $p->barcodes->pluck('barcode')->reject(fn ($b) => $b === $p->barcode)->implode('|'),
+                $p->plu_code,
+                $p->brand,
+                $p->generic_name,
+                $p->requires_prescription ? 1 : 0,
+                $p->category?->name,
+                $p->unit,
+                $p->sold_by,
+                $p->price,
+                $p->cost,
+                $p->discount_price,
+                $p->tax_rate,
+                $p->stock_quantity,
+                $p->low_stock_threshold,
+                $p->min_order_qty,
+                $p->is_active ? 1 : 0,
+                $p->visible_in_marketplace ? 1 : 0,
+            ])
+            ->all();
+
+        return \App\Support\CsvExport::stream('products-'.now()->format('Y-m-d').'.csv', $header, $rows);
+    }
+
     public function show(string $id): JsonResponse
     {
         return ApiResponse::ok(

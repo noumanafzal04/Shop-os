@@ -147,6 +147,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Bulk CSV import (before the resource so /products/import isn't
                 // captured by /products/{product}).
                 Route::get('products/import/template', [ProductController::class, 'importTemplate']);
+                Route::get('products/export', [ProductController::class, 'export']);
                 Route::post('products/import', [ProductController::class, 'import']);
                 Route::apiResource('products', ProductController::class);
                 // Product images — multipart upload / delete
@@ -160,6 +161,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::middleware('permission:customers.manage')->group(function (): void {
                 // Khata repayment — pay down a customer's credit balance.
                 Route::post('customers/{customer}/payments', [CustomerController::class, 'recordPayment']);
+                Route::get('customers/export', [CustomerController::class, 'export']);
                 Route::apiResource('customers', CustomerController::class);
             });
 
@@ -199,6 +201,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // Sales: workflow → payment → invoice → stock decrement
             Route::prefix('sales')->middleware('permission:sales.manage')->group(function (): void {
                 Route::get('/', [SaleController::class, 'index']);
+                // Export before /{sale} so it isn't captured as an id.
+                Route::get('/export', [SaleController::class, 'export']);
                 // Ringing up a counter sale needs the POS module; viewing and
                 // refunding sales stays open (online sales appear here too).
                 Route::post('/', [SaleController::class, 'store'])->middleware('feature:pos');

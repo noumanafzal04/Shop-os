@@ -39,6 +39,54 @@ class SaleController extends Controller
         return ApiResponse::paginated($sales);
     }
 
+    /**
+     * Export the sales ledger to CSV — honours the same search / status /
+     * channel / date-range filters as index(), so "export this month's card
+     * sales" is just the current filter plus a download.
+     */
+    public function export(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $header = ['invoice_number', 'sold_at', 'channel', 'status', 'customer_name', 'customer_phone', 'order_type', 'table_no', 'items', 'subtotal', 'discount', 'tax', 'total', 'payment_method', 'amount_paid', 'change_due', 'notes'];
+
+        $rows = Sale::query()
+            ->withCount('items')
+            ->when($request->query('search'), function ($q, $search): void {
+                $q->where(function ($q) use ($search): void {
+                    $q->where('invoice_number', 'like', "%{$search}%")
+                        ->orWhere('customer_name', 'like', "%{$search}%")
+                        ->orWhere('customer_phone', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
+            ->when($request->query('channel'), fn ($q, $channel) => $q->where('channel', $channel))
+            ->when($request->query('from'), fn ($q, $from) => $q->where('sold_at', '>=', $from))
+            ->when($request->query('to'), fn ($q, $to) => $q->where('sold_at', '<=', $to.' 23:59:59'))
+            ->orderByDesc('sold_at')
+            ->get()
+            ->map(fn (Sale $s) => [
+                $s->invoice_number,
+                $s->sold_at?->toDateTimeString(),
+                $s->channel?->value,
+                $s->status?->value,
+                $s->customer_name,
+                $s->customer_phone,
+                $s->order_type,
+                $s->table_no,
+                $s->items_count,
+                $s->subtotal,
+                $s->discount,
+                $s->tax,
+                $s->total,
+                $s->payment_method?->value,
+                $s->amount_paid,
+                $s->change_due,
+                $s->notes,
+            ])
+            ->all();
+
+        return \App\Support\CsvExport::stream('sales-'.now()->format('Y-m-d').'.csv', $header, $rows);
+    }
+
     public function store(StoreSaleRequest $request, CreateSaleAction $action): JsonResponse
     {
         $sale = $action->execute($request->validated());
