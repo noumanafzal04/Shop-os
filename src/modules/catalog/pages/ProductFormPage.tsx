@@ -178,6 +178,15 @@ export default function ProductFormPage() {
   // A plain sellable good (has SKU/brand/packs/barcodes); not a service or deal.
   const isGood = !isService && !isCombo;
 
+  // Business Type Engine: the shop's type suggests its selling units and
+  // variant attributes (pharmacy → Strip/Strength, diner → Plate/Size…).
+  const typeCfg = (businessTypesQ.data ?? []).find((b) => b.code === businessType);
+  const typeUnits = typeCfg?.units ?? [];
+  const variantAttrs = typeCfg?.variant_attributes ?? [];
+  // Online-required: a marketplace-visible item on an online shop must carry
+  // a description + photo before it reads well to customers.
+  const onlineRequired = visibleOnline && marketplaceEnabled;
+
   // Products this deal can bundle — everything sellable except other deals and
   // the deal itself. Fetched only while editing a combo.
   const comboPickerQ = useProducts({ search: undefined, page: 1 });
@@ -259,6 +268,12 @@ export default function ProductFormPage() {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (mutation.isPending) return;
+
+    // Online-required: an item shown to online customers needs a description.
+    if (onlineRequired && !description.trim()) {
+      setWarnings(["Add a description before saving an item that's shown online."]);
+      return;
+    }
 
     const base = {
       name: name.trim(),
@@ -646,8 +661,16 @@ export default function ProductFormPage() {
         ) : null}
 
         <div>
-          <Label>Description</Label>
-          <TextArea value={description} onChange={setDescription} rows={3} placeholder="Optional details" />
+          <Label>
+            Description {onlineRequired && <span className="text-error-500">*</span>}
+          </Label>
+          <TextArea value={description} onChange={setDescription} rows={3} placeholder={onlineRequired ? "Shown to online customers — describe the item" : "Optional details"} />
+          {onlineRequired && !description.trim() && (
+            <p className="mt-1 text-theme-xs text-warning-500">
+              A description is required for items shown online.
+            </p>
+          )}
+          {err("description") && <p className="mt-1 text-theme-xs text-error-500">{err("description")}</p>}
         </div>
 
         {/* Photos — when the shop uses product images (module on, or sells online) */}
@@ -681,6 +704,12 @@ export default function ProductFormPage() {
           {isEdit && images.upload.error instanceof ApiError && (
             <p className="mb-2 text-theme-xs text-error-500">
               {images.upload.error.errors["images.0"]?.[0] ?? images.upload.error.message}
+            </p>
+          )}
+
+          {onlineRequired && (!isEdit || !existing.data?.images.length) && (
+            <p className="mb-2 text-theme-xs text-warning-500">
+              Add at least one photo — items shown online need a picture{!isEdit ? " (you can add it right after saving)" : ""}.
             </p>
           )}
 
@@ -771,6 +800,11 @@ export default function ProductFormPage() {
         {/* Variants — products, creation only */}
         {showVariants && !isEdit && (
           <Section title="Variants (optional)" hint="e.g. sizes or colors — each with its own SKU, price and stock.">
+            {variantAttrs.length > 0 && (
+              <p className="mb-2 text-theme-xs text-gray-400">
+                Common for your business: {variantAttrs.join(" · ")}
+              </p>
+            )}
             <div className="mb-2 flex justify-end">
               <Button
                 size="sm"
@@ -947,6 +981,24 @@ export default function ProductFormPage() {
                       <div>
                         <Label>Base unit</Label>
                         <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="pcs, kg, box…" />
+                        {typeUnits.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {typeUnits.map((u) => (
+                              <button
+                                key={u}
+                                type="button"
+                                onClick={() => setUnit(u)}
+                                className={`rounded-full px-2 py-0.5 text-theme-xs transition-colors ${
+                                  unit === u
+                                    ? "bg-brand-500 text-white"
+                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"
+                                }`}
+                              >
+                                {u}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </>
                   )}

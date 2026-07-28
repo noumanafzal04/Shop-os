@@ -22,6 +22,8 @@ export interface ItemTypeInfo {
   addons: boolean;
   pos: boolean | "optional";
   marketplace: boolean;
+  /** Fields required before this item can sell online (image, description). */
+  online_required?: string[];
 }
 
 export interface Collection {

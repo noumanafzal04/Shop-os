@@ -25,6 +25,10 @@ export interface BusinessType {
   item_types: string[];
   /** The categories a tenant picks WITHIN this type (its business_category). */
   categories: Array<{ value: string; label: string }>;
+  /** Suggested selling units for this type (kg, plate, strip…). */
+  units: string[];
+  /** Suggested variant attribute names (Size, Color, Strength…). */
+  variant_attributes: string[];
   default_categories: string[];
   default_expense_categories: string[];
 }
