@@ -15,6 +15,8 @@ import type { ItemTypeCode, Product } from "../types";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { ApiError } from "../../../common/types/api";
 import { api } from "../../../common/api/client";
+import { downloadFile } from "../../../common/api/download";
+import { useToast } from "../../../components/ui/toast";
 
 /** Friendly label for each item type (drops the raw product/service split). */
 const TYPE_LABEL: Record<ItemTypeCode, string> = {
@@ -78,6 +80,25 @@ export default function ProductsPage() {
   const confirmModal = useModal();
   const [target, setTarget] = useState<Product | null>(null);
 
+  // ── Export the current (filtered) catalog to CSV ─────────────────
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      await downloadFile("/products/export", {
+        search: debouncedSearch || undefined,
+        type: type || undefined,
+        category_id: categoryId || undefined,
+        low_stock: lowStock || undefined,
+      });
+    } catch {
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // ── Bulk CSV import ──────────────────────────────────────────────
   const importModal = useModal();
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -134,6 +155,9 @@ export default function ProductsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={exportCsv} disabled={exporting}>
+            {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
           <Button size="sm" variant="outline" onClick={openImport}>Import CSV</Button>
           <Link to="/tenant/products/new">
             <Button size="sm">+ Add Item</Button>

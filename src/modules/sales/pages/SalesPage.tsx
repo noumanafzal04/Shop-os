@@ -11,6 +11,8 @@ import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
+import { downloadFile } from "../../../common/api/download";
+import { useToast } from "../../../components/ui/toast";
 import { useSale, useSaleMutations, useSales } from "../hooks/useSales";
 import { salesService } from "../services/salesService";
 import { useProducts } from "../../catalog/hooks/useCatalog";
@@ -38,6 +40,19 @@ export default function SalesPage() {
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const debounced = useDebouncedValue(search, 350);
+
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      await downloadFile("/sales/export", { search: debounced || undefined, status: status || undefined });
+    } catch {
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const sales = useSales({ search: debounced, status, page });
   const { cancel, processReturn, exchange } = useSaleMutations();
@@ -162,11 +177,16 @@ export default function SalesPage() {
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Sales</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Invoices and history</p>
         </div>
-        {hasPos && (
-          <Link to="/tenant/sales/new">
-            <Button size="sm">+ New Sale</Button>
-          </Link>
-        )}
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={exportCsv} disabled={exporting}>
+            {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
+          {hasPos && (
+            <Link to="/tenant/sales/new">
+              <Button size="sm">+ New Sale</Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">

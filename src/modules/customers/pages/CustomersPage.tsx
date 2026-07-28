@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
+import { downloadFile } from "../../../common/api/download";
+import { useToast } from "../../../components/ui/toast";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -27,6 +29,19 @@ export default function CustomersPage() {
   }, [qParam]);
   const customers = useCustomers({ search: search || undefined });
   const { create, update, remove, recordPayment } = useCustomerMutations();
+
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      await downloadFile("/customers/export", { search: search || undefined });
+    } catch {
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState<"cash" | "card" | "bank_transfer" | "other">("cash");
 
@@ -87,7 +102,12 @@ export default function CustomersPage() {
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Customers</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Auto-built from sales & orders — add notes, track spend.</p>
         </div>
-        <Button size="sm" onClick={openCreate}>+ Add customer</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={exportCsv} disabled={exporting}>
+            {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
+          <Button size="sm" onClick={openCreate}>+ Add customer</Button>
+        </div>
       </div>
 
       <div className="mb-4 max-w-xs">
