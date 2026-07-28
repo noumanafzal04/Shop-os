@@ -137,6 +137,7 @@ export default function ProductFormPage() {
   const [extraBarcodes, setExtraBarcodes] = useState<string[]>([]);
   const [units, setUnits] = useState<Array<{ name: string; factor: string; price: string; barcode: string }>>([]);
   const [comboRows, setComboRows] = useState<Array<{ component_product_id: string; quantity: string }>>([]);
+  const [recipeRows, setRecipeRows] = useState<Array<{ ingredient_product_id: string; quantity: string }>>([]);
   const [brand, setBrand] = useState("");
   const [genericName, setGenericName] = useState("");
   const [requiresRx, setRequiresRx] = useState(false);
@@ -213,6 +214,7 @@ export default function ProductFormPage() {
       setExtraBarcodes((p.barcodes ?? []).map((b) => b.barcode));
       setUnits((p.units ?? []).map((u) => ({ name: u.name, factor: String(u.factor), price: u.price != null ? String(u.price) : "", barcode: u.barcode ?? "" })));
       setComboRows((p.combo_items ?? []).map((c) => ({ component_product_id: c.component_product_id, quantity: String(c.quantity) })));
+      setRecipeRows((p.recipe_items ?? []).map((r) => ({ ingredient_product_id: r.ingredient_product_id, quantity: String(r.quantity) })));
       setUnit(p.unit ?? "");
       setPrice(String(p.price));
       setCost(p.cost != null ? String(p.cost) : "");
@@ -276,6 +278,10 @@ export default function ProductFormPage() {
       combo_items: isCombo
         ? comboRows.filter((r) => r.component_product_id && Number(r.quantity) > 0)
             .map((r) => ({ component_product_id: r.component_product_id, quantity: Number(r.quantity) }))
+        : undefined,
+      recipe_items: isFood
+        ? recipeRows.filter((r) => r.ingredient_product_id && Number(r.quantity) > 0)
+            .map((r) => ({ ingredient_product_id: r.ingredient_product_id, quantity: Number(r.quantity) }))
         : undefined,
       unit: unit.trim() || undefined,
       price: price,
@@ -532,6 +538,46 @@ export default function ProductFormPage() {
               <p className="mt-1 text-theme-xs text-warning-500">Create some products first — a deal bundles existing items.</p>
             )}
             {err("combo_items") && <p className="mt-1 text-theme-xs text-error-500">{err("combo_items")}</p>}
+          </Section>
+        )}
+
+        {/* Recipe / ingredients (food dish) — raw items consumed per portion. */}
+        {isFood && (
+          <Section
+            title="Recipe / ingredients"
+            hint="Optional. List the raw ingredients one portion uses — selling the dish deducts each from stock. The dish itself needn't track stock. E.g. Bun ×2, Patty ×1."
+          >
+            <div className="mb-2 flex justify-end">
+              <button
+                type="button"
+                className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
+                onClick={() => setRecipeRows((r) => [...r, { ingredient_product_id: "", quantity: "1" }])}
+              >
+                + Add ingredient
+              </button>
+            </div>
+            {recipeRows.length === 0 ? (
+              <p className="text-theme-xs text-gray-400">No ingredients — the dish sells without depleting stock.</p>
+            ) : (
+              recipeRows.map((row, i) => (
+                <div key={i} className="mb-2 flex items-center gap-2">
+                  <select
+                    value={row.ingredient_product_id}
+                    onChange={(e) => setRecipeRows((arr) => arr.map((x, j) => (j === i ? { ...x, ingredient_product_id: e.target.value } : x)))}
+                    className="h-11 flex-1 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90"
+                  >
+                    <option value="">Select an ingredient…</option>
+                    {pickable.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  <span className="text-theme-xs text-gray-400">×</span>
+                  <Input type="number" min="0" step={0.001} value={row.quantity} onChange={(e) => setRecipeRows((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} className="max-w-24" />
+                  <button type="button" className="text-error-500 hover:text-error-600" onClick={() => setRecipeRows((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                </div>
+              ))
+            )}
+            {err("recipe_items") && <p className="mt-1 text-theme-xs text-error-500">{err("recipe_items")}</p>}
           </Section>
         )}
 

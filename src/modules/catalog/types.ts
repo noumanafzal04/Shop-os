@@ -96,7 +96,16 @@ export interface Product {
   modifier_groups?: ModifierGroup[];
   units?: ProductUnit[];
   combo_items?: ComboItemLine[];
+  recipe_items?: RecipeItemLine[];
   created_at: string;
+}
+
+/** One ingredient in a dish's recipe (item_type = food_item). */
+export interface RecipeItemLine {
+  id?: string;
+  ingredient_product_id: string;
+  quantity: number | string;
+  ingredient?: { id: string; name: string };
 }
 
 /** One component inside a combo/deal (item_type = deal). */
@@ -163,6 +172,7 @@ export interface ProductInput {
   barcodes?: string[];
   units?: ProductUnit[];
   combo_items?: Array<{ component_product_id: string; quantity: number }>;
+  recipe_items?: Array<{ ingredient_product_id: string; quantity: number }>;
   unit?: string;
   attributes?: Record<string, string>;
   price: number | string;
