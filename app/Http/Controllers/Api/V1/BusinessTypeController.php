@@ -27,6 +27,8 @@ class BusinessTypeController extends Controller
                 'features' => $t['features'],
                 'item_types' => BusinessTypes::itemTypesFor($code),
                 'categories' => BusinessTypes::categoriesFor($code),
+                'units' => BusinessTypes::unitsFor($code),
+                'variant_attributes' => BusinessTypes::variantAttributesFor($code),
                 'default_categories' => $t['product_categories'],
                 'default_expense_categories' => $t['expense_categories'],
             ])->values();
@@ -46,6 +48,9 @@ class BusinessTypeController extends Controller
             'addons' => $t['addons'],
             'pos' => $t['pos'],
             'marketplace' => $t['marketplace'],
+            // Fields the merchant must complete before this item sells online
+            // (only meaningful for marketplace-capable types).
+            'online_required' => $t['marketplace'] ? BusinessTypes::ONLINE_REQUIRED_FIELDS : [],
         ])->values();
 
         return ApiResponse::ok($types);

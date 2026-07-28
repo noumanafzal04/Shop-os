@@ -35,6 +35,41 @@ class BusinessTypes
     public const FEATURES = ['products', 'services', 'inventory', 'marketplace', 'reservations', 'delivery', 'expenses', 'images', 'pos', 'dine_in'];
 
     /**
+     * Selling units suggested per type (the product/POS unit field offers
+     * these; the merchant can still type their own). Part of the Business Type
+     * Engine — a pharmacy talks in strips and tablets, a grocery in kg and
+     * litres, a diner in plates.
+     */
+    private const UNITS = [
+        'food' => ['Plate', 'Piece', 'Glass', 'Cup', 'Bowl', 'Bottle', 'Slice', 'Pack', 'Dozen'],
+        'mart' => ['Piece', 'Pack', 'KG', 'Gram', 'Litre', 'ml', 'Dozen', 'Box', 'Bag', 'Bottle', 'Can'],
+        'pharmacy' => ['Tablet', 'Capsule', 'Strip', 'Bottle', 'Tube', 'Injection', 'Sachet', 'ml', 'Gram', 'Box'],
+        'retail' => ['Piece', 'Pair', 'Box', 'Set', 'Pack', 'Roll', 'Meter', 'Dozen'],
+        'services' => ['Service', 'Session', 'Hour', 'Visit', 'Job'],
+    ];
+
+    /** Variant attribute names suggested per type (the variant editor hints these). */
+    private const VARIANT_ATTRIBUTES = [
+        'food' => ['Size', 'Flavor'],
+        'mart' => ['Weight', 'Volume', 'Pack Size'],
+        'pharmacy' => ['Strength', 'Pack Size'],
+        'retail' => ['Size', 'Color', 'Material', 'Storage', 'Model'],
+        'services' => ['Package', 'Duration'],
+    ];
+
+    /** Legacy code → its primary type, so old tenants get the right units/variants. */
+    private const LEGACY_PRIMARY = [
+        'restaurant' => 'food', 'grocery' => 'mart', 'clinic' => 'pharmacy',
+        'salon' => 'services', 'workshop' => 'services', 'service' => 'services',
+        'wholesale' => 'retail', 'books' => 'retail', 'hardware' => 'retail',
+    ];
+
+    private const DEFAULT_UNITS = ['Piece', 'Pack', 'Box', 'KG', 'Gram', 'Litre', 'ml', 'Dozen'];
+
+    /** Fields a product MUST carry once it's shown online (marketplace-visible). */
+    public const ONLINE_REQUIRED_FIELDS = ['image', 'description'];
+
+    /**
      * @return array<string, array{
      *   label: string, examples: string[], available: bool,
      *   features: array<string,bool>,
@@ -257,6 +292,22 @@ class BusinessTypes
     public static function categoriesFor(string $code): array
     {
         return self::get($code)['categories'] ?? [];
+    }
+
+    /** Suggested selling units for a type (legacy codes map to their primary). */
+    public static function unitsFor(string $code): array
+    {
+        $code = self::LEGACY_PRIMARY[$code] ?? $code;
+
+        return self::UNITS[$code] ?? self::DEFAULT_UNITS;
+    }
+
+    /** Suggested variant attribute names for a type (Size/Color, Strength/Pack…). */
+    public static function variantAttributesFor(string $code): array
+    {
+        $code = self::LEGACY_PRIMARY[$code] ?? $code;
+
+        return self::VARIANT_ATTRIBUTES[$code] ?? ['Size', 'Color'];
     }
 
     /**
