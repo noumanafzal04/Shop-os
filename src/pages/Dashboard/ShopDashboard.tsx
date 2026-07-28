@@ -4,6 +4,7 @@ import { MetricCard, MetricCardSkeleton } from "../../common/ui/MetricCard";
 import { useTenantDashboard } from "../../modules/dashboard/hooks/useDashboard";
 import { useMoney } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
+import { useUiMode } from "../../context/UiModeContext";
 
 /**
  * Shop-owner / staff dashboard. Renders honest empty states while the
@@ -12,6 +13,7 @@ import { useAuthStore } from "../../stores/authStore";
 export default function ShopDashboard() {
   const { data, isLoading, isError } = useTenantDashboard();
   const user = useAuthStore((s) => s.user);
+  const { mode } = useUiMode();
 
   const money = useMoney();
 
@@ -59,55 +61,76 @@ export default function ShopDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-6">
-        {isLoading ? (
-          <>
-            <MetricCardSkeleton />
-            <MetricCardSkeleton />
-            <MetricCardSkeleton />
-            <MetricCardSkeleton />
-          </>
-        ) : data ? (
-          <>
-            <MetricCard label="Today's Sales" value={data.today.sales_count} hint="transactions" />
-            <MetricCard label="Revenue" value={money(data.today.revenue)} />
-            <MetricCard label="Expenses" value={money(data.today.expenses)} />
-            <MetricCard label="Profit" value={money(data.today.profit)} />
-          </>
-        ) : null}
-      </div>
+      {mode === "basic" ? (
+        // Basic: the three numbers a shopkeeper checks each day.
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6">
+          {isLoading ? (
+            <>
+              <MetricCardSkeleton />
+              <MetricCardSkeleton />
+              <MetricCardSkeleton />
+            </>
+          ) : data ? (
+            <>
+              <MetricCard label="Today's Sales" value={data.today.sales_count} hint="transactions" />
+              <MetricCard label="Revenue" value={money(data.today.revenue)} />
+              <MetricCard label="Low Stock Alerts" value={data.low_stock_count} />
+            </>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-6">
+            {isLoading ? (
+              <>
+                <MetricCardSkeleton />
+                <MetricCardSkeleton />
+                <MetricCardSkeleton />
+                <MetricCardSkeleton />
+              </>
+            ) : data ? (
+              <>
+                <MetricCard label="Today's Sales" value={data.today.sales_count} hint="transactions" />
+                <MetricCard label="Revenue" value={money(data.today.revenue)} />
+                <MetricCard label="Expenses" value={money(data.today.expenses)} />
+                <MetricCard label="Profit" value={money(data.today.profit)} />
+              </>
+            ) : null}
+          </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6">
-        {isLoading ? (
-          <>
-            <MetricCardSkeleton />
-            <MetricCardSkeleton />
-            <MetricCardSkeleton />
-          </>
-        ) : data ? (
-          <>
-            <MetricCard
-              label="Products"
-              value={data.products_count}
-              hint={data.products_count === 0 ? "Add your first product soon" : undefined}
-            />
-            <MetricCard label="Low Stock Alerts" value={data.low_stock_count} />
-            {data.online_shop_enabled ? (
-              <MetricCard
-                label="Pending Orders"
-                value={data.pending_orders}
-                hint={`${data.pending_reservations} reservations waiting`}
-              />
-            ) : (
-              <MetricCard
-                label="Online Shop"
-                value="Off"
-                hint="Contact support to enable marketplace selling"
-              />
-            )}
-          </>
-        ) : null}
-      </div>
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6">
+            {isLoading ? (
+              <>
+                <MetricCardSkeleton />
+                <MetricCardSkeleton />
+                <MetricCardSkeleton />
+              </>
+            ) : data ? (
+              <>
+                <MetricCard
+                  label="Products"
+                  value={data.products_count}
+                  hint={data.products_count === 0 ? "Add your first product soon" : undefined}
+                />
+                <MetricCard label="Low Stock Alerts" value={data.low_stock_count} />
+                {data.online_shop_enabled ? (
+                  <MetricCard
+                    label="Pending Orders"
+                    value={data.pending_orders}
+                    hint={`${data.pending_reservations} reservations waiting`}
+                  />
+                ) : (
+                  <MetricCard
+                    label="Online Shop"
+                    value="Off"
+                    hint="Contact support to enable marketplace selling"
+                  />
+                )}
+              </>
+            ) : null}
+          </div>
+        </>
+      )}
     </>
   );
 }

@@ -17,6 +17,7 @@ import {
   UserCircleIcon,
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
+import { useUiMode, type UiMode } from "../context/UiModeContext";
 import { useAuthStore } from "../stores/authStore";
 import { homeForRole } from "../common/routing/guards";
 
@@ -34,12 +35,37 @@ type NavItem = {
  * appear when the business has the matching feature enabled (no marketplace
  * feature → no Online Orders; no reservations feature → no Reservations).
  */
-function shopNav(features: Record<string, boolean> | undefined): NavItem[] {
+function shopNav(features: Record<string, boolean> | undefined, mode: UiMode): NavItem[] {
   // A capability shows only when its flag is explicitly on. Types that don't
   // offer a feature omit its key entirely (e.g. pharmacy has no `dine_in`), so
   // a missing key must read as OFF — never default to true, or a pharmacy ends
   // up with a Dine-in link.
   const has = (key: string) => features?.[key] ?? false;
+
+  // The Expense & Income module — one home for all money in/out.
+  const expenseManager = {
+    icon: <FileIcon />,
+    name: "Expense Manager",
+    subItems: [
+      { name: "Cashbook", path: "/tenant/cashbook" },
+      { name: "Income", path: "/tenant/income" },
+      { name: "Expenses", path: "/tenant/expenses" },
+    ],
+  };
+
+  // Basic mode: the daily essentials only — the calm view for a new merchant.
+  if (mode === "basic") {
+    return [
+      { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
+      ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
+      ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
+      { icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" },
+      ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
+      { icon: <BoxIcon />, name: "Products", path: "/tenant/products" },
+      ...(has("expenses") ? [expenseManager] : []),
+      { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
+    ];
+  }
 
   return [
     // ── Daily essentials ──────────────────────────────────────────
@@ -51,17 +77,7 @@ function shopNav(features: Record<string, boolean> | undefined): NavItem[] {
     ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
     ...(has("marketplace") && has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
     // Expense & Income module — one home for all money in/out.
-    ...(has("expenses")
-      ? [{
-          icon: <FileIcon />,
-          name: "Money",
-          subItems: [
-            { name: "Cashbook", path: "/tenant/cashbook" },
-            { name: "Income", path: "/tenant/income" },
-            { name: "Expenses", path: "/tenant/expenses" },
-          ],
-        }]
-      : []),
+    ...(has("expenses") ? [expenseManager] : []),
 
     // ── Grouped dropdowns ─────────────────────────────────────────
     {
@@ -140,8 +156,9 @@ const AppSidebar: React.FC = () => {
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features,
   );
 
+  const { mode, toggleMode } = useUiMode();
   const isAdmin = role === "super_admin" || role === "admin_staff";
-  const navItems = isAdmin ? adminMainItems : shopNav(features);
+  const navItems = isAdmin ? adminMainItems : shopNav(features, mode);
   // Second labelled group: platform config for admins; unused on the shop side.
   const othersItems: NavItem[] = isAdmin ? adminPlatformItems : [];
   const mainLabel = isAdmin ? "Manage" : "Menu";
@@ -421,6 +438,40 @@ const AppSidebar: React.FC = () => {
           </div>
         </nav>
       </div>
+
+      {/* Basic / Advanced view toggle — shop side only. Basic trims the menu to
+          the essentials; Full reveals every module. Remembered per device. */}
+      {!isAdmin && (
+        <div className="mt-auto border-t border-gray-100 py-4 dark:border-gray-800">
+          {isExpanded || isHovered || isMobileOpen ? (
+            <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+              {(["basic", "advanced"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => mode !== m && toggleMode()}
+                  className={`flex-1 rounded-md py-1.5 text-theme-xs font-medium transition-colors ${
+                    mode === m
+                      ? "bg-white text-gray-800 shadow-theme-xs dark:bg-gray-900 dark:text-white/90"
+                      : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                  }`}
+                >
+                  {m === "basic" ? "Simple" : "Full menu"}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleMode}
+              title={mode === "basic" ? "Switch to full menu" : "Switch to simple menu"}
+              className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+            >
+              {mode === "basic" ? <ListIcon className="size-5" /> : <GridIcon className="size-5" />}
+            </button>
+          )}
+        </div>
+      )}
     </aside>
   );
 };
