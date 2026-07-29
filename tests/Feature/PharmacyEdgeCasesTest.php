@@ -207,7 +207,14 @@ class PharmacyEdgeCasesTest extends TestCase
     public function test_undated_lots_deplete_after_dated_lots(): void
     {
         [$tenant, $owner] = $this->shop();
-        $syrup = $this->medicine($tenant, ['name' => 'Cough Syrup', 'price' => 50]);
+        // Undated lots are only valid for non-medicine perishables — medicines
+        // now require an expiry on entry (see test_medicine_batch_requires_expiry).
+        // FEFO's undated-last ordering is a general batch behaviour, tested here
+        // on a batch-tracked grocery item.
+        $syrup = Product::withoutTenancy()->create([
+            'tenant_id' => $tenant->id, 'type' => 'product', 'item_type' => 'physical_product',
+            'name' => 'Cough Syrup', 'price' => 50, 'stock_quantity' => 0, 'track_inventory' => true,
+        ]);
 
         // The undated lot is entered FIRST — FEFO must still prefer the
         // dated lot, not insertion order.
@@ -235,6 +242,38 @@ class PharmacyEdgeCasesTest extends TestCase
         $this->assertEquals(2, $this->lot('DATED')->quantity);
         $this->assertEquals(8, $this->lot('NODATE')->quantity);
         $this->assertEquals(10, $syrup->fresh()->stock_quantity);
+    }
+
+    // ── Medicine batches must carry an expiry ────────────────────────
+
+    public function test_medicine_batch_requires_an_expiry_date(): void
+    {
+        [$tenant, $owner] = $this->shop();
+        $med = $this->medicine($tenant, ['name' => 'Amoxil 500mg', 'price' => 120]);
+
+        // No expiry → rejected for a medicine.
+        $this->actingAsUser($owner)->postJson("/api/v1/inventory/products/{$med->id}/batches", [
+            'batch_number' => 'AMX-1', 'quantity' => 100,
+        ])->assertStatus(422)->assertJsonPath('errors.expiry_date.0', 'An expiry date is required for medicine batches.');
+
+        // With an expiry → accepted.
+        $this->actingAsUser($owner)->postJson("/api/v1/inventory/products/{$med->id}/batches", [
+            'batch_number' => 'AMX-1', 'expiry_date' => now()->addYear()->toDateString(), 'quantity' => 100,
+        ])->assertCreated();
+    }
+
+    public function test_a_medicine_lots_expiry_cannot_be_cleared(): void
+    {
+        [$tenant, $owner] = $this->shop();
+        $med = $this->medicine($tenant, ['name' => 'Brufen 400mg', 'price' => 80]);
+        $this->addLot($owner, $med, [
+            'batch_number' => 'BRF-1', 'expiry_date' => now()->addYear()->toDateString(), 'quantity' => 50,
+        ]);
+        $lot = $this->lot('BRF-1');
+
+        $this->actingAsUser($owner)->patchJson("/api/v1/inventory/batches/{$lot->id}", [
+            'expiry_date' => null,
+        ])->assertStatus(422);
     }
 
     // ── Rx contract: soft capture at POS, hard block online ──────────

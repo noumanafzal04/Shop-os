@@ -84,6 +84,13 @@ class DashboardService
                 ->where('expires_at', '>', now())
                 ->count(),
             'low_stock_count' => $this->lowStockCount($tenant, $branchId),
+            // Batches (medicine/perishable lots) expiring within 30 days —
+            // includes already-expired stock still on hand. Branch-scoped.
+            'expiring_soon_count' => \App\Models\ProductBatch::query()
+                ->where('tenant_id', $tenant->id)
+                ->expiringWithin(30)
+                ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+                ->count(),
             'products_count' => Product::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('is_active', true)

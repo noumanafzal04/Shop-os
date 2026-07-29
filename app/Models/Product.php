@@ -64,6 +64,16 @@ class Product extends BaseModel
         return $this->item_type === ItemTypes::DEAL;
     }
 
+    /**
+     * Must every batch/lot of this item carry an expiry date? True for
+     * medicines — a pharmacy lot without an expiry can't be FEFO-depleted or
+     * fenced when expired, so the date is mandatory when receiving the stock.
+     */
+    public function requiresExpiry(): bool
+    {
+        return $this->item_type === ItemTypes::MEDICINE;
+    }
+
     /** The raw ingredients this dish consumes when sold (recipe / BOM). */
     public function recipeItems(): HasMany
     {

@@ -37,9 +37,13 @@ class BatchController extends Controller
                 'nullable', 'uuid',
                 \Illuminate\Validation\Rule::exists('product_variants', 'id')->where('product_id', $product->id),
             ],
-            'expiry_date' => ['nullable', 'date'],
+            // Medicines MUST carry an expiry (FEFO + the expired-stock fence rely
+            // on it); other perishables may leave it blank.
+            'expiry_date' => [$product->requiresExpiry() ? 'required' : 'nullable', 'date'],
             'quantity' => ['required', 'numeric', 'min:0.001'],
             'cost' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'expiry_date.required' => 'An expiry date is required for medicine batches.',
         ]);
 
         $mainBranchId = \App\Models\Branch::withoutTenancy()
@@ -84,11 +88,16 @@ class BatchController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         /** @var ProductBatch $batch */
-        $batch = ProductBatch::query()->findOrFail($id);
+        $batch = ProductBatch::query()->with('product:id,item_type')->findOrFail($id);
+
+        // A medicine lot may have its expiry corrected but never cleared.
+        $expiryNullable = ! ($batch->product?->requiresExpiry() ?? false);
 
         $data = $request->validate([
             'batch_number' => ['sometimes', 'string', 'max:64'],
-            'expiry_date' => ['sometimes', 'nullable', 'date'],
+            'expiry_date' => ['sometimes', $expiryNullable ? 'nullable' : 'required', 'date'],
+        ], [
+            'expiry_date.required' => 'A medicine batch must keep an expiry date.',
         ]);
 
         $batch->update($data);
