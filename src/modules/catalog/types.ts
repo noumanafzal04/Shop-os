@@ -190,6 +190,8 @@ export interface ProductInput {
   track_inventory?: boolean;
   stock_quantity?: number;
   low_stock_threshold?: number;
+  // Opening-lot expiry (medicines with opening stock).
+  expiry_date?: string;
   duration_minutes?: number;
   available_from?: string | null;
   available_until?: string | null;

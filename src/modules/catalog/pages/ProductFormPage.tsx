@@ -152,6 +152,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [minOrderQty, setMinOrderQty] = useState("");
   const [stock, setStock] = useState("0");
   const [lowStockThreshold, setLowStockThreshold] = useState("");
+  // Opening-lot expiry — required for a medicine created with opening stock.
+  const [expiryDate, setExpiryDate] = useState("");
   const [duration, setDuration] = useState("");
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
@@ -178,6 +180,13 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const stockManaged = canTrackStock && inventoryEnabled;
   // A plain sellable good (has SKU/brand/packs/barcodes); not a service or deal.
   const isGood = !isService && !isCombo;
+
+  // A new medicine with opening stock (product- or variant-level) must carry an
+  // opening-lot expiry — mirror the server rule so we block save with a hint
+  // instead of surfacing a raw 422.
+  const needsExpiry =
+    isMedicine && !isEdit && !expiryDate &&
+    (Number(stock) > 0 || variants.some((v) => Number(v.stock_quantity ?? 0) > 0));
 
   // Business Type Engine: the shop's type suggests its selling units and
   // variant attributes (pharmacy → Strip/Strength, diner → Plate/Size…).
@@ -334,6 +343,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 stock_quantity: trackStock ? Number(stock) || 0 : 0,
               }
             : {}),
+          // Opening-lot expiry for a medicine (backend requires it when there's
+          // opening stock; harmless otherwise).
+          ...(isMedicine && expiryDate ? { expiry_date: expiryDate } : {}),
           ...(isService ? { duration_minutes: duration ? Number(duration) : undefined } : {}),
           ...(showVariants && variants.length
             ? {
@@ -688,6 +700,17 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     placeholder="e.g. 5"
                   />
                 </div>
+                {isMedicine && !isEdit && (
+                  <div>
+                    <Label>
+                      Opening batch expiry{Number(stock) > 0 && <span className="text-error-500"> *</span>}
+                    </Label>
+                    <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+                    <p className="mt-1 text-theme-xs text-gray-400">
+                      Medicines need an expiry on their opening lot (refine per-lot later on the Batches screen).
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -1190,7 +1213,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
           {/* Footer — always visible; submits the form from any tab */}
           <div className="flex items-center gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
-            <Button size="sm" disabled={mutation.isPending || uploadingNew || !name.trim() || !price}>
+            <Button size="sm" disabled={mutation.isPending || uploadingNew || !name.trim() || !price || needsExpiry}>
               {uploadingNew
                 ? "Uploading photos…"
                 : mutation.isPending
@@ -1202,6 +1225,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             <Button size="sm" variant="outline" type="button" onClick={onClose}>
               Cancel
             </Button>
+            {needsExpiry && (
+              <span className="text-theme-xs text-error-500">
+                Set the opening batch expiry (Details tab) — required for medicine stock.
+              </span>
+            )}
           </div>
         </form>
       </div>
