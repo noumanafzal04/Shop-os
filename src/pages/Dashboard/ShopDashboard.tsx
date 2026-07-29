@@ -113,6 +113,13 @@ export default function ShopDashboard() {
                   hint={data.products_count === 0 ? "Add your first product soon" : undefined}
                 />
                 <MetricCard label="Low Stock Alerts" value={data.low_stock_count} />
+                {data.expiring_soon_count > 0 && (
+                  <MetricCard
+                    label="Expiring Soon"
+                    value={data.expiring_soon_count}
+                    hint="batches within 30 days — check Inventory"
+                  />
+                )}
                 {data.online_shop_enabled ? (
                   <MetricCard
                     label="Pending Orders"

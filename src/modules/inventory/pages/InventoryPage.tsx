@@ -373,8 +373,13 @@ export default function InventoryPage() {
             <Input value={bNo} onChange={(e) => setBNo(e.target.value)} placeholder="e.g. LOT-2401" />
           </div>
           <div>
-            <Label>Expiry date</Label>
+            <Label>
+              Expiry date{batchTarget?.item_type === "medicine" && <span className="text-error-500"> *</span>}
+            </Label>
             <Input type="date" value={bExpiry} onChange={(e) => setBExpiry(e.target.value)} />
+            {batchTarget?.item_type === "medicine" && (
+              <p className="mt-1 text-theme-xs text-gray-400">Required for medicines</p>
+            )}
           </div>
           <div>
             <Label>Quantity</Label>
@@ -385,7 +390,11 @@ export default function InventoryPage() {
             <Input type="number" min="0" step={0.01} value={bCost} onChange={(e) => setBCost(e.target.value)} />
           </div>
         </div>
-        <Button size="sm" onClick={submitBatch} disabled={addBatch.isPending || !bNo.trim() || !bQty}>
+        <Button
+          size="sm"
+          onClick={submitBatch}
+          disabled={addBatch.isPending || !bNo.trim() || !bQty || (batchTarget?.item_type === "medicine" && !bExpiry)}
+        >
           {addBatch.isPending ? "Adding…" : "Add batch (stock in)"}
         </Button>
 

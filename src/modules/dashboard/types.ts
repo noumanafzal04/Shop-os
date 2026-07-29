@@ -13,6 +13,8 @@ export interface TenantDashboard {
   pending_orders: number;
   pending_reservations: number;
   low_stock_count: number;
+  // Batches expiring within 30 days (incl. already-expired) — pharmacy/perishables.
+  expiring_soon_count: number;
   products_count: number;
   // The branch these figures reflect (null = all branches / HQ view).
   branch_scope: string | null;
