@@ -131,6 +131,8 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, mu
       subItems: [
         { name: "Reports", path: "/tenant/reports" },
         { name: "Staff", path: "/tenant/staff" },
+        // Serialized retail (phones/electronics) — look up a serial's warranty.
+        ...(has("pos") ? [{ name: "Warranty lookup", path: "/tenant/warranty" }] : []),
         ...(has("services") ? [{ name: "Portfolio", path: "/tenant/portfolio" }] : []),
       ],
     },

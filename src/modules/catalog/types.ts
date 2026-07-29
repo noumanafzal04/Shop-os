@@ -73,6 +73,9 @@ export interface Product {
   brand: string | null;
   generic_name: string | null;
   requires_prescription?: boolean;
+  // Serialized retail (phones/electronics): capture a serial/IMEI per unit + warranty.
+  tracks_serial?: boolean;
+  warranty_months?: number | null;
   barcodes?: Array<{ id: string; barcode: string }>;
   unit: string | null;
   attributes: Record<string, string> | null;
@@ -173,6 +176,8 @@ export interface ProductInput {
   brand?: string;
   generic_name?: string;
   requires_prescription?: boolean;
+  tracks_serial?: boolean;
+  warranty_months?: number | null;
   barcodes?: string[];
   units?: ProductUnit[];
   combo_items?: Array<{ component_product_id: string; quantity: number }>;

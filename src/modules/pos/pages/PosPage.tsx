@@ -45,6 +45,11 @@ interface CartLine {
   // Pharmacy: this line is a prescription-required medicine — the POS prompts
   // for prescription details before checkout.
   requires_prescription?: boolean;
+  // Serialized retail: this line captures a serial/IMEI per unit. serials holds
+  // what the cashier keyed; warranty_months overrides the product default.
+  tracks_serial?: boolean;
+  warranty_months?: number | null;
+  serials?: string[];
   modifier_option_ids?: string[];
   modifiers_label?: string;
   // Per-line discount (needs discounts.apply). Value + mode; the server
@@ -241,8 +246,10 @@ export default function PosPage() {
   const heldModal = useModal();
   const receiptModal = useModal();
   const lineEditModal = useModal();
+  const serialModal = useModal();
   const customerModal = useModal();
   const [editKey, setEditKey] = useState<string | null>(null);
+  const [serialKey, setSerialKey] = useState<string | null>(null);
   const [openingFloat, setOpeningFloat] = useState("");
   const [countedCash, setCountedCash] = useState("");
   const [holdLabel, setHoldLabel] = useState("");
@@ -365,6 +372,11 @@ export default function PosPage() {
               : { line_discount: l.discountValue }
             : {}),
           modifier_option_ids: l.modifier_option_ids?.length ? l.modifier_option_ids : undefined,
+          // Serialized retail: captured serials + any per-sale warranty override.
+          ...(l.tracks_serial && l.serials?.some((s) => s.trim())
+            ? { serials: l.serials.map((s) => s.trim()).filter(Boolean) }
+            : {}),
+          ...(l.tracks_serial && l.warranty_months != null ? { warranty_months: l.warranty_months } : {}),
         })),
         discount: Number(discount) || 0,
         coupon_code: couponCode || undefined,
@@ -430,6 +442,8 @@ export default function PosPage() {
         wholesale_price: "wholesale_price" in p && p.wholesale_price != null ? Number(p.wholesale_price) : null,
         tax_rate: "tax_rate" in p && p.tax_rate != null ? Number(p.tax_rate) : null,
         requires_prescription: "requires_prescription" in p ? !!p.requires_prescription : false,
+        tracks_serial: "tracks_serial" in p ? !!p.tracks_serial : false,
+        warranty_months: "warranty_months" in p && p.warranty_months != null ? Number(p.warranty_months) : null,
       }];
     });
   };
@@ -503,6 +517,21 @@ export default function PosPage() {
     setCart((c) => c.map((l) => (l.key === key
       ? { ...l, discountValue: value > 0 ? value : undefined, discountMode: value > 0 ? mode : undefined }
       : l)));
+
+  // Serialized retail: set the serial for the i-th unit on a line.
+  const setLineSerial = (key: string, i: number, value: string) =>
+    setCart((c) => c.map((l) => {
+      if (l.key !== key) return l;
+      const next = [...(l.serials ?? [])];
+      next[i] = value;
+      return { ...l, serials: next };
+    }));
+
+  const setLineWarranty = (key: string, months: number | null) =>
+    setCart((c) => c.map((l) => (l.key === key ? { ...l, warranty_months: months } : l)));
+
+  // Count of serials actually keyed on a line (blanks don't count).
+  const serialCount = (l: CartLine): number => (l.serials ?? []).filter((s) => s.trim()).length;
 
   const doHold = () => {
     if (cart.length === 0) return;
@@ -867,6 +896,19 @@ export default function PosPage() {
                             {!l.product_unit_id && l.price_level !== "wholesale" && eff < (l.base_price ?? l.unit_price) && <span className="ml-1 font-medium text-success-500">bulk</span>}
                           </div>
                           {l.modifiers_label && <div className="truncate text-theme-xs text-gray-400">{l.modifiers_label}</div>}
+                          {l.tracks_serial && (
+                            <button
+                              type="button"
+                              onClick={() => { setSerialKey(l.key); serialModal.openModal(); }}
+                              className={`mt-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-theme-xs font-medium ${
+                                serialCount(l) >= l.quantity
+                                  ? "bg-success-50 text-success-600 dark:bg-success-500/10"
+                                  : "bg-warning-50 text-warning-600 dark:bg-warning-500/10"
+                              }`}
+                            >
+                              IMEI / Serial {serialCount(l)}/{Math.floor(l.quantity)}
+                            </button>
+                          )}
                         </div>
                         <button
                           className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
@@ -1272,6 +1314,52 @@ export default function PosPage() {
               <div className="mt-6 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-800">
                 <span className="text-sm text-gray-500 dark:text-gray-400">Line total <span className="font-semibold text-gray-800 dark:text-white/90">{money(lineNet(l))}</span></span>
                 <Button size="sm" onClick={lineEditModal.closeModal}>Done</Button>
+              </div>
+            </>
+          );
+        })()}
+      </Modal>
+
+      {/* Serial / IMEI capture — one serial per unit + optional warranty override. */}
+      <Modal isOpen={serialModal.isOpen} onClose={serialModal.closeModal} className="max-w-md p-6">
+        {(() => {
+          const l = serialKey ? cart.find((x) => x.key === serialKey) : null;
+          if (!l) return null;
+          const units = Math.max(1, Math.floor(l.quantity));
+          return (
+            <>
+              <div className="mb-1 flex items-start justify-between">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Serial / IMEI</h3>
+                <button onClick={serialModal.closeModal} className="text-gray-400 hover:text-gray-700"><CloseIcon className="h-5 w-5" /></button>
+              </div>
+              <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">{l.name} — one serial per unit ({units}).</p>
+              <div className="space-y-2">
+                {Array.from({ length: units }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-6 text-right text-theme-xs text-gray-400 tabular-nums">{i + 1}.</span>
+                    <Input
+                      value={l.serials?.[i] ?? ""}
+                      onChange={(e) => setLineSerial(l.key, i, e.target.value)}
+                      placeholder="Scan or type the serial / IMEI"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4">
+                <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">
+                  Warranty (months) <span className="font-normal text-gray-400">— overrides the product default</span>
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={l.warranty_months ?? ""}
+                  placeholder="Product default"
+                  onChange={(e) => setLineWarranty(l.key, e.target.value === "" ? null : Math.max(0, Number(e.target.value) || 0))}
+                />
+              </div>
+              <div className="mt-6 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-800">
+                <span className="text-theme-sm text-gray-500 dark:text-gray-400">{serialCount(l)}/{units} captured</span>
+                <Button size="sm" onClick={serialModal.closeModal}>Done</Button>
               </div>
             </>
           );

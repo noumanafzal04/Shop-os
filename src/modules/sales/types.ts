@@ -50,6 +50,17 @@ export interface Sale {
   items?: SaleItem[];
   items_count?: number;
   returns?: SaleReturn[];
+  // Serialized retail: IMEI/serials captured on this sale (with warranty).
+  serials?: SaleSerial[];
+}
+
+/** One serialized unit sold — IMEI/serial + its warranty window. */
+export interface SaleSerial {
+  id: string;
+  product_name: string;
+  serial: string;
+  warranty_months: number | null;
+  warranty_expires_at: string | null;
 }
 
 export interface SaleReturnItem {

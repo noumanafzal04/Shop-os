@@ -142,6 +142,10 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [brand, setBrand] = useState("");
   const [genericName, setGenericName] = useState("");
   const [requiresRx, setRequiresRx] = useState(false);
+  // Serialized retail (phones/electronics): capture a serial/IMEI per unit at
+  // the till, with a default warranty length.
+  const [trackSerial, setTrackSerial] = useState(false);
+  const [warrantyMonths, setWarrantyMonths] = useState("");
   const [unit, setUnit] = useState("");
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
@@ -172,6 +176,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const isCombo = itemType === "deal";
   const isMedicine = itemType === "medicine";
   const isFood = itemType === "food_item";
+  const isPhysical = itemType === "physical_product";
   const canTrackStock = typeInfo ? typeInfo.inventory !== "never" : !isService;
   const showVariants = typeInfo ? typeInfo.variants !== false : !isService;
   const supportsModifiers = !!typeInfo?.modifiers; // food items
@@ -230,6 +235,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setBrand(p.brand ?? "");
       setGenericName(p.generic_name ?? "");
       setRequiresRx(p.requires_prescription ?? false);
+      setTrackSerial(p.tracks_serial ?? false);
+      setWarrantyMonths(p.warranty_months != null ? String(p.warranty_months) : "");
       setExtraBarcodes((p.barcodes ?? []).map((b) => b.barcode));
       setUnits((p.units ?? []).map((u) => ({ name: u.name, factor: String(u.factor), price: u.price != null ? String(u.price) : "", barcode: u.barcode ?? "" })));
       setComboRows((p.combo_items ?? []).map((c) => ({ component_product_id: c.component_product_id, quantity: String(c.quantity) })));
@@ -288,6 +295,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       brand: brand.trim() || undefined,
       generic_name: genericName.trim() || undefined,
       requires_prescription: isMedicine ? requiresRx : undefined,
+      // Serialized retail — only physical goods carry a serial/IMEI + warranty.
+      tracks_serial: isPhysical ? trackSerial : undefined,
+      warranty_months: isPhysical && trackSerial && warrantyMonths ? Number(warrantyMonths) : isPhysical ? null : undefined,
       barcodes: posEnabled && isGood ? extraBarcodes.map((b) => b.trim()).filter(Boolean) : undefined,
       units: posEnabled && isGood ? units
         .filter((u) => u.name.trim() && Number(u.factor) > 0)
@@ -554,6 +564,38 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 />
                 Requires a doctor's prescription (℞) — staff are warned at the counter
               </label>
+            </div>
+          </Section>
+        )}
+
+        {/* Serialized retail — capture a serial/IMEI per unit + warranty. */}
+        {isPhysical && (
+          <Section title="Serial & warranty">
+            <div className="space-y-3">
+              <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={trackSerial}
+                  onChange={(e) => setTrackSerial(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                />
+                Capture a serial / IMEI for each unit sold (phones, electronics)
+              </label>
+              {trackSerial && (
+                <div>
+                  <Label>Default warranty (months)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={warrantyMonths}
+                    onChange={(e) => setWarrantyMonths(e.target.value)}
+                    placeholder="e.g. 12"
+                  />
+                  <p className="mt-1 text-theme-xs text-gray-400">
+                    Applied to each unit at the till (the cashier can override per sale). Leave blank for no warranty.
+                  </p>
+                </div>
+              )}
             </div>
           </Section>
         )}

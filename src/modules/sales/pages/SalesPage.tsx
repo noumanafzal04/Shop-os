@@ -358,6 +358,22 @@ export default function SalesPage() {
               </div>
             )}
 
+            {/* Serialized units (IMEI/serial) captured on this sale */}
+            {(detail.data.serials ?? []).length > 0 && (
+              <div className="mb-4 rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                <p className="mb-2 text-theme-xs font-medium uppercase text-gray-400">Serials / IMEI</p>
+                {(detail.data.serials ?? []).map((s) => (
+                  <div key={s.id} className="flex justify-between text-theme-sm text-gray-600 dark:text-gray-300">
+                    <span className="font-mono">{s.serial}</span>
+                    <span className="text-gray-400">
+                      {s.product_name}
+                      {s.warranty_expires_at ? ` · warranty to ${new Date(s.warranty_expires_at).toLocaleDateString()}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {confirmingCancel ? (
               <div className="space-y-3">
                 <Label>Cancellation reason (optional)</Label>
