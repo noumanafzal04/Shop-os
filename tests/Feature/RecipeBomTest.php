@@ -127,6 +127,34 @@ class RecipeBomTest extends TestCase
         $this->assertSame(98.0, (float) $bun->refresh()->stock_quantity);
     }
 
+    public function test_return_restocks_the_recipe_as_sold_not_as_later_edited(): void
+    {
+        $bun = $this->ingredient('Bun', 100);
+        $patty = $this->ingredient('Patty', 100);
+        $cheese = $this->ingredient('Cheese', 100);
+        $burger = $this->dish('Burger', 500, [[$bun, 2], [$patty, 1]]);
+
+        $sale = $this->sell($burger, 2); // −4 bun (96), −2 patty (98)
+        $this->assertSame(96.0, (float) $bun->refresh()->stock_quantity);
+        $this->assertSame(98.0, (float) $patty->refresh()->stock_quantity);
+
+        // The recipe is EDITED after the sale: now 5 buns + cheese, no patty.
+        RecipeItem::withoutTenancy()->where('dish_product_id', $burger->id)->delete();
+        RecipeItem::withoutTenancy()->create(['tenant_id' => $this->tenant->id, 'dish_product_id' => $burger->id, 'ingredient_product_id' => $bun->id, 'quantity' => 5, 'sort_order' => 0]);
+        RecipeItem::withoutTenancy()->create(['tenant_id' => $this->tenant->id, 'dish_product_id' => $burger->id, 'ingredient_product_id' => $cheese->id, 'quantity' => 1, 'sort_order' => 1]);
+
+        // Return 1 of the 2 burgers. The restock must mirror what was ACTUALLY
+        // sold (2 bun + 1 patty per burger), NOT the edited recipe (5 bun +
+        // cheese) — the BOM snapshot on the sale line is the source of truth.
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/returns", [
+            'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]],
+        ])->assertCreated();
+
+        $this->assertSame(98.0, (float) $bun->refresh()->stock_quantity);    // 96 + 2 (not +5)
+        $this->assertSame(99.0, (float) $patty->refresh()->stock_quantity);  // 98 + 1
+        $this->assertSame(100.0, (float) $cheese->refresh()->stock_quantity); // never sold → untouched
+    }
+
     public function test_cancelling_a_dish_restores_its_ingredients(): void
     {
         $bun = $this->ingredient('Bun', 100);

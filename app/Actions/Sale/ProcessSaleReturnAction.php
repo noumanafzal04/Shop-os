@@ -127,6 +127,9 @@ class ProcessSaleReturnAction
                     '_item_type' => $saleItem->item_type,
                     // Pack sold: restock draws back factor× the returned count.
                     '_unit_factor' => (float) ($saleItem->unit_factor ?? 1),
+                    // BOM snapshot captured at sale time (combo/recipe lines);
+                    // restocked in preference to the live recipe.
+                    '_components' => $saleItem->components,
                 ];
             }
 
@@ -157,7 +160,8 @@ class ProcessSaleReturnAction
             foreach ($lines as $line) {
                 $itemType = $line['_item_type'];
                 $unitFactor = $line['_unit_factor'];
-                unset($line['_item_type'], $line['_unit_factor']);
+                $components = $line['_components'] ?? null;
+                unset($line['_item_type'], $line['_unit_factor'], $line['_components']);
                 $return->items()->create($line);
 
                 // Restock only physical, still-tracked products.
@@ -165,10 +169,29 @@ class ProcessSaleReturnAction
                     ? Product::query()->whereKey($line['product_id'])->first()
                     : null;
 
-                // A returned deal restocks each component (component qty ×
-                // returned deal count); a normal product restocks its own stock
-                // in BASE units (returned count × unit_factor for a pack).
-                if ($product !== null && $product->isCombo()) {
+                // A returned combo/recipe line restocks from the BOM SNAPSHOT
+                // captured at sale time (per-unit qty × returned count) — immune
+                // to any recipe/combo edit made after the sale. Legacy lines
+                // (sold before the snapshot existed) fall back to the live
+                // composition below.
+                if (! empty($components)) {
+                    foreach ($components as $c) {
+                        $component = Product::query()->whereKey($c['product_id'])->first();
+                        if ($component !== null && $component->type === ItemType::Product && $component->track_inventory) {
+                            $this->inventory->adjust([
+                                'product_id' => $c['product_id'],
+                                'variant_id' => $c['variant_id'] ?? null,
+                                'type' => 'in',
+                                'quantity' => round((float) $c['quantity_per_unit'] * (float) $line['quantity'], 3),
+                                'reason' => "Return {$return->return_number} ({$line['product_name']})",
+                                'reference_type' => 'sale_return',
+                                'reference_id' => $return->id,
+                                'idempotency_key' => "return-{$return->id}-{$line['sale_item_id']}-c{$c['product_id']}",
+                                'branch_id' => $sale->branch_id,
+                            ]);
+                        }
+                    }
+                } elseif ($product !== null && $product->isCombo()) {
                     foreach ($product->comboItems()->with('component')->get() as $ci) {
                         $component = $ci->component;
                         if ($component !== null && $component->type === ItemType::Product && $component->track_inventory) {

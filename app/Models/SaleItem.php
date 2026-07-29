@@ -21,6 +21,9 @@ class SaleItem extends Model
     {
         return [
             'modifiers' => 'array',
+            // Exploded BOM snapshot for combo/recipe lines (per-unit component
+            // quantities), captured at sale time so returns restock correctly.
+            'components' => 'array',
             'quantity' => 'decimal:3',
             'unit_factor' => 'decimal:3',
             'unit_price' => 'decimal:2',

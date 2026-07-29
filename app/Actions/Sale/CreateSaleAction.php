@@ -381,7 +381,12 @@ class CreateSaleAction
 
             // ── Lines + stock decrement through the audited path ─────
             foreach ($lines as $line) {
-                $sale->items()->create([
+                // Snapshot the exploded BOM (per-unit component quantities) for
+                // combo/recipe lines, so a later return restocks exactly what
+                // was sold even if the recipe/combo is edited in between.
+                $componentsSnapshot = $this->bomSnapshot($line['product']);
+
+                $saleItem = $sale->items()->create([
                     'tenant_id' => $tenantId,
                     'product_id' => $line['product']->id,
                     'variant_id' => $line['variant']?->id,
@@ -389,6 +394,7 @@ class CreateSaleAction
                     'variant_name' => $line['variant']?->name,
                     'unit_name' => $line['unit']?->name,
                     'modifiers' => $line['modifiers'] ?: null,
+                    'components' => $componentsSnapshot,
                     'sku' => $line['variant']?->sku ?? $line['product']->sku,
                     'item_type' => $line['product']->type->value,
                     'quantity' => $line['quantity'],
@@ -543,6 +549,42 @@ class CreateSaleAction
         $price = $query->value('price');
 
         return $price !== null ? (float) $price : null;
+    }
+
+    /**
+     * The exploded, per-unit BOM for a combo/recipe product — the tracked
+     * physical components/ingredients a single unit depletes, snapshotted onto
+     * the sale line so a return restocks these exact items/quantities even if
+     * the composition is edited later. Null for plain products (they restock
+     * themselves).
+     *
+     * @return array<int, array{product_id: string, variant_id: null, name: string, quantity_per_unit: float}>|null
+     */
+    private function bomSnapshot(Product $product): ?array
+    {
+        if ($product->isCombo()) {
+            $rows = $product->comboItems()->with('component')->get()
+                ->map(fn ($ci) => [$ci->component, (float) $ci->quantity]);
+        } elseif ($product->hasRecipe()) {
+            $rows = $product->recipeItems()->with('ingredient')->get()
+                ->map(fn ($ri) => [$ri->ingredient, (float) $ri->quantity]);
+        } else {
+            return null;
+        }
+
+        $snapshot = [];
+        foreach ($rows as [$component, $qtyPerUnit]) {
+            if ($component !== null && $component->type === ItemType::Product && $component->track_inventory) {
+                $snapshot[] = [
+                    'product_id' => $component->id,
+                    'variant_id' => null,
+                    'name' => $component->name,
+                    'quantity_per_unit' => $qtyPerUnit,
+                ];
+            }
+        }
+
+        return $snapshot ?: null;
     }
 
     private function nextInvoiceNumber(string $tenantId): string
