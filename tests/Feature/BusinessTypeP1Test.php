@@ -138,11 +138,13 @@ class BusinessTypeP1Test extends TestCase
     {
         $created = $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
             'item_type' => 'medicine', 'name' => 'Amoxil', 'price' => 250,
-            'stock_quantity' => 40,
+            'stock_quantity' => 40, 'expiry_date' => now()->addYear()->toDateString(),
         ])->assertCreated()->json('data');
 
-        // Opening stock and the auto-created lot start in step.
+        // Opening stock and the auto-created lot start in step — and the lot is
+        // DATED (medicine opening stock requires an expiry).
         $this->assertEquals(40, Product::withoutTenancy()->find($created['id'])->stock_quantity);
+        $this->assertNotNull(ProductBatch::withoutTenancy()->where('product_id', $created['id'])->value('expiry_date'));
         $batch = ProductBatch::withoutTenancy()->where('product_id', $created['id'])->firstOrFail();
         $this->assertEquals(40, $batch->quantity);
     }

@@ -102,6 +102,15 @@ class ReceivePurchaseOrderAction
                     : null;
 
                 if ($product !== null && $product->track_inventory) {
+                    // Medicines must be received into a DATED lot — FEFO and the
+                    // expired-stock fence rely on it, so no expiry, no receipt.
+                    if ($product->requiresExpiry() && ($row['expiry_date'] ?? null) === null) {
+                        throw DomainException::unprocessable(
+                            "An expiry date is required to receive \"{$product->name}\" (medicine).",
+                            'EXPIRY_REQUIRED',
+                        );
+                    }
+
                     $this->inventory->adjust([
                         'product_id' => $item->product_id,
                         'variant_id' => $item->variant_id,

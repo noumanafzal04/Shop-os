@@ -115,6 +115,18 @@ class StoreProductRequest extends FormRequest
             'stock_quantity' => [$isService ? 'prohibited' : 'sometimes', 'numeric', 'min:0'],
             'low_stock_threshold' => ['nullable', 'numeric', 'min:0'],
 
+            // Opening-stock expiry for medicines: the day-one lot must be dated
+            // (FEFO + the expired fence rely on it), so it's REQUIRED whenever a
+            // medicine is created with any opening stock (product- or variant-
+            // level). Ignored for non-medicines.
+            'expiry_date' => [
+                Rule::requiredIf(fn () => $itemType === ItemTypes::MEDICINE && (
+                    (float) $this->input('stock_quantity', 0) > 0
+                    || collect($this->input('variants', []))->sum(fn ($v) => (float) ($v['stock_quantity'] ?? 0)) > 0
+                )),
+                'nullable', 'date',
+            ],
+
             // Service-only fields
             'duration_minutes' => [$isService ? 'nullable' : 'prohibited', 'integer', 'min:1', 'max:1440'],
 
@@ -177,6 +189,7 @@ class StoreProductRequest extends FormRequest
             'recipe_items.prohibited' => 'Only a food dish can have a recipe of ingredients.',
             'available_from.required_with' => 'Set both ends of the serving window (or neither).',
             'available_until.required_with' => 'Set both ends of the serving window (or neither).',
+            'expiry_date.required' => 'An expiry date is required for medicine opening stock.',
         ];
     }
 }

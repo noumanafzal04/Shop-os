@@ -131,8 +131,9 @@ class CreateProductAction
 
                 // Medicine variants get the same day-one lot guarantee as the
                 // product-level opening stock below: every unit is batch-backed
-                // so FEFO and the expired fence see it. Expiry left for the
-                // pharmacist to fill in on the Batches screen.
+                // so FEFO and the expired fence see it. The opening expiry
+                // (required by StoreProductRequest) dates every opening lot; the
+                // pharmacist can refine per-lot later on the Batches screen.
                 $variantOpening = (float) ($variant['stock_quantity'] ?? 0);
                 if ($itemType === ItemTypes::MEDICINE && $variantOpening > 0) {
                     $product->batches()->create([
@@ -140,7 +141,7 @@ class CreateProductAction
                         'branch_id' => $mainBranchId,
                         'variant_id' => $created->id,
                         'batch_number' => 'OPENING',
-                        'expiry_date' => null,
+                        'expiry_date' => $data['expiry_date'] ?? null,
                         'quantity' => $variantOpening,
                         'cost' => $variant['cost'] ?? null,
                     ]);

@@ -310,6 +310,7 @@ class MarketLevelFixesTest extends TestCase
         [, $owner] = $this->shop('pharmacy');
         $created = $this->actingAsUser($owner)->postJson('/api/v1/products', [
             'item_type' => 'medicine', 'name' => 'Augmentin', 'price' => 100,
+            'expiry_date' => now()->addYear()->toDateString(),
             'variants' => [
                 ['name' => '250mg', 'price' => 100, 'stock_quantity' => 20],
                 ['name' => '500mg', 'price' => 180, 'stock_quantity' => 10],
@@ -327,6 +328,7 @@ class MarketLevelFixesTest extends TestCase
         [, $owner] = $this->shop('pharmacy');
         $med = $this->actingAsUser($owner)->postJson('/api/v1/products', [
             'item_type' => 'medicine', 'name' => 'Syrup', 'price' => 100, 'stock_quantity' => 5,
+            'expiry_date' => now()->addYear()->toDateString(),
         ])->assertCreated()->json('data');
 
         $sale = $this->actingAsUser($owner)->postJson('/api/v1/sales', [

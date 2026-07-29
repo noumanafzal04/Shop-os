@@ -262,6 +262,28 @@ class PharmacyEdgeCasesTest extends TestCase
         ])->assertCreated();
     }
 
+    public function test_medicine_opening_stock_requires_an_expiry_date(): void
+    {
+        [, $owner] = $this->shop();
+
+        // Opening stock but no expiry → rejected (the day-one lot must be dated).
+        $this->actingAsUser($owner)->postJson('/api/v1/products', [
+            'item_type' => 'medicine', 'name' => 'Ciprofloxacin', 'price' => 300, 'stock_quantity' => 25,
+        ])->assertStatus(422)->assertJsonPath('errors.expiry_date.0', 'An expiry date is required for medicine opening stock.');
+
+        // With an expiry → created and the OPENING lot is dated.
+        $created = $this->actingAsUser($owner)->postJson('/api/v1/products', [
+            'item_type' => 'medicine', 'name' => 'Ciprofloxacin', 'price' => 300, 'stock_quantity' => 25,
+            'expiry_date' => now()->addYear()->toDateString(),
+        ])->assertCreated()->json('data');
+        $this->assertNotNull(\App\Models\ProductBatch::withoutTenancy()->where('product_id', $created['id'])->value('expiry_date'));
+
+        // No opening stock → expiry optional (lots added later on the Batches screen).
+        $this->actingAsUser($owner)->postJson('/api/v1/products', [
+            'item_type' => 'medicine', 'name' => 'Metformin', 'price' => 150,
+        ])->assertCreated();
+    }
+
     public function test_a_medicine_lots_expiry_cannot_be_cleared(): void
     {
         [$tenant, $owner] = $this->shop();

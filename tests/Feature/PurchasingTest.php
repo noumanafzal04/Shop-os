@@ -166,8 +166,10 @@ class PurchasingTest extends TestCase
         $this->assertSame('4500.00', $po['items'][0]['line_total']); // 900 × 5 boxes
         $this->assertSame('Box', $po['items'][0]['unit_name']);
 
-        $this->actingAsUser($this->owner)->postJson("/api/v1/purchase-orders/{$po['id']}/receive")
-            ->assertOk()->assertJsonPath('data.status', 'received');
+        // Medicine receipt must carry an expiry (dated lot).
+        $this->actingAsUser($this->owner)->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [
+            'items' => [['id' => $po['items'][0]['id'], 'quantity' => 5, 'expiry_date' => now()->addYear()->toDateString()]],
+        ])->assertOk()->assertJsonPath('data.status', 'received');
 
         // 5 boxes × 100 = 500 tablets in stock.
         $this->assertEquals(500, $panadol->fresh()->stock_quantity);
@@ -175,6 +177,31 @@ class PurchasingTest extends TestCase
         $batch = $panadol->batches()->first();
         $this->assertEquals(500, $batch->quantity);
         $this->assertSame('9.00', (string) $batch->cost);
+        $this->assertNotNull($batch->expiry_date);
+    }
+
+    public function test_receiving_a_medicine_without_an_expiry_is_rejected(): void
+    {
+        $med = Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product', 'item_type' => 'medicine',
+            'name' => 'Ceftum', 'price' => 400, 'stock_quantity' => 0, 'track_inventory' => true,
+        ]);
+        $po = $this->actingAsUser($this->owner)->postJson('/api/v1/purchase-orders', [
+            'supplier_id' => $this->makeSupplier(), 'order_date' => '2026-07-01', 'status' => 'ordered',
+            'items' => [['product_id' => $med->id, 'quantity' => 20, 'unit_cost' => 300]],
+        ])->assertCreated()->json('data');
+
+        // Receiving a medicine line with no expiry is blocked — nothing moves.
+        $this->actingAsUser($this->owner)->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [
+            'items' => [['id' => $po['items'][0]['id'], 'quantity' => 20]],
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'EXPIRY_REQUIRED');
+        $this->assertEquals(0, $med->fresh()->stock_quantity);
+
+        // With an expiry it receives into a dated lot.
+        $this->actingAsUser($this->owner)->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [
+            'items' => [['id' => $po['items'][0]['id'], 'quantity' => 20, 'expiry_date' => now()->addYear()->toDateString()]],
+        ])->assertOk();
+        $this->assertEquals(20, $med->fresh()->stock_quantity);
     }
 
     // ── Payments ────────────────────────────────────────────────────
