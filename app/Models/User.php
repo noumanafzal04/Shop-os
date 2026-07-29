@@ -22,6 +22,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'tenant_id',
+        'branch_id',
         'name',
         'email',
         'phone',
@@ -58,6 +59,12 @@ class User extends Authenticatable
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    /** The branch this staff member is assigned to (null = all, for owners). */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function isSuperAdmin(): bool

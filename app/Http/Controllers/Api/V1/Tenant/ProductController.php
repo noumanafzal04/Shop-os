@@ -22,7 +22,7 @@ class ProductController extends Controller
     /**
      * Paginated item list — searchable, filterable by type/category/status.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, \App\Support\BranchContext $branch): JsonResponse
     {
         $products = Product::query()
             ->with(['category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
@@ -52,6 +52,21 @@ class ProductController extends Controller
             })
             ->orderByDesc('created_at')
             ->paginate(min((int) $request->query('per_page', 15), 100));
+
+        // Per-branch price display: stamp each item with the operating branch's
+        // product-level override (null = catalog price) so the POS/list show the
+        // price this branch will actually charge (Phase 4c).
+        if ($branchId = $branch->id()) {
+            $ids = collect($products->items())->pluck('id');
+            $overrides = \App\Models\BranchPrice::query()
+                ->where('branch_id', $branchId)
+                ->whereNull('variant_id')
+                ->whereIn('product_id', $ids)
+                ->pluck('price', 'product_id');
+            foreach ($products as $p) {
+                $p->branch_price = isset($overrides[$p->id]) ? (string) $overrides[$p->id] : null;
+            }
+        }
 
         return ApiResponse::paginated($products);
     }
@@ -199,6 +214,70 @@ class ProductController extends Controller
             ]);
 
         return ApiResponse::ok($rows);
+    }
+
+    /**
+     * Per-branch price overrides for a product — the base (catalog) price plus,
+     * for every active branch, its product-level override (null = uses base).
+     * Powers the "branch pricing" editor.
+     */
+    public function branchPrices(string $id): JsonResponse
+    {
+        /** @var Product $product */
+        $product = Product::query()->findOrFail($id);
+
+        $overrides = \App\Models\BranchPrice::query()
+            ->where('product_id', $product->id)
+            ->whereNull('variant_id')
+            ->pluck('price', 'branch_id');
+
+        $branches = \App\Models\Branch::query()
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_default'])
+            ->map(fn ($b) => [
+                'branch_id' => $b->id,
+                'branch' => $b->name,
+                'is_default' => $b->is_default,
+                'price' => isset($overrides[$b->id]) ? (string) $overrides[$b->id] : null,
+            ]);
+
+        return ApiResponse::ok([
+            'base_price' => (string) $product->price,
+            'branches' => $branches,
+        ]);
+    }
+
+    /**
+     * Upsert / clear a product's per-branch price overrides (product-level).
+     * Body: { prices: [{ branch_id, price: number|null }] } — a null price
+     * clears that branch's override (it falls back to the catalog price).
+     */
+    public function setBranchPrices(\App\Http\Requests\Catalog\SetBranchPricesRequest $request, string $id): JsonResponse
+    {
+        /** @var Product $product */
+        $product = Product::query()->findOrFail($id);
+        $tenantId = $product->tenant_id;
+
+        foreach ($request->validated('prices') as $row) {
+            if (($row['price'] ?? null) === null) {
+                \App\Models\BranchPrice::query()
+                    ->where('branch_id', $row['branch_id'])
+                    ->where('product_id', $product->id)
+                    ->whereNull('variant_id')
+                    ->delete();
+
+                continue;
+            }
+
+            \App\Models\BranchPrice::query()->updateOrCreate(
+                ['branch_id' => $row['branch_id'], 'product_id' => $product->id, 'variant_id' => null],
+                ['tenant_id' => $tenantId, 'price' => round((float) $row['price'], 2)],
+            );
+        }
+
+        return $this->branchPrices($product->id);
     }
 
     /** Replace the whole modifier-group set for a menu item. */

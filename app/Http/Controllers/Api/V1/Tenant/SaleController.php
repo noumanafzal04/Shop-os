@@ -12,16 +12,21 @@ use App\Http\Requests\Sale\StoreSaleRequest;
 use App\Http\Requests\Sale\StoreSaleReturnRequest;
 use App\Models\Sale;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SaleController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, BranchContext $branch): JsonResponse
     {
         $sales = Sale::query()
             ->withCount('items')
+            ->with('branch:id,name')
+            // Branch scope: a single branch (staff, or an owner focused on one)
+            // sees only its sales; an owner's All-Branches view sees them all.
+            ->when($branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('invoice_number', 'like', "%{$search}%")
@@ -44,12 +49,14 @@ class SaleController extends Controller
      * channel / date-range filters as index(), so "export this month's card
      * sales" is just the current filter plus a download.
      */
-    public function export(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function export(Request $request, BranchContext $branch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        $header = ['invoice_number', 'sold_at', 'channel', 'status', 'customer_name', 'customer_phone', 'order_type', 'table_no', 'items', 'subtotal', 'discount', 'tax', 'total', 'payment_method', 'amount_paid', 'change_due', 'notes'];
+        $header = ['invoice_number', 'sold_at', 'branch', 'channel', 'status', 'customer_name', 'customer_phone', 'order_type', 'table_no', 'items', 'subtotal', 'discount', 'tax', 'total', 'payment_method', 'amount_paid', 'change_due', 'notes'];
 
         $rows = Sale::query()
             ->withCount('items')
+            ->with('branch:id,name')
+            ->when($branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('invoice_number', 'like', "%{$search}%")
@@ -66,6 +73,7 @@ class SaleController extends Controller
             ->map(fn (Sale $s) => [
                 $s->invoice_number,
                 $s->sold_at?->toDateTimeString(),
+                $s->branch?->name,
                 $s->channel?->value,
                 $s->status?->value,
                 $s->customer_name,

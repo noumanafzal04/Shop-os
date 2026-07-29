@@ -5,6 +5,7 @@ use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\ResolveBranch;
 use App\Http\Middleware\ResolveTenant;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -31,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'tenant' => ResolveTenant::class,
+            'branch' => ResolveBranch::class,
             'role' => EnsureRole::class,
             'permission' => EnsurePermission::class,
             'feature' => EnsureFeature::class,

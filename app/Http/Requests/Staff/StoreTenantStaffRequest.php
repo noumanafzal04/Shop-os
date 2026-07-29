@@ -27,6 +27,12 @@ class StoreTenantStaffRequest extends FormRequest
                 Rule::unique('users', 'phone')->whereNull('deleted_at'),
             ],
             'password' => ['required', Password::min(8)],
+            // Assigned (home) branch — the location this staff member operates.
+            // Must belong to the owner's tenant. Null = no pin (falls back to Main).
+            'branch_id' => [
+                'nullable', 'uuid',
+                Rule::exists('branches', 'id')->where('tenant_id', $this->user()->tenant_id),
+            ],
             'permissions' => ['required', 'array', 'min:1'],
             'permissions.*' => ['string', Rule::in(Permissions::tenant())],
         ];

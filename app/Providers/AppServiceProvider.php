@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\BranchContext;
 use App\Support\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -17,6 +18,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // One tenant context per request lifecycle (Octane-safe).
         $this->app->scoped(TenantContext::class);
+        // Active operating branch — same per-request lifecycle as the tenant.
+        $this->app->scoped(BranchContext::class);
     }
 
     /**

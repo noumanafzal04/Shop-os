@@ -125,7 +125,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // ── Tenant side: shop profile, setup, dashboard ──────────────
         // 'subscription': read-only mode blocks writes after grace expiry.
-        Route::middleware(['role:shop_owner,staff', 'subscription'])->group(function (): void {
+        Route::middleware(['role:shop_owner,staff', 'subscription', 'branch'])->group(function (): void {
             Route::get('/dashboard', [DashboardController::class, 'index']);
             // Global search (⌘K palette) — self-gates each group by permission.
             Route::get('/search', [SearchController::class, 'index']);
@@ -168,6 +168,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('products/{product}/barcode', [ProductController::class, 'generateBarcode']);
                 // Cross-branch availability ("check other branches").
                 Route::get('products/{product}/branch-stock', [ProductController::class, 'branchStock']);
+                // Per-branch price overrides (effective = override ?? base).
+                Route::get('products/{product}/branch-prices', [ProductController::class, 'branchPrices']);
+                Route::put('products/{product}/branch-prices', [ProductController::class, 'setBranchPrices']);
                 Route::put('products/{product}/modifier-groups', [ProductController::class, 'syncModifiers']);
             });
 

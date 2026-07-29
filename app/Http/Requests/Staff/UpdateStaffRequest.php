@@ -40,6 +40,11 @@ class UpdateStaffRequest extends FormRequest
             'status' => ['sometimes', Rule::enum(UserStatus::class)],
             'permissions' => ['sometimes', 'array', 'min:1'],
             'permissions.*' => ['string', Rule::in($scope)],
+            // Branch reassignment (tenant staff only). Null clears the pin.
+            'branch_id' => $this->isPlatformRoute() ? ['prohibited'] : [
+                'sometimes', 'nullable', 'uuid',
+                Rule::exists('branches', 'id')->where('tenant_id', $this->user()->tenant_id),
+            ],
         ];
     }
 

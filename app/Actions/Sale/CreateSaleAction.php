@@ -6,6 +6,7 @@ use App\Enums\ItemType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
+use App\Models\BranchPrice;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductUnit;
@@ -13,6 +14,7 @@ use App\Models\ProductVariant;
 use App\Models\Sale;
 use App\Services\CouponService;
 use App\Services\InventoryService;
+use App\Support\BranchContext;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +39,7 @@ class CreateSaleAction
         private readonly InventoryService $inventory,
         private readonly TenantContext $context,
         private readonly CouponService $coupons,
+        private readonly BranchContext $branchContext,
     ) {
     }
 
@@ -56,6 +59,11 @@ class CreateSaleAction
         try {
             return DB::transaction(function () use ($data): Sale {
             $tenantId = $this->context->id();
+            // The branch this sale is rung on — resolved by ResolveBranch from
+            // the operator's assignment / selected branch. Stock decrements here
+            // and every later return/cancel restock target THIS branch. Null on
+            // headless paths → InventoryService falls back to Main.
+            $branchId = $this->branchContext->id();
 
             // Pricing is SERVER-authoritative. A line unit_price + skipping the
             // serving-window check are honored ONLY on the trusted internal
@@ -172,11 +180,23 @@ class CreateSaleAction
                 $level = ($item['price_level'] ?? 'retail') === 'wholesale' ? 'wholesale' : 'retail';
                 $levelUnit = $product->priceForLevel($level, $quantity);
 
+                // Per-branch price override (Phase 4c): the branch's own retail
+                // price for this product/variant, if set. Effective = override ??
+                // tenant base. Applies to the RETAIL level only (wholesale keeps
+                // the tenant wholesale list) and never on the trusted path, which
+                // carries a price captured earlier. Packs multiply the override.
+                $override = $trusted ? null : $this->branchPrice($branchId, $product->id, $variant?->id);
+                if ($override !== null && $level === 'retail' && $variant === null) {
+                    $levelUnit = $override;
+                }
+
                 $basePrice = $trusted && isset($item['unit_price'])
                     ? (float) $item['unit_price']
                     : ($unit !== null
                         ? $unit->priceUsing($levelUnit)
-                        : ($variant !== null ? (float) $variant->price : $levelUnit));
+                        : ($variant !== null
+                            ? ($override ?? (float) $variant->price)
+                            : $levelUnit));
 
                 // Food modifiers / add-ons. The POS path validates + prices the
                 // selection here. The trusted path (order/reservation completion)
@@ -324,6 +344,7 @@ class CreateSaleAction
             /** @var Sale $sale */
             $sale = Sale::query()->create([
                 'invoice_number' => $invoiceNumber,
+                'branch_id' => $branchId,
                 'channel' => $data['channel'],
                 'cash_session_id' => $data['cash_session_id'] ?? null,
                 'status' => SaleStatus::Completed,
@@ -394,6 +415,7 @@ class CreateSaleAction
                                 'reason' => "Sale {$invoiceNumber} (deal: {$line['product']->name})",
                                 'reference_type' => 'sale',
                                 'reference_id' => $sale->id,
+                                'branch_id' => $branchId,
                             ]);
                         }
                     }
@@ -415,6 +437,7 @@ class CreateSaleAction
                                 'reference_type' => 'sale',
                                 'reference_id' => $sale->id,
                                 'allow_negative' => true,
+                                'branch_id' => $branchId,
                             ]);
                         }
                     }
@@ -428,6 +451,7 @@ class CreateSaleAction
                         'reason' => "Sale {$invoiceNumber}",
                         'reference_type' => 'sale',
                         'reference_id' => $sale->id,
+                        'branch_id' => $branchId,
                     ]);
                 }
             }
@@ -495,6 +519,30 @@ class CreateSaleAction
             }
             throw $e;
         }
+    }
+
+    /**
+     * The branch's overridden retail price for a product/variant, or null when
+     * the branch uses the catalog price. Variant lines match their own row
+     * (variant_id set); product lines match the product-level row (null variant).
+     */
+    private function branchPrice(?string $branchId, string $productId, ?string $variantId): ?float
+    {
+        if ($branchId === null) {
+            return null;
+        }
+
+        $query = BranchPrice::query()
+            ->where('branch_id', $branchId)
+            ->where('product_id', $productId);
+
+        $variantId === null
+            ? $query->whereNull('variant_id')
+            : $query->where('variant_id', $variantId);
+
+        $price = $query->value('price');
+
+        return $price !== null ? (float) $price : null;
     }
 
     private function nextInvoiceNumber(string $tenantId): string

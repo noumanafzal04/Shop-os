@@ -77,6 +77,8 @@ class CancelSaleAction
                     'reference_type' => 'sale_cancellation',
                     'reference_id' => $sale->id,
                     'idempotency_key' => "cancel-mv-{$mv->id}",
+                    // Restore to the exact branch the stock left from.
+                    'branch_id' => $mv->branch_id,
                 ]);
             }
 

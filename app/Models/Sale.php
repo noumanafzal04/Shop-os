@@ -35,6 +35,12 @@ class Sale extends BaseModel
         return $this->hasMany(SaleItem::class);
     }
 
+    /** The branch this sale was rung up on (null for legacy/headless sales). */
+    public function branch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(SalePayment::class);

@@ -34,6 +34,7 @@ class CreateStaffAction
 
         return User::query()->create([
             'tenant_id' => $tenantId,
+            'branch_id' => $data['branch_id'] ?? null,
             'name' => $data['name'],
             'email' => $data['email'] ?? null,
             'phone' => $data['phone'] ?? null,

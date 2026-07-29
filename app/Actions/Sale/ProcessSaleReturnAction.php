@@ -180,6 +180,7 @@ class ProcessSaleReturnAction
                                 'reference_type' => 'sale_return',
                                 'reference_id' => $return->id,
                                 'idempotency_key' => "return-{$return->id}-{$line['sale_item_id']}-c{$component->id}",
+                                'branch_id' => $sale->branch_id,
                             ]);
                         }
                     }
@@ -198,6 +199,7 @@ class ProcessSaleReturnAction
                                 'reference_type' => 'sale_return',
                                 'reference_id' => $return->id,
                                 'idempotency_key' => "return-{$return->id}-{$line['sale_item_id']}-i{$ingredient->id}",
+                                'branch_id' => $sale->branch_id,
                             ]);
                         }
                     }
@@ -211,6 +213,7 @@ class ProcessSaleReturnAction
                         'reference_type' => 'sale_return',
                         'reference_id' => $return->id,
                         'idempotency_key' => "return-{$return->id}-{$line['sale_item_id']}",
+                        'branch_id' => $sale->branch_id,
                     ]);
                 }
             }

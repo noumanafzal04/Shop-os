@@ -20,6 +20,8 @@ class UserResource extends JsonResource
             'phone' => $this->phone,
             'role' => $this->role,
             'status' => $this->status,
+            // Assigned branch (staff are pinned to it; null = all, for owners).
+            'branch_id' => $this->branch_id,
             'permissions' => $this->permissions ?? [],
             'email_verified' => $this->email_verified_at !== null,
             'phone_verified' => $this->phone_verified_at !== null,
