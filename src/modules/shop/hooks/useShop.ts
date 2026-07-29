@@ -32,7 +32,13 @@ export function useUpdateShopSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: Partial<ShopSettings>) => shopService.updateSettings(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shop-settings"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shop-settings"] });
+      // Refresh the persisted session too — the sidebar/shell reads
+      // tenant info from the auth store, not shop-settings, so it would
+      // otherwise stay stale until the next full load.
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    },
   });
 }
 

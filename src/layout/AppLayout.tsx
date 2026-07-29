@@ -3,9 +3,15 @@ import { Outlet } from "react-router";
 import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
+import { useMe } from "../modules/auth/hooks/useAuth";
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+
+  // Refresh the persisted session (incl. tenant.features) from the server on
+  // every authenticated load. Without this the sidebar reads stale localStorage,
+  // so admin module toggles / settings changes never surface until a full re-login.
+  useMe();
 
   return (
     <div className="min-h-screen xl:flex">
