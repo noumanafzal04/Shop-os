@@ -151,6 +151,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::delete('branches/{branch}', [BranchController::class, 'destroy']);
             });
 
+            // Hardware registry — receipt/label printers, scanners, cash drawer.
+            Route::middleware('permission:settings.manage')->group(function (): void {
+                Route::get('hardware-devices', [\App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController::class, 'index']);
+                Route::post('hardware-devices', [\App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController::class, 'store']);
+                Route::put('hardware-devices/{device}', [\App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController::class, 'update']);
+                Route::delete('hardware-devices/{device}', [\App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController::class, 'destroy']);
+            });
+
             // Catalog: categories + collections + items (products & services)
             Route::middleware('permission:products.manage')->group(function (): void {
                 Route::post('categories/reorder', [CategoryController::class, 'reorder']);

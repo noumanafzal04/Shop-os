@@ -2,27 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    @php($width = $settings['receipt_width'] ?? 'standard')
+    @php($thermal = in_array($width, ['thermal_58', 'thermal_80'], true))
+    {{-- Roll width for a thermal printer: 58mm ≈ 48mm printable, 80mm ≈ 72mm. --}}
+    @php($paperMm = $width === 'thermal_58' ? '58mm' : ($width === 'thermal_80' ? '80mm' : 'auto'))
+    @php($rollMm = $width === 'thermal_58' ? '48mm' : ($width === 'thermal_80' ? '72mm' : '640px'))
     <title>{{ $sale->invoice_number }} — {{ $tenant->business_name }}</title>
     <style>
         * { box-sizing: border-box; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
-        body { margin: 0; padding: 32px; color: #101828; font-size: 14px; }
-        .invoice { max-width: 640px; margin: 0 auto; }
-        .head { display: flex; justify-content: space-between; margin-bottom: 24px; }
-        h1 { font-size: 20px; margin: 0 0 4px; }
-        .muted { color: #667085; font-size: 12px; }
+        body { margin: 0; padding: {{ $thermal ? '6px' : '32px' }}; color: #101828; font-size: {{ $thermal ? '12px' : '14px' }}; }
+        .invoice { width: {{ $rollMm }}; max-width: 100%; margin: 0 auto; }
+        /* Thermal rolls are narrow — stack the header instead of two columns. */
+        .head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: {{ $thermal ? '10px' : '24px' }}; {{ $thermal ? 'flex-direction: column;' : '' }} }
+        .head > div:last-child { text-align: {{ $thermal ? 'left' : 'right' }}; }
+        h1 { font-size: {{ $thermal ? '14px' : '20px' }}; margin: 0 0 4px; }
+        .muted { color: #667085; font-size: {{ $thermal ? '11px' : '12px' }}; }
         .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px;
                  background: #ecfdf3; color: #027a48; }
         .badge.cancelled { background: #fef3f2; color: #b42318; }
-        table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+        table { width: 100%; border-collapse: collapse; margin: {{ $thermal ? '8px 0' : '16px 0' }}; }
         th { text-align: left; font-size: 11px; text-transform: uppercase; color: #667085;
-             border-bottom: 1px solid #e4e7ec; padding: 8px 4px; }
-        td { padding: 8px 4px; border-bottom: 1px solid #f2f4f7; }
+             border-bottom: 1px solid #e4e7ec; padding: {{ $thermal ? '4px 2px' : '8px 4px' }}; }
+        td { padding: {{ $thermal ? '4px 2px' : '8px 4px' }}; border-bottom: 1px solid #f2f4f7; }
         .num { text-align: right; }
-        .totals { margin-left: auto; width: 240px; }
-        .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
-        .totals .grand { font-weight: 700; font-size: 16px; border-top: 1px solid #e4e7ec; padding-top: 8px; }
-        .footer { margin-top: 32px; text-align: center; }
-        @media print { body { padding: 0; } .no-print { display: none; } }
+        .totals { margin-left: auto; width: {{ $thermal ? '100%' : '240px' }}; }
+        .totals div { display: flex; justify-content: space-between; padding: {{ $thermal ? '2px 0' : '4px 0' }}; }
+        .totals .grand { font-weight: 700; font-size: {{ $thermal ? '14px' : '16px' }}; border-top: 1px solid #e4e7ec; padding-top: 8px; }
+        .footer { margin-top: {{ $thermal ? '14px' : '32px' }}; text-align: center; }
+        @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+            @page { size: {{ $paperMm === 'auto' ? 'auto' : $paperMm.' auto' }}; margin: {{ $thermal ? '0' : '12mm' }}; }
+        }
     </style>
 </head>
 <body>
