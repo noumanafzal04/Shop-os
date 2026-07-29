@@ -34,6 +34,7 @@ const AdminBannersPage = lazy(() => import("./modules/admin/pages/AdminBannersPa
 const AdminAnnouncementsPage = lazy(() => import("./modules/admin/pages/AdminAnnouncementsPage"));
 const ShopSettingsPage = lazy(() => import("./modules/shop/pages/ShopSettingsPage"));
 const BranchesPage = lazy(() => import("./modules/branches/pages/BranchesPage"));
+const TransfersPage = lazy(() => import("./modules/transfers/pages/TransfersPage"));
 const SubscriptionPage = lazy(() => import("./modules/shop/pages/SubscriptionPage"));
 const ShopDashboard = lazy(() => import("./pages/Dashboard/ShopDashboard"));
 const ShopSetupPage = lazy(() => import("./modules/shop/pages/ShopSetupPage"));
@@ -150,6 +151,7 @@ export default function App() {
                   <Route path="reviews" element={<OwnerReviewsPage />} />
                   <Route path="staff" element={<TenantStaffPage />} />
                   <Route path="branches" element={<BranchesPage />} />
+                  <Route path="transfers" element={<TransfersPage />} />
                   <Route path="settings" element={<ShopSettingsPage />} />
                   <Route path="subscription" element={<SubscriptionPage />} />
                 </Route>

@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { branchService, type BranchInput } from "../services/branchService";
 
-export function useBranches() {
+export function useBranches(enabled = true) {
   return useQuery({
     queryKey: ["branches"],
     queryFn: async () => (await branchService.list()).data,
+    enabled,
   });
 }
 

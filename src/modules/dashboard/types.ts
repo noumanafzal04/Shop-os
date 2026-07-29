@@ -14,6 +14,10 @@ export interface TenantDashboard {
   pending_reservations: number;
   low_stock_count: number;
   products_count: number;
+  // The branch these figures reflect (null = all branches / HQ view).
+  branch_scope: string | null;
+  // Per-branch today's sales (HQ comparison). Empty for single-branch shops.
+  branches: Array<{ branch_id: string; branch: string; sales_count: number; revenue: number }>;
 }
 
 export interface AdminDashboard {

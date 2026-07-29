@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMoney } from "../../shop/hooks/useShop";
+import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { Link, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -61,6 +61,10 @@ export default function SalesPage() {
   const hasPos = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.pos ?? true,
   );
+  // Show a Branch column only for multi-branch shops.
+  const shopSettings = useShopSettings();
+  const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
+  const cols = multiBranch ? 7 : 6;
 
   const detailModal = useModal();
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -215,6 +219,7 @@ export default function SalesPage() {
               <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 <th className="px-6 py-3 font-medium">Invoice</th>
                 <th className="px-6 py-3 font-medium">Date</th>
+                {multiBranch && <th className="px-6 py-3 font-medium">Branch</th>}
                 <th className="px-6 py-3 font-medium">Customer</th>
                 <th className="px-6 py-3 font-medium">Items</th>
                 <th className="px-6 py-3 font-medium">Total</th>
@@ -225,14 +230,14 @@ export default function SalesPage() {
               {sales.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={6} className="px-6 py-4">
+                    <td colSpan={cols} className="px-6 py-4">
                       <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
                     </td>
                   </tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={cols} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {debounced || status ? "No sales match these filters." : "No sales yet — make your first sale!"}
                   </td>
                 </tr>
@@ -247,6 +252,9 @@ export default function SalesPage() {
                       {s.invoice_number}
                     </td>
                     <td className="px-6 py-4">{new Date(s.sold_at).toLocaleString()}</td>
+                    {multiBranch && (
+                      <td className="px-6 py-4 text-gray-500 dark:text-gray-400">{s.branch?.name ?? "—"}</td>
+                    )}
                     <td className="px-6 py-4">{s.customer_name ?? "Walk-in"}</td>
                     <td className="px-6 py-4">{s.items_count}</td>
                     <td className="px-6 py-4">{money(s.total)}</td>

@@ -28,6 +28,8 @@ export interface SaleItem {
 export interface Sale {
   id: string;
   invoice_number: string;
+  branch_id?: string | null;
+  branch?: { id: string; name: string } | null;
   channel: SaleChannel;
   status: SaleStatus;
   customer_name: string | null;

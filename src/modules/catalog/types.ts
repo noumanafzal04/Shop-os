@@ -77,6 +77,8 @@ export interface Product {
   unit: string | null;
   attributes: Record<string, string> | null;
   price: string | number;
+  // Per-branch override for the active operating branch (null = catalog price).
+  branch_price?: string | null;
   cost: string | number | null;
   discount_price: string | number | null;
   wholesale_price: string | number | null;

@@ -131,6 +131,41 @@ export default function ShopDashboard() {
           </div>
         </>
       )}
+
+      {/* HQ comparison — today's sales per branch (multi-branch shops only). */}
+      {data && data.branches.length > 0 && (
+        <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="flex items-center justify-between px-5 py-4">
+            <h3 className="font-semibold text-gray-800 dark:text-white/90">Today by branch</h3>
+            <span className="text-theme-xs uppercase tracking-wide text-gray-400">
+              {data.branch_scope ? "Focused view" : "All branches"}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-t border-gray-200 text-left text-theme-xs uppercase text-gray-400 dark:border-gray-800">
+                  <th className="px-5 py-3 font-medium">Branch</th>
+                  <th className="px-5 py-3 text-right font-medium">Sales</th>
+                  <th className="px-5 py-3 text-right font-medium">Revenue</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {data.branches.map((b) => (
+                  <tr
+                    key={b.branch_id}
+                    className={b.branch_id === data.branch_scope ? "bg-brand-50/50 dark:bg-brand-500/5" : ""}
+                  >
+                    <td className="px-5 py-3 font-medium text-gray-800 dark:text-white/90">{b.branch}</td>
+                    <td className="px-5 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">{b.sales_count}</td>
+                    <td className="px-5 py-3 text-right tabular-nums font-medium text-gray-800 dark:text-white/90">{money(b.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </>
   );
 }

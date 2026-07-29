@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { useMoney } from "../../shop/hooks/useShop";
+import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
+import BranchStockModal from "../../transfers/components/BranchStockModal";
+import BranchPriceModal from "../../branches/components/BranchPriceModal";
 import { Link, Outlet, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -79,6 +81,12 @@ export default function ProductsPage() {
 
   const confirmModal = useModal();
   const [target, setTarget] = useState<Product | null>(null);
+
+  // Multi-branch: offer a "check other branches" lookup on each item.
+  const shopSettings = useShopSettings();
+  const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
+  const [lookup, setLookup] = useState<Product | null>(null);
+  const [priceEdit, setPriceEdit] = useState<Product | null>(null);
 
   // ── Export the current (filtered) catalog to CSV ─────────────────
   const toast = useToast();
@@ -298,7 +306,13 @@ export default function ProductsPage() {
                     </td>
                     <td className="hidden px-6 py-4 md:table-cell">{p.category?.name ?? "—"}</td>
                     <td className="px-6 py-4">
-                      {p.discount_price != null ? (
+                      {p.branch_price != null ? (
+                        // This branch overrides the catalog price (Phase 4c).
+                        <span className="flex flex-col leading-tight">
+                          <span className="font-medium text-gray-800 dark:text-white/90">{money(p.branch_price)}</span>
+                          <span className="text-theme-xs text-brand-500">branch price</span>
+                        </span>
+                      ) : p.discount_price != null ? (
                         <span className="flex flex-col leading-tight">
                           <span className="font-medium text-gray-800 dark:text-white/90">{money(p.discount_price)}</span>
                           <span className="text-theme-xs text-gray-400 line-through">{money(p.price)}</span>
@@ -328,6 +342,31 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
+                        {multiBranch && p.track_inventory && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setLookup(p); }}
+                            className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-white/[0.06]"
+                            aria-label={`Stock by branch for ${p.name}`}
+                            title="Stock by branch"
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+                              <path d="M3 7l7-4 7 4-7 4-7-4z" strokeLinejoin="round" />
+                              <path d="M3 7v6l7 4 7-4V7" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        )}
+                        {multiBranch && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setPriceEdit(p); }}
+                            className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-white/[0.06]"
+                            aria-label={`Branch pricing for ${p.name}`}
+                            title="Branch pricing"
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+                              <path d="M10 3v14M6.5 6.5h5.25a2.25 2.25 0 010 4.5H8.25a2.25 2.25 0 000 4.5h5.25" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        )}
                         <button
                           onClick={(e) => { e.stopPropagation(); navigate(`/tenant/products/${p.id}/edit`); }}
                           className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-white/[0.06]"
@@ -466,6 +505,20 @@ export default function ProductsPage() {
           </Button>
         </div>
       </Modal>
+
+      {/* Cross-branch availability ("check other branches") */}
+      <BranchStockModal
+        productId={lookup?.id ?? null}
+        productName={lookup?.name}
+        onClose={() => setLookup(null)}
+      />
+
+      {/* Per-branch price overrides */}
+      <BranchPriceModal
+        productId={priceEdit?.id ?? null}
+        productName={priceEdit?.name}
+        onClose={() => setPriceEdit(null)}
+      />
 
       {/* Product editor drawer (routes: /products/new, /products/:id/edit) */}
       <Outlet />

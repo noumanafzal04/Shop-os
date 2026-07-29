@@ -1,5 +1,6 @@
 import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { useAuthStore } from "../../stores/authStore";
+import { useBranchStore } from "../../stores/branchStore";
 import { ApiError, type ApiEnvelope } from "../types/api";
 
 const BASE_URL =
@@ -15,6 +16,11 @@ api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  // Operating branch — the backend validates it and ignores it for pinned staff.
+  const branchId = useBranchStore.getState().activeBranchId;
+  if (branchId) {
+    config.headers["X-Branch-Id"] = branchId;
   }
   return config;
 });
