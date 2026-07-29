@@ -28,6 +28,17 @@ const BarcodeGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><
 const ScaleGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M12 4v16M6 20h12M5 8h14l-2.5 6h-9L5 8ZM9 4h6" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const PrinterGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M6 9V3h12v6M6 18H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2M6 14h12v7H6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 
+// Settings are split into tabs: shop info first, then module-wise topics.
+const SETTINGS_TABS = [
+  { key: "business", label: "Business" },
+  { key: "tax", label: "Tax & Delivery" },
+  { key: "pos", label: "Point of Sale" },
+  { key: "receipt", label: "Receipt" },
+  { key: "hardware", label: "Hardware" },
+  { key: "barcode", label: "Barcodes" },
+] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number]["key"];
+
 function SectionCard({ icon, title, description, children, badge }: {
   icon: ReactNode; title: string; description?: string; children: ReactNode; badge?: ReactNode;
 }) {
@@ -136,6 +147,7 @@ export default function ShopSettingsPage() {
   const updatePrefs = useUpdateShopSettings();
   const [prefs, setPrefs] = useState<Record<string, string | number | boolean | null> | null>(null);
   const [prefsSaved, setPrefsSaved] = useState(false);
+  const [tab, setTab] = useState<SettingsTab>("business");
   useEffect(() => { if (settings.data && !prefs) setPrefs({ ...settings.data }); }, [settings.data, prefs]);
   const setP = (k: string, v: string | number | boolean | null) => { setPrefs((f) => ({ ...f!, [k]: v })); setPrefsSaved(false); };
   const prefsErr = updatePrefs.error instanceof ApiError ? updatePrefs.error.firstFieldError() ?? updatePrefs.error.message : null;
@@ -143,6 +155,16 @@ export default function ShopSettingsPage() {
 
   const online = shop.data?.online_shop_enabled;
   const cityOptions = [{ value: "", label: "— Select city —" }, ...(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))];
+
+  // Every preferences tab edits the one `prefs` object and shares this footer —
+  // saving from any tab persists all preferences (no cross-tab data loss).
+  const prefsFooter = (
+    <div className="flex justify-end">
+      <Button size="sm" onClick={savePrefs} disabled={updatePrefs.isPending}>
+        {updatePrefs.isPending ? "Saving…" : "Save preferences"}
+      </Button>
+    </div>
+  );
 
   return (
     <>
@@ -152,14 +174,24 @@ export default function ShopSettingsPage() {
         <p className="text-sm text-gray-500 dark:text-gray-400">Manage your shop profile, location and how the app works for you.</p>
       </div>
 
-      {shop.isLoading ? (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      {/* Tab bar — shop info first, then module-wise topics. */}
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-800">
+        {SETTINGS_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`-mb-px whitespace-nowrap border-b-2 px-4 py-2.5 text-theme-sm font-medium transition ${tab === t.key ? "border-brand-500 text-brand-500" : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="max-w-3xl">
+        {shop.isLoading ? (
           <div className="h-64 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
-          <div className="h-64 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
-          {/* ── Left: profile · location · online ── */}
+        ) : tab === "business" ? (
           <div className="space-y-6">
             {saved && <Alert variant="success" title="Saved" message="Your profile has been updated." />}
             {generalError && <Alert variant="error" title="Couldn't save" message={generalError} />}
@@ -218,15 +250,15 @@ export default function ShopSettingsPage() {
               </Button>
             </div>
           </div>
+        ) : settings.isLoading || !prefs ? (
+          <div className="h-96 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
+        ) : (
+          <div className="space-y-6">
+            {tab !== "hardware" && prefsSaved && <Alert variant="success" title="Saved" message="Preferences updated." />}
+            {tab !== "hardware" && prefsErr && <Alert variant="error" title="Couldn't save" message={prefsErr} />}
 
-          {/* ── Right: preferences (separate section per topic) ── */}
-          {settings.isLoading || !prefs ? (
-            <div className="h-96 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
-          ) : (
-            <div className="space-y-6">
-              {prefsSaved && <Alert variant="success" title="Saved" message="Preferences updated." />}
-              {prefsErr && <Alert variant="error" title="Couldn't save" message={prefsErr} />}
-
+            {tab === "tax" && (
+              <>
               <SectionCard icon={<PercentGlyph />} title="Tax" description="Default tax applied at checkout when a product has no rate of its own.">
                 <Field label="Default tax %" hint="Set 0 for tax-exempt shops.">
                   <Input type="number" min="0" max="100" className="max-w-xs" value={String(prefs.default_tax_rate)} onChange={(e) => setP("default_tax_rate", Number(e.target.value))} />
@@ -261,7 +293,12 @@ export default function ShopSettingsPage() {
                   </div>
                 )}
               </SectionCard>
+              {prefsFooter}
+              </>
+            )}
 
+            {tab === "receipt" && (
+              <>
               <SectionCard icon={<ReceiptGlyph />} title="Invoice / receipt" description="What prints on your sales receipts.">
                 <Field label="Invoice header line"><Input value={String(prefs.invoice_header ?? "")} onChange={(e) => setP("invoice_header", e.target.value)} placeholder="e.g. Tax Reg #12345" /></Field>
                 <Field label="Invoice footer"><Input value={String(prefs.invoice_footer ?? "")} onChange={(e) => setP("invoice_footer", e.target.value)} placeholder="e.g. Thank you for shopping!" /></Field>
@@ -276,11 +313,18 @@ export default function ShopSettingsPage() {
                 </Field>
                 <Toggle checked={!!prefs.invoice_show_logo} onChange={(v) => setP("invoice_show_logo", v)} label="Show logo on invoice" />
               </SectionCard>
+              {prefsFooter}
+              </>
+            )}
 
+            {tab === "hardware" && (
               <SectionCard icon={<PrinterGlyph />} title="Hardware" description="Your shop's receipt printer, label printer, barcode scanner, and cash drawer.">
                 <HardwareDevices />
               </SectionCard>
+            )}
 
+            {tab === "pos" && (
+              <>
               <SectionCard icon={<CartGlyph />} title="Point of sale" description="Defaults for the counter till.">
                 <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
                   <Field label="Default payment">
@@ -292,7 +336,12 @@ export default function ShopSettingsPage() {
                   </div>
                 </div>
               </SectionCard>
+              {prefsFooter}
+              </>
+            )}
 
+            {tab === "barcode" && (
+              <>
               <SectionCard icon={<BarcodeGlyph />} title="Barcode labels" description="What shows on printed product labels.">
                 <div className="flex flex-wrap items-center gap-6">
                   <Toggle checked={!!prefs.barcode_show_name} onChange={(v) => setP("barcode_show_name", v)} label="Show name" />
@@ -316,16 +365,12 @@ export default function ShopSettingsPage() {
                 </div>
                 <p className="text-theme-xs text-gray-400">Set each item's <span className="font-medium">Scale PLU code</span> on its product page. Prefix = the leading digit(s) your scale uses (usually 2).</p>
               </SectionCard>
-
-              <div className="flex justify-end">
-                <Button size="sm" onClick={savePrefs} disabled={updatePrefs.isPending}>
-                  {updatePrefs.isPending ? "Saving…" : "Save preferences"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+              {prefsFooter}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </>
   );
 }
