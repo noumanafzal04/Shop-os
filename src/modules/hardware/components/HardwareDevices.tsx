@@ -1,0 +1,228 @@
+import { useState } from "react";
+import { Modal } from "../../../components/ui/modal";
+import { useModal } from "../../../hooks/useModal";
+import Button from "../../../components/ui/button/Button";
+import Input from "../../../components/form/input/InputField";
+import Select from "../../../components/form/Select";
+import Label from "../../../components/form/Label";
+import Badge from "../../../components/ui/badge/Badge";
+import { useConfirm } from "../../../components/ui/confirm";
+import { useToast } from "../../../components/ui/toast";
+import { useHardwareDevices, useHardwareMutations } from "../hooks/useHardware";
+import type {
+  ConnectionType,
+  HardwareDevice,
+  HardwareType,
+} from "../services/hardwareService";
+
+const TYPE_LABEL: Record<HardwareType, string> = {
+  receipt_printer: "Receipt printer",
+  label_printer: "Label printer",
+  barcode_scanner: "Barcode scanner",
+  cash_drawer: "Cash drawer",
+  customer_display: "Customer display",
+};
+
+const CONNECTION_LABEL: Record<ConnectionType, string> = {
+  browser: "Browser (print dialog)",
+  serial: "Serial (Web Serial)",
+  usb: "USB",
+  bluetooth: "Bluetooth",
+  lan: "Network (LAN)",
+  wifi: "Wi-Fi",
+  native: "Built-in (device app)",
+};
+
+const TYPE_OPTIONS = (Object.keys(TYPE_LABEL) as HardwareType[]).map((v) => ({ value: v, label: TYPE_LABEL[v] }));
+const CONNECTION_OPTIONS = (Object.keys(CONNECTION_LABEL) as ConnectionType[]).map((v) => ({ value: v, label: CONNECTION_LABEL[v] }));
+
+interface Draft {
+  id?: string;
+  type: HardwareType;
+  name: string;
+  brand: string;
+  model: string;
+  connection_type: ConnectionType;
+  connection_value: string;
+  is_default: boolean;
+  is_active: boolean;
+  paper_size: "58mm" | "80mm" | "a4";
+}
+
+const blank: Draft = {
+  type: "receipt_printer",
+  name: "",
+  brand: "",
+  model: "",
+  connection_type: "browser",
+  connection_value: "",
+  is_default: false,
+  is_active: true,
+  paper_size: "80mm",
+};
+
+/** Open a small printable window and trigger the browser print dialog. */
+function testPrint(d: HardwareDevice) {
+  const w = d.settings?.paper_size === "58mm" ? "48mm" : d.settings?.paper_size === "a4" ? "480px" : "72mm";
+  const win = window.open("", "_blank", "width=380,height=560");
+  if (!win) return;
+  win.document.write(`<!doctype html><html><head><title>Test print</title>
+    <style>
+      body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;margin:0;padding:8px;color:#101828}
+      .r{width:${w};max-width:100%;margin:0 auto;font-size:12px;text-align:center}
+      h2{font-size:14px;margin:0 0 4px} hr{border:none;border-top:1px dashed #98a2b3;margin:8px 0}
+      @media print{@page{size:${d.settings?.paper_size === "a4" ? "auto" : (d.settings?.paper_size ?? "80mm") + " auto"};margin:0}}
+    </style></head><body>
+    <div class="r"><h2>${d.name || TYPE_LABEL[d.type]}</h2>
+    <div>${d.brand ?? ""} ${d.model ?? ""}</div><hr/>
+    <div>Test print OK</div><div>${new Date().toLocaleString()}</div><hr/>
+    <div>ShopOS</div></div>
+    <script>window.onload=function(){window.print()}</script>
+    </body></html>`);
+  win.document.close();
+}
+
+export default function HardwareDevices() {
+  const { data: devices, isLoading } = useHardwareDevices();
+  const { create, update, remove } = useHardwareMutations();
+  const modal = useModal();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [draft, setDraft] = useState<Draft>(blank);
+  const isEdit = !!draft.id;
+
+  const openNew = () => { setDraft(blank); modal.openModal(); };
+  const openEdit = (d: HardwareDevice) => {
+    setDraft({
+      id: d.id, type: d.type, name: d.name, brand: d.brand ?? "", model: d.model ?? "",
+      connection_type: d.connection_type, connection_value: d.connection_value ?? "",
+      is_default: d.is_default, is_active: d.is_active,
+      paper_size: d.settings?.paper_size ?? "80mm",
+    });
+    modal.openModal();
+  };
+
+  const isPrinter = draft.type === "receipt_printer" || draft.type === "label_printer";
+
+  const save = () => {
+    if (!draft.name.trim()) return;
+    const payload = {
+      name: draft.name.trim(),
+      brand: draft.brand.trim() || null,
+      model: draft.model.trim() || null,
+      connection_type: draft.connection_type,
+      connection_value: draft.connection_value.trim() || null,
+      is_default: draft.is_default,
+      is_active: draft.is_active,
+      settings: isPrinter ? { paper_size: draft.paper_size } : null,
+    };
+    const done = { onSuccess: () => { toast.success(isEdit ? "Device updated" : "Device added"); modal.closeModal(); } };
+    if (isEdit) update.mutate({ id: draft.id!, ...payload }, done);
+    else create.mutate({ type: draft.type, ...payload }, done);
+  };
+
+  const del = async (d: HardwareDevice) => {
+    if (await confirm({ title: `Remove ${d.name}?`, tone: "danger", confirmLabel: "Remove" })) {
+      remove.mutate(d.id, { onSuccess: () => toast.success("Device removed") });
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {isLoading ? (
+        <div className="h-16 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+      ) : (devices ?? []).length === 0 ? (
+        <p className="text-theme-sm text-gray-400">No devices yet. Add your receipt printer, scanner, or cash drawer.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          {(devices ?? []).map((d) => (
+            <li key={d.id} className="flex items-center gap-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-medium text-gray-800 dark:text-white/90">{d.name}</span>
+                  {d.is_default && <Badge size="sm" color="success">Default</Badge>}
+                  {!d.is_active && <Badge size="sm" color="light">Off</Badge>}
+                </div>
+                <div className="truncate text-theme-xs text-gray-400">
+                  {TYPE_LABEL[d.type]} · {CONNECTION_LABEL[d.connection_type]}
+                  {(d.brand || d.model) ? ` · ${[d.brand, d.model].filter(Boolean).join(" ")}` : ""}
+                </div>
+              </div>
+              {(d.type === "receipt_printer" || d.type === "label_printer") && (
+                <button type="button" onClick={() => testPrint(d)} className="text-theme-xs font-medium text-brand-500 hover:text-brand-600">
+                  Test print
+                </button>
+              )}
+              <button type="button" onClick={() => openEdit(d)} className="text-theme-xs font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                Edit
+              </button>
+              <button type="button" onClick={() => del(d)} className="text-theme-xs font-medium text-error-500 hover:text-error-600">
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Button size="sm" variant="outline" onClick={openNew}>+ Add device</Button>
+
+      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-lg p-6">
+        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">{isEdit ? "Edit device" : "Add device"}</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {!isEdit && (
+            <div>
+              <Label>Type</Label>
+              <Select value={draft.type} options={TYPE_OPTIONS} onChange={(v) => setDraft((d) => ({ ...d, type: v as HardwareType }))} />
+            </div>
+          )}
+          <div>
+            <Label>Name</Label>
+            <Input value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="e.g. Front counter" />
+          </div>
+          <div>
+            <Label>Connection</Label>
+            <Select value={draft.connection_type} options={CONNECTION_OPTIONS} onChange={(v) => setDraft((d) => ({ ...d, connection_type: v as ConnectionType }))} />
+          </div>
+          <div>
+            <Label>Address / device ID <span className="font-normal text-gray-400">(optional)</span></Label>
+            <Input value={draft.connection_value} onChange={(e) => setDraft((d) => ({ ...d, connection_value: e.target.value }))} placeholder="e.g. 192.168.1.50:9100" />
+          </div>
+          <div>
+            <Label>Brand</Label>
+            <Input value={draft.brand} onChange={(e) => setDraft((d) => ({ ...d, brand: e.target.value }))} placeholder="e.g. XPrinter" />
+          </div>
+          <div>
+            <Label>Model</Label>
+            <Input value={draft.model} onChange={(e) => setDraft((d) => ({ ...d, model: e.target.value }))} placeholder="e.g. XP-80" />
+          </div>
+          {isPrinter && (
+            <div>
+              <Label>Paper size</Label>
+              <Select
+                value={draft.paper_size}
+                options={[{ value: "58mm", label: "58mm thermal" }, { value: "80mm", label: "80mm thermal" }, { value: "a4", label: "A4 / Letter" }]}
+                onChange={(v) => setDraft((d) => ({ ...d, paper_size: v as Draft["paper_size"] }))}
+              />
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-6">
+          <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" checked={draft.is_default} onChange={(e) => setDraft((d) => ({ ...d, is_default: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
+            Default for its type
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" checked={draft.is_active} onChange={(e) => setDraft((d) => ({ ...d, is_active: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
+            Active
+          </label>
+        </div>
+        <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
+          <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
+          <Button size="sm" onClick={save} disabled={!draft.name.trim() || create.isPending || update.isPending}>
+            {isEdit ? "Save" : "Add device"}
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}

@@ -13,6 +13,7 @@ import { apiGet, apiPut } from "../../../common/api/client";
 import { useCities, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
 import { useAuthStore } from "../../../stores/authStore";
 import type { Tenant } from "../../auth/types";
+import HardwareDevices from "../../hardware/components/HardwareDevices";
 
 // ── Section icons (inline line-SVGs, currentColor) ───────────────────────
 const g = "h-[18px] w-[18px]";
@@ -25,6 +26,7 @@ const ReceiptGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><
 const CartGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M3 4h2l2.2 11h10l1.8-8H6" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /><circle cx="9" cy="19" r="1.6" stroke="currentColor" strokeWidth="1.7" /><circle cx="17" cy="19" r="1.6" stroke="currentColor" strokeWidth="1.7" /></svg>);
 const BarcodeGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 5v14M8 5v14M11 5v14M14 5v10M17 5v14M20 5v14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>);
 const ScaleGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M12 4v16M6 20h12M5 8h14l-2.5 6h-9L5 8ZM9 4h6" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
+const PrinterGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M6 9V3h12v6M6 18H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2M6 14h12v7H6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 
 function SectionCard({ icon, title, description, children, badge }: {
   icon: ReactNode; title: string; description?: string; children: ReactNode; badge?: ReactNode;
@@ -263,7 +265,20 @@ export default function ShopSettingsPage() {
               <SectionCard icon={<ReceiptGlyph />} title="Invoice / receipt" description="What prints on your sales receipts.">
                 <Field label="Invoice header line"><Input value={String(prefs.invoice_header ?? "")} onChange={(e) => setP("invoice_header", e.target.value)} placeholder="e.g. Tax Reg #12345" /></Field>
                 <Field label="Invoice footer"><Input value={String(prefs.invoice_footer ?? "")} onChange={(e) => setP("invoice_footer", e.target.value)} placeholder="e.g. Thank you for shopping!" /></Field>
+                <Field label="Receipt size" hint="Thermal sizes print a narrow roll-width receipt; Standard is A4/Letter.">
+                  <Select
+                    className="max-w-xs"
+                    value={String(prefs.receipt_width ?? "standard")}
+                    options={[{ value: "standard", label: "Standard (A4/Letter)" }, { value: "thermal_80", label: "Thermal 80mm" }, { value: "thermal_58", label: "Thermal 58mm" }]}
+                    placeholder="Standard"
+                    onChange={(v) => setP("receipt_width", v)}
+                  />
+                </Field>
                 <Toggle checked={!!prefs.invoice_show_logo} onChange={(v) => setP("invoice_show_logo", v)} label="Show logo on invoice" />
+              </SectionCard>
+
+              <SectionCard icon={<PrinterGlyph />} title="Hardware" description="Your shop's receipt printer, label printer, barcode scanner, and cash drawer.">
+                <HardwareDevices />
               </SectionCard>
 
               <SectionCard icon={<CartGlyph />} title="Point of sale" description="Defaults for the counter till.">
