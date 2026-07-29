@@ -38,6 +38,8 @@ class Product extends BaseModel
             'is_active' => 'boolean',
             'visible_in_marketplace' => 'boolean',
             'requires_prescription' => 'boolean',
+            'tracks_serial' => 'boolean',
+            'warranty_months' => 'integer',
         ];
     }
 
@@ -72,6 +74,16 @@ class Product extends BaseModel
     public function requiresExpiry(): bool
     {
         return $this->item_type === ItemTypes::MEDICINE;
+    }
+
+    /**
+     * Does selling this item capture a per-unit serial / IMEI? True for
+     * serialized retail goods (phones, electronics) so the POS prompts for one
+     * serial per unit and each is recorded for warranty lookup.
+     */
+    public function tracksSerial(): bool
+    {
+        return (bool) $this->tracks_serial;
     }
 
     /** The raw ingredients this dish consumes when sold (recipe / BOM). */

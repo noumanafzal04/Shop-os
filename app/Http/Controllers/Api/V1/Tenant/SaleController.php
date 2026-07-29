@@ -105,7 +105,7 @@ class SaleController extends Controller
     public function show(string $id): JsonResponse
     {
         return ApiResponse::ok(
-            Sale::query()->with(['items', 'returns.items'])->findOrFail($id),
+            Sale::query()->with(['items', 'returns.items', 'serials'])->findOrFail($id),
         );
     }
 

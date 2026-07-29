@@ -51,6 +51,12 @@ class Sale extends BaseModel
         return $this->hasMany(SaleReturn::class);
     }
 
+    /** Serialized units (IMEI/serial + warranty) captured on this sale. */
+    public function serials(): HasMany
+    {
+        return $this->hasMany(SaleItemSerial::class);
+    }
+
     public function isCancelled(): bool
     {
         return $this->status === SaleStatus::Cancelled;

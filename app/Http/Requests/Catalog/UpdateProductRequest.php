@@ -50,6 +50,9 @@ class UpdateProductRequest extends FormRequest
             'brand' => ['nullable', 'string', 'max:120'],
             'generic_name' => ['nullable', 'string', 'max:255'],
             'requires_prescription' => ['sometimes', 'boolean'],
+            // Serialized retail — toggle serial/IMEI capture and default warranty.
+            'tracks_serial' => ['sometimes', 'boolean'],
+            'warranty_months' => ['nullable', 'integer', 'min:0', 'max:600'],
             'barcodes' => ['sometimes', 'nullable', 'array', 'max:20'],
             'barcodes.*' => ['string', 'max:191', 'distinct'],
             'units' => ['sometimes', 'nullable', 'array', 'max:10'],

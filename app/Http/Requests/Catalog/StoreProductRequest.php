@@ -64,6 +64,11 @@ class StoreProductRequest extends FormRequest
             'brand' => ['nullable', 'string', 'max:120'],
             'generic_name' => ['nullable', 'string', 'max:255'],
             'requires_prescription' => ['sometimes', 'boolean'],
+            // Serialized retail (phones/electronics): capture a serial/IMEI per
+            // unit at the counter, with a default warranty length. Only stock
+            // goods carry serials — a service or a stock-less deal can't.
+            'tracks_serial' => [$isService || $isDeal ? 'prohibited' : 'sometimes', 'boolean'],
+            'warranty_months' => ['nullable', 'integer', 'min:0', 'max:600'],
             // Alternate barcodes (mart): uniqueness across primary + extras is
             // enforced in the action (BARCODE_TAKEN), so shared create/update logic.
             'barcodes' => ['nullable', 'array', 'max:20'],
@@ -183,6 +188,7 @@ class StoreProductRequest extends FormRequest
             'variants.*.name.distinct' => 'Duplicate variant names in this request.',
             'variants.*.sku.distinct' => 'Duplicate variant SKUs in this request.',
             'stock_quantity.prohibited' => 'This item type does not track stock.',
+            'tracks_serial.prohibited' => 'Only stock goods can capture a serial/IMEI.',
             'variants.prohibited' => 'This item type cannot have variants.',
             'duration_minutes.prohibited' => 'Only services have a duration.',
             'combo_items.prohibited' => 'Only a deal bundles other products.',

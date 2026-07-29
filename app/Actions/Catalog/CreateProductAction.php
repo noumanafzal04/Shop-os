@@ -56,6 +56,8 @@ class CreateProductAction
                 'brand' => $data['brand'] ?? null,
                 'generic_name' => $data['generic_name'] ?? null,
                 'requires_prescription' => $data['requires_prescription'] ?? false,
+                'tracks_serial' => $data['tracks_serial'] ?? false,
+                'warranty_months' => $data['warranty_months'] ?? null,
                 'unit' => $data['unit'] ?? null,
                 'sold_by' => $data['sold_by'] ?? 'unit',
                 'attributes' => $data['attributes'] ?? null,

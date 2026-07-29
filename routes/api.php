@@ -231,6 +231,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/{sale}/invoice', [SaleController::class, 'invoice']);
             });
 
+            // Warranty desk (serialized retail): look up a serial / IMEI to see
+            // what was sold and whether it's still under warranty.
+            Route::get('warranty/lookup', [\App\Http\Controllers\Api\V1\Tenant\WarrantyController::class, 'lookup'])
+                ->middleware('permission:sales.manage');
+
             // Inventory: the single write-path for stock
             Route::prefix('inventory')->middleware('permission:inventory.manage')->group(function (): void {
                 Route::post('/adjust', [InventoryController::class, 'adjust']);

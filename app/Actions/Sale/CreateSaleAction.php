@@ -12,6 +12,8 @@ use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\ProductVariant;
 use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\SaleItemSerial;
 use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Support\BranchContext;
@@ -214,6 +216,26 @@ class CreateSaleAction
                     );
                 }
 
+                // Serialized retail: clean the captured serials (trim, drop
+                // blanks, keep order). You can't sell more serialed units than
+                // the line quantity (one IMEI per phone). An optional per-line
+                // warranty override beats the product default.
+                $serials = collect($item['serials'] ?? [])
+                    ->map(fn ($s) => trim((string) $s))
+                    ->filter(fn ($s) => $s !== '')
+                    ->unique()
+                    ->values()
+                    ->all();
+                if (! empty($serials) && count($serials) > $quantity) {
+                    throw DomainException::unprocessable(
+                        "You entered more serials than units sold for {$product->name}.",
+                        'SERIAL_COUNT_EXCEEDS_QTY',
+                    );
+                }
+                $warrantyOverride = array_key_exists('warranty_months', $item) && $item['warranty_months'] !== null
+                    ? (int) $item['warranty_months']
+                    : null;
+
                 $unitPrice = round($basePrice + $modifierDelta, 2);
                 $gross = round($unitPrice * $quantity, 2);
 
@@ -253,6 +275,8 @@ class CreateSaleAction
                     'line_discount' => $lineDiscount,
                     'line_total' => $lineTotal,
                     'modifiers' => $modifierSnapshot,
+                    'serials' => $serials,
+                    'warranty_months' => $warrantyOverride,
                     // Effective tax %% snapshot — product rate else shop default.
                     'tax_rate' => $product->tax_rate !== null ? (float) $product->tax_rate : $defaultTaxRate,
                 ];
@@ -380,6 +404,9 @@ class CreateSaleAction
             }
 
             // ── Lines + stock decrement through the audited path ─────
+            // Serials entered anywhere in this sale — guards against the same
+            // IMEI being keyed onto two lines of one sale.
+            $seenSerials = [];
             foreach ($lines as $line) {
                 // Snapshot the exploded BOM (per-unit component quantities) for
                 // combo/recipe lines, so a later return restocks exactly what
@@ -405,6 +432,9 @@ class CreateSaleAction
                     'line_total' => $line['line_total'],
                     'tax_rate' => $line['tax_rate'],
                 ]);
+
+                // Serialized retail: snapshot each unit's serial + warranty.
+                $this->recordSerials($saleItem, $line, $sale, $seenSerials);
 
                 if ($line['product']->isCombo()) {
                     // A deal holds no stock of its own — selling it draws each
@@ -549,6 +579,68 @@ class CreateSaleAction
         $price = $query->value('price');
 
         return $price !== null ? (float) $price : null;
+    }
+
+    /**
+     * Persist the serialized units on a line: guard each serial against a
+     * duplicate within THIS sale and against any serial still out on a live
+     * (completed / partially-refunded) sale, then snapshot it with its warranty
+     * window. A cancelled/fully-refunded sale frees its serials automatically —
+     * the guard only looks at live sales — so a returned unit can be resold.
+     *
+     * @param  array<string, true>  $seen  serials already keyed earlier in this sale
+     */
+    private function recordSerials(SaleItem $saleItem, array $line, Sale $sale, array &$seen): void
+    {
+        $serials = $line['serials'] ?? [];
+        if (empty($serials)) {
+            return;
+        }
+
+        /** @var Product $product */
+        $product = $line['product'];
+        $months = $line['warranty_months']
+            ?? ($product->warranty_months !== null ? (int) $product->warranty_months : null);
+        $expires = $months !== null && $months > 0
+            ? $sale->sold_at->copy()->addMonths($months)
+            : null;
+
+        foreach ($serials as $serial) {
+            if (isset($seen[$serial])) {
+                throw DomainException::unprocessable(
+                    "Serial \"{$serial}\" is entered twice in this sale.",
+                    'SERIAL_DUPLICATE_IN_SALE',
+                );
+            }
+
+            $alreadyOut = SaleItemSerial::query()
+                ->where('serial', $serial)
+                ->whereHas('sale', fn ($q) => $q->whereIn('status', [
+                    SaleStatus::Completed->value,
+                    SaleStatus::PartiallyRefunded->value,
+                ]))
+                ->exists();
+            if ($alreadyOut) {
+                throw DomainException::unprocessable(
+                    "Serial \"{$serial}\" has already been sold.",
+                    'SERIAL_ALREADY_SOLD',
+                );
+            }
+
+            $saleItem->serials()->create([
+                'tenant_id' => $sale->tenant_id,
+                'sale_id' => $sale->id,
+                'product_id' => $product->id,
+                'variant_id' => $line['variant']?->id,
+                'product_name' => $product->name,
+                'serial' => $serial,
+                'warranty_months' => $months,
+                'warranty_expires_at' => $expires,
+                'sold_at' => $sale->sold_at,
+            ]);
+
+            $seen[$serial] = true;
+        }
     }
 
     /**

@@ -43,4 +43,10 @@ class SaleItem extends Model
     {
         return $this->belongsTo(Product::class)->withTrashed();
     }
+
+    /** Serialized units (IMEI/serial + warranty) captured for this line. */
+    public function serials(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(SaleItemSerial::class);
+    }
 }

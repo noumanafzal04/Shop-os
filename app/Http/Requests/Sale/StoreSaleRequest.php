@@ -57,6 +57,12 @@ class StoreSaleRequest extends FormRequest
             'items.*.line_discount_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.modifier_option_ids' => ['sometimes', 'array', 'max:50'],
             'items.*.modifier_option_ids.*' => ['uuid'],
+            // Serialized retail: one serial/IMEI per unit sold on this line, and
+            // an optional warranty override (months) that beats the product's
+            // default. Serials are data, never pricing — safe from clients.
+            'items.*.serials' => ['sometimes', 'array', 'max:1000'],
+            'items.*.serials.*' => ['string', 'max:120', 'distinct'],
+            'items.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:600'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'coupon_code' => ['nullable', 'string', 'max:40'],
             // NOTE: no `tax` — tax is server-authoritative, computed from each
