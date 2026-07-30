@@ -97,6 +97,10 @@ export interface ShopSettings {
   pos_default_payment: "cash" | "card";
   pos_auto_print: boolean;
   pos_require_shift: boolean;
+  loyalty_enabled: boolean;
+  loyalty_earn_per_amount: number;
+  loyalty_redeem_value: number;
+  loyalty_min_redeem: number;
   barcode_show_price: boolean;
   barcode_show_name: boolean;
   scale_barcode_enabled: boolean;

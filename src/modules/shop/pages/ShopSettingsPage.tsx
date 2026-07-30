@@ -27,12 +27,14 @@ const CartGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><pat
 const BarcodeGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 5v14M8 5v14M11 5v14M14 5v10M17 5v14M20 5v14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>);
 const ScaleGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M12 4v16M6 20h12M5 8h14l-2.5 6h-9L5 8ZM9 4h6" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const PrinterGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M6 9V3h12v6M6 18H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2M6 14h12v7H6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
+const GiftGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7S10.5 3 8.5 3 6 5 8 7h4Zm0 0s1.5-4 3.5-4 2.5 2 .5 4h-4Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>);
 
 // Settings are split into tabs: shop info first, then module-wise topics.
 const SETTINGS_TABS = [
   { key: "business", label: "Business" },
   { key: "tax", label: "Tax & Delivery" },
   { key: "pos", label: "Point of Sale" },
+  { key: "loyalty", label: "Loyalty" },
   { key: "receipt", label: "Receipt" },
   { key: "hardware", label: "Hardware" },
   { key: "barcode", label: "Barcodes" },
@@ -335,6 +337,29 @@ export default function ShopSettingsPage() {
                     <Toggle checked={!!prefs.pos_auto_print} onChange={(v) => setP("pos_auto_print", v)} label="Auto-print receipt" />
                   </div>
                 </div>
+              </SectionCard>
+              {prefsFooter}
+              </>
+            )}
+
+            {tab === "loyalty" && (
+              <>
+              <SectionCard icon={<GiftGlyph />} title="Loyalty & rewards" description="Customers earn points on sales and redeem them as a discount at the counter.">
+                <Toggle checked={!!prefs.loyalty_enabled} onChange={(v) => setP("loyalty_enabled", v)} label="Enable loyalty points" />
+                {!!prefs.loyalty_enabled && (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <Field label="Earn: Rs per point" hint="Spend this much (Rs) to earn 1 point.">
+                      <Input type="number" min="1" value={String(prefs.loyalty_earn_per_amount ?? 100)} onChange={(e) => setP("loyalty_earn_per_amount", Number(e.target.value))} />
+                    </Field>
+                    <Field label="Redeem: Rs per point" hint="What each point is worth when redeemed.">
+                      <Input type="number" min="0" step={0.01} value={String(prefs.loyalty_redeem_value ?? 1)} onChange={(e) => setP("loyalty_redeem_value", Number(e.target.value))} />
+                    </Field>
+                    <Field label="Minimum to redeem" hint="Points needed before any redemption.">
+                      <Input type="number" min="0" value={String(prefs.loyalty_min_redeem ?? 0)} onChange={(e) => setP("loyalty_min_redeem", Number(e.target.value))} />
+                    </Field>
+                  </div>
+                )}
+                <p className="text-theme-xs text-gray-400">Points are tied to the customer's phone — add a customer at the till to earn/redeem.</p>
               </SectionCard>
               {prefsFooter}
               </>

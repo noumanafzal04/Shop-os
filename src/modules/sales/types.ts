@@ -109,6 +109,8 @@ export interface SaleInput {
   items: SaleLineInput[];
   discount?: number;
   coupon_code?: string;
+  // Loyalty: points the customer redeems (server converts to a discount).
+  redeem_points?: number;
   tax?: number;
   // Single tender — required unless `payments` (a split) is sent.
   payment_method?: PaymentMethod;

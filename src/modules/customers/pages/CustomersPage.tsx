@@ -229,6 +229,32 @@ export default function CustomersPage() {
               )}
             </div>
 
+            {/* Loyalty points — balance + statement (shown once they've earned any). */}
+            {((d.loyalty_points ?? 0) > 0 || (d.loyalty_ledger?.length ?? 0) > 0) && (
+              <div className="mb-4 rounded-xl border border-gray-200 p-3 dark:border-gray-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-theme-xs font-medium uppercase text-gray-400">Loyalty points</span>
+                  <span className="text-lg font-bold text-brand-600 dark:text-brand-400">{d.loyalty_points ?? 0} pts</span>
+                </div>
+                {(d.loyalty_ledger?.length ?? 0) > 0 && (
+                  <div className="mt-3 max-h-40 space-y-1 overflow-y-auto border-t border-gray-100 pt-2 dark:border-gray-800">
+                    {d.loyalty_ledger!.map((e) => {
+                      const positive = e.type === "earn" || e.type === "reverse_redeem";
+                      const label = e.type === "earn" ? "Earned" : e.type === "redeem" ? "Redeemed" : e.type === "reverse_earn" ? "Reversed (return)" : "Refunded (return)";
+                      return (
+                        <div key={e.id} className="flex items-center justify-between text-theme-xs">
+                          <span className="text-gray-500 dark:text-gray-400">{new Date(e.created_at).toLocaleDateString()} · {label}</span>
+                          <span className={positive ? "text-success-600 dark:text-success-400" : "text-gray-600 dark:text-gray-300"}>
+                            {positive ? "+" : "−"}{e.points} pts
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             <p className="mb-2 text-theme-xs font-medium uppercase text-gray-400">History</p>
             <div className="max-h-64 space-y-1 overflow-y-auto">
               {[...(d.history?.sales ?? []).map((s) => ({ ref: s.invoice_number, total: s.total, when: s.sold_at, tag: s.channel })),

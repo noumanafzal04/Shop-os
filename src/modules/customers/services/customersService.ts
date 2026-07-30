@@ -22,6 +22,9 @@ export interface Customer {
   // Sell-on-credit (khata): what they owe now + the optional cap.
   credit_balance?: string | number;
   credit_limit?: string | number | null;
+  // Loyalty points balance + statement.
+  loyalty_points?: number;
+  loyalty_ledger?: LoyaltyLedgerEntry[];
   sales_count?: number;
   sales_total?: string | number | null;
   history?: {
@@ -31,6 +34,15 @@ export interface Customer {
     orders_count: number;
   };
   ledger?: LedgerEntry[];
+}
+
+export interface LoyaltyLedgerEntry {
+  id: string;
+  type: "earn" | "redeem" | "reverse_earn" | "reverse_redeem";
+  points: number;
+  balance_after: number;
+  note: string | null;
+  created_at: string;
 }
 
 export interface CustomerInput {

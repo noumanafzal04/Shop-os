@@ -9,6 +9,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
+import { apiGet } from "../../../common/api/client";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCategories, useProducts } from "../../catalog/hooks/useCatalog";
 import type { Product as CatalogProduct, ProductUnit } from "../../catalog/types";
@@ -214,6 +215,9 @@ export default function PosPage() {
   const [couponCode, setCouponCode] = useState<string | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponMsg, setCouponMsg] = useState<string | null>(null);
+  // Loyalty: the attached customer's point balance + points being redeemed.
+  const [customerPoints, setCustomerPoints] = useState<number | null>(null);
+  const [redeemPts, setRedeemPts] = useState("");
 
   // One idempotency key per cart state: a network retry of the SAME cart
   // reuses the key (server dedupes); any cart change mints a new one.
@@ -301,7 +305,15 @@ export default function PosPage() {
   // matches the printed receipt. Per line: product.tax_rate (else the shop
   // default; 0 = exempt) applied to the line's share of the DISCOUNTED base.
   const taxRate = Number(settings.data?.default_tax_rate ?? 0);
-  const cartDiscount = (Number(discount) || 0) + couponDiscount;
+  // Loyalty: redeemed points become a discount (points × redeem_value),
+  // mirrored here so the cashier's total matches the server-priced sale.
+  const loyaltyOn = !!settings.data?.loyalty_enabled;
+  const redeemValue = Number(settings.data?.loyalty_redeem_value ?? 1);
+  const earnPer = Number(settings.data?.loyalty_earn_per_amount ?? 0);
+  const minRedeem = Number(settings.data?.loyalty_min_redeem ?? 0);
+  const redeemPtsNum = loyaltyOn ? Math.max(0, Math.floor(Number(redeemPts) || 0)) : 0;
+  const loyaltyDiscount = redeemPtsNum * redeemValue;
+  const cartDiscount = (Number(discount) || 0) + couponDiscount + loyaltyDiscount;
   const taxableBase = Math.max(0, subtotal - cartDiscount);
   const taxAmount = subtotal > 0
     ? Math.round(cart.reduce((s, l) => {
@@ -310,6 +322,11 @@ export default function PosPage() {
       }, 0) * 100) / 100
     : 0;
   const total = Math.max(0, subtotal - cartDiscount + taxAmount);
+  // Cap redemption to the customer's balance and to the bill (after other
+  // discounts); estimate points this sale will earn on the net merchandise.
+  const otherDiscount = (Number(discount) || 0) + couponDiscount;
+  const maxRedeemable = Math.max(0, Math.min(customerPoints ?? 0, Math.floor((subtotal - otherDiscount) / (redeemValue || 1))));
+  const earnEst = loyaltyOn && earnPer > 0 && customerPhone.trim() !== "" ? Math.floor(Math.max(0, subtotal - cartDiscount) / earnPer) : 0;
   const splitPaid = tenders.reduce((s, t) => s + (Number(t.amount) || 0), 0);
   const change = method === "cash" ? Math.max(0, (Number(tendered) || 0) - total)
     : method === "split" ? Math.max(0, splitPaid - total) : 0;
@@ -343,10 +360,23 @@ export default function PosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtotal]);
 
+  // Loyalty: look up the attached customer's point balance by phone so the
+  // till can show it and offer redemption. Cleared when no/short phone.
+  useEffect(() => {
+    const phone = customerPhone.trim();
+    if (!loyaltyOn || phone.length < 7) { setCustomerPoints(null); setRedeemPts(""); return; }
+    let alive = true;
+    apiGet<{ loyalty_points: number } | null>("/customers-lookup", { params: { phone } })
+      .then(({ data }) => { if (alive) setCustomerPoints(data?.loyalty_points ?? 0); })
+      .catch(() => { if (alive) setCustomerPoints(null); });
+    return () => { alive = false; };
+  }, [customerPhone, loyaltyOn]);
+
   const clearSale = () => {
     setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone("");
     setTableNo(""); setOrderType("takeaway"); setMethod("cash"); setTenders([{ method: "cash", amount: "" }]); clearCoupon();
     setRxNumber(""); setRxPrescriber(""); setRxPatient("");
+    setCustomerPoints(null); setRedeemPts("");
   };
 
   const checkout = useMutation({
@@ -380,6 +410,8 @@ export default function PosPage() {
         })),
         discount: Number(discount) || 0,
         coupon_code: couponCode || undefined,
+        // Loyalty: points redeemed on this sale (server prices the discount).
+        ...(redeemPtsNum > 0 ? { redeem_points: redeemPtsNum } : {}),
         // Tax is server-authoritative (computed per product) — nothing sent.
         // Split payment sends the tender breakdown; otherwise a single tender.
         ...(method === "split"
@@ -976,6 +1008,33 @@ export default function PosPage() {
                 </div>
               )}
               {couponMsg && <p className="text-theme-xs text-error-500">{couponMsg}</p>}
+
+              {/* Loyalty — shown when enabled and a known customer is attached. */}
+              {loyaltyOn && customerPoints !== null && (
+                <div className="rounded-lg border border-gray-200 p-2.5 dark:border-gray-800">
+                  <div className="flex items-center justify-between text-theme-sm">
+                    <span className="text-gray-500 dark:text-gray-400">Loyalty points</span>
+                    <span className="font-medium text-gray-800 dark:text-white/90">{customerPoints} available</span>
+                  </div>
+                  {customerPoints > 0 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="number" min="0" max={maxRedeemable} value={redeemPts}
+                        onChange={(e) => setRedeemPts(e.target.value)} placeholder="Redeem points"
+                        className="h-8 w-28 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm dark:border-gray-700"
+                      />
+                      {redeemPtsNum > 0 && <span className="text-theme-xs font-medium text-success-600">−{money(loyaltyDiscount)}</span>}
+                      {maxRedeemable > 0 && redeemPtsNum !== maxRedeemable && (
+                        <button type="button" onClick={() => setRedeemPts(String(maxRedeemable))} className="text-theme-xs text-brand-500 hover:text-brand-600">Max {maxRedeemable}</button>
+                      )}
+                    </div>
+                  )}
+                  {redeemPtsNum > 0 && redeemPtsNum < minRedeem && (
+                    <p className="mt-1 text-theme-xs text-error-500">Minimum {minRedeem} points to redeem.</p>
+                  )}
+                  {earnEst > 0 && <p className="mt-1 text-theme-xs text-gray-400">This sale earns ~{earnEst} pts</p>}
+                </div>
+              )}
 
               {/* Pharmacy: prescription capture — shown when the cart holds an
                   Rx-required medicine. Optional, but recorded on the sale. */}
