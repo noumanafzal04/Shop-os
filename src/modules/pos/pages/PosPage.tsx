@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { uuid } from "../../../common/uuid";
-import { ChevronLeftIcon, PencilIcon, TrashBinIcon, PlusIcon, AlertIcon, CloseIcon, DollarLineIcon, ListIcon, UserCircleIcon, CheckLineIcon } from "../../../icons";
+import { ChevronLeftIcon, ChevronDownIcon, TrashBinIcon, PlusIcon, AlertIcon, CloseIcon, DollarLineIcon, ListIcon, UserCircleIcon, CheckLineIcon } from "../../../icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -68,6 +68,9 @@ const iconCls = "h-4 w-4";
 const MinusGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className={iconCls}><path d="M5 10h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
 );
+const PlusGlyph = () => (
+  <svg viewBox="0 0 20 20" fill="none" className={iconCls}><path d="M10 5v10M5 10h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+);
 const CardGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className={iconCls}><rect x="2.5" y="4.5" width="15" height="11" rx="2" stroke="currentColor" strokeWidth="1.6" /><path d="M2.5 8.5h15" stroke="currentColor" strokeWidth="1.6" /></svg>
 );
@@ -84,6 +87,12 @@ const SearchGlyph = () => (
 const CreditGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className={iconCls}><rect x="4" y="2.5" width="12" height="15" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><path d="M7 6h6M7 9h6M7 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
 );
+
+type PayMethod = "cash" | "card" | "credit" | "split";
+const methodLabel = (m: PayMethod): string =>
+  m === "credit" ? "Credit (khata)" : m === "split" ? "Split payment" : m === "card" ? "Card" : "Cash";
+const MethodIcon = ({ m }: { m: PayMethod }) =>
+  m === "cash" ? <DollarLineIcon className="h-4 w-4" /> : m === "card" ? <CardGlyph /> : m === "credit" ? <CreditGlyph /> : <SplitGlyph />;
 
 /** Price for one of a pack: explicit pack price, else base price × factor. */
 const packPrice = (basePrice: number, u: ProductUnit): number =>
@@ -206,6 +215,8 @@ export default function PosPage() {
   const [method, setMethod] = useState<"cash" | "card" | "credit" | "split">("cash");
   const [tenders, setTenders] = useState<Array<{ method: "cash" | "card" | "bank_transfer" | "credit"; amount: string }>>([{ method: "cash", amount: "" }]);
   const [tendered, setTendered] = useState("");
+  const [payMenuOpen, setPayMenuOpen] = useState(false);
+  const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   // Pharmacy prescription capture (shown when the cart holds an Rx item).
   const [rxNumber, setRxNumber] = useState("");
@@ -256,6 +267,7 @@ export default function PosPage() {
   const lineEditModal = useModal();
   const serialModal = useModal();
   const customerModal = useModal();
+  const discountModal = useModal();
   const [editKey, setEditKey] = useState<string | null>(null);
   const [serialKey, setSerialKey] = useState<string | null>(null);
   const [openingFloat, setOpeningFloat] = useState("");
@@ -717,7 +729,37 @@ export default function PosPage() {
         {/* ── Products / scan ─────────────────────────────────────── */}
         <div className="flex min-h-0 flex-col lg:col-span-7">
           <div className="mb-3">
-            <div className="relative">
+            <div className="flex items-stretch gap-2">
+              {/* Category dropdown — sits in front of the search box. */}
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setCatMenuOpen((o) => !o)}
+                  className="flex h-14 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-theme-xs transition hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                >
+                  <span className="max-w-[7rem] truncate">{categoryId === "" ? "All" : (catList.find((c) => c.id === categoryId)?.name ?? "All")}</span>
+                  <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition ${catMenuOpen ? "rotate-180" : ""}`} />
+                </button>
+                {catMenuOpen && (
+                  <>
+                    <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-10 cursor-default" onClick={() => setCatMenuOpen(false)} />
+                    <div className="absolute left-0 top-full z-20 mt-1.5 max-h-72 w-56 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                      <button type="button" onClick={() => { setCategoryId(""); setCatMenuOpen(false); }}
+                        className={`flex w-full items-center px-3 py-2.5 text-sm transition ${categoryId === "" ? "bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/10" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"}`}>
+                        All categories{categoryId === "" && <CheckLineIcon className="ml-auto h-4 w-4" />}
+                      </button>
+                      {catList.map((c) => (
+                        <button key={c.id} type="button" onClick={() => { setCategoryId(c.id); setCatMenuOpen(false); }}
+                          className={`flex w-full items-center gap-2 px-3 py-2.5 text-sm transition ${categoryId === c.id ? "bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/10" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"}`}>
+                          <span className="truncate">{c.name}</span>{categoryId === c.id && <CheckLineIcon className="ml-auto h-4 w-4 shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              {/* Search */}
+              <div className="relative flex-1">
               <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><SearchGlyph /></span>
               <input
                 ref={scanRef}
@@ -739,6 +781,7 @@ export default function PosPage() {
                   <kbd className="hidden rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[10px] text-gray-400 sm:inline dark:border-gray-700 dark:bg-gray-800">F2</kbd>
                 )}
               </div>
+              </div>
             </div>
             {/* Live hint: how many results + how to add with the keyboard. */}
             {search.trim() && !scanError && (
@@ -756,22 +799,7 @@ export default function PosPage() {
             )}
           </div>
 
-          {/* Category chips — one tap to filter; far faster than a dropdown. */}
-          <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <button
-              onClick={() => setCategoryId("")}
-              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-theme-sm font-medium transition ${categoryId === "" ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"}`}
-            >All</button>
-            {catList.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setCategoryId(c.id)}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-theme-sm font-medium transition ${categoryId === c.id ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"}`}
-              >{c.name}</button>
-            ))}
-          </div>
-
-          {/* Scrollable product area — only this scrolls, search + tabs stay put */}
+          {/* Scrollable product area — only this scrolls, search + category stay put */}
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {/* FOOD: visual image-tile grid. */}
           {posLayout === "grid" && (
@@ -922,8 +950,11 @@ export default function PosPage() {
               </div>
             )}
 
-            {/* Lines — grows and scrolls on its own */}
-            <div className="min-h-[8rem] flex-1 space-y-2 overflow-y-auto p-4 pb-2">
+            {/* Lines + details share ONE scroll area, so the item list keeps the
+                most room on short laptop screens; only the totals/payment bar
+                below stays pinned and always visible. */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="space-y-0.5 p-2 pb-1">
               {cart.length === 0 ? (
                 <p className="py-10 text-center text-sm text-gray-400">Cart is empty — scan or tap a product.</p>
               ) : (
@@ -934,99 +965,84 @@ export default function PosPage() {
                   const disc = lineDiscountAmt(l);
                   const hasWholesale = l.wholesale_price != null && Number(l.wholesale_price) > 0;
                   return (
-                    <div key={l.key} className="rounded-xl border border-gray-100 px-3 py-2.5 dark:border-gray-800">
-                      {/* Row 1: name + edit/remove */}
-                      <div className="flex items-start gap-2">
+                    <div
+                      key={l.key}
+                      role="button"
+                      tabIndex={0}
+                      title="Tap to edit line"
+                      onClick={() => { setEditKey(l.key); lineEditModal.openModal(); }}
+                      onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); setEditKey(l.key); lineEditModal.openModal(); } }}
+                      className="cursor-pointer rounded-xl border border-gray-100 px-3 py-2.5 transition hover:border-brand-300 hover:bg-brand-50/40 dark:border-gray-800 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/5"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {/* name + unit price */}
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium text-gray-800 dark:text-white/90">{l.name}</div>
                           <div className="truncate text-theme-xs text-gray-400">
-                            {money(eff)}{isWeight && l.unit_label ? `/${l.unit_label}` : " each"}
+                            {money(eff)}{isWeight && l.unit_label ? `/${l.unit_label}` : " ea"}
                             {l.unit_name ? ` · ${l.unit_name}` : null}
-                            {disc > 0 ? <span className="text-success-600"> · −{money(disc)}</span> : null}
                             {!l.product_unit_id && l.price_level !== "wholesale" && eff < (l.base_price ?? l.unit_price) && <span className="ml-1 font-medium text-success-500">bulk</span>}
                           </div>
-                          {l.modifiers_label && <div className="truncate text-theme-xs text-gray-400">{l.modifiers_label}</div>}
-                          {l.tracks_serial && (
-                            <button
-                              type="button"
-                              onClick={() => { setSerialKey(l.key); serialModal.openModal(); }}
-                              className={`mt-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-theme-xs font-medium ${
-                                serialCount(l) >= l.quantity
-                                  ? "bg-success-50 text-success-600 dark:bg-success-500/10"
-                                  : "bg-warning-50 text-warning-600 dark:bg-warning-500/10"
-                              }`}
-                            >
-                              IMEI / Serial {serialCount(l)}/{Math.floor(l.quantity)}
-                            </button>
-                          )}
                         </div>
-                        <button
-                          className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
-                          title="Edit line"
-                          onClick={() => { setEditKey(l.key); lineEditModal.openModal(); }}
-                        ><PencilIcon className="h-4 w-4" /></button>
-                        <button className="rounded-lg p-1.5 text-gray-300 hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10" title="Remove" onClick={() => setQty(l.key, 0)}><TrashBinIcon className="h-4 w-4" /></button>
-                      </div>
-
-                      {/* Row 2: qty stepper · price-level · line total */}
-                      <div className="mt-2 flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <button className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300" onClick={() => setQty(l.key, Math.max(0, l.quantity - step))}><MinusGlyph /></button>
+                        {/* qty stepper */}
+                        <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button type="button" aria-label="Decrease" className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300" onClick={() => setQty(l.key, Math.max(0, l.quantity - step))}><MinusGlyph /></button>
                           <input
                             type="number"
                             min="0"
                             step={isWeight ? 0.001 : 1}
                             value={fmtQty(l.quantity)}
                             onChange={(e) => setQty(l.key, Math.max(0, Number(e.target.value) || 0))}
-                            className="h-7 w-14 rounded-lg border border-gray-200 bg-transparent text-center text-sm tabular-nums dark:border-gray-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            className="h-6 w-11 rounded-md border border-gray-200 bg-transparent text-center text-theme-sm tabular-nums dark:border-gray-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />
-                          <button className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500 text-white hover:bg-brand-600" onClick={() => setQty(l.key, l.quantity + step)}><PlusIcon className="h-4 w-4" /></button>
+                          <button type="button" aria-label="Increase" className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-500 text-white hover:bg-brand-600" onClick={() => setQty(l.key, l.quantity + step)}><PlusGlyph /></button>
                         </div>
-                        {/* Inline price level (only when the item has a wholesale rate) */}
-                        {hasWholesale && (
-                          <select
-                            value={l.price_level ?? "retail"}
-                            onChange={(e) => setLineLevel(l.key, e.target.value as "retail" | "wholesale")}
-                            className="h-7 rounded-lg border border-gray-200 bg-transparent px-1.5 text-theme-xs text-gray-600 dark:border-gray-700 dark:text-gray-300"
-                          >
-                            <option value="retail">Retail</option>
-                            <option value="wholesale">Wholesale</option>
-                          </select>
-                        )}
-                        <span className="ml-auto text-right text-sm font-semibold text-gray-800 dark:text-white/90">
-                          {disc > 0 && <span className="mr-1 text-theme-xs font-normal text-gray-400 line-through">{money(lineGross(l))}</span>}
-                          {money(lineNet(l))}
-                        </span>
+                        {/* line total */}
+                        <div className="w-[4.75rem] shrink-0 text-right">
+                          <div className="text-sm font-semibold text-gray-800 tabular-nums dark:text-white/90">{money(lineNet(l))}</div>
+                          {disc > 0 && <div className="text-[10px] leading-tight text-gray-400 line-through tabular-nums">{money(lineGross(l))}</div>}
+                        </div>
+                        {/* remove */}
+                        <button type="button" title="Remove" aria-label="Remove" className="shrink-0 rounded-md p-1 text-gray-300 hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10" onClick={(e) => { e.stopPropagation(); setQty(l.key, 0); }}><TrashBinIcon className="h-4 w-4" /></button>
                       </div>
+
+                      {/* Extras — only render for items that have them: food modifiers,
+                          serialized (IMEI), or a wholesale price list. Keeps the common
+                          retail/mart row a single sleek line. */}
+                      {(l.modifiers_label || l.tracks_serial || hasWholesale) && (
+                        <div className="mt-1 flex flex-wrap items-center gap-2 pl-0.5" onClick={(e) => e.stopPropagation()}>
+                          {l.modifiers_label && <span className="min-w-0 flex-1 truncate text-theme-xs text-gray-400">{l.modifiers_label}</span>}
+                          {l.tracks_serial && (
+                            <button
+                              type="button"
+                              onClick={() => { setSerialKey(l.key); serialModal.openModal(); }}
+                              className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-theme-xs font-medium ${serialCount(l) >= l.quantity ? "bg-success-50 text-success-600 dark:bg-success-500/10" : "bg-warning-50 text-warning-600 dark:bg-warning-500/10"}`}
+                            >
+                              IMEI {serialCount(l)}/{Math.floor(l.quantity)}
+                            </button>
+                          )}
+                          {hasWholesale && (
+                            <select
+                              value={l.price_level ?? "retail"}
+                              onChange={(e) => setLineLevel(l.key, e.target.value as "retail" | "wholesale")}
+                              className="h-6 rounded-md border border-gray-200 bg-transparent px-1 text-theme-xs text-gray-600 dark:border-gray-700 dark:text-gray-300"
+                            >
+                              <option value="retail">Retail</option>
+                              <option value="wholesale">Wholesale</option>
+                            </select>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })
               )}
             </div>
 
-            {/* Details — customer lives in the top header (defaults to walk-in) */}
+            {/* Contextual extras — only render when there's something to show,
+                so nothing floats in the middle of an otherwise-empty panel. */}
+            {((promo && promo.discount > 0) || (loyaltyOn && customerPoints !== null) || cartHasRx) && (
             <div className="space-y-2.5 border-t border-gray-100 p-4 pt-3 dark:border-gray-800">
-              <div>
-                <label className="text-theme-xs text-gray-400">Discount</label>
-                <Input type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
-                {/* Tax is computed automatically (server-authoritative, per product) — shown in the summary below. */}
-              </div>
-
-              {/* Coupon */}
-              {couponCode ? (
-                <div className="flex items-center justify-between rounded-lg bg-success-50 px-3 py-1.5 text-theme-sm text-success-700 dark:bg-success-500/10">
-                  <span>Coupon {couponCode} · −{money(couponDiscount)}</span>
-                  <button className="text-gray-500 hover:text-error-500" onClick={clearCoupon}><CloseIcon className="h-4 w-4" /></button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input value={couponInput} onChange={(e) => setCouponInput(e.target.value.toUpperCase())} placeholder="Coupon code"
-                    className="h-9 flex-1 rounded-lg border border-gray-200 bg-transparent px-3 text-theme-sm dark:border-gray-700 dark:bg-gray-900" />
-                  <button onClick={applyCoupon} className="rounded-lg border border-brand-500 px-3 text-theme-sm text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10">Apply</button>
-                </div>
-              )}
-              {couponMsg && <p className="text-theme-xs text-error-500">{couponMsg}</p>}
-
               {/* Auto-promotion (no code) — applied automatically when live. */}
               {promo && promo.discount > 0 && (
                 <div className="flex items-center justify-between rounded-lg bg-brand-50 px-3 py-1.5 text-theme-sm text-brand-600 dark:bg-brand-500/10">
@@ -1080,8 +1096,10 @@ export default function PosPage() {
                 </div>
               )}
             </div>
+            )}
+            </div>
 
-            {/* Summary + payment — always visible at the bottom */}
+            {/* Summary + payment — pinned to the bottom, always visible */}
             <div className="rounded-b-2xl border-t border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/40">
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between text-gray-500 dark:text-gray-400"><span>Subtotal</span><span>{money(grossSubtotal)}</span></div>
@@ -1089,16 +1107,33 @@ export default function PosPage() {
                 {Number(discount) > 0 && <div className="flex justify-between text-gray-500"><span>Discount</span><span>−{money(Number(discount))}</span></div>}
                 {couponDiscount > 0 && <div className="flex justify-between text-success-600"><span>Coupon</span><span>−{money(couponDiscount)}</span></div>}
                 {taxAmount > 0 && <div className="flex justify-between text-gray-500"><span>Tax</span><span>{money(taxAmount)}</span></div>}
-                <div className="flex justify-between pt-1 text-xl font-bold text-gray-800 dark:text-white/90"><span>Total</span><span>{money(total)}</span></div>
               </div>
 
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {(["cash", "card", "credit", "split"] as const).map((m) => (
-                  <button key={m} onClick={() => setMethod(m)}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm capitalize ${method === m ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10" : "border-gray-300 text-gray-600 dark:border-gray-700"}`}>
-                    {m === "cash" ? <DollarLineIcon className="h-4 w-4" /> : m === "card" ? <CardGlyph /> : m === "credit" ? <CreditGlyph /> : <SplitGlyph />} {m}
-                  </button>
-                ))}
+              {/* Payment method — defaults to cash; tap to switch (opens upward). */}
+              <div className="relative mt-3">
+                <button
+                  type="button"
+                  onClick={() => setPayMenuOpen((o) => !o)}
+                  className="flex w-full items-center justify-between rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-700 transition hover:border-brand-400 dark:border-gray-700 dark:text-gray-200"
+                >
+                  <span className="flex items-center gap-2 font-medium"><MethodIcon m={method} /> {methodLabel(method)}</span>
+                  <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition ${payMenuOpen ? "rotate-180" : ""}`} />
+                </button>
+                {payMenuOpen && (
+                  <>
+                    <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-10 cursor-default" onClick={() => setPayMenuOpen(false)} />
+                    <div className="absolute bottom-full left-0 z-20 mb-1.5 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                      {(["cash", "card", "credit", "split"] as const).map((m) => (
+                        <button key={m} type="button"
+                          onClick={() => { setMethod(m); setPayMenuOpen(false); }}
+                          className={`flex w-full items-center gap-2 px-3 py-2.5 text-sm transition ${method === m ? "bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/10" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"}`}>
+                          <MethodIcon m={m} /> {methodLabel(m)}
+                          {method === m && <CheckLineIcon className="ml-auto h-4 w-4" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Credit (khata): the whole total goes on the customer's balance.
@@ -1206,11 +1241,60 @@ export default function PosPage() {
         >
           <TrashBinIcon className="h-4 w-4" /> Reset
         </button>
-        <span className="ml-auto flex items-center gap-2 text-theme-sm text-gray-500 dark:text-gray-400">
-          <span className="uppercase tracking-wide text-theme-xs text-gray-400">Total</span>
-          <span className="text-lg font-bold text-gray-800 tabular-nums dark:text-white/90">{money(total)}</span>
-        </span>
+        <div className="ml-auto flex items-center gap-4">
+          {/* Discount / coupon — right side of the footer, before the total. */}
+          <button
+            type="button"
+            onClick={discountModal.openModal}
+            title="Discount / coupon"
+            className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-theme-sm font-medium transition ${
+              Number(discount) > 0 || couponCode
+                ? "border-success-300 bg-success-50 text-success-700 dark:border-success-500/40 dark:bg-success-500/10 dark:text-success-400"
+                : "border-gray-200 text-gray-600 hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
+            }`}
+          >
+            <PlusIcon className="h-4 w-4" />
+            {Number(discount) > 0 || couponCode
+              ? `Discount −${money((Number(discount) || 0) + couponDiscount)}`
+              : "Add discount"}
+          </button>
+          <span className="flex items-baseline gap-2.5 text-gray-500 dark:text-gray-400">
+            <span className="uppercase tracking-wide text-theme-xs text-gray-400">Total</span>
+            <span className="text-3xl font-bold text-gray-900 tabular-nums dark:text-white">{money(total)}</span>
+          </span>
+        </div>
       </div>
+
+      {/* Discount & coupon */}
+      <Modal isOpen={discountModal.isOpen} onClose={discountModal.closeModal} className="max-w-sm p-6">
+        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Discount &amp; coupon</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">Manual discount (Rs)</label>
+            <Input type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">Coupon code</label>
+            {couponCode ? (
+              <div className="flex items-center justify-between rounded-lg bg-success-50 px-3 py-2 text-theme-sm text-success-700 dark:bg-success-500/10">
+                <span>{couponCode} · −{money(couponDiscount)}</span>
+                <button className="text-gray-500 hover:text-error-500" onClick={clearCoupon}><CloseIcon className="h-4 w-4" /></button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input value={couponInput} onChange={(e) => setCouponInput(e.target.value.toUpperCase())} placeholder="Coupon code"
+                  className="h-11 flex-1 rounded-lg border border-gray-200 bg-transparent px-3 text-theme-sm dark:border-gray-700 dark:bg-gray-900" />
+                <button onClick={applyCoupon} className="rounded-lg border border-brand-500 px-4 text-theme-sm text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10">Apply</button>
+              </div>
+            )}
+            {couponMsg && <p className="mt-1 text-theme-xs text-error-500">{couponMsg}</p>}
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button size="sm" variant="outline" onClick={() => { setDiscount(""); clearCoupon(); }}>Clear</Button>
+          <Button size="sm" onClick={discountModal.closeModal}>Done</Button>
+        </div>
+      </Modal>
 
       {/* Open shift */}
       <Modal isOpen={openModal.isOpen} onClose={openModal.closeModal} className="max-w-sm p-6">
