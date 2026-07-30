@@ -1,0 +1,29 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - admin-panel
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to droplet
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /var/www/shopos-panel
+            git pull origin admin-panel
+            npm install
+            npm run build
+            rm -rf /tmp/panel-build
+            cp -r dist /tmp/panel-build
+            find /var/www/shopos-panel -mindepth 1 \
+              -not -name '.env.production' \
+              -not -path '*/.git*' \
+              -delete
+            cp -r /tmp/panel-build/* /var/www/shopos-panel/
