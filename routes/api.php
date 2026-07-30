@@ -201,6 +201,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::apiResource('coupons', CouponController::class);
             });
 
+            // Promotions — automatic scheduled discounts (no code). CRUD is
+            // marketing (coupons.manage); the POS preview is a cashier read.
+            Route::post('promotions/preview', [\App\Http\Controllers\Api\V1\Tenant\PromotionController::class, 'preview'])
+                ->middleware('permission:sales.manage');
+            Route::middleware('permission:coupons.manage')->group(function (): void {
+                Route::apiResource('promotions', \App\Http\Controllers\Api\V1\Tenant\PromotionController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
+            });
+
             // Suppliers — vendor directory + payables
             Route::middleware('permission:suppliers.manage')->group(function (): void {
                 Route::apiResource('suppliers', SupplierController::class);

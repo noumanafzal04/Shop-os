@@ -16,6 +16,7 @@ use App\Models\SaleItem;
 use App\Models\SaleItemSerial;
 use App\Services\CouponService;
 use App\Services\InventoryService;
+use App\Services\PromotionService;
 use App\Support\BranchContext;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
@@ -42,6 +43,7 @@ class CreateSaleAction
         private readonly TenantContext $context,
         private readonly CouponService $coupons,
         private readonly BranchContext $branchContext,
+        private readonly PromotionService $promotions,
     ) {
     }
 
@@ -300,6 +302,31 @@ class CreateSaleAction
                 $couponCode = $result['code'];
             }
 
+            // ── Promotions (automatic, scheduled) ────────────────────
+            // The best live promotion for this cart — applied as a discount and
+            // stamped on the sale for attribution. POS/direct only: an online
+            // order / reservation replays its own settled total on the trusted
+            // path. Evaluated BEFORE loyalty so a redemption can't exceed the
+            // already-promo'd bill.
+            $promotionId = null;
+            $promoName = null;
+            $promoDiscount = 0.0;
+            if (! $trusted) {
+                $best = $this->promotions->best(
+                    array_map(fn ($l) => ['product' => $l['product'], 'quantity' => $l['quantity'], 'line_total' => $l['line_total']], $lines),
+                    $subtotal,
+                    now()->setTimezone($shopTimezone ?: 'Asia/Karachi'),
+                );
+                if ($best !== null) {
+                    $promoDiscount = round(min($best['discount'], round($subtotal - $discount, 2)), 2);
+                    if ($promoDiscount > 0) {
+                        $discount = round($discount + $promoDiscount, 2);
+                        $promotionId = $best['promotion']->id;
+                        $promoName = $best['promotion']->name;
+                    }
+                }
+            }
+
             // ── Loyalty redemption ───────────────────────────────────
             // Points the customer spends become a counter discount (points ×
             // the shop's redeem_value), folded into the bill's discount before
@@ -432,6 +459,9 @@ class CreateSaleAction
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'coupon_code' => $couponCode,
+                'promotion_id' => $promotionId,
+                'promo_name' => $promoName,
+                'promo_discount' => $promoDiscount,
                 'tax' => $tax,
                 'total' => $total,
                 'payment_method' => $paymentMethod,

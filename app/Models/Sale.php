@@ -21,6 +21,7 @@ class Sale extends BaseModel
             'payment_method' => PaymentMethod::class,
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
+            'promo_discount' => 'decimal:2',
             'tax' => 'decimal:2',
             'total' => 'decimal:2',
             'amount_paid' => 'decimal:2',
