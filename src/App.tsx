@@ -50,6 +50,7 @@ const TabPage = lazy(() => import("./modules/dinein/pages/TabPage"));
 const SuppliersPage = lazy(() => import("./modules/purchases/pages/SuppliersPage"));
 const CustomersPage = lazy(() => import("./modules/customers/pages/CustomersPage"));
 const CouponsPage = lazy(() => import("./modules/coupons/pages/CouponsPage"));
+const PromotionsPage = lazy(() => import("./modules/promotions/pages/PromotionsPage"));
 const PortfolioPage = lazy(() => import("./modules/shop/pages/PortfolioPage"));
 const PurchaseOrdersPage = lazy(() => import("./modules/purchases/pages/PurchaseOrdersPage"));
 const InventoryPage = lazy(() => import("./modules/inventory/pages/InventoryPage"));
@@ -138,6 +139,7 @@ export default function App() {
                   <Route path="purchases" element={<PurchaseOrdersPage />} />
                   <Route path="customers" element={<CustomersPage />} />
                   <Route path="coupons" element={<CouponsPage />} />
+                  <Route path="promotions" element={<PromotionsPage />} />
                   <Route path="portfolio" element={<PortfolioPage />} />
                   <Route path="inventory" element={<InventoryPage />} />
                   <Route path="sales" element={<SalesPage />} />

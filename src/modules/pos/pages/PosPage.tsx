@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { uuid } from "../../../common/uuid";
 import { ChevronLeftIcon, PencilIcon, TrashBinIcon, PlusIcon, AlertIcon, CloseIcon, DollarLineIcon, ListIcon, UserCircleIcon, CheckLineIcon } from "../../../icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
@@ -19,6 +20,7 @@ import { posService, type HeldSale } from "../services/posService";
 import { useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
+import { promotionsService, type PromoPreview } from "../../promotions/services/promotionsService";
 
 interface CartLine {
   key: string;
@@ -218,11 +220,13 @@ export default function PosPage() {
   // Loyalty: the attached customer's point balance + points being redeemed.
   const [customerPoints, setCustomerPoints] = useState<number | null>(null);
   const [redeemPts, setRedeemPts] = useState("");
+  // Promotions: the best auto-promo for the current cart (server preview).
+  const [promo, setPromo] = useState<PromoPreview | null>(null);
 
   // One idempotency key per cart state: a network retry of the SAME cart
   // reuses the key (server dedupes); any cart change mints a new one.
-  const idemRef = useRef<string>(crypto.randomUUID());
-  useEffect(() => { idemRef.current = crypto.randomUUID(); }, [cart]);
+  const idemRef = useRef<string>(uuid());
+  useEffect(() => { idemRef.current = uuid(); }, [cart]);
 
   // Keyboard-first POS: function keys drive the till so a cashier never
   // reaches for the mouse. actionsRef always holds the latest handlers so the
@@ -313,7 +317,9 @@ export default function PosPage() {
   const minRedeem = Number(settings.data?.loyalty_min_redeem ?? 0);
   const redeemPtsNum = loyaltyOn ? Math.max(0, Math.floor(Number(redeemPts) || 0)) : 0;
   const loyaltyDiscount = redeemPtsNum * redeemValue;
-  const cartDiscount = (Number(discount) || 0) + couponDiscount + loyaltyDiscount;
+  // Auto-promo discount (server preview) — folded in like a coupon.
+  const promoDiscount = promo?.discount ?? 0;
+  const cartDiscount = (Number(discount) || 0) + couponDiscount + promoDiscount + loyaltyDiscount;
   const taxableBase = Math.max(0, subtotal - cartDiscount);
   const taxAmount = subtotal > 0
     ? Math.round(cart.reduce((s, l) => {
@@ -324,7 +330,7 @@ export default function PosPage() {
   const total = Math.max(0, subtotal - cartDiscount + taxAmount);
   // Cap redemption to the customer's balance and to the bill (after other
   // discounts); estimate points this sale will earn on the net merchandise.
-  const otherDiscount = (Number(discount) || 0) + couponDiscount;
+  const otherDiscount = (Number(discount) || 0) + couponDiscount + promoDiscount;
   const maxRedeemable = Math.max(0, Math.min(customerPoints ?? 0, Math.floor((subtotal - otherDiscount) / (redeemValue || 1))));
   const earnEst = loyaltyOn && earnPer > 0 && customerPhone.trim() !== "" ? Math.floor(Math.max(0, subtotal - cartDiscount) / earnPer) : 0;
   const splitPaid = tenders.reduce((s, t) => s + (Number(t.amount) || 0), 0);
@@ -372,11 +378,23 @@ export default function PosPage() {
     return () => { alive = false; };
   }, [customerPhone, loyaltyOn]);
 
+  // Promotions: preview the best auto-promo whenever the cart changes. The
+  // server re-applies it authoritatively at checkout — this is display only.
+  useEffect(() => {
+    if (cart.length === 0) { setPromo(null); return; }
+    let alive = true;
+    promotionsService
+      .preview(cart.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity })))
+      .then(({ data }) => { if (alive) setPromo(data); })
+      .catch(() => { if (alive) setPromo(null); });
+    return () => { alive = false; };
+  }, [cart]);
+
   const clearSale = () => {
     setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone("");
     setTableNo(""); setOrderType("takeaway"); setMethod("cash"); setTenders([{ method: "cash", amount: "" }]); clearCoupon();
     setRxNumber(""); setRxPrescriber(""); setRxPatient("");
-    setCustomerPoints(null); setRedeemPts("");
+    setCustomerPoints(null); setRedeemPts(""); setPromo(null);
   };
 
   const checkout = useMutation({
@@ -1008,6 +1026,14 @@ export default function PosPage() {
                 </div>
               )}
               {couponMsg && <p className="text-theme-xs text-error-500">{couponMsg}</p>}
+
+              {/* Auto-promotion (no code) — applied automatically when live. */}
+              {promo && promo.discount > 0 && (
+                <div className="flex items-center justify-between rounded-lg bg-brand-50 px-3 py-1.5 text-theme-sm text-brand-600 dark:bg-brand-500/10">
+                  <span>Promo · {promo.name}</span>
+                  <span className="font-medium">−{money(promo.discount)}</span>
+                </div>
+              )}
 
               {/* Loyalty — shown when enabled and a known customer is attached. */}
               {loyaltyOn && customerPoints !== null && (

@@ -121,6 +121,7 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, mu
       subItems: [
         { name: "Customer List", path: "/tenant/customers" },
         { name: "Coupons", path: "/tenant/coupons" },
+        { name: "Promotions", path: "/tenant/promotions" },
         ...(has("marketplace") ? [{ name: "Reviews", path: "/tenant/reviews" }] : []),
         ...(has("reservations") ? [{ name: "Reservations", path: "/tenant/reservations" }] : []),
       ],
