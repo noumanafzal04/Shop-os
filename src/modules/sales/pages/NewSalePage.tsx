@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
+import { uuid } from "../../../common/uuid";
 import { Link, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -73,8 +74,8 @@ export default function NewSalePage() {
 
   // Same key while THIS cart state is being submitted → server replays
   // instead of duplicating; new key as soon as the cart changes.
-  const idemRef = useRef<string>(crypto.randomUUID());
-  useEffect(() => { idemRef.current = crypto.randomUUID(); }, [cart]);
+  const idemRef = useRef<string>(uuid());
+  useEffect(() => { idemRef.current = uuid(); }, [cart]);
 
   const subtotal = useMemo(
     () => cart.reduce((sum, line) => sum + lineUnit(line) * line.quantity, 0),
@@ -133,7 +134,7 @@ export default function NewSalePage() {
       },
       {
         onSuccess: () => {
-          idemRef.current = crypto.randomUUID();
+          idemRef.current = uuid();
           navigate("/tenant/sales");
         },
       },

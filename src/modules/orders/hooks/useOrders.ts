@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { ordersService, type OrderStatus, type PlaceOrderPayload } from "../services/ordersService";
+import { uuid } from "../../../common/uuid";
 
 export function useMyOrders(page = 1) {
   return useQuery({
@@ -18,7 +19,7 @@ export function usePlaceOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: PlaceOrderPayload) =>
-      ordersService.place({ idempotency_key: crypto.randomUUID(), ...payload }),
+      ordersService.place({ idempotency_key: uuid(), ...payload }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),
   });
 }

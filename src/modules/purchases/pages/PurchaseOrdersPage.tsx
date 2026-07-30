@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
+import { uuid } from "../../../common/uuid";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -39,12 +40,12 @@ export default function PurchaseOrdersPage() {
   // One idempotency key per receive intent — regenerated when a different PO
   // is opened and after each successful receipt, so a retry after a network
   // error replays instead of double-receiving.
-  const receiveKeyRef = useRef<string>(crypto.randomUUID());
-  useEffect(() => { receiveKeyRef.current = crypto.randomUUID(); }, [detailId]);
+  const receiveKeyRef = useRef<string>(uuid());
+  useEffect(() => { receiveKeyRef.current = uuid(); }, [detailId]);
   const doReceive = (id: string) =>
     receive.mutate(
       { id, idempotency_key: receiveKeyRef.current },
-      { onSuccess: () => { receiveKeyRef.current = crypto.randomUUID(); } },
+      { onSuccess: () => { receiveKeyRef.current = uuid(); } },
     );
 
   // Create form

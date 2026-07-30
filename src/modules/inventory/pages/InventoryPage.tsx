@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import PageMeta from "../../../components/common/PageMeta";
+import { uuid } from "../../../common/uuid";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
 import Alert from "../../../components/ui/alert/Alert";
@@ -72,7 +73,7 @@ export default function InventoryPage() {
 
   // One idempotency key per adjustment intent (a dialog open) — a resubmit
   // after a network error replays the same movement server-side.
-  const idemRef = useRef<string>(crypto.randomUUID());
+  const idemRef = useRef<string>(uuid());
 
   const openAdjust = (product: Product, v: ProductVariant | null = null) => {
     setTarget(product);
@@ -81,7 +82,7 @@ export default function InventoryPage() {
     setQuantity("");
     setReason("");
     adjust.reset();
-    idemRef.current = crypto.randomUUID();
+    idemRef.current = uuid();
     modal.openModal();
   };
 
