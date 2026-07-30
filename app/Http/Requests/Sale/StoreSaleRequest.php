@@ -65,6 +65,10 @@ class StoreSaleRequest extends FormRequest
             'items.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:600'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'coupon_code' => ['nullable', 'string', 'max:40'],
+            // Loyalty: points the customer spends on this sale (converted to a
+            // discount server-side at the shop's redeem_value). A count, never a
+            // price — safe from the client. Needs a linked customer.
+            'redeem_points' => ['nullable', 'integer', 'min:0'],
             // NOTE: no `tax` — tax is server-authoritative, computed from each
             // product's tax rate (see CreateSaleAction). Anything a client sends
             // is dropped by validated().

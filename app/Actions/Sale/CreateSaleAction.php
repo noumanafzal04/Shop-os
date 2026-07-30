@@ -300,6 +300,59 @@ class CreateSaleAction
                 $couponCode = $result['code'];
             }
 
+            // ── Loyalty redemption ───────────────────────────────────
+            // Points the customer spends become a counter discount (points ×
+            // the shop's redeem_value), folded into the bill's discount before
+            // tax. A COUNT, never a price — the server prices it from its own
+            // redeem_value, so a client can't dictate the value. Needs a linked
+            // customer with enough points; never on the trusted path (an online
+            // order / reservation carries its own settled total).
+            $tenant = $this->context->get();
+            $loyaltyOn = ! $trusted && (bool) ($tenant?->setting('loyalty_enabled', false));
+            $pointsRedeemed = 0;
+            $redeemPoints = $trusted ? 0 : (int) ($data['redeem_points'] ?? 0);
+            if ($redeemPoints > 0) {
+                if (! $loyaltyOn) {
+                    throw DomainException::unprocessable('Loyalty rewards are not enabled.', 'LOYALTY_DISABLED');
+                }
+                if (empty($data['customer_phone'])) {
+                    throw DomainException::unprocessable(
+                        "Redeeming points needs a customer — add the customer's phone.",
+                        'LOYALTY_REQUIRES_CUSTOMER',
+                    );
+                }
+                $existing = Customer::query()->where('phone', trim((string) $data['customer_phone']))->first();
+                if ($existing === null || $existing->loyalty_points < $redeemPoints) {
+                    throw DomainException::unprocessable('The customer does not have enough points.', 'INSUFFICIENT_POINTS');
+                }
+                $minRedeem = (int) ($tenant?->setting('loyalty_min_redeem', 0));
+                if ($redeemPoints < $minRedeem) {
+                    throw DomainException::unprocessable("You need at least {$minRedeem} points to redeem.", 'POINTS_BELOW_MIN');
+                }
+                $redeemValue = (float) ($tenant?->setting('loyalty_redeem_value', 1));
+                $loyaltyDiscount = round($redeemPoints * $redeemValue, 2);
+                // Points can't pay for more than the merchandise still owed
+                // (after cart + coupon discount) — keeps the bill non-negative.
+                if ($loyaltyDiscount > round($subtotal - $discount, 2) + 0.001) {
+                    throw DomainException::unprocessable('Points redeemed exceed the bill.', 'POINTS_EXCEED_BILL');
+                }
+                $discount = round($discount + $loyaltyDiscount, 2);
+                $pointsRedeemed = $redeemPoints;
+            }
+
+            // Loyalty earn: points for the net merchandise on this sale (after
+            // ALL discounts, incl. any redeemed value — so a customer never
+            // earns points for spending points). Only when loyalty is on and a
+            // customer will be linked (a phone was given).
+            $pointsEarned = 0;
+            if ($loyaltyOn && ! empty($data['customer_phone'])) {
+                $earnPer = (float) ($tenant?->setting('loyalty_earn_per_amount', 0));
+                $earnBase = round($subtotal - $discount, 2);
+                if ($earnPer > 0 && $earnBase > 0) {
+                    $pointsEarned = (int) floor($earnBase / $earnPer);
+                }
+            }
+
             // ── Server-authoritative tax ─────────────────────────────
             // Computed per line from each product's effective rate
             // (product.tax_rate, else the shop's default_tax_rate; 0 = exempt),
@@ -384,6 +437,8 @@ class CreateSaleAction
                 'payment_method' => $paymentMethod,
                 'amount_paid' => $amountPaid,
                 'change_due' => round($amountPaid - $total, 2),
+                'points_earned' => $pointsEarned,
+                'points_redeemed' => $pointsRedeemed,
                 'notes' => $data['notes'] ?? null,
                 // Pharmacy: prescription record (captured at POS for Rx items).
                 'prescription_number' => $data['prescription_number'] ?? null,
@@ -400,6 +455,24 @@ class CreateSaleAction
                 $customer = Customer::capture($tenantId, $data['customer_phone'], $data['customer_name'] ?? null);
                 if ($customer !== null) {
                     $sale->forceFill(['customer_id' => $customer->id])->save();
+                }
+            }
+
+            // Apply loyalty under a row lock (concurrent tills can't lose an
+            // update or double-spend): redeem first, then earn. The balance is
+            // re-checked here authoritatively — a stale earlier read that lost a
+            // race rolls the whole sale back. Ledger entries carry the sale id
+            // so a return/cancel reverses exactly this.
+            if ($customer !== null && ($pointsRedeemed > 0 || $pointsEarned > 0)) {
+                $locked = Customer::query()->whereKey($customer->id)->lockForUpdate()->first();
+                if ($pointsRedeemed > 0) {
+                    if ($locked->loyalty_points < $pointsRedeemed) {
+                        throw DomainException::unprocessable('The customer does not have enough points.', 'INSUFFICIENT_POINTS');
+                    }
+                    $locked->redeemPoints($pointsRedeemed, $sale->id, "Sale {$invoiceNumber}");
+                }
+                if ($pointsEarned > 0) {
+                    $locked->earnPoints($pointsEarned, $sale->id, "Sale {$invoiceNumber}");
                 }
             }
 

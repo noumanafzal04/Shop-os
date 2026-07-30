@@ -66,6 +66,30 @@ class CustomerController extends Controller
         return ApiResponse::created($customer, 'Customer added');
     }
 
+    /**
+     * POS lookup by phone: the till shows the customer's loyalty points +
+     * credit so the cashier can redeem/charge. Returns null data (200, not
+     * 404) when no CRM record exists yet — a first-time walk-in is normal.
+     */
+    public function lookup(Request $request): JsonResponse
+    {
+        $phone = trim((string) $request->query('phone', ''));
+        if ($phone === '') {
+            return ApiResponse::ok(null);
+        }
+
+        $customer = Customer::query()->where('phone', $phone)->first();
+
+        return ApiResponse::ok($customer === null ? null : [
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'phone' => $customer->phone,
+            'loyalty_points' => (int) $customer->loyalty_points,
+            'credit_balance' => (float) $customer->credit_balance,
+            'credit_limit' => $customer->credit_limit !== null ? (float) $customer->credit_limit : null,
+        ]);
+    }
+
     public function show(string $id): JsonResponse
     {
         /** @var Customer $customer */
@@ -89,6 +113,8 @@ class CustomerController extends Controller
 
         // Khata statement — most recent ledger movements.
         $customer->setAttribute('ledger', $customer->ledgerEntries()->limit(50)->get());
+        // Loyalty statement — most recent points movements.
+        $customer->setAttribute('loyalty_ledger', $customer->loyaltyEntries()->limit(50)->get());
 
         return ApiResponse::ok($customer);
     }

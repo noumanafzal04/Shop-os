@@ -48,6 +48,16 @@ class ShopSettings
             'pos_auto_print' => false,
             'pos_require_shift' => true,
 
+            // ── Loyalty & rewards ───────────────────────────────────────
+            // Customers earn points on completed sales and redeem them as a
+            // counter discount. Off by default. earn_per_amount = the spend (in
+            // Rs) that earns 1 point; redeem_value = the Rs each point is worth
+            // when redeemed; min_redeem = points needed before any redemption.
+            'loyalty_enabled' => false,
+            'loyalty_earn_per_amount' => 100,  // 1 point per Rs 100 spent
+            'loyalty_redeem_value' => 1,       // 1 point = Rs 1
+            'loyalty_min_redeem' => 100,       // must have ≥100 pts to redeem
+
             // Barcode labels
             'barcode_show_price' => true,
             'barcode_show_name' => true,
@@ -85,6 +95,10 @@ class ShopSettings
             'pos_default_payment' => ['sometimes', 'in:cash,card'],
             'pos_auto_print' => ['sometimes', 'boolean'],
             'pos_require_shift' => ['sometimes', 'boolean'],
+            'loyalty_enabled' => ['sometimes', 'boolean'],
+            'loyalty_earn_per_amount' => ['sometimes', 'numeric', 'min:1', 'max:1000000'],
+            'loyalty_redeem_value' => ['sometimes', 'numeric', 'min:0.01', 'max:100000'],
+            'loyalty_min_redeem' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
             'barcode_show_price' => ['sometimes', 'boolean'],
             'barcode_show_name' => ['sometimes', 'boolean'],
             'scale_barcode_enabled' => ['sometimes', 'boolean'],

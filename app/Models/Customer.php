@@ -21,6 +21,7 @@ class Customer extends BaseModel
             'last_seen_at' => 'datetime',
             'credit_balance' => 'decimal:2',
             'credit_limit' => 'decimal:2',
+            'loyalty_points' => 'integer',
         ];
     }
 
@@ -32,6 +33,75 @@ class Customer extends BaseModel
     public function ledgerEntries(): HasMany
     {
         return $this->hasMany(CustomerLedgerEntry::class)->latest();
+    }
+
+    public function loyaltyEntries(): HasMany
+    {
+        return $this->hasMany(LoyaltyEntry::class)->latest();
+    }
+
+    // ── Loyalty points ────────────────────────────────────────────────
+    // Mirror of the khata ledger: a running balance + append-only entries,
+    // so returns/cancels reverse symmetrically and can never over-reverse.
+
+    /** Earn points on a completed sale (+balance). */
+    public function earnPoints(int $points, ?string $saleId, ?string $note = null): ?LoyaltyEntry
+    {
+        return $points > 0 ? $this->postLoyalty('earn', $points, $points, $saleId, $note) : null;
+    }
+
+    /** Redeem points at the counter (−balance). Caller has already validated the balance. */
+    public function redeemPoints(int $points, ?string $saleId, ?string $note = null): ?LoyaltyEntry
+    {
+        return $points > 0 ? $this->postLoyalty('redeem', $points, -$points, $saleId, $note) : null;
+    }
+
+    /** Claw back earned points on a return/cancel (−balance). */
+    public function reverseEarnedPoints(int $points, ?string $saleId, ?string $note = null): ?LoyaltyEntry
+    {
+        return $points > 0 ? $this->postLoyalty('reverse_earn', $points, -$points, $saleId, $note) : null;
+    }
+
+    /** Give back redeemed points on a return/cancel (+balance). */
+    public function refundRedeemedPoints(int $points, ?string $saleId, ?string $note = null): ?LoyaltyEntry
+    {
+        return $points > 0 ? $this->postLoyalty('reverse_redeem', $points, $points, $saleId, $note) : null;
+    }
+
+    /** Earned points on a sale still eligible to be clawed back (earned − already reversed). */
+    public function loyaltyEarnedReversible(string $saleId): int
+    {
+        $earned = (int) $this->loyaltyEntries()->where('sale_id', $saleId)->where('type', 'earn')->sum('points');
+        $reversed = (int) $this->loyaltyEntries()->where('sale_id', $saleId)->where('type', 'reverse_earn')->sum('points');
+
+        return max(0, $earned - $reversed);
+    }
+
+    /** Redeemed points on a sale still eligible to be refunded (redeemed − already refunded). */
+    public function loyaltyRedeemedReversible(string $saleId): int
+    {
+        $redeemed = (int) $this->loyaltyEntries()->where('sale_id', $saleId)->where('type', 'redeem')->sum('points');
+        $refunded = (int) $this->loyaltyEntries()->where('sale_id', $saleId)->where('type', 'reverse_redeem')->sum('points');
+
+        return max(0, $redeemed - $refunded);
+    }
+
+    /** Apply a signed delta to the balance and append the ledger entry. */
+    private function postLoyalty(string $type, int $points, int $delta, ?string $saleId, ?string $note): LoyaltyEntry
+    {
+        // Balance never goes negative — clawback can't take points already spent.
+        $newBalance = max(0, (int) $this->loyalty_points + $delta);
+        $this->forceFill(['loyalty_points' => $newBalance])->save();
+
+        return $this->loyaltyEntries()->create([
+            'tenant_id' => $this->tenant_id,
+            'type' => $type,
+            'points' => $points,
+            'balance_after' => $newBalance,
+            'sale_id' => $saleId,
+            'note' => $note,
+            'created_by' => auth()->id(),
+        ]);
     }
 
     /**

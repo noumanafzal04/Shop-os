@@ -190,6 +190,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::apiResource('customers', CustomerController::class);
             });
 
+            // POS customer lookup by phone — loyalty points + credit for the
+            // till (cashiers have sales.manage, not necessarily customers.manage).
+            Route::get('customers-lookup', [CustomerController::class, 'lookup'])
+                ->middleware('permission:sales.manage');
+
             // Coupons — discount codes for POS + checkout
             Route::middleware('permission:coupons.manage')->group(function (): void {
                 Route::post('coupons/validate', [CouponController::class, 'validateCode']);

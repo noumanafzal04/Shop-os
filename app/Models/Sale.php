@@ -25,6 +25,8 @@ class Sale extends BaseModel
             'total' => 'decimal:2',
             'amount_paid' => 'decimal:2',
             'change_due' => 'decimal:2',
+            'points_earned' => 'integer',
+            'points_redeemed' => 'integer',
             'sold_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];

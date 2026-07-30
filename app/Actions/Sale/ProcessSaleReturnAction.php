@@ -269,6 +269,22 @@ class ProcessSaleReturnAction
                 }
             }
 
+            // Loyalty symmetry: a return claws back the points EARNED on the
+            // returned value and gives back the points SPENT on it — both
+            // proportional to the refunded fraction of the sale, and capped
+            // per-sale so repeated partial returns can never over-reverse.
+            if ($sale->customer_id !== null && ((int) $sale->points_earned > 0 || (int) $sale->points_redeemed > 0)) {
+                $saleTotal = (float) $sale->total;
+                $fraction = $saleTotal > 0 ? min(1.0, $refundTotal / $saleTotal) : 1.0;
+                $loyaltyCustomer = Customer::query()->whereKey($sale->customer_id)->lockForUpdate()->first();
+                if ($loyaltyCustomer !== null) {
+                    $clawback = min((int) round((int) $sale->points_earned * $fraction), $loyaltyCustomer->loyaltyEarnedReversible($sale->id));
+                    $loyaltyCustomer->reverseEarnedPoints($clawback, $sale->id, "Return {$return->return_number}");
+                    $giveBack = min((int) round((int) $sale->points_redeemed * $fraction), $loyaltyCustomer->loyaltyRedeemedReversible($sale->id));
+                    $loyaltyCustomer->refundRedeemedPoints($giveBack, $sale->id, "Return {$return->return_number}");
+                }
+            }
+
             // Recompute sale status from total returned vs sold. Decimal-safe
             // so a fully-returned weight sale (e.g. 2.5 kg) actually lands on
             // Refunded instead of being stuck at PartiallyRefunded.

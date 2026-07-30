@@ -99,6 +99,18 @@ class CancelSaleAction
                 }
             }
 
+            // Loyalty symmetry: a void reverses the whole sale's loyalty effect
+            // — give back every redeemed point and claw back every earned point
+            // still standing (clawback is capped to the current balance inside
+            // the model, so points already spent aren't forced negative).
+            if ($sale->customer_id !== null && ((int) $sale->points_earned > 0 || (int) $sale->points_redeemed > 0)) {
+                $loyaltyCustomer = Customer::query()->whereKey($sale->customer_id)->lockForUpdate()->first();
+                if ($loyaltyCustomer !== null) {
+                    $loyaltyCustomer->reverseEarnedPoints($loyaltyCustomer->loyaltyEarnedReversible($sale->id), $sale->id, "Cancelled {$sale->invoice_number}");
+                    $loyaltyCustomer->refundRedeemedPoints($loyaltyCustomer->loyaltyRedeemedReversible($sale->id), $sale->id, "Cancelled {$sale->invoice_number}");
+                }
+            }
+
             $sale->forceFill([
                 'status' => SaleStatus::Cancelled,
                 'cancelled_at' => now(),
