@@ -52,6 +52,9 @@ export interface AddItemLine {
 
 export interface SettlePayload {
   item_ids?: string[];
+  // Split-by-quantity: settle only part of a line (e.g. 2 of 3). Takes
+  // precedence over item_ids on the backend when present.
+  splits?: Array<{ id: string; quantity: number }>;
   payment_method?: string;
   amount_paid?: number;
   payments?: Array<{ method: string; amount: number; reference?: string }>;

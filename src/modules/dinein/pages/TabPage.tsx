@@ -54,9 +54,10 @@ export default function TabPage() {
   const [modProduct, setModProduct] = useState<Product | null>(null);
   const [picked, setPicked] = useState<Record<string, string[]>>({}); // groupId -> optionIds
 
-  // Settle
+  // Settle — per-line quantity chosen for this payment (0 = skip the line,
+  // < line qty = split part of it, = line qty = the whole line).
   const settleModal = useModal();
-  const [settleIds, setSettleIds] = useState<string[]>([]);
+  const [settleQty, setSettleQty] = useState<Record<string, number>>({});
   const [method, setMethod] = useState("cash");
 
   const liveItems = useMemo(
@@ -136,7 +137,8 @@ export default function TabPage() {
   };
 
   const openSettle = () => {
-    setSettleIds(unsettled.map((i) => i.id)); // default: whole remaining bill
+    // Default: every unsettled line at its full quantity = the whole bill.
+    setSettleQty(Object.fromEntries(unsettled.map((i) => [i.id, Number(i.quantity)])));
     setMethod("cash");
     settle.reset();
     settleModal.openModal();
@@ -147,20 +149,29 @@ export default function TabPage() {
   // from the shop's default rate (the common case — food usually shares one
   // rate or is tax-free); an over-estimate is safe (it just books change_due),
   // and the printed invoice always carries the exact figure.
-  const settleSubtotal = unsettled
-    .filter((i) => settleIds.includes(i.id))
-    .reduce((sum, i) => sum + Number(i.line_total), 0);
+  // Each line's contribution = its total prorated to the chosen quantity, so a
+  // partial split collects exactly its share (discounts / modifiers included).
+  const settleSubtotal = unsettled.reduce((sum, i) => {
+    const q = settleQty[i.id] ?? 0;
+    const lineQty = Number(i.quantity) || 1;
+    return sum + Math.round(((Number(i.line_total) * q) / lineQty) * 100) / 100;
+  }, 0);
   const settleTax = Math.round(settleSubtotal * taxRate) / 100;
   const settleDue = Math.round((settleSubtotal + settleTax) * 100) / 100;
+  const settleCount = unsettled.filter((i) => (settleQty[i.id] ?? 0) > 0).length;
+  const settlingWhole = unsettled.length > 0 && unsettled.every((i) => (settleQty[i.id] ?? 0) >= Number(i.quantity));
 
   const confirmSettle = () => {
-    if (!id || settleIds.length === 0 || settle.isPending) return;
-    const whole = settleIds.length === unsettled.length;
+    if (!id || settleCount === 0 || settle.isPending) return;
+    // Always send splits (a full-qty split settles the whole line server-side).
+    const splits = unsettled
+      .filter((i) => (settleQty[i.id] ?? 0) > 0)
+      .map((i) => ({ id: i.id, quantity: settleQty[i.id] }));
     settle.mutate(
       {
         id,
         payload: {
-          item_ids: whole ? undefined : settleIds,
+          splits,
           payment_method: method,
           amount_paid: settleDue,
         },
@@ -356,24 +367,40 @@ export default function TabPage() {
       <Modal isOpen={settleModal.isOpen} onClose={settleModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Settle tab</h3>
         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-          Tick items to split the bill, or leave all ticked to settle the whole tab.
+          Choose how many of each item to settle — leave every line at its full count for the whole tab, or lower one to split part of it.
         </p>
         <div className="mb-4 max-h-[40vh] space-y-1 overflow-y-auto">
-          {unsettled.map((i) => (
-            <label key={i.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-800">
-              <span className="flex items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-200">
-                <input
-                  type="checkbox"
-                  checked={settleIds.includes(i.id)}
-                  onChange={(e) =>
-                    setSettleIds((prev) => (e.target.checked ? [...prev, i.id] : prev.filter((x) => x !== i.id)))
-                  }
-                />
-                {Number(i.quantity)}× {i.product_name}
-              </span>
-              <span className="text-theme-sm">{money(i.line_total)}</span>
-            </label>
-          ))}
+          {unsettled.map((i) => {
+            const lineQty = Number(i.quantity);
+            const q = settleQty[i.id] ?? 0;
+            const setQ = (next: number) =>
+              setSettleQty((prev) => ({ ...prev, [i.id]: Math.max(0, Math.min(lineQty, next)) }));
+            return (
+              <div key={i.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-800">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-theme-sm text-gray-700 dark:text-gray-200">{i.product_name}</p>
+                  <p className="text-theme-xs text-gray-400">{lineQty}× · {money(i.line_total)}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setQ(q - 1)}
+                    disabled={q <= 0}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+                    aria-label={`Settle less ${i.product_name}`}
+                  >−</button>
+                  <span className="w-7 text-center text-theme-sm tabular-nums text-gray-800 dark:text-white/90">{q}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQ(q + 1)}
+                    disabled={q >= lineQty}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+                    aria-label={`Settle more ${i.product_name}`}
+                  >+</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
         <div className="mb-4">
           <Label>Payment</Label>
@@ -389,7 +416,7 @@ export default function TabPage() {
         </div>
         <div className="mb-4 space-y-1 rounded-lg bg-gray-50 px-4 py-3 dark:bg-gray-800/50">
           <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
-            <span>{settleIds.length === unsettled.length ? "Whole bill" : `${settleIds.length} item(s)`}</span>
+            <span>{settlingWhole ? "Whole bill" : `${settleCount} item(s)`}</span>
             <span>{money(settleSubtotal)}</span>
           </div>
           {settleTax > 0 && (
@@ -405,7 +432,7 @@ export default function TabPage() {
         </div>
         <div className="flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={settleModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={confirmSettle} disabled={settleIds.length === 0 || settle.isPending}>
+          <Button size="sm" onClick={confirmSettle} disabled={settleCount === 0 || settle.isPending}>
             {settle.isPending ? "Settling…" : `Take ${money(settleDue)}`}
           </Button>
         </div>

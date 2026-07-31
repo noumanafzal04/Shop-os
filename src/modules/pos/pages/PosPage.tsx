@@ -18,6 +18,7 @@ import type { Product as CatalogProduct, ProductUnit } from "../../catalog/types
 import { salesService } from "../../sales/services/salesService";
 import type { Sale } from "../../sales/types";
 import { posService, type HeldSale } from "../services/posService";
+import { posSound } from "../posSound";
 import { useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
@@ -87,6 +88,13 @@ const SearchGlyph = () => (
 // Credit / khata (pay-later) — a small ledger/notebook glyph.
 const CreditGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className={iconCls}><rect x="4" y="2.5" width="12" height="15" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><path d="M7 6h6M7 9h6M7 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+);
+// Scan-sound toggle glyphs — speaker with waves (on) / a slash (muted).
+const SpeakerOnGlyph = () => (
+  <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4"><path d="M4 8v4h2.5L10 15V5L6.5 8H4z" fill="currentColor" /><path d="M12.5 7.5a3 3 0 010 5M14.5 5.5a5.5 5.5 0 010 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
+);
+const SpeakerOffGlyph = () => (
+  <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4"><path d="M4 8v4h2.5L10 15V5L6.5 8H4z" fill="currentColor" /><path d="M13 8l4 4M17 8l-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
 );
 
 type PayMethod = "cash" | "card" | "credit" | "split";
@@ -219,6 +227,7 @@ export default function PosPage() {
   const [payMenuOpen, setPayMenuOpen] = useState(false);
   const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [soundMuted, setSoundMuted] = useState<boolean>(() => posSound.isMuted());
   // Pharmacy prescription capture (shown when the cart holds an Rx item).
   const [rxNumber, setRxNumber] = useState("");
   const [rxPrescriber, setRxPrescriber] = useState("");
@@ -556,8 +565,10 @@ export default function PosPage() {
       if (data.near_expiry) notices.push(`${data.product.name}: batch ${data.near_expiry.batch_number} expires in ${data.near_expiry.days} day(s) (${data.near_expiry.expiry_date})`);
       setPosNotice(notices.length ? notices.join(" · ") : null);
       setSearch("");
+      posSound.success();
     } catch (e) {
       setScanError(e instanceof ApiError ? e.message : "Lookup failed.");
+      posSound.error();
     }
   };
 
@@ -566,8 +577,9 @@ export default function PosPage() {
   // starts fresh (focus never leaves the input, so the cashier keeps typing).
   const commitProduct = (p: CatalogProduct) => {
     const out = p.type === "product" && p.track_inventory && Number(p.stock_quantity) <= 0;
-    if (out) { setPosNotice(`${p.name} is out of stock`); return; }
+    if (out) { setPosNotice(`${p.name} is out of stock`); posSound.error(); return; }
     if (p.modifier_groups?.length) openConfig(p); else addLine(p);
+    posSound.success();
     setSearch("");
     setActiveIndex(0);
   };
@@ -785,6 +797,15 @@ export default function PosPage() {
                 className="h-14 w-full rounded-xl border border-gray-200 bg-white pl-12 pr-28 text-base text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
               />
               <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { const next = !soundMuted; posSound.setMuted(next); setSoundMuted(next); if (!next) posSound.success(); scanRef.current?.focus(); }}
+                  className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
+                  title={soundMuted ? "Scan sounds off — click to enable" : "Scan sounds on — click to mute"}
+                  aria-label={soundMuted ? "Enable scan sounds" : "Mute scan sounds"}
+                >
+                  {soundMuted ? <SpeakerOffGlyph /> : <SpeakerOnGlyph />}
+                </button>
                 {search ? (
                   <button onClick={() => { setSearch(""); scanRef.current?.focus(); }} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5" title="Clear (Esc)"><CloseIcon className="h-4 w-4" /></button>
                 ) : (

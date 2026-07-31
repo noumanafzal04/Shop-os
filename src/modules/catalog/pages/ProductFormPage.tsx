@@ -143,6 +143,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [recipeRows, setRecipeRows] = useState<Array<{ ingredient_product_id: string; quantity: string }>>([]);
   const [brand, setBrand] = useState("");
   const [genericName, setGenericName] = useState("");
+  const [strength, setStrength] = useState("");
+  const [dosageForm, setDosageForm] = useState("");
   const [requiresRx, setRequiresRx] = useState(false);
   // Serialized retail (phones/electronics): capture a serial/IMEI per unit at
   // the till, with a default warranty length.
@@ -160,8 +162,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [minOrderQty, setMinOrderQty] = useState("");
   const [stock, setStock] = useState("0");
   const [lowStockThreshold, setLowStockThreshold] = useState("");
-  // Opening-lot expiry — required for a medicine created with opening stock.
+  // Opening-lot expiry + batch number — for a medicine created with opening stock.
   const [expiryDate, setExpiryDate] = useState("");
+  const [openingBatch, setOpeningBatch] = useState("");
   const [duration, setDuration] = useState("");
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
@@ -238,6 +241,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setPluCode(p.plu_code ?? "");
       setBrand(p.brand ?? "");
       setGenericName(p.generic_name ?? "");
+      setStrength(p.strength ?? "");
+      setDosageForm(p.dosage_form ?? "");
       setRequiresRx(p.requires_prescription ?? false);
       setTrackSerial(p.tracks_serial ?? false);
       setWarrantyMonths(p.warranty_months != null ? String(p.warranty_months) : "");
@@ -300,6 +305,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       plu_code: !posEnabled || isService || soldBy !== "weight" ? null : pluCode.trim() || null,
       brand: brand.trim() || undefined,
       generic_name: genericName.trim() || undefined,
+      strength: isMedicine ? (strength.trim() || null) : undefined,
+      dosage_form: isMedicine ? (dosageForm || null) : undefined,
       requires_prescription: isMedicine ? requiresRx : undefined,
       // Serialized retail — only physical goods carry a serial/IMEI + warranty.
       tracks_serial: isPhysical ? trackSerial : undefined,
@@ -362,9 +369,10 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 stock_quantity: trackStock ? Number(stock) || 0 : 0,
               }
             : {}),
-          // Opening-lot expiry for a medicine (backend requires it when there's
-          // opening stock; harmless otherwise).
+          // Opening-lot expiry + batch number for a medicine (backend requires
+          // the expiry when there's opening stock; both harmless otherwise).
           ...(isMedicine && expiryDate ? { expiry_date: expiryDate } : {}),
+          ...(isMedicine && openingBatch.trim() ? { opening_batch_number: openingBatch.trim() } : {}),
           ...(isService ? { duration_minutes: duration ? Number(duration) : undefined } : {}),
           ...(showVariants && variants.length
             ? {
@@ -585,6 +593,23 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   Buyers can find this medicine by its salt as well as its brand name.
                 </p>
               </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label>Strength</Label>
+                  <Input value={strength} onChange={(e) => setStrength(e.target.value)} placeholder="e.g. 500mg" />
+                </div>
+                <div>
+                  <Label>Dosage form</Label>
+                  <Select
+                    options={[
+                      { value: "", label: "—" },
+                      ...["Tablet", "Capsule", "Syrup", "Suspension", "Injection", "Drops", "Cream / Ointment", "Inhaler", "Sachet", "Spray", "Gel", "Other"].map((f) => ({ value: f, label: f })),
+                    ]}
+                    value={dosageForm}
+                    onChange={setDosageForm}
+                  />
+                </div>
+              </div>
               <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
                 <input
                   type="checkbox"
@@ -773,15 +798,21 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   />
                 </div>
                 {isMedicine && !isEdit && (
-                  <div>
-                    <Label>
-                      Opening batch expiry{Number(stock) > 0 && <span className="text-error-500"> *</span>}
-                    </Label>
-                    <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
-                    <p className="mt-1 text-theme-xs text-gray-400">
-                      Medicines need an expiry on their opening lot (refine per-lot later on the Batches screen).
-                    </p>
-                  </div>
+                  <>
+                    <div>
+                      <Label>Opening batch number</Label>
+                      <Input value={openingBatch} onChange={(e) => setOpeningBatch(e.target.value)} placeholder="e.g. LOT-2026-01 (defaults to OPENING)" />
+                    </div>
+                    <div>
+                      <Label>
+                        Opening batch expiry{Number(stock) > 0 && <span className="text-error-500"> *</span>}
+                      </Label>
+                      <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+                      <p className="mt-1 text-theme-xs text-gray-400">
+                        Medicines need an expiry on their opening lot (refine per-lot later on the Batches screen).
+                      </p>
+                    </div>
+                  </>
                 )}
               </div>
             )}

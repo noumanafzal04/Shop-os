@@ -72,6 +72,8 @@ export interface Product {
   plu_code: string | null;
   brand: string | null;
   generic_name: string | null;
+  strength?: string | null;
+  dosage_form?: string | null;
   requires_prescription?: boolean;
   // Serialized retail (phones/electronics): capture a serial/IMEI per unit + warranty.
   tracks_serial?: boolean;
@@ -176,6 +178,8 @@ export interface ProductInput {
   plu_code?: string | null;
   brand?: string;
   generic_name?: string;
+  strength?: string | null;
+  dosage_form?: string | null;
   requires_prescription?: boolean;
   tracks_serial?: boolean;
   warranty_months?: number | null;
@@ -197,8 +201,9 @@ export interface ProductInput {
   track_inventory?: boolean;
   stock_quantity?: number;
   low_stock_threshold?: number;
-  // Opening-lot expiry (medicines with opening stock).
+  // Opening-lot expiry + batch number (medicines with opening stock).
   expiry_date?: string;
+  opening_batch_number?: string;
   duration_minutes?: number;
   available_from?: string | null;
   available_until?: string | null;
