@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Enums\SaleStatus;
+use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Customer\RecordCustomerPaymentRequest;
 use App\Http\Requests\Customer\StoreCustomerRequest;
@@ -128,8 +129,23 @@ class CustomerController extends Controller
         $customer = Customer::query()->findOrFail($id);
         $data = $request->validated();
 
+        // Overpaying the khata pushes the balance negative — a legitimate
+        // advance in the customer's favour, but it must be DELIBERATE. Without
+        // an explicit allow_advance the extra is refused instead of silently
+        // banked against a paid-off account (which used to happen unremarked).
+        $amount = (float) $data['amount'];
+        $outstanding = max(0.0, (float) $customer->credit_balance);
+        if ($amount > $outstanding + 0.001 && empty($data['allow_advance'])) {
+            throw DomainException::unprocessable(
+                $outstanding > 0
+                    ? 'Payment exceeds the '.number_format($outstanding, 2).' still owed. Confirm to keep the extra '.number_format($amount - $outstanding, 2).' as an advance.'
+                    : 'This customer owes nothing. Confirm to record this as an advance.',
+                'KHATA_OVERPAYMENT',
+            );
+        }
+
         $entry = $customer->recordCreditPayment(
-            (float) $data['amount'],
+            $amount,
             $data['method'],
             $data['reference'] ?? null,
             $data['note'] ?? null,

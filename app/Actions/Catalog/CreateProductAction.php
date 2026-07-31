@@ -55,6 +55,8 @@ class CreateProductAction
                 'plu_code' => $data['plu_code'] ?? null,
                 'brand' => $data['brand'] ?? null,
                 'generic_name' => $data['generic_name'] ?? null,
+                'strength' => $data['strength'] ?? null,
+                'dosage_form' => $data['dosage_form'] ?? null,
                 'requires_prescription' => $data['requires_prescription'] ?? false,
                 'tracks_serial' => $data['tracks_serial'] ?? false,
                 'warranty_months' => $data['warranty_months'] ?? null,
@@ -98,12 +100,13 @@ class CreateProductAction
             // aligned). Expiry is left blank for the pharmacist to fill in via
             // the Batches screen. No stock movement here: the opening quantity
             // is already on the product, the batch just records its lot.
+            $openingBatch = trim((string) ($data['opening_batch_number'] ?? '')) ?: 'OPENING';
             $openingStock = (float) ($tracksStock ? ($data['stock_quantity'] ?? 0) : 0);
             if ($itemType === ItemTypes::MEDICINE && $openingStock > 0) {
                 $product->batches()->create([
                     'tenant_id' => $product->tenant_id,
                     'branch_id' => $mainBranchId,
-                    'batch_number' => 'OPENING',
+                    'batch_number' => $openingBatch,
                     'expiry_date' => $data['expiry_date'] ?? null,
                     'quantity' => $openingStock,
                     'cost' => $data['cost'] ?? null,
@@ -142,7 +145,7 @@ class CreateProductAction
                         'tenant_id' => $product->tenant_id,
                         'branch_id' => $mainBranchId,
                         'variant_id' => $created->id,
-                        'batch_number' => 'OPENING',
+                        'batch_number' => $openingBatch,
                         'expiry_date' => $data['expiry_date'] ?? null,
                         'quantity' => $variantOpening,
                         'cost' => $variant['cost'] ?? null,

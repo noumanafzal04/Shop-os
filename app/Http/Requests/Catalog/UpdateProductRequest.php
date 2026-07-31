@@ -49,6 +49,8 @@ class UpdateProductRequest extends FormRequest
             ],
             'brand' => ['nullable', 'string', 'max:120'],
             'generic_name' => ['nullable', 'string', 'max:255'],
+            'strength' => ['nullable', 'string', 'max:60'],
+            'dosage_form' => ['nullable', 'string', 'max:40'],
             'requires_prescription' => ['sometimes', 'boolean'],
             // Serialized retail — toggle serial/IMEI capture and default warranty.
             'tracks_serial' => ['sometimes', 'boolean'],
@@ -125,6 +127,8 @@ class UpdateProductRequest extends FormRequest
             if ($this->filled('recipe_items') && $product->item_type !== \App\Support\ItemTypes::FOOD) {
                 $v->errors()->add('recipe_items', 'Only a food dish can have a recipe of ingredients.');
             }
+
+            StoreProductRequest::validatePriceTiers($v, $this->input('price_tiers'));
         });
     }
 

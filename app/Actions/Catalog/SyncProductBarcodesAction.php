@@ -5,11 +5,17 @@ namespace App\Actions\Catalog;
 use App\Exceptions\DomainException;
 use App\Models\Product;
 use App\Models\ProductBarcode;
+use App\Models\ProductUnit;
+use App\Models\ProductVariant;
 
 /**
  * Replaces a product's alternate barcodes. A barcode must resolve to exactly
  * one item in the shop, so each is checked against every OTHER product's
- * primary barcode and every other product's alternates before it's saved.
+ * primary barcode, every other product's alternates, AND the other code
+ * namespaces the POS scan lookup consults — variant SKUs and pack (unit)
+ * barcodes — before it's saved. Otherwise an alternate barcode could shadow a
+ * variant or pack that shares the same code (the product-level match wins the
+ * lookup), so scanning it would ring the wrong line.
  */
 class SyncProductBarcodesAction
 {
@@ -38,9 +44,14 @@ class SyncProductBarcodesAction
                 ->where('product_id', '!=', $product->id)
                 ->exists();
 
-            if ($clashesPrimary || $clashesAlternate) {
+            // A variant SKU or a pack barcode sharing this code would be
+            // shadowed by this (product-level) alternate at scan time.
+            $clashesVariant = ProductVariant::query()->where('sku', $barcode)->exists();
+            $clashesUnit = ProductUnit::query()->where('barcode', $barcode)->exists();
+
+            if ($clashesPrimary || $clashesAlternate || $clashesVariant || $clashesUnit) {
                 throw DomainException::unprocessable(
-                    "Barcode {$barcode} is already used by another product.",
+                    "Barcode {$barcode} is already used as another item's code (product, variant, or pack).",
                     'BARCODE_TAKEN',
                 );
             }

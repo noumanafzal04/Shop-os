@@ -31,6 +31,13 @@ class SettleTicketRequest extends FormRequest
             // whole (remaining) bill.
             'item_ids' => ['nullable', 'array', 'max:200'],
             'item_ids.*' => ['uuid'],
+            // Split-by-QUANTITY: settle only part of a line (e.g. 2 of 3 units
+            // to this payer). Each entry pays `quantity` off the line; a
+            // quantity below the line's leaves the rest open. Takes precedence
+            // over item_ids when present.
+            'splits' => ['nullable', 'array', 'max:200'],
+            'splits.*.id' => ['required_with:splits', 'uuid'],
+            'splits.*.quantity' => ['required_with:splits', 'numeric', 'gt:0'],
             // Single tender OR a split of tenders (same shape as a counter sale).
             'payment_method' => ['required_without:payments', 'in:cash,card,bank_transfer,other,credit'],
             'amount_paid' => ['required_without:payments', 'numeric', 'min:0'],

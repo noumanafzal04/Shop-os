@@ -22,6 +22,9 @@ class RecordCustomerPaymentRequest extends FormRequest
             'method' => ['required', 'in:cash,card,bank_transfer,other'],
             'reference' => ['nullable', 'string', 'max:100'],
             'note' => ['nullable', 'string', 'max:255'],
+            // Explicit opt-in to bank an overpayment as an advance (balance goes
+            // negative). Absent → an overpayment is refused (KHATA_OVERPAYMENT).
+            'allow_advance' => ['sometimes', 'boolean'],
         ];
     }
 }

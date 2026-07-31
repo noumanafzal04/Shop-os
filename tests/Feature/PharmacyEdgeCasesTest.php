@@ -284,6 +284,42 @@ class PharmacyEdgeCasesTest extends TestCase
         ])->assertCreated();
     }
 
+    public function test_medicine_captures_strength_dosage_form_and_opening_batch(): void
+    {
+        [, $owner] = $this->shop();
+
+        $created = $this->actingAsUser($owner)->postJson('/api/v1/products', [
+            'item_type' => 'medicine', 'name' => 'Panadol', 'price' => 50,
+            'generic_name' => 'Paracetamol', 'strength' => '500mg', 'dosage_form' => 'Tablet',
+            'stock_quantity' => 40, 'opening_batch_number' => 'LOT-PANA-01',
+            'expiry_date' => now()->addYear()->toDateString(),
+        ])->assertCreated()->json('data');
+
+        $product = Product::withoutTenancy()->find($created['id']);
+        $this->assertSame('500mg', $product->strength);
+        $this->assertSame('Tablet', $product->dosage_form);
+        $this->assertSame('Paracetamol', $product->generic_name);
+
+        // The opening lot carries the supplied batch number, not the "OPENING"
+        // fallback, and is dated.
+        $lot = ProductBatch::withoutTenancy()->where('product_id', $created['id'])->first();
+        $this->assertSame('LOT-PANA-01', $lot->batch_number);
+        $this->assertEquals(40, (float) $lot->quantity);
+        $this->assertNotNull($lot->expiry_date);
+    }
+
+    public function test_opening_batch_number_defaults_when_omitted(): void
+    {
+        [, $owner] = $this->shop();
+
+        $created = $this->actingAsUser($owner)->postJson('/api/v1/products', [
+            'item_type' => 'medicine', 'name' => 'Disprin', 'price' => 30,
+            'stock_quantity' => 10, 'expiry_date' => now()->addYear()->toDateString(),
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('OPENING', ProductBatch::withoutTenancy()->where('product_id', $created['id'])->value('batch_number'));
+    }
+
     public function test_a_medicine_lots_expiry_cannot_be_cleared(): void
     {
         [$tenant, $owner] = $this->shop();

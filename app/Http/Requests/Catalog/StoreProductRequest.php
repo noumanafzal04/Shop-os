@@ -63,6 +63,12 @@ class StoreProductRequest extends FormRequest
             ],
             'brand' => ['nullable', 'string', 'max:120'],
             'generic_name' => ['nullable', 'string', 'max:255'],
+            // Pharmacy detail — descriptive only (shown for medicine items).
+            'strength' => ['nullable', 'string', 'max:60'],
+            'dosage_form' => ['nullable', 'string', 'max:40'],
+            // Batch number for the day-one opening lot (medicine w/ opening
+            // stock). Optional — defaults to "OPENING" when blank.
+            'opening_batch_number' => ['nullable', 'string', 'max:60'],
             'requires_prescription' => ['sometimes', 'boolean'],
             // Serialized retail (phones/electronics): capture a serial/IMEI per
             // unit at the counter, with a default warranty length. Only stock
@@ -181,7 +187,44 @@ class StoreProductRequest extends FormRequest
                 && ! in_array($itemType, \App\Support\BusinessTypes::itemTypesFor($businessType), true)) {
                 $v->errors()->add('item_type', 'This item type isn\'t available for your business type.');
             }
+
+            self::validatePriceTiers($v, $this->input('price_tiers'));
         });
+    }
+
+    /**
+     * Quantity price tiers must be monotonic: as the quantity break rises, the
+     * per-unit price must not RISE (a bigger box can't cost more per unit) and
+     * two tiers can't share a min_qty (ambiguous). Without this, priceForQty
+     * would land a bulk buyer on a deeper-but-dearer tier, overcharging them.
+     */
+    public static function validatePriceTiers($validator, $tiers): void
+    {
+        if (! is_array($tiers) || count($tiers) < 2) {
+            return;
+        }
+
+        $sorted = collect($tiers)
+            ->filter(fn ($t) => is_array($t) && isset($t['min_qty'], $t['price']))
+            ->sortBy(fn ($t) => (float) $t['min_qty'])
+            ->values();
+
+        $prevMin = null;
+        $prevPrice = null;
+        foreach ($sorted as $t) {
+            $min = (float) $t['min_qty'];
+            $price = (float) $t['price'];
+            if ($prevMin !== null && abs($min - $prevMin) < 0.0001) {
+                $validator->errors()->add('price_tiers', 'Two price tiers share the same minimum quantity.');
+                break;
+            }
+            if ($prevPrice !== null && $price > $prevPrice + 0.001) {
+                $validator->errors()->add('price_tiers', 'A higher-quantity tier can’t cost more per unit than a lower one.');
+                break;
+            }
+            $prevMin = $min;
+            $prevPrice = $price;
+        }
     }
 
     public function messages(): array

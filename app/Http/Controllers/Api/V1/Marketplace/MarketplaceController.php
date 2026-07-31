@@ -445,8 +445,10 @@ class MarketplaceController extends Controller
 
     private function publicProduct(Product $product, ?string $timezone = null): array
     {
-        // Customers see availability, never counts or costs.
-        $inStock = ! $product->track_inventory || $product->stock_quantity > 0;
+        // Customers see availability, never counts or costs. A variant product
+        // holds its stock on the variants, so roll them up — the parent
+        // stock_quantity is orphaned and would otherwise mis-flag in/out.
+        $inStock = ! $product->track_inventory || $product->effectiveStock() > 0;
 
         return [
             'id' => $product->id,
@@ -458,6 +460,8 @@ class MarketplaceController extends Controller
             'original_price' => $product->sellingPrice() < (float) $product->price ? (float) $product->price : null,
             'brand' => $product->brand,
             'generic_name' => $product->generic_name,
+            'strength' => $product->strength,
+            'dosage_form' => $product->dosage_form,
             'requires_prescription' => (bool) $product->requires_prescription,
             'unit' => $product->unit,
             'sold_by' => $product->sold_by,

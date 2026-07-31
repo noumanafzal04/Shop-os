@@ -66,6 +66,47 @@ class SalePriceTest extends TestCase
         $this->assertSame(100.0, $this->item->sellingPrice());
     }
 
+    public function test_price_for_qty_charges_cheapest_qualifying_tier(): void
+    {
+        // Non-monotonic set (deeper tier priced HIGHER): a buyer of 12 must
+        // still pay the cheaper 90 break, never the deeper-but-dearer 100.
+        $this->item->discount_price = null;
+        $this->item->price_tiers = [
+            ['min_qty' => 5, 'price' => 90],
+            ['min_qty' => 10, 'price' => 100],
+        ];
+
+        $this->assertSame(100.0, $this->item->priceForQty(1));  // below any tier → regular
+        $this->assertSame(90.0, $this->item->priceForQty(6));   // 5-tier
+        $this->assertSame(90.0, $this->item->priceForQty(12));  // cheapest qualifying, not the 100
+    }
+
+    public function test_non_monotonic_price_tiers_are_rejected(): void
+    {
+        $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
+            'item_type' => 'physical_product',
+            'name' => 'Bulk Widget',
+            'price' => 100,
+            'price_tiers' => [
+                ['min_qty' => 5, 'price' => 90],
+                ['min_qty' => 10, 'price' => 95], // dearer at higher qty → invalid
+            ],
+        ])->assertStatus(422)->assertJsonStructure(['errors' => ['price_tiers']]);
+    }
+
+    public function test_monotonic_price_tiers_are_accepted(): void
+    {
+        $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
+            'item_type' => 'physical_product',
+            'name' => 'Bulk Widget 2',
+            'price' => 100,
+            'price_tiers' => [
+                ['min_qty' => 5, 'price' => 90],
+                ['min_qty' => 10, 'price' => 80],
+            ],
+        ])->assertCreated();
+    }
+
     public function test_pos_sale_charges_the_sale_price(): void
     {
         $sale = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', [

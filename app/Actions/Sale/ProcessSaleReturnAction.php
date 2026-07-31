@@ -13,6 +13,7 @@ use App\Models\SaleItemSerial;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Services\InventoryService;
+use App\Support\DocumentCounter;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 
@@ -188,14 +189,16 @@ class ProcessSaleReturnAction
             // informational portion held within, never added on top again.
             $refundTotal = $inclusive ? $refundBase : round($refundBase + $refundTax, 2);
 
-            $seq = SaleReturn::query()->count() + 1;
+            // Gap-free, race-safe number from a locked per-tenant counter — a
+            // plain count()+1 lets two concurrent returns mint the same RET-.
+            $returnNumber = DocumentCounter::formatted($tenantId, 'sale_return', 'RET');
 
             /** @var SaleReturn $return */
             $return = SaleReturn::query()->create([
                 'tenant_id' => $tenantId,
                 'sale_id' => $sale->id,
                 'cash_session_id' => $data['cash_session_id'] ?? null,
-                'return_number' => 'RET-'.str_pad((string) $seq, 6, '0', STR_PAD_LEFT),
+                'return_number' => $returnNumber,
                 'refund_total' => $refundTotal,
                 'refund_tax' => $refundTax,
                 // Refund goes back the way the customer paid, unless overridden.

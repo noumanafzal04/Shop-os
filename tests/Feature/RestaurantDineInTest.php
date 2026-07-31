@@ -6,6 +6,7 @@ use App\Models\City;
 use App\Models\DiningTable;
 use App\Models\Product;
 use App\Models\RestaurantTicket;
+use App\Models\RestaurantTicketItem;
 use App\Models\Sale;
 use App\Models\StockMovement;
 use App\Models\Tenant;
@@ -236,6 +237,58 @@ class RestaurantDineInTest extends TestCase
         $this->assertSame(2, Sale::withoutTenancy()->count());
         // A split tab keeps linkage per-item, not one sale on the ticket.
         $this->assertNull(RestaurantTicket::withoutTenancy()->find($tab['id'])->sale_id);
+    }
+
+    public function test_split_by_quantity_settles_part_of_a_line(): void
+    {
+        $tab = $this->openTab();
+        $tab = $this->addItems($tab['id'], [
+            ['product_id' => $this->pizza->id, 'quantity' => 3],  // 3 × 1000 = 3000
+        ]);
+        $pizzaItemId = collect($tab['items'])->firstWhere('product_id', $this->pizza->id)['id'];
+
+        // Pay for just 1 of the 3 pizzas now.
+        $r1 = $this->actingAsUser($this->owner)->postJson("/api/v1/restaurant/tickets/{$tab['id']}/settle", [
+            'splits' => [['id' => $pizzaItemId, 'quantity' => 1]],
+            'payment_method' => 'cash', 'amount_paid' => 1000,
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('1000.00', $r1['sale']['total']);  // one pizza rung
+        $this->assertSame('open', $r1['ticket']['status']);  // 2 still owed
+
+        // The original line keeps the unpaid remainder (2); a paid row (1) was
+        // carved off and stamped with the sale.
+        $this->assertEquals(2, (float) RestaurantTicketItem::withoutTenancy()->find($pizzaItemId)->quantity);
+        $paid = RestaurantTicketItem::withoutTenancy()->where('ticket_id', $tab['id'])->whereNotNull('sale_id')->get();
+        $this->assertCount(1, $paid);
+        $this->assertEquals(1, (float) $paid->first()->quantity);
+        $this->assertEquals(1000, (float) $paid->first()->line_total);
+
+        // Settle the remaining 2 → tab closes; two sales total.
+        $r2 = $this->actingAsUser($this->owner)->postJson("/api/v1/restaurant/tickets/{$tab['id']}/settle", [
+            'payment_method' => 'card', 'amount_paid' => 2000,
+        ])->assertCreated()->json('data');
+        $this->assertSame('2000.00', $r2['sale']['total']);
+        $this->assertSame('closed', $r2['ticket']['status']);
+        $this->assertSame(2, Sale::withoutTenancy()->count());
+    }
+
+    public function test_split_quantity_cannot_exceed_the_unpaid_amount(): void
+    {
+        $tab = $this->openTab();
+        $tab = $this->addItems($tab['id'], [
+            ['product_id' => $this->pizza->id, 'quantity' => 2],
+        ]);
+        $pizzaItemId = collect($tab['items'])->firstWhere('product_id', $this->pizza->id)['id'];
+
+        $this->actingAsUser($this->owner)->postJson("/api/v1/restaurant/tickets/{$tab['id']}/settle", [
+            'splits' => [['id' => $pizzaItemId, 'quantity' => 5]], // only 2 on the line
+            'payment_method' => 'cash', 'amount_paid' => 5000,
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'SPLIT_QTY_EXCEEDED');
+
+        // Nothing settled — the line is untouched and the tab stays open.
+        $this->assertEquals(2, (float) RestaurantTicketItem::withoutTenancy()->find($pizzaItemId)->quantity);
+        $this->assertSame(0, Sale::withoutTenancy()->count());
     }
 
     public function test_voided_item_is_excluded_from_the_bill(): void

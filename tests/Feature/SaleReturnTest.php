@@ -75,6 +75,24 @@ class SaleReturnTest extends TestCase
         $this->assertSame(1, StockMovement::withoutTenancy()->where('reference_type', 'sale_return')->count());
     }
 
+    public function test_return_numbers_come_from_a_gap_free_counter(): void
+    {
+        // Two returns across two sales must get sequential, distinct numbers
+        // from the locked per-tenant counter — never a count()+1 collision.
+        $s1 = $this->makeSale(1);
+        $r1 = $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$s1['id']}/returns", [
+            'items' => [['sale_item_id' => $s1['items'][0]['id'], 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        $s2 = $this->makeSale(1);
+        $r2 = $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$s2['id']}/returns", [
+            'items' => [['sale_item_id' => $s2['items'][0]['id'], 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('RET-000001', $r1['return_number']);
+        $this->assertSame('RET-000002', $r2['return_number']);
+    }
+
     public function test_partial_return_marks_partially_refunded(): void
     {
         $sale = $this->makeSale(3);

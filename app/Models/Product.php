@@ -169,19 +169,24 @@ class Product extends BaseModel
      */
     public function priceForQty(float $qty): float
     {
-        $best = null;
+        $bestPrice = null;
         foreach ($this->price_tiers ?? [] as $tier) {
             $min = (float) ($tier['min_qty'] ?? 0);
             $price = (float) ($tier['price'] ?? 0);
-            if ($min > 0 && $price > 0 && $qty >= $min && ($best === null || $min > $best['min'])) {
-                $best = ['min' => $min, 'price' => $price];
+            // Among EVERY tier the quantity qualifies for, charge the cheapest —
+            // not simply the deepest min_qty. Validation keeps tiers monotonic,
+            // but should a non-monotonic set slip in (legacy data, a deeper tier
+            // priced higher), the buyer still can't be overcharged past a
+            // shallower, cheaper break.
+            if ($min > 0 && $price > 0 && $qty >= $min && ($bestPrice === null || $price < $bestPrice)) {
+                $bestPrice = $price;
             }
         }
 
         // The customer always pays the LOWER of the qualifying wholesale tier
         // and any active sale price — a bulk tier must never override a deeper
         // flash-sale discount into an overcharge.
-        return $best !== null ? min($best['price'], $this->sellingPrice()) : $this->sellingPrice();
+        return $bestPrice !== null ? min($bestPrice, $this->sellingPrice()) : $this->sellingPrice();
     }
 
     /** Does this item have a wholesale price list (a distinct lower rate)? */
@@ -249,10 +254,30 @@ class Product extends BaseModel
         return $this->type === ItemType::Service;
     }
 
+    /**
+     * The stock that actually counts for this product. A product WITH variants
+     * holds no stock of its own — its real quantity is the SUM across variants,
+     * and the parent stock_quantity is an orphaned leftover that must not be
+     * read as truth (low-stock reports, marketplace availability). A product
+     * without variants uses its own stock_quantity.
+     */
+    public function effectiveStock(): float
+    {
+        $variants = $this->relationLoaded('variants')
+            ? $this->variants
+            : $this->variants()->get(['id', 'product_id', 'stock_quantity']);
+
+        if ($variants->isNotEmpty()) {
+            return (float) $variants->sum(fn ($v) => (float) $v->stock_quantity);
+        }
+
+        return (float) $this->stock_quantity;
+    }
+
     public function isLowStock(): bool
     {
         return $this->track_inventory
             && $this->low_stock_threshold !== null
-            && $this->stock_quantity <= $this->low_stock_threshold;
+            && $this->effectiveStock() <= (float) $this->low_stock_threshold;
     }
 }

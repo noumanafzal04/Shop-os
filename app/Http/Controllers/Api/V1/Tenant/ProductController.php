@@ -50,7 +50,20 @@ class ProductController extends Controller
             ->when($request->boolean('low_stock'), function ($q): void {
                 $q->where('track_inventory', true)
                     ->whereNotNull('low_stock_threshold')
-                    ->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
+                    ->where(function ($w): void {
+                        // No variants → the product's own stock is the truth.
+                        $w->where(function ($x): void {
+                            $x->whereDoesntHave('variants')
+                                ->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
+                        })
+                            // Has variants → stock lives on the variants; the
+                            // parent stock_quantity is orphaned, so compare the
+                            // live variant sum against the threshold instead.
+                            ->orWhere(function ($x): void {
+                                $x->whereHas('variants')
+                                    ->whereRaw('(select coalesce(sum(pv.stock_quantity), 0) from product_variants pv where pv.product_id = products.id and pv.deleted_at is null) <= low_stock_threshold');
+                            });
+                    });
             })
             ->orderByDesc('created_at')
             ->paginate(min((int) $request->query('per_page', 15), 100));
@@ -152,7 +165,20 @@ class ProductController extends Controller
             ->when($request->boolean('low_stock'), function ($q): void {
                 $q->where('track_inventory', true)
                     ->whereNotNull('low_stock_threshold')
-                    ->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
+                    ->where(function ($w): void {
+                        // No variants → the product's own stock is the truth.
+                        $w->where(function ($x): void {
+                            $x->whereDoesntHave('variants')
+                                ->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
+                        })
+                            // Has variants → stock lives on the variants; the
+                            // parent stock_quantity is orphaned, so compare the
+                            // live variant sum against the threshold instead.
+                            ->orWhere(function ($x): void {
+                                $x->whereHas('variants')
+                                    ->whereRaw('(select coalesce(sum(pv.stock_quantity), 0) from product_variants pv where pv.product_id = products.id and pv.deleted_at is null) <= low_stock_threshold');
+                            });
+                    });
             })
             ->orderBy('name')
             ->get()

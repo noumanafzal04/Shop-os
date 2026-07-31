@@ -325,6 +325,35 @@ class CatalogTest extends TestCase
         $this->assertSame('Low', $list[0]['name']);
     }
 
+    public function test_low_stock_filter_rolls_up_variant_stock(): void
+    {
+        // Variant products hold real stock on the variants; the parent
+        // stock_quantity is orphaned and must be IGNORED by the low-stock query.
+        $low = Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product',
+            'name' => 'VarLow', 'price' => 10, 'stock_quantity' => 999, // orphaned, must not count
+            'track_inventory' => true, 'low_stock_threshold' => 5,
+        ]);
+        $low->variants()->create(['tenant_id' => $this->tenant->id, 'name' => 'S', 'sku' => 'VL-S', 'price' => 10, 'stock_quantity' => 2]);
+        $low->variants()->create(['tenant_id' => $this->tenant->id, 'name' => 'M', 'sku' => 'VL-M', 'price' => 10, 'stock_quantity' => 1]);
+
+        $fine = Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product',
+            'name' => 'VarFine', 'price' => 10, 'stock_quantity' => 0, // orphaned, must not count
+            'track_inventory' => true, 'low_stock_threshold' => 5,
+        ]);
+        $fine->variants()->create(['tenant_id' => $this->tenant->id, 'name' => 'S', 'sku' => 'VF-S', 'price' => 10, 'stock_quantity' => 40]);
+
+        $names = collect($this->actingAsUser($this->owner)->getJson('/api/v1/products?low_stock=1')->json('data'))->pluck('name');
+
+        $this->assertContains('VarLow', $names);       // variant sum 3 ≤ 5
+        $this->assertNotContains('VarFine', $names);    // variant sum 40 > 5, despite parent stock 0
+
+        $this->assertSame(3.0, $low->fresh()->effectiveStock());
+        $this->assertTrue($low->fresh()->isLowStock());
+        $this->assertFalse($fine->fresh()->isLowStock());
+    }
+
     // ── Expense categories ──────────────────────────────────────────
 
     public function test_expense_categories_editable_after_seeding(): void

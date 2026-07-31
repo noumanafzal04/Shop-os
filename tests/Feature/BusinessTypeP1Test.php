@@ -231,6 +231,31 @@ class BusinessTypeP1Test extends TestCase
         ])->assertStatus(422)->assertJsonPath('meta.error_code', 'BARCODE_TAKEN');
     }
 
+    public function test_alternate_barcode_cannot_shadow_a_variant_sku(): void
+    {
+        $shirt = $this->makeProduct(['name' => 'Shirt', 'sku' => 'SHIRT-1', 'stock_quantity' => 0]);
+        $shirt->variants()->create(['tenant_id' => $this->shop->id, 'name' => 'L', 'sku' => 'SHIRT-L', 'price' => 100, 'stock_quantity' => 5]);
+
+        // Claiming SHIRT-L as another item's alternate barcode would shadow the
+        // variant at scan time (product-level match wins) → rejected.
+        $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
+            'item_type' => 'physical_product', 'name' => 'Sticker', 'price' => 10, 'barcodes' => ['SHIRT-L'],
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'BARCODE_TAKEN');
+    }
+
+    public function test_alternate_barcode_cannot_shadow_a_pack_barcode(): void
+    {
+        $water = $this->makeProduct(['name' => 'Water', 'sku' => 'WATER-1', 'stock_quantity' => 0]);
+        \App\Models\ProductUnit::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id, 'product_id' => $water->id,
+            'name' => 'Carton', 'factor' => 12, 'barcode' => 'CARTON-9',
+        ]);
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
+            'item_type' => 'physical_product', 'name' => 'Snack', 'price' => 10, 'barcodes' => ['CARTON-9'],
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'BARCODE_TAKEN');
+    }
+
     public function test_pos_lookup_flags_a_near_expiry_batch(): void
     {
         $med = $this->makeProduct(['name' => 'Insulin', 'item_type' => 'medicine', 'sku' => 'INS-1', 'stock_quantity' => 0]);

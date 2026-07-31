@@ -118,4 +118,45 @@ class CreditSaleTest extends TestCase
             'customer_id' => $customer->id, 'type' => 'payment', 'amount' => 400, 'balance_after' => 600,
         ]);
     }
+
+    public function test_overpaying_the_khata_is_refused_without_confirmation(): void
+    {
+        $customer = Customer::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Owes 500', 'phone' => '03004445555', 'credit_balance' => 500,
+        ]);
+
+        // Paying 800 against a 500 debt is refused (would silently bank a 300
+        // advance) — surfaced as KHATA_OVERPAYMENT, balance untouched.
+        $this->actingAsUser($this->owner)->postJson("/api/v1/customers/{$customer->id}/payments", [
+            'amount' => 800, 'method' => 'cash',
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'KHATA_OVERPAYMENT');
+
+        $this->assertEquals(500, $customer->fresh()->credit_balance);
+    }
+
+    public function test_overpayment_is_banked_as_an_advance_when_confirmed(): void
+    {
+        $customer = Customer::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Owes 500', 'phone' => '03006667777', 'credit_balance' => 500,
+        ]);
+
+        // With allow_advance the extra 300 is deliberately kept as an advance
+        // (balance goes negative, the customer's favour).
+        $this->actingAsUser($this->owner)->postJson("/api/v1/customers/{$customer->id}/payments", [
+            'amount' => 800, 'method' => 'cash', 'allow_advance' => true,
+        ])->assertCreated()->assertJsonPath('data.credit_balance', -300);
+
+        $this->assertEquals(-300, $customer->fresh()->credit_balance);
+    }
+
+    public function test_exact_settlement_is_not_treated_as_overpayment(): void
+    {
+        $customer = Customer::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Owes 500', 'phone' => '03008889999', 'credit_balance' => 500,
+        ]);
+
+        $this->actingAsUser($this->owner)->postJson("/api/v1/customers/{$customer->id}/payments", [
+            'amount' => 500, 'method' => 'cash',
+        ])->assertCreated()->assertJsonPath('data.credit_balance', 0);
+    }
 }
