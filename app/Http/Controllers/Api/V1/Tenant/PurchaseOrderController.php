@@ -40,7 +40,12 @@ class PurchaseOrderController extends Controller
     public function show(string $id): JsonResponse
     {
         return ApiResponse::ok(
-            PurchaseOrder::query()->with(['supplier', 'items', 'payments'])->findOrFail($id),
+            // Expose each line's product serialization/expiry flags so the
+            // Receive dialog can prompt for serials (serialized goods) and a
+            // batch/expiry (medicines) on the right lines only.
+            PurchaseOrder::query()
+                ->with(['supplier', 'items.product:id,tracks_serial,item_type', 'payments'])
+                ->findOrFail($id),
         );
     }
 
