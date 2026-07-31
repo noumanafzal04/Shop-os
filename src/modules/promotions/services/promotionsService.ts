@@ -1,6 +1,6 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 
-export type PromoType = "percent" | "fixed";
+export type PromoType = "percent" | "fixed" | "bogo";
 export type PromoScope = "order" | "category" | "product";
 
 export interface Promotion {
@@ -14,6 +14,10 @@ export interface Promotion {
   product_ids: string[] | null;
   min_spend: string | number | null;
   min_qty: string | number | null;
+  // BOGO (buy-X-get-Y): buy `buy_qty`, get `get_qty` of the cheapest at `get_discount_pct` off (100 = free).
+  buy_qty: string | number | null;
+  get_qty: string | number | null;
+  get_discount_pct: string | number | null;
   max_discount: string | number | null;
   starts_on: string | null;
   ends_on: string | null;
@@ -33,6 +37,9 @@ export interface PromotionInput {
   product_ids?: string[] | null;
   min_spend?: number | null;
   min_qty?: number | null;
+  buy_qty?: number | null;
+  get_qty?: number | null;
+  get_discount_pct?: number | null;
   max_discount?: number | null;
   starts_on?: string | null;
   ends_on?: string | null;

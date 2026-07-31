@@ -18,6 +18,7 @@ import {
   useSyncModifiers,
 } from "../hooks/useCatalog";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
+import { useTaxGroups } from "../hooks/useTaxGroups";
 import { catalogService } from "../services/catalogService";
 import type { ItemTypeCode, ModifierGroup, VariantInput } from "../types";
 
@@ -115,6 +116,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const imagesEnabled = (features?.images ?? false) || marketplaceEnabled;
 
   const categories = useCategories();
+  const taxGroups = useTaxGroups();
   const itemTypesQ = useItemTypes();
   const businessTypesQ = useBusinessTypes();
   const collectionsQ = useCollections();
@@ -151,6 +153,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [cost, setCost] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [wholesalePrice, setWholesalePrice] = useState("");
+  const [taxGroupId, setTaxGroupId] = useState("");
+  const [taxRate, setTaxRate] = useState("");
   const [soldBy, setSoldBy] = useState<"unit" | "weight">("unit");
   const [tiers, setTiers] = useState<Array<{ min_qty: string; price: string }>>([]);
   const [minOrderQty, setMinOrderQty] = useState("");
@@ -246,6 +250,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setCost(p.cost != null ? String(p.cost) : "");
       setSalePrice(p.discount_price != null ? String(p.discount_price) : "");
       setWholesalePrice(p.wholesale_price != null ? String(p.wholesale_price) : "");
+      setTaxGroupId(p.tax_group_id ?? "");
+      setTaxRate(p.tax_rate != null ? String(p.tax_rate) : "");
       setSoldBy(p.sold_by ?? "unit");
       setTiers((p.price_tiers ?? []).map((t) => ({ min_qty: String(t.min_qty), price: String(t.price) })));
       setMinOrderQty(p.min_order_qty != null ? String(p.min_order_qty) : "");
@@ -315,6 +321,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       cost: cost || undefined,
       discount_price: salePrice || null,
       wholesale_price: posEnabled && isGood ? wholesalePrice || null : null,
+      // Tax: a group wins; else the product's own rate; else the shop default.
+      tax_group_id: taxGroupId || null,
+      tax_rate: taxGroupId ? null : (taxRate !== "" ? Number(taxRate) : null),
       sold_by: isGood ? soldBy : undefined,
       price_tiers: isGood ? tiers.filter((t) => Number(t.min_qty) > 0 && Number(t.price) > 0) : undefined,
       min_order_qty: isGood ? (minOrderQty ? Number(minOrderQty) : null) : undefined,
@@ -536,6 +545,27 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             <div>
               <Label>Cost (optional)</Label>
               <Input type="number" min="0" step={0.01} value={cost} onChange={(e) => setCost(e.target.value)} placeholder="For profit reports" />
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label>Tax group (optional)</Label>
+            <Select
+              value={taxGroupId}
+              options={[
+                { value: "", label: "— Use own rate / shop default —" },
+                ...((taxGroups.data ?? []).map((g) => ({ value: g.id, label: `${g.name} (${Number(g.rate)}%)` }))),
+              ]}
+              onChange={(v) => setTaxGroupId(v)}
+            />
+            <p className="mt-1 text-theme-xs text-gray-400">A reusable rate (managed in Settings → Tax). Overrides the rate below.</p>
+          </div>
+          {!taxGroupId && (
+            <div>
+              <Label>Tax rate % (optional)</Label>
+              <Input type="number" min="0" max="100" step={0.01} value={taxRate} onChange={(e) => setTaxRate(e.target.value)} placeholder="Blank = shop default" />
             </div>
           )}
         </div>

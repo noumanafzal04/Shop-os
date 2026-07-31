@@ -27,6 +27,9 @@ interface Draft {
   products: Array<{ id: string; name: string }>;
   min_spend: string;
   min_qty: string;
+  buy_qty: string;
+  get_qty: string;
+  get_discount_pct: string;
   max_discount: string;
   starts_on: string;
   ends_on: string;
@@ -38,7 +41,8 @@ interface Draft {
 
 const blank: Draft = {
   name: "", type: "percent", value: "", scope: "order", category_id: "", products: [],
-  min_spend: "", min_qty: "", max_discount: "", starts_on: "", ends_on: "",
+  min_spend: "", min_qty: "", buy_qty: "1", get_qty: "1", get_discount_pct: "100",
+  max_discount: "", starts_on: "", ends_on: "",
   days_of_week: [], start_time: "", end_time: "", is_active: true,
 };
 
@@ -72,6 +76,9 @@ export default function PromotionsPage() {
       products: (p.product_ids ?? []).map((id) => ({ id, name: p.category?.name ?? id })),
       min_spend: p.min_spend != null ? String(p.min_spend) : "",
       min_qty: p.min_qty != null ? String(p.min_qty) : "",
+      buy_qty: p.buy_qty != null ? String(p.buy_qty) : "1",
+      get_qty: p.get_qty != null ? String(p.get_qty) : "1",
+      get_discount_pct: p.get_discount_pct != null ? String(p.get_discount_pct) : "100",
       max_discount: p.max_discount != null ? String(p.max_discount) : "",
       starts_on: p.starts_on ?? "", ends_on: p.ends_on ?? "",
       days_of_week: p.days_of_week ?? [],
@@ -91,17 +98,26 @@ export default function PromotionsPage() {
   const toggleDay = (d: number) =>
     set("days_of_week", draft.days_of_week.includes(d) ? draft.days_of_week.filter((x) => x !== d) : [...draft.days_of_week, d].sort());
 
+  const isBogo = draft.type === "bogo";
+
   const save = () => {
-    if (!draft.name.trim() || !draft.value) return;
+    if (!draft.name.trim()) return;
+    if (!isBogo && !draft.value) return;
+    if (isBogo && (!draft.buy_qty || !draft.get_qty)) return;
+    // bogo only makes sense scoped to a category / product set.
+    const scope = isBogo && draft.scope === "order" ? "category" : draft.scope;
     const payload = {
       name: draft.name.trim(),
       type: draft.type,
-      value: Number(draft.value),
-      scope: draft.scope,
-      category_id: draft.scope === "category" ? draft.category_id || null : null,
-      product_ids: draft.scope === "product" ? draft.products.map((p) => p.id) : null,
+      value: isBogo ? 0 : Number(draft.value),
+      scope,
+      category_id: scope === "category" ? draft.category_id || null : null,
+      product_ids: scope === "product" ? draft.products.map((p) => p.id) : null,
       min_spend: draft.min_spend ? Number(draft.min_spend) : null,
       min_qty: draft.min_qty ? Number(draft.min_qty) : null,
+      buy_qty: isBogo ? Number(draft.buy_qty) : null,
+      get_qty: isBogo ? Number(draft.get_qty) : null,
+      get_discount_pct: isBogo ? (draft.get_discount_pct ? Number(draft.get_discount_pct) : 100) : null,
       max_discount: draft.max_discount ? Number(draft.max_discount) : null,
       starts_on: draft.starts_on || null,
       ends_on: draft.ends_on || null,
@@ -156,7 +172,13 @@ export default function PromotionsPage() {
                 (promotions ?? []).map((p) => (
                   <tr key={p.id} className="text-gray-700 dark:text-gray-300">
                     <td className="px-4 py-3 font-medium text-gray-800 dark:text-white/90">{p.name}</td>
-                    <td className="px-4 py-3">{p.type === "percent" ? `${Number(p.value)}%` : money(p.value)}</td>
+                    <td className="px-4 py-3">
+                      {p.type === "percent"
+                        ? `${Number(p.value)}%`
+                        : p.type === "bogo"
+                          ? `Buy ${Number(p.buy_qty ?? 1)} Get ${Number(p.get_qty ?? 1)}${Number(p.get_discount_pct ?? 100) < 100 ? ` (${Number(p.get_discount_pct)}% off)` : " Free"}`
+                          : money(p.value)}
+                    </td>
                     <td className="px-4 py-3 capitalize">
                       {p.scope === "order" ? "Whole order" : p.scope === "category" ? `Category: ${p.category?.name ?? "—"}` : `${p.product_ids?.length ?? 0} product(s)`}
                     </td>
@@ -182,15 +204,29 @@ export default function PromotionsPage() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Discount</Label>
-                <Select value={draft.type} options={[{ value: "percent", label: "Percent %" }, { value: "fixed", label: "Fixed (Rs)" }]} onChange={(v) => set("type", v as PromoType)} />
+                <Select value={draft.type} options={[{ value: "percent", label: "Percent %" }, { value: "fixed", label: "Fixed (Rs)" }, { value: "bogo", label: "Buy X Get Y" }]}
+                  onChange={(v) => { set("type", v as PromoType); if (v === "bogo" && draft.scope === "order") set("scope", "category"); }} />
               </div>
-              <div><Label>Value</Label><Input type="number" min="0" value={draft.value} onChange={(e) => set("value", e.target.value)} /></div>
+              {!isBogo && <div><Label>Value</Label><Input type="number" min="0" value={draft.value} onChange={(e) => set("value", e.target.value)} /></div>}
             </div>
           </div>
 
+          {isBogo && (
+            <div className="grid grid-cols-3 gap-2 rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+              <div><Label>Buy qty</Label><Input type="number" min="1" value={draft.buy_qty} onChange={(e) => set("buy_qty", e.target.value)} /></div>
+              <div><Label>Get qty</Label><Input type="number" min="1" value={draft.get_qty} onChange={(e) => set("get_qty", e.target.value)} /></div>
+              <div><Label>Discount %</Label><Input type="number" min="1" max="100" value={draft.get_discount_pct} onChange={(e) => set("get_discount_pct", e.target.value)} placeholder="100 = free" /></div>
+              <p className="col-span-3 text-theme-xs text-gray-400">Buy {draft.buy_qty || "1"}, get {draft.get_qty || "1"} of the cheapest at {draft.get_discount_pct || "100"}% off. The customer gets the cheapest qualifying units.</p>
+            </div>
+          )}
+
           <div>
             <Label>Applies to</Label>
-            <Select value={draft.scope} options={[{ value: "order", label: "Whole order" }, { value: "category", label: "A category" }, { value: "product", label: "Specific products" }]} onChange={(v) => set("scope", v as PromoScope)} />
+            <Select value={draft.scope}
+              options={isBogo
+                ? [{ value: "category", label: "A category" }, { value: "product", label: "Specific products" }]
+                : [{ value: "order", label: "Whole order" }, { value: "category", label: "A category" }, { value: "product", label: "Specific products" }]}
+              onChange={(v) => set("scope", v as PromoScope)} />
           </div>
 
           {draft.scope === "category" && (
@@ -220,12 +256,14 @@ export default function PromotionsPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {draft.scope === "order"
-              ? <div><Label>Min spend (Rs)</Label><Input type="number" min="0" value={draft.min_spend} onChange={(e) => set("min_spend", e.target.value)} placeholder="None" /></div>
-              : <div><Label>Min quantity</Label><Input type="number" min="0" value={draft.min_qty} onChange={(e) => set("min_qty", e.target.value)} placeholder="None" /></div>}
-            {draft.type === "percent" && <div><Label>Max discount (Rs)</Label><Input type="number" min="0" value={draft.max_discount} onChange={(e) => set("max_discount", e.target.value)} placeholder="No cap" /></div>}
-          </div>
+          {!isBogo && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {draft.scope === "order"
+                ? <div><Label>Min spend (Rs)</Label><Input type="number" min="0" value={draft.min_spend} onChange={(e) => set("min_spend", e.target.value)} placeholder="None" /></div>
+                : <div><Label>Min quantity</Label><Input type="number" min="0" value={draft.min_qty} onChange={(e) => set("min_qty", e.target.value)} placeholder="None" /></div>}
+              {draft.type === "percent" && <div><Label>Max discount (Rs)</Label><Input type="number" min="0" value={draft.max_discount} onChange={(e) => set("max_discount", e.target.value)} placeholder="No cap" /></div>}
+            </div>
+          )}
 
           <div className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
             <p className="mb-2 text-theme-xs font-medium uppercase text-gray-400">Schedule <span className="font-normal normal-case text-gray-400">— leave blank for always-on</span></p>
@@ -255,7 +293,7 @@ export default function PromotionsPage() {
         </div>
         <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
           <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={save} disabled={!draft.name.trim() || !draft.value || create.isPending || update.isPending}>{isEdit ? "Save" : "Create"}</Button>
+          <Button size="sm" onClick={save} disabled={!draft.name.trim() || (isBogo ? (!draft.buy_qty || !draft.get_qty) : !draft.value) || create.isPending || update.isPending}>{isEdit ? "Save" : "Create"}</Button>
         </div>
       </Modal>
     </>

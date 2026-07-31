@@ -89,6 +89,7 @@ export interface Product {
   min_order_qty: number | string | null;
   sold_by: "unit" | "weight";
   tax_rate: string | number | null;
+  tax_group_id: string | null;
   stock_quantity: number;
   low_stock_threshold: number | null;
   track_inventory: boolean;
@@ -191,7 +192,8 @@ export interface ProductInput {
   price_tiers?: Array<{ min_qty: number | string; price: number | string }>;
   min_order_qty?: number | string | null;
   sold_by?: "unit" | "weight";
-  tax_rate?: number | string;
+  tax_rate?: number | string | null;
+  tax_group_id?: string | null;
   track_inventory?: boolean;
   stock_quantity?: number;
   low_stock_threshold?: number;

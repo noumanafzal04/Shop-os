@@ -83,6 +83,7 @@ export interface ShopSettings {
   currency_symbol: string;
   language: string;
   default_tax_rate: number | string;
+  tax_inclusive: boolean;
   service_area: string | null;
   pickup_enabled: boolean;
   delivery_enabled: boolean;

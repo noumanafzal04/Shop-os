@@ -14,6 +14,7 @@ import { useCities, useShopSettings, useUpdateShopSettings } from "../hooks/useS
 import { useAuthStore } from "../../../stores/authStore";
 import type { Tenant } from "../../auth/types";
 import HardwareDevices from "../../hardware/components/HardwareDevices";
+import TaxGroupsManager from "../../catalog/components/TaxGroupsManager";
 
 // ── Section icons (inline line-SVGs, currentColor) ───────────────────────
 const g = "h-[18px] w-[18px]";
@@ -265,7 +266,15 @@ export default function ShopSettingsPage() {
                 <Field label="Default tax %" hint="Set 0 for tax-exempt shops.">
                   <Input type="number" min="0" max="100" className="max-w-xs" value={String(prefs.default_tax_rate)} onChange={(e) => setP("default_tax_rate", Number(e.target.value))} />
                 </Field>
+                <Toggle checked={!!prefs.tax_inclusive} onChange={(v) => setP("tax_inclusive", v)} label="Prices already include tax (inclusive)" />
+                <p className="-mt-2 text-theme-xs text-gray-400">
+                  {prefs.tax_inclusive
+                    ? "Inclusive: the price is the final price — the receipt shows the tax portion held within it."
+                    : "Exclusive: tax is added on top of the price at checkout."}
+                </p>
               </SectionCard>
+
+              <TaxGroupsManager />
 
               <SectionCard icon={<TruckGlyph />} title="Order fulfillment" description="How customers get their orders. They only see the options you enable.">
                 <div className="flex flex-wrap items-center gap-6">

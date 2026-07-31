@@ -19,6 +19,9 @@ export interface Customer {
   address: string | null;
   notes: string | null;
   last_seen_at: string | null;
+  // Tiered-pricing group (retail/wholesale + members' discount).
+  customer_group_id?: string | null;
+  group?: { id: string; name: string; price_level: string; discount_percent: string | number | null } | null;
   // Sell-on-credit (khata): what they owe now + the optional cap.
   credit_balance?: string | number;
   credit_limit?: string | number | null;
@@ -52,6 +55,7 @@ export interface CustomerInput {
   address?: string | null;
   notes?: string | null;
   credit_limit?: number | null;
+  customer_group_id?: string | null;
 }
 
 export interface CreditPaymentInput {

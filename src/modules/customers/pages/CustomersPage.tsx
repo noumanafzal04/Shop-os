@@ -7,6 +7,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import TextArea from "../../../components/form/input/TextArea";
+import Select from "../../../components/form/Select";
 import Alert from "../../../components/ui/alert/Alert";
 import Badge from "../../../components/ui/badge/Badge";
 import { Modal } from "../../../components/ui/modal";
@@ -14,7 +15,9 @@ import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCustomer, useCustomerMutations, useCustomers } from "../hooks/useCustomers";
+import { useCustomerGroups, useCustomerGroupMutations } from "../hooks/useCustomerGroups";
 import type { Customer } from "../services/customersService";
+import type { CustomerGroup, PriceLevel } from "../services/customerGroupsService";
 
 
 export default function CustomersPage() {
@@ -45,6 +48,11 @@ export default function CustomersPage() {
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState<"cash" | "card" | "bank_transfer" | "other">("cash");
 
+  const groups = useCustomerGroups();
+  const groupMutations = useCustomerGroupMutations();
+  const groupsModal = useModal();
+  const [groupDraft, setGroupDraft] = useState<{ id?: string; name: string; price_level: PriceLevel; discount_percent: string }>({ name: "", price_level: "retail", discount_percent: "" });
+
   const editor = useModal();
   const detailModal = useModal();
   const [editing, setEditing] = useState<Customer | null>(null);
@@ -62,6 +70,7 @@ export default function CustomersPage() {
     setForm({
       name: c.name, phone: c.phone ?? "", email: c.email ?? "", address: c.address ?? "", notes: c.notes ?? "",
       credit_limit: c.credit_limit != null ? String(c.credit_limit) : "",
+      customer_group_id: c.customer_group_id ?? "",
     });
     editor.openModal();
   };
@@ -71,11 +80,30 @@ export default function CustomersPage() {
       name: form.name.trim(), phone: form.phone || null, email: form.email || null,
       address: form.address || null, notes: form.notes || null,
       credit_limit: form.credit_limit !== "" && form.credit_limit != null ? Number(form.credit_limit) : null,
+      customer_group_id: form.customer_group_id || null,
     };
     const opts = { onSuccess: () => editor.closeModal() };
     if (editing) update.mutate({ id: editing.id, ...payload }, opts);
     else create.mutate(payload, opts);
   };
+
+  const groupOptions = [
+    { value: "", label: "— No group (retail) —" },
+    ...((groups.data ?? []).map((g) => ({ value: g.id, label: g.name }))),
+  ];
+  const saveGroup = () => {
+    if (!groupDraft.name.trim()) return;
+    const payload = {
+      name: groupDraft.name.trim(),
+      price_level: groupDraft.price_level,
+      discount_percent: groupDraft.discount_percent !== "" ? Number(groupDraft.discount_percent) : null,
+    };
+    const done = { onSuccess: () => { toast.success("Group saved"); setGroupDraft({ name: "", price_level: "retail", discount_percent: "" }); } };
+    if (groupDraft.id) groupMutations.update.mutate({ id: groupDraft.id, ...payload }, done);
+    else groupMutations.create.mutate(payload, done);
+  };
+  const editGroup = (g: CustomerGroup) => setGroupDraft({ id: g.id, name: g.name, price_level: g.price_level, discount_percent: g.discount_percent != null ? String(g.discount_percent) : "" });
+  const removeGroup = (g: CustomerGroup) => { if (confirm(`Delete group "${g.name}"? Members fall back to retail.`)) groupMutations.remove.mutate(g.id, { onSuccess: () => toast.success("Group removed") }); };
 
   // Record a khata repayment against the open customer, then refresh the detail.
   const doRecordPayment = () => {
@@ -103,6 +131,7 @@ export default function CustomersPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400">Auto-built from sales & orders — add notes, track spend.</p>
         </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => { setGroupDraft({ name: "", price_level: "retail", discount_percent: "" }); groupsModal.openModal(); }}>Groups</Button>
           <Button size="sm" variant="outline" onClick={exportCsv} disabled={exporting}>
             {exporting ? "Exporting…" : "Export CSV"}
           </Button>
@@ -161,10 +190,48 @@ export default function CustomersPage() {
             <Input type="number" min="0" placeholder="Credit limit (khata) — blank = no limit" value={form.credit_limit ?? ""} onChange={(e) => set("credit_limit", e.target.value)} />
             <p className="mt-1 text-theme-xs text-gray-400">The most this customer may owe on credit. Leave blank for no cap.</p>
           </div>
+          <div className="sm:col-span-2">
+            <Select value={form.customer_group_id ?? ""} options={groupOptions} onChange={(v) => set("customer_group_id", v)} />
+            <p className="mt-1 text-theme-xs text-gray-400">Pricing tier — a group can sell at wholesale and/or give a members' discount automatically.</p>
+          </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={editor.closeModal}>Cancel</Button>
           <Button size="sm" onClick={save} disabled={mutation.isPending || !form.name?.trim()}>{mutation.isPending ? "Saving…" : "Save"}</Button>
+        </div>
+      </Modal>
+
+      {/* Manage customer groups */}
+      <Modal isOpen={groupsModal.isOpen} onClose={groupsModal.closeModal} className="max-w-lg p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Customer groups</h3>
+        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Tiered pricing — a group sells at retail or wholesale and can add an automatic members' discount.</p>
+
+        <div className="mb-4 space-y-1.5">
+          {(groups.data ?? []).length === 0 ? (
+            <p className="text-theme-sm text-gray-400">No groups yet.</p>
+          ) : (groups.data ?? []).map((g) => (
+            <div key={g.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800">
+              <div>
+                <span className="font-medium text-gray-800 dark:text-white/90">{g.name}</span>
+                <span className="ml-2 text-theme-xs text-gray-400 capitalize">{g.price_level}{g.discount_percent != null && Number(g.discount_percent) > 0 ? ` · ${Number(g.discount_percent)}% off` : ""}{g.customers_count != null ? ` · ${g.customers_count} member(s)` : ""}</span>
+              </div>
+              <div className="flex gap-3">
+                <button className="text-theme-xs font-medium text-brand-500 hover:text-brand-600" onClick={() => editGroup(g)}>Edit</button>
+                <button className="text-theme-xs font-medium text-error-500 hover:text-error-600" onClick={() => removeGroup(g)}>Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:grid-cols-3">
+          <div className="sm:col-span-3 text-theme-xs font-medium uppercase text-gray-400">{groupDraft.id ? "Edit group" : "New group"}</div>
+          <div className="sm:col-span-3"><Input placeholder="Group name (e.g. Wholesale)" value={groupDraft.name} onChange={(e) => setGroupDraft((d) => ({ ...d, name: e.target.value }))} /></div>
+          <Select value={groupDraft.price_level} options={[{ value: "retail", label: "Retail price" }, { value: "wholesale", label: "Wholesale price" }]} onChange={(v) => setGroupDraft((d) => ({ ...d, price_level: v as PriceLevel }))} />
+          <Input type="number" min="0" max="100" placeholder="Members' discount %" value={groupDraft.discount_percent} onChange={(e) => setGroupDraft((d) => ({ ...d, discount_percent: e.target.value }))} />
+          <Button size="sm" onClick={saveGroup} disabled={!groupDraft.name.trim() || groupMutations.create.isPending || groupMutations.update.isPending}>{groupDraft.id ? "Save" : "Add"}</Button>
+        </div>
+        <div className="mt-6 flex justify-end">
+          <Button size="sm" variant="outline" onClick={groupsModal.closeModal}>Done</Button>
         </div>
       </Modal>
 
