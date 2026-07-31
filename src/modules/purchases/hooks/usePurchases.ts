@@ -70,7 +70,7 @@ export function usePurchaseOrderMutations() {
   const receive = useMutation({
     // idempotency_key: one stable key per receive intent — a retry after a
     // network error replays the same receipt instead of double-receiving.
-    mutationFn: ({ id, items, idempotency_key }: { id: string; items?: Array<{ id: string; quantity: number; batch_number?: string; expiry_date?: string }>; idempotency_key?: string }) =>
+    mutationFn: ({ id, items, idempotency_key }: { id: string; items?: Array<{ id: string; quantity: number; batch_number?: string; expiry_date?: string; serials?: string[] }>; idempotency_key?: string }) =>
       purchasesService.receive(id, items, idempotency_key),
     onSuccess: invalidate,
   });

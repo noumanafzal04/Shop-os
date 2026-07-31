@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { uuid } from "../../../common/uuid";
 import { ChevronLeftIcon, ChevronDownIcon, TrashBinIcon, PlusIcon, AlertIcon, CloseIcon, DollarLineIcon, ListIcon, UserCircleIcon, CheckLineIcon } from "../../../icons";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -13,6 +13,7 @@ import { ApiError } from "../../../common/types/api";
 import { apiGet } from "../../../common/api/client";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCategories, useProducts } from "../../catalog/hooks/useCatalog";
+import { catalogService } from "../../catalog/services/catalogService";
 import type { Product as CatalogProduct, ProductUnit } from "../../catalog/types";
 import { salesService } from "../../sales/services/salesService";
 import type { Sale } from "../../sales/types";
@@ -270,6 +271,15 @@ export default function PosPage() {
   const discountModal = useModal();
   const [editKey, setEditKey] = useState<string | null>(null);
   const [serialKey, setSerialKey] = useState<string | null>(null);
+
+  // In-stock serials for the line being serialized — lets the cashier pick a
+  // received IMEI instead of retyping it. Only fetched while the modal is open.
+  const serialLineProductId = serialKey ? cart.find((x) => x.key === serialKey)?.product_id : undefined;
+  const inStockSerials = useQuery({
+    queryKey: ["product-serials", serialLineProductId],
+    queryFn: async () => (await catalogService.serials(serialLineProductId!, "in_stock")).data,
+    enabled: !!serialLineProductId && serialModal.isOpen,
+  });
   const [openingFloat, setOpeningFloat] = useState("");
   const [countedCash, setCountedCash] = useState("");
   const [holdLabel, setHoldLabel] = useState("");
@@ -1514,6 +1524,30 @@ export default function PosPage() {
                   </div>
                 ))}
               </div>
+
+              {/* In-stock serials picker — tap a received IMEI to fill the next slot. */}
+              {(() => {
+                const chosen = new Set((l.serials ?? []).map((s) => s.trim()).filter(Boolean));
+                const available = (inStockSerials.data ?? []).filter((s) => !chosen.has(s.serial));
+                if (available.length === 0) return null;
+                const fillNext = (serial: string) => {
+                  const idx = Array.from({ length: units }).findIndex((_, i) => !(l.serials?.[i] ?? "").trim());
+                  if (idx >= 0) setLineSerial(l.key, idx, serial);
+                };
+                return (
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-theme-xs font-medium uppercase text-gray-400">In stock — tap to add</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {available.slice(0, 30).map((s) => (
+                        <button key={s.id} type="button" onClick={() => fillNext(s.serial)}
+                          className="rounded-md bg-brand-50 px-2 py-0.5 text-theme-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-300">
+                          {s.serial}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="mt-4">
                 <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">
                   Warranty (months) <span className="font-normal text-gray-400">— overrides the product default</span>

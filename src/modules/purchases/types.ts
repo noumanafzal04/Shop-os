@@ -43,6 +43,8 @@ export interface PurchaseOrderItem {
   unit_factor: string | number;
   unit_cost: string | number;
   line_total: string | number;
+  // Serialization / expiry hints for the Receive dialog.
+  product?: { id: string; tracks_serial: boolean; item_type: string } | null;
 }
 
 export interface PurchaseOrder {

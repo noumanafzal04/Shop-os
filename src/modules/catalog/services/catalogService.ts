@@ -53,6 +53,10 @@ export const catalogService = {
 
   product: (id: string) => apiGet<Product>(`/products/${id}`),
 
+  // Serial units on record for a product (POS serial picker: in_stock by default).
+  serials: (id: string, status: "in_stock" | "sold" | "all" = "in_stock") =>
+    apiGet<Array<{ id: string; serial: string; status: string }>>(`/products/${id}/serials`, { params: { status } }),
+
   createProduct: (payload: ProductInput) => apiPost<Product>("/products", payload),
 
   updateProduct: (id: string, payload: Partial<ProductInput>) =>

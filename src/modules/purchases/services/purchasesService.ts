@@ -29,7 +29,7 @@ export const purchasesService = {
   place: (id: string) => apiPost<PurchaseOrder>(`/purchase-orders/${id}/place`),
   receive: (
     id: string,
-    items?: Array<{ id: string; quantity: number; batch_number?: string; expiry_date?: string }>,
+    items?: Array<{ id: string; quantity: number; batch_number?: string; expiry_date?: string; serials?: string[] }>,
     idempotencyKey?: string,
   ) =>
     apiPost<PurchaseOrder>(`/purchase-orders/${id}/receive`, {

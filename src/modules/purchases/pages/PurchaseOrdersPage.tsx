@@ -48,6 +48,45 @@ export default function PurchaseOrdersPage() {
       { onSuccess: () => { receiveKeyRef.current = uuid(); } },
     );
 
+  // ── Detailed receive (per-line qty + serials + batch/expiry) ──────
+  const receiveModal = useModal();
+  type RcvRow = { quantity: string; batch_number: string; expiry_date: string; serials: string };
+  const [rcv, setRcv] = useState<Record<string, RcvRow>>({});
+  const setRcvField = (itemId: string, patch: Partial<RcvRow>) =>
+    setRcv((r) => ({ ...r, [itemId]: { ...r[itemId], ...patch } }));
+
+  const openReceive = () => {
+    const rows: Record<string, RcvRow> = {};
+    for (const it of detail.data?.items ?? []) {
+      const outstanding = Number(it.quantity_ordered) - Number(it.quantity_received);
+      if (outstanding > 0) rows[it.id] = { quantity: String(outstanding), batch_number: "", expiry_date: "", serials: "" };
+    }
+    setRcv(rows);
+    receiveModal.openModal();
+  };
+
+  const parseSerials = (s: string) =>
+    s.split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
+
+  const submitReceive = (id: string) => {
+    const items = Object.entries(rcv)
+      .filter(([, r]) => Number(r.quantity) > 0)
+      .map(([itemId, r]) => {
+        const serials = parseSerials(r.serials);
+        return {
+          id: itemId,
+          quantity: Number(r.quantity),
+          ...(r.batch_number ? { batch_number: r.batch_number } : {}),
+          ...(r.expiry_date ? { expiry_date: r.expiry_date } : {}),
+          ...(serials.length ? { serials } : {}),
+        };
+      });
+    receive.mutate(
+      { id, items, idempotency_key: receiveKeyRef.current },
+      { onSuccess: () => { receiveKeyRef.current = uuid(); receiveModal.closeModal(); } },
+    );
+  };
+
   // Create form
   const [supplierId, setSupplierId] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
@@ -250,9 +289,12 @@ export default function PurchaseOrdersPage() {
                 <Button size="sm" variant="outline" onClick={() => place.mutate(d.id)} disabled={place.isPending}>Place order</Button>
               )}
               {(d.status === "ordered" || d.status === "partially_received") && (
-                <Button size="sm" onClick={() => doReceive(d.id)} disabled={receive.isPending}>
-                  {receive.isPending ? "Receiving…" : "Receive all → stock in"}
-                </Button>
+                <>
+                  <Button size="sm" variant="outline" onClick={openReceive} disabled={receive.isPending}>Receive with details…</Button>
+                  <Button size="sm" onClick={() => doReceive(d.id)} disabled={receive.isPending}>
+                    {receive.isPending ? "Receiving…" : "Receive all → stock in"}
+                  </Button>
+                </>
               )}
               {(d.status === "draft" || d.status === "ordered" || d.status === "partially_received") && (
                 <Button size="sm" variant="outline" onClick={() => { if (confirm("Cancel this purchase order?")) cancel.mutate({ id: d.id, reason: "Cancelled by user" }); }} disabled={cancel.isPending}>Cancel PO</Button>
@@ -260,6 +302,65 @@ export default function PurchaseOrdersPage() {
             </div>
           </>
         )}
+      </Modal>
+
+      {/* Detailed receive — per-line quantity + serials + batch/expiry */}
+      <Modal isOpen={receiveModal.isOpen} onClose={receiveModal.closeModal} className="max-w-2xl p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Receive goods</h3>
+        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Confirm quantities. Enter serials for serialized items and a batch/expiry for medicines.</p>
+        {receive.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Couldn't receive" message={receive.error.message} /></div>}
+
+        <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+          {(detail.data?.items ?? [])
+            .filter((it) => Number(it.quantity_ordered) - Number(it.quantity_received) > 0)
+            .map((it) => {
+              const row = rcv[it.id];
+              if (!row) return null;
+              const isSerial = !!it.product?.tracks_serial;
+              const isMedicine = it.product?.item_type === "medicine";
+              const serialCount = parseSerials(row.serials).length;
+              const outstanding = Number(it.quantity_ordered) - Number(it.quantity_received);
+              return (
+                <div key={it.id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-gray-800 dark:text-white/90">{it.product_name}{it.variant_name ? ` / ${it.variant_name}` : ""}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-theme-xs text-gray-400">of {outstanding}</span>
+                      <div className="w-24"><Input type="number" min="0" max={String(outstanding)} value={row.quantity} onChange={(e) => setRcvField(it.id, { quantity: e.target.value })} /></div>
+                    </div>
+                  </div>
+
+                  {isMedicine && (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div><label className="mb-1 block text-theme-xs text-gray-400">Batch # (optional)</label><Input value={row.batch_number} onChange={(e) => setRcvField(it.id, { batch_number: e.target.value })} placeholder="Auto = PO number" /></div>
+                      <div><label className="mb-1 block text-theme-xs text-gray-400">Expiry <span className="text-error-500">*</span></label><Input type="date" value={row.expiry_date} onChange={(e) => setRcvField(it.id, { expiry_date: e.target.value })} /></div>
+                    </div>
+                  )}
+
+                  {isSerial && (
+                    <div className="mt-2">
+                      <label className="mb-1 block text-theme-xs text-gray-400">Serials / IMEIs — one per line ({serialCount}/{row.quantity || 0})</label>
+                      <textarea
+                        value={row.serials}
+                        onChange={(e) => setRcvField(it.id, { serials: e.target.value })}
+                        rows={Math.min(6, Math.max(2, Number(row.quantity) || 2))}
+                        className="w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:text-white/90"
+                        placeholder={"IMEI-000001\nIMEI-000002"}
+                      />
+                      {serialCount > Number(row.quantity || 0) && (
+                        <p className="mt-1 text-theme-xs text-error-500">More serials than units received.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
+          <Button size="sm" variant="outline" onClick={receiveModal.closeModal}>Cancel</Button>
+          <Button size="sm" onClick={() => detail.data && submitReceive(detail.data.id)} disabled={receive.isPending}>{receive.isPending ? "Receiving…" : "Receive → stock in"}</Button>
+        </div>
       </Modal>
     </>
   );
