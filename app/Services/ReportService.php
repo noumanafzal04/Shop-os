@@ -153,10 +153,18 @@ class ReportService
      */
     public function purchases(string $tenantId, string $from, string $to): array
     {
+        // Bound the window at whole-day edges (like every other report). Passing
+        // the bare date strings [$from, $to] excludes rows ON the last day:
+        // the date-cast column stores "…-31 00:00:00", which sorts AFTER the
+        // bare "…-31" upper bound — so a PO dated on the period's final day
+        // silently vanished (only visible on the last day of a month/period).
+        $fromStart = CarbonImmutable::parse($from)->startOfDay();
+        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+
         $base = PurchaseOrder::withoutTenancy()
             ->where('purchase_orders.tenant_id', $tenantId)
             ->where('purchase_orders.status', '!=', 'cancelled')
-            ->whereBetween('purchase_orders.order_date', [$from, $to]);
+            ->whereBetween('purchase_orders.order_date', [$fromStart, $toEnd]);
 
         $ordered = (float) (clone $base)->sum('total');
         $paid = (float) (clone $base)->sum('amount_paid');

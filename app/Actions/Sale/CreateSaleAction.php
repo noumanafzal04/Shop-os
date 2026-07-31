@@ -9,6 +9,7 @@ use App\Exceptions\DomainException;
 use App\Models\BranchPrice;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\ProductUnit;
 use App\Models\ProductVariant;
 use App\Models\Sale;
@@ -83,8 +84,29 @@ class CreateSaleAction
             $subtotal = 0.0;
 
             // The shop's default tax rate — each line snapshots its effective
-            // rate (product rate else this default) so returns can refund tax.
+            // rate (tax group, else product rate, else this default) so returns
+            // can refund tax.
             $defaultTaxRate = (float) ($this->context->get()?->setting('default_tax_rate', 0) ?? 0);
+
+            // Inclusive vs exclusive tax. Inclusive means the selling price
+            // already contains tax — the total is NOT inflated by it and the
+            // receipt shows the portion held within. POS/direct only: an online
+            // order replays its own settled total (and quotes zero tax anyway),
+            // so the trusted path is always treated as exclusive.
+            $taxInclusive = ! $trusted && (bool) ($this->context->get()?->setting('tax_inclusive', false));
+
+            // Customer group (tiered pricing): resolve the linked customer's
+            // group ONCE, up front. It can pin the default price LEVEL for lines
+            // (a trade customer rung at wholesale automatically) and carry an
+            // automatic members' DISCOUNT applied at checkout. POS/direct only —
+            // an online order replays its own settled total.
+            $customerGroup = null;
+            if (! $trusted && ! empty($data['customer_phone'])) {
+                $customerGroup = Customer::query()
+                    ->where('phone', trim((string) $data['customer_phone']))
+                    ->first()?->group;
+            }
+            $groupPriceLevel = ($customerGroup?->price_level === 'wholesale') ? 'wholesale' : 'retail';
 
             foreach ($data['items'] as $item) {
                 /** @var Product|null $product */
@@ -180,8 +202,10 @@ class CreateSaleAction
                 // Price level (retail | wholesale) — a named price list. It
                 // sets the per-unit RETAIL-or-WHOLESALE rate; packs multiply it,
                 // variants keep their own price. Wholesale falls back to retail
-                // when the item has no wholesale rate.
-                $level = ($item['price_level'] ?? 'retail') === 'wholesale' ? 'wholesale' : 'retail';
+                // when the item has no wholesale rate. Defaults to the customer
+                // group's level (so a trade customer is wholesale by default),
+                // which an explicit per-line price_level still overrides.
+                $level = ($item['price_level'] ?? $groupPriceLevel) === 'wholesale' ? 'wholesale' : 'retail';
                 $levelUnit = $product->priceForLevel($level, $quantity);
 
                 // Per-branch price override (Phase 4c): the branch's own retail
@@ -279,8 +303,9 @@ class CreateSaleAction
                     'modifiers' => $modifierSnapshot,
                     'serials' => $serials,
                     'warranty_months' => $warrantyOverride,
-                    // Effective tax %% snapshot — product rate else shop default.
-                    'tax_rate' => $product->tax_rate !== null ? (float) $product->tax_rate : $defaultTaxRate,
+                    // Effective tax %% snapshot — tax group, else product rate,
+                    // else shop default.
+                    'tax_rate' => $product->effectiveTaxRate($defaultTaxRate),
                 ];
             }
 
@@ -323,6 +348,23 @@ class CreateSaleAction
                         $discount = round($discount + $promoDiscount, 2);
                         $promotionId = $best['promotion']->id;
                         $promoName = $best['promotion']->name;
+                    }
+                }
+            }
+
+            // ── Customer-group members' discount ─────────────────────
+            // An automatic percent off for a customer in a discounting group
+            // (server-priced from the group's own percent — a client can't
+            // dictate it), on what's still owed after cart/coupon/promo, so it
+            // never pushes the bill negative. Evaluated before loyalty.
+            $customerGroupId = null;
+            if ($customerGroup !== null) {
+                $customerGroupId = $customerGroup->id;
+                $groupPct = $customerGroup->discount_percent !== null ? (float) $customerGroup->discount_percent : 0.0;
+                if ($groupPct > 0) {
+                    $groupDiscount = round(max(0.0, round($subtotal - $discount, 2)) * min($groupPct, 100) / 100, 2);
+                    if ($groupDiscount > 0) {
+                        $discount = round($discount + $groupDiscount, 2);
                     }
                 }
             }
@@ -416,12 +458,26 @@ class CreateSaleAction
                     if ($rate <= 0 || $subtotal <= 0) {
                         continue; // exempt / zero-rated, or nothing to tax
                     }
-                    $lineBase = (float) $line['line_total'] * ($taxableBase / $subtotal);
-                    $tax = round($tax + $lineBase * $rate / 100, 2);
+                    // Each line's discounted share of the taxable base.
+                    $lineShare = (float) $line['line_total'] * ($taxableBase / $subtotal);
+                    if ($taxInclusive) {
+                        // Price already holds the tax — extract the portion
+                        // within: share − share ÷ (1 + rate). The total is not
+                        // inflated (see below).
+                        $net = $lineShare / (1 + $rate / 100);
+                        $tax = round($tax + ($lineShare - $net), 2);
+                    } else {
+                        // Exclusive — tax is added on top of the share.
+                        $tax = round($tax + $lineShare * $rate / 100, 2);
+                    }
                 }
             }
 
-            $total = round($subtotal - $discount + $tax, 2);
+            // Inclusive: tax lives inside the price, so it is NOT added again.
+            // Exclusive (and the trusted replay): tax is added on top.
+            $total = $taxInclusive
+                ? round($subtotal - $discount, 2)
+                : round($subtotal - $discount + $tax, 2);
             // Payment: one tender (payment_method + amount_paid) OR a split of
             // several tenders. When split, amount_paid is their sum and the
             // sale's method is 'split' (the breakdown lives in sale_payments).
@@ -454,6 +510,7 @@ class CreateSaleAction
                 'status' => SaleStatus::Completed,
                 'customer_name' => $data['customer_name'] ?? null,
                 'customer_phone' => $data['customer_phone'] ?? null,
+                'customer_group_id' => $customerGroupId,
                 'order_type' => $data['order_type'] ?? null,
                 'table_no' => $data['table_no'] ?? null,
                 'subtotal' => $subtotal,
@@ -463,6 +520,7 @@ class CreateSaleAction
                 'promo_name' => $promoName,
                 'promo_discount' => $promoDiscount,
                 'tax' => $tax,
+                'tax_inclusive' => $taxInclusive,
                 'total' => $total,
                 'payment_method' => $paymentMethod,
                 'amount_paid' => $amountPaid,
@@ -716,8 +774,11 @@ class CreateSaleAction
                 );
             }
 
+            // Out on another LIVE (completed / partially-refunded) sale and NOT
+            // since returned. A cancelled/fully-refunded/returned serial is free.
             $alreadyOut = SaleItemSerial::query()
                 ->where('serial', $serial)
+                ->whereNull('returned_at')
                 ->whereHas('sale', fn ($q) => $q->whereIn('status', [
                     SaleStatus::Completed->value,
                     SaleStatus::PartiallyRefunded->value,
@@ -730,17 +791,39 @@ class CreateSaleAction
                 );
             }
 
+            // Stock registry: a serial that was formally RECEIVED can only be
+            // sold from stock. If it's already marked sold there, block it (a
+            // stronger cross-sale guard); if it's in stock, draw it down and
+            // link the sale. A serial never received (legacy / walk-in) simply
+            // has no registry row — the sale still records it below.
+            $registry = ProductSerial::query()
+                ->where('product_id', $product->id)
+                ->where('serial', $serial)
+                ->lockForUpdate()
+                ->first();
+            if ($registry !== null && $registry->status === 'sold') {
+                throw DomainException::unprocessable(
+                    "Serial \"{$serial}\" has already been sold.",
+                    'SERIAL_ALREADY_SOLD',
+                );
+            }
+
             $saleItem->serials()->create([
                 'tenant_id' => $sale->tenant_id,
                 'sale_id' => $sale->id,
                 'product_id' => $product->id,
                 'variant_id' => $line['variant']?->id,
+                'product_serial_id' => $registry?->id,
                 'product_name' => $product->name,
                 'serial' => $serial,
                 'warranty_months' => $months,
                 'warranty_expires_at' => $expires,
                 'sold_at' => $sale->sold_at,
             ]);
+
+            if ($registry !== null) {
+                $registry->forceFill(['status' => 'sold', 'sale_id' => $sale->id])->save();
+            }
 
             $seen[$serial] = true;
         }

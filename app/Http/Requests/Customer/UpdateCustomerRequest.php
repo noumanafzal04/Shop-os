@@ -29,6 +29,10 @@ class UpdateCustomerRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:1000'],
             // Optional cap on how much this customer may owe on khata.
             'credit_limit' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'customer_group_id' => [
+                'nullable', 'uuid',
+                Rule::exists('customer_groups', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
         ];
     }
 }

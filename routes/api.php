@@ -176,10 +176,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('products/{product}/barcode', [ProductController::class, 'generateBarcode']);
                 // Cross-branch availability ("check other branches").
                 Route::get('products/{product}/branch-stock', [ProductController::class, 'branchStock']);
+                // Serial units on record (POS serial picker: in-stock by default).
+                Route::get('products/{product}/serials', [ProductController::class, 'serials']);
                 // Per-branch price overrides (effective = override ?? base).
                 Route::get('products/{product}/branch-prices', [ProductController::class, 'branchPrices']);
                 Route::put('products/{product}/branch-prices', [ProductController::class, 'setBranchPrices']);
                 Route::put('products/{product}/modifier-groups', [ProductController::class, 'syncModifiers']);
+                // Tax groups — named reusable rates products can point at.
+                Route::apiResource('tax-groups', \App\Http\Controllers\Api\V1\Tenant\TaxGroupController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
             });
 
             // Customers — CRM directory (auto-captured from sales/orders)
@@ -187,6 +192,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Khata repayment — pay down a customer's credit balance.
                 Route::post('customers/{customer}/payments', [CustomerController::class, 'recordPayment']);
                 Route::get('customers/export', [CustomerController::class, 'export']);
+                // Customer groups — tiered pricing segments.
+                Route::apiResource('customer-groups', \App\Http\Controllers\Api\V1\Tenant\CustomerGroupController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
                 Route::apiResource('customers', CustomerController::class);
             });
 

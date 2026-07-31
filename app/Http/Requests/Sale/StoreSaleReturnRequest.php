@@ -25,6 +25,11 @@ class StoreSaleReturnRequest extends FormRequest
             // the shop refunds twice yet restocks once. One row per line.
             'items.*.sale_item_id' => ['required', 'uuid', 'distinct'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
+            // Serialized returns: which IMEIs/serials of this line come back
+            // (frees them for resale). Optional; when given, one per returned
+            // unit and each must belong to the line.
+            'items.*.serials' => ['nullable', 'array'],
+            'items.*.serials.*' => ['string', 'max:120', 'distinct'],
             'reason' => ['nullable', 'string', 'max:255'],
             'refund_method' => ['sometimes', Rule::in(['cash', 'card', 'bank_transfer', 'other'])],
             'notes' => ['nullable', 'string', 'max:500'],

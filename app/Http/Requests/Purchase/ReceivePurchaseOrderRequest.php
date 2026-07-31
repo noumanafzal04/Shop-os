@@ -26,10 +26,14 @@ class ReceivePurchaseOrderRequest extends FormRequest
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'items.*.batch_number' => ['nullable', 'string', 'max:64'],
             'items.*.expiry_date' => ['nullable', 'date'],
+            // Serialized goods: the IMEIs/serials of the units received. Each
+            // enters stock as an in_stock serial. Distinct within the line.
+            'items.*.serials' => ['nullable', 'array'],
+            'items.*.serials.*' => ['string', 'max:120', 'distinct'],
         ];
     }
 
-    /** @return array<string, array{quantity: float, batch_number: ?string, expiry_date: ?string}> */
+    /** @return array<string, array{quantity: float, batch_number: ?string, expiry_date: ?string, serials: array<int,string>}> */
     public function receiveMap(): array
     {
         $map = [];
@@ -38,6 +42,10 @@ class ReceivePurchaseOrderRequest extends FormRequest
                 'quantity' => (float) $row['quantity'],
                 'batch_number' => $row['batch_number'] ?? null,
                 'expiry_date' => $row['expiry_date'] ?? null,
+                'serials' => array_values(array_filter(array_map(
+                    fn ($s) => trim((string) $s),
+                    $row['serials'] ?? [],
+                ), fn ($s) => $s !== '')),
             ];
         }
 

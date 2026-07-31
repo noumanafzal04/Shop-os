@@ -52,10 +52,11 @@ class DashboardService
             ->selectRaw('COALESCE(SUM(unit_cost * quantity), 0) as cogs')
             ->value('cogs');
 
-        // Expenses aren't branch-scoped yet, so a single-branch view shows no
-        // expenses (its P&L is revenue − COGS); the all-branches view is whole.
-        $expensesToday = $branchId !== null ? 0.0 : (float) Expense::withoutTenancy()
+        // Expenses are branch-scoped: a focused branch deducts only its own
+        // costs; the all-branches view (branchId null) sums the whole tenant.
+        $expensesToday = (float) Expense::withoutTenancy()
             ->where('tenant_id', $tenant->id)
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->whereDate('expense_date', $todayStart->toDateString())
             ->sum('amount');
 

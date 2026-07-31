@@ -6,15 +6,23 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Expense\StoreExpenseRequest;
 use App\Models\Expense;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ExpenseController extends Controller
 {
+    public function __construct(private readonly BranchContext $branch) {}
+
     public function index(Request $request): JsonResponse
     {
+        // Owner "all branches" (scopeId null) sees every expense; a focused
+        // branch view sees only that branch's costs.
+        $branchScope = $this->branch->scopeId();
+
         $expenses = Expense::query()
             ->with('category:id,name')
+            ->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b))
             ->when($request->query('search'), fn ($q, $s) => $q->where('description', 'like', "%{$s}%"))
             ->when($request->query('category_id'), fn ($q, $id) => $q->where('expense_category_id', $id))
             ->when($request->query('from'), fn ($q, $from) => $q->where('expense_date', '>=', $from))
@@ -28,7 +36,8 @@ class ExpenseController extends Controller
 
     public function store(StoreExpenseRequest $request): JsonResponse
     {
-        $data = $request->validated();
+        // Stamp the operating branch that incurred this cost (null = headless).
+        $data = $request->validated() + ['branch_id' => $this->branch->id()];
 
         // Edge case "duplicate expense": same category+amount+date already
         // recorded → still allowed (rent CAN repeat) but flagged as a warning

@@ -107,6 +107,11 @@ class StoreProductRequest extends FormRequest
             'min_order_qty' => ['nullable', 'numeric', 'min:0.001'],
             'sold_by' => ['sometimes', 'in:unit,weight'],
             'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            // Optional tax group — overrides tax_rate when set (group wins).
+            'tax_group_id' => [
+                'nullable', 'uuid',
+                Rule::exists('tax_groups', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
 
             // Collections — attach to any number of the tenant's collections.
             'collection_ids' => ['nullable', 'array'],

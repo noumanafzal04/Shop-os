@@ -18,6 +18,11 @@ class ShopSettings
             'currency_symbol' => 'Rs',
             'language' => 'en',
             'default_tax_rate' => 0,        // percent, applied at POS/checkout
+            // Tax mode. false (default) = EXCLUSIVE: tax is added on top of the
+            // price at checkout. true = INCLUSIVE: prices already contain tax
+            // (common for PKR retail) — the receipt shows the tax portion held
+            // WITHIN the price and the total is not inflated by it.
+            'tax_inclusive' => false,
 
             // Service businesses (salon/workshop): coverage area shown on the storefront
             'service_area' => null,
@@ -80,6 +85,7 @@ class ShopSettings
             'currency_symbol' => ['sometimes', 'string', 'max:5'],
             'language' => ['sometimes', 'string', 'max:5'],
             'default_tax_rate' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+            'tax_inclusive' => ['sometimes', 'boolean'],
             'service_area' => ['sometimes', 'nullable', 'string', 'max:300'],
             'pickup_enabled' => ['sometimes', 'boolean'],
             'delivery_enabled' => ['sometimes', 'boolean'],

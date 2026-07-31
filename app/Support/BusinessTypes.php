@@ -46,6 +46,9 @@ class BusinessTypes
         'pharmacy' => ['Tablet', 'Capsule', 'Strip', 'Bottle', 'Tube', 'Injection', 'Sachet', 'ml', 'Gram', 'Box'],
         'retail' => ['Piece', 'Pair', 'Box', 'Set', 'Pack', 'Roll', 'Meter', 'Dozen'],
         'services' => ['Service', 'Session', 'Hour', 'Visit', 'Job'],
+        // Fuel sells by the litre; lubricants by bottle/can/drum; the forecourt
+        // mart in pieces; the wash/service bay as a job.
+        'petroleum' => ['Litre', 'ml', 'Bottle', 'Can', 'Drum', 'Piece', 'Pack', 'KG', 'Service'],
     ];
 
     /** Variant attribute names suggested per type (the variant editor hints these). */
@@ -55,6 +58,7 @@ class BusinessTypes
         'pharmacy' => ['Strength', 'Pack Size'],
         'retail' => ['Size', 'Color', 'Material', 'Storage', 'Model'],
         'services' => ['Package', 'Duration'],
+        'petroleum' => ['Grade', 'Viscosity', 'Volume'],
     ];
 
     /** Legacy code → its primary type, so old tenants get the right units/variants. */
@@ -184,6 +188,34 @@ class BusinessTypes
                     ['value' => 'photography', 'label' => 'Photography'],
                     ['value' => 'clinic', 'label' => 'Clinic / Practice'],
                     ['value' => 'other', 'label' => 'Other Service'],
+                ],
+            ],
+
+            'petroleum' => [
+                'label' => 'Petroleum & Energy',
+                'examples' => ['Petrol Pump', 'CNG Station', 'Fuel Station', 'Lubricants Shop', 'Tyre Shop', 'Auto Service', 'Car Wash'],
+                'available' => true,
+                // A fuel station is an ecosystem: fuel (a volume-sold product) +
+                // a forecourt mart + lubricants/oils + tyres/batteries +
+                // accessories (all physical products), plus car wash / oil-change
+                // / tyre-fitting (services). Products + services + inventory ON;
+                // sold on the forecourt, not online, so marketplace/delivery OFF.
+                // Each fuel department/pump is a Branch (see the multi-branch
+                // model). NOTE: tank-volume/dip reconciliation, pump-meter shifts
+                // and a fuel POS mode (rupees→litres at a daily rate) are a
+                // separate Fuel Management module, not part of this base type.
+                'features' => ['products' => true, 'services' => true, 'inventory' => true, 'marketplace' => false, 'reservations' => false, 'delivery' => false],
+                'product_categories' => ['Fuel', 'Lubricants & Oils', 'Convenience Store', 'Auto Accessories', 'Tyres & Batteries', 'Services'],
+                'expense_categories' => ['Fuel Purchase', 'Tanker Delivery', 'Staff Salary', 'Rent', 'Electricity', 'Pump Maintenance', 'Licensing', 'Utilities'],
+                'categories' => [
+                    ['value' => 'petrol_pump', 'label' => 'Petrol Pump'],
+                    ['value' => 'cng_station', 'label' => 'CNG Station'],
+                    ['value' => 'diesel_station', 'label' => 'Diesel / HSD Station'],
+                    ['value' => 'lubricants_shop', 'label' => 'Lubricants & Oil Shop'],
+                    ['value' => 'tyre_shop', 'label' => 'Tyre & Battery Shop'],
+                    ['value' => 'auto_service', 'label' => 'Auto Service Station'],
+                    ['value' => 'car_wash', 'label' => 'Car Wash'],
+                    ['value' => 'general_petroleum', 'label' => 'General / Other' ],
                 ],
             ],
 

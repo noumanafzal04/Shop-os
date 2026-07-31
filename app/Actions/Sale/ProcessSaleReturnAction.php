@@ -7,7 +7,9 @@ use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\Sale;
+use App\Models\SaleItemSerial;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Services\InventoryService;
@@ -58,8 +60,16 @@ class ProcessSaleReturnAction
             // effective rate — either way the customer gets back the tax they
             // paid on what they're returning, never just the pre-tax price.
             $taxableBase = round($saleSubtotal - $saleDiscount, 2);
-            $fallbackRate = (float) $sale->tax > 0 && $taxableBase > 0
-                ? (float) $sale->tax / $taxableBase * 100
+            // Inclusive: line_total already CONTAINS the tax, so the fallback
+            // rate is derived from the tax as a fraction of the net (base − tax),
+            // and the refund total is the line share alone (see below).
+            $inclusive = (bool) $sale->tax_inclusive;
+            $fallbackRate = (float) $sale->tax > 0
+                ? ($inclusive
+                    ? ($taxableBase - (float) $sale->tax > 0
+                        ? (float) $sale->tax / ($taxableBase - (float) $sale->tax) * 100
+                        : 0.0)
+                    : ($taxableBase > 0 ? (float) $sale->tax / $taxableBase * 100 : 0.0))
                 : 0.0;
 
             $lines = [];
@@ -111,8 +121,42 @@ class ProcessSaleReturnAction
                 $refundBase = round($refundBase + $lineTotal, 2);
 
                 // Tax this line carried, prorated to the returned share.
+                // Exclusive: tax sits on TOP of line_total → share × rate.
+                // Inclusive: tax is WITHIN line_total → extract the portion held
+                // inside (line_total − line_total ÷ (1 + rate)).
                 $lineRate = $saleItem->tax_rate !== null ? (float) $saleItem->tax_rate : $fallbackRate;
-                $refundTax = round($refundTax + $lineTotal * $lineRate / 100, 2);
+                $lineTax = $inclusive
+                    ? round($lineTotal - $lineTotal / (1 + $lineRate / 100), 2)
+                    : round($lineTotal * $lineRate / 100, 2);
+                $refundTax = round($refundTax + $lineTax, 2);
+
+                // Serialized returns: resolve the specific serials coming back.
+                // Each must be an active (not-yet-returned) serial on THIS line,
+                // and there must be exactly one per returned unit.
+                $serialIds = [];
+                $serials = $row['serials'] ?? [];
+                if (! empty($serials)) {
+                    if (count($serials) !== (int) round($qty)) {
+                        throw DomainException::unprocessable(
+                            'Enter one serial per returned unit.',
+                            'RETURN_SERIAL_COUNT_MISMATCH',
+                        );
+                    }
+                    foreach ($serials as $serial) {
+                        $sis = SaleItemSerial::query()
+                            ->where('sale_item_id', $saleItem->id)
+                            ->where('serial', trim((string) $serial))
+                            ->whereNull('returned_at')
+                            ->first();
+                        if ($sis === null) {
+                            throw DomainException::unprocessable(
+                                "Serial \"{$serial}\" isn't an active serial on this item.",
+                                'RETURN_SERIAL_INVALID',
+                            );
+                        }
+                        $serialIds[] = $sis->id;
+                    }
+                }
 
                 $lines[] = [
                     'tenant_id' => $tenantId,
@@ -130,6 +174,8 @@ class ProcessSaleReturnAction
                     // BOM snapshot captured at sale time (combo/recipe lines);
                     // restocked in preference to the live recipe.
                     '_components' => $saleItem->components,
+                    // sale_item_serial ids to mark returned + free in stock.
+                    '_serials' => $serialIds,
                 ];
             }
 
@@ -137,7 +183,10 @@ class ProcessSaleReturnAction
                 throw DomainException::unprocessable('Select at least one item to return.', 'RETURN_EMPTY');
             }
 
-            $refundTotal = round($refundBase + $refundTax, 2);
+            // Exclusive: the customer paid base + tax, so refund both. Inclusive:
+            // they paid the base (tax already inside it) — refund_tax is only the
+            // informational portion held within, never added on top again.
+            $refundTotal = $inclusive ? $refundBase : round($refundBase + $refundTax, 2);
 
             $seq = SaleReturn::query()->count() + 1;
 
@@ -161,8 +210,24 @@ class ProcessSaleReturnAction
                 $itemType = $line['_item_type'];
                 $unitFactor = $line['_unit_factor'];
                 $components = $line['_components'] ?? null;
-                unset($line['_item_type'], $line['_unit_factor'], $line['_components']);
+                $serialIds = $line['_serials'] ?? [];
+                unset($line['_item_type'], $line['_unit_factor'], $line['_components'], $line['_serials']);
                 $return->items()->create($line);
+
+                // Serialized return: mark each returned unit's serial as returned
+                // (frees it from the "already sold" guard) and put its registry
+                // row back in stock so it can be sold again.
+                foreach ($serialIds as $sisId) {
+                    $sis = SaleItemSerial::query()->whereKey($sisId)->first();
+                    if ($sis === null) {
+                        continue;
+                    }
+                    $sis->forceFill(['returned_at' => now()])->save();
+                    if ($sis->product_serial_id !== null) {
+                        ProductSerial::query()->whereKey($sis->product_serial_id)
+                            ->update(['status' => 'in_stock', 'sale_id' => null]);
+                    }
+                }
 
                 // Restock only physical, still-tracked products.
                 $product = $line['product_id'] !== null

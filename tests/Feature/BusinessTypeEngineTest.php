@@ -81,4 +81,53 @@ class BusinessTypeEngineTest extends TestCase
         // A marketplace-capable item must complete image + description online.
         $this->assertEqualsCanonicalizing(['image', 'description'], $physical['online_required']);
     }
+
+    // ── Petroleum & Energy ───────────────────────────────────────────
+
+    public function test_petroleum_units_and_variant_attributes(): void
+    {
+        $this->assertContains('Litre', BusinessTypes::unitsFor('petroleum'));
+        $this->assertContains('Drum', BusinessTypes::unitsFor('petroleum'));
+        $this->assertContains('Grade', BusinessTypes::variantAttributesFor('petroleum'));
+        $this->assertContains('Viscosity', BusinessTypes::variantAttributesFor('petroleum'));
+    }
+
+    public function test_petroleum_defaults_products_services_inventory_on_marketplace_off(): void
+    {
+        $f = BusinessTypes::defaultFeatures('petroleum');
+
+        $this->assertTrue($f['products']);
+        $this->assertTrue($f['services']);   // car wash / oil change / tyre fitting
+        $this->assertTrue($f['inventory']);
+        $this->assertFalse($f['marketplace']); // sold on the forecourt, not online
+        $this->assertFalse($f['delivery']);
+        $this->assertTrue($f['expenses']);
+        $this->assertTrue($f['pos']);
+        // marketplace off → images not forced on by default.
+        $this->assertFalse($f['images']);
+    }
+
+    public function test_petroleum_can_sell_both_physical_products_and_services(): void
+    {
+        $types = BusinessTypes::itemTypesFor('petroleum');
+
+        // Fuel + lubricants + accessories are physical; the wash/service bay is a service.
+        $this->assertContains('physical_product', $types);
+        $this->assertContains('service', $types);
+    }
+
+    public function test_petroleum_is_a_selectable_onboarding_type(): void
+    {
+        $data = $this->getJson('/api/v1/business-types')->assertOk()->json('data');
+
+        $petroleum = collect($data)->firstWhere('code', 'petroleum');
+        $this->assertNotNull($petroleum);
+        $this->assertSame('Petroleum & Energy', $petroleum['label']);
+        $this->assertTrue($petroleum['available']);
+        $this->assertContains('Litre', $petroleum['units']);
+        $this->assertContains('physical_product', $petroleum['item_types']);
+        $this->assertContains('service', $petroleum['item_types']);
+        // Its business_category picklist is exposed.
+        $this->assertContains('petrol_pump', collect($petroleum['categories'])->pluck('value')->all());
+    }
 }

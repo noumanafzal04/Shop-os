@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Income\StoreIncomeRequest;
 use App\Models\Income;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,10 +17,15 @@ use Illuminate\Http\Request;
  */
 class IncomeController extends Controller
 {
+    public function __construct(private readonly BranchContext $branch) {}
+
     public function index(Request $request): JsonResponse
     {
+        $branchScope = $this->branch->scopeId();
+
         $incomes = Income::query()
             ->with('category:id,name')
+            ->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b))
             ->when($request->query('search'), fn ($q, $s) => $q->where('description', 'like', "%{$s}%"))
             ->when($request->query('category_id'), fn ($q, $id) => $q->where('income_category_id', $id))
             ->when($request->query('from'), fn ($q, $from) => $q->where('income_date', '>=', $from))
@@ -33,7 +39,7 @@ class IncomeController extends Controller
 
     public function store(StoreIncomeRequest $request): JsonResponse
     {
-        $data = $request->validated();
+        $data = $request->validated() + ['branch_id' => $this->branch->id()];
 
         // Edge case "duplicate income": same category+amount+date already
         // recorded → still allowed (a monthly rent CAN repeat) but flagged as a

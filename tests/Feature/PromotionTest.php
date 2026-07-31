@@ -177,4 +177,161 @@ class PromotionTest extends TestCase
         // Outside the time window (12:00 not in 22:00–02:00) → not live.
         $this->assertFalse($service->liveNow($live, Carbon::parse('2026-07-27 12:00:00')));
     }
+
+    // ── BOGO (buy-X-get-Y) ───────────────────────────────────────────
+
+    public function test_bogo_buy_one_get_one_free(): void
+    {
+        $this->promo([
+            'name' => 'B1G1 Drinks', 'type' => 'bogo', 'scope' => 'category',
+            'category_id' => $this->drinks->id, 'buy_qty' => 1, 'get_qty' => 1,
+        ]);
+
+        // 2 colas @ 100 → one free = 100 off.
+        $sale = $this->sell([[$this->cola, 2]])->assertCreated()->json('data');
+
+        $this->assertSame(100.0, (float) $sale['promo_discount']);
+        $this->assertSame(100.0, (float) $sale['total']);
+    }
+
+    public function test_bogo_half_off_the_second(): void
+    {
+        $this->promo([
+            'name' => 'B1G1 50%', 'type' => 'bogo', 'scope' => 'category',
+            'category_id' => $this->drinks->id, 'buy_qty' => 1, 'get_qty' => 1, 'get_discount_pct' => 50,
+        ]);
+
+        // 2 colas @ 100 → second at 50% off = 50 off.
+        $sale = $this->sell([[$this->cola, 2]])->assertCreated()->json('data');
+
+        $this->assertSame(50.0, (float) $sale['promo_discount']);
+    }
+
+    public function test_bogo_needs_a_full_group(): void
+    {
+        $this->promo([
+            'type' => 'bogo', 'scope' => 'category', 'category_id' => $this->drinks->id,
+            'buy_qty' => 1, 'get_qty' => 1,
+        ]);
+
+        // Only 1 cola — no complete buy+get group → no discount.
+        $sale = $this->sell([[$this->cola, 1]])->assertCreated()->json('data');
+
+        $this->assertSame(0.0, (float) $sale['promo_discount']);
+    }
+
+    public function test_bogo_multiple_groups_free_the_right_count(): void
+    {
+        $this->promo([
+            'type' => 'bogo', 'scope' => 'category', 'category_id' => $this->drinks->id,
+            'buy_qty' => 1, 'get_qty' => 1,
+        ]);
+
+        // 5 colas @ 100 → floor(5/2) = 2 groups → 2 free = 200 off (odd one pays).
+        $sale = $this->sell([[$this->cola, 5]])->assertCreated()->json('data');
+
+        $this->assertSame(200.0, (float) $sale['promo_discount']);
+        $this->assertSame(300.0, (float) $sale['total']);
+    }
+
+    public function test_bogo_buy_two_get_one(): void
+    {
+        $this->promo([
+            'type' => 'bogo', 'scope' => 'category', 'category_id' => $this->drinks->id,
+            'buy_qty' => 2, 'get_qty' => 1,
+        ]);
+
+        // 3 colas → 1 group of 3 → 1 free = 100. A 4th would still be just 1 free.
+        $this->assertSame(100.0, (float) $this->sell([[$this->cola, 3]])->assertCreated()->json('data')['promo_discount']);
+        $this->assertSame(100.0, (float) $this->sell([[$this->cola, 4]])->assertCreated()->json('data')['promo_discount']);
+    }
+
+    public function test_bogo_gives_away_the_cheapest_units(): void
+    {
+        $juice = $this->product('Juice', 60, $this->drinks->id);
+        $this->promo([
+            'type' => 'bogo', 'scope' => 'product', 'buy_qty' => 1, 'get_qty' => 1,
+            'product_ids' => [$this->cola->id, $juice->id],
+        ]);
+
+        // 1 cola (100) + 1 juice (60) → one free, the cheaper (60) comes off.
+        $sale = $this->sell([[$this->cola, 1], [$juice, 1]])->assertCreated()->json('data');
+
+        $this->assertSame(60.0, (float) $sale['promo_discount']);
+        $this->assertSame(100.0, (float) $sale['total']);
+    }
+
+    public function test_bogo_only_counts_matching_items(): void
+    {
+        $this->promo([
+            'type' => 'bogo', 'scope' => 'category', 'category_id' => $this->drinks->id,
+            'buy_qty' => 1, 'get_qty' => 1,
+        ]);
+
+        // 1 cola (drinks) + 3 rice (no category) → drinks pool is just 1 → no group.
+        $sale = $this->sell([[$this->cola, 1], [$this->rice, 3]])->assertCreated()->json('data');
+
+        $this->assertSame(0.0, (float) $sale['promo_discount']);
+    }
+
+    public function test_bogo_counts_only_whole_units(): void
+    {
+        // Weight-sold item: a fractional quantity can't complete a buy+get group.
+        $loose = Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product', 'item_type' => 'physical_product',
+            'name' => 'Loose Tea', 'price' => 100, 'stock_quantity' => 1000, 'track_inventory' => true,
+            'sold_by' => 'weight', 'category_id' => $this->drinks->id,
+        ]);
+        $this->promo([
+            'type' => 'bogo', 'scope' => 'product', 'buy_qty' => 1, 'get_qty' => 1,
+            'product_ids' => [$loose->id],
+        ]);
+
+        // 1.5 kg floors to 1 whole unit → no complete group → no discount.
+        $res = $this->actingAsUser($this->owner)->postJson('/api/v1/promotions/preview', [
+            'items' => [['product_id' => $loose->id, 'quantity' => 1.5]],
+        ])->assertOk()->json('data');
+        $this->assertNull($res);
+
+        // 2 kg → one free = 100 off.
+        $res = $this->actingAsUser($this->owner)->postJson('/api/v1/promotions/preview', [
+            'items' => [['product_id' => $loose->id, 'quantity' => 2]],
+        ])->assertOk()->json('data');
+        $this->assertSame(100.0, (float) $res['discount']);
+    }
+
+    public function test_bogo_competes_on_amount_with_other_promotions(): void
+    {
+        // B1G1 on 2 colas = 100 off; a 10% order promo on 200 = 20 off. BOGO wins.
+        $this->promo(['name' => 'B1G1', 'type' => 'bogo', 'scope' => 'category', 'category_id' => $this->drinks->id, 'buy_qty' => 1, 'get_qty' => 1]);
+        $this->promo(['name' => '10% off', 'type' => 'percent', 'value' => 10, 'scope' => 'order']);
+
+        $sale = $this->sell([[$this->cola, 2]])->assertCreated()->json('data');
+
+        $this->assertSame(100.0, (float) $sale['promo_discount']);
+        $this->assertSame('B1G1', $sale['promo_name']);
+    }
+
+    public function test_bogo_create_requires_buy_and_get_and_rejects_order_scope(): void
+    {
+        $this->actingAsUser($this->owner)->postJson('/api/v1/promotions', [
+            'name' => 'Bad', 'type' => 'bogo', 'scope' => 'category', 'category_id' => $this->drinks->id,
+        ])->assertStatus(422)->assertJsonValidationErrors(['buy_qty', 'get_qty']);
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/promotions', [
+            'name' => 'Bad scope', 'type' => 'bogo', 'scope' => 'order', 'buy_qty' => 1, 'get_qty' => 1,
+        ])->assertStatus(422)->assertJsonValidationErrors(['scope']);
+    }
+
+    public function test_bogo_create_succeeds_and_persists_fields(): void
+    {
+        $this->actingAsUser($this->owner)->postJson('/api/v1/promotions', [
+            'name' => 'Combo B2G1', 'type' => 'bogo', 'scope' => 'category', 'category_id' => $this->drinks->id,
+            'buy_qty' => 2, 'get_qty' => 1, 'get_discount_pct' => 100,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('promotions', [
+            'name' => 'Combo B2G1', 'type' => 'bogo', 'buy_qty' => 2, 'get_qty' => 1,
+        ]);
+    }
 }

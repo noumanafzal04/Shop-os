@@ -13,16 +13,31 @@ class UpdatePromotionRequest extends FormRequest
         return $this->user()->hasPermission(Permissions::COUPONS_MANAGE);
     }
 
+    /** bogo has no percent/fixed value — store 0 so the non-null column is satisfied. */
+    protected function prepareForValidation(): void
+    {
+        if ($this->input('type') === 'bogo') {
+            $this->merge(['value' => 0]);
+        }
+    }
+
     public function rules(): array
     {
         $tenantId = $this->user()->tenant_id;
-        $isPercent = $this->input('type', 'percent') === 'percent';
+        $type = $this->input('type', 'percent');
+        $isPercent = $type === 'percent';
+        $isBogo = $type === 'bogo';
 
         return [
             'name' => ['sometimes', 'required', 'string', 'max:120'],
-            'type' => ['sometimes', 'in:percent,fixed'],
-            'value' => ['sometimes', 'numeric', 'min:0.01', $isPercent ? 'max:100' : 'max:99999999'],
-            'scope' => ['sometimes', 'in:order,category,product'],
+            'type' => ['sometimes', 'in:percent,fixed,bogo'],
+            'value' => $isBogo
+                ? ['nullable', 'numeric']
+                : ['sometimes', 'numeric', 'min:0.01', $isPercent ? 'max:100' : 'max:99999999'],
+            'scope' => ['sometimes', $isBogo ? 'in:category,product' : 'in:order,category,product'],
+            'buy_qty' => [$isBogo ? 'required' : 'nullable', 'numeric', 'min:1', 'max:999'],
+            'get_qty' => [$isBogo ? 'required' : 'nullable', 'numeric', 'min:1', 'max:999'],
+            'get_discount_pct' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
             'category_id' => [
                 'nullable', 'uuid',
                 Rule::exists('categories', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),

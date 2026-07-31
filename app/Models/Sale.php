@@ -23,6 +23,7 @@ class Sale extends BaseModel
             'discount' => 'decimal:2',
             'promo_discount' => 'decimal:2',
             'tax' => 'decimal:2',
+            'tax_inclusive' => 'boolean',
             'total' => 'decimal:2',
             'amount_paid' => 'decimal:2',
             'change_due' => 'decimal:2',

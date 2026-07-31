@@ -6,6 +6,7 @@ use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\Sale;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
@@ -110,6 +111,13 @@ class CancelSaleAction
                     $loyaltyCustomer->refundRedeemedPoints($loyaltyCustomer->loyaltyRedeemedReversible($sale->id), $sale->id, "Cancelled {$sale->invoice_number}");
                 }
             }
+
+            // Serial registry: put any serialized units this sale sold back in
+            // stock so they can be sold again (mirrors the stock restore above).
+            ProductSerial::query()
+                ->where('sale_id', $sale->id)
+                ->where('status', 'sold')
+                ->update(['status' => 'in_stock', 'sale_id' => null]);
 
             $sale->forceFill([
                 'status' => SaleStatus::Cancelled,

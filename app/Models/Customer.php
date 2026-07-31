@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Exceptions\DomainException;
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -28,6 +29,12 @@ class Customer extends BaseModel
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);
+    }
+
+    /** The pricing/discount tier this customer belongs to, if any. */
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(CustomerGroup::class, 'customer_group_id');
     }
 
     public function ledgerEntries(): HasMany

@@ -127,6 +127,7 @@ class DemoDataSeeder extends Seeder
 
         if (! Product::withoutTenancy()->where('tenant_id', $tenant->id)->exists()) {
             $this->seedProducts($tenant, $blueprint['items'], $blueprint['type']);
+            $this->seedMarketingExtras($tenant);
             $this->seedCollections($tenant);
             $this->seedSales($tenant);
             $this->seedExpenses($tenant);
@@ -184,6 +185,8 @@ class DemoDataSeeder extends Seeder
                 'low_stock_threshold' => $item['low_at'] ?? null,
                 // Food/made-to-order items pass 'track' => false.
                 'track_inventory' => $item['track'] ?? ($coarse === 'product'),
+                // Fuel and loose goods sell by volume/weight (fractional qty).
+                'sold_by' => $item['sold_by'] ?? 'unit',
                 'duration_minutes' => $item['duration'] ?? null,
             ]);
 
@@ -236,6 +239,49 @@ class DemoDataSeeder extends Seeder
      * Demo supplier + purchases: one fully-received PO (stock in) and one
      * open ordered PO with a partial payment — exercises the real pipeline.
      */
+    /**
+     * Reusable tax group + a couple of automatic promotions (incl. a BOGO) so a
+     * fresh --seed has data to exercise the tax and promotion modules.
+     */
+    private function seedMarketingExtras(Tenant $tenant): void
+    {
+        \App\Models\TaxGroup::withoutTenancy()->firstOrCreate(
+            ['tenant_id' => $tenant->id, 'name' => 'GST 17%'],
+            ['rate' => 17, 'is_active' => true],
+        );
+
+        // A trade/wholesale tier + a VIP tier for tiered pricing demos.
+        \App\Models\CustomerGroup::withoutTenancy()->firstOrCreate(
+            ['tenant_id' => $tenant->id, 'name' => 'Wholesale / Trade'],
+            ['price_level' => 'wholesale', 'discount_percent' => null, 'is_active' => true],
+        );
+        \App\Models\CustomerGroup::withoutTenancy()->firstOrCreate(
+            ['tenant_id' => $tenant->id, 'name' => 'VIP'],
+            ['price_level' => 'retail', 'discount_percent' => 5, 'is_active' => true],
+        );
+
+        // Automatic order-wide discount over a minimum spend.
+        \App\Models\Promotion::withoutTenancy()->firstOrCreate(
+            ['tenant_id' => $tenant->id, 'name' => 'Weekend 10% Off'],
+            ['type' => 'percent', 'value' => 10, 'scope' => 'order', 'min_spend' => 500, 'is_active' => true, 'priority' => 1],
+        );
+
+        // Buy-1-get-1 on the first category that actually has ≥2 products.
+        $categoryId = Product::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->whereNotNull('category_id')
+            ->groupBy('category_id')
+            ->havingRaw('COUNT(*) >= 2')
+            ->value('category_id');
+        if ($categoryId !== null) {
+            \App\Models\Promotion::withoutTenancy()->firstOrCreate(
+                ['tenant_id' => $tenant->id, 'name' => 'Buy 1 Get 1 Free'],
+                ['type' => 'bogo', 'value' => 0, 'scope' => 'category', 'category_id' => $categoryId,
+                    'buy_qty' => 1, 'get_qty' => 1, 'get_discount_pct' => 100, 'is_active' => false, 'priority' => 2],
+            );
+        }
+    }
+
     private function seedPurchases(Tenant $tenant): void
     {
         app(TenantContext::class)->set($tenant);
@@ -269,7 +315,21 @@ class DemoDataSeeder extends Seeder
             'supplier_id' => $supplier->id, 'order_date' => now()->subDays(20)->toDateString(),
             'status' => 'ordered', 'items' => $lines(),
         ]);
-        app(ReceivePurchaseOrderAction::class)->execute($received);
+        // Medicines can only be received into a DATED lot (FEFO + expired-stock
+        // fence). Build a receive map that dates every line a year out so a
+        // pharmacy demo tenant seeds without tripping EXPIRY_REQUIRED.
+        $received->load('items');
+        $receiveMap = [];
+        foreach ($received->items as $item) {
+            $product = $item->product_id !== null
+                ? Product::withoutTenancy()->find($item->product_id)
+                : null;
+            $receiveMap[$item->id] = [
+                'quantity' => $item->outstanding(), // all outstanding, as the default receive does
+                'expiry_date' => $product?->requiresExpiry() ? now()->addYear()->toDateString() : null,
+            ];
+        }
+        app(ReceivePurchaseOrderAction::class)->execute($received, $receiveMap);
         app(RecordSupplierPaymentAction::class)->execute($supplier, [
             'amount' => round((float) $received->fresh()->total * 0.6, 2),
             'method' => 'bank_transfer', 'purchase_order_id' => $received->id,
@@ -485,6 +545,7 @@ class DemoDataSeeder extends Seeder
             ['name' => 'MediPlus Pharmacy',     'type' => 'pharmacy', 'category' => 'medical_store','online' => false, 'items' => $this->catalogFor('pharmacy')],
             ['name' => 'Trendz Retail',         'type' => 'retail',   'category' => 'garments',     'online' => true,  'items' => $this->catalogFor('retail')],
             ['name' => 'GlowUp Salon & Studio', 'type' => 'services', 'category' => 'salon_beauty', 'online' => false, 'items' => $this->catalogFor('services')],
+            ['name' => 'Highway Fuel Station',  'type' => 'petroleum', 'category' => 'petrol_pump', 'online' => false, 'items' => $this->catalogFor('petroleum')],
         ];
     }
 
@@ -497,8 +558,54 @@ class DemoDataSeeder extends Seeder
             'pharmacy' => $this->pharmacyCatalog(),
             'retail' => $this->retailCatalog(),
             'services' => $this->servicesCatalog(),
+            'petroleum' => $this->petroleumCatalog(),
             default => [],
         };
+    }
+
+    /**
+     * A fuel station: fuel sold by the litre (fractional), lubricants + auto
+     * accessories + tyres + a forecourt mart (all stocked), and the wash /
+     * service bay as service lines.
+     */
+    private function petroleumCatalog(): array
+    {
+        // Fuel — sold by the litre, thin margin, large tank stock.
+        $fuel = [];
+        foreach ([['Petrol (Super)', 290], ['Hi-Octane', 320], ['Diesel (HSD)', 285]] as [$name, $price]) {
+            $fuel[] = [
+                'name' => $name, 'category' => 'Fuel', 'price' => $price,
+                'cost' => (int) round($price * 0.95), 'stock' => random_int(3000, 8000),
+                'low_at' => 1000, 'sold_by' => 'weight', 'unit' => 'Litre',
+            ];
+        }
+
+        $goods = $this->stocked([
+            'Lubricants & Oils' => [
+                ['Engine Oil 1L (5W-30)', 1800], ['Engine Oil 4L (10W-40)', 6500],
+                ['Gear Oil 1L', 1400], ['Brake Fluid 500ml', 700], ['Coolant 1L', 900],
+            ],
+            'Auto Accessories' => [
+                ['Wiper Blade', 850], ['Air Freshener', 350], ['Car Shampoo 1L', 650],
+                ['Microfiber Cloth', 300], ['Phone Mount', 1200],
+            ],
+            'Tyres & Batteries' => [
+                ['Tubeless Tyre 13"', 12000], ['Car Battery 45Ah', 16500], ['Valve Cap Set', 200],
+            ],
+            'Convenience Store' => [
+                ['Mineral Water 1.5L', 100], ['Soft Drink Can', 120], ['Energy Drink', 250],
+                ['Chips', 100], ['Chocolate Bar', 150],
+            ],
+        ]);
+
+        $services = $this->serviceItems([
+            'Services' => [
+                ['Car Wash (Standard)', 500, 30], ['Car Wash (Premium)', 1200, 60],
+                ['Oil Change Service', 800, 45], ['Tyre Fitting', 300, 20],
+            ],
+        ]);
+
+        return array_merge($fuel, $goods, $services);
     }
 
     /** Tracked physical goods: cost ≈ 62% of price, healthy stock, low-at 10. */

@@ -13,17 +13,35 @@ class StorePromotionRequest extends FormRequest
         return $this->user()->hasPermission(Permissions::COUPONS_MANAGE);
     }
 
+    /** bogo has no percent/fixed value — store 0 so the non-null column is satisfied. */
+    protected function prepareForValidation(): void
+    {
+        if ($this->input('type') === 'bogo') {
+            $this->merge(['value' => 0]);
+        }
+    }
+
     public function rules(): array
     {
         $tenantId = $this->user()->tenant_id;
-        $isPercent = $this->input('type') === 'percent';
+        $type = $this->input('type');
+        $isPercent = $type === 'percent';
+        $isBogo = $type === 'bogo';
 
         return [
             'name' => ['required', 'string', 'max:120'],
-            'type' => ['required', 'in:percent,fixed'],
-            // A percent can't exceed 100; a fixed amount is a rupee figure.
-            'value' => ['required', 'numeric', 'min:0.01', $isPercent ? 'max:100' : 'max:99999999'],
-            'scope' => ['required', 'in:order,category,product'],
+            'type' => ['required', 'in:percent,fixed,bogo'],
+            // A percent can't exceed 100; a fixed amount is a rupee figure. bogo
+            // ignores value (its discount is the free units) — stored as 0.
+            'value' => $isBogo
+                ? ['nullable', 'numeric']
+                : ['required', 'numeric', 'min:0.01', $isPercent ? 'max:100' : 'max:99999999'],
+            // bogo needs a specific item set — an order-wide buy-get is meaningless.
+            'scope' => ['required', $isBogo ? 'in:category,product' : 'in:order,category,product'],
+            // Buy-X-get-Y (bogo only).
+            'buy_qty' => [$isBogo ? 'required' : 'nullable', 'numeric', 'min:1', 'max:999'],
+            'get_qty' => [$isBogo ? 'required' : 'nullable', 'numeric', 'min:1', 'max:999'],
+            'get_discount_pct' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
             'category_id' => [
                 'required_if:scope,category', 'nullable', 'uuid',
                 Rule::exists('categories', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),

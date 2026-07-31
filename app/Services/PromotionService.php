@@ -79,19 +79,17 @@ class PromotionService
     /** The discount this promotion yields for the cart (0 if it doesn't apply). */
     private function discountFor(Promotion $promo, array $lines, float $subtotal): float
     {
+        if ($promo->type === 'bogo') {
+            return $this->bogoDiscount($promo, $lines);
+        }
+
         if ($promo->scope === 'order') {
             if ($promo->min_spend !== null && $subtotal < (float) $promo->min_spend) {
                 return 0.0;
             }
             $base = $subtotal;
         } else {
-            $matching = array_filter($lines, function ($l) use ($promo) {
-                $product = $l['product'];
-
-                return $promo->scope === 'category'
-                    ? $product->category_id === $promo->category_id
-                    : in_array($product->id, $promo->product_ids ?? [], true);
-            });
+            $matching = array_filter($lines, fn ($l) => $this->matches($promo, $l['product']));
             if (empty($matching)) {
                 return 0.0;
             }
@@ -116,6 +114,65 @@ class PromotionService
 
         // Never discount more than the base the promotion applies to.
         return round(max(0, min($discount, $base)), 2);
+    }
+
+    /**
+     * Buy-X-get-Y. For every (buy_qty + get_qty) matching units in the cart,
+     * get_qty of the CHEAPEST matching units come off at get_discount_pct
+     * (null/100 = free, 50 = half off). Whole units only — a fractional
+     * (weight-sold) quantity contributes only its whole part. Per-unit price is
+     * the line's effective rate (line_total ÷ quantity), so any per-line
+     * discount already flows through and is never double-counted.
+     */
+    private function bogoDiscount(Promotion $promo, array $lines): float
+    {
+        $matching = $promo->scope === 'order'
+            ? $lines
+            : array_filter($lines, fn ($l) => $this->matches($promo, $l['product']));
+        if (empty($matching)) {
+            return 0.0;
+        }
+
+        $buy = max(1, (int) round((float) ($promo->buy_qty ?? 1)));
+        $get = max(1, (int) round((float) ($promo->get_qty ?? 1)));
+        $pct = $promo->get_discount_pct !== null ? (float) $promo->get_discount_pct : 100.0;
+        $groupSize = $buy + $get;
+
+        // Explode matching lines into individual whole units, each at its
+        // effective per-unit price, so the cheapest can be given away first.
+        $prices = [];
+        foreach ($matching as $l) {
+            $qty = (float) $l['quantity'];
+            $whole = (int) floor($qty);
+            if ($whole <= 0 || $qty <= 0) {
+                continue;
+            }
+            $unit = (float) $l['line_total'] / $qty;
+            for ($i = 0; $i < $whole; $i++) {
+                $prices[] = $unit;
+            }
+        }
+
+        $freeUnits = intdiv(count($prices), $groupSize) * $get;
+        if ($freeUnits <= 0) {
+            return 0.0;
+        }
+
+        sort($prices); // cheapest first — the standard "cheapest one free"
+        $discount = 0.0;
+        for ($i = 0; $i < $freeUnits; $i++) {
+            $discount += $prices[$i];
+        }
+
+        return round(max(0.0, $discount * $pct / 100), 2);
+    }
+
+    /** Does a line's product fall in the promotion's category/product scope? */
+    private function matches(Promotion $promo, Product $product): bool
+    {
+        return $promo->scope === 'category'
+            ? $product->category_id === $promo->category_id
+            : in_array($product->id, $promo->product_ids ?? [], true);
     }
 
     /**

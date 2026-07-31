@@ -81,6 +81,10 @@ class UpdateProductRequest extends FormRequest
             'min_order_qty' => ['nullable', 'numeric', 'min:0.001'],
             'sold_by' => ['sometimes', 'in:unit,weight'],
             'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'tax_group_id' => [
+                'nullable', 'uuid',
+                Rule::exists('tax_groups', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
             'collection_ids' => ['nullable', 'array'],
             'collection_ids.*' => [
                 'uuid',

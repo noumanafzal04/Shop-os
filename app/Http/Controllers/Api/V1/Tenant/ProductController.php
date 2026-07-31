@@ -219,6 +219,26 @@ class ProductController extends Controller
     }
 
     /**
+     * Serial units on record for this product. Defaults to in_stock (the POS
+     * serial picker for a serialized sale); pass ?status=sold or ?status=all
+     * to widen. Most recent first.
+     */
+    public function serials(string $id, \Illuminate\Http\Request $request): JsonResponse
+    {
+        $product = Product::query()->findOrFail($id);
+        $status = $request->query('status', 'in_stock');
+
+        $rows = \App\Models\ProductSerial::query()
+            ->where('product_id', $product->id)
+            ->when($status !== 'all', fn ($q) => $q->where('status', $status))
+            ->latest('received_at')
+            ->latest('created_at')
+            ->get(['id', 'serial', 'status', 'variant_id', 'branch_id', 'sale_id', 'received_at']);
+
+        return ApiResponse::ok($rows);
+    }
+
+    /**
      * Per-branch price overrides for a product — the base (catalog) price plus,
      * for every active branch, its product-level override (null = uses base).
      * Powers the "branch pricing" editor.

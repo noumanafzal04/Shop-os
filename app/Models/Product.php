@@ -103,6 +103,29 @@ class Product extends BaseModel
         return $this->belongsTo(Category::class);
     }
 
+    public function taxGroup(): BelongsTo
+    {
+        return $this->belongsTo(TaxGroup::class);
+    }
+
+    /**
+     * The effective tax percent for this product: its tax group's rate if it's
+     * on one, else its own tax_rate, else the shop default. 0 = exempt. The
+     * group wins even when the raw tax_rate is also set, so re-rating a group
+     * moves every product on it.
+     */
+    public function effectiveTaxRate(float $default = 0.0): float
+    {
+        if ($this->tax_group_id !== null) {
+            $rate = $this->taxGroup?->rate;
+            if ($rate !== null) {
+                return (float) $rate;
+            }
+        }
+
+        return $this->tax_rate !== null ? (float) $this->tax_rate : $default;
+    }
+
     public function collections(): BelongsToMany
     {
         return $this->belongsToMany(Collection::class, 'collection_item')

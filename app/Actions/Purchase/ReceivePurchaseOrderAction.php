@@ -6,7 +6,9 @@ use App\Enums\PurchaseStatus;
 use App\Exceptions\DomainException;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\ProductSerial;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
 use App\Support\ItemTypes;
@@ -127,7 +129,7 @@ class ReceivePurchaseOrderAction
                     // is scoped to the received variant (NULL for product-level),
                     // so variant medicines keep their own expiry + FEFO.
                     $wantsBatch = $row !== null
-                        && ($row['batch_number'] !== null || $row['expiry_date'] !== null);
+                        && (($row['batch_number'] ?? null) !== null || ($row['expiry_date'] ?? null) !== null);
                     $isBatchTracked = $product->item_type === ItemTypes::MEDICINE
                         || $product->batches()->exists();
 
@@ -146,6 +148,12 @@ class ReceivePurchaseOrderAction
                             'cost' => $item->unit_cost !== null ? round((float) $item->unit_cost / $factor, 2) : null,
                         ]);
                     }
+
+                    // Serial-on-receive: register each captured IMEI/serial as an
+                    // in_stock unit. Can't book more serials than units received;
+                    // a serial already in this tenant's registry (in stock or out
+                    // on a live sale) can't be received again.
+                    $this->registerSerials($product, $item, $row['serials'] ?? [], $baseQty, $po);
                 }
 
                 $item->forceFill(['quantity_received' => $newReceived])->save();
@@ -167,5 +175,63 @@ class ReceivePurchaseOrderAction
 
             return $po->load('items', 'supplier');
         });
+    }
+
+    /**
+     * Register the captured serials of a received line as in_stock units.
+     * Guards: the product must be serialized, you can't book more serials than
+     * base units received, and a serial already in this tenant's registry
+     * (in stock or out on a sale) can't be received again.
+     *
+     * @param  array<int, string>  $serials
+     */
+    private function registerSerials(Product $product, PurchaseOrderItem $item, array $serials, float $baseQty, PurchaseOrder $po): void
+    {
+        if (empty($serials)) {
+            return;
+        }
+
+        if (! $product->tracksSerial()) {
+            throw DomainException::unprocessable(
+                "\"{$product->name}\" is not a serialized item — remove the serials.",
+                'SERIAL_NOT_TRACKED',
+            );
+        }
+
+        if (count($serials) > $baseQty) {
+            throw DomainException::unprocessable(
+                "You entered more serials than units received for \"{$product->name}\".",
+                'SERIAL_COUNT_EXCEEDS_QTY',
+            );
+        }
+
+        $branchId = \App\Models\Branch::withoutTenancy()
+            ->where('tenant_id', $product->tenant_id)->where('is_default', true)->value('id');
+
+        foreach ($serials as $serial) {
+            $exists = ProductSerial::withoutTenancy()
+                ->where('tenant_id', $product->tenant_id)
+                ->where('product_id', $product->id)
+                ->where('serial', $serial)
+                ->exists();
+            if ($exists) {
+                throw DomainException::unprocessable(
+                    "Serial \"{$serial}\" is already registered for {$product->name}.",
+                    'SERIAL_ALREADY_REGISTERED',
+                );
+            }
+
+            ProductSerial::withoutTenancy()->create([
+                'tenant_id' => $product->tenant_id,
+                'product_id' => $product->id,
+                'variant_id' => $item->variant_id,
+                'branch_id' => $branchId,
+                'serial' => $serial,
+                'status' => 'in_stock',
+                'source' => 'purchase_order',
+                'source_id' => $po->id,
+                'received_at' => now(),
+            ]);
+        }
     }
 }
