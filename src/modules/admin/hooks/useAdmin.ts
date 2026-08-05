@@ -71,8 +71,8 @@ export function useUpdateModules() {
 export function useExtendLimits() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, limits }: { id: string; limits: Record<string, number | null> }) =>
-      adminService.extendLimits(id, limits),
+    mutationFn: ({ id, limits, mode }: { id: string; limits: Record<string, number | null>; mode?: "add" | "set" }) =>
+      adminService.extendLimits(id, limits, mode ?? "set"),
     onSuccess: (_res, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "tenant", id] });
       queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] });

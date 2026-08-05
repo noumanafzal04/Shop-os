@@ -454,6 +454,90 @@ export default function ShopSettingsPage() {
                 </SectionCard>
               )}
 
+              {/* The two promises made before a sale exists. They live with the
+                  till because that is where both are written and both are
+                  settled — a quote is priced at the counter, and an advance is
+                  cash in the counter's drawer. */}
+              <SectionCard
+                icon={<ReceiptGlyph />}
+                title="Quotations & advances"
+                description="Prices you put in writing, and goods you hold until they're paid for."
+              >
+                <div className="flex flex-wrap items-center gap-6 pb-1">
+                  <Toggle
+                    checked={prefs.quotations_enabled !== false}
+                    onChange={(v) => setP("quotations_enabled", v)}
+                    label="Write quotations"
+                  />
+                  <Toggle
+                    checked={prefs.layaway_enabled !== false}
+                    onChange={(v) => setP("layaway_enabled", v)}
+                    label="Hold goods on advance"
+                  />
+                </div>
+
+                {prefs.quotations_enabled !== false && (
+                  <>
+                    <Field
+                      label="Quotation valid for"
+                      hint="How long you'll honour a quoted price. Long enough for the customer to shop around, short enough that a supplier price rise doesn't land on you. 0 = no expiry."
+                    >
+                      <Input
+                        type="number"
+                        value={String(prefs.quotation_valid_days ?? 15)}
+                        onChange={(e) => setP("quotation_valid_days", Number(e.target.value))}
+                        className="max-w-[10rem]"
+                      />
+                    </Field>
+                    <Field
+                      label="Printed terms"
+                      hint="Goes at the foot of every quotation — delivery time, warranty, whether fitting is included."
+                    >
+                      <textarea
+                        rows={3}
+                        className="dark:bg-dark-900 h-auto w-full max-w-sm rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30"
+                        value={(prefs.quotation_terms as string) ?? ""}
+                        onChange={(e) => setP("quotation_terms", e.target.value)}
+                        placeholder={"Prices valid for the period shown.\nDelivery within 3 working days."}
+                      />
+                    </Field>
+                  </>
+                )}
+
+                {prefs.layaway_enabled !== false && (
+                  <>
+                    <Field
+                      label="Minimum advance"
+                      hint="A token deposit isn't a commitment — Rs 100 against a Rs 90,000 fridge takes it off your floor for weeks and costs the customer nothing to walk away from. 20% is the usual figure. 0 = accept any amount."
+                    >
+                      <div className="flex max-w-[10rem] items-center gap-2">
+                        <Input
+                          type="number"
+                          value={String(prefs.layaway_min_deposit_percent ?? 20)}
+                          onChange={(e) => setP("layaway_min_deposit_percent", Number(e.target.value))}
+                        />
+                        <span className="text-theme-sm text-gray-500">%</span>
+                      </div>
+                    </Field>
+                    <Field
+                      label="Collect within"
+                      hint="Days before a booking shows as overdue. Nothing is voided and nobody's money evaporates — it's the list worth phoning down."
+                    >
+                      <Input
+                        type="number"
+                        value={String(prefs.layaway_days ?? 30)}
+                        onChange={(e) => setP("layaway_days", Number(e.target.value))}
+                        className="max-w-[10rem]"
+                      />
+                    </Field>
+                    <p className="text-theme-xs text-gray-400">
+                      Cancelling a booking puts the goods back on your shelf and returns the advance in full unless
+                      you keep a fee — you set that per cancellation, so it's always a deliberate decision.
+                    </p>
+                  </>
+                )}
+              </SectionCard>
+
               <SectionCard icon={<UserGlyph />} title="Till PINs" description="A short PIN lets someone take the till in a second, so sales, voids and drawers belong to whoever actually made them. A PIN only works at a till already signed in — never to log in.">
                 <TillPinsPanel />
               </SectionCard>

@@ -39,31 +39,60 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
   const usage = tenant.limits_usage ?? [];
   const overrides = tenant.limit_overrides ?? {};
 
+  // "add" is the default because the button says Extend, and extending by 100
+  // means typing 100. Typing 100 into an absolute field on a 1,000 ceiling used
+  // to CUT the shop to 100 — silently, with no way to notice until products
+  // stopped saving.
+  const [mode, setMode] = useState<"add" | "set">("add");
   const [form, setForm] = useState<Record<string, string>>({});
   const openExtend = () => {
-    setForm(
-      Object.fromEntries(EXTENDABLE.map(({ key }) => [key, overrides[key] != null ? String(overrides[key]) : ""])),
-    );
+    setMode("add");
+    setForm(Object.fromEntries(EXTENDABLE.map(({ key }) => [key, ""])));
     extend.reset();
     modal.openModal();
   };
 
+  const row = (key: string) => usage.find((u) => u.key === key);
   const planLimit = (key: string): number | null | undefined =>
-    plan?.limits?.[key as keyof NonNullable<Plan["limits"]>];
+    row(key)?.plan_limit ?? plan?.limits?.[key as keyof NonNullable<Plan["limits"]>];
   const fmt = (n: number | null | undefined) => (n == null ? "Unlimited" : n.toLocaleString());
+
+  /** What this field will land on — the same arithmetic the server does. */
+  const preview = (key: string): number | null => {
+    const raw = (form[key] ?? "").trim();
+    if (raw === "" || Number.isNaN(Number(raw))) return null;
+    const current = row(key)?.limit;
+    if (mode === "set") return Number(raw);
+    if (current == null) return null; // already unlimited — nothing to add to
+    return current + Number(raw);
+  };
+
+  /** The typo guard, shown before the request rather than after it fails. */
+  const belowUsage = (key: string): boolean => {
+    const next = preview(key);
+    return next !== null && next < (row(key)?.used ?? 0);
+  };
+  const anyBelowUsage = EXTENDABLE.some(({ key }) => belowUsage(key));
 
   // Field validation shows inline; a general failure is a toast.
   const extErr = extend.error instanceof ApiError ? extend.error : null;
   const fieldErr = (key: string) => extErr?.errors[`limits.${key}`]?.[0];
 
   const save = () => {
+    // Only send what was actually typed. Sending every field each time meant a
+    // blank one cleared an override the admin never touched.
     const limits: Record<string, number | null> = {};
     for (const { key } of EXTENDABLE) {
       const v = (form[key] ?? "").trim();
-      limits[key] = v === "" ? null : Number(v);
+      if (v === "") continue;
+      limits[key] = Number(v);
+    }
+    if (Object.keys(limits).length === 0) {
+      modal.closeModal();
+      return;
     }
     extend.mutate(
-      { id: tenant.id, limits },
+      { id: tenant.id, limits, mode },
       {
         onSuccess: () => {
           toast.success("Limits updated");
@@ -76,6 +105,16 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
       },
     );
   };
+
+  /** Drop a tenant back to the plan's own ceiling for one resource. */
+  const clearOverride = (key: string) =>
+    extend.mutate(
+      { id: tenant.id, limits: { [key]: null } },
+      {
+        onSuccess: () => toast.success("Back to the plan limit"),
+        onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't clear it."),
+      },
+    );
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -94,12 +133,20 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
             const pct = u.limit && u.limit > 0 ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
             const bar = pct >= 100 ? "bg-error-500" : pct >= 80 ? "bg-warning-500" : "bg-brand-500";
             const extended = overrides[u.key] != null;
+            const extra = u.extra ?? 0;
             return (
               <div key={u.key}>
                 <div className="mb-1 flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                     {u.label}
-                    {extended && <Badge size="sm" color="info">extended</Badge>}
+                    {/* Say what was granted, not just that something was. An
+                        admin about to change a ceiling needs to know whether
+                        1,100 is the plan or 1,000 plus 100 they gave in March. */}
+                    {extended && (
+                      <Badge size="sm" color={extra < 0 ? "warning" : "info"}>
+                        {extra > 0 ? `+${extra.toLocaleString()}` : extra < 0 ? extra.toLocaleString() : "custom"}
+                      </Badge>
+                    )}
                   </span>
                   <span className="text-gray-500 dark:text-gray-400">
                     {u.used.toLocaleString()}{" / "}
@@ -113,6 +160,18 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
                     <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
                   </div>
                 )}
+                {extended && (
+                  <div className="mt-1 flex items-center gap-2 text-theme-xs text-gray-400">
+                    <span>Plan gives {fmt(u.plan_limit)}</span>
+                    <button
+                      type="button"
+                      onClick={() => clearOverride(u.key)}
+                      className="text-brand-500 hover:text-brand-600"
+                    >
+                      Reset to plan
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -122,26 +181,85 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
         <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Extend limits</h3>
         <p className="mb-4 text-theme-xs text-gray-400">
-          Raise this tenant’s ceilings past its plan. Leave a field blank to use the plan default.
+          Only fill in what you want to change — anything left blank stays exactly as it is.
         </p>
-        <div className="grid grid-cols-2 gap-4">
-          {EXTENDABLE.map(({ key, label }) => (
-            <div key={key}>
-              <Label>{label}</Label>
-              <Input
-                type="number"
-                min="1"
-                value={form[key] ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                placeholder={`Plan: ${fmt(planLimit(key))}`}
-              />
-              {fieldErr(key) && <p className="mt-1 text-theme-xs text-error-500">{fieldErr(key)}</p>}
+
+        {/* The two meanings a number in this box can have. Making it a visible
+            choice is the fix: the field used to be absolute-only while the
+            button said "Extend", so typing the increase cut the ceiling to it. */}
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("add")}
+            className={`rounded-xl border p-3 text-left transition ${
+              mode === "add"
+                ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
+                : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
+            }`}
+          >
+            <div className={`text-sm font-medium ${mode === "add" ? "text-brand-600 dark:text-brand-400" : "text-gray-800 dark:text-white/90"}`}>
+              Add to current
             </div>
-          ))}
+            <div className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              Type 100 to give 100 more.
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("set")}
+            className={`rounded-xl border p-3 text-left transition ${
+              mode === "set"
+                ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
+                : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
+            }`}
+          >
+            <div className={`text-sm font-medium ${mode === "set" ? "text-brand-600 dark:text-brand-400" : "text-gray-800 dark:text-white/90"}`}>
+              Set exact total
+            </div>
+            <div className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              Type 1,100 for a ceiling of 1,100.
+            </div>
+          </button>
         </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {EXTENDABLE.map(({ key, label }) => {
+            const r = row(key);
+            const next = preview(key);
+            const bad = belowUsage(key);
+            return (
+              <div key={key}>
+                <Label>{label}</Label>
+                <Input
+                  type="number"
+                  value={form[key] ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                  placeholder={mode === "add" ? "+ how many?" : fmt(r?.limit)}
+                />
+                {/* Now → after. The arithmetic is on screen before the request,
+                    so a wrong number is caught by reading, not by an error. */}
+                <p className={`mt-1 text-theme-xs ${bad ? "text-error-500" : "text-gray-400"}`}>
+                  {bad ? (
+                    <>Already using {r?.used.toLocaleString()} — can’t go to {next?.toLocaleString()}</>
+                  ) : next !== null ? (
+                    <>{fmt(r?.limit)} → <span className="font-medium text-gray-600 dark:text-gray-300">{next.toLocaleString()}</span></>
+                  ) : (
+                    <>Now {fmt(r?.limit)} · plan {fmt(planLimit(key))} · using {r?.used.toLocaleString() ?? 0}</>
+                  )}
+                </p>
+                {fieldErr(key) && <p className="mt-1 text-theme-xs text-error-500">{fieldErr(key)}</p>}
+              </div>
+            );
+          })}
+        </div>
+
+        {extErr && Object.keys(extErr.errors).length === 0 && (
+          <p className="mt-4 text-theme-sm text-error-500">{extErr.message}</p>
+        )}
+
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={save} disabled={extend.isPending}>
+          <Button size="sm" onClick={save} disabled={extend.isPending || anyBelowUsage}>
             {extend.isPending ? "Saving…" : "Save limits"}
           </Button>
         </div>

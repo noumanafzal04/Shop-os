@@ -115,6 +115,15 @@ export interface ShopSettings {
   kitchen_stations: string[];
   kot_auto_print: boolean;
   tips_enabled: boolean;
+  /** Quotations & layaway — the two promises made before a sale exists. */
+  quotations_enabled: boolean;
+  quotation_valid_days: number;
+  quotation_terms: string | null;
+  layaway_enabled: boolean;
+  /** The floor under an advance, as a % of the total. 0 = accept anything. */
+  layaway_min_deposit_percent: number;
+  layaway_days: number;
+  layaway_cancellation_fee_percent: number;
   loyalty_enabled: boolean;
   loyalty_earn_per_amount: number;
   loyalty_redeem_value: number;

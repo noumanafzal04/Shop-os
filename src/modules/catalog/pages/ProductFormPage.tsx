@@ -146,6 +146,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [strength, setStrength] = useState("");
   const [dosageForm, setDosageForm] = useState("");
   const [requiresRx, setRequiresRx] = useState(false);
+  // The regulator's schedule. Setting it makes the till demand the
+  // prescription details before this drug can be dispensed at all.
+  const [drugSchedule, setDrugSchedule] = useState("");
   // Serialized retail (phones/electronics): capture a serial/IMEI per unit at
   // the till, with a default warranty length.
   const [trackSerial, setTrackSerial] = useState(false);
@@ -244,6 +247,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setStrength(p.strength ?? "");
       setDosageForm(p.dosage_form ?? "");
       setRequiresRx(p.requires_prescription ?? false);
+      setDrugSchedule(p.drug_schedule ?? "");
       setTrackSerial(p.tracks_serial ?? false);
       setWarrantyMonths(p.warranty_months != null ? String(p.warranty_months) : "");
       setExtraBarcodes((p.barcodes ?? []).map((b) => b.barcode));
@@ -308,6 +312,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       strength: isMedicine ? (strength.trim() || null) : undefined,
       dosage_form: isMedicine ? (dosageForm || null) : undefined,
       requires_prescription: isMedicine ? requiresRx : undefined,
+      drug_schedule: isMedicine ? (drugSchedule.trim() || null) : undefined,
       // Serialized retail — only physical goods carry a serial/IMEI + warranty.
       tracks_serial: isPhysical ? trackSerial : undefined,
       warranty_months: isPhysical && trackSerial && warrantyMonths ? Number(warrantyMonths) : isPhysical ? null : undefined,
@@ -590,7 +595,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   placeholder="e.g. Paracetamol 500mg"
                 />
                 <p className="mt-1 text-theme-xs text-gray-400">
-                  Buyers can find this medicine by its salt as well as its brand name.
+                  Buyers can find this medicine by its salt as well as its brand name — and the till uses it to
+                  offer an equivalent when this brand runs out.
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -619,6 +625,19 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 />
                 Requires a doctor's prescription (℞) — staff are warned at the counter
               </label>
+              <div>
+                <Label>Controlled schedule <span className="font-normal text-gray-400">(optional)</span></Label>
+                <Input
+                  className="max-w-[10rem]"
+                  value={drugSchedule}
+                  onChange={(e) => setDrugSchedule(e.target.value)}
+                  placeholder="e.g. G"
+                />
+                <p className="mt-1 text-theme-xs text-gray-400">
+                  Set this and the till will <strong>refuse to sell</strong> the drug until the prescription number
+                  and prescriber are recorded — and every sale appears in the dispensing register.
+                </p>
+              </div>
             </div>
           </Section>
         )}

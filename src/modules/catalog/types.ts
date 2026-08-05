@@ -75,6 +75,8 @@ export interface Product {
   strength?: string | null;
   dosage_form?: string | null;
   requires_prescription?: boolean;
+  /** Regulator schedule (G / H / X …). Set = the till demands prescription details. */
+  drug_schedule?: string | null;
   // Serialized retail (phones/electronics): capture a serial/IMEI per unit + warranty.
   tracks_serial?: boolean;
   warranty_months?: number | null;
@@ -181,6 +183,8 @@ export interface ProductInput {
   strength?: string | null;
   dosage_form?: string | null;
   requires_prescription?: boolean;
+  /** Regulator schedule (G / H / X …). Set = the till demands prescription details. */
+  drug_schedule?: string | null;
   tracks_serial?: boolean;
   warranty_months?: number | null;
   barcodes?: string[];

@@ -157,8 +157,14 @@ export const adminService = {
     apiPut<Tenant>(`/admin/tenants/${id}/modules`, { modules }),
 
   /** Extend (or clear, via null) a single tenant's limits past its plan. */
-  extendLimits: (id: string, limits: Record<string, number | null>) =>
-    apiPut<Tenant>(`/admin/tenants/${id}/limits`, { limits }),
+  /**
+   * `mode: "add"` treats each number as an INCREASE on the tenant's current
+   * ceiling — which is what "extend by 100" means. `"set"` writes the number
+   * as the new ceiling. The server refuses either one that would land below
+   * what the tenant already uses.
+   */
+  extendLimits: (id: string, limits: Record<string, number | null>, mode: "add" | "set" = "set") =>
+    apiPut<Tenant>(`/admin/tenants/${id}/limits`, { limits, mode }),
 
   plans: () => apiGet<Plan[]>("/admin/plans"),
   createPlan: (payload: PlanInput) => apiPost<Plan>("/admin/plans", payload),

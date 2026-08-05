@@ -50,6 +50,9 @@ const PosPage = lazy(() => import("./modules/pos/pages/PosPage"));
 const FloorPage = lazy(() => import("./modules/dinein/pages/FloorPage"));
 const TabPage = lazy(() => import("./modules/dinein/pages/TabPage"));
 const KitchenPage = lazy(() => import("./modules/kitchen/pages/KitchenPage"));
+const PharmacyPage = lazy(() => import("./modules/pharmacy/pages/PharmacyPage"));
+const DocumentsPage = lazy(() => import("./modules/documents/pages/DocumentsPage"));
+const DocumentDetailPage = lazy(() => import("./modules/documents/pages/DocumentDetailPage"));
 const SuppliersPage = lazy(() => import("./modules/purchases/pages/SuppliersPage"));
 const CustomersPage = lazy(() => import("./modules/customers/pages/CustomersPage"));
 const CouponsPage = lazy(() => import("./modules/coupons/pages/CouponsPage"));
@@ -150,7 +153,10 @@ export default function App() {
                     <Route path="collections" element={<CollectionsPage />} />
                   </Route>
                   <Route path="labels" element={<LabelsPage />} />
+                  {/* The chemist's paperwork rides the inventory module: the
+                      register reads batches and the recall reads stock. */}
                   <Route element={<RequireFeature feature="inventory" />}>
+                    <Route path="pharmacy" element={<PharmacyPage />} />
                     <Route path="suppliers" element={<SuppliersPage />} />
                     <Route path="purchases" element={<PurchaseOrdersPage />} />
                   </Route>
@@ -165,6 +171,12 @@ export default function App() {
                   </Route>
                   <Route path="sales" element={<SalesPage />} />
                   <Route path="sales/new" element={<NewSalePage />} />
+                  {/* Quotations & advance bookings — counter documents that end
+                      in a till transaction, hence the POS module. */}
+                  <Route element={<RequireFeature feature="pos" />}>
+                    <Route path="documents" element={<DocumentsPage />} />
+                    <Route path="documents/:id" element={<DocumentDetailPage />} />
+                  </Route>
                   <Route element={<RequireFeature feature="expenses" />}>
                     <Route path="expenses" element={<ExpensesPage />} />
                     <Route path="income" element={<IncomePage />} />

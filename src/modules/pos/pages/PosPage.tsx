@@ -28,6 +28,8 @@ import { useTillStore } from "../../../stores/tillStore";
 import { useConnectionStore } from "../../../stores/connectionStore";
 import { useIdleLock } from "../hooks/useIdleLock";
 import TillLock from "../components/TillLock";
+import SubstitutePicker from "../../pharmacy/components/SubstitutePicker";
+import ParkAsDocumentModal from "../../documents/components/ParkAsDocumentModal";
 import { parkCart, readParkedCart } from "../cartStorage";
 import { canKick, kickDrawer } from "../../../common/escpos";
 import { useTerminalStore } from "../../../stores/terminalStore";
@@ -75,6 +77,25 @@ interface CartLine {
   discountMode?: "amt" | "pct";
 }
 let ck = 0;
+
+/**
+ * The keyboard legend, colour-coded by what each key does. The colours are not
+ * decoration: each one matches the button that performs the same action further
+ * down the screen, so "the green one" is a usable instruction across a noisy
+ * counter. Pay is brand-coloured because it is the only one that takes money.
+ */
+const SHORTCUTS: Array<{
+  k: string;
+  label: string;
+  tone: string;
+  run: "focusSearch" | "hold" | "openHeld" | "document" | "pay";
+}> = [
+  { k: "F2", label: "Search", tone: "border-blue-light-200 bg-blue-light-50 text-blue-light-700 dark:border-blue-light-500/30 dark:bg-blue-light-500/10 dark:text-blue-light-400", run: "focusSearch" },
+  { k: "F4", label: "Hold", tone: "border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400", run: "hold" },
+  { k: "F6", label: "Drafts", tone: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400", run: "openHeld" },
+  { k: "F7", label: "Quote", tone: "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400", run: "document" },
+  { k: "F9", label: "Pay", tone: "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400", run: "pay" },
+];
 
 // A few glyphs the shared icon set doesn't ship — kept as inline SVG (real
 // icons, never emoji) so the POS matches the rest of the UI.
@@ -219,6 +240,9 @@ export default function PosPage() {
 
   // ── Who's at the till, and can it reach the server ──────────────
   const me = useAuthStore((s) => s.user);
+  const isPharmacy = useAuthStore(
+    (s) => (s.user?.tenant as { business_type?: string | null } | null | undefined)?.business_type === "pharmacy",
+  );
   const lockTill = useTillStore((s) => s.lock);
   const tillLocked = useTillStore((s) => s.locked);
   const online = useConnectionStore((s) => s.online);
@@ -348,6 +372,8 @@ export default function PosPage() {
   const [rxPatient, setRxPatient] = useState("");
   // Soft cashier warning (Rx / near-expiry) — never blocks the sale.
   const [posNotice, setPosNotice] = useState<string | null>(null);
+  // Pharmacy: the drug whose equivalents the counter is looking at.
+  const [substituteFor, setSubstituteFor] = useState<string | null>(null);
   // The last print attempt, so the receipt modal can ask "did it come out?"
   // and report the answer. A browser never tells us on its own.
   const [lastPrint, setLastPrint] = useState<{ printId: string | null; kind: ReceiptKind; failed: boolean } | null>(null);
@@ -370,7 +396,7 @@ export default function PosPage() {
   // Keyboard-first POS: function keys drive the till so a cashier never
   // reaches for the mouse. actionsRef always holds the latest handlers so the
   // once-mounted listener stays in sync with current cart/shift state.
-  const actionsRef = useRef<{ focusSearch: () => void; hold: () => void; pay: () => void; openHeld: () => void; clearSearch: () => void } | undefined>(undefined);
+  const actionsRef = useRef<{ focusSearch: () => void; hold: () => void; pay: () => void; openHeld: () => void; document: () => void; clearSearch: () => void } | undefined>(undefined);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const a = actionsRef.current;
@@ -381,8 +407,9 @@ export default function PosPage() {
       if (useTillStore.getState().locked) return;
       switch (e.key) {
         case "F2": e.preventDefault(); a.focusSearch(); break;   // jump to scan/search
-        case "F4": e.preventDefault(); a.hold(); break;          // hold (park) the ticket
-        case "F6": e.preventDefault(); a.openHeld(); break;      // resume a held ticket
+        case "F4": e.preventDefault(); a.hold(); break;          // park the ticket under a name
+        case "F6": e.preventDefault(); a.openHeld(); break;      // reopen a parked ticket
+        case "F7": e.preventDefault(); a.document(); break;      // quotation / advance booking
         case "F9": e.preventDefault(); a.pay(); break;           // complete / pay
         case "Escape": a.clearSearch(); break;                   // clear the search box
         default: break;
@@ -402,6 +429,11 @@ export default function PosPage() {
   const customerModal = useModal();
   const discountModal = useModal();
   const tenderModal = useModal();
+  // Naming a parked ticket. See askHold().
+  const holdModal = useModal();
+  // "Estimate bana do" / "Advance rakh do" — the cart becomes a promise
+  // instead of a sale.
+  const documentModal = useModal();
   const [editKey, setEditKey] = useState<string | null>(null);
   const [serialKey, setSerialKey] = useState<string | null>(null);
 
@@ -419,6 +451,8 @@ export default function PosPage() {
   const [shiftError, setShiftError] = useState<{ message: string; code?: string } | null>(null);
   const [countedCash, setCountedCash] = useState("");
   const [holdLabel, setHoldLabel] = useState("");
+  // Half-typed quantities, keyed by cart line. See commitQty().
+  const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
   const [lastSale, setLastSale] = useState<Sale | null>(null);
 
   // Modifier configurator (food items with choices / add-ons)
@@ -715,7 +749,19 @@ export default function PosPage() {
   // starts fresh (focus never leaves the input, so the cashier keeps typing).
   const commitProduct = (p: CatalogProduct) => {
     const out = p.type === "product" && p.track_inventory && Number(p.stock_quantity) <= 0;
-    if (out) { setPosNotice(`${p.name} is out of stock`); posSound.error(); return; }
+    if (out) {
+      posSound.error();
+      // At a chemist an out-of-stock brand is rarely the end of the sale: the
+      // customer needs the SALT, and something else on the shelf usually has
+      // it. Offer that instead of just refusing.
+      if (isPharmacy) {
+        setSubstituteFor(p.id);
+        setPosNotice(`${p.name} is out of stock — checking for an equivalent`);
+      } else {
+        setPosNotice(`${p.name} is out of stock`);
+      }
+      return;
+    }
     if (p.modifier_groups?.length) openConfig(p); else addLine(p);
     posSound.success();
     setSearch("");
@@ -732,8 +778,39 @@ export default function PosPage() {
     if (p) commitProduct(p);
   };
 
+  /**
+   * Set a line's quantity. Deliberately CANNOT delete the line.
+   *
+   * It used to: anything <= 0 filtered the row out, and the quantity box wrote
+   * straight through on every keystroke. So clearing "1" to type "2" produced
+   * an empty string for one keystroke, which parsed to 0, which deleted the
+   * row — the cashier lost the line, its discount and any serials they had
+   * keyed, mid-edit, for doing the most ordinary thing possible. Removing a
+   * line is now only ever the ✕, which is an unambiguous request.
+   */
   const setQty = (key: string, q: number) =>
-    setCart((c) => (q <= 0 ? c.filter((l) => l.key !== key) : c.map((l) => (l.key === key ? { ...l, quantity: q } : l))));
+    setCart((c) => c.map((l) => (l.key === key ? { ...l, quantity: Math.max(l.sold_by === "weight" ? 0.001 : 1, q) } : l)));
+
+  const removeLine = (key: string) => {
+    setCart((c) => c.filter((l) => l.key !== key));
+    setQtyDraft((d) => { const { [key]: _drop, ...rest } = d; return rest; });
+  };
+
+  /**
+   * What the quantity box is SHOWING while it's being typed in, per line. The
+   * cart itself only ever holds a valid quantity; this lets the field sit empty
+   * or half-typed without the cart having to represent that.
+   */
+  const commitQty = (l: CartLine) => {
+    const raw = qtyDraft[l.key];
+    setQtyDraft((d) => { const { [l.key]: _drop, ...rest } = d; return rest; });
+    if (raw === undefined) return;
+    const n = Number(raw);
+    // Empty or nonsense → snap back to what it was. Never a deletion, and
+    // never a silent zero.
+    if (raw.trim() === "" || Number.isNaN(n) || n <= 0) return;
+    setQty(l.key, n);
+  };
 
   const setLineDiscount = (key: string, value: number, mode: "amt" | "pct") =>
     setCart((c) => c.map((l) => (l.key === key
@@ -755,15 +832,31 @@ export default function PosPage() {
   // Count of serials actually keyed on a line (blanks don't count).
   const serialCount = (l: CartLine): number => (l.serials ?? []).filter((s) => s.trim()).length;
 
+  /**
+   * Park the ticket under a NAME. A drafts list of "Held sale · Held sale ·
+   * Held sale" is unusable the moment there is more than one — the cashier has
+   * to resume each in turn to find the right customer, in front of that
+   * customer. The prompt pre-fills from whatever name is already on the cart,
+   * so naming it is usually just pressing Enter.
+   */
+  const askHold = () => {
+    if (cart.length === 0) return;
+    setHoldLabel(customer.trim() || "");
+    holdModal.openModal();
+  };
+
   const doHold = () => {
     if (cart.length === 0) return;
     heldMut.hold.mutate(
       {
-        label: holdLabel || undefined, total_estimate: total,
+        label: holdLabel.trim() || undefined, total_estimate: total,
         // Park the WHOLE ticket so nothing is lost on resume.
         cart: {
           items: cart.map(({ key, ...l }) => l),
-          customer_name: customer || undefined,
+          // The name typed at the hold prompt becomes the cart's customer when
+          // the cart had none — otherwise resuming loses the one piece of
+          // information the cashier just took the trouble to record.
+          customer_name: customer.trim() || holdLabel.trim() || undefined,
           customer_phone: customerPhone || undefined,
           discount: Number(discount) || 0,
           order_type: orderType,
@@ -774,7 +867,7 @@ export default function PosPage() {
           payment_method: method === "split" || method === "credit" ? "cash" : method,
         },
       },
-      { onSuccess: () => { clearSale(); setHoldLabel(""); } },
+      { onSuccess: () => { clearSale(); setHoldLabel(""); holdModal.closeModal(); } },
     );
   };
 
@@ -854,9 +947,10 @@ export default function PosPage() {
   // Publish the current handlers for the keyboard-shortcut listener.
   actionsRef.current = {
     focusSearch: () => scanRef.current?.focus(),
-    hold: () => { if (cart.length > 0) doHold(); },
+    hold: () => { if (cart.length > 0) askHold(); },
     pay: () => { if (cart.length > 0 && open) { setMethod("cash"); setTendered((t) => t || String(total)); tenderModal.openModal(); } },
     openHeld: () => { held.refetch(); heldModal.openModal(); },
+    document: () => { if (cart.length > 0) documentModal.openModal(); },
     clearSearch: () => setSearch(""),
   };
 
@@ -867,6 +961,43 @@ export default function PosPage() {
       {/* Covers the till, keeping the cart intact underneath: locking is not
           the end of a sale, it's the end of a person's turn at the counter. */}
       {tillLocked && <TillLock />}
+
+      {/* Same salt, in stock — opened when a prescribed brand is out. */}
+      <SubstitutePicker
+        isOpen={substituteFor !== null}
+        onClose={() => setSubstituteFor(null)}
+        productId={substituteFor}
+        onPick={(alt) => {
+          addLine({ id: alt.id, name: alt.name, price: alt.price });
+          setPosNotice(`Substituted with ${alt.name}`);
+          posSound.success();
+        }}
+      />
+
+      {/* The cart as a promise instead of a sale. Prices are re-derived
+          SERVER-side from the product ids — the till's own line prices are a
+          display estimate, and a document freezes its price for weeks. */}
+      <ParkAsDocumentModal
+        isOpen={documentModal.isOpen}
+        onClose={documentModal.closeModal}
+        lines={cart.map((l) => ({
+          product_id: l.product_id,
+          variant_id: l.variant_id,
+          product_unit_id: l.product_unit_id || undefined,
+          price_level: l.price_level === "wholesale" ? "wholesale" : undefined,
+          quantity: l.quantity,
+          ...(l.discountValue && l.discountValue > 0
+            ? l.discountMode === "pct"
+              ? { line_discount_pct: l.discountValue }
+              : { line_discount: l.discountValue }
+            : {}),
+        }))}
+        discount={Number(discount) || 0}
+        customerName={customer}
+        customerPhone={customerPhone}
+        total={total}
+        onDone={clearSale}
+      />
 
       {/* Top bar — full-screen POS has no app sidebar/header, so it carries
           its own: exit, shift status, keyboard legend, shift + online. */}
@@ -903,13 +1034,24 @@ export default function PosPage() {
           )}
         </div>
         <div className="flex items-center gap-2.5">
-          {/* Keyboard shortcut legend — the till is keyboard-first. */}
-          <div className="mr-1 hidden items-center gap-1.5 text-theme-xs text-gray-400 xl:flex">
-            {[["F2", "Search"], ["↑↓ ↵", "Add"], ["F4", "Hold"], ["F6", "Held"], ["F9", "Pay"]].map(([k, label]) => (
-              <span key={k} className="inline-flex items-center gap-1">
-                <kbd className="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-sans text-[10px] text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">{k}</kbd>
+          {/* Keyboard legend. The till is keyboard-first, and a cashier learns
+              these by GLANCING at them for the first week — a row of identical
+              grey chips is read as decoration and never learned. Each key keeps
+              the colour of the thing it does, matching its button below, so the
+              eye can jump straight to the one it wants. Clickable too: the same
+              action, for anyone still reaching for the mouse. */}
+          <div className="mr-1 hidden items-center gap-1 xl:flex">
+            {SHORTCUTS.map(({ k, label, tone, run }) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => actionsRef.current?.[run]?.()}
+                title={`${label} (${k})`}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition hover:brightness-95 ${tone}`}
+              >
+                <kbd className="rounded bg-white/70 px-1 py-px font-sans text-[10px] font-bold dark:bg-black/25">{k}</kbd>
                 {label}
-              </span>
+              </button>
             ))}
           </div>
           {/* Connection. This used to be a green dot that said "Online" no
@@ -1270,10 +1412,32 @@ export default function PosPage() {
                             </td>
                             <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-1">
-                                <button type="button" aria-label="Decrease" className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300" onClick={() => setQty(l.key, Math.max(0, l.quantity - step))}><MinusGlyph /></button>
-                                <input type="number" min="0" step={isWeight ? 0.001 : 1} value={fmtQty(l.quantity)}
-                                  onChange={(e) => setQty(l.key, Math.max(0, Number(e.target.value) || 0))}
-                                  className="h-7 w-12 rounded-md border border-gray-200 bg-transparent text-center text-theme-sm tabular-nums dark:border-gray-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                                {/* At the minimum, minus is spent — the ✕ two
+                                    columns over is how you remove a line, and
+                                    stepping down into a deletion is how people
+                                    lose one by accident. */}
+                                <button type="button" aria-label="Decrease" disabled={l.quantity <= (isWeight ? 0.001 : 1)}
+                                  className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-30 dark:bg-gray-800 dark:text-gray-300"
+                                  onClick={() => setQty(l.key, l.quantity - step)}><MinusGlyph /></button>
+                                <input type="number" min="0" step={isWeight ? 0.001 : 1}
+                                  // While typing, the box shows the draft — it may be empty
+                                  // or half a number, which the cart itself never has to be.
+                                  value={qtyDraft[l.key] ?? fmtQty(l.quantity)}
+                                  // Click in and type: the old value is replaced instead of
+                                  // having to be deleted first, which is what caused the
+                                  // empty-string keystroke in the first place.
+                                  onFocus={(e) => e.currentTarget.select()}
+                                  onChange={(e) => setQtyDraft((d) => ({ ...d, [l.key]: e.target.value }))}
+                                  onBlur={() => commitQty(l)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                                    // Abandon the edit and put the old number back.
+                                    if (e.key === "Escape") {
+                                      setQtyDraft((d) => { const { [l.key]: _drop, ...rest } = d; return rest; });
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  className="h-7 w-12 rounded-md border border-gray-200 bg-transparent text-center text-theme-sm tabular-nums focus:border-brand-400 focus:outline-none dark:border-gray-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                                 <button type="button" aria-label="Increase" className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-500 text-white hover:bg-brand-600" onClick={() => setQty(l.key, l.quantity + step)}><PlusGlyph /></button>
                               </div>
                             </td>
@@ -1289,7 +1453,8 @@ export default function PosPage() {
                             <td className="px-2 py-2.5 text-right tabular-nums text-gray-500 dark:text-gray-400">{lineTax > 0 ? money(lineTax) : "—"}</td>
                             <td className="px-2 py-2.5 text-right font-semibold tabular-nums text-gray-900 dark:text-white/90">{money(lineNet(l))}</td>
                             <td className="px-2 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                              <button type="button" title="Remove" aria-label="Remove" className="rounded-md p-1 text-gray-300 hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10" onClick={() => setQty(l.key, 0)}><CloseIcon className="h-4 w-4" /></button>
+                              {/* The ONE way a line leaves the cart. */}
+                              <button type="button" title="Remove this line" aria-label="Remove" className="rounded-md p-1 text-gray-300 hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10" onClick={() => removeLine(l.key)}><CloseIcon className="h-4 w-4" /></button>
                             </td>
                           </tr>
                         );
@@ -1393,34 +1558,23 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* Bottom bar — ticket-level actions. The total + Charge live in the
-          cart panel, so this stays lean: park / resume / reset the ticket. */}
+      {/* Bottom bar. Ordered by what a hand reaches for: Reset is the only
+          destructive one and sits alone on the left, well away from the three
+          ticket actions on the right — a mis-click there loses the basket.
+          Hold / Drafts / Quote carry the same colours as their keys in the top
+          legend, so "F4" and the amber button are visibly the same thing. */}
       <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-white px-4 py-2.5 xl:px-10 2xl:px-16 dark:border-gray-800 dark:bg-white/[0.03]">
-        <button
-          onClick={doHold}
-          disabled={cart.length === 0 || heldMut.hold.isPending}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3.5 py-2 text-theme-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
-          title="Hold ticket (F4)"
-        >
-          <PauseGlyph /> Hold
-        </button>
-        <button
-          onClick={() => { held.refetch(); heldModal.openModal(); }}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3.5 py-2 text-theme-sm font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
-          title="Resume held ticket (F6)"
-        >
-          <ListIcon className="h-4 w-4" /> Drafts{held.data?.length ? <span className="rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{held.data.length}</span> : ""}
-        </button>
         <button
           onClick={clearSale}
           disabled={cart.length === 0}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3.5 py-2 text-theme-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3.5 py-2 text-theme-sm font-medium text-gray-600 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-error-500/10"
           title="Reset ticket"
         >
           <TrashBinIcon className="h-4 w-4" /> Reset
         </button>
-        <div className="ml-auto flex items-center gap-4">
-          {/* Discount / coupon — right side of the footer, before the total. */}
+
+        <div className="ml-auto flex items-center gap-2">
+          {/* Discount / coupon — stays next to the money it changes. */}
           <button
             type="button"
             onClick={discountModal.openModal}
@@ -1436,8 +1590,77 @@ export default function PosPage() {
               ? `Discount −${money((Number(discount) || 0) + couponDiscount)}`
               : "Add discount"}
           </button>
+
+          <span className="mx-1 h-6 w-px bg-gray-200 dark:bg-gray-700" />
+
+          <button
+            onClick={askHold}
+            disabled={cart.length === 0 || heldMut.hold.isPending}
+            className="flex items-center gap-1.5 rounded-lg border border-warning-200 bg-warning-50 px-3.5 py-2 text-theme-sm font-semibold text-warning-700 transition hover:bg-warning-100 disabled:opacity-40 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+            title="Hold this ticket (F4)"
+          >
+            <PauseGlyph /> Hold
+            <kbd className="rounded bg-white/70 px-1 py-px font-sans text-[10px] font-bold dark:bg-black/25">F4</kbd>
+          </button>
+
+          <button
+            onClick={() => { held.refetch(); heldModal.openModal(); }}
+            className="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3.5 py-2 text-theme-sm font-semibold text-orange-700 transition hover:bg-orange-100 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400"
+            title="Open a parked ticket (F6)"
+          >
+            <ListIcon className="h-4 w-4" /> Drafts
+            {held.data?.length ? (
+              <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{held.data.length}</span>
+            ) : null}
+            <kbd className="rounded bg-white/70 px-1 py-px font-sans text-[10px] font-bold dark:bg-black/25">F6</kbd>
+          </button>
+
+          {/* A hold is for the next five minutes; this is for the next five
+              weeks. Sits beside Hold because the cashier reaches for it in the
+              same moment — "the customer isn't buying today". */}
+          <button
+            onClick={documentModal.openModal}
+            disabled={cart.length === 0}
+            className="flex items-center gap-1.5 rounded-lg border border-success-200 bg-success-50 px-3.5 py-2 text-theme-sm font-semibold text-success-700 transition hover:bg-success-100 disabled:opacity-40 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400"
+            title="Quotation or advance booking (F7)"
+          >
+            <ListIcon className="h-4 w-4" /> Quote / Advance
+            <kbd className="rounded bg-white/70 px-1 py-px font-sans text-[10px] font-bold dark:bg-black/25">F7</kbd>
+          </button>
         </div>
       </div>
+
+      {/* Name the parked ticket — see askHold(). */}
+      <Modal isOpen={holdModal.isOpen} onClose={holdModal.closeModal} className="max-w-sm p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Hold this ticket</h3>
+        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
+          {cart.length} item{cart.length === 1 ? "" : "s"} · {money(total)}
+        </p>
+        <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">
+          Whose ticket is it?
+        </label>
+        {/* A plain input rather than the shared one: this field wants focus the
+            moment the prompt opens and Enter to commit, and the shared Input
+            exposes neither. */}
+        <input
+          autoFocus
+          value={holdLabel}
+          onChange={(e) => setHoldLabel(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") doHold(); }}
+          placeholder="Customer name, or 'blue shirt'"
+          className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30"
+        />
+        <p className="mt-1.5 text-theme-xs text-gray-400">
+          Anything that identifies them. A drafts list of unnamed tickets means opening each one
+          to find the right customer — in front of the customer.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={holdModal.closeModal}>Cancel</Button>
+          <Button size="sm" onClick={doHold} disabled={heldMut.hold.isPending}>
+            {heldMut.hold.isPending ? "Holding…" : "Hold ticket"}
+          </Button>
+        </div>
+      </Modal>
 
       {/* Discount & coupon */}
       <Modal isOpen={discountModal.isOpen} onClose={discountModal.closeModal} className="max-w-sm p-6">
@@ -1672,7 +1895,15 @@ export default function PosPage() {
             {(held.data ?? []).map((h) => (
               <div key={h.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-gray-800">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-gray-800 dark:text-white/90">{h.label || "Held sale"}</div>
+                  {/* The name is the headline — it's what the cashier is
+                      scanning this list for. Falls back to the cart's own
+                      customer before giving up on "Held sale". */}
+                  <div className="truncate text-sm font-medium text-gray-800 dark:text-white/90">
+                    {h.label || h.cart.customer_name || "Unnamed ticket"}
+                  </div>
+                  {h.cart.customer_phone && (
+                    <div className="truncate text-theme-xs text-brand-500">{h.cart.customer_phone}</div>
+                  )}
                   <div className="truncate text-theme-xs text-gray-400">
                     {h.cart.items.length} items · {money(h.total_estimate)}
                     {/* The list is site-wide now, so say whose ticket it is and

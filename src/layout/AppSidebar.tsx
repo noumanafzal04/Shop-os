@@ -98,6 +98,10 @@ function shopNav(
     // wall from the till — the same shop, two people, two displays.
     ...(has("dine_in") ? [{ icon: <ListIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
     ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
+    // Promises outstanding: prices quoted, and goods held on advance. Sits
+    // beside Sales because it is the same ledger one step earlier — and a
+    // shopkeeper holding customers' money needs it where they'll see it daily.
+    ...(has("pos") ? [{ icon: <ListIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
     ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
     ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
     // Expense & Income module — one home for all money in/out.
@@ -147,6 +151,12 @@ function shopNav(
       subItems: [
         { name: "Reports", path: "/tenant/reports" },
         { name: "Staff", path: "/tenant/staff" },
+        // The chemist's paperwork: the dispensing register and batch recall.
+        // Pharmacy-only — a mart that happens to stock paracetamol keeps no
+        // register, and the page would be an empty table forever.
+        ...(has("inventory") && businessType === "pharmacy"
+          ? [{ name: "Pharmacy", path: "/tenant/pharmacy" }]
+          : []),
         // Serialized retail (phones/electronics) — look up a serial's warranty.
         // Retail-only: a grocery or pharmacy never sells a serial-tracked unit.
         ...(has("pos") && has("inventory") && businessType === "retail"

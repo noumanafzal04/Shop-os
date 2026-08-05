@@ -9,7 +9,11 @@ export type UserRole =
 export interface LimitUsage {
   key: string;
   label: string;
-  limit: number | null; // null = unlimited
+  limit: number | null; // effective ceiling; null = unlimited
+  /** The plan's own baseline, before anything granted to this tenant. */
+  plan_limit: number | null;
+  /** effective − plan. Null when either side is unlimited. */
+  extra: number | null;
   used: number;
   remaining: number | null;
   unlimited: boolean;

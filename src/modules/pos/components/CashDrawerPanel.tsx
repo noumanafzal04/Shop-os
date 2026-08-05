@@ -39,6 +39,8 @@ const MOVEMENT_LABEL: Record<string, string> = {
   supplier_out: "Supplier paid",
   expense_out: "Expense paid",
   void_refund: "Void refund",
+  deposit_in: "Advance taken",
+  deposit_out: "Advance returned",
 };
 
 const TENDER_LABEL: Record<string, string> = {
@@ -46,6 +48,9 @@ const TENDER_LABEL: Record<string, string> = {
   card: "Card",
   bank_transfer: "Bank transfer",
   credit: "Credit (khata)",
+  // An advance settled at collection. Named for what the cashier needs to
+  // know — this money is NOT in today's drawer; it arrived weeks ago.
+  deposit: "Advance (paid earlier)",
   other: "Other",
 };
 
