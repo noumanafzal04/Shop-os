@@ -230,14 +230,14 @@ class SalesTest extends TestCase
         $this->assertEquals(8, $this->widget->fresh()->stock_quantity);
 
         $this->actingAsUser($this->owner)
-            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason' => 'Customer returned'])
+            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'Customer returned'])
             ->assertOk()
             ->assertJsonPath('data.status', 'cancelled');
 
         $this->assertEquals(10, $this->widget->fresh()->stock_quantity);
 
         $this->actingAsUser($this->owner)
-            ->postJson("/api/v1/sales/{$sale['id']}/cancel")
+            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])
             ->assertStatus(409)
             ->assertJsonPath('meta.error_code', 'SALE_ALREADY_CANCELLED');
 
@@ -296,7 +296,7 @@ class SalesTest extends TestCase
     {
         $sale = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload())
             ->json('data');
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel");
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item']);
 
         $this->actingAsUser($this->owner)->getJson('/api/v1/dashboard')
             ->assertJsonPath('data.today.sales_count', 0)

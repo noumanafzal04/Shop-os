@@ -17,13 +17,21 @@ class StoreSaleRequest extends FormRequest
             return false;
         }
 
-        // A per-line discount is a controlled action — a cashier needs the
-        // discounts.apply permission to hand one out (owners pass this too).
+        // Any discount is a controlled action — a cashier needs discounts.apply
+        // to hand one out (owners pass this too).
+        //
+        // The whole-bill discount used to slip through here entirely: only the
+        // per-LINE fields were inspected, so a cashier with plain sales.manage
+        // could key Rs 5,000 off a Rs 5,200 bill and nothing stopped them. The
+        // permission model looked like it governed discounts while governing
+        // half of them.
         $hasLineDiscount = collect($this->input('items', []))->contains(
             fn ($i) => (float) ($i['line_discount'] ?? 0) > 0 || (float) ($i['line_discount_pct'] ?? 0) > 0,
         );
+        $hasCartDiscount = (float) $this->input('discount', 0) > 0;
 
-        return ! $hasLineDiscount || $this->user()->hasPermission(Permissions::DISCOUNTS_APPLY);
+        return ! ($hasLineDiscount || $hasCartDiscount)
+            || $this->user()->hasPermission(Permissions::DISCOUNTS_APPLY);
     }
 
     public function rules(): array

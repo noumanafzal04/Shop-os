@@ -161,7 +161,7 @@ class LoyaltyTest extends TestCase
         $sale = $this->sell(5)->assertCreated()->json('data'); // earn 5
         $this->assertSame(5, $this->points());
 
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         $this->assertSame(0, $this->points());
     }
@@ -187,7 +187,7 @@ class LoyaltyTest extends TestCase
         $sale = $this->sell(2, ['redeem_points' => 50])->assertCreated()->json('data');
         $this->assertSame(50, $this->points()); // spent 50
 
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         $this->assertSame(100, $this->points()); // got the 50 back
     }

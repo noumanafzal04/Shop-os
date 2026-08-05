@@ -52,7 +52,7 @@ class CashMovementTest extends TestCase
         ]);
         $this->owner = User::factory()->shopOwner($this->tenant)->create();
         $this->cashier = User::factory()->tenantStaff($this->tenant, [
-            'sales.manage', 'customers.manage', 'purchases.manage', 'suppliers.manage',
+            'sales.void', 'sales.refund', 'sales.manage', 'customers.manage', 'purchases.manage', 'suppliers.manage',
         ])->create(['name' => 'Ayesha']);
 
         $main = Branch::withoutTenancy()
@@ -286,7 +286,7 @@ class CashMovementTest extends TestCase
         $sale = $this->ringCashSale($this->cashier, $shift['id']);
 
         $this->actingAsUser($this->cashier)
-            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason' => 'Wrong item'])
+            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'Wrong item'])
             ->assertOk();
 
         $movement = CashMovement::withoutTenancy()->where('type', 'void_refund')->first();
@@ -317,7 +317,7 @@ class CashMovementTest extends TestCase
         // A fresh shift today.
         $this->openShift($this->cashier, 500);
         $this->actingAsUser($this->cashier)
-            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason' => 'Customer returned next day'])
+            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'Customer returned next day'])
             ->assertOk();
 
         $closed = $this->close($this->cashier, 0);
@@ -336,7 +336,7 @@ class CashMovementTest extends TestCase
             'items' => [['product_id' => $this->product->id, 'quantity' => 1]], 'amount_paid' => 1000,
         ])->assertCreated()->json('data');
 
-        $this->actingAsUser($this->cashier)->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->actingAsUser($this->cashier)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         $this->assertSame(0, CashMovement::withoutTenancy()->count());
         $this->assertEquals(1000, $this->close($this->cashier, 1000)['expected_cash']);
@@ -349,7 +349,7 @@ class CashMovementTest extends TestCase
         // Pays 1500 for a 1000 item → 500 change out of the till.
         $sale = $this->ringCashSale($this->cashier, $shift['id'], 1500);
 
-        $this->actingAsUser($this->cashier)->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->actingAsUser($this->cashier)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         $this->assertEquals(1000, CashMovement::withoutTenancy()->where('type', 'void_refund')->value('amount'));
     }

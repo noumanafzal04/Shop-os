@@ -29,7 +29,7 @@ class CancelSaleAction
     {
     }
 
-    public function execute(Sale $sale, ?string $reason = null): Sale
+    public function execute(Sale $sale, ?string $reason = null, ?string $reasonCode = null): Sale
     {
         if ($sale->isCancelled()) {
             throw DomainException::conflict('This sale is already cancelled.', 'SALE_ALREADY_CANCELLED');
@@ -46,7 +46,7 @@ class CancelSaleAction
             );
         }
 
-        return DB::transaction(function () use ($sale, $reason): Sale {
+        return DB::transaction(function () use ($sale, $reason, $reasonCode): Sale {
             // Restore stock by REVERSING the exact movements this sale recorded
             // — not by re-reading product recipes. A combo's components can be
             // edited after the sale (SyncComboItemsAction full-replaces them),
@@ -125,6 +125,7 @@ class CancelSaleAction
                 'cancelled_at' => now(),
                 'cancelled_by' => auth()->id(),
                 'cancel_reason' => $reason,
+                'cancel_reason_code' => $reasonCode,
             ])->save();
 
             // The cash leg. Voiding a cash sale hands money back out of the

@@ -292,10 +292,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // refunding sales stays open (online sales appear here too).
                 Route::post('/', [SaleController::class, 'store'])->middleware('feature:pos');
                 Route::get('/{sale}', [SaleController::class, 'show']);
-                Route::post('/{sale}/cancel', [SaleController::class, 'cancel']);
-                Route::post('/{sale}/returns', [SaleController::class, 'processReturn']);
+                // Voiding and refunding are separated from ringing sales: they
+                // restore stock and reverse money, so a cashier holding only
+                // sales.manage can no longer erase a completed sale or hand
+                // cash back. Owners hold every tenant permission implicitly.
+                Route::post('/{sale}/cancel', [SaleController::class, 'cancel'])
+                    ->middleware('permission:sales.void');
+                Route::post('/{sale}/returns', [SaleController::class, 'processReturn'])
+                    ->middleware('permission:sales.refund');
                 // Exchange rings a replacement sale, so it needs the POS module.
-                Route::post('/{sale}/exchange', [SaleController::class, 'exchange'])->middleware('feature:pos');
+                // It also returns goods, hence the refund permission.
+                Route::post('/{sale}/exchange', [SaleController::class, 'exchange'])
+                    ->middleware(['feature:pos', 'permission:sales.refund']);
                 Route::get('/{sale}/invoice', [SaleController::class, 'invoice']);
             });
 

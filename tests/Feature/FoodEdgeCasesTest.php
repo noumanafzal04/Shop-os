@@ -111,7 +111,7 @@ class FoodEdgeCasesTest extends TestCase
             ->assertCreated();
 
         $res = $this->actingAsUser($this->owner)
-            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/cancel", ['reason' => 'Guests walked out'])
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'Guests walked out'])
             ->assertOk()->json('data');
 
         // Tab is void, every line is void.
@@ -138,7 +138,7 @@ class FoodEdgeCasesTest extends TestCase
         $this->addItems($tab['id'], [['product_id' => $dish->id, 'quantity' => 2]])->assertOk();
 
         $this->actingAsUser($this->owner)
-            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/cancel")->assertOk();
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         // Paying a voided tab must be impossible…
         $this->settle($tab['id'], ['payment_method' => 'cash', 'amount_paid' => 800])
@@ -148,7 +148,7 @@ class FoodEdgeCasesTest extends TestCase
         $this->addItems($tab['id'], [['product_id' => $dish->id, 'quantity' => 1]])
             ->assertStatus(409)->assertJsonPath('meta.error_code', 'TICKET_NOT_OPEN');
         $this->actingAsUser($this->owner)
-            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/cancel")
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/cancel", ['reason_code' => 'wrong_item'])
             ->assertStatus(409)->assertJsonPath('meta.error_code', 'TICKET_NOT_OPEN');
 
         $this->assertSame(0, Sale::withoutTenancy()->count());
@@ -173,7 +173,7 @@ class FoodEdgeCasesTest extends TestCase
 
         // Voiding the whole tab now would orphan a real sale — refused.
         $this->actingAsUser($this->owner)
-            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/cancel")
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/cancel", ['reason_code' => 'wrong_item'])
             ->assertStatus(409)->assertJsonPath('meta.error_code', 'TICKET_PARTLY_SETTLED');
 
         // The tab survived intact: exactly the unpaid remainder is still owed.

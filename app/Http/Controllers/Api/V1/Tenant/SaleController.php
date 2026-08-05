@@ -16,6 +16,7 @@ use App\Support\BranchContext;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class SaleController extends Controller
 {
@@ -153,13 +154,29 @@ class SaleController extends Controller
         );
     }
 
+    /**
+     * Void a completed sale. Requires sales.void (see routes) and now a REASON
+     * CODE from a fixed list.
+     *
+     * Free text alone was unreviewable: a manager scanning a week of voids could
+     * not tell a mis-keyed item from a pattern, so the one control that catches
+     * a ring-and-void — someone reading the void report — had nothing to read.
+     * A fixed code makes voids countable per cashier; the note stays for detail.
+     */
     public function cancel(Request $request, string $id, CancelSaleAction $action): JsonResponse
     {
-        $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
+        $data = $request->validate([
+            'reason_code' => ['required', Rule::in(Sale::VOID_REASONS)],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $label = Sale::VOID_REASON_LABELS[$data['reason_code']] ?? $data['reason_code'];
+        $note = $data['reason'] ?? null;
 
         $sale = $action->execute(
             Sale::query()->with('items')->findOrFail($id),
-            $request->input('reason'),
+            $note === null ? $label : "{$label} — {$note}",
+            $data['reason_code'],
         );
 
         return ApiResponse::ok($sale, 'Sale cancelled — stock restored');

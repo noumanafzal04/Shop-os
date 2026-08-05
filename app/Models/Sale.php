@@ -45,6 +45,23 @@ class Sale extends BaseModel
         return $this->belongsTo(Branch::class);
     }
 
+    /**
+     * Why a sale was voided. A fixed list, because the point of recording it is
+     * that a manager can COUNT them per cashier — free text can't be tallied.
+     */
+    public const VOID_REASONS = [
+        'wrong_item', 'customer_changed_mind', 'price_error', 'duplicate', 'test_sale', 'other',
+    ];
+
+    public const VOID_REASON_LABELS = [
+        'wrong_item' => 'Wrong item rung',
+        'customer_changed_mind' => 'Customer changed their mind',
+        'price_error' => 'Price error',
+        'duplicate' => 'Duplicate sale',
+        'test_sale' => 'Test sale',
+        'other' => 'Other',
+    ];
+
     public function payments(): HasMany
     {
         return $this->hasMany(SalePayment::class);

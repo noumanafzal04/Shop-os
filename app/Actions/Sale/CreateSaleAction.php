@@ -6,6 +6,7 @@ use App\Enums\ItemType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
+use App\Support\Permissions;
 use App\Models\BranchPrice;
 use App\Models\CashSession;
 use App\Models\Customer;
@@ -83,6 +84,8 @@ class CreateSaleAction
             // ── Build lines with fresh, locked product data ──────────
             $lines = [];
             $subtotal = 0.0;
+            // Hand-keyed line discounts, accumulated for the ceiling check below.
+            $discretionaryLineDiscount = 0.0;
 
             // The shop's default tax rate — each line snapshots its effective
             // rate (tax group, else product rate, else this default) so returns
@@ -282,6 +285,13 @@ class CreateSaleAction
                     $lineDiscount = round((float) ($item['line_discount'] ?? 0), 2);
                 }
 
+                // Hand-keyed line discounts count toward the shop's ceiling; a
+                // trusted replay's captured discount does not (it was already
+                // adjudicated when the tab or order was settled).
+                if (! $trusted) {
+                    $discretionaryLineDiscount = round($discretionaryLineDiscount + $lineDiscount, 2);
+                }
+
                 // Trusted callers may pass the exact captured line_total (a
                 // dine-in tab shows a running total all meal — the settled bill
                 // must equal it to the paisa, immune to per-unit rounding).
@@ -318,6 +328,21 @@ class CreateSaleAction
                     'Discount cannot exceed the subtotal.',
                     'DISCOUNT_EXCEEDS_SUBTOTAL',
                 );
+            }
+
+            // ── The shop's discount ceiling ──────────────────────────
+            // A cashier with discounts.apply could hand out any amount they
+            // liked. The owner can now cap DISCRETIONARY generosity — the cart
+            // discount plus hand-keyed line discounts — and going past the cap
+            // needs discounts.override (a manager). Coupons, promotions, group
+            // pricing and loyalty are deliberately excluded: those are rules the
+            // owner configured, not a judgement call at the counter.
+            //
+            // Skipped on the trusted path: an online order or dine-in tab is
+            // replaying a total that was already settled, and re-adjudicating
+            // it here would refuse to complete a sale the customer has paid.
+            if (! $trusted) {
+                $this->assertWithinDiscountCeiling($discount + $discretionaryLineDiscount, $subtotal);
             }
 
             // Coupon: validate + consume, add its discount (clamped to subtotal).
@@ -905,5 +930,54 @@ class CreateSaleAction
             ->update(['next_number' => $counter->next_number + 1, 'updated_at' => now()]);
 
         return 'INV-'.str_pad((string) $counter->next_number, 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Refuse a discount past the shop's ceiling unless the person ringing it
+     * holds discounts.override.
+     *
+     * Both limits are opt-in (null = no ceiling): the control never existed
+     * before, so defaulting to a cap would have stopped shops from selling the
+     * day it shipped. An owner sets them in Settings → POS.
+     */
+    private function assertWithinDiscountCeiling(float $discount, float $subtotal): void
+    {
+        if ($discount <= 0) {
+            return;
+        }
+
+        $settings = $this->context->get();
+        $maxPct = $settings?->setting('max_discount_percent');
+        $maxAmt = $settings?->setting('max_discount_amount');
+
+        if (($maxPct === null || $maxPct === '') && ($maxAmt === null || $maxAmt === '')) {
+            return; // no ceiling configured
+        }
+
+        $user = auth()->user();
+        // No authenticated actor = a backend/headless caller, which is trusted
+        // by definition (the HTTP paths always have one).
+        if ($user === null || $user->hasPermission(Permissions::DISCOUNTS_OVERRIDE)) {
+            return;
+        }
+
+        $pct = $subtotal > 0 ? round(($discount / $subtotal) * 100, 2) : 0.0;
+        $sym = $settings?->currencySymbol() ?? 'Rs';
+
+        if ($maxPct !== null && $maxPct !== '' && $pct > (float) $maxPct + 0.001) {
+            throw DomainException::forbidden(
+                "This discount is {$pct}% — above the {$maxPct}% limit. A manager has to approve it.",
+                'DISCOUNT_LIMIT_EXCEEDED',
+            );
+        }
+
+        if ($maxAmt !== null && $maxAmt !== '' && $discount > (float) $maxAmt + 0.001) {
+            throw DomainException::forbidden(
+                "This discount is {$sym} ".number_format($discount, 2)
+                    ." — above the {$sym} ".number_format((float) $maxAmt, 2)
+                    .' limit. A manager has to approve it.',
+                'DISCOUNT_LIMIT_EXCEEDED',
+            );
+        }
     }
 }

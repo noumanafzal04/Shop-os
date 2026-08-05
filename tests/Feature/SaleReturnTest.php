@@ -124,7 +124,7 @@ class SaleReturnTest extends TestCase
     public function test_cannot_return_a_cancelled_sale(): void
     {
         $sale = $this->makeSale(1);
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/returns", [
             'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]],

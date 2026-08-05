@@ -247,7 +247,7 @@ class ExpensesReportsTest extends TestCase
             'amount_paid' => 100,
         ])->json('data');
 
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel");
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item']);
 
         $report = $this->actingAsUser($this->owner)
             ->getJson('/api/v1/reports/summary?period=daily')

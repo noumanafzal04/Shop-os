@@ -207,7 +207,7 @@ class OrdersTest extends TestCase
         $this->assertEquals(3, $this->product->fresh()->stock_quantity);
 
         $this->actingAsUser($this->owner)
-            ->postJson("/api/v1/orders/{$order['id']}/cancel", ['reason' => 'Out of stock'])
+            ->postJson("/api/v1/orders/{$order['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'Out of stock'])
             ->assertOk()->assertJsonPath('data.status', 'cancelled');
 
         $this->assertEquals(5, $this->product->fresh()->stock_quantity);
@@ -222,13 +222,13 @@ class OrdersTest extends TestCase
         $this->advance($order['id'], 'preparing');
 
         $this->actingAsUser($this->customer)
-            ->postJson("/api/v1/customer/orders/{$order['id']}/cancel")
+            ->postJson("/api/v1/customer/orders/{$order['id']}/cancel", ['reason_code' => 'wrong_item'])
             ->assertStatus(409)->assertJsonPath('meta.error_code', 'ORDER_NOT_CANCELLABLE');
 
         // A fresh pending order CAN be cancelled by the customer.
         $fresh = $this->place(['items' => [['product_id' => $this->product->id, 'quantity' => 1]]]);
         $this->actingAsUser($this->customer)
-            ->postJson("/api/v1/customer/orders/{$fresh['id']}/cancel")
+            ->postJson("/api/v1/customer/orders/{$fresh['id']}/cancel", ['reason_code' => 'wrong_item'])
             ->assertOk();
     }
 
@@ -239,7 +239,7 @@ class OrdersTest extends TestCase
             $this->advance($order['id'], $s);
         }
 
-        $this->actingAsUser($this->owner)->postJson("/api/v1/orders/{$order['id']}/cancel")
+        $this->actingAsUser($this->owner)->postJson("/api/v1/orders/{$order['id']}/cancel", ['reason_code' => 'wrong_item'])
             ->assertStatus(409);
     }
 

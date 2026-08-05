@@ -189,7 +189,7 @@ class SerialInventoryTest extends TestCase
         $this->receive(1, ['IMEI-1'])->assertOk();
         $sale = $this->sell(['IMEI-1'])->assertCreated()->json('data');
 
-        $this->req()->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->req()->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         $this->assertSame('in_stock', ProductSerial::withoutTenancy()->where('serial', 'IMEI-1')->first()->status);
         $this->sell(['IMEI-1'])->assertCreated(); // resellable

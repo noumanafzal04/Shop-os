@@ -163,7 +163,7 @@ class RecipeBomTest extends TestCase
         $sale = $this->sell($burger, 2); // −6 → 94
         $this->assertSame(94.0, (float) $bun->refresh()->stock_quantity);
 
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         // Cancel reverses every ingredient movement → back to 100.
         $this->assertSame(100.0, (float) $bun->refresh()->stock_quantity);

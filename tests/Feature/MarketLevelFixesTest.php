@@ -106,7 +106,7 @@ class MarketLevelFixesTest extends TestCase
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
         ])->assertCreated()->json('data');
 
-        $this->actingAsUser($owner)->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->actingAsUser($owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         $customer = Customer::withoutTenancy()->where('tenant_id', $tenant->id)->first();
         $this->assertSame('0.00', (string) $customer->credit_balance);
@@ -491,7 +491,7 @@ class MarketLevelFixesTest extends TestCase
 
         // Void-after-refund would restore the 2 returned units AGAIN (12 on
         // the shelf when only 10 exist) — the cancel must refuse.
-        $this->actingAsUser($owner)->postJson("/api/v1/sales/{$sale['id']}/cancel")
+        $this->actingAsUser($owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])
             ->assertStatus(409)
             ->assertJsonPath('meta.error_code', 'SALE_HAS_RETURNS');
 
@@ -595,7 +595,7 @@ class MarketLevelFixesTest extends TestCase
         // Cancel the sale: the BURGER (what was sold) must come back, not the
         // pizza (the live recipe). Reading the edited recipe would leave burger
         // at 9 and mint a phantom pizza (11).
-        $this->actingAsUser($owner)->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->actingAsUser($owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
         $this->assertSame(10.0, (float) $burger->refresh()->stock_quantity);
         $this->assertSame(10.0, (float) $pizza->refresh()->stock_quantity);
     }

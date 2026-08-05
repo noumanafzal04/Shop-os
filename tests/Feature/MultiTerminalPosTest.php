@@ -64,8 +64,8 @@ class MultiTerminalPosTest extends TestCase
             'features' => BusinessTypes::defaultFeatures('mart'),
         ]);
         $this->owner = User::factory()->shopOwner($this->tenant)->create();
-        $this->cashierA = User::factory()->tenantStaff($this->tenant, ['sales.manage'])->create(['name' => 'Ayesha']);
-        $this->cashierB = User::factory()->tenantStaff($this->tenant, ['sales.manage'])->create(['name' => 'Bilal']);
+        $this->cashierA = User::factory()->tenantStaff($this->tenant, ['sales.void', 'sales.refund', 'sales.manage'])->create(['name' => 'Ayesha']);
+        $this->cashierB = User::factory()->tenantStaff($this->tenant, ['sales.void', 'sales.refund', 'sales.manage'])->create(['name' => 'Bilal']);
 
         $this->main = Branch::withoutTenancy()
             ->where('tenant_id', $this->tenant->id)->where('is_default', true)->firstOrFail();

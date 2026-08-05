@@ -255,7 +255,7 @@ class P0RegressionTest extends TestCase
 
         // Cancel must SUCCEED (not throw PRODUCT_NOT_TRACKED) and put the
         // components back — the whole point of the P0 fix.
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason' => 'void'])
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'void'])
             ->assertOk()->assertJsonPath('data.status', 'cancelled');
         $this->assertEquals(10, $burger->fresh()->stock_quantity);
         $this->assertEquals(30, $drink->fresh()->stock_quantity);
@@ -274,7 +274,7 @@ class P0RegressionTest extends TestCase
         $this->assertEquals(980, $p->fresh()->stock_quantity);
 
         // Cancel restores factor× the sold count → back to 1000 (not 998).
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason' => 'void'])
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'void'])
             ->assertOk();
         $this->assertEquals(1000, $p->fresh()->stock_quantity);
     }

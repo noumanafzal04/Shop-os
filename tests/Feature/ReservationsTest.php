@@ -198,7 +198,7 @@ class ReservationsTest extends TestCase
         $this->assertEquals(2, $this->product->fresh()->stock_quantity);
 
         $this->actingAsUser($this->customer)
-            ->postJson("/api/v1/customer/reservations/{$reservation['id']}/cancel")
+            ->postJson("/api/v1/customer/reservations/{$reservation['id']}/cancel", ['reason_code' => 'wrong_item'])
             ->assertOk()
             ->assertJsonPath('data.status', 'cancelled');
 

@@ -112,7 +112,7 @@ class FoodShopTest extends TestCase
         $order = $this->placePizza();
 
         $this->actingAsUser($this->owner)
-            ->postJson("/api/v1/orders/{$order['id']}/cancel", ['reason' => 'Kitchen closed'])
+            ->postJson("/api/v1/orders/{$order['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'Kitchen closed'])
             ->assertOk()->assertJsonPath('data.status', 'cancelled');
 
         $this->assertSame(0, StockMovement::withoutTenancy()->count());

@@ -49,6 +49,22 @@ class Permissions
 
     public const DISCOUNTS_APPLY = 'discounts.apply';
 
+    /**
+     * Voiding a COMPLETED sale is the highest-risk action at a counter: it
+     * restores stock and reverses the money. Separated from sales.manage so a
+     * cashier can ring sales all day without being able to erase one.
+     */
+    public const SALES_VOID = 'sales.void';
+
+    /** Handing money back. Same reasoning as void — a cashier rings, a manager refunds. */
+    public const SALES_REFUND = 'sales.refund';
+
+    /**
+     * Exceeding the shop's discount ceiling. discounts.apply lets you give the
+     * everyday discount; this lets you go past the limit the owner set.
+     */
+    public const DISCOUNTS_OVERRIDE = 'discounts.override';
+
     public const CUSTOMERS_MANAGE = 'customers.manage';
 
     public const COUPONS_MANAGE = 'coupons.manage';
@@ -94,6 +110,9 @@ class Permissions
             self::PURCHASES_MANAGE,
             self::SALES_MANAGE,
             self::DISCOUNTS_APPLY,
+            self::DISCOUNTS_OVERRIDE,
+            self::SALES_VOID,
+            self::SALES_REFUND,
             self::CUSTOMERS_MANAGE,
             self::COUPONS_MANAGE,
             self::EXPENSES_MANAGE,

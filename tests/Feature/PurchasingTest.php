@@ -237,7 +237,7 @@ class PurchasingTest extends TestCase
     public function test_cancel_po_voids_it(): void
     {
         $po = $this->makePO($this->makeSupplier());
-        $this->actingAsUser($this->owner)->postJson("/api/v1/purchase-orders/{$po['id']}/cancel", ['reason' => 'Duplicate'])
+        $this->actingAsUser($this->owner)->postJson("/api/v1/purchase-orders/{$po['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'Duplicate'])
             ->assertOk()->assertJsonPath('data.status', 'cancelled');
     }
 

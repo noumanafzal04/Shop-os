@@ -77,6 +77,17 @@ class ShopSettings
             // Recommended ON for any shop with staff or more than one lane.
             'pos_require_shift' => false,
 
+            // Discount authority. The DISCRETIONARY discount a cashier keys —
+            // whole-bill plus hand-keyed line discounts — is capped by these;
+            // going past one needs the discounts.override permission. Coupons,
+            // promotions, group pricing and loyalty are exempt: those are rules
+            // the owner configured, not a judgement call at the counter.
+            // Null = no ceiling, which is the shipped default because the
+            // control never existed before and capping by surprise would stop
+            // shops from selling.
+            'max_discount_percent' => null,
+            'max_discount_amount' => null,
+
             // ── Loyalty & rewards ───────────────────────────────────────
             // Customers earn points on completed sales and redeem them as a
             // counter discount. Off by default. earn_per_amount = the spend (in
@@ -132,6 +143,8 @@ class ShopSettings
             'pos_default_payment' => ['sometimes', 'in:cash,card'],
             'pos_auto_print' => ['sometimes', 'boolean'],
             'pos_require_shift' => ['sometimes', 'boolean'],
+            'max_discount_percent' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
+            'max_discount_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999'],
             'loyalty_enabled' => ['sometimes', 'boolean'],
             'loyalty_earn_per_amount' => ['sometimes', 'numeric', 'min:1', 'max:1000000'],
             'loyalty_redeem_value' => ['sometimes', 'numeric', 'min:0.01', 'max:100000'],

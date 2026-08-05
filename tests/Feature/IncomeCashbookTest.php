@@ -238,7 +238,7 @@ class IncomeCashbookTest extends TestCase
             'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 100,
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
         ])->json('data');
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$cancelled['id']}/cancel")->assertOk();
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$cancelled['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         $cash = $this->actingAsUser($this->owner)
             ->getJson('/api/v1/cashbook?period=daily')->assertOk()->json('data');

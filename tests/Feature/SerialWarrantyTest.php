@@ -144,7 +144,7 @@ class SerialWarrantyTest extends TestCase
         $phone = $this->phone();
         $sale = $this->sell($phone, 1, ['IMEI-REUSE'])->assertCreated()->json('data');
 
-        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel")->assertOk();
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])->assertOk();
 
         // The unit came back (cancelled sale) — its serial is free to sell again.
         $this->sell($phone, 1, ['IMEI-REUSE'])->assertCreated();
