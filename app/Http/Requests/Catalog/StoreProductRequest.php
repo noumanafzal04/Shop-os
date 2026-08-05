@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Catalog;
 
+use App\Support\BusinessTypes;
 use App\Support\ItemTypes;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
@@ -70,6 +71,9 @@ class StoreProductRequest extends FormRequest
             // stock). Optional — defaults to "OPENING" when blank.
             'opening_batch_number' => ['nullable', 'string', 'max:60'],
             'requires_prescription' => ['sometimes', 'boolean'],
+            // The regulator's schedule (G / H / X …). Set it and the till starts
+            // demanding prescriber details before the drug can be sold.
+            'drug_schedule' => ['sometimes', 'nullable', 'string', 'max:20'],
             // Serialized retail (phones/electronics): capture a serial/IMEI per
             // unit at the counter, with a default warranty length. Only stock
             // goods carry serials — a service or a stock-less deal can't.
@@ -183,8 +187,8 @@ class StoreProductRequest extends FormRequest
             $itemType = $this->input('item_type');
 
             if ($businessType !== null && is_string($itemType)
-                && in_array($itemType, \App\Support\ItemTypes::codes(), true)
-                && ! in_array($itemType, \App\Support\BusinessTypes::itemTypesFor($businessType), true)) {
+                && in_array($itemType, ItemTypes::codes(), true)
+                && ! in_array($itemType, BusinessTypes::itemTypesFor($businessType), true)) {
                 $v->errors()->add('item_type', 'This item type isn\'t available for your business type.');
             }
 

@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Immutable — no updates, no soft deletes, no updated_by. Corrections are
- * new counter-movements; created_by is set by InventoryService.
+ * One quoted / laid-away line. Snapshots name, price and pack exactly like
+ * SaleItem, for the same reason: the paper in the customer's hand says what it
+ * says, and editing the catalog afterwards must not rewrite it.
  */
-class StockMovement extends Model
+class SaleDocumentItem extends Model
 {
     use BelongsToTenant, HasUuids;
 
@@ -20,12 +21,18 @@ class StockMovement extends Model
     protected function casts(): array
     {
         return [
-            'quantity_change' => 'decimal:3',
-            'quantity_after' => 'decimal:3',
-            // The lots this movement ate or restored — what makes a recall
-            // answerable. See the add_pharmacy_depth migration.
-            'batch_allocations' => 'array',
+            'quantity' => 'decimal:3',
+            'unit_factor' => 'decimal:3',
+            'unit_price' => 'decimal:2',
+            'line_discount' => 'decimal:2',
+            'line_total' => 'decimal:2',
+            'tax_rate' => 'decimal:2',
         ];
+    }
+
+    public function document(): BelongsTo
+    {
+        return $this->belongsTo(SaleDocument::class, 'sale_document_id');
     }
 
     public function product(): BelongsTo

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -59,14 +60,14 @@ class PlanLimitTest extends TestCase
         return [$tenant, $owner];
     }
 
-    private function createProduct(User $owner, string $name): \Illuminate\Testing\TestResponse
+    private function createProduct(User $owner, string $name): TestResponse
     {
         return $this->login($owner)->postJson('/api/v1/products', [
             'type' => 'product', 'name' => $name, 'price' => 10,
         ]);
     }
 
-    private function createStaff(User $owner, string $name): \Illuminate\Testing\TestResponse
+    private function createStaff(User $owner, string $name): TestResponse
     {
         return $this->login($owner)->postJson('/api/v1/staff', [
             'name' => $name,
@@ -144,7 +145,7 @@ class PlanLimitTest extends TestCase
 
     public function test_extend_null_clears_the_override(): void
     {
-        [$tenant, ] = $this->shopOn($this->planWith(['max_products' => 1]));
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1]));
 
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'limits' => ['products' => 9],
@@ -156,9 +157,98 @@ class PlanLimitTest extends TestCase
         ])->assertOk()->assertJsonPath('data.limit_overrides', []);
     }
 
+    /**
+     * The bug this exists to prevent: the button says "Extend", so an admin
+     * raising a 1,000-product tenant by 100 types 100. Absolute mode read that
+     * as the new ceiling and cut the shop to 100 — silently.
+     */
+    public function test_add_mode_raises_the_ceiling_by_the_amount_typed(): void
+    {
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1000]));
+
+        $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
+            'mode' => 'add',
+            'limits' => ['products' => 100],
+        ])->assertOk()->assertJsonPath('data.limit_overrides.products', 1100);
+
+        // And again — extending twice compounds, it doesn't overwrite.
+        $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
+            'mode' => 'add',
+            'limits' => ['products' => 50],
+        ])->assertOk()->assertJsonPath('data.limit_overrides.products', 1150);
+    }
+
+    /** A tenant downgrading gives some back. Negative deltas are legitimate. */
+    public function test_add_mode_accepts_a_reduction(): void
+    {
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1000]));
+
+        $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
+            'mode' => 'add',
+            'limits' => ['products' => -400],
+        ])->assertOk()->assertJsonPath('data.limit_overrides.products', 600);
+    }
+
+    /**
+     * The other half of the same mistake: whatever the mode, a ceiling can
+     * never land below what the shop already has. Otherwise a typo puts a live
+     * shop over its limit, and it surfaces days later as "nothing saves".
+     */
+    public function test_a_limit_can_never_be_set_below_what_is_already_used(): void
+    {
+        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 1000]));
+        $this->createProduct($owner, 'One')->assertCreated();
+        $this->createProduct($owner, 'Two')->assertCreated();
+        $this->createProduct($owner, 'Three')->assertCreated();
+
+        $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
+            'mode' => 'set',
+            'limits' => ['products' => 2],
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('meta.error_code', 'LIMIT_BELOW_USAGE');
+
+        // Nothing was written — the shop still has its full ceiling.
+        $this->assertNull($tenant->fresh()->limit_overrides);
+    }
+
+    public function test_adding_to_an_unlimited_resource_is_refused_rather_than_inventing_a_ceiling(): void
+    {
+        // No max_products on the plan = unlimited.
+        [$tenant] = $this->shopOn($this->planWith([]));
+
+        $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
+            'mode' => 'add',
+            'limits' => ['products' => 100],
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('meta.error_code', 'ALREADY_UNLIMITED');
+    }
+
+    public function test_the_snapshot_separates_the_plan_baseline_from_what_was_granted(): void
+    {
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1000]));
+
+        $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
+            'mode' => 'add',
+            'limits' => ['products' => 100],
+        ])->assertOk();
+
+        $usage = collect(
+            $this->login($this->admin)->getJson("/api/v1/admin/tenants/{$tenant->id}")
+                ->assertOk()->json('data.limits_usage'),
+        )->firstWhere('key', 'products');
+
+        // "1,100" alone can't tell an admin whether that's the plan or
+        // something a colleague granted last March.
+        $this->assertSame(1100, $usage['limit']);
+        $this->assertSame(1000, $usage['plan_limit']);
+        $this->assertSame(100, $usage['extra']);
+    }
+
     public function test_extend_rejects_unknown_limit_key(): void
     {
-        [$tenant, ] = $this->shopOn($this->planWith(['max_products' => 1]));
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1]));
 
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'limits' => ['bananas' => 5],

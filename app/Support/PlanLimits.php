@@ -115,12 +115,32 @@ class PlanLimits
         }
     }
 
+    /** The plan's own baseline for a resource, ignoring any tenant override. */
+    public static function planLimit(Tenant $tenant, string $key): ?int
+    {
+        $column = self::REGISTRY[$key]['column'] ?? null;
+        if ($column === null) {
+            return null;
+        }
+
+        $tenant->loadMissing('plan');
+        $planLimit = $tenant->plan?->{$column};
+
+        return $planLimit === null ? null : (int) $planLimit;
+    }
+
     /**
      * Full usage-vs-limit picture for a tenant — one row per configurable
      * limit. Powers the admin's per-tenant "Extend limits" panel and the shop's
      * own usage meters. `remaining` is null when unlimited.
      *
-     * @return array<int, array{key:string,label:string,limit:int|null,used:int,remaining:int|null,unlimited:bool,enforced:bool}>
+     * `plan_limit` and `extra` are split out deliberately: an admin looking at
+     * "1,100" cannot tell whether that is the plan or something they granted
+     * this shop last month, and that is exactly what they need to know before
+     * changing it. Showing the baseline and the extension separately makes the
+     * override visible instead of implied by a badge.
+     *
+     * @return array<int, array{key:string,label:string,limit:int|null,plan_limit:int|null,extra:int|null,used:int,remaining:int|null,unlimited:bool,enforced:bool}>
      */
     public static function snapshot(Tenant $tenant): array
     {
@@ -128,12 +148,18 @@ class PlanLimits
 
         return collect(self::REGISTRY)->map(function (array $meta, string $key) use ($tenant): array {
             $limit = self::limit($tenant, $key);
+            $planLimit = self::planLimit($tenant, $key);
             $used = self::usage($tenant, $key);
 
             return [
                 'key' => $key,
                 'label' => $meta['label'],
                 'limit' => $limit,
+                'plan_limit' => $planLimit,
+                // How far past (or below) the plan this tenant has been moved.
+                // Null when either side is unlimited — there is no difference
+                // to state between a number and "no ceiling".
+                'extra' => ($limit === null || $planLimit === null) ? null : $limit - $planLimit,
                 'used' => $used,
                 'remaining' => $limit === null ? null : max(0, $limit - $used),
                 'unlimited' => $limit === null,

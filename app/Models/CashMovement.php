@@ -23,18 +23,26 @@ class CashMovement extends Model
     public const MANUAL_TYPES = ['paid_in', 'paid_out', 'drop', 'float_add', 'no_sale'];
 
     /** System-recorded types — written by the flow that moved the money. */
-    public const SYSTEM_TYPES = ['khata_in', 'supplier_out', 'expense_out', 'void_refund'];
+    public const SYSTEM_TYPES = [
+        'khata_in', 'supplier_out', 'expense_out', 'void_refund',
+        // A layaway advance is real cash in the drawer the moment it is handed
+        // over, even though no sale has happened — without this line every
+        // advance would be reported as an overage at close.
+        'deposit_in', 'deposit_out',
+    ];
 
     /** Which way each type moves the drawer. The single source of that truth. */
     public const DIRECTIONS = [
         'paid_in' => 'in',
         'float_add' => 'in',
         'khata_in' => 'in',
+        'deposit_in' => 'in',
         'paid_out' => 'out',
         'drop' => 'out',
         'supplier_out' => 'out',
         'expense_out' => 'out',
         'void_refund' => 'out',
+        'deposit_out' => 'out',
         // Opening the drawer is an event, not an amount.
         'no_sale' => 'none',
     ];

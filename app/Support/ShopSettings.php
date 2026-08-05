@@ -116,6 +116,35 @@ class ShopSettings
             // Recommended ON for any shop with staff or more than one lane.
             'pos_require_shift' => false,
 
+            // ── Quotations & layaway (retail depth) ─────────────────────
+            // "Estimate bana do." A written price, held until a date. On by
+            // default because almost every counter is asked for one, and a shop
+            // that never writes a quote simply never opens the screen.
+            'quotations_enabled' => true,
+            // How long a quoted price is honoured. 15 days is the common
+            // retail answer — long enough to shop around, short enough that a
+            // supplier price rise doesn't land on the shop. 0 = no expiry.
+            'quotation_valid_days' => 15,
+            // Printed at the foot of the quotation: delivery time, warranty,
+            // whether the price includes fitting. Null = print nothing.
+            'quotation_terms' => null,
+            // "Advance rakh do." Money down, goods set aside, balance later.
+            'layaway_enabled' => true,
+            // The floor under an advance. A token deposit isn't a commitment —
+            // Rs 100 against a Rs 90,000 fridge takes it off the floor for six
+            // weeks and costs the customer nothing to abandon. 20% is the
+            // conventional Pakistani retail figure. 0 = accept any amount.
+            'layaway_min_deposit_percent' => 20,
+            // Collect-by window. Not a deadline that voids anything — the
+            // customer's money doesn't evaporate on a timer — just the date
+            // after which the layaway shows as overdue and worth a phone call.
+            'layaway_days' => 30,
+            // What the shop keeps if the customer walks away, as a percentage
+            // of what they'd paid. Ships at 0: keeping someone's money by
+            // default is the worse mistake, so a shop that charges for six
+            // weeks of holding stock has to say so deliberately.
+            'layaway_cancellation_fee_percent' => 0,
+
             // Discount authority. The DISCRETIONARY discount a cashier keys —
             // whole-bill plus hand-keyed line discounts — is capped by these;
             // going past one needs the discounts.override permission. Coupons,
@@ -194,6 +223,13 @@ class ShopSettings
             'pos_require_shift' => ['sometimes', 'boolean'],
             'max_discount_percent' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
             'max_discount_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999'],
+            'quotations_enabled' => ['sometimes', 'boolean'],
+            'quotation_valid_days' => ['sometimes', 'integer', 'min:0', 'max:365'],
+            'quotation_terms' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'layaway_enabled' => ['sometimes', 'boolean'],
+            'layaway_min_deposit_percent' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+            'layaway_days' => ['sometimes', 'integer', 'min:0', 'max:730'],
+            'layaway_cancellation_fee_percent' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             'loyalty_enabled' => ['sometimes', 'boolean'],
             'loyalty_earn_per_amount' => ['sometimes', 'numeric', 'min:1', 'max:1000000'],
             'loyalty_redeem_value' => ['sometimes', 'numeric', 'min:0.01', 'max:100000'],

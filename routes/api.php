@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Tenant\CustomerController;
 use App\Http\Controllers\Api\V1\Tenant\DashboardController;
 use App\Http\Controllers\Api\V1\Tenant\DiningTableController;
 use App\Http\Controllers\Api\V1\Tenant\KitchenController;
+use App\Http\Controllers\Api\V1\Tenant\PharmacyController;
 use App\Http\Controllers\Api\V1\Tenant\RestaurantTicketController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\Tenant\ReceiptController;
 use App\Http\Controllers\Api\V1\Tenant\TillIdentityController;
 use App\Http\Controllers\Api\V1\Tenant\SaleController;
+use App\Http\Controllers\Api\V1\Tenant\SaleDocumentController;
 use App\Http\Controllers\Api\V1\Tenant\BranchController;
 use App\Http\Controllers\Api\V1\Tenant\SearchController;
 use App\Http\Controllers\Api\V1\Tenant\TransferController;
@@ -342,6 +344,40 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // anything, so it sits with the manager, not the till.
             Route::get('reports/reprints', [ReceiptController::class, 'reprintReport'])
                 ->middleware('permission:reports.view');
+
+            // Quotations & layaway — the two promises a retailer makes before a
+            // sale exists. Both ride the POS module: they are counter documents
+            // that end in a till transaction, and a shop with no counter has
+            // nowhere to take an advance or hand the goods over.
+            Route::prefix('sale-documents')->middleware(['feature:pos', 'permission:sales.manage'])->group(function (): void {
+                Route::get('/', [SaleDocumentController::class, 'index']);
+                // Before /{document} so it isn't captured as an id.
+                Route::get('/summary', [SaleDocumentController::class, 'summary']);
+                Route::post('/', [SaleDocumentController::class, 'store']);
+                Route::get('/{document}', [SaleDocumentController::class, 'show']);
+                Route::get('/{document}/print', [SaleDocumentController::class, 'print']);
+                Route::post('/{document}/deposits', [SaleDocumentController::class, 'deposit']);
+                Route::post('/{document}/convert', [SaleDocumentController::class, 'convert']);
+                // Cancelling a layaway that holds money needs sales.refund —
+                // enforced in the controller, since a quotation cancel moves
+                // nothing and must stay available to a plain cashier.
+                Route::post('/{document}/cancel', [SaleDocumentController::class, 'cancel']);
+            });
+
+            // Pharmacy depth. Rides the inventory module rather than a module
+            // of its own: substitution reads stock, the register reads batches,
+            // and a shop without inventory has neither.
+            Route::prefix('pharmacy')->middleware('feature:inventory')->group(function (): void {
+                // At the counter: the brand is out, what else has the same salt?
+                Route::get('alternatives', [PharmacyController::class, 'alternatives'])
+                    ->middleware('permission:sales.manage');
+                // The register a regulator asks to see.
+                Route::get('dispensing', [PharmacyController::class, 'dispensing'])
+                    ->middleware('permission:reports.view');
+                // A withdrawal notice names a lot; this finds who took it home.
+                Route::get('recall', [PharmacyController::class, 'recall'])
+                    ->middleware('permission:inventory.manage');
+            });
 
             // Warranty desk (serialized retail): look up a serial / IMEI to see
             // what was sold and whether it's still under warranty.

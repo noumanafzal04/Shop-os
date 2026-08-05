@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Catalog;
 
+use App\Models\Product;
+use App\Support\ItemTypes;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -52,6 +54,9 @@ class UpdateProductRequest extends FormRequest
             'strength' => ['nullable', 'string', 'max:60'],
             'dosage_form' => ['nullable', 'string', 'max:40'],
             'requires_prescription' => ['sometimes', 'boolean'],
+            // The regulator's schedule (G / H / X …). Set it and the till starts
+            // demanding prescriber details before the drug can be sold.
+            'drug_schedule' => ['sometimes', 'nullable', 'string', 'max:20'],
             // Serialized retail — toggle serial/IMEI capture and default warranty.
             'tracks_serial' => ['sometimes', 'boolean'],
             'warranty_months' => ['nullable', 'integer', 'min:0', 'max:600'],
@@ -111,7 +116,7 @@ class UpdateProductRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($v): void {
-            $product = \App\Models\Product::query()->find($this->route('product'));
+            $product = Product::query()->find($this->route('product'));
             if ($product === null) {
                 return; // 404s in the controller
             }
@@ -124,7 +129,7 @@ class UpdateProductRequest extends FormRequest
                 $v->errors()->add('combo_items', 'Only a deal bundles other products.');
             }
 
-            if ($this->filled('recipe_items') && $product->item_type !== \App\Support\ItemTypes::FOOD) {
+            if ($this->filled('recipe_items') && $product->item_type !== ItemTypes::FOOD) {
                 $v->errors()->add('recipe_items', 'Only a food dish can have a recipe of ingredients.');
             }
 
