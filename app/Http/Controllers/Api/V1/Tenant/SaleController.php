@@ -182,19 +182,7 @@ class SaleController extends Controller
         return ApiResponse::ok($sale, 'Sale cancelled — stock restored');
     }
 
-    /**
-     * Print-ready HTML invoice (browser print → PDF). WhatsApp sharing and
-     * server-side PDF land with the notifications step.
-     */
-    public function invoice(string $id, TenantContext $context)
-    {
-        $sale = Sale::query()->with('items')->findOrFail($id);
-        $tenant = $context->get();
-
-        return response()->view('invoices.show', [
-            'sale' => $sale,
-            'tenant' => $tenant,
-            'settings' => $tenant->allSettings(),
-        ]);
-    }
+    // Receipts moved to ReceiptController: rendering one has to be logged
+    // (original vs copy) and reported on, which is more than this controller
+    // should carry.
 }

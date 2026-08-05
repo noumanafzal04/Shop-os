@@ -66,10 +66,49 @@ class ShopSettings
             'invoice_footer' => 'Thank you for your business!',
             'invoice_show_logo' => true,
             'receipt_width' => 'standard',  // standard | thermal_80 | thermal_58
+            // Who served you — the receipt is the customer's copy of the audit
+            // trail, and a complaint about a sale is useless without the lane
+            // and the cashier on the slip.
+            'receipt_show_cashier' => true,
+            // ── Tax identifiers (Pakistan) ──────────────────────────────
+            // NTN = National Tax Number, STRN = Sales Tax Registration Number.
+            // A registered shop must show these on a tax invoice; an
+            // unregistered one has neither, so both are null by default and
+            // simply do not print. fbr_pos_id is the FBR POS registration a
+            // Tier-1 retailer is issued — we PRINT it, we do not transmit to
+            // FBR (that needs the shop's own FBR credentials and their API).
+            'invoice_ntn' => null,
+            'invoice_strn' => null,
+            'invoice_fbr_pos_id' => null,
 
             // POS
             'pos_default_payment' => 'cash', // cash | card
             'pos_auto_print' => false,
+            // Try to kick the cash drawer open when a sale is tendered in cash.
+            // Only possible where the drawer (or the printer it hangs off) is
+            // reachable over a direct transport — see HardwareDevice. On a
+            // plain browser print there is no kick and the POS says so rather
+            // than pretending.
+            'pos_drawer_kick' => true,
+            // Lock the till after this many idle minutes, so the next sale is
+            // stamped with whoever actually rang it rather than whoever opened
+            // up. 0 = never. Ships OFF: a one-person shop being asked for a PIN
+            // between customers is a worse problem than the one it solves, and
+            // nobody has a PIN yet on the day this ships.
+            'pos_idle_lock_minutes' => 0,
+
+            // ── Kitchen (food service) ──────────────────────────────────
+            // The sections a fired order can be routed to. Empty = no routing:
+            // one "fire" makes one KOT, which is right for a small kitchen with
+            // a single printer and wrong the moment a bar exists.
+            'kitchen_stations' => [],
+            // Print the KOT the moment it's fired. On by default — a kitchen
+            // ticket that isn't printed hasn't been sent, whatever the screen
+            // says. A shop running a kitchen SCREEN instead turns this off.
+            'kot_auto_print' => true,
+            // Ask for a tip when settling a tab. Off by default: tipping is not
+            // universal, and a prompt that isn't wanted slows every bill.
+            'tips_enabled' => false,
             // Refuse a counter sale unless the cashier has a shift open, so
             // every rupee belongs to a drawer that gets counted. Ships OFF: the
             // flag existed for months while nothing read it, so turning it on
@@ -140,8 +179,18 @@ class ShopSettings
             'invoice_footer' => ['sometimes', 'nullable', 'string', 'max:300'],
             'invoice_show_logo' => ['sometimes', 'boolean'],
             'receipt_width' => ['sometimes', 'in:standard,thermal_80,thermal_58'],
+            'receipt_show_cashier' => ['sometimes', 'boolean'],
+            'invoice_ntn' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'invoice_strn' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'invoice_fbr_pos_id' => ['sometimes', 'nullable', 'string', 'max:30'],
             'pos_default_payment' => ['sometimes', 'in:cash,card'],
             'pos_auto_print' => ['sometimes', 'boolean'],
+            'pos_drawer_kick' => ['sometimes', 'boolean'],
+            'pos_idle_lock_minutes' => ['sometimes', 'integer', 'min:0', 'max:240'],
+            'kitchen_stations' => ['sometimes', 'array', 'max:12'],
+            'kitchen_stations.*' => ['string', 'max:40'],
+            'kot_auto_print' => ['sometimes', 'boolean'],
+            'tips_enabled' => ['sometimes', 'boolean'],
             'pos_require_shift' => ['sometimes', 'boolean'],
             'max_discount_percent' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
             'max_discount_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999'],

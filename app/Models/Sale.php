@@ -25,6 +25,9 @@ class Sale extends BaseModel
             'tax' => 'decimal:2',
             'tax_inclusive' => 'boolean',
             'total' => 'decimal:2',
+            // Paid on top of the bill. Never part of `total` — see the
+            // add_food_service_loop migration.
+            'tip_amount' => 'decimal:2',
             'amount_paid' => 'decimal:2',
             'change_due' => 'decimal:2',
             'points_earned' => 'integer',
@@ -43,6 +46,15 @@ class Sale extends BaseModel
     public function branch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * The lane it was rung on. Null for an online order or a shop that never
+     * configured registers — the receipt simply omits the counter line.
+     */
+    public function register(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Register::class);
     }
 
     /**

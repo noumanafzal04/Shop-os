@@ -517,9 +517,18 @@ class CreateSaleAction
                 $paymentMethod = $data['payment_method'];
             }
 
-            if ($amountPaid < $total) {
+            // A tip rides along with the payment but is NOT revenue: the bill is
+            // still the bill. It raises what the customer must hand over and
+            // what the drawer should hold, and nothing else — so it is added to
+            // the payment bar, never to `total`.
+            $tip = max(0, round((float) ($data['tip_amount'] ?? 0), 2));
+            $due = round($total + $tip, 2);
+
+            if ($amountPaid < $due) {
                 throw DomainException::unprocessable(
-                    "Amount paid (".number_format($amountPaid, 2).") is less than the total (".number_format($total, 2).").",
+                    $tip > 0
+                        ? 'Amount paid ('.number_format($amountPaid, 2).') is less than the total plus tip ('.number_format($due, 2).').'
+                        : 'Amount paid ('.number_format($amountPaid, 2).') is less than the total ('.number_format($total, 2).').',
                     'PAYMENT_INSUFFICIENT',
                 );
             }
@@ -528,10 +537,13 @@ class CreateSaleAction
             $invoiceNumber = $this->nextInvoiceNumber($tenantId);
 
             // The lane this sale was rung on: the shift knows it (a shift is
-            // cashier × terminal). Online/headless sales have no lane.
-            $registerId = ! empty($data['cash_session_id'])
+            // cashier × terminal). A shop that doesn't enforce shifts still has
+            // a terminal — fall back to the resolved one, so the receipt and
+            // the per-lane report can still name the counter. Both sources are
+            // server-side; neither is the client's word.
+            $registerId = (! empty($data['cash_session_id'])
                 ? CashSession::query()->whereKey($data['cash_session_id'])->value('register_id')
-                : null;
+                : null) ?? app(\App\Support\RegisterContext::class)->id();
 
             /** @var Sale $sale */
             $sale = Sale::query()->create([
@@ -560,7 +572,10 @@ class CreateSaleAction
                 'total' => $total,
                 'payment_method' => $paymentMethod,
                 'amount_paid' => $amountPaid,
-                'change_due' => round($amountPaid - $total, 2),
+                'tip_amount' => $tip,
+                // Change is what's left after the bill AND the tip — otherwise
+                // the cashier would hand the tip back as change.
+                'change_due' => round($amountPaid - $due, 2),
                 'points_earned' => $pointsEarned,
                 'points_redeemed' => $pointsRedeemed,
                 'notes' => $data['notes'] ?? null,

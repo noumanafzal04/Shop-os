@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 trait Auditable
 {
     /** @var string[] never recorded in audit values */
-    protected array $auditExclude = ['password', 'remember_token', 'code_hash', 'updated_at', 'created_at'];
+    protected array $auditExclude = ['password', 'remember_token', 'code_hash', 'pin_hash', 'updated_at', 'created_at'];
 
     public static function bootAuditable(): void
     {

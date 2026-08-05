@@ -160,9 +160,14 @@ class RestaurantDineInTest extends TestCase
         $tab = $this->openTab();
         $this->addItems($tab['id'], [['product_id' => $this->pizza->id, 'quantity' => 1]]);
 
-        $kot = $this->actingAsUser($this->owner)
+        // A fire returns EVERY kitchen ticket it produced — items route by
+        // station, so one send can make several. A forced station collapses
+        // that back to one.
+        $kots = $this->actingAsUser($this->owner)
             ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/fire", ['station' => 'Kitchen'])
             ->assertCreated()->json('data');
+        $this->assertCount(1, $kots);
+        $kot = $kots[0];
         $this->assertSame(1, $kot['kot_number']);
         $this->assertCount(1, $kot['items']);
 
@@ -173,7 +178,7 @@ class RestaurantDineInTest extends TestCase
         // Add another line → the next fire is KOT #2 with only the new item.
         $this->addItems($tab['id'], [['product_id' => $this->water->id, 'quantity' => 1]]);
         $kot2 = $this->actingAsUser($this->owner)->postJson("/api/v1/restaurant/tickets/{$tab['id']}/fire")
-            ->assertCreated()->json('data');
+            ->assertCreated()->json('data.0');
         $this->assertSame(2, $kot2['kot_number']);
         $this->assertCount(1, $kot2['items']);
 

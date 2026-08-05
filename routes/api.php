@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Tenant\GalleryController;
 use App\Http\Controllers\Api\V1\Tenant\CustomerController;
 use App\Http\Controllers\Api\V1\Tenant\DashboardController;
 use App\Http\Controllers\Api\V1\Tenant\DiningTableController;
+use App\Http\Controllers\Api\V1\Tenant\KitchenController;
 use App\Http\Controllers\Api\V1\Tenant\RestaurantTicketController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseController;
@@ -32,6 +33,8 @@ use App\Http\Controllers\Api\V1\Tenant\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\Tenant\RiderController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
+use App\Http\Controllers\Api\V1\Tenant\ReceiptController;
+use App\Http\Controllers\Api\V1\Tenant\TillIdentityController;
 use App\Http\Controllers\Api\V1\Tenant\SaleController;
 use App\Http\Controllers\Api\V1\Tenant\BranchController;
 use App\Http\Controllers\Api\V1\Tenant\SearchController;
@@ -121,6 +124,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::post('/logout-all', [AuthController::class, 'logoutAll']);
             Route::get('/sessions', [SessionController::class, 'index']);
             Route::delete('/sessions/{tokenId}', [SessionController::class, 'destroy']);
+            // Your own till PIN. Sits with the password, because that is what
+            // proves it is you setting it.
+            Route::put('/till-pin', [TillIdentityController::class, 'setOwnPin']);
+            Route::delete('/till-pin', [TillIdentityController::class, 'clearOwnPin']);
         });
 
         // ── Tenant side: shop profile, setup, dashboard ──────────────
@@ -265,6 +272,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Which lane am I, and what hardware do I drive?
                 Route::get('/terminal', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'terminal']);
                 Route::get('/registers', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'lanes']);
+                // Who is at the till. The roster and the PIN handover — the
+                // outgoing cashier's session on this device ends with it.
+                Route::get('/till-users', [TillIdentityController::class, 'roster']);
+                Route::post('/unlock', [TillIdentityController::class, 'unlock'])
+                    // A PIN is short. Even scoped to an already-signed-in till,
+                    // it never gets an unmetered guessing rate.
+                    ->middleware('throttle:10,1');
                 // Manager-only lane operations: the consolidated day view and
                 // force-closing a drawer the cashier walked away from.
                 Route::middleware('permission:settings.manage')->group(function (): void {
@@ -304,8 +318,30 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // It also returns goods, hence the refund permission.
                 Route::post('/{sale}/exchange', [SaleController::class, 'exchange'])
                     ->middleware(['feature:pos', 'permission:sales.refund']);
-                Route::get('/{sale}/invoice', [SaleController::class, 'invoice']);
+                // Receipts. Rendering one is a counter action, not a report:
+                // the render itself is what gets logged, and the log is what
+                // decides whether the paper says ORIGINAL or REPRINT.
+                Route::get('/{sale}/invoice', [ReceiptController::class, 'show']);
+                Route::get('/{sale}/receipt-prints', [ReceiptController::class, 'trail']);
             });
+
+            // What the receipt will look like — rendered from the settings
+            // being edited, against a sample sale. Nothing is written. It sits
+            // beside the receipt settings, so it carries the settings gate.
+            Route::get('receipts/preview', [ReceiptController::class, 'preview'])
+                ->middleware('permission:settings.manage');
+
+            // Receipt plumbing at the till.
+            Route::middleware('permission:sales.manage')->group(function (): void {
+                // The reprint tray: receipts the till was told never came out.
+                Route::get('receipts/pending', [ReceiptController::class, 'pending']);
+                Route::post('receipt-prints/{print}/outcome', [ReceiptController::class, 'outcome']);
+            });
+
+            // Copies per cashier — the control that makes logging them worth
+            // anything, so it sits with the manager, not the till.
+            Route::get('reports/reprints', [ReceiptController::class, 'reprintReport'])
+                ->middleware('permission:reports.view');
 
             // Warranty desk (serialized retail): look up a serial / IMEI to see
             // what was sold and whether it's still under warranty.
@@ -415,7 +451,23 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::get('tickets/{ticket}/kot/{kot}', [RestaurantTicketController::class, 'kotPrint']);
                     Route::post('tickets/{ticket}/settle', [RestaurantTicketController::class, 'settle']);
                     Route::post('tickets/{ticket}/cancel', [RestaurantTicketController::class, 'cancel']);
+                    // The floor moves: a party changes table, two tabs become
+                    // one, a section changes hands at shift change.
+                    Route::post('tickets/{ticket}/move', [RestaurantTicketController::class, 'move']);
+                    Route::post('tickets/{ticket}/merge', [RestaurantTicketController::class, 'merge']);
+                    Route::post('tickets/{ticket}/waiter', [RestaurantTicketController::class, 'assignWaiter']);
+
+                    // The kitchen screen. Same permission as the floor: in a
+                    // small kitchen the same person cooks and rings up, and a
+                    // separate permission would just go ungranted.
+                    Route::get('kitchen', [KitchenController::class, 'board']);
+                    Route::post('kitchen/kot/{kot}/bump', [KitchenController::class, 'bump']);
                 });
+
+                // Covers and takings per waiter — a service report, so it sits
+                // with the other reports' permission.
+                Route::get('reports/waiters', [RestaurantTicketController::class, 'waiterReport'])
+                    ->middleware('permission:reports.view');
             });
         });
 
@@ -516,6 +568,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // ── Tenant side: staff management (owner or staff w/ staff.manage) ──
         Route::prefix('staff')->middleware(['role:shop_owner,staff', 'permission:staff.manage', 'subscription'])->group(function (): void {
             Route::get('/permissions', [TenantStaffController::class, 'permissions']);
+            // Till PINs for staff — an owner hands a new cashier one on their
+            // first shift, the same way they'd set a password.
+            Route::put('/{staff}/pin', [TillIdentityController::class, 'setStaffPin']);
+            Route::delete('/{staff}/pin', [TillIdentityController::class, 'clearStaffPin']);
             Route::get('/', [TenantStaffController::class, 'index']);
             Route::post('/', [TenantStaffController::class, 'store']);
             Route::get('/{staff}', [TenantStaffController::class, 'show']);

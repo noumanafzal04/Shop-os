@@ -63,6 +63,10 @@ class OpenTicketAction
                 'order_type' => $orderType,
                 'status' => RestaurantTicketStatus::Open,
                 'guest_count' => $data['guest_count'] ?? null,
+                // Whoever opens the tab is serving it until someone says
+                // otherwise — the common case, and a sane default for the
+                // service report. Reassigned on handover (see assignWaiter).
+                'waiter_id' => $data['waiter_id'] ?? auth()->id(),
                 'customer_name' => $data['customer_name'] ?? null,
                 'customer_phone' => $data['customer_phone'] ?? null,
                 'notes' => $data['notes'] ?? null,

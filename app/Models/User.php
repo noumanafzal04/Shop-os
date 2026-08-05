@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -40,6 +41,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'pin_hash',
     ];
 
     protected function casts(): array
@@ -49,6 +51,8 @@ class User extends Authenticatable
             'phone_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
             'locked_until' => 'datetime',
+            'pin_set_at' => 'datetime',
+            'pin_locked_until' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
             'status' => UserStatus::class,
@@ -103,5 +107,74 @@ class User extends Authenticatable
             UserRole::AdminStaff, UserRole::Staff => in_array($permission, $this->permissions ?? [], strict: true),
             UserRole::Customer => false,
         };
+    }
+
+    // ── Till PIN ────────────────────────────────────────────────────
+    // A counter credential, not a login. See the add_till_pins migration for
+    // why a four-digit secret is safe in this one place and nowhere else.
+
+    /** Wrong PINs in a row before the PIN (not the account) is frozen. */
+    public const MAX_PIN_ATTEMPTS = 5;
+
+    public const PIN_LOCKOUT_MINUTES = 15;
+
+    public function hasPin(): bool
+    {
+        return $this->pin_hash !== null;
+    }
+
+    public function isPinLocked(): bool
+    {
+        return $this->pin_locked_until !== null && $this->pin_locked_until->isFuture();
+    }
+
+    public function setPin(string $pin): void
+    {
+        $this->forceFill([
+            'pin_hash' => Hash::make($pin),
+            'pin_set_at' => now(),
+            'pin_failed_attempts' => 0,
+            'pin_locked_until' => null,
+        ])->save();
+    }
+
+    public function clearPin(): void
+    {
+        $this->forceFill([
+            'pin_hash' => null,
+            'pin_set_at' => null,
+            'pin_failed_attempts' => 0,
+            'pin_locked_until' => null,
+        ])->save();
+    }
+
+    /**
+     * Check a PIN and record the attempt. Returns false for a user with no PIN
+     * at all, so "no PIN set" and "wrong PIN" are indistinguishable from the
+     * till — the roster already says who has one.
+     */
+    public function checkPin(string $pin): bool
+    {
+        if (! $this->hasPin()) {
+            return false;
+        }
+
+        if (Hash::check($pin, $this->pin_hash)) {
+            if ($this->pin_failed_attempts > 0 || $this->pin_locked_until !== null) {
+                $this->forceFill(['pin_failed_attempts' => 0, 'pin_locked_until' => null])->save();
+            }
+
+            return true;
+        }
+
+        $attempts = $this->pin_failed_attempts + 1;
+        $this->forceFill([
+            'pin_failed_attempts' => $attempts,
+            'pin_locked_until' => $attempts >= self::MAX_PIN_ATTEMPTS
+                ? now()->addMinutes(self::PIN_LOCKOUT_MINUTES)
+                : null,
+        ])->save();
+
+        return false;
     }
 }

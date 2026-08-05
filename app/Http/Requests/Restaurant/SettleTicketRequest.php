@@ -46,6 +46,10 @@ class SettleTicketRequest extends FormRequest
             'payments.*.method' => ['required_with:payments', 'in:cash,card,bank_transfer,other,credit'],
             'payments.*.amount' => ['required_with:payments', 'numeric', 'min:0.01'],
             'payments.*.reference' => ['nullable', 'string', 'max:100'],
+
+            // A tip rides on top of the bill: it raises what must be paid and
+            // what the drawer should hold, and never touches revenue.
+            'tip_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:999999'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'coupon_code' => ['nullable', 'string', 'max:40'],
             'customer_name' => ['nullable', 'string', 'max:255'],

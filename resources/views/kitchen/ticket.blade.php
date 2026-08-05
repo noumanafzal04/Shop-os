@@ -3,7 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>KOT #{{ $kot->kot_number }} — {{ $ticket->ticket_number }}</title>
+    {{-- Station in the title too: several KOTs from one fire print back to
+         back, and the print dialog is all the operator sees of each. --}}
+    <title>KOT #{{ $kot->kot_number }} {{ $kot->station ? strtoupper($kot->station).' ' : '' }}— {{ $ticket->ticket_number }}</title>
     <style>
         /* Kitchen ticket — thermal (80mm) friendly, big and price-free. */
         * { box-sizing: border-box; }
@@ -18,7 +20,20 @@
         }
         .center { text-align: center; }
         .big { font-size: 20px; font-weight: 700; }
-        .huge { font-size: 24px; font-weight: 800; }
+        /* The station is the whole point of the ticket: a KOT read at the
+           wrong section is food cooked late or not at all. It gets the
+           largest type on the paper and the first thing the eye lands on. */
+        .station {
+            font-size: 34px;
+            font-weight: 900;
+            line-height: 1.1;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: 3px solid #000;
+            padding: 4px 2px;
+            margin-top: 2px;
+            word-break: break-word;
+        }
         .rule { border-top: 2px dashed #000; margin: 8px 0; }
         .row { display: flex; justify-content: space-between; gap: 8px; }
         .muted { font-size: 12px; }
@@ -36,12 +51,13 @@
 </head>
 <body onload="window.print()">
     <div class="center">
+        {{-- Nothing prints above the station, not even the shop name — this is
+             the one line that decides whether the food gets cooked at all. No
+             station configured = a one-printer kitchen, so "KITCHEN" stands in
+             rather than a section that doesn't exist. --}}
+        <div class="station">{{ $kot->station ?: 'KITCHEN' }}</div>
         @if (!empty($shopName))
             <div class="muted">{{ $shopName }}</div>
-        @endif
-        <div class="huge">KITCHEN</div>
-        @if (!empty($kot->station))
-            <div class="big">{{ $kot->station }}</div>
         @endif
     </div>
 

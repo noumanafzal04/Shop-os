@@ -97,6 +97,9 @@ class SettleTicketAction
                 'payments' => $data['payments'] ?? [],
                 'payment_method' => $data['payment_method'] ?? null,
                 'amount_paid' => $data['amount_paid'] ?? 0,
+                // The tip goes on the settlement, not on the tab: a split bill
+                // can carry a tip on one share and not another.
+                'tip_amount' => $data['tip_amount'] ?? 0,
                 'notes' => $data['notes'] ?? "Dine-in tab {$ticket->ticket_number}",
                 'trusted_prices' => true,
             ]);

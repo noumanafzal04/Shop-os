@@ -99,6 +99,13 @@ class DrawerMath
             ->map(fn ($v) => round((float) $v, 2))
             ->all();
 
+        // Tips are already inside cash_tendered (they arrived with the payment)
+        // and are deliberately NOT subtracted — the money is in the drawer, so
+        // the count must expect it. Surfaced on its own line because the shop
+        // pays it back out to staff and needs to know how much of the till is
+        // theirs rather than the shop's.
+        $tips = round((float) (clone $rung)->sum('tip_amount'), 2);
+
         $cashSales = round($cashTendered - $changeGiven - $cashRefunds, 2);
         $expected = round((float) $session->opening_float + $cashSales + $cashIn - $cashOut, 2);
 
@@ -108,6 +115,7 @@ class DrawerMath
             'cash_refunds' => round($cashRefunds, 2),
             'cash_in' => $cashIn,
             'cash_out' => $cashOut,
+            'tips' => $tips,
             'cash_sales' => $cashSales,
             'expected_cash' => $expected,
             'sales_count' => (int) (clone $sold)->count(),

@@ -25,6 +25,9 @@ class UserResource extends JsonResource
             'permissions' => $this->permissions ?? [],
             'email_verified' => $this->email_verified_at !== null,
             'phone_verified' => $this->phone_verified_at !== null,
+            // Whether a till PIN exists — never the PIN, which is hashed and
+            // hidden. The panel needs this to say "Set" vs "Change".
+            'has_till_pin' => $this->pin_hash !== null,
             'last_login_at' => $this->last_login_at?->toIso8601String(),
             'tenant' => new TenantResource($this->whenLoaded('tenant')),
             'created_at' => $this->created_at?->toIso8601String(),

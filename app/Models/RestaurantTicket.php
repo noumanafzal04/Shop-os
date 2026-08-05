@@ -26,12 +26,30 @@ class RestaurantTicket extends BaseModel
             'guest_count' => 'integer',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
+            'merged_at' => 'datetime',
         ];
     }
 
     public function table(): BelongsTo
     {
         return $this->belongsTo(DiningTable::class, 'dining_table_id');
+    }
+
+    /**
+     * Who is serving this table. Distinct from created_by on purpose: the host
+     * at the door often opens the tab, and attributing the evening's covers and
+     * takings to the host instead of the waiter would make the service report
+     * useless.
+     */
+    public function waiter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'waiter_id');
+    }
+
+    /** The tab this one was folded into, when two parties became one bill. */
+    public function mergedInto(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'merged_into_id');
     }
 
     public function items(): HasMany
