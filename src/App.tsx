@@ -49,6 +49,7 @@ const LabelsPage = lazy(() => import("./modules/catalog/pages/LabelsPage"));
 const PosPage = lazy(() => import("./modules/pos/pages/PosPage"));
 const FloorPage = lazy(() => import("./modules/dinein/pages/FloorPage"));
 const TabPage = lazy(() => import("./modules/dinein/pages/TabPage"));
+const KitchenPage = lazy(() => import("./modules/kitchen/pages/KitchenPage"));
 const SuppliersPage = lazy(() => import("./modules/purchases/pages/SuppliersPage"));
 const CustomersPage = lazy(() => import("./modules/customers/pages/CustomersPage"));
 const CouponsPage = lazy(() => import("./modules/coupons/pages/CouponsPage"));
@@ -129,10 +130,13 @@ export default function App() {
                   <Route path="/tenant/pos" element={<PosPage />} />
                 </Route>
 
-                {/* Dine-in runs full-screen too (floor → tab workspace). */}
+                {/* Dine-in runs full-screen too (floor → tab workspace), and
+                    the kitchen board most of all: it hangs on a wall and is
+                    read from two metres away. */}
                 <Route element={<RequireFeature feature="dine_in" />}>
                   <Route path="/tenant/dine-in" element={<FloorPage />} />
                   <Route path="/tenant/dine-in/tickets/:id" element={<TabPage />} />
+                  <Route path="/tenant/kitchen" element={<KitchenPage />} />
                 </Route>
 
                 <Route path="/tenant" element={<AppLayout />}>

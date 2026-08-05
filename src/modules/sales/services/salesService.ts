@@ -1,5 +1,4 @@
-import { api, apiGet, apiPost } from "../../../common/api/client";
-import { printHtmlDocument } from "../../../common/print";
+import { apiGet, apiPost } from "../../../common/api/client";
 import type { Sale, SaleInput, SaleReturn } from "../types";
 
 /** Mirrors Sale::VOID_REASONS on the server. */
@@ -58,25 +57,6 @@ export const salesService = {
     },
   ) => apiPost<{ return: SaleReturn; sale: Sale; difference: number }>(`/sales/${id}/exchange`, payload),
 
-  invoiceUrl: (id: string) =>
-    `${import.meta.env.VITE_API_BASE_URL}/sales/${id}/invoice`,
-
-  // The invoice route sits behind Bearer auth, so a plain <a href> / window.open
-  // navigation 401s (the browser doesn't attach the token). Fetch the HTML
-  // through the authenticated axios client (which also handles token refresh).
-  invoiceHtml: async (id: string): Promise<string> => {
-    const { data } = await api.get<string>(`/sales/${id}/invoice`, {
-      responseType: "text",
-      headers: { Accept: "text/html" },
-      transformResponse: (r) => r, // keep raw HTML — don't try to JSON-parse it
-    });
-    return data;
-  },
-
-  // Fetch (authenticated) + print the invoice via a hidden iframe. Used by the
-  // POS receipt modal and by auto-print when pos_auto_print is on.
-  printInvoice: async (id: string): Promise<void> => {
-    const html = await salesService.invoiceHtml(id);
-    printHtmlDocument(html);
-  },
+  // Receipts live in modules/receipts: printing one is logged as an original
+  // or a stamped copy, so it is never just "fetch the invoice HTML".
 };

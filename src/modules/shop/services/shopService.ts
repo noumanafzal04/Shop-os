@@ -100,9 +100,21 @@ export interface ShopSettings {
   invoice_footer: string | null;
   invoice_show_logo: boolean;
   receipt_width: "standard" | "thermal_80" | "thermal_58";
+  receipt_show_cashier: boolean;
+  /** Pakistan tax identifiers. Null for an unregistered shop — they don't print. */
+  invoice_ntn: string | null;
+  invoice_strn: string | null;
+  invoice_fbr_pos_id: string | null;
   pos_default_payment: "cash" | "card";
   pos_auto_print: boolean;
   pos_require_shift: boolean;
+  pos_drawer_kick: boolean;
+  /** Lock the till after this many idle minutes. 0 = never. */
+  pos_idle_lock_minutes: number;
+  /** Sections a fired order routes to. Empty = one KOT for everything. */
+  kitchen_stations: string[];
+  kot_auto_print: boolean;
+  tips_enabled: boolean;
   loyalty_enabled: boolean;
   loyalty_earn_per_amount: number;
   loyalty_redeem_value: number;

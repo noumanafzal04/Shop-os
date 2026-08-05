@@ -10,11 +10,12 @@ import Select from "../../../components/form/Select";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
+import { ApiError } from "../../../common/types/api";
 import { useConfirm } from "../../../components/ui/confirm";
 import { catalogService } from "../../catalog/services/catalogService";
 import type { Product, ModifierGroup } from "../../catalog/types";
-import { useTicket, useDineInMutations } from "../hooks/useDineIn";
-import type { TicketItem } from "../services/dineInService";
+import { useTicket, useDineInMutations, useOpenTickets, useTables } from "../hooks/useDineIn";
+import { dineInService, type TicketItem } from "../services/dineInService";
 
 const KOT_BADGE: Record<string, { label: string; cls: string }> = {
   pending: { label: "Pending", cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" },
@@ -33,7 +34,7 @@ export default function TabPage() {
   const ticket = ticketQ.data;
   const settings = useShopSettings();
   const taxRate = Number(settings.data?.default_tax_rate ?? 0);
-  const { addItems, voidItem, fire, settle, cancel } = useDineInMutations(id);
+  const { addItems, voidItem, fire, settle, move, merge, cancel } = useDineInMutations(id);
 
   const products = useQuery({
     queryKey: ["catalog", "menu"],
@@ -54,11 +55,22 @@ export default function TabPage() {
   const [modProduct, setModProduct] = useState<Product | null>(null);
   const [picked, setPicked] = useState<Record<string, string[]>>({}); // groupId -> optionIds
 
+  // Move / merge — the floor's two structural changes.
+  const moveModal = useModal();
+  const mergeModal = useModal();
+  const [moveTable, setMoveTable] = useState("");
+  const [mergeSource, setMergeSource] = useState("");
+  const tables = useTables();
+  const openTabs = useOpenTickets(mergeModal.isOpen);
+
   // Settle — per-line quantity chosen for this payment (0 = skip the line,
   // < line qty = split part of it, = line qty = the whole line).
   const settleModal = useModal();
   const [settleQty, setSettleQty] = useState<Record<string, number>>({});
   const [method, setMethod] = useState("cash");
+  // Money the customer adds on top of the bill. Never part of the total — the
+  // server keeps it in its own column so it can never read as revenue.
+  const [tip, setTip] = useState("");
 
   const liveItems = useMemo(
     () => (ticket?.items ?? []).filter((i) => !i.voided_at && i.kot_status !== "void"),
@@ -130,7 +142,20 @@ export default function TabPage() {
     fire.mutate(
       { id }, // no item_ids = fire everything still pending
       {
-        onSuccess: (res) => toast.success(`Kitchen ticket #${res.data.kot_number} sent`),
+        onSuccess: (res) => {
+          const kots = res.data;
+          const label = kots.map((k) => `#${k.kot_number}${k.station ? ` ${k.station}` : ""}`).join(", ");
+          toast.success(kots.length === 1 ? `Kitchen ticket ${label} sent` : `${kots.length} kitchen tickets sent (${label})`);
+
+          // Printing IS sending, for a kitchen without a screen: a KOT that
+          // never came out of the printer has not reached anyone, whatever the
+          // toast says. A shop running the kitchen board instead turns this off.
+          if (settings.data?.kot_auto_print !== false) {
+            dineInService.printKots(id, kots).catch(() =>
+              toast.error("Kitchen ticket didn't print — the board still has it."),
+            );
+          }
+        },
         onError: () => toast.error("Couldn't fire the order."),
       },
     );
@@ -140,6 +165,7 @@ export default function TabPage() {
     // Default: every unsettled line at its full quantity = the whole bill.
     setSettleQty(Object.fromEntries(unsettled.map((i) => [i.id, Number(i.quantity)])));
     setMethod("cash");
+    setTip("");
     settle.reset();
     settleModal.openModal();
   };
@@ -157,7 +183,10 @@ export default function TabPage() {
     return sum + Math.round(((Number(i.line_total) * q) / lineQty) * 100) / 100;
   }, 0);
   const settleTax = Math.round(settleSubtotal * taxRate) / 100;
-  const settleDue = Math.round((settleSubtotal + settleTax) * 100) / 100;
+  const settleBill = Math.round((settleSubtotal + settleTax) * 100) / 100;
+  const tipAmount = Math.max(0, Math.round((Number(tip) || 0) * 100) / 100);
+  // What the customer hands over: the bill plus whatever they added.
+  const settleDue = Math.round((settleBill + tipAmount) * 100) / 100;
   const settleCount = unsettled.filter((i) => (settleQty[i.id] ?? 0) > 0).length;
   const settlingWhole = unsettled.length > 0 && unsettled.every((i) => (settleQty[i.id] ?? 0) >= Number(i.quantity));
 
@@ -174,6 +203,7 @@ export default function TabPage() {
           splits,
           payment_method: method,
           amount_paid: settleDue,
+          tip_amount: tipAmount || undefined,
         },
       },
       {
@@ -233,7 +263,20 @@ export default function TabPage() {
             </p>
           </div>
         </div>
-        <button onClick={onCancel} className="text-theme-sm text-error-500 hover:text-error-600">Cancel tab</button>
+        <div className="flex items-center gap-4">
+          {/* A floor moves: a party changes table, and two tables turn out to
+              be one party. Both used to mean voiding the tab and re-ringing
+              the meal, which loses the KOTs already fired. */}
+          <button onClick={() => { setMoveTable(ticket.table?.id ?? ""); moveModal.openModal(); }}
+            className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
+            Move table
+          </button>
+          <button onClick={() => { setMergeSource(""); mergeModal.openModal(); }}
+            className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
+            Merge tab
+          </button>
+          <button onClick={onCancel} className="text-theme-sm text-error-500 hover:text-error-600">Cancel tab</button>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -364,6 +407,67 @@ export default function TabPage() {
       </Modal>
 
       {/* Settle */}
+      <Modal isOpen={moveModal.isOpen} onClose={moveModal.closeModal} className="max-w-sm p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Move this tab</h3>
+        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
+          Only the seat changes — the order, the kitchen tickets and the bill all stay with the party.
+        </p>
+        <Label>Table</Label>
+        <Select
+          value={moveTable}
+          options={[
+            { value: "", label: "No table (counter / takeaway)" },
+            ...(tables.data ?? [])
+              .filter((t) => t.id === ticket.table?.id || !t.open_ticket)
+              .map((t) => ({ value: t.id, label: t.name })),
+          ]}
+          onChange={setMoveTable}
+        />
+        <div className="mt-5 flex justify-end gap-3">
+          <Button size="sm" variant="outline" onClick={moveModal.closeModal}>Cancel</Button>
+          <Button size="sm" disabled={move.isPending} onClick={() => {
+            if (!id) return;
+            move.mutate({ id, dining_table_id: moveTable || null }, {
+              onSuccess: () => { moveModal.closeModal(); toast.success("Tab moved"); },
+              onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't move the tab."),
+            });
+          }}>
+            {move.isPending ? "Moving…" : "Move"}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={mergeModal.isOpen} onClose={mergeModal.closeModal} className="max-w-sm p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Merge another tab into this one</h3>
+        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
+          Its items and kitchen tickets come across, and it closes with a note pointing here. A part-paid tab can't
+          be merged.
+        </p>
+        <Label>Tab to fold in</Label>
+        <Select
+          value={mergeSource}
+          options={[
+            { value: "", label: "— Choose a tab —" },
+            ...(openTabs.data ?? [])
+              .filter((t) => t.id !== id)
+              .map((t) => ({ value: t.id, label: `${t.table?.name ?? "Takeaway"} · ${t.ticket_number}` })),
+          ]}
+          onChange={setMergeSource}
+        />
+        <div className="mt-5 flex justify-end gap-3">
+          <Button size="sm" variant="outline" onClick={mergeModal.closeModal}>Cancel</Button>
+          <Button size="sm" disabled={!mergeSource || merge.isPending} onClick={() => {
+            if (!id || !mergeSource) return;
+            merge.mutate({ id, sourceId: mergeSource }, {
+              onSuccess: () => { mergeModal.closeModal(); toast.success("Tabs merged"); },
+              onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't merge those tabs."),
+            });
+          }}>
+            {merge.isPending ? "Merging…" : "Merge"}
+          </Button>
+        </div>
+      </Modal>
+
       <Modal isOpen={settleModal.isOpen} onClose={settleModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Settle tab</h3>
         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
@@ -426,10 +530,55 @@ export default function TabPage() {
             </div>
           )}
           <div className="flex items-center justify-between border-t border-gray-200 pt-1 dark:border-gray-700">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Total</span>
-            <span className="text-lg font-bold text-gray-800 dark:text-white/90">{money(settleDue)}</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Bill</span>
+            <span className="text-lg font-bold text-gray-800 dark:text-white/90">{money(settleBill)}</span>
           </div>
+          {tipAmount > 0 && (
+            <div className="flex items-center justify-between text-theme-sm">
+              <span className="text-gray-500 dark:text-gray-400">Tip</span>
+              <span className="font-medium text-gray-700 dark:text-gray-200">{money(tipAmount)}</span>
+            </div>
+          )}
+          {tipAmount > 0 && (
+            <div className="flex items-center justify-between border-t border-gray-200 pt-1 dark:border-gray-700">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">To collect</span>
+              <span className="text-lg font-bold text-gray-800 dark:text-white/90">{money(settleDue)}</span>
+            </div>
+          )}
         </div>
+
+        {/* Tipping is not universal here, so the prompt only appears for a shop
+            that asked for it — an extra field on every bill slows the floor. */}
+        {settings.data?.tips_enabled && (
+          <div className="mb-4">
+            <Label>Tip <span className="font-normal text-gray-400">(on top of the bill)</span></Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="number"
+                min="0"
+                value={tip}
+                onChange={(e) => setTip(e.target.value)}
+                placeholder="0"
+                className="max-w-[8rem]"
+              />
+              {[5, 10, 15].map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => setTip(String(Math.round(settleBill * pct) / 100))}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-theme-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+                >
+                  {pct}%
+                </button>
+              ))}
+              {tipAmount > 0 && (
+                <button type="button" onClick={() => setTip("")} className="text-theme-xs font-medium text-error-500 hover:text-error-600">
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={settleModal.closeModal}>Cancel</Button>
           <Button size="sm" onClick={confirmSettle} disabled={settleCount === 0 || settle.isPending}>

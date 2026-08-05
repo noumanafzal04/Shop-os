@@ -94,6 +94,9 @@ function shopNav(
     // POS till is only for shops on a plan that includes it (not online-only).
     ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
     ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
+    // The kitchen board is a separate screen because it lives on a different
+    // wall from the till — the same shop, two people, two displays.
+    ...(has("dine_in") ? [{ icon: <ListIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
     ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
     ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
     ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),

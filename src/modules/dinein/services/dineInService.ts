@@ -1,4 +1,5 @@
-import { apiDelete, apiGet, apiPost } from "../../../common/api/client";
+import { api, apiDelete, apiGet, apiPost } from "../../../common/api/client";
+import { printHtmlDocument } from "../../../common/print";
 
 export interface DiningTable {
   id: string;
@@ -38,8 +39,18 @@ export interface Ticket {
   guest_count: number | null;
   opened_at: string;
   running_total: number;
+  /** Who is serving this table — not necessarily who opened it. */
+  waiter_id: string | null;
+  waiter?: { id: string; name: string } | null;
   table?: { id: string; name: string } | null;
   items: TicketItem[];
+}
+
+/** One kitchen ticket produced by a fire. A fire can produce several. */
+export interface KitchenTicketRef {
+  id: string;
+  kot_number: number;
+  station: string | null;
 }
 
 export interface AddItemLine {
@@ -63,6 +74,8 @@ export interface SettlePayload {
   customer_name?: string;
   customer_phone?: string;
   cash_session_id?: string;
+  /** Paid on top of the bill — never part of the total. */
+  tip_amount?: number;
 }
 
 export const dineInService = {
@@ -88,8 +101,48 @@ export const dineInService = {
   voidItem: (id: string, itemId: string, reason?: string) =>
     apiDelete<Ticket>(`/restaurant/tickets/${id}/items/${itemId}`, { data: { reason } }),
 
+  /**
+   * Send to kitchen. Returns EVERY kitchen ticket the fire produced — items are
+   * routed by station, so a table ordering food and drinks makes two.
+   */
   fire: (id: string, item_ids?: string[]) =>
-    apiPost<{ kot_number: number }>(`/restaurant/tickets/${id}/fire`, { item_ids }),
+    apiPost<KitchenTicketRef[]>(`/restaurant/tickets/${id}/fire`, { item_ids }),
+
+  /**
+   * Fetch a KOT's print-ready HTML. Behind auth like the invoice, so it goes
+   * through the authenticated client rather than a plain navigation.
+   */
+  kotHtml: async (ticketId: string, kotId: string): Promise<string> => {
+    const { data } = await api.get<string>(`/restaurant/tickets/${ticketId}/kot/${kotId}`, {
+      responseType: "text",
+      headers: { Accept: "text/html" },
+      transformResponse: (r) => r,
+    });
+    return data;
+  },
+
+  /**
+   * Print every ticket a fire produced. A kitchen ticket that was never printed
+   * has not been sent, whatever the screen says — so this is what "fire" means
+   * in a kitchen without a display, and the failure is surfaced, never silent.
+   */
+  printKots: async (ticketId: string, kots: KitchenTicketRef[]): Promise<void> => {
+    for (const kot of kots) {
+      const html = await dineInService.kotHtml(ticketId, kot.id);
+      await printHtmlDocument(html);
+    }
+  },
+
+  move: (id: string, payload: { dining_table_id: string | null; guest_count?: number }) =>
+    apiPost<Ticket>(`/restaurant/tickets/${id}/move`, payload),
+
+  merge: (id: string, source_ticket_id: string) =>
+    apiPost<Ticket>(`/restaurant/tickets/${id}/merge`, { source_ticket_id }),
+
+  assignWaiter: (id: string, waiter_id: string) =>
+    apiPost<Ticket>(`/restaurant/tickets/${id}/waiter`, { waiter_id }),
+
+  openTickets: () => apiGet<Ticket[]>("/restaurant/tickets", { params: { status: "open" } }),
 
   settle: (id: string, payload: SettlePayload) =>
     apiPost<{ ticket: Ticket; sale: { id: string; invoice_number: string; total: string } }>(

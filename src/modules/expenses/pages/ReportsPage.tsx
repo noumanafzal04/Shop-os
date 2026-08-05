@@ -6,6 +6,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import Alert from "../../../components/ui/alert/Alert";
 import { MetricCard, MetricCardSkeleton } from "../../../common/ui/MetricCard";
 import { usePurchasesReport, useReport, useStaffReport, useTaxReport } from "../hooks/useExpenses";
+import { ReprintReportTab } from "../../receipts/components/ReprintReportTab";
 
 
 const PERIODS = [
@@ -20,6 +21,7 @@ const TABS = [
   ["purchases", "Purchases"],
   ["staff", "Staff"],
   ["tax", "Tax"],
+  ["receipts", "Receipts"],
 ] as const;
 
 export default function ReportsPage() {
@@ -104,7 +106,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {tab === "purchases" ? <PurchasesTab period={period} /> : tab === "staff" ? <StaffTab period={period} /> : tab === "tax" ? <TaxTab period={period} /> : (
+      {tab === "purchases" ? <PurchasesTab period={period} /> : tab === "staff" ? <StaffTab period={period} /> : tab === "tax" ? <TaxTab period={period} /> : tab === "receipts" ? <ReprintReportTab period={period} /> : (
       <>
       {/* Totals */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-6 md:gap-6">

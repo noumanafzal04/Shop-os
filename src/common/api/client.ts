@@ -2,14 +2,25 @@ import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { useAuthStore } from "../../stores/authStore";
 import { useBranchStore } from "../../stores/branchStore";
 import { useTerminalStore } from "../../stores/terminalStore";
+import { useConnectionStore } from "../../stores/connectionStore";
 import { ApiError, type ApiEnvelope } from "../types/api";
 
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
+/**
+ * A request that hangs forever is worse than one that fails: at the counter it
+ * looks like a frozen till, and the cashier's next move is to press the button
+ * again. 20s is long enough for a slow 3G upload and short enough that nobody
+ * rings the same sale twice — every write that matters carries an idempotency
+ * key, so a retry after a timeout is safe.
+ */
+export const REQUEST_TIMEOUT_MS = 20_000;
+
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: { Accept: "application/json" },
+  timeout: REQUEST_TIMEOUT_MS,
 });
 
 // ── Request: attach access token ─────────────────────────────────────
@@ -56,8 +67,17 @@ async function refreshTokens(): Promise<string | null> {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Real traffic is the only honest signal that the server is reachable.
+    useConnectionStore.getState().markReachable();
+    return response;
+  },
   async (error: AxiosError<ApiEnvelope>) => {
+    // A response of ANY status means we reached the server; only silence means
+    // we didn't. A 500 is a broken server, not a broken connection.
+    if (error.response) useConnectionStore.getState().markReachable();
+    else useConnectionStore.getState().markUnreachable();
+
     const original = error.config as AxiosRequestConfig & { _retried?: boolean };
     const status = error.response?.status ?? 0;
 
@@ -81,12 +101,23 @@ api.interceptors.response.use(
 
     const body = error.response?.data;
 
-    throw new ApiError(
-      body?.message ?? (error.code === "ERR_NETWORK" ? "Network error — check your connection." : "Request failed."),
-      status,
-      body?.meta?.error_code,
-      body?.errors ?? {},
-    );
+    // No response at all — say which kind of nothing, because the fix differs:
+    // a timeout means try again, offline means stop and check the connection.
+    let fallback = "Request failed.";
+    let code = body?.meta?.error_code;
+    if (!error.response) {
+      if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+        fallback = "The server didn't answer in time. Try again.";
+        code ??= "TIMEOUT";
+      } else if (error.code === "ERR_NETWORK") {
+        fallback = navigator.onLine
+          ? "Can't reach the server. It may be down."
+          : "You're offline — check your connection.";
+        code ??= "NETWORK";
+      }
+    }
+
+    throw new ApiError(body?.message ?? fallback, status, code, body?.errors ?? {});
   },
 );
 

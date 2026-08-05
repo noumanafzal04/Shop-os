@@ -50,6 +50,8 @@ export interface Sale {
   items?: SaleItem[];
   items_count?: number;
   returns?: SaleReturn[];
+  /** Every leg of a split tender. Present when the sale was rung as a split. */
+  payments?: Array<{ id: string; method: PaymentMethod; amount: string; reference: string | null }>;
   // Serialized retail: IMEI/serials captured on this sale (with warranty).
   serials?: SaleSerial[];
 }

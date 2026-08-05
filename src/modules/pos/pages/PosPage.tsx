@@ -21,7 +21,15 @@ import { posService, type HeldSale } from "../services/posService";
 import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
 import { useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
-import { useLanes } from "../../registers/hooks/useRegisters";
+import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
+import { receiptService, type ReceiptKind } from "../../receipts/services/receiptService";
+import { useFailedReceipts } from "../../receipts/hooks/useReceipts";
+import { useTillStore } from "../../../stores/tillStore";
+import { useConnectionStore } from "../../../stores/connectionStore";
+import { useIdleLock } from "../hooks/useIdleLock";
+import TillLock from "../components/TillLock";
+import { parkCart, readParkedCart } from "../cartStorage";
+import { canKick, kickDrawer } from "../../../common/escpos";
 import { useTerminalStore } from "../../../stores/terminalStore";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
@@ -202,6 +210,71 @@ export default function PosPage() {
   const cur = settings.data?.currency_symbol ?? "Rs";
   const money = (n: string | number) => `${cur} ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
 
+  // ── Receipts & drawer ───────────────────────────────────────────
+  // The hardware this lane drives. The drawer usually hangs off the printer,
+  // so either device's transport is a valid line to pulse.
+  const terminal = useTerminal();
+  const drawerDevice = terminal.data?.devices?.cash_drawer ?? terminal.data?.devices?.receipt_printer;
+  const failedReceipts = useFailedReceipts();
+
+  // ── Who's at the till, and can it reach the server ──────────────
+  const me = useAuthStore((s) => s.user);
+  const lockTill = useTillStore((s) => s.lock);
+  const tillLocked = useTillStore((s) => s.locked);
+  const online = useConnectionStore((s) => s.online);
+  const reachable = useConnectionStore((s) => s.reachable);
+  const connected = online && reachable;
+  // Auto-lock is off unless the shop turns it on (Settings → POS).
+  useIdleLock(Number(settings.data?.pos_idle_lock_minutes ?? 0), !tillLocked);
+
+
+  /**
+   * Print a receipt and remember the attempt. The server decides whether it is
+   * an original or a stamped copy — the till only reports what happened next.
+   */
+  const printReceipt = async (saleId: string, copy?: "gift") => {
+    setPrinting(true);
+    try {
+      const attempt = await receiptService.printReceipt(saleId, copy ? { copy } : {});
+      setLastPrint({ printId: attempt.printId, kind: attempt.kind, failed: !!attempt.handoffError });
+      if (attempt.handoffError) setPosNotice(`Receipt didn't print — ${attempt.handoffError}`);
+    } catch {
+      setLastPrint(null);
+      setPosNotice("Could not load the receipt to print.");
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  /** The cashier's verdict on the last receipt. Silent on success. */
+  const reportPrint = async (status: "printed" | "failed") => {
+    if (!lastPrint?.printId) return;
+    try {
+      await receiptService.reportOutcome(lastPrint.printId, status);
+      setLastPrint({ ...lastPrint, failed: status === "failed" });
+      if (status === "failed") setPosNotice("Logged — the receipt is in the reprint tray. Print it again when the printer is back.");
+    } catch {
+      setPosNotice("Couldn't record that. The receipt itself is fine to print again.");
+    }
+  };
+
+  /**
+   * Pulse the drawer. Only where a direct transport exists — a browser print
+   * dialog has no pulse to send, and saying nothing would leave the cashier
+   * waiting for a drawer that was never going to open.
+   */
+  const openDrawer = async (announceWhenImpossible = true) => {
+    if (!settings.data?.pos_drawer_kick) return;
+    if (!canKick(drawerDevice?.connection_type)) {
+      if (announceWhenImpossible && drawerDevice) {
+        setPosNotice("This drawer isn't on a direct connection — open it by hand, or wire it over serial in Settings → Hardware.");
+      }
+      return;
+    }
+    const res = await kickDrawer();
+    if (!res.ok) setPosNotice(res.message);
+  };
+
   // ── Product browser: search + category tabs + accumulated pages ──
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -235,7 +308,29 @@ export default function PosPage() {
   useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [activeIndex]);
 
   // ── Cart ──────────────────────────────────────────────────────────
-  const [cart, setCart] = useState<CartLine[]>([]);
+  // Restored from the device on first render, so a refresh mid-trolley is a
+  // blink rather than "sorry, can you hand me those again". See cartStorage:
+  // only line INTENTS are kept — the server still prices everything.
+  const [cart, setCart] = useState<CartLine[]>(() => readParkedCart<CartLine>(terminalId)?.lines ?? []);
+  const [restoredCart] = useState(() => readParkedCart<CartLine>(terminalId));
+
+  // Park the cart on every change. Cheap (a few lines of JSON) and it is the
+  // difference between a refresh costing a blink and costing the trolley.
+  useEffect(() => {
+    parkCart(terminalId, cart, me ? { id: me.id, name: me.name } : null);
+  }, [cart, terminalId, me]);
+
+  // Say so once, on the load that restored it — silently repopulating a cart
+  // would be worse than losing it, because nobody would check it.
+  useEffect(() => {
+    if (restoredCart) {
+      setPosNotice(
+        `Picked up where you left off — ${restoredCart.lines.length} line${restoredCart.lines.length === 1 ? "" : "s"} still in the cart. Clear it if this isn't the same customer.`,
+      );
+    }
+    // Deliberately once: restoredCart is captured at first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [customer, setCustomer] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [orderType, setOrderType] = useState<"takeaway" | "dine_in">("takeaway");
@@ -253,6 +348,10 @@ export default function PosPage() {
   const [rxPatient, setRxPatient] = useState("");
   // Soft cashier warning (Rx / near-expiry) — never blocks the sale.
   const [posNotice, setPosNotice] = useState<string | null>(null);
+  // The last print attempt, so the receipt modal can ask "did it come out?"
+  // and report the answer. A browser never tells us on its own.
+  const [lastPrint, setLastPrint] = useState<{ printId: string | null; kind: ReceiptKind; failed: boolean } | null>(null);
+  const [printing, setPrinting] = useState(false);
   const [couponInput, setCouponInput] = useState("");
   const [couponCode, setCouponCode] = useState<string | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
@@ -276,6 +375,10 @@ export default function PosPage() {
     const onKey = (e: KeyboardEvent) => {
       const a = actionsRef.current;
       if (!a) return;
+      // The lock screen owns the keyboard while it's up — otherwise F9 would
+      // open the tender modal behind it, and a scan would land in the cart of
+      // whoever just walked away.
+      if (useTillStore.getState().locked) return;
       switch (e.key) {
         case "F2": e.preventDefault(); a.focusSearch(); break;   // jump to scan/search
         case "F4": e.preventDefault(); a.hold(); break;          // hold (park) the ticket
@@ -513,14 +616,15 @@ export default function PosPage() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["pos", "session"] });
       receiptModal.openModal();
+      setLastPrint(null);
+      // The drawer opens on cash, not on card — that's the whole reason the
+      // setting exists. `payments` is set for a split tender.
+      const tookCash = data.payments?.some((p) => p.method === "cash") ?? data.payment_method === "cash";
+      if (tookCash) void openDrawer(false);
       // Auto-print the receipt when the shop setting is on (Shop Settings →
       // POS). Failures are surfaced softly — the receipt modal's Print button
       // is always available as the manual fallback.
-      if (settings.data?.pos_auto_print) {
-        salesService.printInvoice(data.id).catch(() =>
-          setPosNotice("Auto-print failed — use Print receipt to try again."),
-        );
-      }
+      if (settings.data?.pos_auto_print) void printReceipt(data.id);
     },
   });
 
@@ -760,6 +864,10 @@ export default function PosPage() {
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900">
       <PageMeta title="POS | ShopOS" description="Point of sale terminal" />
 
+      {/* Covers the till, keeping the cart intact underneath: locking is not
+          the end of a sale, it's the end of a person's turn at the counter. */}
+      {tillLocked && <TillLock />}
+
       {/* Top bar — full-screen POS has no app sidebar/header, so it carries
           its own: exit, shift status, keyboard legend, shift + online. */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-2.5 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -804,9 +912,28 @@ export default function PosPage() {
               </span>
             ))}
           </div>
-          <span className="hidden items-center gap-1.5 text-theme-xs font-medium text-gray-500 sm:flex dark:text-gray-400">
-            <span className="h-2 w-2 rounded-full bg-success-500" /> Online
+          {/* Connection. This used to be a green dot that said "Online" no
+              matter what — the one indicator that must never lie, since the
+              cashier decides whether to re-ring a sale by looking at it. */}
+          <span
+            className={`hidden items-center gap-1.5 text-theme-xs font-medium sm:flex ${
+              connected ? "text-gray-500 dark:text-gray-400" : "text-error-600 dark:text-error-400"
+            }`}
+            title={connected ? "The till reached the server on its last request." : "The last request never reached the server. Sales can't be rung until this clears."}
+          >
+            <span className={`h-2 w-2 rounded-full ${connected ? "bg-success-500" : "bg-error-500 animate-pulse"}`} />
+            {connected ? "Online" : online ? "No server" : "Offline"}
           </span>
+          {/* Who the next sale will be stamped with, and one tap to hand over. */}
+          <button
+            type="button"
+            onClick={() => lockTill("manual")}
+            title="Lock the till / hand it to someone else"
+            className="hidden items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-theme-xs font-medium text-gray-600 hover:bg-gray-100 sm:flex dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            <UserCircleIcon className="h-3.5 w-3.5" />
+            {me?.name?.split(" ")[0] ?? "Till"}
+          </button>
           {/* The X-read. Always reachable — with no shift the panel explains
               why there is nothing to count rather than erroring. */}
           <Button size="sm" variant="outline" onClick={drawerModal.openModal}>Drawer</Button>
@@ -899,6 +1026,26 @@ export default function PosPage() {
               <div className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
                 <span className="flex items-center gap-1.5"><AlertIcon className="h-4 w-4 shrink-0" /> {posNotice}</span>
                 <button className="shrink-0 text-warning-500 hover:text-warning-600" onClick={() => setPosNotice(null)}><CloseIcon className="h-4 w-4" /></button>
+              </div>
+            )}
+            {/* The reprint tray, at the till rather than in a report: a receipt
+                that never came out is a customer still standing there. */}
+            {(failedReceipts.data?.length ?? 0) > 0 && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-theme-xs text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+                <span className="flex items-center gap-1.5">
+                  <AlertIcon className="h-4 w-4 shrink-0" />
+                  {failedReceipts.data!.length} receipt{failedReceipts.data!.length === 1 ? "" : "s"} didn't print
+                </span>
+                <button
+                  className="shrink-0 font-medium underline hover:no-underline"
+                  disabled={printing}
+                  onClick={() => {
+                    const next = failedReceipts.data![0];
+                    void printReceipt(next.sale_id).then(() => failedReceipts.refetch());
+                  }}
+                >
+                  Print {failedReceipts.data![0].sale?.invoice_number ?? "it"} again
+                </button>
               </div>
             )}
           </div>
@@ -1561,11 +1708,33 @@ export default function PosPage() {
               <div className="flex justify-between"><span className="text-gray-500">Change</span><span>{money(lastSale.change_due)}</span></div>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="flex-1"
-                onClick={() => salesService.printInvoice(lastSale.id).catch(() => setPosNotice("Could not load the invoice to print."))}>
-                Print receipt
+              <Button size="sm" variant="outline" className="flex-1" disabled={printing}
+                onClick={() => printReceipt(lastSale.id)}>
+                {printing ? "Printing…" : lastPrint ? "Print again" : "Print receipt"}
               </Button>
               <Button size="sm" className="flex-1" onClick={() => { receiptModal.closeModal(); scanRef.current?.focus(); }}>New sale</Button>
+            </div>
+
+            {/* A browser never reports back, so the counter is asked. The
+                answer is what puts a receipt in the reprint tray. */}
+            {lastPrint && !lastPrint.failed && (
+              <div className="mt-3 flex items-center justify-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
+                <span>{lastPrint.kind === "gift" ? "Gift copy sent" : lastPrint.kind === "reprint" ? "Copy sent" : "Receipt sent"} to the printer.</span>
+                <button type="button" className="font-medium text-error-500 hover:text-error-600" onClick={() => reportPrint("failed")}>
+                  Didn't print
+                </button>
+              </div>
+            )}
+
+            <div className="mt-3 flex justify-center gap-4 text-theme-xs">
+              <button type="button" className="font-medium text-gray-500 hover:text-brand-500 dark:text-gray-400" disabled={printing}
+                onClick={() => printReceipt(lastSale.id, "gift")}>
+                Gift receipt
+              </button>
+              <button type="button" className="font-medium text-gray-500 hover:text-brand-500 dark:text-gray-400"
+                onClick={() => void openDrawer()}>
+                Open drawer
+              </button>
             </div>
           </div>
         )}

@@ -15,12 +15,13 @@ import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { downloadFile } from "../../../common/api/download";
 import { useToast } from "../../../components/ui/toast";
 import { useSale, useSaleMutations, useSales } from "../hooks/useSales";
-import { salesService } from "../services/salesService";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import { useAuthStore } from "../../../stores/authStore";
 import { ApiError } from "../../../common/types/api";
 import type { SaleStatus } from "../types";
 import { VOID_REASONS, type VoidReasonCode } from "../services/salesService";
+import { receiptService } from "../../receipts/services/receiptService";
+import { useReceiptTrail } from "../../receipts/hooks/useReceipts";
 
 const STATUS_COLOR: Record<SaleStatus, "success" | "error" | "warning" | "info"> = {
   completed: "success",
@@ -58,7 +59,6 @@ export default function SalesPage() {
 
   const sales = useSales({ search: debounced, status, page });
   const { cancel, processReturn, exchange } = useSaleMutations();
-  const accessToken = useAuthStore((s) => s.accessToken);
   // Counter sales need the POS module — an online-only shop sees only history.
   const hasPos = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.pos ?? true,
@@ -70,6 +70,9 @@ export default function SalesPage() {
 
   const detailModal = useModal();
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
+  // Every copy of this receipt that has ever left the counter.
+  const trail = useReceiptTrail(detailModal.isOpen ? detailId : null);
   const detail = useSale(detailId);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelCode, setCancelCode] = useState<VoidReasonCode>("wrong_item");
@@ -159,18 +162,26 @@ export default function SalesPage() {
     );
   };
 
-  const openInvoice = () => {
-    if (!detailId) return;
-    // Invoice is an authenticated HTML page — open with token via fetch+blob.
-    fetch(salesService.invoiceUrl(detailId), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-      .then((r) => r.text())
-      .then((html) => {
-        const win = window.open("", "_blank");
-        win?.document.write(html);
-        win?.document.close();
-      });
+  /**
+   * Print the receipt. The server decides whether this counts as the original
+   * or a stamped copy and logs it either way — a receipt reprinted here is the
+   * exact case the trail below exists to make visible.
+   */
+  const printReceipt = async (copy?: "gift") => {
+    if (!detailId || printing) return;
+    setPrinting(true);
+    try {
+      const attempt = await receiptService.printReceipt(detailId, copy ? { copy } : {});
+      if (attempt.handoffError) toast.error(`Didn't print — ${attempt.handoffError}`);
+      else if (attempt.kind === "gift") toast.success("Gift copy sent to the printer.");
+      else if (attempt.kind === "reprint") toast.success("Copy sent — it prints marked as a reprint.");
+      else toast.success("Receipt sent to the printer.");
+      trail.refetch();
+    } catch {
+      toast.error("Could not load the receipt.");
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const netUnitFor = (i: { quantity: string | number; line_total: string | number; unit_price: string | number }) => {
@@ -383,6 +394,32 @@ export default function SalesPage() {
               </div>
             )}
 
+            {/* Receipt trail. Shown only once a copy exists — the interesting
+                fact is never "this was printed", it's "this was printed
+                again", and by whom. */}
+            {(trail.data?.length ?? 0) > 1 && (
+              <div className="mb-4 rounded-lg border border-warning-200 bg-warning-25 p-3 dark:border-warning-500/30 dark:bg-warning-500/10">
+                <p className="mb-2 text-theme-xs font-medium uppercase text-warning-600 dark:text-warning-400">
+                  Receipt copies · {(trail.data ?? []).filter((p) => p.kind !== "original").length}
+                </p>
+                {(trail.data ?? []).map((p) => (
+                  <div key={p.id} className="flex flex-wrap justify-between gap-2 text-theme-sm text-gray-600 dark:text-gray-300">
+                    <span>
+                      {p.kind === "original" ? "Original" : p.kind === "gift" ? "Gift copy" : `Copy ${p.copy_no}`}
+                      {p.reason ? ` — ${p.reason}` : ""}
+                      {p.status === "failed" ? " · didn't print" : ""}
+                    </span>
+                    <span className="text-gray-400">
+                      {p.user?.name ?? "—"}
+                      {p.register?.name ? ` · ${p.register.name}` : ""}
+                      {" · "}
+                      {new Date(p.printed_at).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {confirmingCancel ? (
               <div className="space-y-3">
                 {/* A coded reason is required: free text can't be tallied, and a
@@ -516,8 +553,11 @@ export default function SalesPage() {
               </div>
             ) : (
               <div className="flex flex-wrap justify-end gap-3">
-                <Button size="sm" variant="outline" onClick={openInvoice}>
-                  Print invoice
+                <Button size="sm" variant="outline" disabled={printing} onClick={() => printReceipt()}>
+                  {printing ? "Printing…" : (trail.data?.length ?? 0) > 0 ? "Print a copy" : "Print receipt"}
+                </Button>
+                <Button size="sm" variant="outline" disabled={printing} onClick={() => printReceipt("gift")}>
+                  Gift receipt
                 </Button>
                 {(detail.data.status === "completed" || detail.data.status === "partially_refunded") && (
                   <Button size="sm" variant="outline" onClick={() => setReturning(true)}>

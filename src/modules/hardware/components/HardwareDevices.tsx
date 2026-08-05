@@ -10,6 +10,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { useToast } from "../../../components/ui/toast";
 import { useHardwareDevices, useHardwareMutations } from "../hooks/useHardware";
 import { useRegisters } from "../../registers/hooks/useRegisters";
+import { canKick, connectDrawer, isSerialSupported, kickDrawer } from "../../../common/escpos";
 import type {
   ConnectionType,
   HardwareDevice,
@@ -113,6 +114,31 @@ export default function HardwareDevices() {
 
   const isPrinter = draft.type === "receipt_printer" || draft.type === "label_printer";
 
+  // ── Drawer permission (Web Serial) ──────────────────────────────
+  // Granting a serial port is a browser-level permission, per device, and it
+  // can only be asked for from a click. We ask once here and pulse the drawer
+  // straight away, so the shopkeeper sees it work rather than being told it will.
+  const [serialBusy, setSerialBusy] = useState(false);
+  const connectAndTest = async (label: string) => {
+    if (serialBusy) return;
+    if (!isSerialSupported()) {
+      toast.error("This browser can't open a drawer directly. Use Chrome or Edge on the till.");
+      return;
+    }
+    setSerialBusy(true);
+    try {
+      await connectDrawer();
+      const res = await kickDrawer();
+      if (res.ok) toast.success(`${label} connected — the drawer should have opened.`);
+      else toast.error(res.message);
+    } catch {
+      // The picker being dismissed is a normal outcome, not an error worth shouting about.
+      toast.error("No device selected.");
+    } finally {
+      setSerialBusy(false);
+    }
+  };
+
   const save = () => {
     if (!draft.name.trim()) return;
     const payload = {
@@ -164,6 +190,14 @@ export default function HardwareDevices() {
               {(d.type === "receipt_printer" || d.type === "label_printer") && (
                 <button type="button" onClick={() => testPrint(d)} className="text-theme-xs font-medium text-brand-500 hover:text-brand-600">
                   Test print
+                </button>
+              )}
+              {/* A serial drawer needs a one-time permission grant, and the
+                  browser only gives one from a click. After this it opens
+                  silently for good. */}
+              {canKick(d.connection_type) && (d.type === "cash_drawer" || d.type === "receipt_printer") && (
+                <button type="button" onClick={() => connectAndTest(d.name)} className="text-theme-xs font-medium text-brand-500 hover:text-brand-600">
+                  {serialBusy ? "…" : "Connect drawer"}
                 </button>
               )}
               <button type="button" onClick={() => openEdit(d)} className="text-theme-xs font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">

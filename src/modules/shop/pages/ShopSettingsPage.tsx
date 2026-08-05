@@ -16,6 +16,11 @@ import type { Tenant } from "../../auth/types";
 import HardwareDevices from "../../hardware/components/HardwareDevices";
 import RegistersPanel from "../../registers/components/RegistersPanel";
 import TaxGroupsManager from "../../catalog/components/TaxGroupsManager";
+import { ReceiptPreview } from "../../receipts/components/ReceiptPreview";
+import TillPinsPanel from "../../pos/components/TillPinsPanel";
+
+/** One saved shop preference. Arrays exist because kitchen stations are a list. */
+type PrefValue = string | number | boolean | string[] | null;
 
 // ── Section icons (inline line-SVGs, currentColor) ───────────────────────
 const g = "h-[18px] w-[18px]";
@@ -29,6 +34,7 @@ const CartGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><pat
 const BarcodeGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 5v14M8 5v14M11 5v14M14 5v10M17 5v14M20 5v14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>);
 const ScaleGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M12 4v16M6 20h12M5 8h14l-2.5 6h-9L5 8ZM9 4h6" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const PrinterGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M6 9V3h12v6M6 18H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2M6 14h12v7H6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
+const UserGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.7" /><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>);
 const GiftGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7S10.5 3 8.5 3 6 5 8 7h4Zm0 0s1.5-4 3.5-4 2.5 2 .5 4h-4Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>);
 
 // Settings are split into tabs: shop info first, then module-wise topics.
@@ -149,11 +155,11 @@ export default function ShopSettingsPage() {
   // ── Preferences (PUT /shop/settings) ─────────────────────────────────
   const settings = useShopSettings();
   const updatePrefs = useUpdateShopSettings();
-  const [prefs, setPrefs] = useState<Record<string, string | number | boolean | null> | null>(null);
+  const [prefs, setPrefs] = useState<Record<string, PrefValue> | null>(null);
   const [prefsSaved, setPrefsSaved] = useState(false);
   const [tab, setTab] = useState<SettingsTab>("business");
   useEffect(() => { if (settings.data && !prefs) setPrefs({ ...settings.data }); }, [settings.data, prefs]);
-  const setP = (k: string, v: string | number | boolean | null) => { setPrefs((f) => ({ ...f!, [k]: v })); setPrefsSaved(false); };
+  const setP = (k: string, v: PrefValue) => { setPrefs((f) => ({ ...f!, [k]: v })); setPrefsSaved(false); };
 
   // Appearance (brand colour, sidebar, tint) lives in the floating Appearance
   // canvas, reachable from every screen — not here. One home per concern.
@@ -195,7 +201,9 @@ export default function ShopSettingsPage() {
         ))}
       </div>
 
-      <div className="max-w-3xl">
+      {/* The receipt tab needs room for the paper beside the form; every other
+          tab reads better narrow. */}
+      <div className={tab === "receipt" ? "max-w-6xl" : "max-w-3xl"}>
         {shop.isLoading ? (
           <div className="h-64 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
         ) : tab === "business" ? (
@@ -312,24 +320,54 @@ export default function ShopSettingsPage() {
               </>
             )}
 
+            {/* The receipt is the only thing that leaves the shop, so it is
+                edited beside the thing itself — the preview is the real
+                template, server-rendered, not a mock-up of it. */}
             {tab === "receipt" && (
-              <>
-              <SectionCard icon={<ReceiptGlyph />} title="Invoice / receipt" description="What prints on your sales receipts.">
-                <Field label="Invoice header line"><Input value={String(prefs.invoice_header ?? "")} onChange={(e) => setP("invoice_header", e.target.value)} placeholder="e.g. Tax Reg #12345" /></Field>
-                <Field label="Invoice footer"><Input value={String(prefs.invoice_footer ?? "")} onChange={(e) => setP("invoice_footer", e.target.value)} placeholder="e.g. Thank you for shopping!" /></Field>
-                <Field label="Receipt size" hint="Thermal sizes print a narrow roll-width receipt; Standard is A4/Letter.">
-                  <Select
-                    className="max-w-xs"
-                    value={String(prefs.receipt_width ?? "standard")}
-                    options={[{ value: "standard", label: "Standard (A4/Letter)" }, { value: "thermal_80", label: "Thermal 80mm" }, { value: "thermal_58", label: "Thermal 58mm" }]}
-                    placeholder="Standard"
-                    onChange={(v) => setP("receipt_width", v)}
-                  />
-                </Field>
-                <Toggle checked={!!prefs.invoice_show_logo} onChange={(v) => setP("invoice_show_logo", v)} label="Show logo on invoice" />
-              </SectionCard>
-              {prefsFooter}
-              </>
+              <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+                <div className="space-y-6">
+                  <SectionCard icon={<ReceiptGlyph />} title="Invoice / receipt" description="What prints on your sales receipts.">
+                    <Field label="Invoice header line" hint="An extra line under your shop name.">
+                      <Input value={String(prefs.invoice_header ?? "")} onChange={(e) => setP("invoice_header", e.target.value)} placeholder="e.g. Wholesale &amp; retail since 1998" />
+                    </Field>
+                    <Field label="Invoice footer">
+                      <Input value={String(prefs.invoice_footer ?? "")} onChange={(e) => setP("invoice_footer", e.target.value)} placeholder="e.g. Thank you for shopping!" />
+                    </Field>
+                    <Field label="Receipt size" hint="Thermal sizes print a narrow roll; Standard is a filed A4/Letter invoice with a signature line.">
+                      <Select
+                        className="max-w-xs"
+                        value={String(prefs.receipt_width ?? "standard")}
+                        options={[{ value: "standard", label: "Standard (A4/Letter)" }, { value: "thermal_80", label: "Thermal 80mm" }, { value: "thermal_58", label: "Thermal 58mm" }]}
+                        placeholder="Standard"
+                        onChange={(v) => setP("receipt_width", v)}
+                      />
+                    </Field>
+                    <div className="flex flex-wrap items-center gap-6">
+                      <Toggle checked={!!prefs.invoice_show_logo} onChange={(v) => setP("invoice_show_logo", v)} label="Show logo" />
+                      <Toggle checked={!!prefs.receipt_show_cashier} onChange={(v) => setP("receipt_show_cashier", v)} label="Show who served" />
+                    </div>
+                  </SectionCard>
+
+                  <SectionCard icon={<PercentGlyph />} title="Tax identifiers" description="Printed on the receipt when you're registered. Leave blank if you're not — nothing prints.">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <Field label="NTN" hint="National Tax Number.">
+                        <Input value={String(prefs.invoice_ntn ?? "")} onChange={(e) => setP("invoice_ntn", e.target.value)} placeholder="e.g. 1234567-8" />
+                      </Field>
+                      <Field label="STRN" hint="Sales Tax Registration Number.">
+                        <Input value={String(prefs.invoice_strn ?? "")} onChange={(e) => setP("invoice_strn", e.target.value)} placeholder="e.g. 03-04-8765-432-11" />
+                      </Field>
+                    </div>
+                    <Field label="FBR POS ID" hint="Your FBR POS registration, if you're a Tier-1 retailer. ShopOS prints it — it does not transmit invoices to FBR.">
+                      <Input className="max-w-xs" value={String(prefs.invoice_fbr_pos_id ?? "")} onChange={(e) => setP("invoice_fbr_pos_id", e.target.value)} placeholder="e.g. 556677" />
+                    </Field>
+                  </SectionCard>
+                  {prefsFooter}
+                </div>
+
+                <div className="lg:sticky lg:top-24">
+                  <ReceiptPreview settings={prefs} />
+                </div>
+              </div>
             )}
 
             {tab === "hardware" && (
@@ -345,14 +383,35 @@ export default function ShopSettingsPage() {
                   <Field label="Default payment">
                     <Select value={String(prefs.pos_default_payment)} options={[{ value: "cash", label: "Cash" }, { value: "card", label: "Card" }]} placeholder="Cash" onChange={(v) => setP("pos_default_payment", v)} />
                   </Field>
+                  <Field label="Lock the till when idle" hint="The next sale is stamped with whoever unlocks it.">
+                    <Select
+                      className="max-w-xs"
+                      value={String(prefs.pos_idle_lock_minutes ?? 0)}
+                      options={[
+                        { value: "0", label: "Never" },
+                        { value: "3", label: "After 3 minutes" },
+                        { value: "5", label: "After 5 minutes" },
+                        { value: "10", label: "After 10 minutes" },
+                        { value: "30", label: "After 30 minutes" },
+                      ]}
+                      placeholder="Never"
+                      onChange={(v) => setP("pos_idle_lock_minutes", Number(v))}
+                    />
+                  </Field>
                   <div className="flex flex-wrap items-center gap-6 pb-2.5">
                     <Toggle checked={!!prefs.pos_require_shift} onChange={(v) => setP("pos_require_shift", v)} label="Require open shift" />
                     <Toggle checked={!!prefs.pos_auto_print} onChange={(v) => setP("pos_auto_print", v)} label="Auto-print receipt" />
+                    <Toggle checked={!!prefs.pos_drawer_kick} onChange={(v) => setP("pos_drawer_kick", v)} label="Open drawer on cash" />
                   </div>
                 </div>
                 <p className="text-theme-xs text-gray-400">
                   "Require open shift" refuses a counter sale unless the cashier has a drawer open, so every rupee
                   belongs to a shift that gets counted. Recommended once you have staff.
+                </p>
+                <p className="text-theme-xs text-gray-400">
+                  "Open drawer on cash" only works where the drawer (or the printer it plugs into) is wired over a
+                  direct connection — set that up in Settings → Hardware. On a plain browser printer there is no
+                  pulse to send, and the till will say so instead of pretending.
                 </p>
               </SectionCard>
               {prefsFooter}
@@ -360,6 +419,43 @@ export default function ShopSettingsPage() {
                   operating position, and the printer bound to it comes after. */}
               <SectionCard icon={<CartGlyph />} title="Registers" description="Your checkout lanes. One counter needs none — add a lane each for a busy mart, and each drawer reconciles on its own.">
                 <RegistersPanel />
+              </SectionCard>
+              {/* Identity at a shared terminal. Every per-cashier control —
+                  the drawer, the void report, the discount ceiling — is only
+                  worth anything if the name on the sale is who rang it. */}
+              {/* Only a shop that seats people has a kitchen to route to. */}
+              {(user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.dine_in && (
+                <SectionCard icon={<ReceiptGlyph />} title="Kitchen" description="Where fired orders go, and whether they print.">
+                  <Field
+                    label="Stations"
+                    hint="One line each — Kitchen, Bar, Grill. A fired order splits into one ticket per station, so the bar never gets the biryani. Leave empty for a single kitchen printer."
+                  >
+                    <textarea
+                      rows={3}
+                      className="dark:bg-dark-900 h-auto w-full max-w-sm rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30"
+                      value={(Array.isArray(prefs.kitchen_stations) ? prefs.kitchen_stations : []).join("\n")}
+                      onChange={(e) =>
+                        setP(
+                          "kitchen_stations",
+                          e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
+                        )
+                      }
+                      placeholder={"Kitchen\nBar"}
+                    />
+                  </Field>
+                  <div className="flex flex-wrap items-center gap-6">
+                    <Toggle checked={prefs.kot_auto_print !== false} onChange={(v) => setP("kot_auto_print", v)} label="Print kitchen tickets" />
+                    <Toggle checked={!!prefs.tips_enabled} onChange={(v) => setP("tips_enabled", v)} label="Ask for a tip" />
+                  </div>
+                  <p className="text-theme-xs text-gray-400">
+                    Turn printing off only if the kitchen works from the Kitchen screen — a ticket that was never
+                    printed has not reached anyone.
+                  </p>
+                </SectionCard>
+              )}
+
+              <SectionCard icon={<UserGlyph />} title="Till PINs" description="A short PIN lets someone take the till in a second, so sales, voids and drawers belong to whoever actually made them. A PIN only works at a till already signed in — never to log in.">
+                <TillPinsPanel />
               </SectionCard>
               </>
             )}

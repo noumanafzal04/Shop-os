@@ -14,6 +14,15 @@ export function useTables() {
   });
 }
 
+/** Every tab still open — the picker for "merge this into that". */
+export function useOpenTickets(enabled = true) {
+  return useQuery({
+    queryKey: ["dine-in", "open-tickets"],
+    queryFn: async () => (await dineInService.openTickets()).data,
+    enabled,
+  });
+}
+
 export function useTicket(id: string | undefined) {
   return useQuery({
     queryKey: ["dine-in", "ticket", id],
@@ -55,6 +64,21 @@ export function useDineInMutations(ticketId?: string) {
     onSuccess: invalidate,
   });
 
+  const move = useMutation({
+    mutationFn: ({ id, dining_table_id, guest_count }: { id: string; dining_table_id: string | null; guest_count?: number }) =>
+      dineInService.move(id, { dining_table_id, guest_count }),
+    onSuccess: invalidate,
+  });
+
+  const merge = useMutation({
+    mutationFn: ({ id, sourceId }: { id: string; sourceId: string }) => dineInService.merge(id, sourceId),
+    onSuccess: () => {
+      invalidate();
+      // The absorbed tab is now closed, so any open-tab list holding it is wrong.
+      qc.invalidateQueries({ queryKey: ["dine-in", "open-tickets"] });
+    },
+  });
+
   const cancel = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) => dineInService.cancel(id, reason),
     onSuccess: invalidate,
@@ -70,5 +94,5 @@ export function useDineInMutations(ticketId?: string) {
     onSuccess: invalidate,
   });
 
-  return { openTicket, addItems, voidItem, fire, settle, cancel, createTable, deleteTable };
+  return { openTicket, addItems, voidItem, fire, settle, move, merge, cancel, createTable, deleteTable };
 }
