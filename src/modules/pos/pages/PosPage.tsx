@@ -1033,14 +1033,16 @@ export default function PosPage() {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2.5">
+        {/* gap-3 with wrapping: on a 1366 laptop the legend, the status chips
+            and three buttons used to jam into one another. */}
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
           {/* Keyboard legend. The till is keyboard-first, and a cashier learns
               these by GLANCING at them for the first week — a row of identical
               grey chips is read as decoration and never learned. Each key keeps
               the colour of the thing it does, matching its button below, so the
               eye can jump straight to the one it wants. Clickable too: the same
               action, for anyone still reaching for the mouse. */}
-          <div className="mr-1 hidden items-center gap-1 xl:flex">
+          <div className="hidden items-center gap-1.5 xl:flex">
             {SHORTCUTS.map(({ k, label, tone, run }) => (
               <button
                 key={k}
@@ -1076,22 +1078,57 @@ export default function PosPage() {
             <UserCircleIcon className="h-3.5 w-3.5" />
             {me?.name?.split(" ")[0] ?? "Till"}
           </button>
+          {/* A rule before the money buttons, so the status chips on the left
+              and the actions on the right read as two groups rather than one
+              long undifferentiated row. */}
+          <span className="mx-1 hidden h-6 w-px bg-gray-200 sm:block dark:bg-gray-700" />
+
           {/* The X-read. Always reachable — with no shift the panel explains
-              why there is nothing to count rather than erroring. */}
-          <Button size="sm" variant="outline" onClick={drawerModal.openModal}>Drawer</Button>
+              why there is nothing to count rather than erroring. Blue: it only
+              ever shows you something, it never moves money. */}
+          <button
+            type="button"
+            onClick={drawerModal.openModal}
+            title="Count the drawer (X-read)"
+            className="flex items-center gap-1.5 rounded-lg border border-blue-light-200 bg-blue-light-50 px-3 py-1.5 text-theme-sm font-semibold text-blue-light-700 transition hover:bg-blue-light-100 dark:border-blue-light-500/30 dark:bg-blue-light-500/10 dark:text-blue-light-400"
+          >
+            <DollarLineIcon className="h-4 w-4" /> Drawer
+          </button>
+
+          {/* Open vs close are opposite acts and must never be mistaken for
+              each other at the end of a long shift: green starts the day,
+              amber ends it and asks for a count. */}
           {open ? (
-            <Button size="sm" variant="outline" onClick={() => { setCountedCash(""); closeModal.openModal(); }}>Close shift</Button>
+            <button
+              type="button"
+              onClick={() => { setCountedCash(""); closeModal.openModal(); }}
+              title="Count up and close this shift"
+              className="flex items-center gap-1.5 rounded-lg border border-warning-200 bg-warning-50 px-3 py-1.5 text-theme-sm font-semibold text-warning-700 transition hover:bg-warning-100 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+            >
+              Close shift
+            </button>
           ) : (
-            <Button size="sm" onClick={() => { setOpeningFloat(""); openModal.openModal(); }}>Open shift</Button>
+            <button
+              type="button"
+              onClick={() => { setOpeningFloat(""); openModal.openModal(); }}
+              title="Open a shift to start selling"
+              className="flex items-center gap-1.5 rounded-lg bg-success-500 px-3.5 py-1.5 text-theme-sm font-semibold text-white transition hover:bg-success-600"
+            >
+              Open shift
+            </button>
           )}
         </div>
       </div>
 
-      {/* Full-bleed workspace: an even 6/6 split, panes divided by a hairline
-          rather than a gutter — no wasted width at the screen edges. */}
+      {/* Full-bleed workspace, split 5/7 in the CART's favour. The picker is
+          scanned and clicked; the cart is read, corrected and argued over with
+          a customer leaning across the counter — it carries more columns
+          (qty, rate, discount, tax, total) and needs the room more. Panes are
+          divided by a hairline rather than a gutter, so no width is wasted at
+          the screen edges. */}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12">
         {/* ── Products / scan ─────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-col p-3 lg:col-span-6 lg:border-r lg:border-gray-200 lg:dark:border-gray-800">
+        <div className="flex min-h-0 flex-col p-3 lg:col-span-5 lg:border-r lg:border-gray-200 lg:dark:border-gray-800">
           <div className="mb-3">
             <div className="flex items-stretch gap-2">
               {/* Category dropdown — sits in front of the search box. */}
@@ -1299,14 +1336,32 @@ export default function PosPage() {
         </div>
 
         {/* ── Cart + payment ──────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-col lg:col-span-6">
+        <div className="flex min-h-0 flex-col lg:col-span-7">
           <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-white/[0.03]">
             {/* Cart header — item count, customer, clear */}
             <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
-              <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-800 dark:text-white/90">
+              <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-gray-800 dark:text-white/90">
                 Cart
                 {cart.length > 0 && <span className="rounded-full bg-brand-500 px-2 py-0.5 text-[11px] font-bold text-white tabular-nums">{cart.length}</span>}
               </span>
+
+              {/* Live promotion, pinned beside the Cart title.
+                  It used to sit under the item list, inside the scroll area, so
+                  on any basket longer than the panel it scrolled out of sight:
+                  the cashier could see money coming off the bill and no longer
+                  see why — which is exactly what the customer asks about. The
+                  shop is giving this discount automatically, so it stays on
+                  screen for the whole sale. */}
+              {promo && promo.discount > 0 && (
+                <span
+                  title={`${promo.name} · −${money(promo.discount)}`}
+                  className="flex min-w-0 items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2 py-1 text-theme-xs text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+                >
+                  <span className="shrink-0 rounded bg-brand-500 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-white">Promo</span>
+                  <span className="truncate font-medium">{promo.name}</span>
+                  <span className="shrink-0 font-semibold tabular-nums">−{money(promo.discount)}</span>
+                </span>
+              )}
               {/* Customer — defaults to walk-in; click to attach a name/phone */}
               <button
                 onClick={customerModal.openModal}
@@ -1320,6 +1375,7 @@ export default function PosPage() {
                 <button onClick={clearSale} title="Clear cart" className="rounded-lg p-1.5 text-gray-400 hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10"><TrashBinIcon className="h-4 w-4" /></button>
               )}
             </div>
+
             {/* Restaurant: dine-in / takeaway + table */}
             {isRestaurant && (
               <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-2.5 dark:border-gray-800">
@@ -1345,8 +1401,12 @@ export default function PosPage() {
 
             {/* Lines + details share ONE scroll area, so the item list keeps the
                 most room on short laptop screens; only the totals/payment bar
-                below stays pinned and always visible. */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
+                below stays pinned and always visible.
+                min-h holds room for about seven lines: a basket shorter than
+                that shouldn't make the payment bar jump up the screen, and a
+                cart that resizes under the cashier's hand is how the wrong row
+                gets clicked. */}
+            <div className="min-h-[19rem] flex-1 overflow-y-auto">
               <div className="min-w-full overflow-x-auto">
                 {cart.length === 0 ? (
                   <p className="py-16 text-center text-sm text-gray-400">Cart is empty — scan or tap a product.</p>
@@ -1453,8 +1513,19 @@ export default function PosPage() {
                             <td className="px-2 py-2.5 text-right tabular-nums text-gray-500 dark:text-gray-400">{lineTax > 0 ? money(lineTax) : "—"}</td>
                             <td className="px-2 py-2.5 text-right font-semibold tabular-nums text-gray-900 dark:text-white/90">{money(lineNet(l))}</td>
                             <td className="px-2 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                              {/* The ONE way a line leaves the cart. */}
-                              <button type="button" title="Remove this line" aria-label="Remove" className="rounded-md p-1 text-gray-300 hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10" onClick={() => removeLine(l.key)}><CloseIcon className="h-4 w-4" /></button>
+                              {/* The ONE way a line leaves the cart, so it is
+                                  worth being able to hit: a proper 28px target
+                                  that turns red on approach, instead of a pale
+                                  grey glyph the cashier stabs at twice. */}
+                              <button
+                                type="button"
+                                title="Remove this line"
+                                aria-label="Remove"
+                                onClick={() => removeLine(l.key)}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-gray-400 transition hover:border-error-200 hover:bg-error-50 hover:text-error-600 dark:text-gray-500 dark:hover:border-error-500/40 dark:hover:bg-error-500/10 dark:hover:text-error-400"
+                              >
+                                <CloseIcon className="h-4 w-4" />
+                              </button>
                             </td>
                           </tr>
                         );
@@ -1465,17 +1536,11 @@ export default function PosPage() {
               </div>
 
             {/* Contextual extras — only render when there's something to show,
-                so nothing floats in the middle of an otherwise-empty panel. */}
-            {((promo && promo.discount > 0) || (loyaltyOn && customerPoints !== null) || cartHasRx) && (
+                so nothing floats in the middle of an otherwise-empty panel.
+                The promotion is NOT here any more: it moved up beside the Cart
+                title, where it can't scroll away mid-sale. */}
+            {((loyaltyOn && customerPoints !== null) || cartHasRx) && (
             <div className="space-y-2.5 border-t border-gray-100 p-4 pt-3 dark:border-gray-800">
-              {/* Auto-promotion (no code) — applied automatically when live. */}
-              {promo && promo.discount > 0 && (
-                <div className="flex items-center justify-between rounded-lg bg-brand-50 px-3 py-1.5 text-theme-sm text-brand-600 dark:bg-brand-500/10">
-                  <span>Promo · {promo.name}</span>
-                  <span className="font-medium">−{money(promo.discount)}</span>
-                </div>
-              )}
-
               {/* Loyalty — shown when enabled and a known customer is attached. */}
               {loyaltyOn && customerPoints !== null && (
                 <div className="rounded-lg border border-gray-200 p-2.5 dark:border-gray-800">
@@ -1564,16 +1629,19 @@ export default function PosPage() {
           Hold / Drafts / Quote carry the same colours as their keys in the top
           legend, so "F4" and the amber button are visibly the same thing. */}
       <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-white px-4 py-2.5 xl:px-10 2xl:px-16 dark:border-gray-800 dark:bg-white/[0.03]">
-        <button
-          onClick={clearSale}
-          disabled={cart.length === 0}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3.5 py-2 text-theme-sm font-medium text-gray-600 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-error-500/10"
-          title="Reset ticket"
-        >
-          <TrashBinIcon className="h-4 w-4" /> Reset
-        </button>
-
         <div className="ml-auto flex items-center gap-2">
+          {/* Reset lives with the others now, but keeps its own gap and a red
+              hover: near enough to reach, far enough that the hand going for
+              Hold doesn't land on the one that empties the basket. */}
+          <button
+            onClick={clearSale}
+            disabled={cart.length === 0}
+            className="mr-1 flex items-center gap-1.5 rounded-lg border border-gray-200 px-3.5 py-2 text-theme-sm font-medium text-gray-500 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-400 dark:hover:border-error-500/40 dark:hover:bg-error-500/10 dark:hover:text-error-400"
+            title="Empty this ticket"
+          >
+            <TrashBinIcon className="h-4 w-4" /> Reset
+          </button>
+
           {/* Discount / coupon — stays next to the money it changes. */}
           <button
             type="button"
