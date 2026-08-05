@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import { applyTenantTheme } from "../../../common/theme/tenantTheme";
 import { useAuthStore } from "../../../stores/authStore";
 import { shopService, type SetupPayload, type ShopSettings } from "../services/shopService";
 
@@ -14,6 +16,25 @@ export function useShopSettings() {
     staleTime: 5 * 60 * 1000,
     enabled: isShop,
   });
+}
+
+/**
+ * Paints the tenant's chosen brand colours onto the document as soon as their
+ * settings arrive, and repaints whenever they change it. Re-declaring Tailwind's
+ * --color-brand-* variables re-skins the entire panel — light and dark alike —
+ * so this hook is the only wiring theming needs. An unset colour restores the
+ * ShopOS default, which is also what non-shop roles get.
+ */
+export function useTenantTheme() {
+  const settings = useShopSettings();
+  const primary = settings.data?.theme_primary ?? null;
+  const secondary = settings.data?.theme_secondary ?? null;
+  const tint = settings.data?.theme_tint ?? "subtle";
+  const sidebar = settings.data?.theme_sidebar ?? "light";
+
+  useEffect(() => {
+    applyTenantTheme({ primary, secondary, tint, sidebar });
+  }, [primary, secondary, tint, sidebar]);
 }
 
 /**

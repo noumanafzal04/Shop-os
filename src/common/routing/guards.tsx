@@ -1,4 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router";
+import ThemeCustomizer from "../../components/theme/ThemeCustomizer";
+import { useTenantTheme } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
 import type { UserRole } from "../../modules/auth/types";
 
@@ -57,6 +59,39 @@ export function RequireSetupComplete() {
   }
 
   return <Outlet />;
+}
+
+/**
+ * Module gate: a page whose tenant feature flag is off is unreachable even by
+ * typing its URL (hiding the sidebar link is not access control). Applies to
+ * shop_owner and staff alike — the flag belongs to the shop, not the person.
+ * A missing key reads as OFF, mirroring the server's EnsureFeature middleware.
+ */
+export function RequireFeature({ feature }: { feature: string }) {
+  const features = useAuthStore((s) => s.user?.tenant?.features);
+
+  if (!features?.[feature]) {
+    return <Navigate to="/tenant" replace />;
+  }
+
+  return <Outlet />;
+}
+
+/**
+ * Applies the tenant's own brand colours to every shop-side screen — the
+ * panel, the full-screen POS and the dine-in floor alike. Mounted once as a
+ * layout route so there is a single place theming can come from.
+ */
+export function TenantThemed() {
+  useTenantTheme();
+
+  return (
+    <>
+      <Outlet />
+      {/* Appearance is reachable from every shop screen, POS included. */}
+      <ThemeCustomizer />
+    </>
+  );
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import {
@@ -11,7 +11,6 @@ import {
   FileIcon,
   GridIcon,
   GroupIcon,
-  HorizontaLDots,
   ListIcon,
   PlugInIcon,
   UserCircleIcon,
@@ -36,7 +35,12 @@ type NavItem = {
  * appear when the business has the matching feature enabled (no marketplace
  * feature → no Online Orders; no reservations feature → no Reservations).
  */
-function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, multiBranch: boolean): NavItem[] {
+function shopNav(
+  features: Record<string, boolean> | undefined,
+  businessType: string | null | undefined,
+  mode: UiMode,
+  multiBranch: boolean,
+): NavItem[] {
   const branchItem: NavItem = {
     icon: <BoxCubeIcon />,
     name: "Branches",
@@ -50,6 +54,13 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, mu
   // a missing key must read as OFF — never default to true, or a pharmacy ends
   // up with a Dine-in link.
   const has = (key: string) => features?.[key] ?? false;
+
+  // A books-only tenant (Finance Manager) sells nothing and has no till, so it
+  // must not see a Sales ledger or a Catalog it can never fill. Derive both
+  // from capability, not business type — a shop that later buys the POS module
+  // gets them back automatically.
+  const canSell = has("pos") || has("marketplace");
+  const hasCatalog = has("products") || has("services");
 
   // The Expense & Income module — one home for all money in/out.
   const expenseManager = {
@@ -68,9 +79,9 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, mu
       { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
       ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
       ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
-      { icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" },
+      ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
       ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
-      { icon: <BoxIcon />, name: "Products", path: "/tenant/products" },
+      ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products" }] : []),
       ...(has("expenses") ? [expenseManager] : []),
       ...(multiBranch ? [branchItem] : []),
       { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
@@ -83,9 +94,9 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, mu
     // POS till is only for shops on a plan that includes it (not online-only).
     ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
     ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
-    { icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" },
+    ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
     ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
-    ...(has("marketplace") && has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
+    ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
     // Expense & Income module — one home for all money in/out.
     ...(has("expenses") ? [expenseManager] : []),
     // Multi-branch: a locations manager appears only when the plan allows >1.
@@ -98,7 +109,8 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, mu
       subItems: [
         { name: "Products & Services", path: "/tenant/products" },
         { name: "Categories", path: "/tenant/categories" },
-        { name: "Collections", path: "/tenant/collections" },
+        // Collections merchandise the ONLINE storefront — pointless without it.
+        ...(has("marketplace") ? [{ name: "Collections", path: "/tenant/collections" }] : []),
       ],
     },
     ...(has("inventory")
@@ -133,8 +145,15 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, mu
         { name: "Reports", path: "/tenant/reports" },
         { name: "Staff", path: "/tenant/staff" },
         // Serialized retail (phones/electronics) — look up a serial's warranty.
-        ...(has("pos") ? [{ name: "Warranty lookup", path: "/tenant/warranty" }] : []),
-        ...(has("services") ? [{ name: "Portfolio", path: "/tenant/portfolio" }] : []),
+        // Retail-only: a grocery or pharmacy never sells a serial-tracked unit.
+        ...(has("pos") && has("inventory") && businessType === "retail"
+          ? [{ name: "Warranty lookup", path: "/tenant/warranty" }]
+          : []),
+        // The public service menu belongs to service businesses — petroleum has
+        // the `services` flag for pump labour, but no portfolio to show off.
+        ...(has("services") && businessType === "services"
+          ? [{ name: "Portfolio", path: "/tenant/portfolio" }]
+          : []),
       ],
     },
 
@@ -144,9 +163,9 @@ function shopNav(features: Record<string, boolean> | undefined, mode: UiMode, mu
   ];
 }
 
-// Admin nav is split into two labelled groups for a clean, scannable sidebar:
-// "Manage" = the day-to-day platform operations, "Platform" = configuration
-// and oversight the owner touches less often.
+// Admin nav is split into two groups for a clean, scannable sidebar:
+// day-to-day platform operations first, then the configuration and oversight
+// the owner touches less often (separated by a hairline, not a heading).
 const adminMainItems: NavItem[] = [
   { icon: <GridIcon />, name: "Dashboard", path: "/admin" },
   { icon: <GroupIcon />, name: "Tenants", path: "/admin/tenants" },
@@ -162,13 +181,20 @@ const adminPlatformItems: NavItem[] = [
   { icon: <FileIcon />, name: "Audit Log", path: "/admin/audit-logs" },
 ];
 
+/** Section roots would swallow every child route in a prefix match. */
+const SECTION_ROOTS = ["/tenant", "/admin"];
 
 const AppSidebar: React.FC = () => {
-  const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const { isExpanded, isMobileOpen, isHovered, setIsHovered, toggleSidebar } = useSidebar();
   const location = useLocation();
   const role = useAuthStore((s) => s.user?.role);
   const features = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features,
+  );
+  // Some items are feature-on but type-specific (warranty = retail only), so
+  // the nav needs the business type alongside the flags.
+  const businessType = useAuthStore(
+    (s) => (s.user?.tenant as { business_type?: string | null } | null | undefined)?.business_type,
   );
 
   const { mode, toggleMode } = useUiMode();
@@ -177,24 +203,42 @@ const AppSidebar: React.FC = () => {
   // (max_branches null = unlimited → true; 1 → false).
   const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
   const isAdmin = role === "super_admin" || role === "admin_staff";
-  const navItems = isAdmin ? adminMainItems : shopNav(features, mode, multiBranch);
-  // Second labelled group: platform config for admins; unused on the shop side.
+  const navItems = isAdmin ? adminMainItems : shopNav(features, businessType, mode, multiBranch);
+  // Second group: platform config for admins; unused on the shop side.
   const othersItems: NavItem[] = isAdmin ? adminPlatformItems : [];
-  const mainLabel = isAdmin ? "Manage" : "Menu";
-  const othersLabel = "Platform";
+
+  // Labels show when the rail is pinned open, peeked on hover, or drawn over
+  // the page on mobile — the one condition that drives every layout choice.
+  const showLabels = isExpanded || isHovered || isMobileOpen;
+
+  // The Appearance canvas writes data-sidebar on <html> (saved value on load,
+  // and again on every keystroke while previewing). Watching the attribute —
+  // rather than the settings query — means the rail repaints live as the
+  // merchant tries options, and still shows the stored choice on a cold load.
+  const [sidebarStyle, setSidebarStyle] = useState<string>(
+    () => (typeof document !== "undefined" ? document.documentElement.dataset.sidebar : undefined) ?? "light",
+  );
+  useEffect(() => {
+    const el = document.documentElement;
+    const sync = () => setSidebarStyle(el.dataset.sidebar ?? "light");
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(el, { attributes: true, attributeFilter: ["data-sidebar"] });
+
+    return () => observer.disconnect();
+  }, []);
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
     index: number;
   } | null>(null);
-  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {}
-  );
-  const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // const isActive = (path: string) => location.pathname === path;
+  // A child route (…/products/42) keeps its nav row lit, so deep pages never
+  // look like they left the module.
   const isActive = useCallback(
-    (path: string) => location.pathname === path,
+    (path: string) =>
+      location.pathname === path ||
+      (!SECTION_ROOTS.includes(path) && location.pathname.startsWith(`${path}/`)),
     [location.pathname]
   );
 
@@ -222,18 +266,6 @@ const AppSidebar: React.FC = () => {
     }
   }, [location, isActive]);
 
-  useEffect(() => {
-    if (openSubmenu !== null) {
-      const key = `${openSubmenu.type}-${openSubmenu.index}`;
-      if (subMenuRefs.current[key]) {
-        setSubMenuHeight((prevHeights) => ({
-          ...prevHeights,
-          [key]: subMenuRefs.current[key]?.scrollHeight || 0,
-        }));
-      }
-    }
-  }, [openSubmenu]);
-
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
     setOpenSubmenu((prevOpenSubmenu) => {
       if (
@@ -248,150 +280,155 @@ const AppSidebar: React.FC = () => {
   };
 
   const renderMenuItems = (items: NavItem[], menuType: "main" | "others") => (
-    <ul className="flex flex-col gap-4">
-      {items.map((nav, index) => (
-        <li key={nav.name}>
-          {nav.subItems ? (
-            <button
-              onClick={() => handleSubmenuToggle(index, menuType)}
-              className={`menu-item group ${
-                openSubmenu?.type === menuType && openSubmenu?.index === index
-                  ? "menu-item-active"
-                  : "menu-item-inactive"
-              } cursor-pointer ${
-                !isExpanded && !isHovered
-                  ? "lg:justify-center"
-                  : "lg:justify-start"
-              }`}
-            >
-              <span
-                className={`menu-item-icon-size  ${
-                  openSubmenu?.type === menuType && openSubmenu?.index === index
-                    ? "menu-item-icon-active"
-                    : "menu-item-icon-inactive"
-                }`}
-              >
-                {nav.icon}
-              </span>
-              {(isExpanded || isHovered || isMobileOpen) && (
-                <span className="menu-item-text">{nav.name}</span>
-              )}
-              {(isExpanded || isHovered || isMobileOpen) && (
-                <ChevronDownIcon
-                  className={`ml-auto w-5 h-5 transition-transform duration-200 ${
-                    openSubmenu?.type === menuType &&
-                    openSubmenu?.index === index
-                      ? "rotate-180 text-brand-500"
-                      : ""
-                  }`}
-                />
-              )}
-            </button>
-          ) : (
-            nav.path && (
-              <Link
-                to={nav.path}
-                className={`menu-item group ${
-                  isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
-                }`}
+    <ul className="flex flex-col gap-1">
+      {items.map((nav, index) => {
+        const isOpen = openSubmenu?.type === menuType && openSubmenu?.index === index;
+        // A collapsed rail hides the children, so the parent has to carry the
+        // "you are here" pill itself.
+        const childActive = nav.subItems?.some((sub) => isActive(sub.path)) ?? false;
+
+        return (
+          <li key={nav.name}>
+            {nav.subItems ? (
+              <button
+                type="button"
+                onClick={() => handleSubmenuToggle(index, menuType)}
+                title={showLabels ? undefined : nav.name}
+                aria-expanded={isOpen}
+                className={`menu-item group min-h-11 cursor-pointer ${
+                  childActive
+                    ? "menu-item-active"
+                    : isOpen
+                      ? "bg-gray-100 text-gray-800 dark:bg-white/5 dark:text-white/90"
+                      : "menu-item-inactive"
+                } ${showLabels ? "lg:justify-start" : "lg:justify-center"}`}
               >
                 <span
                   className={`menu-item-icon-size ${
-                    isActive(nav.path)
-                      ? "menu-item-icon-active"
-                      : "menu-item-icon-inactive"
+                    childActive ? "menu-item-icon-active" : "menu-item-icon-inactive"
                   }`}
                 >
                   {nav.icon}
                 </span>
-                {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className="menu-item-text">{nav.name}</span>
-                )}
-              </Link>
-            )
-          )}
-          {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
-            <div
-              ref={(el) => {
-                subMenuRefs.current[`${menuType}-${index}`] = el;
-              }}
-              className="overflow-hidden transition-all duration-300"
-              style={{
-                height:
-                  openSubmenu?.type === menuType && openSubmenu?.index === index
-                    ? `${subMenuHeight[`${menuType}-${index}`]}px`
-                    : "0px",
-              }}
-            >
-              <ul className="mt-2 space-y-1 ml-9">
-                {nav.subItems.map((subItem) => (
-                  <li key={subItem.name}>
-                    <Link
-                      to={subItem.path}
-                      className={`menu-dropdown-item ${
-                        isActive(subItem.path)
-                          ? "menu-dropdown-item-active"
-                          : "menu-dropdown-item-inactive"
+                {showLabels && (
+                  <>
+                    <span className="menu-item-text truncate">{nav.name}</span>
+                    <ChevronDownIcon
+                      className={`ml-auto size-4 shrink-0 transition-transform duration-200 ${
+                        isOpen ? "rotate-180" : ""
                       }`}
-                    >
-                      {subItem.name}
-                      <span className="flex items-center gap-1 ml-auto">
-                        {subItem.new && (
-                          <span
-                            className={`ml-auto ${
-                              isActive(subItem.path)
-                                ? "menu-dropdown-badge-active"
-                                : "menu-dropdown-badge-inactive"
-                            } menu-dropdown-badge`}
-                          >
-                            new
+                    />
+                  </>
+                )}
+              </button>
+            ) : (
+              nav.path && (
+                <Link
+                  to={nav.path}
+                  title={showLabels ? undefined : nav.name}
+                  className={`menu-item group min-h-11 ${
+                    isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
+                  } ${showLabels ? "lg:justify-start" : "lg:justify-center"}`}
+                >
+                  <span
+                    className={`menu-item-icon-size ${
+                      isActive(nav.path)
+                        ? "menu-item-icon-active"
+                        : "menu-item-icon-inactive"
+                    }`}
+                  >
+                    {nav.icon}
+                  </span>
+                  {showLabels && <span className="menu-item-text truncate">{nav.name}</span>}
+                </Link>
+              )
+            )}
+
+            {/* 0fr → 1fr animates the drawer without measuring anything, so a
+                submenu that grows when features load can never clip. */}
+            {nav.subItems && showLabels && (
+              <div
+                className="grid transition-[grid-template-rows] duration-300 ease-out"
+                style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+              >
+                <ul className="ml-6 space-y-0.5 overflow-hidden border-l border-gray-200 pl-3 dark:border-gray-800">
+                  {nav.subItems.map((subItem) => (
+                    <li key={subItem.name} className="first:mt-1 last:mb-1">
+                      <Link
+                        to={subItem.path}
+                        className={`menu-dropdown-item group ${
+                          isActive(subItem.path)
+                            ? "menu-dropdown-item-active"
+                            : "menu-dropdown-item-inactive"
+                        }`}
+                      >
+                        <span className="truncate">{subItem.name}</span>
+                        {(subItem.new || subItem.pro) && (
+                          <span className="ml-auto flex items-center gap-1">
+                            {subItem.new && (
+                              <span
+                                className={`${
+                                  isActive(subItem.path)
+                                    ? "menu-dropdown-badge-active"
+                                    : "menu-dropdown-badge-inactive"
+                                } menu-dropdown-badge`}
+                              >
+                                new
+                              </span>
+                            )}
+                            {subItem.pro && (
+                              <span
+                                className={`${
+                                  isActive(subItem.path)
+                                    ? "menu-dropdown-badge-active"
+                                    : "menu-dropdown-badge-inactive"
+                                } menu-dropdown-badge`}
+                              >
+                                pro
+                              </span>
+                            )}
                           </span>
                         )}
-                        {subItem.pro && (
-                          <span
-                            className={`ml-auto ${
-                              isActive(subItem.path)
-                                ? "menu-dropdown-badge-active"
-                                : "menu-dropdown-badge-inactive"
-                            } menu-dropdown-badge`}
-                          >
-                            pro
-                          </span>
-                        )}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </li>
-      ))}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 
+  // Sidebar surface, chosen in the Appearance canvas. "dark" puts the `dark`
+  // class on the rail itself so every nav item's existing dark: variant lights
+  // up — a dark rail in light mode with no per-item overrides. The rail's OWN
+  // colours are set explicitly, since it isn't a descendant of itself.
+  const railClass =
+    sidebarStyle === "dark"
+      ? "dark bg-gray-900 border-gray-800"
+      : sidebarStyle === "tinted"
+        ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+        : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800";
+
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
-        ${
-          isExpanded || isMobileOpen
-            ? "w-[290px]"
-            : isHovered
-            ? "w-[290px]"
-            : "w-[90px]"
-        }
+      className={`fixed left-0 top-0 z-50 mt-16 flex h-[calc(100dvh-4rem)] flex-col border-r text-gray-900 transition-all duration-300 ease-in-out lg:mt-0 lg:h-dvh ${railClass}
+        ${showLabels ? "w-[290px]" : "w-[90px]"}
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
       onMouseEnter={() => !isExpanded && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Pinned header: wordmark, plus the collapse toggle from the reference. */}
       <div
-        className={`py-8 flex ${
-          !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+        className={`flex shrink-0 items-center gap-2 px-5 py-6 ${
+          showLabels ? "justify-between" : "lg:justify-center"
         }`}
       >
-        <Link to={homeForRole(role)}>
-          {isExpanded || isHovered || isMobileOpen ? (
+        <Link to={homeForRole(role)} className="flex items-center">
+          {showLabels ? (
             <>
               <img
                 className="dark:hidden"
@@ -417,52 +454,49 @@ const AppSidebar: React.FC = () => {
             />
           )}
         </Link>
+        {showLabels && (
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label="Collapse sidebar"
+            className="hidden size-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200 lg:flex"
+          >
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true">
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M0.583252 1C0.583252 0.585788 0.919038 0.25 1.33325 0.25H14.6666C15.0808 0.25 15.4166 0.585786 15.4166 1C15.4166 1.41421 15.0808 1.75 14.6666 1.75L1.33325 1.75C0.919038 1.75 0.583252 1.41422 0.583252 1ZM0.583252 11C0.583252 10.5858 0.919038 10.25 1.33325 10.25L14.6666 10.25C15.0808 10.25 15.4166 10.5858 15.4166 11C15.4166 11.4142 15.0808 11.75 14.6666 11.75L1.33325 11.75C0.919038 11.75 0.583252 11.4142 0.583252 11ZM1.33325 5.25C0.919038 5.25 0.583252 5.58579 0.583252 6C0.583252 6.41421 0.919038 6.75 1.33325 6.75L7.99992 6.75C8.41413 6.75 8.74992 6.41421 8.74992 6C8.74992 5.58579 8.41413 5.25 7.99992 5.25L1.33325 5.25Z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+        )}
       </div>
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-        <nav className="mb-6">
-          <div className="flex flex-col gap-4">
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  mainLabel
-                ) : (
-                  <HorizontaLDots className="size-6" />
-                )}
-              </h2>
-              {renderMenuItems(navItems, "main")}
-            </div>
 
-            {othersItems.length > 0 && (
-              <div>
-                <h2
-                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                    !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
-                  }`}
-                >
-                  {isExpanded || isHovered || isMobileOpen ? (
-                    othersLabel
-                  ) : (
-                    <HorizontaLDots className="size-6" />
-                  )}
-                </h2>
-                {renderMenuItems(othersItems, "others")}
-              </div>
+      {/* The ONLY scroller: min-h-0 lets it shrink inside the flex column, so a
+          long module list stays reachable at any viewport height. */}
+      <nav
+        className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-4 [scrollbar-color:var(--color-gray-300)_transparent] [scrollbar-width:thin] dark:[scrollbar-color:var(--color-gray-700)_transparent]"
+      >
+        {renderMenuItems(navItems, "main")}
+
+        {othersItems.length > 0 && (
+          <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+            {showLabels && (
+              <p className="mb-2 px-3 text-[11px] font-medium uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500">
+                Platform
+              </p>
             )}
+            {renderMenuItems(othersItems, "others")}
           </div>
-        </nav>
-      </div>
+        )}
+      </nav>
 
       {/* Basic / Advanced view toggle — shop side only. Basic trims the menu to
           the essentials; Full reveals every module. Remembered per device. */}
       {!isAdmin && (
-        <div className="mt-auto border-t border-gray-100 py-4 dark:border-gray-800">
-          {isExpanded || isHovered || isMobileOpen ? (
+        <div className="shrink-0 border-t border-gray-100 px-4 py-4 dark:border-gray-800">
+          {showLabels ? (
             <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
               {(["basic", "advanced"] as const).map((m) => (
                 <button

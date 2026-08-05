@@ -13,6 +13,8 @@ export interface CashSession {
   sales_total: string | number;
   opened_at: string;
   closed_at: string | null;
+  register_id?: string | null;
+  register?: { id: string; name: string; code: string | null } | null;
 }
 
 export interface HeldSale {
@@ -33,6 +35,9 @@ export interface HeldSale {
     payment_method?: "cash" | "card";
   };
   created_at: string;
+  register_id?: string | null;
+  user?: { id: string; name: string } | null;
+  register?: { id: string; name: string; code: string | null } | null;
 }
 
 export interface HeldCartLine {
@@ -70,12 +75,21 @@ export const posService = {
     }>("/pos/lookup", { params: { code } }),
 
   currentSession: () => apiGet<CashSession | null>("/pos/session"),
-  openSession: (opening_float: number) => apiPost<CashSession>("/pos/session/open", { opening_float }),
+  // The lane may be named explicitly (the picker) or left to the terminal's
+  // own X-Register-Id header. Re-opening the lane you already hold RESUMES it.
+  openSession: (opening_float: number, register_id?: string | null) =>
+    apiPost<CashSession>("/pos/session/open", register_id ? { opening_float, register_id } : { opening_float }),
+  // Handover: carry an open drawer to another lane when a terminal dies or the
+  // shop closes the far lanes for the evening.
+  moveSession: (register_id: string) => apiPost<CashSession>("/pos/session/move", { register_id }),
   closeSession: (counted_cash: number, notes?: string) =>
     apiPost<CashSession>("/pos/session/close", { counted_cash, notes }),
 
   heldList: () => apiGet<HeldSale[]>("/pos/held"),
   hold: (payload: { label?: string; cart: HeldSale["cart"]; total_estimate: number }) =>
     apiPost<HeldSale>("/pos/held", payload),
+  // CLAIM, not load-then-delete: exactly one lane may resume a parked ticket,
+  // or two cashiers ring the same basket and the shop ships it twice.
+  claimHeld: (id: string) => apiPost<HeldSale>(`/pos/held/${id}/claim`),
   deleteHeld: (id: string) => apiDelete<null>(`/pos/held/${id}`),
 };

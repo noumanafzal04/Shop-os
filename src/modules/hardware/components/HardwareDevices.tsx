@@ -9,6 +9,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useToast } from "../../../components/ui/toast";
 import { useHardwareDevices, useHardwareMutations } from "../hooks/useHardware";
+import { useRegisters } from "../../registers/hooks/useRegisters";
 import type {
   ConnectionType,
   HardwareDevice,
@@ -47,6 +48,8 @@ interface Draft {
   is_default: boolean;
   is_active: boolean;
   paper_size: "58mm" | "80mm" | "a4";
+  /** "" = shop-wide (shared by every lane). */
+  register_id: string;
 }
 
 const blank: Draft = {
@@ -58,6 +61,7 @@ const blank: Draft = {
   connection_value: "",
   is_default: false,
   is_active: true,
+  register_id: "",
   paper_size: "80mm",
 };
 
@@ -90,6 +94,10 @@ export default function HardwareDevices() {
   const toast = useToast();
   const [draft, setDraft] = useState<Draft>(blank);
   const isEdit = !!draft.id;
+  // Lanes, so a device can be wired to ONE checkout. Each lane keeps its own
+  // default per type — lane 2's printer and lane 5's printer are both correct.
+  const registers = useRegisters();
+  const laneList = registers.data ?? [];
 
   const openNew = () => { setDraft(blank); modal.openModal(); };
   const openEdit = (d: HardwareDevice) => {
@@ -98,6 +106,7 @@ export default function HardwareDevices() {
       connection_type: d.connection_type, connection_value: d.connection_value ?? "",
       is_default: d.is_default, is_active: d.is_active,
       paper_size: d.settings?.paper_size ?? "80mm",
+      register_id: d.register_id ?? "",
     });
     modal.openModal();
   };
@@ -114,6 +123,7 @@ export default function HardwareDevices() {
       connection_value: draft.connection_value.trim() || null,
       is_default: draft.is_default,
       is_active: draft.is_active,
+      register_id: draft.register_id || null,
       settings: isPrinter ? { paper_size: draft.paper_size } : null,
     };
     const done = { onSuccess: () => { toast.success(isEdit ? "Device updated" : "Device added"); modal.closeModal(); } };
@@ -146,6 +156,9 @@ export default function HardwareDevices() {
                 <div className="truncate text-theme-xs text-gray-400">
                   {TYPE_LABEL[d.type]} · {CONNECTION_LABEL[d.connection_type]}
                   {(d.brand || d.model) ? ` · ${[d.brand, d.model].filter(Boolean).join(" ")}` : ""}
+                  {/* Where it's wired. "Shared" is the fallback every lane
+                      reaches for when it has no device of its own. */}
+                  {laneList.length > 0 ? ` · ${d.register?.name ?? "Shared"}` : ""}
                 </div>
               </div>
               {(d.type === "receipt_printer" || d.type === "label_printer") && (
@@ -205,11 +218,26 @@ export default function HardwareDevices() {
               />
             </div>
           )}
+          {/* Only worth asking once the shop actually has lanes. */}
+          {laneList.length > 0 && (
+            <div>
+              <Label>Register</Label>
+              <Select
+                value={draft.register_id}
+                options={[
+                  { value: "", label: "Shared — any register" },
+                  ...laneList.map((l) => ({ value: l.id, label: l.name })),
+                ]}
+                placeholder="Shared — any register"
+                onChange={(v) => setDraft((d) => ({ ...d, register_id: v }))}
+              />
+            </div>
+          )}
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-6">
           <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" checked={draft.is_default} onChange={(e) => setDraft((d) => ({ ...d, is_default: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
-            Default for its type
+            {draft.register_id ? "Default for this register" : "Default for its type"}
           </label>
           <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" checked={draft.is_active} onChange={(e) => setDraft((d) => ({ ...d, is_active: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />

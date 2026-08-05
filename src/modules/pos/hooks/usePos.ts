@@ -11,14 +11,29 @@ export function useCurrentSession() {
 
 export function useShiftMutations() {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["pos", "session"] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["pos", "session"] });
+    // Opening/closing/moving changes who is standing where, so the lane board
+    // and the terminal's resolved hardware both go stale.
+    qc.invalidateQueries({ queryKey: ["pos", "lanes"] });
+    qc.invalidateQueries({ queryKey: ["pos", "terminal"] });
+  };
 
-  const open = useMutation({ mutationFn: (float: number) => posService.openSession(float), onSuccess: invalidate });
+  const open = useMutation({
+    mutationFn: ({ float, registerId }: { float: number; registerId?: string | null }) =>
+      posService.openSession(float, registerId),
+    onSuccess: invalidate,
+  });
+  // Handover — the same drawer, a different lane.
+  const move = useMutation({
+    mutationFn: (registerId: string) => posService.moveSession(registerId),
+    onSuccess: invalidate,
+  });
   const close = useMutation({
     mutationFn: ({ counted, notes }: { counted: number; notes?: string }) => posService.closeSession(counted, notes),
     onSuccess: invalidate,
   });
-  return { open, close };
+  return { open, move, close };
 }
 
 export function useHeldSales() {
@@ -36,6 +51,16 @@ export function useHeldMutations() {
     mutationFn: (payload: { label?: string; cart: HeldSale["cart"]; total_estimate: number }) => posService.hold(payload),
     onSuccess: invalidate,
   });
+  /**
+   * Resume by CLAIMING: the server hands back the cart and deletes the ticket
+   * in one locked step, so a second lane that was a moment late is told the
+   * ticket is gone instead of ringing the same basket again.
+   */
+  const claim = useMutation({
+    mutationFn: (id: string) => posService.claimHeld(id),
+    onSuccess: invalidate,
+    onError: invalidate,
+  });
   const remove = useMutation({ mutationFn: (id: string) => posService.deleteHeld(id), onSuccess: invalidate });
-  return { hold, remove };
+  return { hold, claim, remove };
 }

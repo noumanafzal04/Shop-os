@@ -84,6 +84,11 @@ export interface ShopSettings {
   language: string;
   default_tax_rate: number | string;
   tax_inclusive: boolean;
+  /** Tenant branding. null = use the ShopOS default (brand blue). */
+  theme_primary: string | null;
+  theme_secondary: string | null;
+  theme_tint: "none" | "subtle" | "strong";
+  theme_sidebar: "light" | "tinted" | "dark";
   service_area: string | null;
   pickup_enabled: boolean;
   delivery_enabled: boolean;

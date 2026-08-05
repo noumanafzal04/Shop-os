@@ -5,8 +5,10 @@ import { ScrollToTop } from "./components/common/ScrollToTop";
 import {
   RedirectIfAuthenticated,
   RequireAuth,
+  RequireFeature,
   RequireRole,
   RequireSetupComplete,
+  TenantThemed,
 } from "./common/routing/guards";
 
 // Route-level code-splitting: each page ships in its own chunk and loads on
@@ -113,18 +115,25 @@ export default function App() {
             </Route>
 
             {/* ── Shop owner/staff console: /tenant ────────────────── */}
+            {/* TenantThemed paints the shop's own brand colours over the
+                default palette for every screen below — panel, POS and floor. */}
             <Route element={<RequireRole roles={["shop_owner", "staff"]} />}>
+              <Route element={<TenantThemed />}>
               {/* Onboarding lives OUTSIDE the setup gate */}
               <Route path="/tenant/setup" element={<ShopSetupPage />} />
 
               <Route element={<RequireSetupComplete />}>
                 {/* POS runs FULL-SCREEN — no sidebar/header — so the cashier
                     gets the whole viewport. It has its own in-page top bar. */}
-                <Route path="/tenant/pos" element={<PosPage />} />
+                <Route element={<RequireFeature feature="pos" />}>
+                  <Route path="/tenant/pos" element={<PosPage />} />
+                </Route>
 
                 {/* Dine-in runs full-screen too (floor → tab workspace). */}
-                <Route path="/tenant/dine-in" element={<FloorPage />} />
-                <Route path="/tenant/dine-in/tickets/:id" element={<TabPage />} />
+                <Route element={<RequireFeature feature="dine_in" />}>
+                  <Route path="/tenant/dine-in" element={<FloorPage />} />
+                  <Route path="/tenant/dine-in/tickets/:id" element={<TabPage />} />
+                </Route>
 
                 <Route path="/tenant" element={<AppLayout />}>
                   <Route index element={<ShopDashboard />} />
@@ -133,32 +142,55 @@ export default function App() {
                     <Route path=":id/edit" element={<ProductEditorRoute />} />
                   </Route>
                   <Route path="categories" element={<CategoriesPage />} />
-                  <Route path="collections" element={<CollectionsPage />} />
+                  <Route element={<RequireFeature feature="marketplace" />}>
+                    <Route path="collections" element={<CollectionsPage />} />
+                  </Route>
                   <Route path="labels" element={<LabelsPage />} />
-                  <Route path="suppliers" element={<SuppliersPage />} />
-                  <Route path="purchases" element={<PurchaseOrdersPage />} />
+                  <Route element={<RequireFeature feature="inventory" />}>
+                    <Route path="suppliers" element={<SuppliersPage />} />
+                    <Route path="purchases" element={<PurchaseOrdersPage />} />
+                  </Route>
                   <Route path="customers" element={<CustomersPage />} />
                   <Route path="coupons" element={<CouponsPage />} />
                   <Route path="promotions" element={<PromotionsPage />} />
-                  <Route path="portfolio" element={<PortfolioPage />} />
-                  <Route path="inventory" element={<InventoryPage />} />
+                  <Route element={<RequireFeature feature="services" />}>
+                    <Route path="portfolio" element={<PortfolioPage />} />
+                  </Route>
+                  <Route element={<RequireFeature feature="inventory" />}>
+                    <Route path="inventory" element={<InventoryPage />} />
+                  </Route>
                   <Route path="sales" element={<SalesPage />} />
                   <Route path="sales/new" element={<NewSalePage />} />
-                  <Route path="expenses" element={<ExpensesPage />} />
-                  <Route path="income" element={<IncomePage />} />
-                  <Route path="cashbook" element={<CashbookPage />} />
+                  <Route element={<RequireFeature feature="expenses" />}>
+                    <Route path="expenses" element={<ExpensesPage />} />
+                    <Route path="income" element={<IncomePage />} />
+                    <Route path="cashbook" element={<CashbookPage />} />
+                  </Route>
                   <Route path="reports" element={<ReportsPage />} />
-                  <Route path="orders" element={<OwnerOrdersPage />} />
-                  <Route path="riders" element={<RidersPage />} />
-                  <Route path="reservations" element={<ReservationsPage />} />
-                  <Route path="reviews" element={<OwnerReviewsPage />} />
+                  <Route element={<RequireFeature feature="marketplace" />}>
+                    <Route path="orders" element={<OwnerOrdersPage />} />
+                  </Route>
+                  {/* Riders follow DELIVERY, not marketplace: a pharmacy
+                      delivers phone orders without selling online. */}
+                  <Route element={<RequireFeature feature="delivery" />}>
+                    <Route path="riders" element={<RidersPage />} />
+                  </Route>
+                  <Route element={<RequireFeature feature="reservations" />}>
+                    <Route path="reservations" element={<ReservationsPage />} />
+                  </Route>
+                  <Route element={<RequireFeature feature="marketplace" />}>
+                    <Route path="reviews" element={<OwnerReviewsPage />} />
+                  </Route>
                   <Route path="staff" element={<TenantStaffPage />} />
                   <Route path="branches" element={<BranchesPage />} />
-                  <Route path="transfers" element={<TransfersPage />} />
-                  <Route path="warranty" element={<WarrantyLookupPage />} />
+                  <Route element={<RequireFeature feature="inventory" />}>
+                    <Route path="transfers" element={<TransfersPage />} />
+                    <Route path="warranty" element={<WarrantyLookupPage />} />
+                  </Route>
                   <Route path="settings" element={<ShopSettingsPage />} />
                   <Route path="subscription" element={<SubscriptionPage />} />
                 </Route>
+              </Route>
               </Route>
             </Route>
           </Route>

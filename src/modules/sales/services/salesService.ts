@@ -21,7 +21,14 @@ export const salesService = {
 
   processReturn: (
     id: string,
-    payload: { items: Array<{ sale_item_id: string; quantity: number }>; reason?: string; refund_method?: string },
+    payload: {
+      items: Array<{ sale_item_id: string; quantity: number }>;
+      reason?: string;
+      refund_method?: string;
+      /** Replay guard — a retried/double-clicked partial return must not
+       *  refund cash twice. Same key returns the original refund. */
+      idempotency_key?: string;
+    },
   ) => apiPost<SaleReturn>(`/sales/${id}/returns`, payload),
 
   exchange: (

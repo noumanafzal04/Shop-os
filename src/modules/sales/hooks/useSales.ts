@@ -48,7 +48,7 @@ export function useSaleMutations() {
   });
 
   const processReturn = useMutation({
-    mutationFn: ({ id, ...payload }: { id: string; items: Array<{ sale_item_id: string; quantity: number }>; reason?: string; refund_method?: string }) =>
+    mutationFn: ({ id, ...payload }: { id: string; items: Array<{ sale_item_id: string; quantity: number }>; reason?: string; refund_method?: string; idempotency_key?: string }) =>
       salesService.processReturn(id, payload),
     onSuccess: invalidate,
   });

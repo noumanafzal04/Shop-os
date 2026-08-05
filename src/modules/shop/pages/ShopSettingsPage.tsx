@@ -14,6 +14,7 @@ import { useCities, useShopSettings, useUpdateShopSettings } from "../hooks/useS
 import { useAuthStore } from "../../../stores/authStore";
 import type { Tenant } from "../../auth/types";
 import HardwareDevices from "../../hardware/components/HardwareDevices";
+import RegistersPanel from "../../registers/components/RegistersPanel";
 import TaxGroupsManager from "../../catalog/components/TaxGroupsManager";
 
 // ── Section icons (inline line-SVGs, currentColor) ───────────────────────
@@ -153,6 +154,9 @@ export default function ShopSettingsPage() {
   const [tab, setTab] = useState<SettingsTab>("business");
   useEffect(() => { if (settings.data && !prefs) setPrefs({ ...settings.data }); }, [settings.data, prefs]);
   const setP = (k: string, v: string | number | boolean | null) => { setPrefs((f) => ({ ...f!, [k]: v })); setPrefsSaved(false); };
+
+  // Appearance (brand colour, sidebar, tint) lives in the floating Appearance
+  // canvas, reachable from every screen — not here. One home per concern.
   const prefsErr = updatePrefs.error instanceof ApiError ? updatePrefs.error.firstFieldError() ?? updatePrefs.error.message : null;
   const savePrefs = () => prefs && updatePrefs.mutate(prefs as never, { onSuccess: () => setPrefsSaved(true) });
 
@@ -346,8 +350,17 @@ export default function ShopSettingsPage() {
                     <Toggle checked={!!prefs.pos_auto_print} onChange={(v) => setP("pos_auto_print", v)} label="Auto-print receipt" />
                   </div>
                 </div>
+                <p className="text-theme-xs text-gray-400">
+                  "Require open shift" refuses a counter sale unless the cashier has a drawer open, so every rupee
+                  belongs to a shift that gets counted. Recommended once you have staff.
+                </p>
               </SectionCard>
               {prefsFooter}
+              {/* Lanes live with the till, not with hardware: a register is an
+                  operating position, and the printer bound to it comes after. */}
+              <SectionCard icon={<CartGlyph />} title="Registers" description="Your checkout lanes. One counter needs none — add a lane each for a busy mart, and each drawer reconciles on its own.">
+                <RegistersPanel />
+              </SectionCard>
               </>
             )}
 

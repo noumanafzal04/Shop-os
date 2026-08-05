@@ -623,8 +623,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           </Section>
         )}
 
-        {/* Serialized retail — capture a serial/IMEI per unit + warranty. */}
-        {isPhysical && (
+        {/* Serialized retail — capture a serial/IMEI per unit + warranty.
+            Retail-only: a grocery or pharmacy never tracks a unit by serial. */}
+        {isPhysical && businessType === "retail" && (
           <Section title="Serial & warranty">
             <div className="space-y-3">
               <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">

@@ -27,6 +27,9 @@ export interface HardwareDevice {
   is_default: boolean;
   is_active: boolean;
   settings: HardwareDeviceSettings | null;
+  /** Bound to one lane, or null = shop-wide (every lane's fallback). */
+  register_id: string | null;
+  register?: { id: string; name: string; code: string | null } | null;
 }
 
 export interface HardwareDeviceInput {
@@ -39,6 +42,7 @@ export interface HardwareDeviceInput {
   is_default?: boolean;
   is_active?: boolean;
   settings?: HardwareDeviceSettings | null;
+  register_id?: string | null;
 }
 
 export const hardwareService = {

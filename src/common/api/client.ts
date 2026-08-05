@@ -1,6 +1,7 @@
 import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { useAuthStore } from "../../stores/authStore";
 import { useBranchStore } from "../../stores/branchStore";
+import { useTerminalStore } from "../../stores/terminalStore";
 import { ApiError, type ApiEnvelope } from "../types/api";
 
 const BASE_URL =
@@ -21,6 +22,13 @@ api.interceptors.request.use((config) => {
   const branchId = useBranchStore.getState().activeBranchId;
   if (branchId) {
     config.headers["X-Branch-Id"] = branchId;
+  }
+  // Which checkout lane this DEVICE is. The server validates it against the
+  // tenant's lanes and the operating branch, and ignores a stale one — so a
+  // tablet carrying a retired lane's id still works.
+  const registerId = useTerminalStore.getState().activeRegisterId;
+  if (registerId) {
+    config.headers["X-Register-Id"] = registerId;
   }
   return config;
 });

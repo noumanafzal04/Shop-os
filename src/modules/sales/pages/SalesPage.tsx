@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { uuid } from "../../../common/uuid";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { Link, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
@@ -73,6 +74,12 @@ export default function SalesPage() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [returning, setReturning] = useState(false);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+  // Replay guard for refunds: one key per return ATTEMPT. A double-click or a
+  // retry after a timeout resends the same key, so the server replays the
+  // original refund instead of paying out (and restocking) twice. Changing the
+  // selection — or moving to another sale — starts a genuinely new attempt.
+  const returnIdemRef = useRef(uuid());
+  useEffect(() => { returnIdemRef.current = uuid(); }, [returnQty, detailId]);
   // Exchange mode: hand items back (returnQty above) + buy replacements, settle the difference.
   const [exchanging, setExchanging] = useState(false);
   const [exItems, setExItems] = useState<Array<{ product_id: string; name: string; price: number; quantity: number }>>([]);
@@ -115,7 +122,7 @@ export default function SalesPage() {
     if (items.length === 0) return;
     processReturn.mutate(
       // Refund the way the customer paid (server also defaults to this).
-      { id: detailId, items, refund_method: detail.data?.payment_method },
+      { id: detailId, items, refund_method: detail.data?.payment_method, idempotency_key: returnIdemRef.current },
       { onSuccess: () => { setReturning(false); setReturnQty({}); } },
     );
   };

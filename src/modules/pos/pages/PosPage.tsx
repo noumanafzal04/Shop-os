@@ -20,6 +20,8 @@ import type { Sale } from "../../sales/types";
 import { posService, type HeldSale } from "../services/posService";
 import { posSound } from "../posSound";
 import { useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
+import { useLanes } from "../../registers/hooks/useRegisters";
+import { useTerminalStore } from "../../../stores/terminalStore";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
 import { promotionsService, type PromoPreview } from "../../promotions/services/promotionsService";
@@ -29,6 +31,7 @@ interface CartLine {
   product_id: string;
   variant_id: string | null;
   name: string;
+  sku?: string | null;
   unit_price: number; // display estimate — the server prices lines authoritatively
   quantity: number;
   sold_by?: "unit" | "weight";
@@ -98,8 +101,6 @@ const SpeakerOffGlyph = () => (
 );
 
 type PayMethod = "cash" | "card" | "credit" | "split";
-const methodLabel = (m: PayMethod): string =>
-  m === "credit" ? "Credit (khata)" : m === "split" ? "Split payment" : m === "card" ? "Card" : "Cash";
 const MethodIcon = ({ m }: { m: PayMethod }) =>
   m === "cash" ? <DollarLineIcon className="h-4 w-4" /> : m === "card" ? <CardGlyph /> : m === "credit" ? <CreditGlyph /> : <SplitGlyph />;
 
@@ -163,6 +164,7 @@ const onSale = (p: { price: string | number; discount_price?: string | number | 
 
 export default function PosPage() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
+  const user = useAuthStore((s) => s.user);
   const businessType = useAuthStore(
     (s) => (s.user?.tenant as unknown as { business_type?: string })?.business_type,
   );
@@ -178,6 +180,23 @@ export default function PosPage() {
   const shift = useShiftMutations();
   const held = useHeldSales();
   const heldMut = useHeldMutations();
+
+  // ── Which lane is this terminal? ────────────────────────────────
+  // A per-device choice (see terminalStore): the tablet bolted to lane 3 stays
+  // lane 3 across shift changes and reboots. A shop with no lanes configured
+  // never sees any of this — `lanes` comes back empty and the POS behaves
+  // exactly as it did before registers existed.
+  const lanes = useLanes();
+  const laneList = lanes.data ?? [];
+  const usesLanes = laneList.length > 0;
+  const terminalId = useTerminalStore((s) => s.activeRegisterId);
+  const terminalName = useTerminalStore((s) => s.activeRegisterName);
+  const setTerminal = useTerminalStore((s) => s.setTerminal);
+  const laneModal = useModal();
+  // The lane of the shift actually running beats the stored choice — after a
+  // handover the badge must show where the drawer really is.
+  const myLane = laneList.find((l) => l.id === (session.data?.register_id ?? terminalId));
+  const laneLabel = myLane?.name ?? terminalName ?? null;
   const settings = useShopSettings();
   const cur = settings.data?.currency_symbol ?? "Rs";
   const money = (n: string | number) => `${cur} ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
@@ -224,7 +243,6 @@ export default function PosPage() {
   const [method, setMethod] = useState<"cash" | "card" | "credit" | "split">("cash");
   const [tenders, setTenders] = useState<Array<{ method: "cash" | "card" | "bank_transfer" | "credit"; amount: string }>>([{ method: "cash", amount: "" }]);
   const [tendered, setTendered] = useState("");
-  const [payMenuOpen, setPayMenuOpen] = useState(false);
   const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [soundMuted, setSoundMuted] = useState<boolean>(() => posSound.isMuted());
@@ -278,6 +296,7 @@ export default function PosPage() {
   const serialModal = useModal();
   const customerModal = useModal();
   const discountModal = useModal();
+  const tenderModal = useModal();
   const [editKey, setEditKey] = useState<string | null>(null);
   const [serialKey, setSerialKey] = useState<string | null>(null);
 
@@ -290,6 +309,9 @@ export default function PosPage() {
     enabled: !!serialLineProductId && serialModal.isOpen,
   });
   const [openingFloat, setOpeningFloat] = useState("");
+  // Shift conflicts are recoverable, so they're shown in the modal with the way
+  // out (move the drawer here) rather than thrown away as a toast.
+  const [shiftError, setShiftError] = useState<{ message: string; code?: string } | null>(null);
   const [countedCash, setCountedCash] = useState("");
   const [holdLabel, setHoldLabel] = useState("");
   const [lastSale, setLastSale] = useState<Sale | null>(null);
@@ -352,13 +374,21 @@ export default function PosPage() {
   const promoDiscount = promo?.discount ?? 0;
   const cartDiscount = (Number(discount) || 0) + couponDiscount + promoDiscount + loyaltyDiscount;
   const taxableBase = Math.max(0, subtotal - cartDiscount);
+  // INCLUSIVE mode ("prices already include tax"): the tax already sits INSIDE
+  // each price, so it is EXTRACTED for display (share − share ÷ (1+rate)) and
+  // must NOT be added on top — mirrors CreateSaleAction. Adding it here charged
+  // the customer subtotal+tax on a card/exact tender while the sale recorded
+  // only subtotal, and handed back a phantom "change" nobody paid.
+  const taxInclusive = !!settings.data?.tax_inclusive;
   const taxAmount = subtotal > 0
     ? Math.round(cart.reduce((s, l) => {
         const rate = l.tax_rate == null ? taxRate : l.tax_rate;
-        return rate > 0 ? s + (lineNet(l) * (taxableBase / subtotal) * rate) / 100 : s;
+        if (rate <= 0) return s;
+        const share = lineNet(l) * (taxableBase / subtotal);
+        return s + (taxInclusive ? share - share / (1 + rate / 100) : (share * rate) / 100);
       }, 0) * 100) / 100
     : 0;
-  const total = Math.max(0, subtotal - cartDiscount + taxAmount);
+  const total = Math.max(0, taxInclusive ? taxableBase : taxableBase + taxAmount);
   // Cap redemption to the customer's balance and to the bill (after other
   // discounts); estimate points this sale will earn on the net merchandise.
   const otherDiscount = (Number(discount) || 0) + couponDiscount + promoDiscount;
@@ -475,6 +505,7 @@ export default function PosPage() {
     onSuccess: ({ data }) => {
       setLastSale(data);
       clearSale();
+      tenderModal.closeModal();
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -508,6 +539,7 @@ export default function PosPage() {
       if (existing) return c.map((l) => (l === existing ? { ...l, quantity: l.quantity + 1 } : l));
       return [...c, {
         key: `c${++ck}`, product_id: p.id, variant_id: variantId,
+        sku: "sku" in p ? (p.sku ?? null) : null,
         name: variantName ? `${p.name} / ${variantName}` : p.name,
         unit_price: selUnit ? packPrice(basePrice, selUnit) : (variantId != null && variantPrice != null ? Number(variantPrice) : basePrice),
         quantity: qtyOverride ?? 1,
@@ -640,7 +672,26 @@ export default function PosPage() {
     );
   };
 
+  /**
+   * Resume a parked ticket by CLAIMING it: the server hands the cart back and
+   * deletes the ticket in one locked step. Now that a ticket belongs to the
+   * whole site, two lanes can open the held list at the same moment — whoever
+   * loses the claim is told, instead of ringing the same basket twice.
+   */
   const resume = (h: HeldSale) => {
+    heldMut.claim.mutate(h.id, {
+      onSuccess: (res) => {
+        applyHeld(res.data ?? h);
+        heldModal.closeModal();
+      },
+      onError: () => {
+        setPosNotice(`"${h.label || "That ticket"}" was already resumed at another register.`);
+        heldModal.closeModal();
+      },
+    });
+  };
+
+  const applyHeld = (h: HeldSale) => {
     setCart(h.cart.items.map((l) => ({
       key: `c${++ck}`, product_id: l.product_id, variant_id: l.variant_id ?? null, name: l.name,
       unit_price: l.unit_price, quantity: l.quantity,
@@ -672,8 +723,6 @@ export default function PosPage() {
     } else {
       clearCoupon();
     }
-    heldMut.remove.mutate(h.id);
-    heldModal.closeModal();
   };
 
   if (!hasPermission("sales.manage")) {
@@ -700,7 +749,7 @@ export default function PosPage() {
   actionsRef.current = {
     focusSearch: () => scanRef.current?.focus(),
     hold: () => { if (cart.length > 0) doHold(); },
-    pay: () => { if (canCheckout && !checkout.isPending) checkout.mutate(); },
+    pay: () => { if (cart.length > 0 && open) { setMethod("cash"); setTendered((t) => t || String(total)); tenderModal.openModal(); } },
     openHeld: () => { held.refetch(); heldModal.openModal(); },
     clearSearch: () => setSearch(""),
   };
@@ -711,7 +760,7 @@ export default function PosPage() {
 
       {/* Top bar — full-screen POS has no app sidebar/header, so it carries
           its own: exit, shift status, keyboard legend, shift + online. */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-2.5 xl:px-10 2xl:px-16 dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-2.5 dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="flex items-center gap-3">
           <Link
             to="/tenant"
@@ -725,6 +774,23 @@ export default function PosPage() {
             <span className={`h-2 w-2 rounded-full ${open ? "bg-success-500" : "bg-gray-400"}`} />
             {open ? `Shift open · float ${money(open.opening_float)}` : "No open shift"}
           </span>
+          {/* Which lane this device is. Only shown once the shop has lanes —
+              a single-counter shop is never asked to think about registers. */}
+          {usesLanes && (
+            <button
+              type="button"
+              onClick={laneModal.openModal}
+              title="Which register is this device?"
+              className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 text-theme-xs font-medium sm:flex ${
+                laneLabel
+                  ? "border-brand-200 bg-brand-50 text-brand-600 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+                  : "border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+              }`}
+            >
+              <DollarLineIcon className="h-3.5 w-3.5" />
+              {laneLabel ?? "Pick register"}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2.5">
           {/* Keyboard shortcut legend — the till is keyboard-first. */}
@@ -747,9 +813,11 @@ export default function PosPage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 p-4 xl:px-10 2xl:px-16 lg:grid-cols-12">
+      {/* Full-bleed workspace: an even 6/6 split, panes divided by a hairline
+          rather than a gutter — no wasted width at the screen edges. */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12">
         {/* ── Products / scan ─────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-col lg:col-span-7">
+        <div className="flex min-h-0 flex-col p-3 lg:col-span-6 lg:border-r lg:border-gray-200 lg:dark:border-gray-800">
           <div className="mb-3">
             <div className="flex items-stretch gap-2">
               {/* Category dropdown — sits in front of the search box. */}
@@ -757,7 +825,7 @@ export default function PosPage() {
                 <button
                   type="button"
                   onClick={() => setCatMenuOpen((o) => !o)}
-                  className="flex h-14 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-theme-xs transition hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  className="flex h-12 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-700 transition hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                 >
                   <span className="max-w-[7rem] truncate">{categoryId === "" ? "All" : (catList.find((c) => c.id === categoryId)?.name ?? "All")}</span>
                   <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition ${catMenuOpen ? "rotate-180" : ""}`} />
@@ -782,7 +850,7 @@ export default function PosPage() {
               </div>
               {/* Search */}
               <div className="relative flex-1">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><SearchGlyph /></span>
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"><SearchGlyph /></span>
               <input
                 ref={scanRef}
                 autoFocus
@@ -794,7 +862,7 @@ export default function PosPage() {
                   else if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, tiles.length - 1)); }
                   else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)); }
                 }}
-                className="h-14 w-full rounded-xl border border-gray-200 bg-white pl-12 pr-28 text-base text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                className="h-12 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-24 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
               />
               <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
                 <button
@@ -834,7 +902,7 @@ export default function PosPage() {
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {/* FOOD: visual image-tile grid. */}
           {posLayout === "grid" && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 2xl:grid-cols-4">
               {products.isLoading && tiles.length === 0 ? (
                 Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-36 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />)
               ) : tiles.length === 0 ? (
@@ -937,8 +1005,8 @@ export default function PosPage() {
         </div>
 
         {/* ── Cart + payment ──────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-col lg:col-span-5">
-          <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="flex min-h-0 flex-col lg:col-span-6">
+          <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-white/[0.03]">
             {/* Cart header — item count, customer, clear */}
             <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
               <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-800 dark:text-white/90">
@@ -985,90 +1053,99 @@ export default function PosPage() {
                 most room on short laptop screens; only the totals/payment bar
                 below stays pinned and always visible. */}
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <div className="space-y-0.5 p-2 pb-1">
-              {cart.length === 0 ? (
-                <p className="py-10 text-center text-sm text-gray-400">Cart is empty — scan or tap a product.</p>
-              ) : (
-                cart.map((l) => {
-                  const eff = lineUnit(l);
-                  const isWeight = l.sold_by === "weight";
-                  const step = isWeight ? 0.25 : 1;
-                  const disc = lineDiscountAmt(l);
-                  const hasWholesale = l.wholesale_price != null && Number(l.wholesale_price) > 0;
-                  return (
-                    <div
-                      key={l.key}
-                      role="button"
-                      tabIndex={0}
-                      title="Tap to edit line"
-                      onClick={() => { setEditKey(l.key); lineEditModal.openModal(); }}
-                      onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); setEditKey(l.key); lineEditModal.openModal(); } }}
-                      className="cursor-pointer rounded-xl border border-gray-100 px-3 py-2.5 transition hover:border-brand-300 hover:bg-brand-50/40 dark:border-gray-800 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/5"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        {/* name + unit price */}
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium text-gray-800 dark:text-white/90">{l.name}</div>
-                          <div className="truncate text-theme-xs text-gray-400">
-                            {money(eff)}{isWeight && l.unit_label ? `/${l.unit_label}` : " ea"}
-                            {l.unit_name ? ` · ${l.unit_name}` : null}
-                            {!l.product_unit_id && l.price_level !== "wholesale" && eff < (l.base_price ?? l.unit_price) && <span className="ml-1 font-medium text-success-500">bulk</span>}
-                          </div>
-                        </div>
-                        {/* qty stepper */}
-                        <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <button type="button" aria-label="Decrease" className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300" onClick={() => setQty(l.key, Math.max(0, l.quantity - step))}><MinusGlyph /></button>
-                          <input
-                            type="number"
-                            min="0"
-                            step={isWeight ? 0.001 : 1}
-                            value={fmtQty(l.quantity)}
-                            onChange={(e) => setQty(l.key, Math.max(0, Number(e.target.value) || 0))}
-                            className="h-6 w-11 rounded-md border border-gray-200 bg-transparent text-center text-theme-sm tabular-nums dark:border-gray-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          />
-                          <button type="button" aria-label="Increase" className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-500 text-white hover:bg-brand-600" onClick={() => setQty(l.key, l.quantity + step)}><PlusGlyph /></button>
-                        </div>
-                        {/* line total */}
-                        <div className="w-[4.75rem] shrink-0 text-right">
-                          <div className="text-sm font-semibold text-gray-800 tabular-nums dark:text-white/90">{money(lineNet(l))}</div>
-                          {disc > 0 && <div className="text-[10px] leading-tight text-gray-400 line-through tabular-nums">{money(lineGross(l))}</div>}
-                        </div>
-                        {/* remove */}
-                        <button type="button" title="Remove" aria-label="Remove" className="shrink-0 rounded-md p-1 text-gray-300 hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10" onClick={(e) => { e.stopPropagation(); setQty(l.key, 0); }}><TrashBinIcon className="h-4 w-4" /></button>
-                      </div>
-
-                      {/* Extras — only render for items that have them: food modifiers,
-                          serialized (IMEI), or a wholesale price list. Keeps the common
-                          retail/mart row a single sleek line. */}
-                      {(l.modifiers_label || l.tracks_serial || hasWholesale) && (
-                        <div className="mt-1 flex flex-wrap items-center gap-2 pl-0.5" onClick={(e) => e.stopPropagation()}>
-                          {l.modifiers_label && <span className="min-w-0 flex-1 truncate text-theme-xs text-gray-400">{l.modifiers_label}</span>}
-                          {l.tracks_serial && (
-                            <button
-                              type="button"
-                              onClick={() => { setSerialKey(l.key); serialModal.openModal(); }}
-                              className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-theme-xs font-medium ${serialCount(l) >= l.quantity ? "bg-success-50 text-success-600 dark:bg-success-500/10" : "bg-warning-50 text-warning-600 dark:bg-warning-500/10"}`}
-                            >
-                              IMEI {serialCount(l)}/{Math.floor(l.quantity)}
-                            </button>
-                          )}
-                          {hasWholesale && (
-                            <select
-                              value={l.price_level ?? "retail"}
-                              onChange={(e) => setLineLevel(l.key, e.target.value as "retail" | "wholesale")}
-                              className="h-6 rounded-md border border-gray-200 bg-transparent px-1 text-theme-xs text-gray-600 dark:border-gray-700 dark:text-gray-300"
-                            >
-                              <option value="retail">Retail</option>
-                              <option value="wholesale">Wholesale</option>
-                            </select>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+              <div className="min-w-full overflow-x-auto">
+                {cart.length === 0 ? (
+                  <p className="py-16 text-center text-sm text-gray-400">Cart is empty — scan or tap a product.</p>
+                ) : (
+                  <table className="min-w-full border-collapse text-sm">
+                    <thead>
+                      {/* Half-width pane: the code rides under the item name and
+                          the discount shows amount + % in one cell, so eight
+                          columns carry what ten used to. */}
+                      <tr className="text-theme-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        <th className="sticky top-0 z-1 w-8 border-b border-gray-200 bg-gray-50 px-2 py-2 text-left font-semibold dark:border-gray-800 dark:bg-gray-900">#</th>
+                        <th className="sticky top-0 z-1 border-b border-gray-200 bg-gray-50 px-2 py-2 text-left font-semibold dark:border-gray-800 dark:bg-gray-900">Item</th>
+                        <th className="sticky top-0 z-1 border-b border-gray-200 bg-gray-50 px-2 py-2 text-center font-semibold dark:border-gray-800 dark:bg-gray-900">Qty</th>
+                        {["Price","Disc","Tax","Total"].map((h) => (<th key={h} className="sticky top-0 z-1 border-b border-gray-200 bg-gray-50 px-2 py-2 text-right font-semibold dark:border-gray-800 dark:bg-gray-900">{h}</th>))}
+                        <th className="sticky top-0 z-1 w-8 border-b border-gray-200 bg-gray-50 px-2 py-2 dark:border-gray-800 dark:bg-gray-900" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cart.map((l, idx) => {
+                        const eff = lineUnit(l);
+                        const isWeight = l.sold_by === "weight";
+                        const step = isWeight ? 0.25 : 1;
+                        const disc = lineDiscountAmt(l);
+                        const gross = lineGross(l);
+                        const discPct = disc > 0 && gross > 0 ? Math.round((disc / gross) * 100) : 0;
+                        const rate = l.tax_rate == null ? taxRate : l.tax_rate;
+                        // Same inclusive/exclusive rule as the cart total.
+                        const lineShare = subtotal > 0 ? lineNet(l) * (taxableBase / subtotal) : 0;
+                        const lineTax = rate > 0
+                          ? (taxInclusive ? lineShare - lineShare / (1 + rate / 100) : (lineShare * rate) / 100)
+                          : 0;
+                        const hasWholesale = l.wholesale_price != null && Number(l.wholesale_price) > 0;
+                        return (
+                          <tr key={l.key} onClick={() => { setEditKey(l.key); lineEditModal.openModal(); }}
+                            className="cursor-pointer border-b border-gray-100 transition hover:bg-brand-50/40 dark:border-gray-800 dark:hover:bg-brand-500/5">
+                            <td className="px-2 py-2.5 text-left font-medium text-gray-400 tabular-nums">{idx + 1}</td>
+                            <td className="px-2 py-2.5 text-left">
+                              <div className="font-medium text-gray-800 dark:text-white/90">{l.name}</div>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-theme-xs text-gray-400">
+                                {l.sku ? <span className="font-medium text-brand-600 tabular-nums dark:text-brand-400">{l.sku}</span> : null}
+                                {isWeight && l.unit_label ? <span>per {l.unit_label}</span> : null}
+                                {l.unit_name ? <span>{l.unit_name}</span> : null}
+                                {!l.product_unit_id && l.price_level !== "wholesale" && eff < (l.base_price ?? l.unit_price) ? <span className="font-medium text-success-500">bulk</span> : null}
+                                {l.modifiers_label ? <span className="truncate">{l.modifiers_label}</span> : null}
+                              </div>
+                              {(l.tracks_serial || hasWholesale) && (
+                                <div className="mt-1 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                  {l.tracks_serial && (
+                                    <button type="button" onClick={() => { setSerialKey(l.key); serialModal.openModal(); }}
+                                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-theme-xs font-medium ${serialCount(l) >= l.quantity ? "bg-success-50 text-success-600 dark:bg-success-500/10" : "bg-warning-50 text-warning-600 dark:bg-warning-500/10"}`}>
+                                      IMEI {serialCount(l)}/{Math.floor(l.quantity)}
+                                    </button>
+                                  )}
+                                  {hasWholesale && (
+                                    <select value={l.price_level ?? "retail"} onChange={(e) => setLineLevel(l.key, e.target.value as "retail" | "wholesale")}
+                                      className="h-6 rounded-md border border-gray-200 bg-transparent px-1 text-theme-xs text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                      <option value="retail">Retail</option>
+                                      <option value="wholesale">Wholesale</option>
+                                    </select>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1">
+                                <button type="button" aria-label="Decrease" className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300" onClick={() => setQty(l.key, Math.max(0, l.quantity - step))}><MinusGlyph /></button>
+                                <input type="number" min="0" step={isWeight ? 0.001 : 1} value={fmtQty(l.quantity)}
+                                  onChange={(e) => setQty(l.key, Math.max(0, Number(e.target.value) || 0))}
+                                  className="h-7 w-12 rounded-md border border-gray-200 bg-transparent text-center text-theme-sm tabular-nums dark:border-gray-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                                <button type="button" aria-label="Increase" className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-500 text-white hover:bg-brand-600" onClick={() => setQty(l.key, l.quantity + step)}><PlusGlyph /></button>
+                              </div>
+                            </td>
+                            <td className="px-2 py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{money(eff)}</td>
+                            <td className={`px-2 py-2.5 text-right tabular-nums ${disc > 0 ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-400"}`}>
+                              {disc > 0 ? (
+                                <>
+                                  −{money(disc)}
+                                  {discPct > 0 && <div className="text-theme-xs font-normal text-gray-400">{discPct}%</div>}
+                                </>
+                              ) : "—"}
+                            </td>
+                            <td className="px-2 py-2.5 text-right tabular-nums text-gray-500 dark:text-gray-400">{lineTax > 0 ? money(lineTax) : "—"}</td>
+                            <td className="px-2 py-2.5 text-right font-semibold tabular-nums text-gray-900 dark:text-white/90">{money(lineNet(l))}</td>
+                            <td className="px-2 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                              <button type="button" title="Remove" aria-label="Remove" className="rounded-md p-1 text-gray-300 hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10" onClick={() => setQty(l.key, 0)}><CloseIcon className="h-4 w-4" /></button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
 
             {/* Contextual extras — only render when there's something to show,
                 so nothing floats in the middle of an otherwise-empty panel. */}
@@ -1130,117 +1207,35 @@ export default function PosPage() {
             )}
             </div>
 
-            {/* Summary + payment — pinned to the bottom, always visible */}
-            <div className="rounded-b-2xl border-t border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/40">
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between text-gray-500 dark:text-gray-400"><span>Subtotal</span><span>{money(grossSubtotal)}</span></div>
-                {lineDiscountTotal > 0 && <div className="flex justify-between text-success-600"><span>Line discounts</span><span>−{money(lineDiscountTotal)}</span></div>}
-                {Number(discount) > 0 && <div className="flex justify-between text-gray-500"><span>Discount</span><span>−{money(Number(discount))}</span></div>}
-                {couponDiscount > 0 && <div className="flex justify-between text-success-600"><span>Coupon</span><span>−{money(couponDiscount)}</span></div>}
-                {taxAmount > 0 && <div className="flex justify-between text-gray-500"><span>Tax</span><span>{money(taxAmount)}</span></div>}
+            {/* Totals strip + Grand Total + Tender/Pay (opens the modal) */}
+            <div className="grid shrink-0 grid-cols-1 gap-3 rounded-b-2xl border-t border-gray-100 bg-gray-50 p-3 sm:grid-cols-3 dark:border-gray-800 dark:bg-gray-900/40">
+              <div className="grid grid-cols-4 gap-x-4 gap-y-3 rounded-xl border border-gray-200 bg-white p-4 sm:col-span-2 dark:border-gray-800 dark:bg-white/[0.02]">
+                {([
+                  ["Total Items", String(cart.length), false],
+                  ["Total Qty", fmtQty(cart.reduce((s, l) => s + l.quantity, 0)), false],
+                  ["Sub Total", money(grossSubtotal), false],
+                  ["Discount", (cartDiscount + lineDiscountTotal) > 0 ? `−${money(cartDiscount + lineDiscountTotal)}` : money(0), true],
+                  ["Taxable", money(taxableBase), false],
+                  ["Tax", money(taxAmount), false],
+                  ["Charges", money(0), false],
+                  ["Customer", (customer || customerPhone || "Walk-in"), false],
+                ] as const).map(([k, v, isDisc], i) => (
+                  <div key={i}>
+                    <div className="text-theme-xs uppercase tracking-wide text-gray-400">{k}</div>
+                    <div className={`mt-0.5 truncate text-base font-bold tabular-nums ${isDisc && (cartDiscount + lineDiscountTotal) > 0 ? "text-warning-600 dark:text-warning-400" : "text-gray-800 dark:text-white/90"}`}>{v}</div>
+                  </div>
+                ))}
               </div>
-
-              {/* Payment method — defaults to cash; tap to switch (opens upward). */}
-              <div className="relative mt-3">
-                <button
-                  type="button"
-                  onClick={() => setPayMenuOpen((o) => !o)}
-                  className="flex w-full items-center justify-between rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-700 transition hover:border-brand-400 dark:border-gray-700 dark:text-gray-200"
-                >
-                  <span className="flex items-center gap-2 font-medium"><MethodIcon m={method} /> {methodLabel(method)}</span>
-                  <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition ${payMenuOpen ? "rotate-180" : ""}`} />
+              <div className="flex flex-col justify-center rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-25 p-4 dark:border-brand-500/30 dark:from-brand-500/10 dark:to-transparent">
+                <div className="text-theme-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">Grand Total</div>
+                <div className="mb-2.5 mt-0.5 text-4xl font-extrabold tabular-nums text-gray-900 dark:text-white">{money(total)}</div>
+                <button type="button" disabled={cart.length === 0 || !open}
+                  onClick={() => { setMethod("cash"); setTendered((t) => t || String(total)); tenderModal.openModal(); }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40">
+                  <CardGlyph /> Tender / Pay <kbd className="rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px]">F9</kbd>
                 </button>
-                {payMenuOpen && (
-                  <>
-                    <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-10 cursor-default" onClick={() => setPayMenuOpen(false)} />
-                    <div className="absolute bottom-full left-0 z-20 mb-1.5 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
-                      {(["cash", "card", "credit", "split"] as const).map((m) => (
-                        <button key={m} type="button"
-                          onClick={() => { setMethod(m); setPayMenuOpen(false); }}
-                          className={`flex w-full items-center gap-2 px-3 py-2.5 text-sm transition ${method === m ? "bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/10" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"}`}>
-                          <MethodIcon m={m} /> {methodLabel(m)}
-                          {method === m && <CheckLineIcon className="ml-auto h-4 w-4" />}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                {!open && <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">Open a shift to sell.</p>}
               </div>
-
-              {/* Credit (khata): the whole total goes on the customer's balance.
-                  Needs a named customer (set via the Customer button up top). */}
-              {method === "credit" && total > 0 && (
-                <div className={`mt-2 rounded-lg border p-3 text-theme-sm ${creditNeedsCustomer ? "border-error-200 bg-error-50 text-error-600 dark:border-error-500/30 dark:bg-error-500/10" : "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"}`}>
-                  {creditNeedsCustomer
-                    ? "Attach a customer (top bar) to sell on credit — the balance is tracked against them."
-                    : <>Adds <span className="font-semibold">{money(total)}</span> to {customer || customerPhone}'s khata (to pay later).</>}
-                </div>
-              )}
-
-              {method === "cash" && total > 0 && (
-                <div className="mt-2">
-                  <div className="flex gap-1.5">
-                    {quickTenders.map((v) => (
-                      <button key={v} onClick={() => setTendered(String(v))}
-                        className={`flex-1 rounded-lg border py-1.5 text-theme-xs tabular-nums ${Number(tendered) === v ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
-                        {v === total ? "Exact" : Number(v).toLocaleString()}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className="flex-1"><Input type="number" min="0" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder="Cash tendered" /></div>
-                    {Number(tendered) > 0 && <span className="whitespace-nowrap text-sm font-medium text-success-600">Change {money(change)}</span>}
-                  </div>
-                </div>
-              )}
-
-              {method === "split" && total > 0 && (
-                <div className="mt-2 space-y-2">
-                  {tenders.map((t, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <select
-                        value={t.method}
-                        onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, method: e.target.value as typeof x.method } : x)))}
-                        className="h-11 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                      >
-                        <option value="cash">Cash</option>
-                        <option value="card">Card</option>
-                        <option value="bank_transfer">Transfer</option>
-                        <option value="credit">Credit (khata)</option>
-                      </select>
-                      <div className="flex-1">
-                        <Input type="number" min="0" value={t.amount}
-                          onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))}
-                          placeholder="Amount" />
-                      </div>
-                      {tenders.length > 1 && (
-                        <button onClick={() => setTenders((ts) => ts.filter((_, j) => j !== i))} className="text-gray-400 hover:text-error-500" aria-label="Remove tender">
-                          <CloseIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between">
-                    <button onClick={() => setTenders((ts) => [...ts, { method: "card", amount: "" }])}
-                      className="flex items-center gap-1 text-theme-sm text-brand-600 hover:underline">
-                      <PlusIcon className="h-4 w-4" /> Add tender
-                    </button>
-                    <span className={`text-theme-sm font-medium ${splitPaid >= total ? "text-success-600" : "text-warning-500"}`}>
-                      {splitPaid >= total ? `Change ${money(change)}` : `Remaining ${money(total - splitPaid)}`}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {checkout.error instanceof ApiError && <div className="mt-2"><Alert variant="error" title="Sale failed" message={checkout.error.message} /></div>}
-              {!open && cart.length > 0 && <p className="mt-2 text-theme-xs text-warning-500">Open a shift to complete sales.</p>}
-              {method === "split" && splitHasCredit && !hasCustomer && (
-                <p className="mt-2 text-theme-xs text-error-500">Attach a customer to put part of this sale on credit.</p>
-              )}
-
-              <Button size="sm" className="mt-3 w-full" onClick={() => checkout.mutate()} disabled={!canCheckout || checkout.isPending}>
-                {checkout.isPending ? "Processing…" : method === "credit" ? `On credit · ${money(total)}` : `Charge ${money(total)}`}
-              </Button>
             </div>
           </div>
         </div>
@@ -1289,10 +1284,6 @@ export default function PosPage() {
               ? `Discount −${money((Number(discount) || 0) + couponDiscount)}`
               : "Add discount"}
           </button>
-          <span className="flex items-baseline gap-2.5 text-gray-500 dark:text-gray-400">
-            <span className="uppercase tracking-wide text-theme-xs text-gray-400">Total</span>
-            <span className="text-3xl font-bold text-gray-900 tabular-nums dark:text-white">{money(total)}</span>
-          </span>
         </div>
       </div>
 
@@ -1327,14 +1318,180 @@ export default function PosPage() {
         </div>
       </Modal>
 
+      {/* Tender / Pay */}
+      <Modal isOpen={tenderModal.isOpen} onClose={tenderModal.closeModal} className="max-w-lg p-0">
+        <div onKeyDown={(e) => { if (e.key === "Enter" && canCheckout && !checkout.isPending) { e.preventDefault(); checkout.mutate(); } }}>
+          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Tender / Pay</h3>
+            <button onClick={tenderModal.closeModal} className="text-gray-400 hover:text-gray-700"><CloseIcon className="h-5 w-5" /></button>
+          </div>
+          <div className="px-6 py-5">
+            <div className="mb-5 flex items-baseline justify-between rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10">
+              <span className="text-theme-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">Amount due</span>
+              <span className="text-3xl font-extrabold tabular-nums text-gray-900 dark:text-white">{money(total)}</span>
+            </div>
+            <div className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Payment method</div>
+            <div className="mb-5 grid grid-cols-4 gap-2">
+              {(["cash", "card", "credit", "split"] as const).map((m) => (
+                <button key={m} type="button" onClick={() => setMethod(m)}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-theme-sm font-medium transition ${method === m ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
+                  <MethodIcon m={m} />
+                  {m === "credit" ? "Khata" : m === "split" ? "Split" : m === "card" ? "Card" : "Cash"}
+                  {m === "cash" && <span className="text-[9px] font-bold uppercase text-gray-400">Default</span>}
+                </button>
+              ))}
+            </div>
+            {method === "cash" && (
+              <div>
+                <div className="mb-1.5 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Amount tendered</div>
+                <div className="mb-3"><Input type="number" min="0" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder="Cash tendered" /></div>
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {quickTenders.map((v) => (
+                    <button key={v} onClick={() => setTendered(String(v))}
+                      className={`rounded-lg border px-3.5 py-2 text-theme-sm font-semibold tabular-nums ${Number(tendered) === v ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
+                      {v === total ? `Exact · ${Number(v).toLocaleString()}` : Number(v).toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-baseline justify-between border-t border-dashed border-gray-200 pt-3 dark:border-gray-700">
+                  <span className="font-medium text-gray-500 dark:text-gray-400">Change due</span>
+                  <span className="text-2xl font-extrabold tabular-nums text-success-600">{money(change)}</span>
+                </div>
+              </div>
+            )}
+            {method === "credit" && (
+              <div className={`rounded-lg border p-3 text-theme-sm ${creditNeedsCustomer ? "border-error-200 bg-error-50 text-error-600 dark:border-error-500/30 dark:bg-error-500/10" : "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"}`}>
+                {creditNeedsCustomer ? "Attach a customer (Customer button) to sell on credit — the balance is tracked against them." : <>Adds <span className="font-semibold">{money(total)}</span> to {customer || customerPhone}'s khata (to pay later).</>}
+              </div>
+            )}
+            {method === "split" && (
+              <div className="space-y-2">
+                {tenders.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <select value={t.method} onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, method: e.target.value as typeof x.method } : x)))}
+                      className="h-11 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                      <option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Transfer</option><option value="credit">Credit (khata)</option>
+                    </select>
+                    <div className="flex-1"><Input type="number" min="0" value={t.amount} onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} placeholder="Amount" /></div>
+                    {tenders.length > 1 && <button onClick={() => setTenders((ts) => ts.filter((_, j) => j !== i))} className="text-gray-400 hover:text-error-500" aria-label="Remove tender"><CloseIcon className="h-4 w-4" /></button>}
+                  </div>
+                ))}
+                <div className="flex items-center justify-between">
+                  <button onClick={() => setTenders((ts) => [...ts, { method: "card", amount: "" }])} className="flex items-center gap-1 text-theme-sm text-brand-600 hover:underline"><PlusIcon className="h-4 w-4" /> Add tender</button>
+                  <span className={`text-theme-sm font-medium ${splitPaid >= total ? "text-success-600" : "text-warning-500"}`}>{splitPaid >= total ? `Change ${money(change)}` : `Remaining ${money(total - splitPaid)}`}</span>
+                </div>
+              </div>
+            )}
+            {checkout.error instanceof ApiError && <div className="mt-3"><Alert variant="error" title="Sale failed" message={checkout.error.message} /></div>}
+            {method === "split" && splitHasCredit && !hasCustomer && <p className="mt-3 text-theme-xs text-error-500">Attach a customer to put part of this sale on credit.</p>}
+          </div>
+          <div className="flex gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
+            <Button size="sm" variant="outline" onClick={tenderModal.closeModal}>Cancel</Button>
+            <Button size="sm" className="flex-1" onClick={() => checkout.mutate()} disabled={!canCheckout || checkout.isPending}>
+              {checkout.isPending ? "Processing…" : method === "credit" ? `Complete · on credit ${money(total)}` : `Complete sale · ${money(total)}`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Open shift */}
       <Modal isOpen={openModal.isOpen} onClose={openModal.closeModal} className="max-w-sm p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Open shift</h3>
-        <label className="text-sm text-gray-500 dark:text-gray-400">Opening cash float</label>
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Open shift</h3>
+        {usesLanes && (
+          <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+            {laneLabel ? <>On <span className="font-medium text-gray-700 dark:text-gray-200">{laneLabel}</span>.{" "}</> : "No register picked for this device. "}
+            <button type="button" className="text-brand-500 hover:text-brand-600" onClick={() => { openModal.closeModal(); laneModal.openModal(); }}>
+              {laneLabel ? "Change register" : "Pick a register"}
+            </button>
+          </p>
+        )}
+        <label className="mt-3 text-sm text-gray-500 dark:text-gray-400">Opening cash float</label>
         <Input type="number" min="0" value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} />
+
+        {shiftError && (
+          <div className="mt-4 rounded-lg border border-warning-200 bg-warning-50 p-3 text-theme-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
+            <div className="flex items-start gap-1.5"><AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />{shiftError.message}</div>
+            {/* The drawer is already open somewhere else — offer the handover
+                instead of forcing a close-and-reopen, which would split one
+                physical count across two shifts. */}
+            {shiftError.code === "SHIFT_OPEN_ELSEWHERE" && terminalId && (
+              <Button
+                size="sm"
+                className="mt-3"
+                disabled={shift.move.isPending}
+                onClick={() => shift.move.mutate(terminalId, {
+                  onSuccess: () => { setShiftError(null); openModal.closeModal(); },
+                  onError: (e) => setShiftError({ message: e instanceof ApiError ? e.message : "Could not move the shift." }),
+                })}
+              >
+                {shift.move.isPending ? "Moving…" : `Move my shift to ${laneLabel ?? "this register"}`}
+              </Button>
+            )}
+          </div>
+        )}
+
         <div className="mt-5 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={openModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={() => shift.open.mutate(Number(openingFloat) || 0, { onSuccess: openModal.closeModal })} disabled={shift.open.isPending}>Open</Button>
+          <Button
+            size="sm"
+            disabled={shift.open.isPending}
+            onClick={() => {
+              setShiftError(null);
+              shift.open.mutate({ float: Number(openingFloat) || 0, registerId: terminalId }, {
+                onSuccess: () => openModal.closeModal(),
+                onError: (e) => setShiftError(
+                  e instanceof ApiError
+                    ? { message: e.message, code: e.errorCode }
+                    : { message: "Could not open the shift." },
+                ),
+              });
+            }}
+          >
+            {shift.open.isPending ? "Opening…" : "Open"}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Pick this device's register (lane) */}
+      <Modal isOpen={laneModal.isOpen} onClose={laneModal.closeModal} className="max-w-md p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">This register</h3>
+        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+          Which checkout is this device? Remembered on this device only.
+        </p>
+        <div className="space-y-2">
+          {laneList.map((l) => {
+            const mine = l.open_session?.user_id === user?.id;
+            const busy = !!l.is_busy && !mine;
+            return (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => { setTerminal(l.id, l.name); laneModal.closeModal(); }}
+                className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${
+                  l.id === terminalId
+                    ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
+                    : "border-gray-200 hover:border-brand-300 dark:border-gray-800"
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {l.name}
+                    {l.code ? <span className="ml-1.5 text-theme-xs font-normal text-gray-400">{l.code}</span> : null}
+                  </div>
+                  {/* Busy is information, not a block: a supervisor may still
+                      need to stand here, and the server decides the conflict. */}
+                  <div className="text-theme-xs text-gray-400">
+                    {mine ? "Your open shift" : busy ? `In use · ${l.open_session?.user_name ?? "another cashier"}` : "Free"}
+                  </div>
+                </div>
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${mine ? "bg-brand-500" : busy ? "bg-warning-500" : "bg-success-500"}`} />
+                {l.id === terminalId && <CheckLineIcon className="h-4 w-4 shrink-0 text-brand-500" />}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-5 flex justify-end">
+          <Button size="sm" variant="outline" onClick={laneModal.closeModal}>Done</Button>
         </div>
       </Modal>
 
@@ -1359,9 +1516,16 @@ export default function PosPage() {
           <div className="space-y-2">
             {(held.data ?? []).map((h) => (
               <div key={h.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-                <div>
-                  <div className="text-sm font-medium text-gray-800 dark:text-white/90">{h.label || "Held sale"}</div>
-                  <div className="text-theme-xs text-gray-400">{h.cart.items.length} items · {money(h.total_estimate)}</div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-gray-800 dark:text-white/90">{h.label || "Held sale"}</div>
+                  <div className="truncate text-theme-xs text-gray-400">
+                    {h.cart.items.length} items · {money(h.total_estimate)}
+                    {/* The list is site-wide now, so say whose ticket it is and
+                        which lane parked it — otherwise six lanes' tickets are
+                        an anonymous pile. */}
+                    {h.user?.name ? ` · ${h.user.name}` : ""}
+                    {h.register?.name ? ` · ${h.register.name}` : ""}
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button className="text-sm text-brand-500 hover:text-brand-600" onClick={() => resume(h)}>Resume</button>
