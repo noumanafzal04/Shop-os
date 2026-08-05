@@ -38,6 +38,17 @@ class CashSession extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** The lane this shift is running on — null on a single-counter shop. */
+    public function register(): BelongsTo
+    {
+        return $this->belongsTo(Register::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);

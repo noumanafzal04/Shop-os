@@ -18,6 +18,7 @@ class HardwareDeviceController extends Controller
     public function index(): JsonResponse
     {
         $devices = HardwareDevice::query()
+            ->with('register:id,name,code')
             ->orderByDesc('is_default')
             ->orderBy('type')
             ->orderBy('name')
@@ -52,8 +53,15 @@ class HardwareDeviceController extends Controller
     }
 
     /**
-     * At most one default per type: when this device is the default, clear the
-     * flag on every other device of the same type for the tenant.
+     * At most one default per type PER LANE.
+     *
+     * This used to clear the flag tenant-wide, which quietly made a six-lane
+     * mart impossible: marking lane 2's printer default un-defaulted lane 1's,
+     * so every checkout ended up reaching for the same machine. The scope that
+     * matters is the terminal — lane 2's default printer and lane 5's default
+     * printer are both correct at the same time. Shop-wide devices
+     * (register_id null) remain their own single-default group, the fallback
+     * for any lane with no hardware of its own.
      */
     private function keepSingleDefault(HardwareDevice $device): void
     {
@@ -63,6 +71,11 @@ class HardwareDeviceController extends Controller
 
         HardwareDevice::query()
             ->where('type', $device->type)
+            ->when(
+                $device->register_id === null,
+                fn ($q) => $q->whereNull('register_id'),
+                fn ($q) => $q->where('register_id', $device->register_id),
+            )
             ->whereKeyNot($device->id)
             ->update(['is_default' => false]);
     }

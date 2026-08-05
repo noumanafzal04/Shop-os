@@ -158,7 +158,7 @@ class ReviewsTest extends TestCase
         $this->review();
         $review = Review::withoutTenancy()->first();
 
-        $otherOwner = User::factory()->shopOwner()->create();
+        $otherOwner = User::factory()->shopOwner(Tenant::factory()->provisioned()->create())->create();
         $this->actingAsUser($otherOwner)
             ->postJson("/api/v1/reviews/{$review->id}/reply", ['reply' => 'Hijack'])
             ->assertStatus(404); // tenant scope hides it

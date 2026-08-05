@@ -5,6 +5,7 @@ namespace App\Http\Requests\Restaurant;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Rules\OwnOpenShift;
 
 class SettleTicketRequest extends FormRequest
 {
@@ -52,7 +53,7 @@ class SettleTicketRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:1000'],
             'cash_session_id' => [
                 'nullable', 'uuid',
-                Rule::exists('cash_sessions', 'id')->where('tenant_id', $tenantId)->where('status', 'open'),
+                new OwnOpenShift($this->user()),
             ],
         ];
     }

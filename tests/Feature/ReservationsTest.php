@@ -278,7 +278,7 @@ class ReservationsTest extends TestCase
     {
         $this->reserve();
 
-        $otherOwner = User::factory()->shopOwner()->create();
+        $otherOwner = User::factory()->shopOwner(Tenant::factory()->provisioned()->create())->create();
         $this->assertSame(0, $this->actingAsUser($otherOwner)
             ->getJson('/api/v1/reservations')
             ->json('meta.pagination.total'));

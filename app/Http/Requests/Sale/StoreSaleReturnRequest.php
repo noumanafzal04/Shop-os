@@ -5,6 +5,7 @@ namespace App\Http\Requests\Sale;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Rules\OwnOpenShift;
 
 class StoreSaleReturnRequest extends FormRequest
 {
@@ -18,6 +19,11 @@ class StoreSaleReturnRequest extends FormRequest
         $tenantId = $this->user()->tenant_id;
 
         return [
+            // Replay guard: a retried/double-clicked PARTIAL return would
+            // otherwise refund cash twice AND restock twice (the over-return
+            // check reads prior returns, so 3-of-10 passes again). Same key
+            // returns the ORIGINAL return instead of creating a second one.
+            'idempotency_key' => ['sometimes', 'string', 'max:64'],
             'items' => ['required', 'array', 'min:1'],
             // 'distinct': two rows for the same line would both pass the
             // over-return check (it reads prior returns, not this request) and
@@ -35,7 +41,7 @@ class StoreSaleReturnRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:500'],
             'cash_session_id' => [
                 'nullable', 'uuid',
-                Rule::exists('cash_sessions', 'id')->where('tenant_id', $tenantId)->where('status', 'open'),
+                new OwnOpenShift($this->user()),
             ],
         ];
     }

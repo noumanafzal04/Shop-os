@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Support\BranchContext;
+use App\Support\RegisterContext;
 use App\Support\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(TenantContext::class);
         // Active operating branch — same per-request lifecycle as the tenant.
         $this->app->scoped(BranchContext::class);
+        $this->app->scoped(RegisterContext::class);
     }
 
     /**

@@ -15,6 +15,7 @@ use App\Models\SaleReturnItem;
 use App\Services\InventoryService;
 use App\Support\DocumentCounter;
 use App\Support\TenantContext;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -40,11 +41,27 @@ class ProcessSaleReturnAction
      */
     public function execute(Sale $sale, array $data): SaleReturn
     {
+        // Replay path — the retry gets the ORIGINAL return back. Without this a
+        // double-clicked PARTIAL return refunds cash twice and restocks twice:
+        // the over-return guard reads PRIOR returns (3 of 10 passes again), and
+        // the restock idempotency keys embed the new return's id so they don't
+        // collapse either. Checked before the transaction, like the sale path.
+        if (! empty($data['idempotency_key'])) {
+            $existing = SaleReturn::query()
+                ->where('idempotency_key', $data['idempotency_key'])
+                ->first();
+
+            if ($existing !== null) {
+                return $existing->load('items');
+            }
+        }
+
         if (! $sale->status->isReturnable()) {
             throw DomainException::conflict('This sale cannot be returned.', 'SALE_NOT_RETURNABLE');
         }
 
-        return DB::transaction(function () use ($sale, $data): SaleReturn {
+        try {
+            return DB::transaction(function () use ($sale, $data): SaleReturn {
             $tenantId = $this->context->id();
             $sale->load('items');
 
@@ -199,6 +216,7 @@ class ProcessSaleReturnAction
                 'sale_id' => $sale->id,
                 'cash_session_id' => $data['cash_session_id'] ?? null,
                 'return_number' => $returnNumber,
+                'idempotency_key' => $data['idempotency_key'] ?? null,
                 'refund_total' => $refundTotal,
                 'refund_tax' => $refundTax,
                 // Refund goes back the way the customer paid, unless overridden.
@@ -366,6 +384,19 @@ class ProcessSaleReturnAction
             ])->save();
 
             return $return->load('items');
-        });
+            });
+        } catch (QueryException $e) {
+            // A concurrent same-key request won the race: its unique-constraint
+            // violation means the return already exists — replay it, not a 500.
+            if (! empty($data['idempotency_key']) && (string) $e->getCode() === '23000') {
+                $existing = SaleReturn::query()
+                    ->where('idempotency_key', $data['idempotency_key'])
+                    ->first();
+                if ($existing !== null) {
+                    return $existing->load('items');
+                }
+            }
+            throw $e;
+        }
     }
 }

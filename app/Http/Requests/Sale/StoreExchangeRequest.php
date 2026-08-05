@@ -6,6 +6,7 @@ use App\Enums\SaleChannel;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Rules\OwnOpenShift;
 
 /**
  * Exchange: hand back items from an existing sale AND buy replacements in one
@@ -55,7 +56,7 @@ class StoreExchangeRequest extends FormRequest
             'reason' => ['nullable', 'string', 'max:255'],
             'cash_session_id' => [
                 'nullable', 'uuid',
-                Rule::exists('cash_sessions', 'id')->where('tenant_id', $tenantId)->where('status', 'open'),
+                new OwnOpenShift($this->user()),
             ],
         ];
     }

@@ -333,12 +333,17 @@ class TenantManagementTest extends TestCase
             ->assertJsonPath('meta.pagination.total', 1);
     }
 
-    public function test_plans_endpoint_lists_the_three_plans(): void
+    public function test_plans_endpoint_lists_the_seeded_plans(): void
     {
         $response = $this->asAdmin()->getJson('/api/v1/admin/plans');
 
         $response->assertOk();
-        $this->assertCount(3, $response->json('data'));
+        // Finance Manager (books only), Business/POS, Online Business, and both.
+        $this->assertCount(4, $response->json('data'));
+        $this->assertEqualsCanonicalizing(
+            ['finance-manager', 'business-pos', 'online-business', 'business-pos-online'],
+            array_column($response->json('data'), 'code'),
+        );
     }
 
     public function test_public_cities_endpoint(): void

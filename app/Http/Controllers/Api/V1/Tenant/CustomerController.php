@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Actions\Pos\RecordCashMovementAction;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
@@ -150,6 +151,20 @@ class CustomerController extends Controller
             $data['reference'] ?? null,
             $data['note'] ?? null,
         );
+
+        // Khata collected in CASH physically lands in whichever drawer the
+        // cashier has open. Until this was recorded it produced a phantom
+        // OVERAGE at close — daily reality in every mart, and it made the
+        // variance number untrustworthy exactly where it mattered most.
+        if ($data['method'] === 'cash') {
+            app(RecordCashMovementAction::class)->record($request->user(), [
+                'type' => 'khata_in',
+                'amount' => $amount,
+                'reason' => 'Khata payment · '.$customer->name,
+                'source_type' => 'customer_ledger_entry',
+                'source_id' => $entry->id,
+            ]);
+        }
 
         return ApiResponse::created([
             'entry' => $entry,

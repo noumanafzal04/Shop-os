@@ -203,4 +203,67 @@ class SaleReturnTest extends TestCase
         $this->assertSame('refunded', Sale::withoutTenancy()->find($sale['id'])->status->value);
         $this->assertEquals(10, $weighed->fresh()->stock_quantity);
     }
+
+    /**
+     * The P0 hole: a retried PARTIAL return used to refund cash twice AND
+     * restock twice. The over-return guard reads PRIOR returns, so 1-of-3
+     * passes again on the retry, and the restock idempotency keys embed the new
+     * return's id so they never collapsed. Same key must replay the original.
+     */
+    public function test_retried_partial_return_replays_instead_of_double_refunding(): void
+    {
+        $sale = $this->makeSale(3);          // 20 − 3 = 17 in stock
+        $key = 'ret-retry-key-001';
+
+        $first = $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/returns", [
+            'idempotency_key' => $key,
+            'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        $this->assertEquals(18, $this->product->fresh()->stock_quantity);
+
+        // The retry (timeout / double-click) — identical body, identical key.
+        $second = $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/returns", [
+            'idempotency_key' => $key,
+            'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        // Same return replayed — not a second refund.
+        $this->assertSame($first['id'], $second['id']);
+        $this->assertSame($first['return_number'], $second['return_number']);
+        $this->assertSame(1, \App\Models\SaleReturn::withoutTenancy()->where('sale_id', $sale['id'])->count());
+        // Stock restocked ONCE (18, not 19).
+        $this->assertEquals(18, $this->product->fresh()->stock_quantity);
+        // Sale stays partially refunded, not double-counted.
+        $this->assertSame('partially_refunded', Sale::withoutTenancy()->find($sale['id'])->status->value);
+    }
+
+    /** Distinct keys are genuinely distinct returns — the guard must not over-block. */
+    public function test_partial_returns_with_different_keys_are_separate(): void
+    {
+        $sale = $this->makeSale(3);          // stock 17
+
+        foreach (['k1', 'k2'] as $key) {
+            $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/returns", [
+                'idempotency_key' => $key,
+                'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]],
+            ])->assertCreated();
+        }
+
+        $this->assertSame(2, \App\Models\SaleReturn::withoutTenancy()->where('sale_id', $sale['id'])->count());
+        $this->assertEquals(19, $this->product->fresh()->stock_quantity);
+    }
+
+    /** Omitting the key keeps the legacy behaviour (no replay, still guarded by qty). */
+    public function test_return_without_key_still_works(): void
+    {
+        $sale = $this->makeSale(2);
+
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/returns", [
+            'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 2]],
+        ])->assertCreated();
+
+        $this->assertSame('refunded', Sale::withoutTenancy()->find($sale['id'])->status->value);
+        $this->assertEquals(20, $this->product->fresh()->stock_quantity);
+    }
 }

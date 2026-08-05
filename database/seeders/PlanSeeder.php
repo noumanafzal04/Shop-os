@@ -18,6 +18,7 @@ class PlanSeeder extends Seeder
      *    The Super Admin can create/rename/reprice any plan and set any limits
      *    from the admin panel — these three are just sensible seeds.
      *
+     *   Finance Manager         → books only: expenses/income/cashbook, NO till
      *   Business/POS            → in-shop till + back-office, NO online
      *   Online Business         → sell online only, NO POS / expense manager
      *   Business/POS + Online   → everything
@@ -29,10 +30,41 @@ class PlanSeeder extends Seeder
         $limits = [
             'max_products' => 1000,
             'max_branches' => 1,
+            // Checkout lanes: enough for a small mart out of the box; a big
+            // one gets a per-tenant extend rather than a bespoke plan.
+            'max_registers' => 3,
             'max_staff' => 15,
             'max_storage_mb' => 1024,
             'max_orders_month' => null, // never cap ringing up a sale
         ];
+
+        // Books only — the standalone Expense/Income manager. Sold to offices,
+        // agencies, NGOs and freelancers who have no catalog, no stock and no
+        // till: they only want to know where the money goes. Every selling
+        // module is explicitly false so assigning this plan STRIPS them even if
+        // the business type had switched them on.
+        Plan::query()->updateOrCreate(
+            ['code' => 'finance-manager'],
+            [
+                'name' => 'Finance Manager',
+                'description' => 'Track expenses, other income and a day-by-day cashbook, with reports. No shop, no stock, no POS till.',
+                'price' => 0,
+                'billing_period_months' => 1,
+                'online_shop_enabled' => false,
+                'grace_period_days' => 7,
+                'features' => [
+                    'expenses' => true, 'pos' => false, 'marketplace' => false,
+                    'products' => false, 'inventory' => false, 'services' => false,
+                    'delivery' => false, 'reservations' => false, 'dine_in' => false,
+                ],
+                ...$limits,
+                // No catalog on this plan — a product ceiling would be noise.
+                'max_products' => 0,
+                // …and no till, so no lanes either.
+                'max_registers' => 0,
+                'is_active' => true,
+            ],
+        );
 
         // In-shop only: POS till, expense manager, reports — no marketplace.
         Plan::query()->updateOrCreate(

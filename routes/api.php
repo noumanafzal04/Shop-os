@@ -125,7 +125,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // ── Tenant side: shop profile, setup, dashboard ──────────────
         // 'subscription': read-only mode blocks writes after grace expiry.
-        Route::middleware(['role:shop_owner,staff', 'subscription', 'branch'])->group(function (): void {
+        Route::middleware(['role:shop_owner,staff', 'subscription', 'branch', 'terminal'])->group(function (): void {
             Route::get('/dashboard', [DashboardController::class, 'index']);
             // Global search (⌘K palette) — self-gates each group by permission.
             Route::get('/search', [SearchController::class, 'index']);
@@ -135,10 +135,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::get('/shop/settings', [ShopController::class, 'settings']);
             Route::get('/shop/subscription', [\App\Http\Controllers\Api\V1\Tenant\SubscriptionController::class, 'show']);
             Route::put('/shop/settings', [ShopController::class, 'updateSettings'])->middleware('permission:settings.manage');
-            // Portfolio / gallery (service businesses)
-            Route::get('/shop/gallery', [GalleryController::class, 'index']);
-            Route::post('/shop/gallery', [GalleryController::class, 'store']);
-            Route::delete('/shop/gallery/{image}', [GalleryController::class, 'destroy']);
+            // Portfolio / gallery — a service business shows its work. Gated by
+            // the services module: a mart or pharmacy has no portfolio.
+            Route::middleware(['feature:services', 'permission:settings.manage'])->group(function (): void {
+                Route::get('/shop/gallery', [GalleryController::class, 'index']);
+                Route::post('/shop/gallery', [GalleryController::class, 'store']);
+                Route::delete('/shop/gallery/{image}', [GalleryController::class, 'destroy']);
+            });
             Route::post('/shop/logo', [ShopController::class, 'uploadLogo'])->middleware('permission:settings.manage');
 
             // Branches — physical locations under the tenant (multi-branch).
@@ -159,11 +162,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::delete('hardware-devices/{device}', [\App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController::class, 'destroy']);
             });
 
-            // Catalog: categories + collections + items (products & services)
+            // Collections — storefront merchandising ("Summer Sale" shelves), so
+            // they only exist for a shop that sells online. Same URIs as before,
+            // pulled out of the catalog group to carry the marketplace gate.
+            Route::middleware(['feature:marketplace', 'permission:products.manage'])->group(function (): void {
+                Route::apiResource('collections', CollectionController::class);
+            });
+
+            // Catalog: categories + items (products & services)
             Route::middleware('permission:products.manage')->group(function (): void {
                 Route::post('categories/reorder', [CategoryController::class, 'reorder']);
                 Route::apiResource('categories', CategoryController::class);
-                Route::apiResource('collections', CollectionController::class);
                 // Bulk CSV import (before the resource so /products/import isn't
                 // captured by /products/{product}).
                 Route::get('products/import/template', [ProductController::class, 'importTemplate']);
@@ -218,13 +227,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     ->only(['index', 'store', 'update', 'destroy']);
             });
 
-            // Suppliers — vendor directory + payables
-            Route::middleware('permission:suppliers.manage')->group(function (): void {
+            // Suppliers — vendor directory + payables. Part of the stock chain,
+            // so it rides the inventory module.
+            Route::middleware(['feature:inventory', 'permission:suppliers.manage'])->group(function (): void {
                 Route::apiResource('suppliers', SupplierController::class);
             });
 
             // Purchases: Supplier → PO → Receive → Inventory
-            Route::middleware('permission:purchases.manage')->group(function (): void {
+            Route::middleware(['feature:inventory', 'permission:purchases.manage'])->group(function (): void {
                 Route::apiResource('purchase-orders', PurchaseOrderController::class)
                     ->only(['index', 'store', 'show']);
                 Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
@@ -239,10 +249,38 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/lookup', [PosController::class, 'lookup']);
                 Route::get('/session', [PosController::class, 'currentSession']);
                 Route::post('/session/open', [PosController::class, 'openSession']);
+                // Terminal handover — carry an open drawer to another lane.
+                Route::post('/session/move', [PosController::class, 'moveSession']);
                 Route::post('/session/close', [PosController::class, 'closeSession']);
+                // The live X-read: what this drawer should hold right now.
+                Route::get('/session/report', [PosController::class, 'sessionReport']);
+                // Non-sale cash: paid-in, paid-out, safe drop, float top-up, no-sale.
+                Route::get('/session/movements', [PosController::class, 'movements']);
+                Route::post('/session/movements', [PosController::class, 'storeMovement']);
                 Route::get('/held', [PosController::class, 'heldIndex']);
                 Route::post('/held', [PosController::class, 'heldStore']);
+                // Claim = resume atomically, so only one lane can take it.
+                Route::post('/held/{id}/claim', [PosController::class, 'heldClaim']);
                 Route::delete('/held/{id}', [PosController::class, 'heldDestroy']);
+                // Which lane am I, and what hardware do I drive?
+                Route::get('/terminal', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'terminal']);
+                Route::get('/registers', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'lanes']);
+                // Manager-only lane operations: the consolidated day view and
+                // force-closing a drawer the cashier walked away from.
+                Route::middleware('permission:settings.manage')->group(function (): void {
+                    Route::get('/sessions', [PosController::class, 'sessions']);
+                    Route::post('/registers/{register}/close', [PosController::class, 'forceCloseSession']);
+                });
+            });
+
+            // Registers (checkout lanes / tills) — configuration, so the same
+            // permission as branches and hardware. Gated by the POS module: an
+            // online-only shop has no lanes.
+            Route::middleware(['feature:pos', 'permission:settings.manage'])->group(function (): void {
+                Route::get('registers', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'index']);
+                Route::post('registers', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'store']);
+                Route::put('registers/{register}', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'update']);
+                Route::delete('registers/{register}', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'destroy']);
             });
 
             // Sales: workflow → payment → invoice → stock decrement
@@ -263,11 +301,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             // Warranty desk (serialized retail): look up a serial / IMEI to see
             // what was sold and whether it's still under warranty.
+            // Serialized selling rides stock tracking, so it needs inventory too.
             Route::get('warranty/lookup', [\App\Http\Controllers\Api\V1\Tenant\WarrantyController::class, 'lookup'])
-                ->middleware('permission:sales.manage');
+                ->middleware(['feature:inventory', 'permission:sales.manage']);
 
             // Inventory: the single write-path for stock
-            Route::prefix('inventory')->middleware('permission:inventory.manage')->group(function (): void {
+            Route::prefix('inventory')->middleware(['feature:inventory', 'permission:inventory.manage'])->group(function (): void {
                 Route::post('/adjust', [InventoryController::class, 'adjust']);
                 Route::get('/movements', [InventoryController::class, 'movements']);
                 Route::get('/low-stock', [InventoryController::class, 'lowStock']);
@@ -310,14 +349,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/reports/tax', [ReportController::class, 'tax']);
             });
 
-            // Reviews (owner side: view + reply)
-            Route::get('/reviews', [TenantReviewController::class, 'index']);
-            Route::get('/reviews/summary', [TenantReviewController::class, 'summary']);
-            Route::post('/reviews/{id}/reply', [TenantReviewController::class, 'reply'])
-                ->middleware('permission:settings.manage');
+            // Reviews (owner side: view + reply) — customers can only review a
+            // shop that's listed online, so this is marketplace-only.
+            Route::middleware('feature:marketplace')->group(function (): void {
+                Route::get('/reviews', [TenantReviewController::class, 'index']);
+                Route::get('/reviews/summary', [TenantReviewController::class, 'summary']);
+                Route::post('/reviews/{id}/reply', [TenantReviewController::class, 'reply'])
+                    ->middleware('permission:settings.manage');
+            });
 
             // Online orders (owner side)
-            Route::prefix('orders')->middleware('permission:orders.manage')->group(function (): void {
+            Route::prefix('orders')->middleware(['feature:marketplace', 'permission:orders.manage'])->group(function (): void {
                 Route::get('/', [OrderController::class, 'index']);
                 Route::get('/{id}', [OrderController::class, 'show']);
                 Route::post('/{id}/advance', [OrderController::class, 'advance']);
@@ -325,8 +367,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
             });
 
-            // Delivery riders (Model A — the shop's own riders)
-            Route::middleware('permission:orders.manage')->group(function (): void {
+            // Delivery riders (Model A — the shop's own riders). Gated on
+            // DELIVERY, not marketplace: a pharmacy takes phone orders and
+            // delivers them while selling nothing online (marketplace=F,
+            // delivery=T), and must still manage its riders.
+            Route::middleware(['feature:delivery', 'permission:orders.manage'])->group(function (): void {
                 Route::get('/riders', [RiderController::class, 'index']);
                 Route::post('/riders', [RiderController::class, 'store']);
                 Route::patch('/riders/{id}', [RiderController::class, 'update']);
@@ -334,7 +379,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             });
 
             // Reservations (owner side)
-            Route::prefix('reservations')->middleware('permission:reservations.manage')->group(function (): void {
+            Route::prefix('reservations')->middleware(['feature:reservations', 'permission:reservations.manage'])->group(function (): void {
                 Route::get('/', [ReservationController::class, 'index']);
                 Route::post('/{id}/accept', [ReservationController::class, 'accept']);
                 Route::post('/{id}/reject', [ReservationController::class, 'reject']);

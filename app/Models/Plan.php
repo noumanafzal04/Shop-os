@@ -21,6 +21,7 @@ class Plan extends Model
         'features',
         'max_products',
         'max_branches',
+        'max_registers',
         'max_staff',
         'max_storage_mb',
         'max_orders_month',

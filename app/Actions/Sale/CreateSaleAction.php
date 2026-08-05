@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Models\BranchPrice;
+use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductSerial;
@@ -501,12 +502,22 @@ class CreateSaleAction
             // ── Gap-free invoice number (locked counter row) ─────────
             $invoiceNumber = $this->nextInvoiceNumber($tenantId);
 
+            // The lane this sale was rung on: the shift knows it (a shift is
+            // cashier × terminal). Online/headless sales have no lane.
+            $registerId = ! empty($data['cash_session_id'])
+                ? CashSession::query()->whereKey($data['cash_session_id'])->value('register_id')
+                : null;
+
             /** @var Sale $sale */
             $sale = Sale::query()->create([
                 'invoice_number' => $invoiceNumber,
                 'branch_id' => $branchId,
                 'channel' => $data['channel'],
                 'cash_session_id' => $data['cash_session_id'] ?? null,
+                // Which lane rang it. Derived from the shift, never accepted
+                // from the client — a per-lane X report has to reflect where
+                // the cash physically went, not what a browser claimed.
+                'register_id' => $registerId,
                 'status' => SaleStatus::Completed,
                 'customer_name' => $data['customer_name'] ?? null,
                 'customer_phone' => $data['customer_phone'] ?? null,
@@ -612,6 +623,13 @@ class CreateSaleAction
                                 'reason' => "Sale {$invoiceNumber} (deal: {$line['product']->name})",
                                 'reference_type' => 'sale',
                                 'reference_id' => $sale->id,
+                                // Fresh POS sale: a short component must fail the
+                                // sale (you can't assemble a deal you don't have).
+                                // TRUSTED settle (dine-in tab / online order) is
+                                // different — the deal was already handed over, so
+                                // it must never block collecting the money; it just
+                                // shows negative for recount, like the recipe path.
+                                'allow_negative' => $trusted,
                                 'branch_id' => $branchId,
                             ]);
                         }

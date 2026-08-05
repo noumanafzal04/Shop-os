@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Exceptions\DomainException;
 use App\Models\Branch;
 use App\Models\Product;
+use App\Models\Register;
 use App\Models\Sale;
 use App\Models\Tenant;
 
@@ -39,6 +40,7 @@ class PlanLimits
         'staff' => ['column' => 'max_staff', 'label' => 'staff members', 'enforced' => true],
         'orders_month' => ['column' => 'max_orders_month', 'label' => 'orders this month', 'enforced' => false],
         'branches' => ['column' => 'max_branches', 'label' => 'branches', 'enforced' => true],
+        'registers' => ['column' => 'max_registers', 'label' => 'registers', 'enforced' => true],
         'storage_mb' => ['column' => 'max_storage_mb', 'label' => 'MB of storage', 'enforced' => false],
     ];
 
@@ -79,6 +81,9 @@ class PlanLimits
             // The default "Main" branch counts — a max_branches of 1 means the
             // single Main branch and no more (raising it unlocks extra sites).
             'branches' => Branch::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
+            // Checkout lanes. A shop that never creates one is simply at zero —
+            // the single-counter POS needs no register row at all.
+            'registers' => Register::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
             // Not yet metered — subsystem lands later.
             'storage_mb' => 0,
             default => 0,

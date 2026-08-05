@@ -2,6 +2,7 @@
 
 namespace App\Actions\Purchase;
 
+use App\Actions\Pos\RecordCashMovementAction;
 use App\Exceptions\DomainException;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
@@ -56,6 +57,20 @@ class RecordSupplierPaymentAction
                 $po->amount_paid = round((float) $po->amount_paid + (float) $payment->amount, 2);
                 $po->syncPaymentStatus();
                 $po->save();
+            }
+
+            // Paying a supplier from the till takes cash OUT of the drawer. It
+            // was invisible to reconciliation before, so a Rs 3,500 delivery
+            // paid in cash read as a Rs 3,500 shortage against the cashier.
+            $actor = auth()->user();
+            if ($actor !== null && ($payment->method === 'cash')) {
+                app(RecordCashMovementAction::class)->record($actor, [
+                    'type' => 'supplier_out',
+                    'amount' => (float) $payment->amount,
+                    'reason' => 'Supplier paid · '.$supplier->name,
+                    'source_type' => 'supplier_payment',
+                    'source_id' => $payment->id,
+                ]);
             }
 
             return $payment;

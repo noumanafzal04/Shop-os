@@ -33,6 +33,8 @@ class StorePlanRequest extends FormRequest
             // Plan limits — NULL/omitted = unlimited for that resource.
             'max_products' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'max_branches' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            // 0 is meaningful here: a books-only plan has no till and no lanes.
+            'max_registers' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'max_staff' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'max_storage_mb' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'max_orders_month' => ['sometimes', 'nullable', 'integer', 'min:1'],

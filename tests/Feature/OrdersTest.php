@@ -249,7 +249,7 @@ class OrdersTest extends TestCase
     {
         $this->place();
 
-        $otherOwner = User::factory()->shopOwner()->create();
+        $otherOwner = User::factory()->shopOwner(Tenant::factory()->provisioned()->create())->create();
         $this->assertSame(0, $this->actingAsUser($otherOwner)->getJson('/api/v1/orders')->json('meta.pagination.total'));
 
         $otherCustomer = User::factory()->create();

@@ -253,7 +253,7 @@ class PurchasingTest extends TestCase
     public function test_suppliers_isolated_per_tenant(): void
     {
         $this->makeSupplier();
-        $other = User::factory()->shopOwner()->create();
+        $other = User::factory()->shopOwner(Tenant::factory()->provisioned()->create())->create();
         $this->assertSame(0, $this->actingAsUser($other)->getJson('/api/v1/suppliers')->json('meta.pagination.total'));
     }
 }

@@ -173,7 +173,7 @@ class CatalogFoundationTest extends TestCase
     {
         $this->actingAsUser($this->owner)->postJson('/api/v1/collections', ['name' => 'Mine'])->assertCreated();
 
-        $other = User::factory()->shopOwner()->create();
+        $other = User::factory()->shopOwner(Tenant::factory()->provisioned()->create())->create();
         $this->assertCount(0, $this->actingAsUser($other)->getJson('/api/v1/collections')->json('data'));
     }
 

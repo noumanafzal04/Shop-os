@@ -191,6 +191,44 @@ class BusinessTypes
                 ],
             ],
 
+            'finance' => [
+                'label' => 'Finance Manager',
+                'examples' => ['Office', 'Agency', 'Software House', 'Freelancer', 'Consultant', 'School', 'Clinic', 'NGO', 'Trader', 'Home Business'],
+                'available' => true,
+                // The books-only tenant: no catalog, no stock, no till. Someone
+                // who buys ONLY the Expense/Income manager to answer "where is
+                // my money going?". Everything is off except expenses — and
+                // unlike every other type this one explicitly switches POS OFF:
+                // defaultFeatures() merges the type's own flags LAST, so this
+                // beats the platform-wide pos-on default.
+                'features' => [
+                    'products' => false, 'services' => false, 'inventory' => false,
+                    'marketplace' => false, 'reservations' => false, 'delivery' => false,
+                    'dine_in' => false, 'pos' => false, 'images' => false, 'expenses' => true,
+                ],
+                // No catalog to seed.
+                'product_categories' => [],
+                'expense_categories' => [
+                    'Salary', 'Rent', 'Electricity', 'Gas', 'Water', 'Internet',
+                    'Marketing', 'Fuel', 'Travel', 'Office Supplies', 'Maintenance',
+                    'Repairs', 'Courier', 'Printing', 'Software & Subscriptions',
+                    'Professional Fees', 'Tax', 'Insurance', 'Bank Charges', 'Miscellaneous',
+                ],
+                'categories' => [
+                    ['value' => 'office', 'label' => 'Office / Company'],
+                    ['value' => 'agency', 'label' => 'Agency'],
+                    ['value' => 'software_house', 'label' => 'Software House'],
+                    ['value' => 'freelancer', 'label' => 'Freelancer'],
+                    ['value' => 'consultant', 'label' => 'Consultant'],
+                    ['value' => 'school', 'label' => 'School / Academy'],
+                    ['value' => 'clinic', 'label' => 'Clinic / Practice'],
+                    ['value' => 'ngo', 'label' => 'NGO / Trust'],
+                    ['value' => 'trader', 'label' => 'Trader / Distributor'],
+                    ['value' => 'home_business', 'label' => 'Home Business'],
+                    ['value' => 'other', 'label' => 'Other'],
+                ],
+            ],
+
             'petroleum' => [
                 'label' => 'Petroleum & Energy',
                 'examples' => ['Petrol Pump', 'CNG Station', 'Fuel Station', 'Lubricants Shop', 'Tyre Shop', 'Auto Service', 'Car Wash'],
@@ -410,6 +448,14 @@ class BusinessTypes
         // one price.
         if (in_array($code, ['food', 'mart', 'retail', 'restaurant', 'grocery'], true)) {
             $types[] = ItemTypes::DEAL;
+        }
+
+        // A KNOWN type that sells neither products nor services (finance /
+        // books-only) legitimately has NO item types — it must not be handed a
+        // physical fallback, or its catalog editor would offer items it can
+        // never sell. Unknown codes already returned physical above.
+        if (empty($t['features']['products']) && empty($t['features']['services'])) {
+            return array_values(array_unique($types));
         }
 
         return array_values(array_unique($types)) ?: [ItemTypes::PHYSICAL];

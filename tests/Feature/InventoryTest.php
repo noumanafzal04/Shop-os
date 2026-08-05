@@ -27,7 +27,7 @@ class InventoryTest extends TestCase
         parent::setUp();
 
         $this->withoutMiddleware(ThrottleRequests::class);
-        $this->tenant = Tenant::factory()->create();
+        $this->tenant = Tenant::factory()->provisioned()->create();
         $this->owner = User::factory()->shopOwner($this->tenant)->create();
         $this->product = Product::withoutTenancy()->create([
             'tenant_id' => $this->tenant->id,
@@ -245,7 +245,7 @@ class InventoryTest extends TestCase
 
     public function test_cannot_adjust_another_tenants_product(): void
     {
-        $otherTenant = Tenant::factory()->create();
+        $otherTenant = Tenant::factory()->provisioned()->create();
         $otherOwner = User::factory()->shopOwner($otherTenant)->create();
 
         $this->actingAsUser($otherOwner)->postJson('/api/v1/inventory/adjust', [
@@ -263,7 +263,7 @@ class InventoryTest extends TestCase
             'product_id' => $this->product->id, 'type' => 'in', 'quantity' => 5,
         ]);
 
-        $otherTenant = Tenant::factory()->create();
+        $otherTenant = Tenant::factory()->provisioned()->create();
         $otherOwner = User::factory()->shopOwner($otherTenant)->create();
 
         $foreign = $this->actingAsUser($otherOwner)

@@ -92,7 +92,7 @@ class RidersTest extends TestCase
     public function test_riders_are_tenant_isolated(): void
     {
         $this->makeRider();
-        $otherOwner = User::factory()->shopOwner()->create();
+        $otherOwner = User::factory()->shopOwner(Tenant::factory()->provisioned()->create())->create();
 
         $this->actingAsUser($otherOwner)->getJson('/api/v1/riders')
             ->assertOk()->assertJsonCount(0, 'data');
@@ -152,7 +152,7 @@ class RidersTest extends TestCase
     public function test_cannot_assign_a_foreign_rider(): void
     {
         $order = $this->placeDelivery();
-        $otherOwner = User::factory()->shopOwner()->create();
+        $otherOwner = User::factory()->shopOwner(Tenant::factory()->provisioned()->create())->create();
         $foreignRider = Rider::withoutTenancy()->create(['tenant_id' => $otherOwner->tenant_id, 'name' => 'Stranger']);
 
         $this->actingAsUser($this->owner)->postJson("/api/v1/orders/{$order['id']}/assign-rider", ['rider_id' => $foreignRider->id])

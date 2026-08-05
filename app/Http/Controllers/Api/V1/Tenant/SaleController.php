@@ -95,9 +95,28 @@ class SaleController extends Controller
         return \App\Support\CsvExport::stream('sales-'.now()->format('Y-m-d').'.csv', $header, $rows);
     }
 
-    public function store(StoreSaleRequest $request, CreateSaleAction $action): JsonResponse
+    public function store(StoreSaleRequest $request, CreateSaleAction $action, TenantContext $tenant): JsonResponse
     {
-        $sale = $action->execute($request->validated());
+        $data = $request->validated();
+
+        // `pos_require_shift` shipped as a setting nothing read: a shop could
+        // insist on shifts and still have counter sales rung with no drawer
+        // attached, whose cash belongs to no reconciliation and shows up in no
+        // shift report. Enforced here, on the counter channels only — an online
+        // order or a phone order has no till to be open.
+        $counterChannels = [\App\Enums\SaleChannel::Pos->value, \App\Enums\SaleChannel::WalkIn->value];
+        if (
+            empty($data['cash_session_id'])
+            && in_array($data['channel'] ?? null, $counterChannels, true)
+            && (bool) ($tenant->get()?->setting('pos_require_shift') ?? false)
+        ) {
+            throw \App\Exceptions\DomainException::conflict(
+                'Open a shift before ringing up a sale.',
+                'SHIFT_REQUIRED',
+            );
+        }
+
+        $sale = $action->execute($data);
 
         return ApiResponse::created($sale, "Sale {$sale->invoice_number} completed");
     }

@@ -24,6 +24,25 @@ class ShopSettings
             // WITHIN the price and the total is not inflated by it.
             'tax_inclusive' => false,
 
+            // ── Appearance / branding ───────────────────────────────────
+            // A tenant can wear its own colours. NULL means "use the ShopOS
+            // default" (brand blue #465FFF) — we never store the default, so a
+            // future rebrand of the product follows automatically for everyone
+            // who hasn't chosen. The primary drives the whole brand ramp
+            // (buttons, active nav, POS accents) in BOTH light and dark; the
+            // secondary is an optional supporting accent. Semantic colours
+            // (success/warning/error) are deliberately NOT themeable — green
+            // must keep meaning "good" no matter the brand.
+            'theme_primary' => null,    // #RRGGBB
+            'theme_secondary' => null,  // #RRGGBB
+            // How strongly the brand hue carries into the neutral surfaces
+            // (page background, cards, borders): none = plain grey,
+            // subtle = a designed hint, strong = unmistakably branded.
+            'theme_tint' => 'subtle',   // none | subtle | strong
+            // The sidebar's surface. 'dark' keeps a dark rail even in light
+            // mode — the look most POS/admin products ship with.
+            'theme_sidebar' => 'light', // light | tinted | dark
+
             // Service businesses (salon/workshop): coverage area shown on the storefront
             'service_area' => null,
 
@@ -51,7 +70,12 @@ class ShopSettings
             // POS
             'pos_default_payment' => 'cash', // cash | card
             'pos_auto_print' => false,
-            'pos_require_shift' => true,
+            // Refuse a counter sale unless the cashier has a shift open, so
+            // every rupee belongs to a drawer that gets counted. Ships OFF: the
+            // flag existed for months while nothing read it, so turning it on
+            // by default would suddenly stop a one-person shop from selling.
+            // Recommended ON for any shop with staff or more than one lane.
+            'pos_require_shift' => false,
 
             // ── Loyalty & rewards ───────────────────────────────────────
             // Customers earn points on completed sales and redeem them as a
@@ -86,6 +110,13 @@ class ShopSettings
             'language' => ['sometimes', 'string', 'max:5'],
             'default_tax_rate' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             'tax_inclusive' => ['sometimes', 'boolean'],
+            // Hex only, 6 digits, with the hash — the panel turns this into a
+            // full 25→950 ramp client-side, so anything else would silently
+            // produce an unreadable UI.
+            'theme_primary' => ['sometimes', 'nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'theme_secondary' => ['sometimes', 'nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'theme_tint' => ['sometimes', 'in:none,subtle,strong'],
+            'theme_sidebar' => ['sometimes', 'in:light,tinted,dark'],
             'service_area' => ['sometimes', 'nullable', 'string', 'max:300'],
             'pickup_enabled' => ['sometimes', 'boolean'],
             'delivery_enabled' => ['sometimes', 'boolean'],

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Sale;
 
+use App\Actions\Pos\RecordCashMovementAction;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Models\Customer;
@@ -125,6 +126,30 @@ class CancelSaleAction
                 'cancelled_by' => auth()->id(),
                 'cancel_reason' => $reason,
             ])->save();
+
+            // The cash leg. Voiding a cash sale hands money back out of the
+            // drawer, and that was recorded NOWHERE: the sale's tender was
+            // dropped from the shift's expectation and the pay-out was never
+            // written, so a legitimate void and a pocketed one both balanced
+            // perfectly. Now the tender stays counted (DrawerMath) and the
+            // hand-back is a movement with a name on it, so the two are
+            // distinguishable — and a sale voided the day AFTER its shift
+            // closed correctly debits today's drawer instead of nobody's.
+            $cashTendered = round(
+                (float) $sale->payments()->where('method', 'cash')->sum('amount') - (float) $sale->change_due,
+                2,
+            );
+            $actor = auth()->user();
+            if ($actor !== null && $cashTendered > 0) {
+                app(RecordCashMovementAction::class)->record($actor, [
+                    'type' => 'void_refund',
+                    'amount' => $cashTendered,
+                    'reason' => "Cash returned · voided {$sale->invoice_number}",
+                    'note' => $reason,
+                    'source_type' => 'sale',
+                    'source_id' => $sale->id,
+                ]);
+            }
 
             return $sale->load('items');
         });

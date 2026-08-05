@@ -7,6 +7,7 @@ use App\Enums\SaleChannel;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Rules\OwnOpenShift;
 
 class StoreSaleRequest extends FormRequest
 {
@@ -96,7 +97,7 @@ class StoreSaleRequest extends FormRequest
             'idempotency_key' => ['nullable', 'string', 'max:64'],
             'cash_session_id' => [
                 'nullable', 'uuid',
-                Rule::exists('cash_sessions', 'id')->where('tenant_id', $tenantId)->where('status', 'open'),
+                new OwnOpenShift($this->user()),
             ],
         ];
     }
