@@ -56,25 +56,33 @@ export function ActivityPanel({ activity, loading = false }: Props) {
           />
           <ol>
             {activity.map((row) => (
-            <li key={row.id} className="relative flex gap-3 pb-5 last:pb-0">
-              <span
-                className={`relative z-10 mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 bg-white dark:bg-gray-900 ${ring(row)}`}
-              />
-              <div className="min-w-0">
-                <p className="text-theme-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-medium text-gray-800 dark:text-white/90">{row.actor}</span>
-                  {verb(row) && <> {verb(row)}</>}
-                  {subject(row) && (
-                    <> <span className="text-gray-800 dark:text-white/90">{humanize(subject(row))}</span></>
-                  )}
-                </p>
-                <p className="mt-0.5 text-theme-xs tabular-nums text-gray-400 dark:text-gray-500">
-                  {dateTime(row.at)}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ol>
+              <li key={row.id} className="relative flex gap-3 pb-5 last:pb-0">
+                <span
+                  className={`relative z-10 mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 bg-white dark:bg-gray-900 ${ring(row)}`}
+                />
+                <div className="min-w-0">
+                  <p className="text-theme-sm text-gray-700 dark:text-gray-300">
+                    <span className="font-medium text-gray-800 dark:text-white/90">
+                      {row.actor}
+                    </span>
+                    {verb(row) && <> {verb(row)}</>}
+                    {subject(row) && (
+                      <>
+                        {" "}
+                        <span className="text-gray-800 dark:text-white/90">
+                          {humanize(subject(row))}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-theme-xs tabular-nums text-gray-400 dark:text-gray-500">
+                    {dateTime(row.at)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
       )}
     </Panel>
   );

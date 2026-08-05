@@ -72,6 +72,7 @@ export function RevenueTrendPanel({ series, loading = false }: Props) {
 
   return (
     <Panel
+      className="h-full"
       title="Subscription Revenue"
       subtitle={
         loading || !series

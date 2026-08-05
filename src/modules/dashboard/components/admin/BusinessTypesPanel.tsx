@@ -76,7 +76,11 @@ export function BusinessTypesPanel({ types, loading = false }: Props) {
   };
 
   return (
-    <Panel title="Business Types" subtitle="How the platform's tenants split">
+    <Panel
+      className="h-full"
+      title="Business Types"
+      subtitle="How the platform's tenants split"
+    >
       {loading || !types ? (
         <div className="flex flex-col items-center gap-4">
           <Pulse className="h-[200px] w-[200px] rounded-full" />

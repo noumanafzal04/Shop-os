@@ -72,7 +72,11 @@ export function TenantGrowthPanel({ growth, loading = false }: Props) {
   };
 
   return (
-    <Panel title="Tenant Growth" subtitle="Sign-ups per month, by status today">
+    <Panel
+      className="h-full"
+      title="Tenant Growth"
+      subtitle="Sign-ups per month, by status today"
+    >
       {loading || !growth ? (
         <ChartPulse height={HEIGHT} />
       ) : !hasSignups ? (
