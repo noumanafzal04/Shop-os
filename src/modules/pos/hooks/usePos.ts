@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "../../../common/types/api";
 import { posService } from "../services/posService";
-import type { HeldSale } from "../services/posService";
+import type { HeldSale, ManualMovementType } from "../services/posService";
 
 export function useCurrentSession() {
   return useQuery({
@@ -34,6 +35,42 @@ export function useShiftMutations() {
     onSuccess: invalidate,
   });
   return { open, move, close };
+}
+
+/**
+ * The X-read: what this drawer should hold right now.
+ *
+ * `enabled` is the caller's answer to "is a shift open AND is anyone looking" —
+ * the endpoint 409s without a drawer, and the figure is worthless the moment a
+ * sale is rung, so it is never served from cache (staleTime 0 → reopening the
+ * panel refetches).
+ */
+export function useSessionReport(enabled: boolean) {
+  return useQuery({
+    queryKey: ["pos", "session", "report"],
+    queryFn: async () => (await posService.sessionReport()).data,
+    enabled,
+    staleTime: 0,
+  });
+}
+
+export function useCashMovementMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { type: ManualMovementType; amount?: number; reason?: string; note?: string }) =>
+      posService.recordMovement(payload),
+    // The prefix covers the X-read too, so the expected-cash figure the cashier
+    // is held to updates the instant the movement lands.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pos", "session"] }),
+    onError: (e) => {
+      // The drawer went away under us — closed on another terminal, or
+      // force-closed by a manager. Refresh so the till stops offering cash
+      // actions for a shift it no longer holds.
+      if (e instanceof ApiError && e.errorCode === "SHIFT_REQUIRED") {
+        qc.invalidateQueries({ queryKey: ["pos", "session"] });
+      }
+    },
+  });
 }
 
 export function useHeldSales() {

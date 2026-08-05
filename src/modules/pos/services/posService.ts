@@ -56,6 +56,67 @@ export interface HeldCartLine {
   modifiers_label?: string;
 }
 
+/** The movement types a cashier may record from the till. */
+export type ManualMovementType = "paid_in" | "paid_out" | "drop" | "float_add" | "no_sale";
+
+/**
+ * Every movement type the drawer can show. The system ones are written by the
+ * flow that actually moved the money (a khata settled, a supplier paid from the
+ * till, a voided cash sale handed back) — the POS renders them but never posts
+ * them.
+ */
+export type CashMovementType =
+  | ManualMovementType
+  | "khata_in"
+  | "supplier_out"
+  | "expense_out"
+  | "void_refund";
+
+export interface CashMovement {
+  id: string;
+  type: CashMovementType;
+  // The server's own reading of which way the drawer moved — "none" is a
+  // no-sale, an event with no amount.
+  direction: "in" | "out" | "none";
+  amount: string | number;
+  reason: string | null;
+  note: string | null;
+  user?: { id: string; name: string } | null;
+  created_at: string | null;
+}
+
+/**
+ * The X-read totals (App\Support\DrawerMath) — the ONE place the server decides
+ * what a drawer should hold, so the mid-shift read and the close-and-count can
+ * never disagree. The chain the UI renders:
+ *
+ *   cash_sales    = cash_tendered − change_given − cash_refunds
+ *   expected_cash = opening_float + cash_sales + cash_in − cash_out
+ */
+export interface DrawerTotals {
+  cash_tendered: number;
+  change_given: number;
+  cash_refunds: number;
+  cash_in: number;
+  cash_out: number;
+  cash_sales: number;
+  expected_cash: number;
+  sales_count: number;
+  sales_total: number;
+  discounts: number;
+  tax: number;
+  voids: number;
+  refunds: number;
+  /** Keyed by tender method: cash, card, bank_transfer, credit… */
+  tender_mix: Record<string, number>;
+}
+
+export interface SessionReport {
+  session: CashSession;
+  drawer: DrawerTotals;
+  movements: CashMovement[];
+}
+
 export const posService = {
   lookup: (code: string) =>
     apiGet<{
@@ -84,6 +145,15 @@ export const posService = {
   moveSession: (register_id: string) => apiPost<CashSession>("/pos/session/move", { register_id }),
   closeSession: (counted_cash: number, notes?: string) =>
     apiPost<CashSession>("/pos/session/close", { counted_cash, notes }),
+
+  // The live X-read. 409 SHIFT_NOT_OPEN when the caller holds no drawer, so
+  // only ask once a shift is known to be open.
+  sessionReport: () => apiGet<SessionReport>("/pos/session/report"),
+  movements: () => apiGet<CashMovement[]>("/pos/session/movements"),
+  // Cashier-initiated only; the server resolves the drawer from the caller, so
+  // a movement can never be posted into someone else's till.
+  recordMovement: (payload: { type: ManualMovementType; amount?: number; reason?: string; note?: string }) =>
+    apiPost<CashMovement>("/pos/session/movements", payload),
 
   heldList: () => apiGet<HeldSale[]>("/pos/held"),
   hold: (payload: { label?: string; cart: HeldSale["cart"]; total_estimate: number }) =>

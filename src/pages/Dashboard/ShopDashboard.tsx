@@ -1,33 +1,84 @@
 import PageMeta from "../../components/common/PageMeta";
 import Alert from "../../components/ui/alert/Alert";
-import { MetricCard, MetricCardSkeleton } from "../../common/ui/MetricCard";
 import { useTenantDashboard } from "../../modules/dashboard/hooks/useDashboard";
+import { ActivityTimeline } from "../../modules/dashboard/components/shop/ActivityTimeline";
+import { AttentionPanel } from "../../modules/dashboard/components/shop/AttentionPanel";
+import { BranchComparison } from "../../modules/dashboard/components/shop/BranchComparison";
+import { ExpenseDonut } from "../../modules/dashboard/components/shop/ExpenseDonut";
+import { HighlightsRow } from "../../modules/dashboard/components/shop/HighlightsRow";
+import { InventoryTiles, hasInventoryTiles } from "../../modules/dashboard/components/shop/InventoryTiles";
+import { KpiRow, KpiRowSkeleton } from "../../modules/dashboard/components/shop/KpiRow";
+import { PipelinePanel } from "../../modules/dashboard/components/shop/PipelinePanel";
+import { QuickActions } from "../../modules/dashboard/components/shop/QuickActions";
+import { RecentExpensesCard, RecentSalesCard, TableSkeleton } from "../../modules/dashboard/components/shop/RecentTables";
+import { ChartSkeleton, SalesTrendChart } from "../../modules/dashboard/components/shop/SalesTrendChart";
+import { EmptyPanel, SectionCard } from "../../modules/dashboard/components/shop/SectionCard";
+import { useCapabilities } from "../../modules/dashboard/components/shop/capabilities";
 import { useMoney } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
 import { useUiMode } from "../../context/UiModeContext";
 
 /**
- * Shop-owner / staff dashboard. Renders honest empty states while the
- * sales/inventory modules are pending — the widget contract is live.
+ * Shop-owner / staff dashboard.
+ *
+ * Every panel is gated on the tenant's own modules, derived exactly the way
+ * AppSidebar derives its nav: a books-only (finance) shop sees an expenses and
+ * cashbook console with no stock, pipeline or sales panels; a services shop
+ * sees no stock panels. A module the tenant doesn't have produces no card at
+ * all — never an empty one — and no figure is shown that the payload didn't
+ * carry.
  */
 export default function ShopDashboard() {
   const { data, isLoading, isError } = useTenantDashboard();
   const user = useAuthStore((s) => s.user);
   const { mode } = useUiMode();
-
+  const caps = useCapabilities();
   const money = useMoney();
+
+  const basic = mode === "basic";
+  // Skeleton tile count has to match what the loaded strip will render, or the
+  // page jumps as the payload lands.
+  const tileCount = caps.sells
+    ? basic
+      ? caps.keepsBooks
+        ? 3
+        : 2
+      : caps.keepsBooks
+        ? 6
+        : 5
+    : caps.keepsBooks
+      ? basic
+        ? 2
+        : 4
+      : 0;
+
+  const branchName = data?.branch_scope
+    ? data.branches.find((b) => b.branch_id === data.branch_scope)?.branch
+    : null;
 
   return (
     <>
       <PageMeta title="Dashboard | ShopOS" description="Your business at a glance" />
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-          {user?.tenant?.business_name ?? "Dashboard"}
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Today's overview
-        </p>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
+            {user?.tenant?.business_name ?? "Dashboard"}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {new Date().toLocaleDateString(undefined, {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </p>
+        </div>
+        {branchName && (
+          <span className="rounded-full bg-brand-50 px-3 py-1 text-theme-xs font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+            {branchName} only
+          </span>
+        )}
       </div>
 
       {data?.subscription_state === "grace" && (
@@ -61,116 +112,102 @@ export default function ShopDashboard() {
         </div>
       )}
 
-      {mode === "basic" ? (
-        // Basic: the three numbers a shopkeeper checks each day.
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6">
-          {isLoading ? (
+      {isLoading || !data ? (
+        <div className="space-y-5 md:space-y-6">
+          {tileCount > 0 && <KpiRowSkeleton count={tileCount} />}
+          {!basic && (
             <>
-              <MetricCardSkeleton />
-              <MetricCardSkeleton />
-              <MetricCardSkeleton />
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 md:gap-6">
+                <div className="xl:col-span-2">
+                  <ChartSkeleton />
+                </div>
+                <ChartSkeleton height="h-[240px]" />
+              </div>
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-2 md:gap-6">
+                <TableSkeleton />
+                <TableSkeleton />
+              </div>
             </>
-          ) : data ? (
-            <>
-              <MetricCard label="Today's Sales" value={data.today.sales_count} hint="transactions" />
-              <MetricCard label="Revenue" value={money(data.today.revenue)} />
-              <MetricCard label="Low Stock Alerts" value={data.low_stock_count} />
-            </>
-          ) : null}
+          )}
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-6">
-            {isLoading ? (
-              <>
-                <MetricCardSkeleton />
-                <MetricCardSkeleton />
-                <MetricCardSkeleton />
-                <MetricCardSkeleton />
-              </>
-            ) : data ? (
-              <>
-                <MetricCard label="Today's Sales" value={data.today.sales_count} hint="transactions" />
-                <MetricCard label="Revenue" value={money(data.today.revenue)} />
-                <MetricCard label="Expenses" value={money(data.today.expenses)} />
-                <MetricCard label="Profit" value={money(data.today.profit)} />
-              </>
-            ) : null}
-          </div>
+        <div className="space-y-5 md:space-y-6">
+          <KpiRow data={data} caps={caps} money={money} compact={basic} />
 
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6">
-            {isLoading ? (
-              <>
-                <MetricCardSkeleton />
-                <MetricCardSkeleton />
-                <MetricCardSkeleton />
-              </>
-            ) : data ? (
-              <>
-                <MetricCard
-                  label="Products"
-                  value={data.products_count}
-                  hint={data.products_count === 0 ? "Add your first product soon" : undefined}
+          {/* Basic mode is the calm view: what needs doing, and the counters
+              behind it. Charts, ledgers and history live in the full menu. */}
+          {!basic && (caps.sells || caps.keepsBooks) && (
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 md:gap-6">
+              <div className={caps.keepsBooks ? "xl:col-span-2" : "xl:col-span-3"}>
+                <SalesTrendChart
+                  series={data.sales_series}
+                  money={money}
+                  showRevenue={caps.sells}
+                  showExpenses={caps.keepsBooks}
+                  showProfit={caps.sells}
                 />
-                <MetricCard label="Low Stock Alerts" value={data.low_stock_count} />
-                {data.expiring_soon_count > 0 && (
-                  <MetricCard
-                    label="Expiring Soon"
-                    value={data.expiring_soon_count}
-                    hint="batches within 30 days — check Inventory"
-                  />
-                )}
-                {data.online_shop_enabled ? (
-                  <MetricCard
-                    label="Pending Orders"
-                    value={data.pending_orders}
-                    hint={`${data.pending_reservations} reservations waiting`}
-                  />
-                ) : (
-                  <MetricCard
-                    label="Online Shop"
-                    value="Off"
-                    hint="Contact support to enable marketplace selling"
-                  />
-                )}
-              </>
-            ) : null}
-          </div>
-        </>
-      )}
+              </div>
+              {caps.keepsBooks && <ExpenseDonut breakdown={data.expense_breakdown} money={money} />}
+            </div>
+          )}
 
-      {/* HQ comparison — today's sales per branch (multi-branch shops only). */}
-      {data && data.branches.length > 0 && (
-        <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-          <div className="flex items-center justify-between px-5 py-4">
-            <h3 className="font-semibold text-gray-800 dark:text-white/90">Today by branch</h3>
-            <span className="text-theme-xs uppercase tracking-wide text-gray-400">
-              {data.branch_scope ? "Focused view" : "All branches"}
-            </span>
+          <div
+            className={`grid grid-cols-1 gap-5 md:gap-6 ${
+              hasInventoryTiles(caps) ? "xl:grid-cols-2" : ""
+            }`}
+          >
+            {hasInventoryTiles(caps) && <InventoryTiles data={data} caps={caps} />}
+            <AttentionPanel data={data} caps={caps} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-t border-gray-200 text-left text-theme-xs uppercase text-gray-400 dark:border-gray-800">
-                  <th className="px-5 py-3 font-medium">Branch</th>
-                  <th className="px-5 py-3 text-right font-medium">Sales</th>
-                  <th className="px-5 py-3 text-right font-medium">Revenue</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {data.branches.map((b) => (
-                  <tr
-                    key={b.branch_id}
-                    className={b.branch_id === data.branch_scope ? "bg-brand-50/50 dark:bg-brand-500/5" : ""}
-                  >
-                    <td className="px-5 py-3 font-medium text-gray-800 dark:text-white/90">{b.branch}</td>
-                    <td className="px-5 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">{b.sales_count}</td>
-                    <td className="px-5 py-3 text-right tabular-nums font-medium text-gray-800 dark:text-white/90">{money(b.revenue)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+
+          {!caps.sells && !caps.keepsBooks && (
+            <SectionCard title="Nothing to show yet">
+              <EmptyPanel message="This shop has no selling or bookkeeping modules enabled. Ask support which modules your plan includes." />
+            </SectionCard>
+          )}
+
+          {!basic && (caps.takesOrders || data.branches.length > 0) && (
+            <div
+              className={`grid grid-cols-1 gap-5 md:gap-6 ${
+                caps.takesOrders && data.branches.length > 0 ? "xl:grid-cols-2" : ""
+              }`}
+            >
+              {caps.takesOrders && (
+                <PipelinePanel
+                  pipeline={data.order_pipeline}
+                  to={caps.marketplace ? "/tenant/orders" : undefined}
+                />
+              )}
+              {data.branches.length > 0 && (
+                <BranchComparison branches={data.branches} scope={data.branch_scope} money={money} />
+              )}
+            </div>
+          )}
+
+          {!basic && (caps.sells || caps.keepsBooks) && (
+            <div
+              className={`grid grid-cols-1 gap-5 md:gap-6 ${
+                caps.sells && caps.keepsBooks ? "xl:grid-cols-2" : ""
+              }`}
+            >
+              {caps.sells && (
+                <RecentSalesCard
+                  rows={data.recent_sales}
+                  money={money}
+                  to={caps.canSell ? "/tenant/sales" : undefined}
+                />
+              )}
+              {caps.keepsBooks && (
+                <RecentExpensesCard rows={data.recent_expenses} money={money} to="/tenant/expenses" />
+              )}
+            </div>
+          )}
+
+          {!basic && <HighlightsRow highlights={data.highlights} caps={caps} money={money} />}
+
+          {!basic && <ActivityTimeline rows={data.activity} />}
+
+          <QuickActions caps={caps} />
         </div>
       )}
     </>

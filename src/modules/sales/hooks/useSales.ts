@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { salesService } from "../services/salesService";
+import { salesService, type VoidReasonCode } from "../services/salesService";
 import type { SaleInput } from "../types";
 
 export function useSales(params: { search?: string; status?: string; page?: number }) {
@@ -42,8 +42,8 @@ export function useSaleMutations() {
   });
 
   const cancel = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
-      salesService.cancel(id, reason),
+    mutationFn: ({ id, reason_code, reason }: { id: string; reason_code: VoidReasonCode; reason?: string }) =>
+      salesService.cancel(id, reason_code, reason),
     onSuccess: invalidate,
   });
 

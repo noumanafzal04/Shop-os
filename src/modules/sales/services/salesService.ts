@@ -2,6 +2,18 @@ import { api, apiGet, apiPost } from "../../../common/api/client";
 import { printHtmlDocument } from "../../../common/print";
 import type { Sale, SaleInput, SaleReturn } from "../types";
 
+/** Mirrors Sale::VOID_REASONS on the server. */
+export const VOID_REASONS = [
+  { value: "wrong_item", label: "Wrong item rung" },
+  { value: "customer_changed_mind", label: "Customer changed their mind" },
+  { value: "price_error", label: "Price error" },
+  { value: "duplicate", label: "Duplicate sale" },
+  { value: "test_sale", label: "Test sale" },
+  { value: "other", label: "Other" },
+] as const;
+
+export type VoidReasonCode = (typeof VOID_REASONS)[number]["value"];
+
 export const salesService = {
   list: (params: { search?: string; status?: string; page?: number }) =>
     apiGet<Sale[]>("/sales", {
@@ -16,8 +28,12 @@ export const salesService = {
 
   create: (payload: SaleInput) => apiPost<Sale>("/sales", payload),
 
-  cancel: (id: string, reason?: string) =>
-    apiPost<Sale>(`/sales/${id}/cancel`, { reason }),
+  /**
+   * A void needs a CODED reason — free text alone can't be tallied, and the
+   * void report per cashier is the control that catches a ring-and-void.
+   */
+  cancel: (id: string, reason_code: VoidReasonCode, reason?: string) =>
+    apiPost<Sale>(`/sales/${id}/cancel`, { reason_code, reason }),
 
   processReturn: (
     id: string,

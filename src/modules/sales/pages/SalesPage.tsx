@@ -20,6 +20,7 @@ import { useProducts } from "../../catalog/hooks/useCatalog";
 import { useAuthStore } from "../../../stores/authStore";
 import { ApiError } from "../../../common/types/api";
 import type { SaleStatus } from "../types";
+import { VOID_REASONS, type VoidReasonCode } from "../services/salesService";
 
 const STATUS_COLOR: Record<SaleStatus, "success" | "error" | "warning" | "info"> = {
   completed: "success",
@@ -71,6 +72,7 @@ export default function SalesPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const detail = useSale(detailId);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelCode, setCancelCode] = useState<VoidReasonCode>("wrong_item");
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [returning, setReturning] = useState(false);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
@@ -152,7 +154,7 @@ export default function SalesPage() {
   const doCancel = () => {
     if (!detailId || cancel.isPending) return;
     cancel.mutate(
-      { id: detailId, reason: cancelReason.trim() || undefined },
+      { id: detailId, reason_code: cancelCode, reason: cancelReason.trim() || undefined },
       { onSuccess: () => setConfirmingCancel(false) },
     );
   };
@@ -383,8 +385,16 @@ export default function SalesPage() {
 
             {confirmingCancel ? (
               <div className="space-y-3">
-                <Label>Cancellation reason (optional)</Label>
-                <Input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="e.g. Customer returned items" />
+                {/* A coded reason is required: free text can't be tallied, and a
+                    per-cashier void count is what catches a ring-and-void. */}
+                <Label>Why is this being cancelled?</Label>
+                <Select
+                  value={cancelCode}
+                  options={VOID_REASONS.map((r) => ({ value: r.value, label: r.label }))}
+                  onChange={(v) => setCancelCode(v as VoidReasonCode)}
+                />
+                <Label>Note <span className="font-normal text-gray-400">(optional)</span></Label>
+                <Input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="e.g. Shelf label was stale" />
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setConfirmingCancel(false)}>Back</Button>
                   <Button size="sm" onClick={doCancel} disabled={cancel.isPending}>

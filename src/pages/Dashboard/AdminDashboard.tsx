@@ -1,14 +1,37 @@
 import PageMeta from "../../components/common/PageMeta";
 import Alert from "../../components/ui/alert/Alert";
-import Badge from "../../components/ui/badge/Badge";
-import { MetricCard, MetricCardSkeleton } from "../../common/ui/MetricCard";
+import {
+  BoxIconLine,
+  CheckCircleIcon,
+  GroupIcon,
+  PaperPlaneIcon,
+  PieChartIcon,
+  ShootingStarIcon,
+} from "../../icons";
 import { useAdminDashboard } from "../../modules/dashboard/hooks/useDashboard";
+import { ActivityPanel } from "../../modules/dashboard/components/admin/ActivityPanel";
+import { BusinessTypesPanel } from "../../modules/dashboard/components/admin/BusinessTypesPanel";
+import { KpiTile, KpiTileSkeleton } from "../../modules/dashboard/components/admin/KpiTile";
+import { PlansPanel } from "../../modules/dashboard/components/admin/PlansPanel";
+import { QuickActions } from "../../modules/dashboard/components/admin/QuickActions";
+import { RecentPaymentsPanel } from "../../modules/dashboard/components/admin/RecentPaymentsPanel";
+import { RecentTenantsPanel } from "../../modules/dashboard/components/admin/RecentTenantsPanel";
+import { RevenueTrendPanel } from "../../modules/dashboard/components/admin/RevenueTrendPanel";
+import { TenantGrowthPanel } from "../../modules/dashboard/components/admin/TenantGrowthPanel";
+import { count, money } from "../../modules/dashboard/components/admin/format";
+
+const ICON = "size-5";
 
 /**
  * Platform dashboard — Super Admin & platform staff.
+ *
+ * Every figure comes straight off the /dashboard/admin payload. The reference
+ * design also carried "Support Overview" and "System Health" blocks; the API
+ * exposes neither, so they are absent rather than mocked.
  */
 export default function AdminDashboard() {
   const { data, isLoading, isError } = useAdminDashboard();
+  const k = data?.kpis;
 
   return (
     <>
@@ -19,7 +42,7 @@ export default function AdminDashboard() {
           Platform Overview
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Tenants across the platform
+          Tenants, subscriptions and revenue across the platform
         </p>
       </div>
 
@@ -33,73 +56,98 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 md:gap-6">
-        {isLoading ? (
-          Array.from({ length: 5 }).map((_, i) => <MetricCardSkeleton key={i} />)
-        ) : data ? (
-          <>
-            <MetricCard label="Total Tenants" value={data.tenants.total} />
-            <MetricCard label="Active" value={data.tenants.active} />
-            <MetricCard label="Suspended" value={data.tenants.suspended} />
-            <MetricCard label="Online Shops" value={data.tenants.online_shops} />
-            <MetricCard label="New This Month" value={data.tenants.new_this_month} />
-          </>
-        ) : null}
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
-          <h3 className="font-semibold text-gray-800 dark:text-white/90">
-            Recent Tenants
-          </h3>
-        </div>
-        <div className="p-6">
-          {isLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-10 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
-              ))}
-            </div>
-          ) : data && data.recent_tenants.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-theme-xs text-gray-500 dark:text-gray-400">
-                    <th className="pb-3 font-medium">Business</th>
-                    <th className="pb-3 font-medium">Status</th>
-                    <th className="pb-3 font-medium">Plan</th>
-                    <th className="pb-3 font-medium">Online</th>
-                    <th className="pb-3 font-medium">Joined</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {data.recent_tenants.map((t) => (
-                    <tr key={t.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
-                      <td className="py-3 font-medium">{t.business_name}</td>
-                      <td className="py-3">
-                        <Badge size="sm" color={t.status === "active" ? "success" : "error"}>
-                          {t.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3">{t.plan?.name ?? "—"}</td>
-                      <td className="py-3">
-                        <Badge size="sm" color={t.online_shop_enabled ? "success" : "light"}>
-                          {t.online_shop_enabled ? "Yes" : "No"}
-                        </Badge>
-                      </td>
-                      <td className="py-3">{new Date(t.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {/* With no payload at all there is nothing honest to draw — the alert
+          stands alone rather than over a page of skeletons that never resolve. */}
+      {(data || isLoading) && (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6 md:gap-6">
+          {!k ? (
+            Array.from({ length: 6 }).map((_, i) => <KpiTileSkeleton key={i} />)
           ) : (
-            <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-              No tenants yet — create the first one from Tenants.
-            </p>
+            <>
+              <KpiTile
+                label="Total tenants"
+                value={count(k.total_tenants.value)}
+                format={count}
+                basis="last month"
+                kpi={k.total_tenants}
+                icon={<GroupIcon className={ICON} />}
+              />
+              <KpiTile
+                label="Active subscriptions"
+                value={count(k.active_subscriptions.value)}
+                format={count}
+                basis="a month ago"
+                kpi={k.active_subscriptions}
+                icon={<CheckCircleIcon className={ICON} />}
+              />
+              <KpiTile
+                label="Revenue this month"
+                value={money(k.revenue_this_month.value)}
+                format={money}
+                basis="last month"
+                kpi={k.revenue_this_month}
+                icon={<PieChartIcon className={ICON} />}
+                emphasis
+              />
+              <KpiTile
+                label="Online orders today"
+                value={count(k.online_orders_today.value)}
+                format={count}
+                basis="yesterday"
+                kpi={k.online_orders_today}
+                icon={<BoxIconLine className={ICON} />}
+              />
+              <KpiTile
+                label="Active riders"
+                value={count(k.active_riders.value)}
+                format={count}
+                basis="a month ago"
+                kpi={k.active_riders}
+                icon={<PaperPlaneIcon className={ICON} />}
+              />
+              <KpiTile
+                label="New tenants this month"
+                value={count(k.new_tenants_this_month.value)}
+                format={count}
+                basis="last month"
+                kpi={k.new_tenants_this_month}
+                icon={<ShootingStarIcon className={ICON} />}
+              />
+            </>
           )}
         </div>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="xl:col-span-2">
+            <RevenueTrendPanel series={data?.revenue_series} loading={isLoading} />
+          </div>
+          <TenantGrowthPanel growth={data?.tenant_growth} loading={isLoading} />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <BusinessTypesPanel types={data?.business_types} loading={isLoading} />
+          <div className="xl:col-span-2">
+            <PlansPanel plans={data?.plans} loading={isLoading} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-3">
+          <div className="space-y-6 xl:col-span-2">
+            <RecentTenantsPanel tenants={data?.recent_tenants} loading={isLoading} />
+            <RecentPaymentsPanel payments={data?.recent_payments} loading={isLoading} />
+          </div>
+          <ActivityPanel activity={data?.activity} loading={isLoading} />
+        </div>
+
+        <div>
+          <h3 className="mb-3 text-theme-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Quick Actions
+          </h3>
+          <QuickActions />
+        </div>
       </div>
+      )}
     </>
   );
 }

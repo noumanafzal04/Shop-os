@@ -19,6 +19,7 @@ import { salesService } from "../../sales/services/salesService";
 import type { Sale } from "../../sales/types";
 import { posService, type HeldSale } from "../services/posService";
 import { posSound } from "../posSound";
+import CashDrawerPanel from "../components/CashDrawerPanel";
 import { useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
 import { useLanes } from "../../registers/hooks/useRegisters";
 import { useTerminalStore } from "../../../stores/terminalStore";
@@ -290,6 +291,7 @@ export default function PosPage() {
 
   const openModal = useModal();
   const closeModal = useModal();
+  const drawerModal = useModal();
   const heldModal = useModal();
   const receiptModal = useModal();
   const lineEditModal = useModal();
@@ -805,6 +807,9 @@ export default function PosPage() {
           <span className="hidden items-center gap-1.5 text-theme-xs font-medium text-gray-500 sm:flex dark:text-gray-400">
             <span className="h-2 w-2 rounded-full bg-success-500" /> Online
           </span>
+          {/* The X-read. Always reachable — with no shift the panel explains
+              why there is nothing to count rather than erroring. */}
+          <Button size="sm" variant="outline" onClick={drawerModal.openModal}>Drawer</Button>
           {open ? (
             <Button size="sm" variant="outline" onClick={() => { setCountedCash(""); closeModal.openModal(); }}>Close shift</Button>
           ) : (
@@ -1506,6 +1511,9 @@ export default function PosPage() {
           <Button size="sm" onClick={() => shift.close.mutate({ counted: Number(countedCash) || 0 }, { onSuccess: closeModal.closeModal })} disabled={shift.close.isPending}>Close shift</Button>
         </div>
       </Modal>
+
+      {/* Drawer X-read + the cashier's cash movements */}
+      <CashDrawerPanel isOpen={drawerModal.isOpen} onClose={drawerModal.closeModal} hasOpenShift={!!open} />
 
       {/* Held sales */}
       <Modal isOpen={heldModal.isOpen} onClose={heldModal.closeModal} className="max-w-md p-6">
