@@ -16,11 +16,16 @@ import {
   useBudgets,
   useExpenseAdminMutations,
   useExpenseCategories,
+  useExpenseCategoryMutations,
   useExpenseMutations,
   useExpenses,
   useRecurringExpenses,
 } from "../hooks/useExpenses";
 import { PAYMENT_METHODS, type BudgetRow, type Expense, type RecurringExpense } from "../services/expensesService";
+import { activeFilterCount, toParams, type MoneyFilters, type MoneyTotals } from "../services/moneyFilters";
+import { MoneyFilterBar } from "../components/MoneyFilterBar";
+import { CategoryManager } from "../components/CategoryManager";
+import { downloadFile } from "../../../common/api/download";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -28,6 +33,10 @@ const TABS = [
   { key: "expenses", label: "Expenses" },
   { key: "recurring", label: "Recurring" },
   { key: "budgets", label: "Budgets" },
+  // The vocabulary a business describes itself in. Last, because it is set up
+  // once and then left alone — but present, because the seeded list was never
+  // meant to be the final word.
+  { key: "categories", label: "Categories" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -87,6 +96,7 @@ export default function ExpensesPage() {
       {tab === "expenses" && <ExpensesTab money={money} toast={toast} />}
       {tab === "recurring" && <RecurringTab money={money} toast={toast} />}
       {tab === "budgets" && <BudgetsTab money={money} toast={toast} />}
+      {tab === "categories" && <ExpenseCategoriesTab />}
     </>
   );
 }
@@ -97,12 +107,16 @@ type Toast = ReturnType<typeof useToast>;
 // ── Expenses ──────────────────────────────────────────────────────────
 
 function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
-  const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [page, setPage] = useState(1);
-  const debounced = useDebouncedValue(search, 350);
+  const [filters, setFilters] = useState<MoneyFilters>({ page: 1 });
+  // Typing must not fire a request per keystroke, but every other filter is a
+  // deliberate click and should answer at once.
+  const debouncedSearch = useDebouncedValue(filters.search ?? "", 350);
+  const query = { ...filters, search: debouncedSearch };
+  const page = filters.page ?? 1;
+  const setPage = (p: number) => setFilters((f) => ({ ...f, page: p }));
 
-  const expenses = useExpenses({ search: debounced, category_id: categoryId, page });
+  const expenses = useExpenses(query);
+  const totals = (expenses.data?.meta as { totals?: MoneyTotals } | undefined)?.totals;
   const categories = useExpenseCategories();
   const { create, remove, attach, detach } = useExpenseMutations();
   const confirm = useConfirm();
@@ -180,20 +194,26 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
         onChange={(e) => { onFilePicked(e.target.files?.[0]); e.currentTarget.value = ""; }}
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="min-w-[12rem] flex-1">
-          <Input placeholder="Search description…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-        </div>
-        <div className="min-w-[10rem]">
-          <Select
-            options={[{ value: "", label: "All categories" }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))]}
-            placeholder="All categories"
-            value={categoryId}
-            onChange={(v) => { setCategoryId(v); setPage(1); }}
-          />
-        </div>
-        <Button size="sm" onClick={openAdd}>Add expense</Button>
-      </div>
+      <MoneyFilterBar
+        filters={filters}
+        onChange={setFilters}
+        categories={(categories.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name }))}
+        methods={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
+        totals={totals}
+        money={money}
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => downloadFile("/expenses/export", toParams(query), "expenses.csv")}
+              className="rounded-lg border border-gray-300 px-3 py-2.5 text-theme-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+            >
+              Export
+            </button>
+            <Button size="sm" onClick={openAdd}>Add expense</Button>
+          </div>
+        }
+      />
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
@@ -217,7 +237,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                    {debounced || categoryId ? "No expenses match these filters." : "No expenses recorded yet."}
+                    {activeFilterCount(filters) > 0 ? "No expenses match these filters." : "No expenses recorded yet."}
                   </td>
                 </tr>
               ) : (
@@ -283,8 +303,8 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
               {pagination.total} expenses · page {pagination.current_page} of {pagination.last_page}
             </span>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-              <Button size="sm" variant="outline" disabled={pagination.current_page >= pagination.last_page} onClick={() => setPage((p) => p + 1)}>Next</Button>
+              <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+              <Button size="sm" variant="outline" disabled={pagination.current_page >= pagination.last_page} onClick={() => setPage(page + 1)}>Next</Button>
             </div>
           </div>
         )}
@@ -659,5 +679,27 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
         </div>
       </div>
     </>
+  );
+}
+
+// ── Categories ────────────────────────────────────────────────────────
+
+/**
+ * The list a shop files its spending under. Seeded from the business type on
+ * day one and edited from here after — a restaurant that starts with
+ * "Ingredients" and later wants "Dairy" separately should not have to ask us.
+ */
+function ExpenseCategoriesTab() {
+  const categories = useExpenseCategories();
+  const mutations = useExpenseCategoryMutations();
+
+  return (
+    <CategoryManager
+      title="Expense categories"
+      hint="Seeded from your trade, then yours. A category with entries filed under it is turned off rather than deleted, so past months stay readable."
+      categories={categories.data ?? []}
+      loading={categories.isLoading}
+      mutations={mutations}
+    />
   );
 }

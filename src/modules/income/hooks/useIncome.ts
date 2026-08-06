@@ -5,6 +5,9 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { incomeService, type IncomeInput } from "../services/incomeService";
+import { ledgerService, type LedgerFilters } from "../services/ledgerService";
+import type { CategoryInput } from "../../expenses/services/expensesService";
+import type { MoneyFilters } from "../../expenses/services/moneyFilters";
 
 export function useIncomeCategories() {
   return useQuery({
@@ -13,12 +16,50 @@ export function useIncomeCategories() {
   });
 }
 
-export function useIncomes(params: { search?: string; category_id?: string; page?: number }) {
+export function useIncomes(filters: MoneyFilters) {
   return useQuery({
-    queryKey: ["incomes", params],
-    queryFn: () => incomeService.list(params),
+    queryKey: ["incomes", filters],
+    queryFn: () => incomeService.list(filters),
     placeholderData: keepPreviousData,
   });
+}
+
+/**
+ * The ledger — every movement, balance carried down. Kept on its own key so a
+ * new expense refreshes it without dragging the whole cashbook with it.
+ */
+export function useLedger(filters: LedgerFilters) {
+  return useQuery({
+    queryKey: ["ledger", filters],
+    queryFn: () => ledgerService.list(filters),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Category management, the half of the module that was read-only until now. */
+export function useIncomeCategoryMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["income-categories"] });
+    queryClient.invalidateQueries({ queryKey: ["incomes"] });
+    queryClient.invalidateQueries({ queryKey: ["ledger"] });
+  };
+
+  return {
+    create: useMutation({
+      mutationFn: (payload: CategoryInput) => incomeService.createCategory(payload),
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: ({ id, ...payload }: { id: string } & CategoryInput) =>
+        incomeService.updateCategory(id, payload),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: (id: string) => incomeService.removeCategory(id),
+      onSuccess: invalidate,
+    }),
+  };
 }
 
 export function useIncomeMutations() {
@@ -26,6 +67,7 @@ export function useIncomeMutations() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["incomes"] });
     queryClient.invalidateQueries({ queryKey: ["cashbook"] });
+    queryClient.invalidateQueries({ queryKey: ["ledger"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 

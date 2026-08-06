@@ -74,6 +74,7 @@ const NewSalePage = lazy(() => import("./modules/sales/pages/NewSalePage"));
 const ExpensesPage = lazy(() => import("./modules/expenses/pages/ExpensesPage"));
 const IncomePage = lazy(() => import("./modules/income/pages/IncomePage"));
 const CashbookPage = lazy(() => import("./modules/income/pages/CashbookPage"));
+const LedgerPage = lazy(() => import("./modules/income/pages/LedgerPage"));
 const ReportsPage = lazy(() => import("./modules/expenses/pages/ReportsPage"));
 const ReservationsPage = lazy(() => import("./modules/reservations/pages/ReservationsPage"));
 const OwnerReviewsPage = lazy(() => import("./modules/reviews/pages/OwnerReviewsPage"));
@@ -249,6 +250,9 @@ export default function App() {
                       <Route path="expenses" element={<ExpensesPage />} />
                       <Route path="income" element={<IncomePage />} />
                       <Route path="cashbook" element={<CashbookPage />} />
+                      {/* The cashbook at line level — the book itself, for a
+                          business whose whole job is checking the lines. */}
+                      <Route path="ledger" element={<LedgerPage />} />
                     </Route>
                   </Route>
                   <Route element={<RequirePermission permission="reports.view" />}>

@@ -1,4 +1,6 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
+import { toParams, type MoneyFilters } from "../../expenses/services/moneyFilters";
+import type { CategoryInput } from "../../expenses/services/expensesService";
 
 export interface IncomeCategory {
   id: string;
@@ -55,14 +57,16 @@ export interface Cashbook {
 export const incomeService = {
   categories: () => apiGet<IncomeCategory[]>("/income-categories"),
 
-  list: (params: { search?: string; category_id?: string; page?: number }) =>
-    apiGet<Income[]>("/incomes", {
-      params: {
-        search: params.search || undefined,
-        category_id: params.category_id || undefined,
-        page: params.page ?? 1,
-      },
-    }),
+  // Same reasoning as expense categories: the buckets a business sorts its
+  // money into are its own.
+  createCategory: (payload: CategoryInput) =>
+    apiPost<IncomeCategory>("/income-categories", payload),
+  updateCategory: (id: string, payload: CategoryInput) =>
+    apiPut<IncomeCategory>(`/income-categories/${id}`, payload),
+  removeCategory: (id: string) => apiDelete<null>(`/income-categories/${id}`),
+
+  list: (filters: MoneyFilters) =>
+    apiGet<Income[]>("/incomes", { params: toParams(filters) }),
 
   create: (payload: IncomeInput) => apiPost<Income>("/incomes", payload),
   update: (id: string, payload: IncomeInput) => apiPut<Income>(`/incomes/${id}`, payload),

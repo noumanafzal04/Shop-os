@@ -49,6 +49,7 @@ const SCREEN_PERMISSIONS: Record<string, string> = {
   "/tenant/cashbook": "expenses.manage",
   "/tenant/income": "expenses.manage",
   "/tenant/expenses": "expenses.manage",
+  "/tenant/ledger": "expenses.manage",
 
   // Catalog — including the label sheet, which prints from the catalog record
   // rather than off the shelf.

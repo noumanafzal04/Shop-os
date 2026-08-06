@@ -9,6 +9,7 @@ import { usePurchasesReport, useReport, useStaffReport, useTaxReport } from "../
 import { ReprintReportTab } from "../../receipts/components/ReprintReportTab";
 import { DeadStockTab, MarginsTab, ValuationTab } from "../components/StockReportTabs";
 import { useAuthStore } from "../../../stores/authStore";
+import { reportTabs, shopSells, SALES_TABS, STOCK_TABS } from "../reportTabs";
 
 
 const PERIODS = [
@@ -18,34 +19,23 @@ const PERIODS = [
   ["yearly", "This Year"],
 ] as const;
 
-/** Valuation and dead stock read the shelves, so they need the stock module. */
-const STOCK_TABS = ["valuation", "dead-stock"];
-
 export default function ReportsPage() {
   const money = useMoney();
-  const tracksStock = !!useAuthStore((s) => s.user?.tenant?.features?.inventory);
+  const features = useAuthStore((s) => s.user?.tenant?.features);
+  const tracksStock = !!features?.inventory;
+  // A books-only business (Finance Manager) sells nothing and stocks nothing.
+  // Which tabs that leaves is decided in reportTabs, where it can be tested.
+  const sells = shopSells(features);
   const [period, setPeriod] = useState<string>("monthly");
   const [selectedTab, setTab] = useState<string>("overview");
-  // A shop can lose the stock module while someone is sitting on Stock value.
+  // A shop can lose a module while someone is sitting on the tab it fed.
   // Falling back beats rendering a tab whose every request now 403s.
-  const tab = STOCK_TABS.includes(selectedTab) && !tracksStock ? "overview" : selectedTab;
+  const unavailable = (STOCK_TABS.includes(selectedTab) && !tracksStock)
+    || (SALES_TABS.includes(selectedTab) && !sells);
+  const tab = unavailable ? "overview" : selectedTab;
   const report = useReport({ period });
 
-  const TABS: Array<[string, string]> = [
-    ["overview", "Overview"],
-    // What actually pays, as opposed to what merely sells.
-    ["margins", "Margins"],
-    ...(tracksStock
-      ? ([
-          ["valuation", "Stock value"],
-          ["dead-stock", "Dead stock"],
-        ] as Array<[string, string]>)
-      : []),
-    ["purchases", "Purchases"],
-    ["staff", "Staff"],
-    ["tax", "Tax"],
-    ["receipts", "Receipts"],
-  ];
+  const TABS = reportTabs(features);
 
   const data = report.data;
 
@@ -67,8 +57,10 @@ export default function ReportsPage() {
     tooltip: { y: { formatter: (v: number) => money(v) } },
   };
 
+  // A flat zero revenue line under a real expense line is not a comparison,
+  // it is a line the reader has to work out is meaningless.
   const chartSeries = [
-    { name: "Revenue", data: (data?.series ?? []).map((b) => b.revenue) },
+    ...(sells ? [{ name: "Revenue", data: (data?.series ?? []).map((b) => b.revenue) }] : []),
     { name: "Expenses", data: (data?.series ?? []).map((b) => b.expenses) },
   ];
 
@@ -125,11 +117,18 @@ export default function ReportsPage() {
 
       {tab === "margins" ? <MarginsTab period={period} /> : tab === "valuation" ? <ValuationTab /> : tab === "dead-stock" ? <DeadStockTab /> : tab === "purchases" ? <PurchasesTab period={period} /> : tab === "staff" ? <StaffTab period={period} /> : tab === "tax" ? <TaxTab period={period} /> : tab === "receipts" ? <ReprintReportTab period={period} /> : (
       <>
-      {/* Totals */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-6 md:gap-6">
+      {/* Totals. A shop that sells nothing is shown what it actually has —
+          money out and what that leaves — not four cards of Rs 0 padding out
+          a row. Net profit stays either way: for a books-only business it is
+          simply the other side of what they spent. */}
+      <div
+        className={`mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 ${
+          sells ? "xl:grid-cols-6" : "sm:grid-cols-2"
+        }`}
+      >
         {report.isLoading || !data ? (
-          Array.from({ length: 6 }).map((_, i) => <MetricCardSkeleton key={i} />)
-        ) : (
+          Array.from({ length: sells ? 6 : 2 }).map((_, i) => <MetricCardSkeleton key={i} />)
+        ) : sells ? (
           <>
             <MetricCard label="Sales" value={data.totals.sales_count} />
             <MetricCard label="Revenue" value={money(data.totals.revenue)} />
@@ -138,13 +137,18 @@ export default function ReportsPage() {
             <MetricCard label="Expenses" value={money(data.totals.expenses)} />
             <MetricCard label="Net Profit" value={money(data.totals.net_profit)} />
           </>
+        ) : (
+          <>
+            <MetricCard label="Expenses" value={money(data.totals.expenses)} />
+            <MetricCard label="Net" value={money(data.totals.net_profit)} />
+          </>
         )}
       </div>
 
       {/* Revenue vs Expenses chart */}
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
         <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">
-          Revenue vs Expenses
+          {sells ? "Revenue vs Expenses" : "Expenses over time"}
         </h3>
         {report.isLoading ? (
           <div className="h-64 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
@@ -153,8 +157,10 @@ export default function ReportsPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Top products */}
+      <div className={`grid grid-cols-1 gap-6 ${sells ? "lg:grid-cols-2" : ""}`}>
+        {/* Top products — a business that sells nothing has no top seller, and
+            "No sales in this period" every month is not information. */}
+        {sells && (
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
           <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">Top Items</h3>
           {report.isLoading ? (
@@ -184,6 +190,7 @@ export default function ReportsPage() {
             </table>
           )}
         </div>
+        )}
 
         {/* Expenses by category */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">

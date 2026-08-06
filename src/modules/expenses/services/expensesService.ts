@@ -1,10 +1,17 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
+import { toParams, type MoneyFilters } from "./moneyFilters";
 
 export interface ExpenseCategory {
   id: string;
   name: string;
   is_default: boolean;
   is_active: boolean;
+}
+
+/** Creating or renaming a category. `is_active` retires one without erasing history. */
+export interface CategoryInput {
+  name: string;
+  is_active?: boolean;
 }
 
 /** Only `cash` moves a drawer — the rest leave the till alone. */
@@ -106,14 +113,18 @@ export interface ReportSummary {
 export const expensesService = {
   categories: () => apiGet<ExpenseCategory[]>("/expense-categories"),
 
-  list: (params: { search?: string; category_id?: string; page?: number }) =>
-    apiGet<Expense[]>("/expenses", {
-      params: {
-        search: params.search || undefined,
-        category_id: params.category_id || undefined,
-        page: params.page ?? 1,
-      },
-    }),
+  // The categories a shop files its money under are ITS categories — seeded
+  // from the business type as a starting point, not a fixed list. Without a
+  // way to change them the seeded twenty are the whole vocabulary a business
+  // gets to describe itself in, forever.
+  createCategory: (payload: CategoryInput) =>
+    apiPost<ExpenseCategory>("/expense-categories", payload),
+  updateCategory: (id: string, payload: CategoryInput) =>
+    apiPut<ExpenseCategory>(`/expense-categories/${id}`, payload),
+  removeCategory: (id: string) => apiDelete<null>(`/expense-categories/${id}`),
+
+  list: (filters: MoneyFilters) =>
+    apiGet<Expense[]>("/expenses", { params: toParams(filters) }),
 
   create: (payload: ExpenseInput) => apiPost<Expense>("/expenses", payload),
 

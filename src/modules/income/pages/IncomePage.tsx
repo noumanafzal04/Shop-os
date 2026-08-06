@@ -13,24 +13,43 @@ import { ApiError } from "../../../common/types/api";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import {
   useIncomeCategories,
+  useIncomeCategoryMutations,
   useIncomeMutations,
   useIncomes,
 } from "../hooks/useIncome";
+import { CategoryManager } from "../../expenses/components/CategoryManager";
+import { MoneyFilterBar } from "../../expenses/components/MoneyFilterBar";
+import { activeFilterCount, toParams, type MoneyFilters, type MoneyTotals } from "../../expenses/services/moneyFilters";
+import { downloadFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+/** How money arrived. No `credit` — a promise to pay is not money in. */
+const INCOME_METHODS = [
+  { value: "cash", label: "Cash (to till)" },
+  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "card", label: "Card" },
+  { value: "other", label: "Other" },
+];
 
 export default function IncomePage() {
   const money = useMoney();
   const toast = useToast();
   const confirm = useConfirm();
 
-  const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [page, setPage] = useState(1);
-  const debounced = useDebouncedValue(search, 350);
+  // The same filter shape as expenses and the ledger — three views of one
+  // thing, so a person who learns the bar once has learnt it everywhere.
+  const [filters, setFilters] = useState<MoneyFilters>({ page: 1 });
+  const [showCategories, setShowCategories] = useState(false);
+  const debouncedSearch = useDebouncedValue(filters.search ?? "", 350);
+  const query = { ...filters, search: debouncedSearch };
+  const page = filters.page ?? 1;
+  const setPage = (p: number) => setFilters((f) => ({ ...f, page: p }));
 
-  const incomes = useIncomes({ search: debounced, category_id: categoryId, page });
+  const incomes = useIncomes(query);
+  const totals = (incomes.data?.meta as { totals?: MoneyTotals } | undefined)?.totals;
+  const categoryMutations = useIncomeCategoryMutations();
   const categories = useIncomeCategories();
   const { create, update, remove } = useIncomeMutations();
 
@@ -123,24 +142,45 @@ export default function IncomePage() {
             Your sales revenue is tracked automatically in the Cashbook.
           </p>
         </div>
-        <Button size="sm" onClick={openAdd}>+ Add Income</Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowCategories((c) => !c)}
+          >
+            {showCategories ? "Back to income" : "Categories"}
+          </Button>
+          <Button size="sm" onClick={openAdd}>+ Add Income</Button>
+        </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Input
-          placeholder="Search description…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+      {showCategories ? (
+        <CategoryManager
+          title="Income categories"
+          hint="Where money in that isn't a sale gets filed. Yours to change — a category with entries under it is turned off rather than deleted."
+          categories={categories.data ?? []}
+          loading={categories.isLoading}
+          mutations={categoryMutations}
         />
-        <Select
-          options={[
-            { value: "", label: "All categories" },
-            ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name })),
-          ]}
-          placeholder="All categories"
-          onChange={(v) => { setCategoryId(v); setPage(1); }}
-        />
-      </div>
+      ) : (
+      <>
+      <MoneyFilterBar
+        filters={filters}
+        onChange={setFilters}
+        categories={(categories.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name }))}
+        methods={INCOME_METHODS}
+        totals={totals}
+        money={money}
+        action={
+          <button
+            type="button"
+            onClick={() => downloadFile("/incomes/export", toParams(query), "income.csv")}
+            className="rounded-lg border border-gray-300 px-3 py-2.5 text-theme-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            Export
+          </button>
+        }
+      />
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
@@ -166,7 +206,7 @@ export default function IncomePage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                    {debounced || categoryId ? "No income matches these filters." : "No income recorded yet."}
+                    {activeFilterCount(filters) > 0 ? "No income matches these filters." : "No income recorded yet."}
                   </td>
                 </tr>
               ) : (
@@ -195,16 +235,18 @@ export default function IncomePage() {
               {pagination.total} entries · page {pagination.current_page} of {pagination.last_page}
             </span>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage(page - 1)}>
                 Previous
               </Button>
-              <Button size="sm" variant="outline" disabled={pagination.current_page >= pagination.last_page} onClick={() => setPage((p) => p + 1)}>
+              <Button size="sm" variant="outline" disabled={pagination.current_page >= pagination.last_page} onClick={() => setPage(page + 1)}>
                 Next
               </Button>
             </div>
           </div>
         )}
       </div>
+      </>
+      )}
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">

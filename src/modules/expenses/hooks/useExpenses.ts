@@ -4,7 +4,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { expensesService, type ExpenseInput, type RecurringInput } from "../services/expensesService";
+import { expensesService, type CategoryInput, type ExpenseInput, type RecurringInput } from "../services/expensesService";
+import type { MoneyFilters } from "../services/moneyFilters";
 
 export function useExpenseCategories() {
   return useQuery({
@@ -13,18 +14,50 @@ export function useExpenseCategories() {
   });
 }
 
-export function useExpenses(params: { search?: string; category_id?: string; page?: number }) {
+export function useExpenses(filters: MoneyFilters) {
   return useQuery({
-    queryKey: ["expenses", params],
-    queryFn: () => expensesService.list(params),
+    queryKey: ["expenses", filters],
+    queryFn: () => expensesService.list(filters),
     placeholderData: keepPreviousData,
   });
+}
+
+/**
+ * Category management — the half of the module that was read-only until now.
+ * The page has always said "yours to change"; this is what makes that true.
+ */
+export function useExpenseCategoryMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    queryClient.invalidateQueries({ queryKey: ["ledger"] });
+    // A retired category changes what the budget screen can even offer.
+    queryClient.invalidateQueries({ queryKey: ["budgets"] });
+  };
+
+  return {
+    create: useMutation({
+      mutationFn: (payload: CategoryInput) => expensesService.createCategory(payload),
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: ({ id, ...payload }: { id: string } & CategoryInput) =>
+        expensesService.updateCategory(id, payload),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: (id: string) => expensesService.removeCategory(id),
+      onSuccess: invalidate,
+    }),
+  };
 }
 
 export function useExpenseMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    queryClient.invalidateQueries({ queryKey: ["ledger"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     queryClient.invalidateQueries({ queryKey: ["reports"] });
     // A cash expense moves the drawer, so the till's own view of expected

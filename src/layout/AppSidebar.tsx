@@ -88,6 +88,9 @@ export function shopNav(
     name: "Expense Manager",
     subItems: [
       { name: "Cashbook", path: "/tenant/cashbook" },
+      // The book itself: every movement, balance carried down. Sits beside the
+      // day summary because they answer the same question at two depths.
+      { name: "Ledger", path: "/tenant/ledger" },
       { name: "Income", path: "/tenant/income" },
       { name: "Expenses", path: "/tenant/expenses" },
     ],

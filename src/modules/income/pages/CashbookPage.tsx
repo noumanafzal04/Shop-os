@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import { useCashbook } from "../hooks/useIncome";
@@ -34,6 +35,13 @@ export default function CashbookPage() {
             the cash drawer. For physical cash at the counter, use the POS shift close.
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-3">
+        <Link
+          to="/tenant/ledger"
+          className="rounded-lg border border-gray-300 px-3 py-2 text-theme-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+        >
+          Open ledger
+        </Link>
         <div className="flex gap-1 rounded-lg border border-gray-200 p-1 dark:border-gray-800">
           {PERIODS.map((p) => (
             <button
@@ -48,6 +56,7 @@ export default function CashbookPage() {
               {p.label}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -97,7 +106,17 @@ export default function CashbookPage() {
                   .filter((d) => d.money_in !== 0 || d.money_out !== 0)
                   .map((d) => (
                     <tr key={d.date} className="text-theme-sm text-gray-700 dark:text-gray-300">
-                      <td className="px-6 py-4 font-medium text-gray-800 dark:text-white/90">{d.date}</td>
+                      <td className="px-6 py-4 font-medium">
+                        {/* A day is a summary of entries; this is how you get
+                            to them. Without it the figure is an answer nobody
+                            can check, and checking is the whole job. */}
+                        <Link
+                          to={`/tenant/ledger?date=${d.date}`}
+                          className="text-brand-600 hover:underline dark:text-brand-400"
+                        >
+                          {d.date}
+                        </Link>
+                      </td>
                       <td className="px-6 py-4 text-right">{d.sales_revenue ? money(d.sales_revenue) : "—"}</td>
                       <td className="px-6 py-4 text-right">{d.other_income ? money(d.other_income) : "—"}</td>
                       <td className="px-6 py-4 text-right">{d.expenses ? money(d.expenses) : "—"}</td>
