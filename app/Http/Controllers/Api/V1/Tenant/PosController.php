@@ -12,12 +12,23 @@ use App\Models\CashMovement;
 use App\Models\CashSession;
 use App\Models\HeldSale;
 use App\Models\Product;
+use App\Models\ProductBarcode;
+use App\Models\ProductUnit;
 use App\Models\ProductVariant;
 use App\Models\Register;
+use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
+use App\Support\DenominationCount;
 use App\Support\DrawerMath;
+use App\Support\Permissions;
+use App\Support\RegisterContext;
+use App\Support\ScaleBarcode;
+use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class PosController extends Controller
@@ -27,9 +38,9 @@ class PosController extends Controller
      * variant's SKU (returning the parent product with the variant preselected).
      */
     public function __construct(
-        private readonly \App\Support\TenantContext $context,
-        private readonly \App\Support\BranchContext $branch,
-        private readonly \App\Support\RegisterContext $terminal,
+        private readonly TenantContext $context,
+        private readonly BranchContext $branch,
+        private readonly RegisterContext $terminal,
     ) {}
 
     public function lookup(Request $request): JsonResponse
@@ -44,7 +55,7 @@ class PosController extends Controller
         // resolve the product by PLU and hand back the pre-filled quantity so
         // the cashier doesn't type the weight. Falls through to a normal lookup
         // if it isn't a scale barcode.
-        $scale = \App\Support\ScaleBarcode::parse($code, $this->context->get()?->allSettings() ?? []);
+        $scale = ScaleBarcode::parse($code, $this->context->get()?->allSettings() ?? []);
         if ($scale !== null) {
             return $this->scaleLookup($scale);
         }
@@ -61,7 +72,7 @@ class PosController extends Controller
         if ($product === null) {
             // Fall back to a variant SKU, or an alternate barcode tied to a variant.
             $variant = ProductVariant::query()->where('sku', $code)->where('is_active', true)->first()
-                ?? \App\Models\ProductBarcode::query()->where('barcode', $code)->whereNotNull('variant_id')->first()?->variant;
+                ?? ProductBarcode::query()->where('barcode', $code)->whereNotNull('variant_id')->first()?->variant;
             if ($variant !== null) {
                 $product = Product::query()->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])->find($variant->product_id);
                 $variantId = $variant->id;
@@ -71,7 +82,7 @@ class PosController extends Controller
         if ($product === null) {
             // A pack (strip/box) can carry its own barcode — scanning it should
             // preselect that pack on the line.
-            $unit = \App\Models\ProductUnit::query()->where('barcode', $code)->first();
+            $unit = ProductUnit::query()->where('barcode', $code)->first();
             if ($unit !== null) {
                 $product = Product::query()->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
                     ->where('is_active', true)->find($unit->product_id);
@@ -193,10 +204,19 @@ class PosController extends Controller
             // The lane may be named explicitly (the picker) or come from the
             // terminal's own X-Register-Id header.
             'register_id' => ['nullable', 'uuid'],
+            // The float counted by note and coin. When given it DERIVES the
+            // opening float rather than sitting beside it.
+            'denominations' => ['sometimes', 'array'],
+            'denominations.*' => ['integer', 'min:0', 'max:100000'],
         ]);
 
         $register = $this->resolveRegister($data['register_id'] ?? null);
-        $session = $action->execute($request->user(), (float) $data['opening_float'], $register);
+        $session = $action->execute(
+            $request->user(),
+            (float) $data['opening_float'],
+            $register,
+            $data['denominations'] ?? null,
+        );
 
         // A resumed shift is not a new one — say so, so the POS doesn't report
         // "Shift opened" over a drawer that has been running since morning.
@@ -220,10 +240,7 @@ class PosController extends Controller
 
     public function closeSession(Request $request, CloseCashSessionAction $action): JsonResponse
     {
-        $data = $request->validate([
-            'counted_cash' => ['required', 'numeric', 'min:0', 'max:99999999'],
-            'notes' => ['nullable', 'string', 'max:500'],
-        ]);
+        $data = $request->validate($this->closeRules());
 
         /** @var CashSession|null $session */
         $session = CashSession::query()
@@ -235,9 +252,19 @@ class PosController extends Controller
             throw DomainException::conflict('You have no open shift to close.', 'SHIFT_NOT_OPEN');
         }
 
-        $closed = $action->execute($session, (float) $data['counted_cash'], $data['notes'] ?? null, $request->user()->id);
+        $closed = $action->execute(
+            $session,
+            (float) $data['counted_cash'],
+            $data['notes'] ?? null,
+            $request->user()->id,
+            [
+                'denominations' => $data['denominations'] ?? null,
+                'declared_tenders' => $data['declared_tenders'] ?? null,
+                'blind' => (bool) $this->context->get()?->setting('pos_blind_close', false),
+            ],
+        );
 
-        return ApiResponse::ok($closed, 'Shift closed');
+        return ApiResponse::ok($this->maskBlind($closed, $request), 'Shift closed');
     }
 
     /**
@@ -248,10 +275,7 @@ class PosController extends Controller
      */
     public function forceCloseSession(Request $request, string $registerId, CloseCashSessionAction $action): JsonResponse
     {
-        $data = $request->validate([
-            'counted_cash' => ['required', 'numeric', 'min:0', 'max:99999999'],
-            'notes' => ['nullable', 'string', 'max:500'],
-        ]);
+        $data = $request->validate($this->closeRules());
 
         $register = Register::query()->findOrFail($registerId);
         $session = $register->openSession();
@@ -265,6 +289,13 @@ class PosController extends Controller
             (float) $data['counted_cash'],
             $data['notes'] ?? null,
             $request->user()->id,
+            [
+                'denominations' => $data['denominations'] ?? null,
+                'declared_tenders' => $data['declared_tenders'] ?? null,
+                // A manager closing someone else's lane already knows the
+                // expected figure — there is nothing to blind them to.
+                'blind' => false,
+            ],
         );
 
         return ApiResponse::ok($closed->load(['user:id,name', 'register:id,name']), 'Shift closed');
@@ -295,14 +326,66 @@ class PosController extends Controller
             throw DomainException::conflict('You have no open shift.', 'SHIFT_NOT_OPEN');
         }
 
+        $drawer = DrawerMath::for($session);
+        $blind = (bool) $this->context->get()?->setting('pos_blind_close', false);
+
+        // Under blind close the live read still shows the cashier everything
+        // they DID — sales, tenders, every movement — and withholds only the
+        // one number they are about to be measured against. Take that away
+        // too and the X-read stops being useful for its real job: tracing a
+        // variance back to the transaction that caused it.
+        if ($blind && ! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            unset($drawer['expected_cash'], $drawer['cash_sales']);
+        }
+
         return ApiResponse::ok([
             'session' => $session,
-            'drawer' => DrawerMath::for($session),
+            'drawer' => $drawer,
+            'blind_close' => $blind,
+            'denomination_count' => (bool) $this->context->get()?->setting('pos_denomination_count', true),
+            'declare_tenders' => (bool) $this->context->get()?->setting('pos_declare_tenders', false),
+            'denominations' => DenominationCount::PKR,
             'movements' => CashMovement::query()
                 ->with('user:id,name')
                 ->where('cash_session_id', $session->id)
                 ->latest()
                 ->get(),
+        ]);
+    }
+
+    /**
+     * The Z-read for a closed shift: what was counted that night.
+     *
+     * Every figure comes off the frozen row rather than being recomputed, so a
+     * report reprinted next year matches the slip that was signed — even if a
+     * sale on it has since been voided or refunded. That is the whole point of
+     * an end-of-shift artifact; a Z-read that changes retroactively is not
+     * evidence of anything.
+     */
+    public function zReport(string $id): JsonResponse
+    {
+        /** @var CashSession $session */
+        $session = CashSession::query()
+            ->with(['user:id,name', 'register:id,name,code', 'branch:id,name', 'businessDay:id,trading_date,status'])
+            ->findOrFail($id);
+
+        if ($session->isOpen()) {
+            throw DomainException::conflict(
+                'This shift is still open — a Z-read is the record of a counted drawer.',
+                'SHIFT_NOT_CLOSED',
+            );
+        }
+
+        return ApiResponse::ok([
+            'session' => $session,
+            'movements' => CashMovement::query()
+                ->with('user:id,name')
+                ->where('cash_session_id', $session->id)
+                ->orderBy('created_at')
+                ->get(),
+            'closed_by' => $session->closed_by !== null
+                ? User::query()->whereKey($session->closed_by)->value('name')
+                : null,
         ]);
     }
 
@@ -359,8 +442,8 @@ class PosController extends Controller
             'status' => ['nullable', 'in:open,closed'],
         ]);
 
-        $from = isset($data['from']) ? \Illuminate\Support\Carbon::parse($data['from'])->startOfDay() : now()->startOfDay();
-        $to = isset($data['to']) ? \Illuminate\Support\Carbon::parse($data['to'])->endOfDay() : now()->endOfDay();
+        $from = isset($data['from']) ? Carbon::parse($data['from'])->startOfDay() : now()->startOfDay();
+        $to = isset($data['to']) ? Carbon::parse($data['to'])->endOfDay() : now()->endOfDay();
 
         $sessions = CashSession::query()
             ->with(['user:id,name', 'register:id,name,code', 'branch:id,name'])
@@ -387,6 +470,88 @@ class PosController extends Controller
             'from' => $from->toDateTimeString(),
             'to' => $to->toDateTimeString(),
         ]);
+    }
+
+    /** The Z-read as paper. Same frozen figures as zReport(), on a printer. */
+    public function zReportPrint(Request $request, string $id): Response
+    {
+        $data = $request->validate([
+            'paper' => ['sometimes', 'in:standard,thermal_80,thermal_58'],
+        ]);
+
+        /** @var CashSession $session */
+        $session = CashSession::query()
+            ->with(['user:id,name', 'register:id,name', 'branch:id,name'])
+            ->findOrFail($id);
+
+        if ($session->isOpen()) {
+            throw DomainException::conflict(
+                'This shift is still open — a Z-read is the record of a counted drawer.',
+                'SHIFT_NOT_CLOSED',
+            );
+        }
+
+        $tenant = $this->context->get();
+
+        return response()->view('pos.z-report', [
+            'session' => $session,
+            'tenant' => $tenant,
+            'settings' => $tenant->allSettings(),
+            'paper' => $data['paper'] ?? null,
+            'closedBy' => $session->closed_by !== null
+                ? User::query()->whereKey($session->closed_by)->value('name')
+                : null,
+            'movements' => CashMovement::query()
+                ->where('cash_session_id', $session->id)
+                ->orderBy('created_at')
+                ->get(),
+        ]);
+    }
+
+    /**
+     * Validation shared by the cashier's own close and a manager's force-close.
+     *
+     * `counted_cash` stays required even when a denomination breakdown is sent:
+     * a client that can only type a total must still work, and where both
+     * arrive the breakdown wins (see CloseCashSessionAction).
+     *
+     * @return array<string, mixed>
+     */
+    private function closeRules(): array
+    {
+        return [
+            'counted_cash' => ['required', 'numeric', 'min:0', 'max:99999999'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'denominations' => ['sometimes', 'array'],
+            'denominations.*' => ['integer', 'min:0', 'max:100000'],
+            // What the cashier says each non-cash tender took.
+            'declared_tenders' => ['sometimes', 'array'],
+            'declared_tenders.*' => ['numeric', 'min:0', 'max:99999999'],
+        ];
+    }
+
+    /**
+     * Hide the answer from the person being marked.
+     *
+     * Blind close is worth nothing if the expected figure comes back in the
+     * close response — the cashier reads it, and next time they know what to
+     * count to. A manager sees everything, because reconciling is their job and
+     * they are not the one being checked.
+     */
+    private function maskBlind(CashSession $session, Request $request): CashSession
+    {
+        $blind = (bool) $this->context->get()?->setting('pos_blind_close', false);
+
+        if (! $blind || $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return $session;
+        }
+
+        return tap(clone $session, function (CashSession $masked): void {
+            $masked->setAttribute('expected_cash', null);
+            $masked->setAttribute('variance', null);
+            $masked->setAttribute('cash_sales', null);
+            $masked->setAttribute('tender_variances', null);
+        });
     }
 
     /**
@@ -464,7 +629,7 @@ class PosController extends Controller
      */
     public function heldClaim(Request $request, string $id): JsonResponse
     {
-        return DB::transaction(function () use ($request, $id): JsonResponse {
+        return DB::transaction(function () use ($id): JsonResponse {
             /** @var HeldSale|null $held */
             $held = HeldSale::query()->whereKey($id)->lockForUpdate()->first();
 

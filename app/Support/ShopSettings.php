@@ -116,6 +116,25 @@ class ShopSettings
             // Recommended ON for any shop with staff or more than one lane.
             'pos_require_shift' => false,
 
+            // ── Counting the drawer out ─────────────────────────────────
+            // Count by note and coin rather than typing a total. On by
+            // default: it costs the cashier nothing they weren't already
+            // doing, and it turns the count into something a second person
+            // can re-check against the drawer itself.
+            'pos_denomination_count' => true,
+            // Withhold expected cash until the count is submitted. If the till
+            // tells you it expects 47,320, the count comes out at 47,320 —
+            // often not dishonestly; a human who knows the answer stops
+            // counting when they reach it. OFF by default because in a
+            // one-person shop the owner IS the cashier, and hiding their own
+            // number from them is theatre.
+            'pos_blind_close' => false,
+            // Ask the cashier what the card terminal took. The moment to catch
+            // a mis-keyed card sale is at close, with them still standing
+            // there — not at month end against a bank statement. Off by
+            // default: a cash-only shop has nothing to declare.
+            'pos_declare_tenders' => false,
+
             // ── Quotations & layaway (retail depth) ─────────────────────
             // "Estimate bana do." A written price, held until a date. On by
             // default because almost every counter is asked for one, and a shop
@@ -221,6 +240,9 @@ class ShopSettings
             'kot_auto_print' => ['sometimes', 'boolean'],
             'tips_enabled' => ['sometimes', 'boolean'],
             'pos_require_shift' => ['sometimes', 'boolean'],
+            'pos_denomination_count' => ['sometimes', 'boolean'],
+            'pos_blind_close' => ['sometimes', 'boolean'],
+            'pos_declare_tenders' => ['sometimes', 'boolean'],
             'max_discount_percent' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
             'max_discount_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999'],
             'quotations_enabled' => ['sometimes', 'boolean'],

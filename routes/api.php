@@ -1,71 +1,79 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AnnouncementController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
+use App\Http\Controllers\Api\V1\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\V1\Admin\BillingController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\PlanController;
 use App\Http\Controllers\Api\V1\Admin\StaffController as AdminStaffController;
-use App\Http\Controllers\Api\V1\Admin\AnnouncementController;
-use App\Http\Controllers\Api\V1\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\V1\Admin\TenantController;
+use App\Http\Controllers\Api\V1\Auth\AuthController;
+use App\Http\Controllers\Api\V1\Auth\OtpController;
+use App\Http\Controllers\Api\V1\Auth\PasswordController;
+use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\BusinessTypeController;
+use App\Http\Controllers\Api\V1\CityController;
+use App\Http\Controllers\Api\V1\Customer\AddressController as CustomerAddressController;
+use App\Http\Controllers\Api\V1\DeviceController;
+use App\Http\Controllers\Api\V1\Marketplace\BannerController as PublicBannerController;
+use App\Http\Controllers\Api\V1\Marketplace\CustomerOrderController;
+use App\Http\Controllers\Api\V1\Marketplace\CustomerReservationController;
+use App\Http\Controllers\Api\V1\Marketplace\FavoriteController;
+use App\Http\Controllers\Api\V1\Marketplace\MarketplaceController;
+use App\Http\Controllers\Api\V1\Marketplace\ReviewController;
+use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Tenant\BatchController;
+use App\Http\Controllers\Api\V1\Tenant\BranchController;
+use App\Http\Controllers\Api\V1\Tenant\BusinessDayController;
 use App\Http\Controllers\Api\V1\Tenant\CategoryController;
 use App\Http\Controllers\Api\V1\Tenant\CollectionController;
 use App\Http\Controllers\Api\V1\Tenant\CouponController;
-use App\Http\Controllers\Api\V1\Tenant\GalleryController;
 use App\Http\Controllers\Api\V1\Tenant\CustomerController;
+use App\Http\Controllers\Api\V1\Tenant\CustomerGroupController;
 use App\Http\Controllers\Api\V1\Tenant\DashboardController;
 use App\Http\Controllers\Api\V1\Tenant\DiningTableController;
-use App\Http\Controllers\Api\V1\Tenant\KitchenController;
-use App\Http\Controllers\Api\V1\Tenant\PharmacyController;
-use App\Http\Controllers\Api\V1\Tenant\RestaurantTicketController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseBudgetController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseController;
-use App\Http\Controllers\Api\V1\Tenant\RecurringExpenseController;
 use App\Http\Controllers\Api\V1\Tenant\ForecourtShiftController;
 use App\Http\Controllers\Api\V1\Tenant\FuelDeliveryController;
 use App\Http\Controllers\Api\V1\Tenant\FuelPriceController;
 use App\Http\Controllers\Api\V1\Tenant\FuelSetupController;
+use App\Http\Controllers\Api\V1\Tenant\GalleryController;
+use App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController;
 use App\Http\Controllers\Api\V1\Tenant\IncomeCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\IncomeController;
-use App\Http\Controllers\Api\V1\Tenant\BatchController;
 use App\Http\Controllers\Api\V1\Tenant\InventoryController;
+use App\Http\Controllers\Api\V1\Tenant\KitchenController;
 use App\Http\Controllers\Api\V1\Tenant\OrderController;
-use App\Http\Controllers\Api\V1\Tenant\ReportController;
-use App\Http\Controllers\Api\V1\Tenant\ProductController;
+use App\Http\Controllers\Api\V1\Tenant\PharmacyController;
 use App\Http\Controllers\Api\V1\Tenant\PosController;
+use App\Http\Controllers\Api\V1\Tenant\PosRegisterController;
+use App\Http\Controllers\Api\V1\Tenant\ProductController;
 use App\Http\Controllers\Api\V1\Tenant\ProductImageController;
+use App\Http\Controllers\Api\V1\Tenant\PromotionController;
 use App\Http\Controllers\Api\V1\Tenant\PurchaseOrderController;
-use App\Http\Controllers\Api\V1\Tenant\RiderController;
-use App\Http\Controllers\Api\V1\Tenant\SupplierController;
-use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\Tenant\ReceiptController;
-use App\Http\Controllers\Api\V1\Tenant\TillIdentityController;
+use App\Http\Controllers\Api\V1\Tenant\RecurringExpenseController;
+use App\Http\Controllers\Api\V1\Tenant\ReportController;
+use App\Http\Controllers\Api\V1\Tenant\ReservationController;
+use App\Http\Controllers\Api\V1\Tenant\RestaurantTicketController;
+use App\Http\Controllers\Api\V1\Tenant\RiderController;
 use App\Http\Controllers\Api\V1\Tenant\SaleController;
 use App\Http\Controllers\Api\V1\Tenant\SaleDocumentController;
-use App\Http\Controllers\Api\V1\Tenant\BranchController;
 use App\Http\Controllers\Api\V1\Tenant\SearchController;
-use App\Http\Controllers\Api\V1\Tenant\TransferController;
 use App\Http\Controllers\Api\V1\Tenant\ShopController;
 use App\Http\Controllers\Api\V1\Tenant\StaffController as TenantStaffController;
-use App\Http\Controllers\Api\V1\Auth\AuthController;
-use App\Http\Controllers\Api\V1\Auth\OtpController;
-use App\Http\Controllers\Api\V1\Auth\RegisterController;
-use App\Http\Controllers\Api\V1\Customer\AddressController as CustomerAddressController;
-use App\Http\Controllers\Api\V1\Marketplace\CustomerOrderController;
-use App\Http\Controllers\Api\V1\Marketplace\CustomerReservationController;
-use App\Http\Controllers\Api\V1\Marketplace\FavoriteController;
-use App\Http\Controllers\Api\V1\Marketplace\BannerController as PublicBannerController;
-use App\Http\Controllers\Api\V1\Marketplace\MarketplaceController;
-use App\Http\Controllers\Api\V1\Marketplace\ReviewController;
-use App\Http\Controllers\Api\V1\Tenant\ReservationController;
+use App\Http\Controllers\Api\V1\Tenant\SubscriptionController;
+use App\Http\Controllers\Api\V1\Tenant\SupplierController;
+use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
+use App\Http\Controllers\Api\V1\Tenant\TaxGroupController;
 use App\Http\Controllers\Api\V1\Tenant\TenantReviewController;
-use App\Http\Controllers\Api\V1\Auth\PasswordController;
-use App\Http\Controllers\Api\V1\Auth\SessionController;
-use App\Http\Controllers\Api\V1\CityController;
-use App\Http\Controllers\Api\V1\DeviceController;
-use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Tenant\TillIdentityController;
+use App\Http\Controllers\Api\V1\Tenant\TransferController;
+use App\Http\Controllers\Api\V1\Tenant\WarrantyController;
 use App\Support\ApiResponse;
 use Illuminate\Support\Facades\Route;
 
@@ -148,7 +156,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::put('/shop/setup', [ShopController::class, 'setup'])->middleware('permission:settings.manage');
             Route::put('/shop', [ShopController::class, 'update'])->middleware('permission:settings.manage');
             Route::get('/shop/settings', [ShopController::class, 'settings']);
-            Route::get('/shop/subscription', [\App\Http\Controllers\Api\V1\Tenant\SubscriptionController::class, 'show']);
+            Route::get('/shop/subscription', [SubscriptionController::class, 'show']);
             Route::put('/shop/settings', [ShopController::class, 'updateSettings'])->middleware('permission:settings.manage');
             // Portfolio / gallery — a service business shows its work. Gated by
             // the services module: a mart or pharmacy has no portfolio.
@@ -171,10 +179,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             // Hardware registry — receipt/label printers, scanners, cash drawer.
             Route::middleware('permission:settings.manage')->group(function (): void {
-                Route::get('hardware-devices', [\App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController::class, 'index']);
-                Route::post('hardware-devices', [\App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController::class, 'store']);
-                Route::put('hardware-devices/{device}', [\App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController::class, 'update']);
-                Route::delete('hardware-devices/{device}', [\App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController::class, 'destroy']);
+                Route::get('hardware-devices', [HardwareDeviceController::class, 'index']);
+                Route::post('hardware-devices', [HardwareDeviceController::class, 'store']);
+                Route::put('hardware-devices/{device}', [HardwareDeviceController::class, 'update']);
+                Route::delete('hardware-devices/{device}', [HardwareDeviceController::class, 'destroy']);
             });
 
             // Collections — storefront merchandising ("Summer Sale" shelves), so
@@ -207,7 +215,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::put('products/{product}/branch-prices', [ProductController::class, 'setBranchPrices']);
                 Route::put('products/{product}/modifier-groups', [ProductController::class, 'syncModifiers']);
                 // Tax groups — named reusable rates products can point at.
-                Route::apiResource('tax-groups', \App\Http\Controllers\Api\V1\Tenant\TaxGroupController::class)
+                Route::apiResource('tax-groups', TaxGroupController::class)
                     ->only(['index', 'store', 'update', 'destroy']);
             });
 
@@ -217,7 +225,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('customers/{customer}/payments', [CustomerController::class, 'recordPayment']);
                 Route::get('customers/export', [CustomerController::class, 'export']);
                 // Customer groups — tiered pricing segments.
-                Route::apiResource('customer-groups', \App\Http\Controllers\Api\V1\Tenant\CustomerGroupController::class)
+                Route::apiResource('customer-groups', CustomerGroupController::class)
                     ->only(['index', 'store', 'update', 'destroy']);
                 Route::apiResource('customers', CustomerController::class);
             });
@@ -235,10 +243,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             // Promotions — automatic scheduled discounts (no code). CRUD is
             // marketing (coupons.manage); the POS preview is a cashier read.
-            Route::post('promotions/preview', [\App\Http\Controllers\Api\V1\Tenant\PromotionController::class, 'preview'])
+            Route::post('promotions/preview', [PromotionController::class, 'preview'])
                 ->middleware('permission:sales.manage');
             Route::middleware('permission:coupons.manage')->group(function (): void {
-                Route::apiResource('promotions', \App\Http\Controllers\Api\V1\Tenant\PromotionController::class)
+                Route::apiResource('promotions', PromotionController::class)
                     ->only(['index', 'store', 'update', 'destroy']);
             });
 
@@ -278,8 +286,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('/held/{id}/claim', [PosController::class, 'heldClaim']);
                 Route::delete('/held/{id}', [PosController::class, 'heldDestroy']);
                 // Which lane am I, and what hardware do I drive?
-                Route::get('/terminal', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'terminal']);
-                Route::get('/registers', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'lanes']);
+                Route::get('/terminal', [PosRegisterController::class, 'terminal']);
+                Route::get('/registers', [PosRegisterController::class, 'lanes']);
                 // Who is at the till. The roster and the PIN handover — the
                 // outgoing cashier's session on this device ends with it.
                 Route::get('/till-users', [TillIdentityController::class, 'roster']);
@@ -289,6 +297,23 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     ->middleware('throttle:10,1');
                 // Manager-only lane operations: the consolidated day view and
                 // force-closing a drawer the cashier walked away from.
+                // The Z-read for a shift already counted out. Same permission
+                // as ringing sales: a cashier is entitled to the record of
+                // their own drawer, and withholding it is how a disputed shift
+                // becomes one person's word.
+                Route::get('/sessions/{session}/z-report', [PosController::class, 'zReport']);
+                Route::get('/sessions/{session}/z-report/print', [PosController::class, 'zReportPrint']);
+
+                // The trading day. Reading it is open to anyone on the floor;
+                // closing it off is the sign-off on every cashier's variance,
+                // so that stays manager-only (checked in the controller).
+                Route::get('/day', [BusinessDayController::class, 'current']);
+                Route::get('/days', [BusinessDayController::class, 'index']);
+                Route::get('/days/{day}', [BusinessDayController::class, 'show']);
+                Route::post('/days/{day}/close', [BusinessDayController::class, 'close']);
+                Route::get('/deposits', [BusinessDayController::class, 'deposits']);
+                Route::post('/deposits', [BusinessDayController::class, 'storeDeposit']);
+
                 Route::middleware('permission:settings.manage')->group(function (): void {
                     Route::get('/sessions', [PosController::class, 'sessions']);
                     Route::post('/registers/{register}/close', [PosController::class, 'forceCloseSession']);
@@ -299,10 +324,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // permission as branches and hardware. Gated by the POS module: an
             // online-only shop has no lanes.
             Route::middleware(['feature:pos', 'permission:settings.manage'])->group(function (): void {
-                Route::get('registers', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'index']);
-                Route::post('registers', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'store']);
-                Route::put('registers/{register}', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'update']);
-                Route::delete('registers/{register}', [\App\Http\Controllers\Api\V1\Tenant\PosRegisterController::class, 'destroy']);
+                Route::get('registers', [PosRegisterController::class, 'index']);
+                Route::post('registers', [PosRegisterController::class, 'store']);
+                Route::put('registers/{register}', [PosRegisterController::class, 'update']);
+                Route::delete('registers/{register}', [PosRegisterController::class, 'destroy']);
             });
 
             // Sales: workflow → payment → invoice → stock decrement
@@ -388,7 +413,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // Warranty desk (serialized retail): look up a serial / IMEI to see
             // what was sold and whether it's still under warranty.
             // Serialized selling rides stock tracking, so it needs inventory too.
-            Route::get('warranty/lookup', [\App\Http\Controllers\Api\V1\Tenant\WarrantyController::class, 'lookup'])
+            Route::get('warranty/lookup', [WarrantyController::class, 'lookup'])
                 ->middleware(['feature:inventory', 'permission:sales.manage']);
 
             // Inventory: the single write-path for stock

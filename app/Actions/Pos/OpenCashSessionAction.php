@@ -7,6 +7,7 @@ use App\Models\CashSession;
 use App\Models\Register;
 use App\Models\User;
 use App\Support\BranchContext;
+use App\Support\DenominationCount;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -30,11 +31,21 @@ use Illuminate\Support\Facades\DB;
  */
 class OpenCashSessionAction
 {
-    public function __construct(private readonly BranchContext $branch) {}
+    public function __construct(
+        private readonly BranchContext $branch,
+        private readonly CloseBusinessDayAction $days,
+    ) {}
 
-    public function execute(User $user, float $openingFloat, ?Register $register = null): CashSession
-    {
-        return DB::transaction(function () use ($user, $openingFloat, $register): CashSession {
+    /**
+     * @param  array<int|string, int|string>|null  $denominations  the float counted by note and coin
+     */
+    public function execute(
+        User $user,
+        float $openingFloat,
+        ?Register $register = null,
+        ?array $denominations = null,
+    ): CashSession {
+        return DB::transaction(function () use ($user, $openingFloat, $register, $denominations): CashSession {
             if ($register !== null) {
                 // Serialise concurrent opens on the same lane: two cashiers
                 // tapping "Open shift" on lane 3 at the same instant must not
@@ -95,16 +106,31 @@ class OpenCashSessionAction
                 throw DomainException::conflict('You already have an open shift.', 'SHIFT_ALREADY_OPEN');
             }
 
+            $branchId = $register?->branch_id ?? $this->branch->id() ?? $user->branch_id;
+
+            // Every shift belongs to a trading day, opened on demand by the
+            // first cashier through the door. Making the owner remember to
+            // "start the day" before anyone can sell would strand a shop at
+            // 7am for a step that carries no decision.
+            $day = $this->days->open($user, $branchId);
+
+            $counted = DenominationCount::clean($denominations);
+
             return CashSession::query()->create([
                 'tenant_id' => $user->tenant_id,
                 // The till belongs to the branch the shift is opened on. A lane
                 // pins it exactly; otherwise a staff member pinned to a branch
                 // resolves there and owners to the selected (or Main) branch.
-                'branch_id' => $register?->branch_id ?? $this->branch->id() ?? $user->branch_id,
+                'branch_id' => $branchId,
+                'business_day_id' => $day->id,
                 'register_id' => $register?->id,
                 'user_id' => $user->id,
                 'status' => 'open',
-                'opening_float' => round($openingFloat, 2),
+                // A counted float wins over a typed one, same as at close.
+                'opening_float' => $counted !== null
+                    ? DenominationCount::total($counted)
+                    : round($openingFloat, 2),
+                'opening_denominations' => $counted,
                 'opened_at' => now(),
             ]);
         });

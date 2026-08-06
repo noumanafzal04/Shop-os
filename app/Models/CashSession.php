@@ -30,7 +30,20 @@ class CashSession extends Model
             'sales_total' => 'decimal:2',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
+            // {"5000": 3, "1000": 12, …} — what was physically in the drawer.
+            'opening_denominations' => 'array',
+            'closing_denominations' => 'array',
+            // What the cashier said each non-cash tender took, and how far that
+            // was from what the POS rang.
+            'declared_tenders' => 'array',
+            'tender_variances' => 'array',
+            'blind_close' => 'boolean',
         ];
+    }
+
+    public function businessDay(): BelongsTo
+    {
+        return $this->belongsTo(BusinessDay::class);
     }
 
     public function user(): BelongsTo

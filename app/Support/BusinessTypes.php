@@ -2,8 +2,6 @@
 
 namespace App\Support;
 
-use App\Support\ItemTypes;
-
 /**
  * Business-type registry — the core of ShopOS's business-type awareness.
  *
@@ -18,11 +16,16 @@ use App\Support\ItemTypes;
  *   plan allows it (online_shop_enabled) AND business type supports it
  *   AND tenant hasn't disabled it — computed via Tenant::featureEnabled().
  *
- * === The 5 primary types ===
- * Selectable types are consolidated to FIVE: food, mart, pharmacy, retail,
- * services. The finer distinction (garments vs electronics, medical store vs
- * surgical, restaurant vs bakery) is the tenant's `business_category`, chosen
- * from the type's `categories` list.
+ * === The primary types ===
+ * The core five are food, mart, pharmacy, retail and services, plus three that
+ * exist because no combination of the five describes them: automotive (goods
+ * AND labour on one invoice, with stock behind it), petroleum (a forecourt
+ * measured by meter and dip) and finance (books only, no catalog or till).
+ *
+ * The finer distinction (garments vs electronics, tyre shop vs auto parts,
+ * restaurant vs bakery) is the tenant's `business_category`, chosen from the
+ * type's `categories` list — a new type is only ever added when the FEATURE
+ * defaults differ, never merely because the trade has a different name.
  *
  * Older narrower codes (grocery, clinic, salon, workshop, service, wholesale,
  * books, hardware, restaurant) are kept as `legacy` entries: they still resolve
@@ -46,6 +49,9 @@ class BusinessTypes
         'pharmacy' => ['Tablet', 'Capsule', 'Strip', 'Bottle', 'Tube', 'Injection', 'Sachet', 'ml', 'Gram', 'Box'],
         'retail' => ['Piece', 'Pair', 'Box', 'Set', 'Pack', 'Roll', 'Meter', 'Dozen'],
         'services' => ['Service', 'Session', 'Hour', 'Visit', 'Job'],
+        // A tyre shop sells by the tyre and by the set of four, a battery
+        // shop by the piece, and the bay bills labour as a job.
+        'automotive' => ['Piece', 'Set', 'Pair', 'Litre', 'Job', 'Hour', 'Service', 'Box', 'Pack'],
         // Fuel sells by the litre; lubricants by bottle/can/drum; the forecourt
         // mart in pieces; the wash/service bay as a job.
         'petroleum' => ['Litre', 'ml', 'Bottle', 'Can', 'Drum', 'Piece', 'Pack', 'KG', 'Service'],
@@ -59,6 +65,8 @@ class BusinessTypes
         'retail' => ['Size', 'Color', 'Material', 'Storage', 'Model'],
         'services' => ['Package', 'Duration'],
         'petroleum' => ['Grade', 'Viscosity', 'Volume'],
+        // How a tyre is actually asked for across a counter: "185/65 R15".
+        'automotive' => ['Size', 'Brand', 'Load Rating', 'Ampere', 'Model'],
     ];
 
     /** Legacy code → its primary type, so old tenants get the right units/variants. */
@@ -85,7 +93,7 @@ class BusinessTypes
     public static function all(): array
     {
         return [
-            // ── The 5 primary, selectable types ───────────────────────────
+            // ── The primary, selectable types ─────────────────────────────
             'food' => [
                 'label' => 'Food & Restaurant',
                 'examples' => ['Restaurant', 'Fast Food', 'Cafe', 'Bakery', 'Cloud Kitchen', 'Sweets', 'Juice Bar'],
@@ -191,6 +199,36 @@ class BusinessTypes
                 ],
             ],
 
+            'automotive' => [
+                'label' => 'Auto & Tyre',
+                'examples' => ['Tyre Shop', 'Battery Shop', 'Auto Workshop', 'Oil Change', 'Denting & Painting', 'Auto Parts', 'Car Wash', 'AC Service'],
+                'available' => true,
+                // The auto aftermarket is neither a petrol pump nor plain
+                // retail, and forcing it into either loses half the business:
+                // `retail` has no services, so fitting, balancing and alignment
+                // — which is where a tyre shop's margin actually is — could not
+                // be billed at all; `services` has no products or stock, so the
+                // tyres themselves couldn't be counted. This type is the one
+                // combination those shops need: goods AND labour on one
+                // invoice, with stock behind it. Sold at the shop, not online,
+                // so marketplace/delivery stay off.
+                'features' => ['products' => true, 'services' => true, 'inventory' => true, 'marketplace' => false, 'reservations' => false, 'delivery' => false],
+                'product_categories' => ['Tyres', 'Tubes & Rims', 'Batteries', 'Lubricants & Oils', 'Spare Parts', 'Accessories', 'Labour & Services'],
+                'expense_categories' => ['Stock Purchase', 'Workshop Tools', 'Staff Salary', 'Rent', 'Electricity', 'Machinery Maintenance', 'Utilities', 'Scrap Disposal'],
+                'categories' => [
+                    ['value' => 'tyre_shop', 'label' => 'Tyre Shop'],
+                    ['value' => 'battery_shop', 'label' => 'Battery Shop'],
+                    ['value' => 'auto_parts', 'label' => 'Auto Parts Store'],
+                    ['value' => 'auto_workshop', 'label' => 'Auto Workshop / Mechanic'],
+                    ['value' => 'oil_change', 'label' => 'Oil Change & Lubrication'],
+                    ['value' => 'denting_painting', 'label' => 'Denting & Painting'],
+                    ['value' => 'ac_service', 'label' => 'Auto AC Service'],
+                    ['value' => 'car_wash', 'label' => 'Car Wash & Detailing'],
+                    ['value' => 'bike_workshop', 'label' => 'Motorcycle Workshop'],
+                    ['value' => 'general_auto', 'label' => 'General / Other'],
+                ],
+            ],
+
             'finance' => [
                 'label' => 'Finance Manager',
                 'examples' => ['Office', 'Agency', 'Software House', 'Freelancer', 'Consultant', 'School', 'Clinic', 'NGO', 'Trader', 'Home Business'],
@@ -254,7 +292,7 @@ class BusinessTypes
                     ['value' => 'tyre_shop', 'label' => 'Tyre & Battery Shop'],
                     ['value' => 'auto_service', 'label' => 'Auto Service Station'],
                     ['value' => 'car_wash', 'label' => 'Car Wash'],
-                    ['value' => 'general_petroleum', 'label' => 'General / Other' ],
+                    ['value' => 'general_petroleum', 'label' => 'General / Other'],
                 ],
             ],
 
