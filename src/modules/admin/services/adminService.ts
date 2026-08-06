@@ -1,15 +1,20 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import type { Tenant } from "../../auth/types";
 
-/** Plan ceilings — null = unlimited for that resource. */
+/**
+ * The usage a PLAN meters — null = unlimited for that resource.
+ *
+ * Branches, staff and checkout lanes are deliberately absent: they are assigned
+ * to a shop, not sold on a plan, so a business opening its second site no
+ * longer needs a plan minted for it.
+ */
 export interface PlanLimits {
   products: number | null;
-  branches: number | null;
-  staff: number | null;
   storage_mb: number | null;
   orders_month: number | null;
 }
 
+/** A payment plan: what a business pays and how much it may hold. Nothing else. */
 export interface Plan {
   id: string;
   name: string;
@@ -17,12 +22,11 @@ export interface Plan {
   description?: string | null;
   price: string | number;
   billing_period_months?: number;
-  online_shop_enabled: boolean;
   grace_period_days?: number;
-  /** Module flags the plan grants (pos, expenses, marketplace, products). */
-  features?: Record<string, boolean>;
   limits?: PlanLimits;
   is_active?: boolean;
+  /** A bespoke deal for one business rather than a rung on the ladder. */
+  is_custom?: boolean;
   tenants_count?: number;
 }
 
@@ -34,17 +38,13 @@ export interface PlanInput {
   description?: string | null;
   price: number;
   billing_period_months: number;
-  online_shop_enabled: boolean;
   grace_period_days: number;
-  /** Module selection (POS/Expense/Online); server derives products/expenses. */
-  features?: Record<string, boolean>;
-  // Limits — null/omitted = unlimited.
+  // Ceilings — null/omitted = unlimited.
   max_products?: number | null;
-  max_branches?: number | null;
-  max_staff?: number | null;
   max_storage_mb?: number | null;
   max_orders_month?: number | null;
   is_active?: boolean;
+  is_custom?: boolean;
 }
 
 export interface Banner {
@@ -91,8 +91,22 @@ export interface TenantInput {
   business_type: string;
   business_category?: string | null;
   city_id?: string | null;
+  /** Required on create: it sets what the business pays and its catalog ceiling. */
   plan_id?: string;
+  /** The modules this shop is given. Omitted = keep its type's proposal. */
+  modules?: Record<string, boolean>;
+  /** Branches, staff and lanes assigned to it. Omitted = platform defaults. */
+  limits?: Record<string, number | null>;
   owner: { name: string; email?: string; phone?: string; password: string };
+}
+
+/** One module in the catalog, with what it needs switched on first. */
+export interface ModuleInfo {
+  key: string;
+  label: string;
+  description: string;
+  group: string;
+  depends: string[];
 }
 
 export interface Payment {
@@ -153,16 +167,18 @@ export const adminService = {
   sendAnnouncement: (id: string) => apiPost<Announcement>(`/admin/announcements/${id}/send`),
   deleteAnnouncement: (id: string) => apiDelete<null>(`/admin/announcements/${id}`),
 
-  moduleCatalog: () => apiGet<Array<{ key: string; label: string; description: string }>>("/admin/modules"),
+  moduleCatalog: () => apiGet<ModuleInfo[]>("/admin/modules"),
   updateModules: (id: string, modules: Record<string, boolean>) =>
     apiPut<Tenant>(`/admin/tenants/${id}/modules`, { modules }),
 
-  /** Extend (or clear, via null) a single tenant's limits past its plan. */
   /**
-   * `mode: "add"` treats each number as an INCREASE on the tenant's current
-   * ceiling — which is what "extend by 100" means. `"set"` writes the number
-   * as the new ceiling. The server refuses either one that would land below
-   * what the tenant already uses.
+   * Set (or clear, via null) one shop's ceilings — branches and staff it was
+   * assigned, or an extension past its plan on products and storage.
+   *
+   * `mode: "add"` treats each number as an INCREASE on the current ceiling —
+   * which is what "extend by 100" means. `"set"` writes the number as the new
+   * ceiling. The server refuses either one that would land below what the shop
+   * already uses.
    */
   extendLimits: (id: string, limits: Record<string, number | null>, mode: "add" | "set" = "set") =>
     apiPut<Tenant>(`/admin/tenants/${id}/limits`, { limits, mode }),

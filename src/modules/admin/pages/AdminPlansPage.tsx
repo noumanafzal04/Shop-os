@@ -15,9 +15,7 @@ import type { Plan } from "../services/adminService";
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-/** A limit value → human text. null = unlimited. */
-const fmtLimit = (n: number | null | undefined) =>
-  n == null ? "Unlimited" : n.toLocaleString();
+const fmtLimit = (n: number | null | undefined) => (n == null ? "Unlimited" : n.toLocaleString());
 const fmtStorage = (mb: number | null | undefined) =>
   mb == null ? "Unlimited" : mb >= 1024 ? `${(mb / 1024).toLocaleString()} GB` : `${mb} MB`;
 
@@ -28,19 +26,27 @@ const blank = {
   price: "0",
   billing_period_months: "1",
   grace_period_days: "7",
-  // Modules the plan includes (the "base" the admin picks). POS bundles
-  // Expense & Income, so `mod_expenses` only stands alone when POS is off.
-  mod_pos: true,
-  mod_expenses: true,
-  mod_online: false,
-  // Limits — blank string = unlimited.
+  // Ceilings — blank string = unlimited.
   products: "",
-  branches: "",
-  staff: "",
   storage_mb: "",
+  orders_month: "",
   is_active: true,
+  is_custom: false,
 };
 
+/**
+ * Plans.
+ *
+ * A plan is a price and a ceiling. It grants no modules, no branches and no
+ * staff seats — those belong to each shop and are assigned when an admin
+ * creates it. That is the whole reason this list stays short: a petrol pump, a
+ * restaurant and a books-only office can all sit on Basic and still each run
+ * exactly what their trade needs.
+ *
+ * It did not used to be. Plans carried a module map, so the list was really the
+ * 2³ combinations of POS × Expenses × Online, and every new sellable module
+ * would have doubled it.
+ */
 export default function AdminPlansPage() {
   const plans = usePlans();
   const { create, update, remove } = usePlanMutations();
@@ -52,23 +58,17 @@ export default function AdminPlansPage() {
   const [form, setForm] = useState({ ...blank });
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
-  // A plan with POS or Online has a product catalog → product/branch/storage
-  // limits apply. Expense-only plans have none of those. POS bundles Expense.
-  const sells = form.mod_pos || form.mod_online;
-  const noModule = !form.mod_pos && !form.mod_expenses && !form.mod_online;
-
   const mutation = editing ? update : create;
   const apiError = mutation.error instanceof ApiError ? mutation.error : null;
   const errorFor = (k: string) => apiError?.errors[k]?.[0];
-  // Field validation shows inline (errorFor); a general failure is a toast.
   const toastGeneralError = (e: unknown) => {
     if (e instanceof ApiError && Object.keys(e.errors).length > 0) return; // inline handles it
     toast.error(e instanceof ApiError ? e.message : "Couldn't save plan.");
   };
 
-  const openCreate = () => {
+  const openCreate = (custom = false) => {
     setEditing(null);
-    setForm({ ...blank });
+    setForm({ ...blank, is_custom: custom, billing_period_months: custom ? "12" : "1" });
     create.reset();
     modal.openModal();
   };
@@ -76,9 +76,7 @@ export default function AdminPlansPage() {
   const openEdit = (plan: Plan) => {
     setEditing(plan);
     const lim = plan.limits;
-    const f = plan.features ?? {};
     const str = (n: number | null | undefined) => (n == null ? "" : String(n));
-    const pos = f.pos ?? true; // legacy plans w/o a module map default to POS
     setForm({
       name: plan.name,
       code: plan.code,
@@ -86,14 +84,11 @@ export default function AdminPlansPage() {
       price: String(plan.price),
       billing_period_months: String(plan.billing_period_months ?? 1),
       grace_period_days: String(plan.grace_period_days ?? 7),
-      mod_pos: pos,
-      mod_expenses: f.expenses ?? pos,
-      mod_online: plan.online_shop_enabled,
       products: str(lim?.products),
-      branches: str(lim?.branches),
-      staff: str(lim?.staff),
       storage_mb: str(lim?.storage_mb),
+      orders_month: str(lim?.orders_month),
       is_active: plan.is_active ?? true,
+      is_custom: plan.is_custom ?? false,
     });
     update.reset();
     modal.openModal();
@@ -101,30 +96,20 @@ export default function AdminPlansPage() {
 
   const submit = () => {
     const num = (v: string) => (v.trim() === "" ? null : Number(v));
-    // POS bundles Expense; a catalog exists only when the plan sells.
-    const features = {
-      pos: form.mod_pos,
-      expenses: form.mod_pos || form.mod_expenses,
-      marketplace: form.mod_online,
-      products: sells,
-    };
     const payload = {
       name: form.name.trim(),
       code: form.code.trim() || slugify(form.name),
       price: Number(form.price),
       billing_period_months: Number(form.billing_period_months),
-      online_shop_enabled: form.mod_online,
       grace_period_days: Number(form.grace_period_days),
-      features,
       // null (not undefined) so CLEARING the description actually sends the
       // key — an undefined is dropped by JSON.stringify and the old text sticks.
       description: form.description.trim() || null,
-      // Catalog-only limits don't apply to an expense-only plan.
-      max_products: sells ? num(form.products) : null,
-      max_branches: sells ? num(form.branches) : null,
-      max_staff: num(form.staff),
-      max_storage_mb: sells ? num(form.storage_mb) : null,
+      max_products: num(form.products),
+      max_storage_mb: num(form.storage_mb),
+      max_orders_month: num(form.orders_month),
       is_active: form.is_active,
+      is_custom: form.is_custom,
     };
     const done = (verb: string) => {
       toast.success(`Plan "${payload.name}" ${verb}`);
@@ -149,7 +134,7 @@ export default function AdminPlansPage() {
   const deletePlan = async (plan: Plan) => {
     const ok = await confirm({
       title: `Delete "${plan.name}"?`,
-      message: "Only possible if no tenant uses it. This can't be undone.",
+      message: "Only possible if no business is on it. This can't be undone.",
       confirmLabel: "Delete plan",
       tone: "danger",
     });
@@ -161,6 +146,65 @@ export default function AdminPlansPage() {
   };
 
   const rows = plans.data ?? [];
+  const ladder = rows.filter((p) => !p.is_custom);
+  const custom = rows.filter((p) => p.is_custom);
+
+  const card = (plan: Plan) => (
+    <div
+      key={plan.id}
+      className="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]"
+    >
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <h3 className="font-semibold text-gray-800 dark:text-white/90">{plan.name}</h3>
+        <div className="flex shrink-0 gap-1.5">
+          {plan.is_custom && <Badge size="sm" color="warning">custom</Badge>}
+          <Badge size="sm" color={plan.is_active ? "success" : "light"}>
+            {plan.is_active ? "active" : "inactive"}
+          </Badge>
+        </div>
+      </div>
+      <p className="mb-1 text-2xl font-bold tabular-nums text-gray-800 dark:text-white/90">
+        {money(plan.price)}
+        <span className="text-sm font-normal text-gray-400"> / {plan.billing_period_months ?? 1} mo</span>
+      </p>
+      {plan.description && (
+        <p className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">{plan.description}</p>
+      )}
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Badge size="sm" color="light">{plan.grace_period_days ?? 7}d grace</Badge>
+        {plan.tenants_count !== undefined && (
+          <Badge size="sm" color="light">{plan.tenants_count} businesses</Badge>
+        )}
+      </div>
+      {plan.limits && (
+        <dl className="mb-4 space-y-1 border-t border-gray-100 pt-3 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+          <div className="flex justify-between">
+            <dt>Products</dt>
+            <dd className="font-medium tabular-nums text-gray-700 dark:text-gray-300">{fmtLimit(plan.limits.products)}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt>Photo storage</dt>
+            <dd className="font-medium tabular-nums text-gray-700 dark:text-gray-300">{fmtStorage(plan.limits.storage_mb)}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt>Orders / month</dt>
+            <dd className="font-medium tabular-nums text-gray-700 dark:text-gray-300">{fmtLimit(plan.limits.orders_month)}</dd>
+          </div>
+        </dl>
+      )}
+      <div className="mt-auto flex gap-3 text-sm">
+        <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openEdit(plan)}>
+          Edit
+        </button>
+        <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => toggleActive(plan)}>
+          {plan.is_active ? "Deactivate" : "Activate"}
+        </button>
+        <button className="text-error-500 hover:text-error-600" onClick={() => deletePlan(plan)}>
+          Delete
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -169,11 +213,15 @@ export default function AdminPlansPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Plans</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Define what businesses can subscribe to — modules and limits. Blank limit = unlimited.
+          <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+            What a business pays, and how much it may hold. Modules, branches and staff are given to each
+            business when you create it — so the same plan suits a petrol pump and a pharmacy.
           </p>
         </div>
-        <Button size="sm" onClick={openCreate}>+ New Plan</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => openCreate(true)}>+ Custom plan</Button>
+          <Button size="sm" onClick={() => openCreate(false)}>+ New plan</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -181,62 +229,28 @@ export default function AdminPlansPage() {
           ? Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="h-56 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
             ))
-          : rows.map((plan) => (
-              <div
-                key={plan.id}
-                className="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]"
-              >
-                <div className="mb-2 flex items-start justify-between">
-                  <h3 className="font-semibold text-gray-800 dark:text-white/90">{plan.name}</h3>
-                  <Badge size="sm" color={plan.is_active ? "success" : "light"}>
-                    {plan.is_active ? "active" : "inactive"}
-                  </Badge>
-                </div>
-                <p className="mb-1 text-2xl font-bold text-gray-800 dark:text-white/90">
-                  {money(plan.price)}
-                  <span className="text-sm font-normal text-gray-400">
-                    {" "}/ {plan.billing_period_months ?? 1} mo
-                  </span>
-                </p>
-                {plan.description && (
-                  <p className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">{plan.description}</p>
-                )}
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {(plan.features?.pos ?? true) && <Badge size="sm" color="success">POS</Badge>}
-                  {(plan.features?.expenses ?? true) && <Badge size="sm" color="light">Expense</Badge>}
-                  {plan.online_shop_enabled && <Badge size="sm" color="info">Online</Badge>}
-                  <Badge size="sm" color="light">{plan.grace_period_days ?? 7}d grace</Badge>
-                  {plan.tenants_count !== undefined && (
-                    <Badge size="sm" color="light">{plan.tenants_count} tenants</Badge>
-                  )}
-                </div>
-                {plan.limits && (
-                  <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-gray-100 pt-3 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                    <div className="flex justify-between"><dt>Products</dt><dd className="font-medium text-gray-700 dark:text-gray-300">{fmtLimit(plan.limits.products)}</dd></div>
-                    <div className="flex justify-between"><dt>Branches</dt><dd className="font-medium text-gray-700 dark:text-gray-300">{fmtLimit(plan.limits.branches)}</dd></div>
-                    <div className="flex justify-between"><dt>Staff</dt><dd className="font-medium text-gray-700 dark:text-gray-300">{fmtLimit(plan.limits.staff)}</dd></div>
-                    <div className="flex justify-between"><dt>Storage</dt><dd className="font-medium text-gray-700 dark:text-gray-300">{fmtStorage(plan.limits.storage_mb)}</dd></div>
-                  </dl>
-                )}
-                <div className="mt-auto flex gap-3 text-sm">
-                  <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openEdit(plan)}>
-                    Edit
-                  </button>
-                  <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => toggleActive(plan)}>
-                    {plan.is_active ? "Deactivate" : "Activate"}
-                  </button>
-                  <button className="text-error-500 hover:text-error-600" onClick={() => deletePlan(plan)}>
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+          : ladder.map(card)}
       </div>
 
+      {custom.length > 0 && (
+        <>
+          <div className="mb-4 mt-8">
+            <h3 className="font-semibold text-gray-800 dark:text-white/90">Custom plans</h3>
+            <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+              Negotiated with one business. Kept out of the ladder above so the price list stays readable.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{custom.map(card)}</div>
+        </>
+      )}
+
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-lg p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          {editing ? `Edit ${editing.name}` : "New Plan"}
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">
+          {editing ? `Edit ${editing.name}` : form.is_custom ? "New custom plan" : "New plan"}
         </h3>
+        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+          Leave a ceiling blank for unlimited.
+        </p>
 
         <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
           <div className="grid grid-cols-2 gap-4">
@@ -257,7 +271,7 @@ export default function AdminPlansPage() {
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <Label>Price</Label>
+              <Label>Price (Rs)</Label>
               <Input type="number" min="0" value={form.price} onChange={(e) => set("price", e.target.value)} />
             </div>
             <div>
@@ -269,81 +283,49 @@ export default function AdminPlansPage() {
               <Input type="number" min="0" value={form.grace_period_days} onChange={(e) => set("grace_period_days", e.target.value)} />
             </div>
           </div>
-          <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-            <div className="mb-3">
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">Modules included</p>
-              <p className="text-theme-xs text-gray-400">Pick the base this plan sells. POS already includes Expense &amp; Income.</p>
-            </div>
-            <div className="space-y-2.5">
-              <label className="flex cursor-pointer items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300">
-                <input type="checkbox" className="mt-0.5 h-4 w-4" checked={form.mod_pos} onChange={(e) => set("mod_pos", e.target.checked)} />
-                <span>
-                  <span className="font-medium">POS Business Management</span>
-                  <span className="block text-theme-xs text-gray-400">Till, products, inventory, purchases, customers, reports — includes Expense &amp; Income</span>
-                </span>
-              </label>
-              <label className={`flex items-start gap-2.5 text-sm ${form.mod_pos ? "cursor-not-allowed opacity-50" : "cursor-pointer"} text-gray-700 dark:text-gray-300`}>
-                <input type="checkbox" className="mt-0.5 h-4 w-4" checked={form.mod_pos || form.mod_expenses} disabled={form.mod_pos} onChange={(e) => set("mod_expenses", e.target.checked)} />
-                <span>
-                  <span className="font-medium">Expense &amp; Income Manager</span>
-                  <span className="block text-theme-xs text-gray-400">{form.mod_pos ? "Already included with POS" : "Standalone cash-flow tracking — no products, no sales"}</span>
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300">
-                <input type="checkbox" className="mt-0.5 h-4 w-4" checked={form.mod_online} onChange={(e) => set("mod_online", e.target.checked)} />
-                <span>
-                  <span className="font-medium">Online Commerce</span>
-                  <span className="block text-theme-xs text-gray-400">Marketplace listing, online orders, delivery &amp; pickup, reviews, coupons</span>
-                </span>
-              </label>
-            </div>
-            {noModule && <p className="mt-2 text-theme-xs text-error-500">Select at least one module.</p>}
-          </div>
 
           <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
             <div className="mb-3">
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">Limits</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">Ceilings</p>
               <p className="text-theme-xs text-gray-400">
-                {sells
-                  ? "The shared baseline for this plan. Leave a field blank for unlimited — extend individual tenants from their detail page."
-                  : "Expense-only plan — no product catalog, so only the staff limit applies."}
+                How much a business on this plan may hold. Branches and staff are set per business, not here.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              {sells && (
-                <div>
-                  <Label>Products</Label>
-                  <Input type="number" min="1" value={form.products} onChange={(e) => set("products", e.target.value)} placeholder="Unlimited" />
-                </div>
-              )}
-              {sells && (
-                <div>
-                  <Label>Branches</Label>
-                  <Input type="number" min="1" value={form.branches} onChange={(e) => set("branches", e.target.value)} placeholder="Unlimited" />
-                </div>
-              )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <Label>Staff</Label>
-                <Input type="number" min="1" value={form.staff} onChange={(e) => set("staff", e.target.value)} placeholder="Unlimited" />
+                <Label>Products</Label>
+                <Input type="number" min="1" value={form.products} onChange={(e) => set("products", e.target.value)} placeholder="Unlimited" />
               </div>
-              {sells && (
-                <div>
-                  <Label>Storage (MB)</Label>
-                  <Input type="number" min="1" value={form.storage_mb} onChange={(e) => set("storage_mb", e.target.value)} placeholder="Unlimited" />
-                </div>
-              )}
+              <div>
+                <Label>Storage (MB)</Label>
+                <Input type="number" min="1" value={form.storage_mb} onChange={(e) => set("storage_mb", e.target.value)} placeholder="Unlimited" />
+              </div>
+              <div>
+                <Label>Orders / month</Label>
+                <Input type="number" min="1" value={form.orders_month} onChange={(e) => set("orders_month", e.target.value)} placeholder="Unlimited" />
+              </div>
             </div>
           </div>
+
+          <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" className="mt-0.5 h-4 w-4" checked={form.is_custom} onChange={(e) => set("is_custom", e.target.checked)} />
+            <span>
+              <span className="font-medium">Custom plan</span>
+              <span className="block text-theme-xs text-gray-400">
+                Negotiated with one business — listed separately from the standard ladder.
+              </span>
+            </span>
+          </label>
 
           <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" className="h-4 w-4" checked={form.is_active} onChange={(e) => set("is_active", e.target.checked)} />
-            Active (assignable to tenants)
+            Active (can be assigned to a business)
           </label>
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={submit} disabled={mutation.isPending || !form.name.trim() || noModule}>
+          <Button size="sm" onClick={submit} disabled={mutation.isPending || !form.name.trim()}>
             {mutation.isPending ? "Saving…" : editing ? "Save changes" : "Create plan"}
           </Button>
         </div>

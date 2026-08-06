@@ -19,25 +19,30 @@ import type { Tenant } from "../../auth/types";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
-/** Editable per-tenant limits (orders_month is never capped, so not shown). */
-const EXTENDABLE: Array<{ key: "products" | "branches" | "staff" | "storage_mb"; label: string }> = [
+/**
+ * The ceilings an admin can change here. `orders_month` is never capped, so it
+ * isn't offered.
+ *
+ * Products and storage are what the PLAN meters — raising one extends this
+ * shop past its plan. Branches, staff and lanes were assigned to the shop when
+ * it was created and belong to it outright, which is why "give them a second
+ * branch" is a number typed here and not a plan to go and buy.
+ */
+const EXTENDABLE: Array<{ key: "products" | "storage_mb" | "branches" | "staff" | "registers"; label: string }> = [
   { key: "products", label: "Products" },
+  { key: "storage_mb", label: "Storage (MB)" },
   { key: "branches", label: "Branches" },
   { key: "staff", label: "Staff" },
-  { key: "storage_mb", label: "Storage (MB)" },
+  { key: "registers", label: "Checkout lanes" },
 ];
 
-/**
- * Live usage vs the tenant's effective limits, with a per-tenant "Extend"
- * action. Extend overrides the plan baseline for THIS tenant only; clearing a
- * field (blank) falls back to the plan.
- */
+/** Live usage vs this shop's effective ceilings, with an action to change them. */
 function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
   const extend = useExtendLimits();
   const toast = useToast();
   const modal = useModal();
   const usage = tenant.limits_usage ?? [];
-  const overrides = tenant.limit_overrides ?? {};
+  const assigned = tenant.limits ?? {};
 
   // "add" is the default because the button says Extend, and extending by 100
   // means typing 100. Typing 100 into an absolute field on a 1,000 ceiling used
@@ -53,8 +58,8 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
   };
 
   const row = (key: string) => usage.find((u) => u.key === key);
-  const planLimit = (key: string): number | null | undefined =>
-    row(key)?.plan_limit ?? plan?.limits?.[key as keyof NonNullable<Plan["limits"]>];
+  const baseline = (key: string): number | null | undefined =>
+    row(key)?.baseline ?? plan?.limits?.[key as keyof NonNullable<Plan["limits"]>];
   const fmt = (n: number | null | undefined) => (n == null ? "Unlimited" : n.toLocaleString());
 
   /** What this field will land on — the same arithmetic the server does. */
@@ -111,7 +116,7 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
     extend.mutate(
       { id: tenant.id, limits: { [key]: null } },
       {
-        onSuccess: () => toast.success("Back to the plan limit"),
+        onSuccess: () => toast.success("Back to the inherited limit"),
         onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't clear it."),
       },
     );
@@ -119,20 +124,20 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-semibold text-gray-800 dark:text-white/90">Plan usage &amp; limits</h3>
-        <Button size="sm" variant="outline" onClick={openExtend}>Extend</Button>
+        <h3 className="font-semibold text-gray-800 dark:text-white/90">Usage &amp; limits</h3>
+        <Button size="sm" variant="outline" onClick={openExtend}>Change</Button>
       </div>
 
       {usage.length === 0 ? (
         <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-          Assign a plan to meter usage.
+          Nothing to meter yet.
         </p>
       ) : (
         <div className="space-y-4">
           {usage.map((u) => {
             const pct = u.limit && u.limit > 0 ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
             const bar = pct >= 100 ? "bg-error-500" : pct >= 80 ? "bg-warning-500" : "bg-brand-500";
-            const extended = overrides[u.key] != null;
+            const extended = assigned[u.key] != null;
             const extra = u.extra ?? 0;
             return (
               <div key={u.key}>
@@ -143,8 +148,14 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
                         admin about to change a ceiling needs to know whether
                         1,100 is the plan or 1,000 plus 100 they gave in March. */}
                     {extended && (
-                      <Badge size="sm" color={extra < 0 ? "warning" : "info"}>
-                        {extra > 0 ? `+${extra.toLocaleString()}` : extra < 0 ? extra.toLocaleString() : "custom"}
+                      <Badge size="sm" color={u.owner === "tenant" ? "light" : extra < 0 ? "warning" : "info"}>
+                        {u.owner === "tenant"
+                          ? "assigned"
+                          : extra > 0
+                            ? `+${extra.toLocaleString()}`
+                            : extra < 0
+                              ? extra.toLocaleString()
+                              : "custom"}
                       </Badge>
                     )}
                   </span>
@@ -162,13 +173,15 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
                 )}
                 {extended && (
                   <div className="mt-1 flex items-center gap-2 text-theme-xs text-gray-400">
-                    <span>Plan gives {fmt(u.plan_limit)}</span>
+                    <span>
+                      {u.owner === "plan" ? "Plan gives" : "Default is"} {fmt(u.baseline)}
+                    </span>
                     <button
                       type="button"
                       onClick={() => clearOverride(u.key)}
                       className="text-brand-500 hover:text-brand-600"
                     >
-                      Reset to plan
+                      {u.owner === "plan" ? "Reset to plan" : "Reset to default"}
                     </button>
                   </div>
                 )}
@@ -179,7 +192,7 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
       )}
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Extend limits</h3>
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Change limits</h3>
         <p className="mb-4 text-theme-xs text-gray-400">
           Only fill in what you want to change — anything left blank stays exactly as it is.
         </p>
@@ -244,7 +257,7 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
                   ) : next !== null ? (
                     <>{fmt(r?.limit)} → <span className="font-medium text-gray-600 dark:text-gray-300">{next.toLocaleString()}</span></>
                   ) : (
-                    <>Now {fmt(r?.limit)} · plan {fmt(planLimit(key))} · using {r?.used.toLocaleString() ?? 0}</>
+                    <>Now {fmt(r?.limit)} · {r?.owner === "tenant" ? "default" : "plan"} {fmt(baseline(key))} · using {r?.used.toLocaleString() ?? 0}</>
                   )}
                 </p>
                 {fieldErr(key) && <p className="mt-1 text-theme-xs text-error-500">{fieldErr(key)}</p>}
@@ -315,43 +328,107 @@ function BusinessTypeCard({ tenantId, current, currentCategory }: { tenantId: st
   );
 }
 
-/** Super-admin toggles which modules a tenant can access (its feature flags). */
-function ModulesCard({ tenantId, features }: { tenantId: string; features: Record<string, boolean> }) {
+/**
+ * Which modules this business has.
+ *
+ * The ONLY lever on a shop's capability. No plan grants or revokes one, so
+ * nothing can undo what is set here except an admin setting it again — a
+ * renewal used to, silently.
+ */
+function ModulesCard({ tenantId, features, defaults }: {
+  tenantId: string;
+  features: Record<string, boolean>;
+  defaults?: Record<string, boolean>;
+}) {
   const catalog = useModuleCatalog();
   const save = useUpdateModules();
   const [state, setState] = useState<Record<string, boolean>>(features);
 
   useEffect(() => { setState(features); }, [features]);
 
-  const dirty = (catalog.data ?? []).some((m) => (state[m.key] ?? false) !== (features[m.key] ?? false));
+  const list = catalog.data ?? [];
+  const dirty = list.some((m) => (state[m.key] ?? false) !== (features[m.key] ?? false));
+
+  // Mirror of the server's Modules::normalize, so unticking Products visibly
+  // takes everything built on it with it instead of saving a map that the
+  // server then quietly rewrites.
+  const toggle = (key: string, on: boolean) =>
+    setState((prev) => {
+      const map: Record<string, boolean> = {};
+      list.forEach((m) => (map[m.key] = m.key === key ? on : (prev[m.key] ?? false)));
+      if (map.marketplace) map.images = true;
+
+      let changed = true;
+      while (changed) {
+        changed = false;
+        list.forEach((m) => {
+          if (map[m.key] && m.depends.some((d) => !map[d])) {
+            map[m.key] = false;
+            changed = true;
+          }
+        });
+      }
+      return map;
+    });
+
+  const groups: Record<string, typeof list> = {};
+  list.forEach((m) => { (groups[m.group] ??= []).push(m); });
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-1 flex items-center justify-between">
         <h3 className="font-semibold text-gray-800 dark:text-white/90">Modules</h3>
         {save.isSuccess && !dirty && <span className="text-theme-xs text-success-600">Saved ✓</span>}
       </div>
-      <div className="space-y-3">
-        {(catalog.data ?? []).map((m) => {
-          const on = state[m.key] ?? false;
-          return (
-            <div key={m.key} className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-sm font-medium text-gray-800 dark:text-white/90">{m.label}</div>
-                <div className="text-theme-xs text-gray-400">{m.description}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setState((s) => ({ ...s, [m.key]: !on }))}
-                className={`mt-0.5 h-6 w-11 shrink-0 rounded-full p-0.5 transition ${on ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-700"}`}
-              >
-                <span className={`block h-5 w-5 rounded-full bg-white transition ${on ? "translate-x-5" : ""}`} />
-              </button>
+      <p className="mb-4 text-theme-xs text-gray-400">
+        What this business can do. Plans don't touch these.
+      </p>
+
+      <div className="space-y-5">
+        {Object.entries(groups).map(([group, items]) => (
+          <div key={group}>
+            <p className="mb-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400">{group}</p>
+            <div className="space-y-3">
+              {items.map((m) => {
+                const on = state[m.key] ?? false;
+                const blockedBy = m.depends.filter((d) => !state[d]);
+                const differs = defaults !== undefined && on !== (defaults[m.key] ?? false);
+                return (
+                  <div key={m.key} className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-white/90">
+                        {m.label}
+                        {/* Whether this was a decision for this shop or just
+                            what its trade usually gets. */}
+                        {differs && <Badge size="sm" color="light">{on ? "granted" : "removed"}</Badge>}
+                      </div>
+                      <div className="text-theme-xs text-gray-400">
+                        {blockedBy.length > 0 ? `Needs ${blockedBy.join(" and ")} switched on first.` : m.description}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={blockedBy.length > 0}
+                      onClick={() => toggle(m.key, !on)}
+                      className={`mt-0.5 h-6 w-11 shrink-0 rounded-full p-0.5 transition ${
+                        blockedBy.length > 0
+                          ? "cursor-not-allowed bg-gray-200 opacity-50 dark:bg-gray-800"
+                          : on
+                            ? "bg-brand-500"
+                            : "bg-gray-300 dark:bg-gray-700"
+                      }`}
+                    >
+                      <span className={`block h-5 w-5 rounded-full bg-white transition ${on ? "translate-x-5" : ""}`} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
-      <Button size="sm" className="mt-4" disabled={!dirty || save.isPending} onClick={() => save.mutate({ id: tenantId, modules: state })}>
+
+      <Button size="sm" className="mt-5" disabled={!dirty || save.isPending} onClick={() => save.mutate({ id: tenantId, modules: state })}>
         {save.isPending ? "Saving…" : "Save modules"}
       </Button>
     </div>
@@ -462,7 +539,7 @@ export default function AdminTenantDetailPage() {
           <BusinessTypeCard tenantId={t.id} current={t.business_type ?? null} currentCategory={t.business_category ?? null} />
 
           {/* Module management */}
-          <ModulesCard tenantId={t.id} features={t.features ?? {}} />
+          <ModulesCard tenantId={t.id} features={t.features ?? {}} defaults={t.default_modules} />
 
           {/* Plan usage & per-tenant limit extension */}
           <UsageLimitsCard tenant={t} plan={currentPlan} />

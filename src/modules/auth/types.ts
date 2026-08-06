@@ -10,10 +10,18 @@ export interface LimitUsage {
   key: string;
   label: string;
   limit: number | null; // effective ceiling; null = unlimited
-  /** The plan's own baseline, before anything granted to this tenant. */
-  plan_limit: number | null;
-  /** effective − plan. Null when either side is unlimited. */
+  /**
+   * Who decides this ceiling: "plan" for billed usage (products, storage), or
+   * "tenant" for the size of the organisation (branches, staff, lanes) — the
+   * things an admin assigns to one shop rather than selling on a plan.
+   */
+  owner: "plan" | "tenant";
+  /** Before anything was set for this shop: its plan, or the platform default. */
+  baseline: number | null;
+  /** effective − baseline. Null when either side is unlimited. */
   extra: number | null;
+  /** Set on this shop specifically rather than inherited. */
+  assigned: boolean;
   used: number;
   remaining: number | null;
   unlimited: boolean;
@@ -31,8 +39,10 @@ export interface Tenant {
   plan?: { id: string; name: string; code: string };
   online_shop_enabled: boolean;
   features?: Record<string, boolean>;
-  /** Per-tenant limit extensions ({} = plain plan limits). */
-  limit_overrides?: Record<string, number>;
+  /** What this shop was assigned: branches, staff, lanes, plus any extension. */
+  limits?: Record<string, number>;
+  /** What its business type would have proposed, for comparison. */
+  default_modules?: Record<string, boolean>;
   /** Live usage vs effective limit — present on the tenant detail view only. */
   limits_usage?: LimitUsage[];
   status: "active" | "suspended";

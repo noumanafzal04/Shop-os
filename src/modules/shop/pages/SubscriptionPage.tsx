@@ -53,8 +53,8 @@ export default function SubscriptionPage() {
 
           {data.plan === null ? (
             <p className="py-4 text-sm text-gray-500 dark:text-gray-400">
-              No plan assigned yet — full access, no limits. The platform team will
-              set your plan up.
+              No plan assigned yet — no catalog ceiling and no billing period. The platform team
+              will set your plan up.
             </p>
           ) : (
             <>
@@ -64,15 +64,8 @@ export default function SubscriptionPage() {
               <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
                 {money(data.plan.price)} / {data.plan.billing_period_months} mo
               </p>
-              <div className="mb-4 flex flex-wrap gap-2">
-                {Object.entries(MODULE_LABEL)
-                  .filter(([key]) => data.modules[key])
-                  .map(([key, label]) => (
-                    <Badge key={key} size="sm" color="info">{label}</Badge>
-                  ))}
-              </div>
               {data.subscription_ends_at && (
-                <p className="text-sm text-gray-600 dark:text-gray-300">
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                   {data.state === "active" ? "Renews by " : "Expired "}
                   <span className="font-medium">
                     {new Date(data.subscription_ends_at).toLocaleDateString()}
@@ -92,6 +85,25 @@ export default function SubscriptionPage() {
               )}
             </>
           )}
+
+          {/* What the shop can DO is separate from what it pays. Showing the
+              modules inside the plan card implied the plan granted them — it
+              doesn't, and a renewal cannot take one away. */}
+          <div className="mt-5 border-t border-gray-100 pt-4 dark:border-gray-800">
+            <p className="mb-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400">
+              What your shop runs
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(MODULE_LABEL)
+                .filter(([key]) => data.modules[key])
+                .map(([key, label]) => (
+                  <Badge key={key} size="sm" color="info">{label}</Badge>
+                ))}
+            </div>
+            <p className="mt-2 text-theme-xs text-gray-400">
+              Set for your business by the platform team — changing plan doesn't change these.
+            </p>
+          </div>
         </div>
 
         {/* Usage vs limits */}

@@ -22,6 +22,12 @@ export interface BusinessType {
   examples: string[];
   available: boolean;
   features: Record<string, boolean>;
+  /**
+   * The full module set this type proposes — what the create-business screen
+   * ticks before the admin adjusts it. `features` above is the template's own
+   * partial map and says nothing about expenses, images or the till.
+   */
+  default_modules: Record<string, boolean>;
   item_types: string[];
   /** The categories a tenant picks WITHIN this type (its business_category). */
   categories: Array<{ value: string; label: string }>;
@@ -42,17 +48,26 @@ export interface SubscriptionInfo {
     description: string | null;
     price: string | number;
     billing_period_months: number;
-    online_shop_enabled: boolean;
-    features: Record<string, boolean>;
+    grace_period_days: number;
+    is_custom: boolean;
   } | null;
   state: "active" | "grace" | "read_only";
   subscription_ends_at: string | null;
   grace_ends_at: string | null;
   modules: Record<string, boolean>;
+  /**
+   * The plan above says what the shop PAYS. `modules` says what it can do, and
+   * no billing event ever rewrites those — so a renewal cannot take a screen
+   * away from a shop that was using it yesterday.
+   */
   limits_usage: Array<{
     key: string;
     label: string;
+    owner: "plan" | "tenant";
     limit: number | null;
+    baseline: number | null;
+    extra: number | null;
+    assigned: boolean;
     used: number;
     remaining: number | null;
     unlimited: boolean;
