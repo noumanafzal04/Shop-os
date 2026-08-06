@@ -387,7 +387,68 @@ class ShiftReportingTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_the_day_screen_counts_a_shift_that_is_still_selling(): void
+    {
+        $this->openShift(5000);
+        $this->sell(2500);
+        $this->sell(2500, 'card');
+
+        $view = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/pos/day')->assertOk()->json('data');
+
+        // A shift's columns are frozen at close, so reading them alone shows a
+        // shop that has taken nothing — at exactly the hour an owner checks.
+        $this->assertEquals(5000, $view['running']['sales_total']);
+        $this->assertSame(2, $view['running']['sales_count']);
+        // Only the cash leg belongs in a drawer.
+        $this->assertEquals(2500, $view['running']['cash_sales']);
+        $this->assertEquals(7500, $view['running']['expected_cash']);
+        $this->assertSame(1, $view['running']['open_shifts']);
+
+        // Counting is what a closed shift has. An open one is not accused of a
+        // variance while its cashier is still working.
+        $this->assertEquals(0, $view['running']['counted_cash']);
+        $this->assertEquals(0, $view['running']['variance']);
+
+        $this->assertEquals(5000, $view['sessions'][0]['live']['sales_total']);
+    }
+
+    public function test_a_closed_shift_keeps_the_figure_it_was_signed_off_on(): void
+    {
+        $this->openShift(5000);
+        $this->sell(2500);
+        $this->closeShift(['1000' => 7, '500' => 1]);
+
+        $view = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/pos/day')->assertOk()->json('data');
+
+        // Frozen, not recomputed — a counted drawer must read the same tomorrow.
+        $this->assertArrayNotHasKey('live', $view['sessions'][0]);
+        $this->assertEquals(2500, $view['running']['sales_total']);
+        $this->assertEquals(7500, $view['running']['counted_cash']);
+        $this->assertSame(0, $view['running']['open_shifts']);
+    }
+
     // ── Banking ─────────────────────────────────────────────────────
+
+    public function test_the_day_screen_shows_what_is_still_in_the_shop(): void
+    {
+        $this->openShift(5000);
+        $this->sell(5000);
+
+        $this->actingAsUser($this->owner)
+            ->postJson('/api/v1/pos/deposits', ['amount' => 3000, 'bank_name' => 'Meezan'])
+            ->assertCreated();
+
+        $view = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/pos/day')->assertOk()->json('data');
+
+        $this->assertEquals(3000, $view['banked']);
+        // Takings minus what went to the bank. The 5,000 float is not today's
+        // money and stays for tomorrow, so it is not in this number.
+        $this->assertEquals(2000, $view['unbanked']);
+        $this->assertCount(1, $view['deposits']);
+    }
 
     public function test_banking_records_the_leg_nothing_else_covers(): void
     {
@@ -431,6 +492,49 @@ class ShiftReportingTest extends TestCase
 
         $this->assertEquals(25000, $day['banked_amount']);
         $this->assertSame(1, BankDeposit::withoutTenancy()->where('tenant_id', $this->shop->id)->count());
+    }
+
+    // ── What the dashboard says about the till ──────────────────────
+
+    public function test_the_dashboard_knows_the_day_is_open_and_who_is_on_it(): void
+    {
+        $this->openShift(5000);
+        $this->actingAsUser($this->owner)->postJson('/api/v1/pos/deposits', ['amount' => 2000])->assertCreated();
+
+        $till = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/dashboard')->assertOk()->json('data.till');
+
+        $this->assertTrue($till['day_open']);
+        $this->assertSame(1, $till['open_shifts']);
+        $this->assertEquals(2000, $till['banked_today']);
+        $this->assertNull($till['unclosed_day']);
+    }
+
+    public function test_the_dashboard_names_a_day_nobody_ever_closed_off(): void
+    {
+        $this->travelTo(now()->subDays(3));
+        $this->openShift(1000);
+        $this->closeShift(['1000' => 1]);
+        $this->travelBack();
+
+        // The day was never closed off, so it never got its roll-up — the
+        // shop's record of that Tuesday quietly does not exist. Nothing else
+        // in the product would ever mention it.
+        $till = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/dashboard')->assertOk()->json('data.till');
+
+        $this->assertFalse($till['day_open']);
+        $this->assertSame(now()->subDays(3)->toDateString(), $till['unclosed_day']);
+        $this->assertSame(1, $till['unclosed_days']);
+    }
+
+    public function test_an_online_only_shop_is_told_nothing_about_a_till_it_does_not_have(): void
+    {
+        $this->shop->forceFill(['features' => ['marketplace' => true, 'products' => true, 'pos' => false]])->save();
+
+        $this->actingAsUser($this->owner)->getJson('/api/v1/dashboard')
+            ->assertOk()
+            ->assertJsonPath('data.till', null);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────

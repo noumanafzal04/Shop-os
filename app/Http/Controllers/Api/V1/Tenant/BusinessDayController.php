@@ -9,6 +9,7 @@ use App\Models\BusinessDay;
 use App\Models\CashSession;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\DrawerMath;
 use App\Support\Permissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,20 +46,59 @@ class BusinessDayController extends Controller
             ->orderBy('opened_at')
             ->get();
 
+        // A shift's figures are frozen at close, so a drawer that has been
+        // selling all afternoon carries a zero in every column until someone
+        // counts it. Reading the columns alone would show the owner a shop that
+        // has taken nothing — at exactly the hour they check. So the open ones
+        // are computed live, from the same DrawerMath the X-read uses.
+        $rows = $sessions->map(function (CashSession $session): array {
+            $data = $session->toArray();
+
+            if ($session->isOpen()) {
+                $drawer = DrawerMath::for($session);
+                $data['live'] = [
+                    'sales_count' => $drawer['sales_count'],
+                    'sales_total' => $drawer['sales_total'],
+                    'cash_sales' => $drawer['cash_sales'],
+                    'expected_cash' => $drawer['expected_cash'],
+                ];
+            }
+
+            return $data;
+        });
+
+        // Frozen where a shift is closed, live where it isn't.
+        $sum = fn (string $key) => round((float) $rows->sum(
+            fn (array $r) => (float) ($r['live'][$key] ?? $r[$key] ?? 0),
+        ), 2);
+
+        $banked = round((float) BankDeposit::query()->where('business_day_id', $day->id)->sum('amount'), 2);
+        $cashSales = $sum('cash_sales');
+
         return ApiResponse::ok([
             'day' => $day,
-            'sessions' => $sessions,
+            'sessions' => $rows,
             // A live roll-up so the owner can watch the day build. Deliberately
             // NOT written to the row until close — a running total that gets
             // frozen halfway is worse than none.
             'running' => [
                 'shifts' => $sessions->count(),
                 'open_shifts' => $sessions->where('status', 'open')->count(),
-                'sales_total' => round((float) $sessions->sum(fn ($s) => (float) $s->sales_total), 2),
+                'sales_count' => (int) $rows->sum(fn (array $r) => (int) ($r['live']['sales_count'] ?? $r['sales_count'] ?? 0)),
+                'sales_total' => $sum('sales_total'),
+                'cash_sales' => $cashSales,
+                // What every drawer in the shop should be holding right now.
+                'expected_cash' => $sum('expected_cash'),
+                // Counting and variance only exist once a drawer has been
+                // counted, so these stay closed-shifts-only. A running variance
+                // would be an accusation against a cashier still working.
                 'counted_cash' => round((float) $sessions->sum(fn ($s) => (float) $s->counted_cash), 2),
                 'variance' => round((float) $sessions->sum(fn ($s) => (float) $s->variance), 2),
             ],
-            'banked' => round((float) BankDeposit::query()->where('business_day_id', $day->id)->sum('amount'), 2),
+            'banked' => $banked,
+            // The day's takings that are still in the shop. Floats are excluded
+            // — they were never today's money and they stay for tomorrow.
+            'unbanked' => round($cashSales - $banked, 2),
             'deposits' => BankDeposit::query()
                 ->with('depositedBy:id,name')
                 ->where('business_day_id', $day->id)

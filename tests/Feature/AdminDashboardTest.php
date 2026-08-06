@@ -289,6 +289,73 @@ class AdminDashboardTest extends TestCase
         $this->assertSame('Pro Plan', $plans['pro']['name']);
     }
 
+    public function test_a_retired_plan_that_never_did_anything_is_not_a_card(): void
+    {
+        $live = $this->plan('basic', 2500);
+        Tenant::factory()->create(['plan_id' => $live->id]);
+
+        // The combination plans the rebuild retired. Deactivated, no tenants,
+        // never took a rupee — a card for it is just something in the way.
+        $this->plan('pos-online-delivery')->forceFill(['is_active' => false])->save();
+
+        // But one that still holds a paying tenant is a real obligation and stays.
+        $legacy = $this->plan('legacy-pro', 9000);
+        $legacy->forceFill(['is_active' => false])->save();
+        $held = Tenant::factory()->create(['plan_id' => $legacy->id]);
+        $this->payment($held, $legacy, 9000, now()->subDays(3)->toDateTimeString());
+
+        $codes = collect($this->dashboard()['plans'])->pluck('code');
+
+        $this->assertTrue($codes->contains('basic'));
+        $this->assertTrue($codes->contains('legacy-pro'));
+        $this->assertFalse($codes->contains('pos-online-delivery'));
+    }
+
+    public function test_a_bespoke_plan_is_marked_as_one_and_carries_its_price(): void
+    {
+        $ladder = $this->plan('premium', 6000);
+        $bespoke = $this->plan('karahi-house-custom', 22000);
+        $bespoke->forceFill(['is_custom' => true])->save();
+
+        Tenant::factory()->create(['plan_id' => $ladder->id]);
+        Tenant::factory()->create(['plan_id' => $bespoke->id]);
+
+        $plans = collect($this->dashboard()['plans'])->keyBy('code');
+
+        // A one-off enterprise deal is not a rung on the ladder and must not
+        // read as one.
+        $this->assertFalse($plans['premium']['is_custom']);
+        $this->assertTrue($plans['karahi-house-custom']['is_custom']);
+        $this->assertEquals(22000, $plans['karahi-house-custom']['price']);
+    }
+
+    public function test_module_adoption_counts_what_shops_actually_run(): void
+    {
+        Tenant::factory()->create(['features' => ['pos' => true, 'products' => true, 'inventory' => true]]);
+        Tenant::factory()->create(['features' => ['pos' => true, 'products' => true]]);
+        Tenant::factory()->create(['features' => ['expenses' => true]]);
+        // A suspended shop is not running anything; counting it would flatter
+        // every share on the panel.
+        Tenant::factory()->suspended()->create(['features' => ['pos' => true, 'products' => true, 'fuel' => true]]);
+
+        $modules = collect($this->dashboard()['modules'])->keyBy('key');
+
+        $this->assertSame(2, $modules['pos']['count']);
+        $this->assertSame(2, $modules['products']['count']);
+        $this->assertSame(1, $modules['inventory']['count']);
+        $this->assertSame(1, $modules['expenses']['count']);
+        // Nobody runs it. That is a fact the platform should be able to see,
+        // not a row to hide.
+        $this->assertSame(0, $modules['fuel']['count']);
+
+        $this->assertEquals(66.7, $modules['pos']['share']);
+        $this->assertSame('Point of Sale (POS)', $modules['pos']['label']);
+
+        // Ranked, so the panel reads as a league table.
+        $counts = collect($this->dashboard()['modules'])->pluck('count')->all();
+        $this->assertSame($counts, collect($counts)->sortDesc()->values()->all());
+    }
+
     public function test_recent_payments_return_the_five_latest_with_tenant_and_reference(): void
     {
         $plan = $this->plan('pro');
@@ -310,7 +377,7 @@ class AdminDashboardTest extends TestCase
         $this->assertSame('bank_transfer', $payments[0]['method']);
         $this->assertSame('paid', $payments[0]['status']);
         $this->assertSame('Pro Plan', $payments[0]['plan_name']);
-        $this->assertNotNull(\Illuminate\Support\Carbon::parse($payments[0]['paid_at']));
+        $this->assertNotNull(Carbon::parse($payments[0]['paid_at']));
         $this->assertSame('INV-1002', $payments[4]['reference']);
     }
 
@@ -330,7 +397,7 @@ class AdminDashboardTest extends TestCase
             // round-trip, not just that a string is present.
             $this->assertSame(
                 $entry['at'],
-                \Illuminate\Support\Carbon::parse($entry['at'])->toIso8601String(),
+                Carbon::parse($entry['at'])->toIso8601String(),
             );
             $this->assertNotEmpty($entry['actor']);
             $this->assertContains($entry['action'], ['created', 'updated', 'deleted']);
@@ -370,7 +437,7 @@ class AdminDashboardTest extends TestCase
         // A leftover tenant context must not narrow a platform-wide figure.
         app(TenantContext::class)->set($one);
 
-        $kpis = app(\App\Services\DashboardService::class)->forPlatform()['kpis'];
+        $kpis = app(DashboardService::class)->forPlatform()['kpis'];
 
         $this->assertSame(2, $kpis['online_orders_today']['value']);
         $this->assertSame(2, $kpis['active_riders']['value']);
@@ -422,7 +489,7 @@ class AdminDashboardTest extends TestCase
             Rider::withoutTenancy()->create(['tenant_id' => $tenant->id, 'name' => "R{$i}"]);
         }
 
-        $service = app(\App\Services\DashboardService::class);
+        $service = app(DashboardService::class);
         $service->forPlatform(); // warm any lazily-resolved state
 
         $queries = 0;

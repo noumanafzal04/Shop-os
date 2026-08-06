@@ -2,16 +2,23 @@
 
 namespace App\Services;
 
+use App\Enums\PurchaseStatus;
 use App\Enums\ReservationStatus;
 use App\Enums\SaleStatus;
 use App\Enums\TenantStatus;
 use App\Models\AuditLog;
+use App\Models\BankDeposit;
+use App\Models\Branch;
+use App\Models\BusinessDay;
+use App\Models\CashSession;
+use App\Models\Customer;
 use App\Models\Expense;
-use App\Models\Order;
 use App\Models\HeldSale;
+use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\PurchaseOrder;
 use App\Models\Reservation;
 use App\Models\Rider;
 use App\Models\Sale;
@@ -19,6 +26,9 @@ use App\Models\SaleItem;
 use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
 use App\Support\BusinessTypes;
+use App\Support\Modules;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -34,8 +44,8 @@ class DashboardService
 {
     /**
      * @param  string|null  $branchId  Scope the sales/stock figures to one
-     *                                  branch, or null for the whole tenant
-     *                                  (an owner's All-Branches HQ view).
+     *                                 branch, or null for the whole tenant
+     *                                 (an owner's All-Branches HQ view).
      */
     public function forTenant(Tenant $tenant, ?string $branchId = null): array
     {
@@ -147,6 +157,17 @@ class DashboardService
                 'pending_pos' => $tenant->featureEnabled('pos') ? $this->parkedTicketCount($tenant, $branchId) : 0,
             ],
             'order_pipeline' => $takesOrders ? $this->orderPipeline($tenant) : $this->emptyPipeline(),
+            // The till, at a glance. Deliberately NOT a second copy of the Day
+            // screen: what belongs here is the state nothing else surfaces —
+            // whether the day was ever closed off, and whether a day from
+            // earlier in the week is still hanging open with no roll-up.
+            'till' => $tenant->featureEnabled('pos') ? $this->tillToday($tenant, $branchId, $todayStart) : null,
+            // Who owes whom. An owner asks this straight after "what did I
+            // take", and until now the dashboard could not answer it at all.
+            'money_owed' => [
+                'receivable' => $sells ? $this->receivable($tenant) : ['total' => 0.0, 'accounts' => 0],
+                'payable' => $tracksStock ? $this->payable($tenant) : ['total' => 0.0, 'accounts' => 0],
+            ],
             'recent_sales' => $sells ? $this->recentSales($tenant, $branchId) : [],
             'recent_expenses' => $keepsBooks ? $this->recentExpenses($tenant, $branchId) : [],
             // This month's leaders by revenue. Each is nullable: a shop that
@@ -170,7 +191,7 @@ class DashboardService
      *
      * @return array<string, array{sales_count: int, revenue: float, customers_count: int}>
      */
-    private function dailySales(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $from): array
+    private function dailySales(Tenant $tenant, ?string $branchId, Carbon $from): array
     {
         $day = $this->dayExpression('sold_at');
 
@@ -204,7 +225,7 @@ class DashboardService
      *
      * @return array<string, float>
      */
-    private function dailyCogs(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $from): array
+    private function dailyCogs(Tenant $tenant, ?string $branchId, Carbon $from): array
     {
         $day = $this->dayExpression('sales.sold_at');
 
@@ -226,7 +247,7 @@ class DashboardService
     /**
      * @return array<string, float>
      */
-    private function dailyExpenses(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $from): array
+    private function dailyExpenses(Tenant $tenant, ?string $branchId, Carbon $from): array
     {
         $day = $this->dayExpression('expense_date');
 
@@ -252,7 +273,7 @@ class DashboardService
      * @return array<int, array{day: string, date: string, revenue: float, expenses: float, profit: float}>
      */
     private function salesSeries(
-        \Illuminate\Support\Carbon $from,
+        Carbon $from,
         array $salesByDay,
         array $cogsByDay,
         array $expensesByDay,
@@ -300,7 +321,7 @@ class DashboardService
      *
      * @return array<int, array{category: string, total: float}>
      */
-    private function expenseBreakdown(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $monthStart): array
+    private function expenseBreakdown(Tenant $tenant, ?string $branchId, Carbon $monthStart): array
     {
         return Expense::withoutTenancy()
             ->where('expenses.tenant_id', $tenant->id)
@@ -427,6 +448,100 @@ class DashboardService
     }
 
     /**
+     * Today at the till — and the one thing no other screen shouts about.
+     *
+     * A trading day that was never closed off never gets its roll-up, so the
+     * shop's record of that day quietly does not exist. Nobody discovers it
+     * until they go looking for a figure months later, which is far too late.
+     * Deliberately NOT a second copy of the Day screen: no drawer arithmetic
+     * happens here, because a dashboard is loaded far more often than a day is
+     * closed.
+     *
+     * @return array{day_open: bool, day_id: string|null, open_shifts: int,
+     *               banked_today: float, unclosed_day: string|null, unclosed_days: int}
+     */
+    private function tillToday(Tenant $tenant, ?string $branchId, Carbon $todayStart): array
+    {
+        $today = $todayStart->toDateString();
+
+        $openDays = BusinessDay::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('status', BusinessDay::STATUS_OPEN)
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+            ->orderBy('trading_date')
+            ->get(['id', 'trading_date']);
+
+        $todayDay = $openDays->first(fn (BusinessDay $d): bool => $d->trading_date->toDateString() === $today);
+        $unclosed = $openDays->filter(fn (BusinessDay $d): bool => $d->trading_date->toDateString() < $today);
+
+        return [
+            'day_open' => $todayDay !== null,
+            'day_id' => $todayDay?->id,
+            'open_shifts' => $todayDay === null ? 0 : CashSession::withoutTenancy()
+                ->where('tenant_id', $tenant->id)
+                ->where('business_day_id', $todayDay->id)
+                ->where('status', 'open')
+                ->count(),
+            'banked_today' => round((float) BankDeposit::withoutTenancy()
+                ->where('tenant_id', $tenant->id)
+                ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+                ->where('deposited_at', '>=', $todayStart)
+                ->sum('amount'), 2),
+            // The OLDEST day still hanging open. Null is the healthy answer.
+            'unclosed_day' => $unclosed->first()?->trading_date->toDateString(),
+            'unclosed_days' => $unclosed->count(),
+        ];
+    }
+
+    /**
+     * Khata — what customers owe the shop.
+     *
+     * Positive balances only. A customer holding credit is not a debt, and
+     * netting the two would report a book that is half the size it is.
+     *
+     * @return array{total: float, accounts: int}
+     */
+    private function receivable(Tenant $tenant): array
+    {
+        $row = Customer::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('credit_balance', '>', 0)
+            ->selectRaw('COALESCE(SUM(credit_balance), 0) as owed, COUNT(*) as accounts')
+            ->toBase()
+            ->first();
+
+        return [
+            'total' => round((float) ($row->owed ?? 0), 2),
+            'accounts' => (int) ($row->accounts ?? 0),
+        ];
+    }
+
+    /**
+     * What the shop owes its suppliers.
+     *
+     * Drafts are excluded along with cancellations: a PO nobody has placed is
+     * a shopping list, not a bill, and counting it would inflate the figure an
+     * owner uses to decide whether they can pay someone this week.
+     *
+     * @return array{total: float, accounts: int}
+     */
+    private function payable(Tenant $tenant): array
+    {
+        $row = PurchaseOrder::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->whereNotIn('status', [PurchaseStatus::Cancelled->value, PurchaseStatus::Draft->value])
+            ->whereColumn('amount_paid', '<', 'total')
+            ->selectRaw('COALESCE(SUM(total - amount_paid), 0) as owed, COUNT(DISTINCT supplier_id) as accounts')
+            ->toBase()
+            ->first();
+
+        return [
+            'total' => round((float) ($row->owed ?? 0), 2),
+            'accounts' => (int) ($row->accounts ?? 0),
+        ];
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function recentSales(Tenant $tenant, ?string $branchId): array
@@ -485,7 +600,7 @@ class DashboardService
     /**
      * @return array{name: string, units: float, revenue: float}|null
      */
-    private function topProduct(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $monthStart): ?array
+    private function topProduct(Tenant $tenant, ?string $branchId, Carbon $monthStart): ?array
     {
         $row = $this->monthlyLineItems($tenant, $branchId, $monthStart)
             ->selectRaw('sale_items.product_name as name, SUM(sale_items.quantity) as units, SUM(sale_items.line_total) as revenue')
@@ -505,7 +620,7 @@ class DashboardService
     /**
      * @return array{name: string, revenue: float}|null
      */
-    private function topCategory(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $monthStart): ?array
+    private function topCategory(Tenant $tenant, ?string $branchId, Carbon $monthStart): ?array
     {
         // Left joins throughout: a line whose product (or whose product's
         // category) has since been deleted still sold, and belongs somewhere.
@@ -530,7 +645,7 @@ class DashboardService
     /**
      * @return array{id: string, name: string, sales_count: int, revenue: float}|null
      */
-    private function topCustomer(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $monthStart): ?array
+    private function topCustomer(Tenant $tenant, ?string $branchId, Carbon $monthStart): ?array
     {
         $row = $this->monthlySales($tenant, $branchId, $monthStart)
             ->join('customers', 'customers.id', '=', 'sales.customer_id')
@@ -551,7 +666,7 @@ class DashboardService
     /**
      * @return array{id: string, name: string, sales_count: int, revenue: float}|null
      */
-    private function topStaff(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $monthStart): ?array
+    private function topStaff(Tenant $tenant, ?string $branchId, Carbon $monthStart): ?array
     {
         $row = $this->monthlySales($tenant, $branchId, $monthStart)
             ->whereNotNull('sales.created_by')
@@ -574,7 +689,7 @@ class DashboardService
      * This month's completed sales, fully qualified so the highlight queries can
      * join tables that carry their own `status` / `name` columns.
      */
-    private function monthlySales(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $monthStart): \Illuminate\Database\Eloquent\Builder
+    private function monthlySales(Tenant $tenant, ?string $branchId, Carbon $monthStart): Builder
     {
         return Sale::query()
             ->where('sales.tenant_id', $tenant->id)
@@ -584,7 +699,7 @@ class DashboardService
     }
 
     /** This month's sold lines (see dailyCogs() on the hand-written soft-delete filter). */
-    private function monthlyLineItems(Tenant $tenant, ?string $branchId, \Illuminate\Support\Carbon $monthStart): \Illuminate\Database\Eloquent\Builder
+    private function monthlyLineItems(Tenant $tenant, ?string $branchId, Carbon $monthStart): Builder
     {
         return SaleItem::query()
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
@@ -653,13 +768,13 @@ class DashboardService
      *                       rather than rendering a row of zeros per site.
      * @return array<int, array{branch_id: string, branch: string, sales_count: int, revenue: float}>
      */
-    private function branchBreakdown(Tenant $tenant, \Illuminate\Support\Carbon $todayStart, bool $sells = true): array
+    private function branchBreakdown(Tenant $tenant, Carbon $todayStart, bool $sells = true): array
     {
         if (! $sells) {
             return [];
         }
 
-        $branches = \App\Models\Branch::query()
+        $branches = Branch::query()
             ->where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderByDesc('is_default')
@@ -790,6 +905,7 @@ class DashboardService
             'tenant_growth' => $this->tenantGrowth(6),
             'business_types' => $this->businessTypeSpread(),
             'plans' => $this->planSpread(),
+            'modules' => $this->moduleAdoption(),
             'recent_payments' => $this->recentPayments(),
             'activity' => $this->recentActivity(),
             'recent_tenants' => Tenant::query()
@@ -902,15 +1018,66 @@ class DashboardService
     }
 
     /**
+     * Which modules the platform's shops actually run.
+     *
+     * Modules are assigned per tenant, not bundled into a plan, so the plan
+     * ladder no longer says anything about what is being used. This is the only
+     * place the platform can see what it is really shipping — and the only
+     * warning that a module nobody switches on is being built for nobody.
+     *
+     * One query. The counting happens in PHP because `features` is a JSON
+     * column and no two drivers aggregate inside one the same way.
+     *
+     * @return array<int, array{key: string, label: string, count: int, share: float}>
+     */
+    private function moduleAdoption(): array
+    {
+        $rows = Tenant::query()
+            ->where('status', TenantStatus::Active)
+            ->toBase()
+            ->pluck('features');
+
+        $total = $rows->count();
+        $counts = array_fill_keys(array_keys(Modules::all()), 0);
+
+        foreach ($rows as $features) {
+            $map = is_array($features) ? $features : (json_decode((string) $features, true) ?: []);
+
+            foreach ($map as $key => $enabled) {
+                // A key the registry no longer knows is not a module any more.
+                if ($enabled && array_key_exists($key, $counts)) {
+                    $counts[$key]++;
+                }
+            }
+        }
+
+        $catalog = Modules::all();
+
+        return collect($counts)
+            ->map(fn (int $count, string $key): array => [
+                'key' => $key,
+                'label' => $catalog[$key]['label'] ?? Str::headline($key),
+                'count' => $count,
+                // Against ACTIVE tenants: a suspended shop is not running
+                // anything, and counting it would flatter every number here.
+                'share' => $total > 0 ? round(($count / $total) * 100, 1) : 0.0,
+            ])
+            ->sortByDesc('count')
+            ->values()
+            ->all();
+    }
+
+    /**
      * Per-plan uptake and takings. Revenue is attributed by the plan each
      * PAYMENT was for, not the payer's current plan — an upgrade must not
      * rewrite last year's takings.
      *
-     * @return array<int, array{id: string, name: string, code: string, active_tenants: int, revenue: float}>
+     * @return array<int, array{id: string, name: string, code: string, price: float,
+     *                          is_custom: bool, active_tenants: int, revenue: float}>
      */
     private function planSpread(): array
     {
-        $plans = Plan::query()->orderBy('name')->get(['id', 'name', 'code']);
+        $plans = Plan::query()->orderBy('name')->get(['id', 'name', 'code', 'price', 'is_custom', 'is_active']);
 
         $tenantCounts = Tenant::query()
             ->where('status', TenantStatus::Active)
@@ -932,9 +1099,18 @@ class DashboardService
                 'id' => $plan->id,
                 'name' => $plan->name,
                 'code' => $plan->code,
+                'price' => round((float) $plan->price, 2),
+                // A bespoke enterprise deal is not part of the ladder and must
+                // not be read as one.
+                'is_custom' => (bool) $plan->is_custom,
+                'is_active' => (bool) $plan->is_active,
                 'active_tenants' => (int) ($tenantCounts[$plan->id] ?? 0),
                 'revenue' => round((float) ($revenue[$plan->id] ?? 0), 2),
             ])
+            // A retired plan that still holds tenants or took money stays —
+            // that is a real obligation. One that never did anything is just
+            // a card in the way.
+            ->filter(fn (array $p): bool => $p['is_active'] || $p['active_tenants'] > 0 || $p['revenue'] > 0)
             ->sortByDesc('active_tenants')
             ->values()
             ->all();
