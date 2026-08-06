@@ -31,7 +31,17 @@ export function useShiftMutations() {
     onSuccess: invalidate,
   });
   const close = useMutation({
-    mutationFn: ({ counted, notes }: { counted: number; notes?: string }) => posService.closeSession(counted, notes),
+    mutationFn: ({ counted, notes, denominations, declared }: {
+      counted: number;
+      notes?: string;
+      denominations?: Record<string, number>;
+      declared?: Record<string, number>;
+    }) => posService.closeSession({
+      counted_cash: counted,
+      notes,
+      denominations,
+      declared_tenders: declared,
+    }),
     onSuccess: invalidate,
   });
   return { open, move, close };

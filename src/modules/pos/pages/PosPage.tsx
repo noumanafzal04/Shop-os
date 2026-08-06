@@ -20,6 +20,7 @@ import type { Sale } from "../../sales/types";
 import { posService, type HeldSale } from "../services/posService";
 import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
+import CloseShiftModal from "../components/CloseShiftModal";
 import { useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
 import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
 import { receiptService, type ReceiptKind } from "../../receipts/services/receiptService";
@@ -449,7 +450,6 @@ export default function PosPage() {
   // Shift conflicts are recoverable, so they're shown in the modal with the way
   // out (move the drawer here) rather than thrown away as a toast.
   const [shiftError, setShiftError] = useState<{ message: string; code?: string } | null>(null);
-  const [countedCash, setCountedCash] = useState("");
   const [holdLabel, setHoldLabel] = useState("");
   // Half-typed quantities, keyed by cart line. See commitQty().
   const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
@@ -1101,7 +1101,7 @@ export default function PosPage() {
           {open ? (
             <button
               type="button"
-              onClick={() => { setCountedCash(""); closeModal.openModal(); }}
+              onClick={closeModal.openModal}
               title="Count up and close this shift"
               className="flex items-center gap-1.5 rounded-lg border border-warning-200 bg-warning-50 px-3 py-1.5 text-theme-sm font-semibold text-warning-700 transition hover:bg-warning-100 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
             >
@@ -1938,17 +1938,13 @@ export default function PosPage() {
         </div>
       </Modal>
 
-      {/* Close shift */}
-      <Modal isOpen={closeModal.isOpen} onClose={closeModal.closeModal} className="max-w-sm p-6">
-        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Close shift</h3>
-        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">Count the drawer and enter the cash total.</p>
-        <label className="text-sm text-gray-500 dark:text-gray-400">Counted cash</label>
-        <Input type="number" min="0" value={countedCash} onChange={(e) => setCountedCash(e.target.value)} />
-        <div className="mt-5 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={closeModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={() => shift.close.mutate({ counted: Number(countedCash) || 0 }, { onSuccess: closeModal.closeModal })} disabled={shift.close.isPending}>Close shift</Button>
-        </div>
-      </Modal>
+      {/* Close shift — counted by note and coin, blind where the shop asks. */}
+      <CloseShiftModal
+        isOpen={closeModal.isOpen}
+        onClose={closeModal.closeModal}
+        busy={shift.close.isPending}
+        onSubmit={(payload) => shift.close.mutate(payload, { onSuccess: closeModal.closeModal })}
+      />
 
       {/* Drawer X-read + the cashier's cash movements */}
       <CashDrawerPanel isOpen={drawerModal.isOpen} onClose={drawerModal.closeModal} hasOpenShift={!!open} />

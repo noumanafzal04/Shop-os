@@ -271,7 +271,9 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props
                 <Input type="number" min="0" step={0.01} placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
                 {action.direction === "out" && (
                   <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
-                    The drawer holds <span className="font-medium tabular-nums">{money(drawer.expected_cash)}</span> right now.
+                    {drawer.expected_cash === undefined
+                      ? "Counted blind — the expected figure is shown after you close."
+                      : <>The drawer holds <span className="font-medium tabular-nums">{money(drawer.expected_cash)}</span> right now.</>}
                   </p>
                 )}
               </div>
@@ -299,7 +301,7 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props
                     — say what to do about it. */}
                 {error.code === "INSUFFICIENT_DRAWER_CASH" && (
                   <p className="mt-1.5 pl-6 text-theme-xs">
-                    Take out {money(drawer.expected_cash)} or less, or add a float first.
+                    Take out less than the drawer holds, or add a float first.
                   </p>
                 )}
                 {error.code === "SHIFT_REQUIRED" && (
@@ -321,13 +323,25 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-4">
                 {/* The headline: the figure the cashier is counted against. */}
-                <div className="rounded-xl border border-brand-500 bg-brand-50 p-4 dark:bg-brand-500/10">
-                  <p className="text-theme-xs font-medium uppercase tracking-wide text-brand-600 dark:text-brand-400">Expected in drawer</p>
-                  <p className="mt-1 text-3xl font-bold text-brand-600 tabular-nums dark:text-brand-400">{money(drawer.expected_cash)}</p>
-                  <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
-                    Count this at close — the difference is recorded as the shift's variance.
-                  </p>
-                </div>
+                {/* Under blind close there is no headline figure to show: a
+                    till that tells you what it expects gets a count of exactly
+                    that. Everything the cashier DID stays below. */}
+                {drawer.expected_cash === undefined ? (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-white/[0.04]">
+                    <p className="text-theme-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Blind count</p>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                      Count the drawer as it is. The expected figure appears once the shift is closed.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-brand-500 bg-brand-50 p-4 dark:bg-brand-500/10">
+                    <p className="text-theme-xs font-medium uppercase tracking-wide text-brand-600 dark:text-brand-400">Expected in drawer</p>
+                    <p className="mt-1 text-3xl font-bold text-brand-600 tabular-nums dark:text-brand-400">{money(drawer.expected_cash)}</p>
+                    <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                      Count this at close — the difference is recorded as the shift's variance.
+                    </p>
+                  </div>
+                )}
 
                 {/* Every step that produced it, in the order the server's own
                     maths runs, so the column a cashier adds up by hand lands on
@@ -353,7 +367,9 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props
                         <span className="w-3 text-center font-medium">=</span>
                         Cash sales
                       </dt>
-                      <dd className="font-semibold text-gray-800 tabular-nums dark:text-white/90">{money(drawer.cash_sales)}</dd>
+                      <dd className="font-semibold text-gray-800 tabular-nums dark:text-white/90">
+                        {drawer.cash_sales === undefined ? "—" : money(drawer.cash_sales)}
+                      </dd>
                     </div>
                     {[
                       { sign: "+", label: "Opening float", value: session.opening_float },
@@ -373,7 +389,9 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props
                         <span className="w-3 text-center">=</span>
                         Expected cash
                       </dt>
-                      <dd className="font-bold text-brand-600 tabular-nums dark:text-brand-400">{money(drawer.expected_cash)}</dd>
+                      <dd className="font-bold text-brand-600 tabular-nums dark:text-brand-400">
+                        {drawer.expected_cash === undefined ? "—" : money(drawer.expected_cash)}
+                      </dd>
                     </div>
                   </dl>
                 </div>

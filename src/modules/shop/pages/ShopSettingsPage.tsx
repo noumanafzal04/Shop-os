@@ -403,10 +403,21 @@ export default function ShopSettingsPage() {
                     <Toggle checked={!!prefs.pos_auto_print} onChange={(v) => setP("pos_auto_print", v)} label="Auto-print receipt" />
                     <Toggle checked={!!prefs.pos_drawer_kick} onChange={(v) => setP("pos_drawer_kick", v)} label="Open drawer on cash" />
                   </div>
+                  <div className="flex flex-wrap items-center gap-6 pb-2.5">
+                    <Toggle checked={prefs.pos_denomination_count !== false} onChange={(v) => setP("pos_denomination_count", v)} label="Count by note & coin" />
+                    <Toggle checked={!!prefs.pos_blind_close} onChange={(v) => setP("pos_blind_close", v)} label="Blind close" />
+                    <Toggle checked={!!prefs.pos_declare_tenders} onChange={(v) => setP("pos_declare_tenders", v)} label="Declare card totals" />
+                  </div>
                 </div>
                 <p className="text-theme-xs text-gray-400">
                   "Require open shift" refuses a counter sale unless the cashier has a drawer open, so every rupee
                   belongs to a shift that gets counted. Recommended once you have staff.
+                </p>
+                <p className="text-theme-xs text-gray-400">
+                  "Count by note &amp; coin" adds the total up from the drawer itself, so a second person can
+                  re-check it. "Blind close" hides expected cash until the count is submitted — a till that
+                  says it expects 47,320 tends to get a count of 47,320. Leave it off in a one-person shop;
+                  turn it on the day someone else counts your drawer.
                 </p>
                 <p className="text-theme-xs text-gray-400">
                   "Open drawer on cash" only works where the drawer (or the printer it plugs into) is wired over a

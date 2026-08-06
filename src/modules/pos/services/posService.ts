@@ -113,7 +113,20 @@ export interface DrawerTotals {
 
 export interface SessionReport {
   session: CashSession;
-  drawer: DrawerTotals;
+  /**
+   * Under blind close `expected_cash` and `cash_sales` are ABSENT, not zero —
+   * the cashier is not shown the number they are about to be measured
+   * against. Everything they actually did stays visible.
+   */
+  drawer: Omit<DrawerTotals, "expected_cash" | "cash_sales"> & {
+    expected_cash?: number;
+    cash_sales?: number;
+  };
+  blind_close: boolean;
+  denomination_count: boolean;
+  declare_tenders: boolean;
+  /** Notes and coins to offer, largest first. */
+  denominations: number[];
   movements: CashMovement[];
 }
 
@@ -143,8 +156,14 @@ export const posService = {
   // Handover: carry an open drawer to another lane when a terminal dies or the
   // shop closes the far lanes for the evening.
   moveSession: (register_id: string) => apiPost<CashSession>("/pos/session/move", { register_id }),
-  closeSession: (counted_cash: number, notes?: string) =>
-    apiPost<CashSession>("/pos/session/close", { counted_cash, notes }),
+  closeSession: (payload: {
+    counted_cash: number;
+    notes?: string;
+    /** {5000: 3, 1000: 12, …}. When present it DERIVES the total server-side. */
+    denominations?: Record<string, number>;
+    /** What the cashier says each non-cash tender took. */
+    declared_tenders?: Record<string, number>;
+  }) => apiPost<CashSession>("/pos/session/close", payload),
 
   // The live X-read. 409 SHIFT_NOT_OPEN when the caller holds no drawer, so
   // only ask once a shift is known to be open.

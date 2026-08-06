@@ -108,6 +108,12 @@ export interface ShopSettings {
   pos_default_payment: "cash" | "card";
   pos_auto_print: boolean;
   pos_require_shift: boolean;
+  /** Count the drawer by note and coin rather than typing a total. */
+  pos_denomination_count: boolean;
+  /** Withhold expected cash until the count is submitted. */
+  pos_blind_close: boolean;
+  /** Ask the cashier what the card terminal took. */
+  pos_declare_tenders: boolean;
   pos_drawer_kick: boolean;
   /** Lock the till after this many idle minutes. 0 = never. */
   pos_idle_lock_minutes: number;
