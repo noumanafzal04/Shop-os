@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Income;
 
+use App\Models\Income;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -30,8 +31,11 @@ class StoreIncomeRequest extends FormRequest
                     ->whereNull('deleted_at'),
             ],
             'description' => ['required', 'string', 'max:255'],
+            'reference' => ['nullable', 'string', 'max:64'],
             // Edge case: negative or zero amounts blocked.
             'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
+            // Cash lands in the till; a bank transfer doesn't.
+            'payment_method' => ['sometimes', Rule::in(Income::PAYMENT_METHODS)],
             // Edge case: future-dated income blocked.
             'income_date' => ['required', 'date', 'before_or_equal:today'],
             'notes' => ['nullable', 'string', 'max:1000'],

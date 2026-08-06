@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
+use App\Models\Income;
 use App\Models\IncomeCategory;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -57,9 +59,22 @@ class IncomeCategoryController extends Controller
         return ApiResponse::ok($category, 'Income category updated');
     }
 
+    /** Same rule as expense categories: history keeps its name. */
     public function destroy(string $id): JsonResponse
     {
-        IncomeCategory::query()->findOrFail($id)->delete();
+        /** @var IncomeCategory $category */
+        $category = IncomeCategory::query()->findOrFail($id);
+
+        $used = Income::query()->where('income_category_id', $category->id)->count();
+
+        if ($used > 0) {
+            throw DomainException::conflict(
+                "{$used} income entr".($used === 1 ? 'y is' : 'ies are')." filed under {$category->name}. Turn it off instead — that hides it from the picker and keeps the history readable.",
+                'CATEGORY_IN_USE',
+            );
+        }
+
+        $category->delete();
 
         return ApiResponse::noContent('Income category deleted');
     }

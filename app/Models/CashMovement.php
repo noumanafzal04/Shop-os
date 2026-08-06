@@ -25,6 +25,10 @@ class CashMovement extends Model
     /** System-recorded types — written by the flow that moved the money. */
     public const SYSTEM_TYPES = [
         'khata_in', 'supplier_out', 'expense_out', 'void_refund',
+        // Manual income taken in cash — rent received, an owner top-up. It is
+        // in the till from the moment it's handed over, and a drawer that
+        // doesn't know about it reads the difference as an overage.
+        'income_in',
         // A layaway advance is real cash in the drawer the moment it is handed
         // over, even though no sale has happened — without this line every
         // advance would be reported as an overage at close.
@@ -37,6 +41,7 @@ class CashMovement extends Model
         'float_add' => 'in',
         'khata_in' => 'in',
         'deposit_in' => 'in',
+        'income_in' => 'in',
         'paid_out' => 'out',
         'drop' => 'out',
         'supplier_out' => 'out',

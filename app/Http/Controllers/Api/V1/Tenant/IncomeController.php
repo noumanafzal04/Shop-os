@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Actions\Expense\RecordIncomeAction;
+use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Income\StoreIncomeRequest;
+use App\Models\CashMovement;
 use App\Models\Income;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
@@ -37,46 +40,71 @@ class IncomeController extends Controller
         return ApiResponse::paginated($incomes);
     }
 
-    public function store(StoreIncomeRequest $request): JsonResponse
+    public function store(StoreIncomeRequest $request, RecordIncomeAction $action): JsonResponse
     {
         $data = $request->validated() + ['branch_id' => $this->branch->id()];
 
-        // Edge case "duplicate income": same category+amount+date already
-        // recorded → still allowed (a monthly rent CAN repeat) but flagged as a
-        // warning the UI surfaces before the user assumes it saved twice.
-        $duplicate = Income::query()
-            ->where('income_category_id', $data['income_category_id'])
-            ->where('amount', $data['amount'])
-            ->whereDate('income_date', $data['income_date'])
-            ->exists();
-
-        $income = Income::query()->create($data)->load('category:id,name');
+        $result = $action->execute($request->user(), $data);
 
         return response()->json([
             'success' => true,
             'message' => 'Income recorded',
-            'data' => $income,
+            'data' => $result['income'],
             'errors' => (object) [],
-            'meta' => (object) array_filter([
-                'warnings' => $duplicate
-                    ? ['A very similar income (same category, amount and date) already exists.']
-                    : [],
-            ]),
+            'meta' => (object) array_filter(['warnings' => $result['warnings']]),
         ], 201);
     }
 
     public function update(StoreIncomeRequest $request, string $id): JsonResponse
     {
+        /** @var Income $income */
         $income = Income::query()->findOrFail($id);
+        $this->assertAmendable($income);
+
         $income->fill($request->validated())->save();
+
+        $movement = $income->cash_movement_id !== null
+            ? CashMovement::query()->whereKey($income->cash_movement_id)->first()
+            : null;
+
+        if ($movement !== null && $income->payment_method !== 'cash') {
+            // Re-marked as a bank transfer: the cash never reached the till.
+            $movement->delete();
+            $income->forceFill(['cash_movement_id' => null])->save();
+        } elseif ($movement !== null) {
+            $movement->update(['amount' => (float) $income->amount, 'reason' => $income->description]);
+        }
 
         return ApiResponse::ok($income->load('category:id,name'), 'Income updated');
     }
 
     public function destroy(string $id): JsonResponse
     {
-        Income::query()->findOrFail($id)->delete();
+        /** @var Income $income */
+        $income = Income::query()->findOrFail($id);
+        $this->assertAmendable($income);
+
+        if ($income->cash_movement_id !== null) {
+            CashMovement::query()->whereKey($income->cash_movement_id)->delete();
+        }
+
+        $income->delete();
 
         return ApiResponse::noContent('Income deleted');
+    }
+
+    /**
+     * Cash that reached a drawer already counted and closed is frozen. Editing
+     * it would rewrite a variance somebody signed off; the fix is a correcting
+     * entry, the way a cash book has always handled yesterday.
+     */
+    private function assertAmendable(Income $income): void
+    {
+        if ($income->isSettledInAClosedShift()) {
+            throw DomainException::conflict(
+                'This landed in a shift that has already been counted and closed. Record a correcting entry instead.',
+                'INCOME_SETTLED',
+            );
+        }
     }
 }

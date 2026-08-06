@@ -32,7 +32,7 @@ use App\Support\ItemTypes;
  */
 class BusinessTypes
 {
-    public const FEATURES = ['products', 'services', 'inventory', 'marketplace', 'reservations', 'delivery', 'expenses', 'images', 'pos', 'dine_in'];
+    public const FEATURES = ['products', 'services', 'inventory', 'marketplace', 'reservations', 'delivery', 'expenses', 'images', 'pos', 'dine_in', 'fuel'];
 
     /**
      * Selling units suggested per type (the product/POS unit field offers
@@ -239,10 +239,11 @@ class BusinessTypes
                 // / tyre-fitting (services). Products + services + inventory ON;
                 // sold on the forecourt, not online, so marketplace/delivery OFF.
                 // Each fuel department/pump is a Branch (see the multi-branch
-                // model). NOTE: tank-volume/dip reconciliation, pump-meter shifts
-                // and a fuel POS mode (rupees→litres at a daily rate) are a
-                // separate Fuel Management module, not part of this base type.
-                'features' => ['products' => true, 'services' => true, 'inventory' => true, 'marketplace' => false, 'reservations' => false, 'delivery' => false],
+                // model). The forecourt itself — tanks, meters, dips and the
+                // shift that reconciles them — is the `fuel` module, on by
+                // default here and off everywhere else: a tyre shop under this
+                // type can switch it off and keep the rest.
+                'features' => ['products' => true, 'services' => true, 'inventory' => true, 'marketplace' => false, 'reservations' => false, 'delivery' => false, 'fuel' => true],
                 'product_categories' => ['Fuel', 'Lubricants & Oils', 'Convenience Store', 'Auto Accessories', 'Tyres & Batteries', 'Services'],
                 'expense_categories' => ['Fuel Purchase', 'Tanker Delivery', 'Staff Salary', 'Rent', 'Electricity', 'Pump Maintenance', 'Licensing', 'Utilities'],
                 'categories' => [

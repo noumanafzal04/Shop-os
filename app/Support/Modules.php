@@ -24,6 +24,7 @@ class Modules
             'dine_in' => ['label' => 'Dine-in / Restaurant', 'description' => 'Tables, running tabs, kitchen tickets (KOT), and split-bill. For restaurants & cafés.'],
             'expenses' => ['label' => 'Expense & Income Manager', 'description' => 'Track expenses, other income and a day-by-day cashbook (optional — a sell-only shop can skip it).'],
             'images' => ['label' => 'Product Images', 'description' => 'Upload photos for products. Always on when selling online; optional for walk-in-only shops.'],
+            'fuel' => ['label' => 'Fuel Management', 'description' => 'Tanks, pumps and nozzles, forecourt shifts with meter + dip reconciliation, and tanker deliveries. For petrol/CNG stations.'],
         ];
     }
 

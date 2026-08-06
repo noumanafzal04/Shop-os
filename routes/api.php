@@ -19,8 +19,14 @@ use App\Http\Controllers\Api\V1\Tenant\DiningTableController;
 use App\Http\Controllers\Api\V1\Tenant\KitchenController;
 use App\Http\Controllers\Api\V1\Tenant\PharmacyController;
 use App\Http\Controllers\Api\V1\Tenant\RestaurantTicketController;
+use App\Http\Controllers\Api\V1\Tenant\ExpenseBudgetController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseController;
+use App\Http\Controllers\Api\V1\Tenant\RecurringExpenseController;
+use App\Http\Controllers\Api\V1\Tenant\ForecourtShiftController;
+use App\Http\Controllers\Api\V1\Tenant\FuelDeliveryController;
+use App\Http\Controllers\Api\V1\Tenant\FuelPriceController;
+use App\Http\Controllers\Api\V1\Tenant\FuelSetupController;
 use App\Http\Controllers\Api\V1\Tenant\IncomeCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\IncomeController;
 use App\Http\Controllers\Api\V1\Tenant\BatchController;
@@ -408,7 +414,22 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::middleware(['feature:expenses', 'permission:expenses.manage'])->group(function (): void {
                 Route::apiResource('expense-categories', ExpenseCategoryController::class)
                     ->except(['show']);
+                // Recurring templates BEFORE the resource, or "recurring" is
+                // swallowed as an {expense} id.
+                Route::get('expenses/recurring', [RecurringExpenseController::class, 'index']);
+                Route::post('expenses/recurring', [RecurringExpenseController::class, 'store']);
+                Route::put('expenses/recurring/{recurring}', [RecurringExpenseController::class, 'update']);
+                Route::delete('expenses/recurring/{recurring}', [RecurringExpenseController::class, 'destroy']);
+                Route::post('expenses/recurring/{recurring}/post', [RecurringExpenseController::class, 'post']);
+
+                // Category ceilings + how the month is tracking against them.
+                Route::get('expenses/budgets', [ExpenseBudgetController::class, 'index']);
+                Route::post('expenses/budgets', [ExpenseBudgetController::class, 'store']);
+
                 Route::apiResource('expenses', ExpenseController::class)->except(['show']);
+                // The photo of the bill.
+                Route::post('expenses/{expense}/attachment', [ExpenseController::class, 'attach']);
+                Route::delete('expenses/{expense}/attachment', [ExpenseController::class, 'detach']);
 
                 // Income is the other half of the same module.
                 Route::apiResource('income-categories', IncomeCategoryController::class)
@@ -504,6 +525,52 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // with the other reports' permission.
                 Route::get('reports/waiters', [RestaurantTicketController::class, 'waiterReport'])
                     ->middleware('permission:reports.view');
+            });
+
+            // Fuel management (petroleum depth): the forecourt a petrol pump
+            // runs on — tanks, pumps and nozzles, the shift that reads every
+            // meter and dips every tank, and the tankers that fill them.
+            // Gated by the `fuel` module (defaults on for petroleum only).
+            Route::prefix('fuel')->middleware('feature:fuel')->group(function (): void {
+                // The plant. Set up once, so it sits with the other
+                // configuration behind settings.manage.
+                Route::middleware('permission:settings.manage')->group(function (): void {
+                    Route::get('tanks', [FuelSetupController::class, 'tanks']);
+                    Route::post('tanks', [FuelSetupController::class, 'storeTank']);
+                    Route::put('tanks/{tank}', [FuelSetupController::class, 'updateTank']);
+                    Route::delete('tanks/{tank}', [FuelSetupController::class, 'destroyTank']);
+
+                    Route::get('pumps', [FuelSetupController::class, 'pumps']);
+                    Route::post('pumps', [FuelSetupController::class, 'storePump']);
+                    Route::put('pumps/{pump}', [FuelSetupController::class, 'updatePump']);
+                    Route::delete('pumps/{pump}', [FuelSetupController::class, 'destroyPump']);
+                    Route::post('pumps/{pump}/nozzles', [FuelSetupController::class, 'storeNozzle']);
+                    Route::put('pumps/{pump}/nozzles/{nozzle}', [FuelSetupController::class, 'updateNozzle']);
+                    Route::delete('pumps/{pump}/nozzles/{nozzle}', [FuelSetupController::class, 'destroyNozzle']);
+                });
+
+                // The shift. A stock reconciliation at heart — it ends by
+                // setting fuel stock to the dip — so it carries the same
+                // permission as every other stock correction.
+                Route::middleware('permission:inventory.manage')->group(function (): void {
+                    Route::get('shifts', [ForecourtShiftController::class, 'index']);
+                    Route::get('shifts/current', [ForecourtShiftController::class, 'current']);
+                    Route::post('shifts', [ForecourtShiftController::class, 'store']);
+                    Route::get('shifts/{shift}', [ForecourtShiftController::class, 'show']);
+                    Route::post('shifts/{shift}/close', [ForecourtShiftController::class, 'close']);
+                });
+
+                // Goods received, so it sits with purchasing.
+                Route::middleware('permission:purchases.manage')->group(function (): void {
+                    Route::get('deliveries', [FuelDeliveryController::class, 'index']);
+                    Route::post('deliveries', [FuelDeliveryController::class, 'store']);
+                });
+
+                // A price notification changes a product price.
+                Route::middleware('permission:products.manage')->group(function (): void {
+                    Route::get('prices', [FuelPriceController::class, 'index']);
+                    Route::post('prices', [FuelPriceController::class, 'store']);
+                });
             });
         });
 
