@@ -31,9 +31,9 @@ interface Props {
 /** The page needs this to decide whether to draw the row at all. */
 export function hasMoneyPanel(data: TenantDashboard, caps: Capabilities): boolean {
   const { receivable, payable } = data.money_owed;
-  return (caps.sells && receivable.accounts > 0)
-    || (caps.tracksStock && payable.accounts > 0)
-    || data.till !== null;
+  return (caps.sells && caps.visit("/tenant/customers") && receivable.accounts > 0)
+    || (caps.tracksStock && caps.visit("/tenant/suppliers") && payable.accounts > 0)
+    || (data.till !== null && caps.visit("/tenant/day"));
 }
 
 /**
@@ -44,10 +44,17 @@ export function hasMoneyPanel(data: TenantDashboard, caps: Capabilities): boolea
  * shopkeeper looks daily. The till tiles sit beside them because banking is the
  * same question one step later: the takings are not really takings until
  * they're somewhere safe.
+ *
+ * Who sees which tile follows who may open the screen behind it. In practice
+ * that means the shop's total khata and its supplier dues are the owner's
+ * figures — a cashier needs ONE customer's balance, which the till already
+ * gives them, not the shop's whole position. The day and the banking stay,
+ * because that is the cashier's own drawer.
  */
 export function MoneyPanel({ data, caps, money }: Props) {
   const { receivable, payable } = data.money_owed;
-  const till = data.till;
+  // A till the person cannot open is a till they are told nothing about.
+  const till = caps.visit("/tenant/day") ? data.till : null;
 
   const tiles: Array<{
     key: string;
@@ -58,7 +65,7 @@ export function MoneyPanel({ data, caps, money }: Props) {
     to: string;
   }> = [];
 
-  if (caps.sells) {
+  if (caps.sells && caps.visit("/tenant/customers")) {
     tiles.push({
       key: "receivable",
       label: "Owed to you",
@@ -72,7 +79,7 @@ export function MoneyPanel({ data, caps, money }: Props) {
     });
   }
 
-  if (caps.tracksStock) {
+  if (caps.tracksStock && caps.visit("/tenant/suppliers")) {
     tiles.push({
       key: "payable",
       label: "You owe",

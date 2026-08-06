@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { shopNav } from "./AppSidebar";
+import { TENANT_ROUTES as ROUTES } from "../test/routes";
 
 /**
  * Which screens a shop can see.
@@ -19,47 +20,6 @@ import { shopNav } from "./AppSidebar";
  *   - every path the nav can produce actually has a route behind it
  */
 
-/** The tenant routes App.tsx declares. A nav item outside this set is a 404. */
-const ROUTES = new Set([
-  "/tenant",
-  "/tenant/pos",
-  "/tenant/dine-in",
-  "/tenant/kitchen",
-  "/tenant/sales",
-  "/tenant/day",
-  "/tenant/documents",
-  "/tenant/orders",
-  "/tenant/riders",
-  "/tenant/fuel",
-  "/tenant/fuel/deliveries",
-  "/tenant/fuel/setup",
-  "/tenant/cashbook",
-  "/tenant/income",
-  "/tenant/expenses",
-  "/tenant/branches",
-  "/tenant/transfers",
-  "/tenant/products",
-  "/tenant/categories",
-  "/tenant/collections",
-  "/tenant/inventory",
-  "/tenant/stocktake",
-  "/tenant/labels",
-  "/tenant/suppliers",
-  "/tenant/purchases",
-  "/tenant/customers",
-  "/tenant/coupons",
-  "/tenant/promotions",
-  "/tenant/reviews",
-  "/tenant/reservations",
-  "/tenant/reports",
-  "/tenant/staff",
-  "/tenant/pharmacy",
-  "/tenant/vehicles",
-  "/tenant/warranty",
-  "/tenant/portfolio",
-  "/tenant/subscription",
-  "/tenant/settings",
-]);
 
 /** Module maps mirroring BusinessTypes::defaultFeatures on the server. */
 const FEATURES: Record<string, Record<string, boolean>> = {

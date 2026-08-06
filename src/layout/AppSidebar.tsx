@@ -20,16 +20,15 @@ import { useUiMode, type UiMode } from "../context/UiModeContext";
 import { useShopSettings } from "../modules/shop/hooks/useShop";
 import { useAuthStore } from "../stores/authStore";
 import { homeForRole } from "../common/routing/guards";
+import { canVisit } from "../common/routing/screenPermissions";
 import { usePrimaryBusinessType } from "../common/tenant/businessType";
 
-type SubItem = { name: string; path: string; pro?: boolean; new?: boolean; can?: string };
+type SubItem = { name: string; path: string; pro?: boolean; new?: boolean };
 
 type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  /** The permission the screen's own action needs — see filterByPermission. */
-  can?: string;
   subItems?: SubItem[];
 };
 
@@ -48,9 +47,10 @@ type NavItem = {
  *   PERSON  — what this user may do (`can`)
  *
  * The third was missing: a cashier with only sales.manage was offered Staff,
- * Reports and Day & banking and got a 403 from each. Every `can` here names
- * the permission the server asks for on that screen's own action, so the menu
- * can no longer promise something the API will refuse.
+ * Reports and Suppliers and got a 403 from each. Which permission each screen
+ * needs is NOT written here — it lives in screenPermissions, the one map the
+ * dashboard tiles read as well, because two lists of the same rule is how the
+ * menu and the dashboard end up disagreeing about the same cashier.
  */
 export function shopNav(
   features: Record<string, boolean> | undefined,
@@ -65,8 +65,8 @@ export function shopNav(
     subItems: [
       // Adding a location is configuration; moving stock between them is
       // stock work — two different people in a bigger shop.
-      { name: "Locations", path: "/tenant/branches", can: "settings.manage" },
-      { name: "Transfers", path: "/tenant/transfers", can: "inventory.manage" },
+      { name: "Locations", path: "/tenant/branches" },
+      { name: "Transfers", path: "/tenant/transfers" },
     ],
   };
   // A capability shows only when its flag is explicitly on. Types that don't
@@ -87,9 +87,9 @@ export function shopNav(
     icon: <FileIcon />,
     name: "Expense Manager",
     subItems: [
-      { name: "Cashbook", path: "/tenant/cashbook", can: "expenses.manage" },
-      { name: "Income", path: "/tenant/income", can: "expenses.manage" },
-      { name: "Expenses", path: "/tenant/expenses", can: "expenses.manage" },
+      { name: "Cashbook", path: "/tenant/cashbook" },
+      { name: "Income", path: "/tenant/income" },
+      { name: "Expenses", path: "/tenant/expenses" },
     ],
   };
 
@@ -97,17 +97,17 @@ export function shopNav(
   if (mode === "basic") {
     return filterByPermission([
       { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
-      ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos", can: "sales.manage" }] : []),
-      ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in", can: "sales.manage" }] : []),
-      ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales", can: "sales.manage" }] : []),
+      ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
+      ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
+      ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
       // End of day. Even the calm view needs it — without it a shop can never
       // close a day off or record what went to the bank.
-      ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day", can: "sales.manage" }] : []),
-      ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders", can: "orders.manage" }] : []),
-      ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products", can: "products.manage" }] : []),
+      ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
+      ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders" }] : []),
+      ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products" }] : []),
       ...(has("expenses") ? [expenseManager] : []),
       ...(multiBranch ? [branchItem] : []),
-      { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings", can: "settings.manage" },
+      { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
     ], can);
   }
 
@@ -115,25 +115,25 @@ export function shopNav(
     // ── Daily essentials ──────────────────────────────────────────
     { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
     // POS till is only for shops on a plan that includes it (not online-only).
-    ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos", can: "sales.manage" }] : []),
-    ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in", can: "sales.manage" }] : []),
+    ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
+    ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
     // The kitchen board is a separate screen because it lives on a different
     // wall from the till — the same shop, two people, two displays.
-    ...(has("dine_in") ? [{ icon: <ListIcon />, name: "Kitchen", path: "/tenant/kitchen", can: "sales.manage" }] : []),
-    ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales", can: "sales.manage" }] : []),
+    ...(has("dine_in") ? [{ icon: <ListIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
+    ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
     // The 10pm question: what did the shop take today across every drawer, and
     // how much of it went to the bank. No shift answers it, however well
     // counted — so it sits with the daily screens, not in a reports folder.
     // A cashier is entitled to the record of their own drawer, so it carries
     // the same permission as ringing a sale; the day CLOSE is manager-only,
     // checked on the server.
-    ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day", can: "sales.manage" }] : []),
+    ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
     // Promises outstanding: prices quoted, and goods held on advance. Sits
     // beside Sales because it is the same ledger one step earlier — and a
     // shopkeeper holding customers' money needs it where they'll see it daily.
-    ...(has("pos") ? [{ icon: <ListIcon />, name: "Quotes & Advances", path: "/tenant/documents", can: "sales.manage" }] : []),
-    ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders", can: "orders.manage" }] : []),
-    ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders", can: "orders.manage" }] : []),
+    ...(has("pos") ? [{ icon: <ListIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
+    ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders" }] : []),
+    ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
     // The forecourt. A station runs its day off the shift, so it sits with the
     // daily screens rather than buried in setup — the equipment page is its
     // sub-item because it's touched once and then left alone.
@@ -145,9 +145,9 @@ export function shopNav(
             // A forecourt shift ends by setting fuel stock to the dip, so it
             // is a stock correction; a tanker is goods received; the plant is
             // configuration. Three screens, three different people.
-            { name: "Shifts", path: "/tenant/fuel", can: "inventory.manage" },
-            { name: "Deliveries & rates", path: "/tenant/fuel/deliveries", can: "purchases.manage" },
-            { name: "Tanks & pumps", path: "/tenant/fuel/setup", can: "settings.manage" },
+            { name: "Shifts", path: "/tenant/fuel" },
+            { name: "Deliveries & rates", path: "/tenant/fuel/deliveries" },
+            { name: "Tanks & pumps", path: "/tenant/fuel/setup" },
           ],
         }]
       : []),
@@ -166,10 +166,10 @@ export function shopNav(
           icon: <BoxIcon />,
           name: "Catalog",
           subItems: [
-            { name: "Products & Services", path: "/tenant/products", can: "products.manage" },
-            { name: "Categories", path: "/tenant/categories", can: "products.manage" },
+            { name: "Products & Services", path: "/tenant/products" },
+            { name: "Categories", path: "/tenant/categories" },
             // Collections merchandise the ONLINE storefront — pointless without it.
-            ...(has("marketplace") ? [{ name: "Collections", path: "/tenant/collections", can: "products.manage" }] : []),
+            ...(has("marketplace") ? [{ name: "Collections", path: "/tenant/collections" }] : []),
           ],
         }]
       : []),
@@ -179,14 +179,14 @@ export function shopNav(
             icon: <BoxCubeIcon />,
             name: "Inventory",
             subItems: [
-              { name: "Stock", path: "/tenant/inventory", can: "inventory.manage" },
+              { name: "Stock", path: "/tenant/inventory" },
               // Counting the shelves against the books. The only way a shop
               // finds out what it is actually losing.
-              { name: "Stocktake", path: "/tenant/stocktake", can: "inventory.manage" },
+              { name: "Stocktake", path: "/tenant/stocktake" },
               // A label is printed from the catalog record, not the shelf.
-              { name: "Barcode Labels", path: "/tenant/labels", can: "products.manage" },
-              { name: "Suppliers", path: "/tenant/suppliers", can: "suppliers.manage" },
-              { name: "Purchases", path: "/tenant/purchases", can: "purchases.manage" },
+              { name: "Barcode Labels", path: "/tenant/labels" },
+              { name: "Suppliers", path: "/tenant/suppliers" },
+              { name: "Purchases", path: "/tenant/purchases" },
             ],
           },
         ]
@@ -196,13 +196,13 @@ export function shopNav(
           icon: <GroupIcon />,
           name: "Customers",
           subItems: [
-            { name: "Customer List", path: "/tenant/customers", can: "customers.manage" },
-            { name: "Coupons", path: "/tenant/coupons", can: "coupons.manage" },
-            { name: "Promotions", path: "/tenant/promotions", can: "coupons.manage" },
+            { name: "Customer List", path: "/tenant/customers" },
+            { name: "Coupons", path: "/tenant/coupons" },
+            { name: "Promotions", path: "/tenant/promotions" },
             // Replying is the only thing anyone does on the reviews screen,
             // and the server asks for settings.manage to do it.
-            ...(has("marketplace") ? [{ name: "Reviews", path: "/tenant/reviews", can: "settings.manage" }] : []),
-            ...(has("reservations") ? [{ name: "Reservations", path: "/tenant/reservations", can: "reservations.manage" }] : []),
+            ...(has("marketplace") ? [{ name: "Reviews", path: "/tenant/reviews" }] : []),
+            ...(has("reservations") ? [{ name: "Reservations", path: "/tenant/reservations" }] : []),
           ],
         }]
       : []),
@@ -210,32 +210,32 @@ export function shopNav(
       icon: <BoltIcon />,
       name: "More",
       subItems: [
-        { name: "Reports", path: "/tenant/reports", can: "reports.view" },
-        { name: "Staff", path: "/tenant/staff", can: "staff.manage" },
+        { name: "Reports", path: "/tenant/reports" },
+        { name: "Staff", path: "/tenant/staff" },
         // The chemist's paperwork: the dispensing register and batch recall.
         // Pharmacy-only — a mart that happens to stock paracetamol keeps no
         // register, and the page would be an empty table forever.
         ...(has("inventory") && businessType === "pharmacy"
-          ? [{ name: "Pharmacy", path: "/tenant/pharmacy", can: "sales.manage" }]
+          ? [{ name: "Pharmacy", path: "/tenant/pharmacy" }]
           : []),
         // A tyre or auto shop's real customer key: the plate, what the car
         // takes, and what was fitted last time. Only the trades that work on
         // vehicles — a grocery would never open it twice. A vehicle IS
         // customer data, so it carries the CRM permission.
         ...(has("products") && (businessType === "automotive" || businessType === "petroleum")
-          ? [{ name: "Vehicles", path: "/tenant/vehicles", can: "customers.manage" }]
+          ? [{ name: "Vehicles", path: "/tenant/vehicles" }]
           : []),
         // Serialized retail (phones/electronics) — look up a serial's warranty.
         // Retail-only: a grocery or pharmacy never sells a serial-tracked unit.
         // A counter lookup, so it sits with the till.
         ...(has("pos") && has("inventory") && businessType === "retail"
-          ? [{ name: "Warranty lookup", path: "/tenant/warranty", can: "sales.manage" }]
+          ? [{ name: "Warranty lookup", path: "/tenant/warranty" }]
           : []),
         // The public service menu belongs to service businesses — petroleum has
         // the `services` flag for pump labour, but no portfolio to show off.
         // It is what the shop shows the world, hence the settings permission.
         ...(has("services") && businessType === "services"
-          ? [{ name: "Portfolio", path: "/tenant/portfolio", can: "settings.manage" }]
+          ? [{ name: "Portfolio", path: "/tenant/portfolio" }]
           : []),
       ],
     },
@@ -244,12 +244,12 @@ export function shopNav(
     // Subscription carries no permission because the server asks for none:
     // what the shop pays is not a secret from the people who work in it.
     { icon: <DollarLineIcon />, name: "Subscription", path: "/tenant/subscription" },
-    { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings", can: "settings.manage" },
+    { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
   ], can);
 }
 
 /**
- * Drops what this person may not do.
+ * Drops the screens this person may not open, per screenPermissions.
  *
  * A dropdown whose every child was dropped goes with them — an empty "More"
  * that opens onto nothing is worse than no More at all. A parent with its own
@@ -257,9 +257,9 @@ export function shopNav(
  */
 function filterByPermission(items: NavItem[], can: (permission: string) => boolean): NavItem[] {
   return items
-    .filter((item) => item.can === undefined || can(item.can))
+    .filter((item) => item.path === undefined || canVisit(item.path, can))
     .map((item) => (item.subItems
-      ? { ...item, subItems: item.subItems.filter((sub) => sub.can === undefined || can(sub.can)) }
+      ? { ...item, subItems: item.subItems.filter((sub) => canVisit(sub.path, can)) }
       : item))
     .filter((item) => item.path !== undefined || (item.subItems?.length ?? 0) > 0);
 }

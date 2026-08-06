@@ -22,6 +22,8 @@ function caps(overrides: Partial<Capabilities> = {}): Capabilities {
     products: true, services: false, inventory: true, expenses: true,
     sells: true, catalog: true, tracksStock: true, takesOrders: false, keepsBooks: true,
     canSell: true, businessType: "mart",
+    // The owner, who holds every permission implicitly.
+    visit: () => true,
     ...overrides,
   };
 }
@@ -95,6 +97,50 @@ describe("the trading day", () => {
 
     expect(screen.queryByText("Trading day")).not.toBeInTheDocument();
     expect(screen.queryByText("Banked today")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The dashboard is an offer to go somewhere, so it follows the same rule the
+ * sidebar does: a tile is drawn only when the person can open the screen
+ * behind it. In practice that makes the shop's total khata and its supplier
+ * dues the OWNER's figures — a cashier needs one customer's balance, which
+ * the till already gives them, not the shop's whole position.
+ */
+describe("a cashier is offered only what a cashier can open", () => {
+  // Everything a shop with one till and a stockroom would have.
+  const cashier = (allowed: string[]) =>
+    caps({ visit: (path: string) => allowed.includes(path) });
+
+  const TILL_ONLY = ["/tenant/day", "/tenant/pos", "/tenant/sales"];
+
+  it("keeps the drawer and drops the owner's money", () => {
+    draw(dashboard(), cashier(TILL_ONLY));
+
+    // Their own day, which they are entitled to.
+    expect(screen.getByText("Trading day")).toBeInTheDocument();
+    expect(screen.getByText("Banked today")).toBeInTheDocument();
+
+    // Not their business, and not screens they can open.
+    expect(screen.queryByText("Owed to you")).not.toBeInTheDocument();
+    expect(screen.queryByText("You owe")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rs 4,000")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rs 30,000")).not.toBeInTheDocument();
+  });
+
+  it("withholds the whole card from someone who can open none of it", () => {
+    // A stock-keeper: no till, no CRM, no supplier ledger.
+    const stockOnly = caps({ visit: (path: string) => path === "/tenant/inventory" });
+
+    expect(hasMoneyPanel(dashboard(), stockOnly)).toBe(false);
+  });
+
+  it("still draws every tile for the owner", () => {
+    draw(dashboard(), caps());
+
+    expect(screen.getByText("Owed to you")).toBeInTheDocument();
+    expect(screen.getByText("You owe")).toBeInTheDocument();
+    expect(screen.getByText("Trading day")).toBeInTheDocument();
   });
 });
 

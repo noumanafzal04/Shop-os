@@ -27,20 +27,26 @@ interface Props {
 
 /** Whether this tenant has any counter at all — the page needs it to size the row. */
 export function hasInventoryTiles(caps: Capabilities): boolean {
-  return caps.tracksStock || caps.pos;
+  return (caps.tracksStock && caps.visit("/tenant/inventory"))
+    || (caps.pos && caps.visit("/tenant/pos"));
 }
 
 /**
  * The stock/till counters, each one a link to the screen that lists the items
  * behind it. Tiles only appear for modules the tenant runs: no inventory
  * feature means no stock counters at all, not four zeroes.
+ *
+ * Every tile IS its link, so a person who cannot open the screen behind it is
+ * not offered the tile — a stock counter that bounces you home is worse than
+ * no counter.
  */
 export function InventoryTiles({ data, caps }: Props) {
   const { inventory } = data;
+  const stock = caps.tracksStock && caps.visit("/tenant/inventory");
 
   const tiles: Array<{ key: string; label: string; value: number; caption: string; tone: Tone; to: string }> = [];
 
-  if (caps.tracksStock) {
+  if (stock) {
     tiles.push({
       key: "low",
       label: "Low stock",
@@ -67,7 +73,7 @@ export function InventoryTiles({ data, caps }: Props) {
     });
   }
 
-  if (caps.pos) {
+  if (caps.pos && caps.visit("/tenant/pos")) {
     tiles.push({
       key: "parked",
       label: "Parked tickets",
@@ -82,9 +88,9 @@ export function InventoryTiles({ data, caps }: Props) {
 
   return (
     <SectionCard
-      title={caps.tracksStock ? "Stock & till" : "Till"}
+      title={stock ? "Stock & till" : "Till"}
       subtitle={data.branch_scope ? "This branch" : undefined}
-      to={caps.tracksStock ? "/tenant/inventory" : undefined}
+      to={stock ? "/tenant/inventory" : undefined}
       toLabel="Open Stock"
     >
       <div

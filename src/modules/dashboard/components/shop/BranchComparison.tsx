@@ -6,20 +6,22 @@ interface Props {
   /** The branch these dashboard figures are focused on, if any. */
   scope: string | null;
   money: (n: string | number) => string;
+  /** May this person open the locations screen? Only the "Manage" link needs it. */
+  canManage?: boolean;
 }
 
 /**
  * HQ view: today's takings side by side. The bar is each branch's share of the
  * busiest branch, so the comparison is readable without a second axis.
  */
-export function BranchComparison({ branches, scope, money }: Props) {
+export function BranchComparison({ branches, scope, money, canManage = true }: Props) {
   const top = Math.max(...branches.map((b) => b.revenue), 0);
 
   return (
     <SectionCard
       title="Today by branch"
       subtitle={scope ? "Figures above are focused on one branch" : "All branches"}
-      to="/tenant/branches"
+      to={canManage ? "/tenant/branches" : undefined}
       toLabel="Manage"
     >
       <ul className="space-y-4">

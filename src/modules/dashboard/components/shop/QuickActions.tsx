@@ -2,7 +2,11 @@ import { Link } from "react-router";
 
 import type { Capabilities } from "./capabilities";
 
-/** Every action is a route this tenant actually has — see App.tsx's feature gates. */
+/**
+ * Every action is a route this tenant actually has — see App.tsx's feature
+ * gates — AND one this person may open. A quick action that bounces you back
+ * to the page you launched it from is the worst kind of button.
+ */
 export function QuickActions({ caps }: { caps: Capabilities }) {
   const actions: Array<{ label: string; to: string }> = [];
 
@@ -18,9 +22,13 @@ export function QuickActions({ caps }: { caps: Capabilities }) {
   if (caps.marketplace) actions.push({ label: "Online orders", to: "/tenant/orders" });
   actions.push({ label: "Reports", to: "/tenant/reports" });
 
+  const allowed = actions.filter((action) => caps.visit(action.to));
+
+  if (allowed.length === 0) return null;
+
   return (
     <div className="flex flex-wrap gap-3">
-      {actions.map((action) => (
+      {allowed.map((action) => (
         <Link
           key={action.to}
           to={action.to}

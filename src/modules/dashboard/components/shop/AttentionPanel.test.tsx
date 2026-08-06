@@ -20,6 +20,8 @@ function caps(overrides: Partial<Capabilities> = {}): Capabilities {
     products: true, services: false, inventory: true, expenses: true,
     sells: true, catalog: true, tracksStock: true, takesOrders: false, keepsBooks: true,
     canSell: true, businessType: "mart",
+    // The owner, who holds every permission implicitly.
+    visit: () => true,
     ...overrides,
   };
 }
@@ -102,6 +104,56 @@ describe("stock rows need the stock module", () => {
 
     expect(screen.queryByText(/out of stock/)).not.toBeInTheDocument();
     expect(screen.queryByText(/running low/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * An alert is only an alert to someone who can act on it. A cashier cannot
+ * restock, so "4 items are running low" arriving on their screen every day is
+ * noise — but a day nobody closed off and a ticket parked at the till are
+ * exactly their problem.
+ */
+describe("a cashier is told the counter's problems, not the stockroom's", () => {
+  const cashier = caps({
+    visit: (path: string) => ["/tenant/day", "/tenant/pos", "/tenant/subscription"].includes(path),
+  });
+
+  const busy = dashboard({
+    inventory: { low_stock: 4, out_of_stock: 2, expiring_soon: 1, pending_pos: 3 },
+    till: { day_open: false, day_id: null, open_shifts: 0, banked_today: 0, unclosed_day: "2026-08-03", unclosed_days: 1 },
+  });
+
+  it("keeps the day nobody closed and the parked tickets", () => {
+    draw(busy, cashier);
+
+    expect(screen.getByText(/was never closed off/)).toBeInTheDocument();
+    expect(screen.getByText("3 parked tickets at the till")).toBeInTheDocument();
+  });
+
+  it("drops the stock rows they cannot act on", () => {
+    draw(busy, cashier);
+
+    expect(screen.queryByText("2 items are out of stock")).not.toBeInTheDocument();
+    expect(screen.queryByText("4 items are running low")).not.toBeInTheDocument();
+    expect(screen.queryByText("1 batch is expiring")).not.toBeInTheDocument();
+  });
+
+  it("still warns everyone about the subscription", () => {
+    // Billing reaches every person in the shop, because the server gates the
+    // subscription screen for nobody.
+    draw(dashboard({ subscription_state: "read_only" }), cashier);
+
+    expect(screen.getByText("Subscription expired — read-only mode")).toBeInTheDocument();
+  });
+
+  it("says nothing needs attention rather than listing what they can't do", () => {
+    const quiet = dashboard({
+      inventory: { low_stock: 4, out_of_stock: 2, expiring_soon: 0, pending_pos: 0 },
+    });
+
+    draw(quiet, cashier);
+
+    expect(screen.getByText("Nothing needs your attention right now.")).toBeInTheDocument();
   });
 });
 

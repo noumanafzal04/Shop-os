@@ -50,12 +50,19 @@ interface Props {
  * Every row here is derived from a real figure in the payload — nothing is
  * shown "as an example". An empty list is a result, not a failure, so it says
  * so plainly instead of hiding the card.
+ *
+ * An alert is only an alert to someone who can act on it. A cashier cannot
+ * restock, so "4 items are running low" is not their problem arriving daily
+ * on their screen — but a trading day nobody closed off and a parked ticket
+ * at the till are, and those stay. Rows are filtered by whether the person
+ * may open the screen the row leads to; the two rows that lead somewhere
+ * ungated (subscription, setup) reach everyone, as they should.
  */
 export function AttentionPanel({ data, caps }: Props) {
-  const items: Item[] = [];
+  const rows: Item[] = [];
 
   if (data.subscription_state === "read_only") {
-    items.push({
+    rows.push({
       key: "read_only",
       severity: "critical",
       title: "Subscription expired — read-only mode",
@@ -64,7 +71,7 @@ export function AttentionPanel({ data, caps }: Props) {
       to: "/tenant/subscription",
     });
   } else if (data.subscription_state === "grace") {
-    items.push({
+    rows.push({
       key: "grace",
       severity: "warning",
       title: "Subscription in grace period",
@@ -77,7 +84,7 @@ export function AttentionPanel({ data, caps }: Props) {
   }
 
   if (!data.setup_completed) {
-    items.push({
+    rows.push({
       key: "setup",
       severity: "warning",
       title: "Shop setup is incomplete",
@@ -88,7 +95,7 @@ export function AttentionPanel({ data, caps }: Props) {
   }
 
   if (caps.tracksStock && data.inventory.out_of_stock > 0) {
-    items.push({
+    rows.push({
       key: "out_of_stock",
       severity: "critical",
       title: `${data.inventory.out_of_stock} ${
@@ -101,7 +108,7 @@ export function AttentionPanel({ data, caps }: Props) {
   }
 
   if (caps.tracksStock && data.inventory.expiring_soon > 0) {
-    items.push({
+    rows.push({
       key: "expiring",
       severity: "critical",
       title: `${data.inventory.expiring_soon} ${
@@ -114,7 +121,7 @@ export function AttentionPanel({ data, caps }: Props) {
   }
 
   if (caps.tracksStock && data.inventory.low_stock > 0) {
-    items.push({
+    rows.push({
       key: "low_stock",
       severity: "warning",
       title: `${data.inventory.low_stock} ${
@@ -127,7 +134,7 @@ export function AttentionPanel({ data, caps }: Props) {
   }
 
   if (caps.takesOrders && data.pending_orders > 0) {
-    items.push({
+    rows.push({
       key: "pending_orders",
       severity: "warning",
       title: `${data.pending_orders} ${data.pending_orders === 1 ? "order" : "orders"} still open`,
@@ -139,7 +146,7 @@ export function AttentionPanel({ data, caps }: Props) {
   }
 
   if (caps.reservations && data.pending_reservations > 0) {
-    items.push({
+    rows.push({
       key: "reservations",
       severity: "info",
       title: `${data.pending_reservations} ${
@@ -156,7 +163,7 @@ export function AttentionPanel({ data, caps }: Props) {
   // mention it. By the time anyone goes looking for the figure it is months
   // too late to reconstruct.
   if (data.till?.unclosed_day) {
-    items.push({
+    rows.push({
       key: "unclosed_day",
       severity: "critical",
       title:
@@ -170,7 +177,7 @@ export function AttentionPanel({ data, caps }: Props) {
   }
 
   if (caps.pos && data.inventory.pending_pos > 0) {
-    items.push({
+    rows.push({
       key: "parked",
       severity: "info",
       title: `${data.inventory.pending_pos} parked ${
@@ -183,7 +190,7 @@ export function AttentionPanel({ data, caps }: Props) {
   }
 
   if (caps.catalog && data.products_count === 0) {
-    items.push({
+    rows.push({
       key: "no_products",
       severity: "warning",
       title: caps.products ? "No active products yet" : "No active services yet",
@@ -194,7 +201,7 @@ export function AttentionPanel({ data, caps }: Props) {
   }
 
   if (caps.keepsBooks && !caps.sells && data.recent_expenses.length === 0) {
-    items.push({
+    rows.push({
       key: "no_expenses",
       severity: "info",
       title: "No expenses recorded yet",
@@ -203,6 +210,11 @@ export function AttentionPanel({ data, caps }: Props) {
       to: "/tenant/expenses",
     });
   }
+
+  // A row leading somewhere this person cannot go is not their alert. The
+  // rows without a destination (a phone-order shop's open orders) stay: they
+  // are information, not an offer to navigate.
+  const items = rows.filter((row) => row.to === undefined || caps.visit(row.to));
 
   return (
     <SectionCard title="Attention needed">

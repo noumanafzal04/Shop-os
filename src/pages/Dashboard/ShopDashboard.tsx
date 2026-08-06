@@ -180,11 +180,18 @@ export default function ShopDashboard() {
               {caps.takesOrders && (
                 <PipelinePanel
                   pipeline={data.order_pipeline}
-                  to={caps.marketplace ? "/tenant/orders" : undefined}
+                  to={caps.marketplace && caps.visit("/tenant/orders") ? "/tenant/orders" : undefined}
                 />
               )}
               {data.branches.length > 0 && (
-                <BranchComparison branches={data.branches} scope={data.branch_scope} money={money} />
+                <BranchComparison
+                  branches={data.branches}
+                  scope={data.branch_scope}
+                  money={money}
+                  // The comparison is worth reading either way; managing the
+                  // locations is configuration.
+                  canManage={caps.visit("/tenant/branches")}
+                />
               )}
             </div>
           )}
@@ -199,11 +206,15 @@ export default function ShopDashboard() {
                 <RecentSalesCard
                   rows={data.recent_sales}
                   money={money}
-                  to={caps.canSell ? "/tenant/sales" : undefined}
+                  to={caps.canSell && caps.visit("/tenant/sales") ? "/tenant/sales" : undefined}
                 />
               )}
               {caps.keepsBooks && (
-                <RecentExpensesCard rows={data.recent_expenses} money={money} to="/tenant/expenses" />
+                <RecentExpensesCard
+                  rows={data.recent_expenses}
+                  money={money}
+                  to={caps.visit("/tenant/expenses") ? "/tenant/expenses" : undefined}
+                />
               )}
             </div>
           )}
