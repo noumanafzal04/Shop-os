@@ -73,6 +73,7 @@ use App\Http\Controllers\Api\V1\Tenant\TaxGroupController;
 use App\Http\Controllers\Api\V1\Tenant\TenantReviewController;
 use App\Http\Controllers\Api\V1\Tenant\TillIdentityController;
 use App\Http\Controllers\Api\V1\Tenant\TransferController;
+use App\Http\Controllers\Api\V1\Tenant\VehicleController;
 use App\Http\Controllers\Api\V1\Tenant\WarrantyController;
 use App\Support\ApiResponse;
 use Illuminate\Support\Facades\Route;
@@ -230,10 +231,27 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::apiResource('customers', CustomerController::class);
             });
 
+            // Vehicles — a tyre or auto shop's real customer key. Sits under
+            // customers.manage because a vehicle IS customer data; the lookup
+            // below is separated for the same reason the customer one is, so a
+            // cashier can attach a plate without holding the CRM permission.
+            Route::middleware('permission:customers.manage')->group(function (): void {
+                Route::get('vehicles/{vehicle}/history', [VehicleController::class, 'history']);
+                Route::post('vehicles/{vehicle}/link-customer', [VehicleController::class, 'linkCustomer']);
+                Route::apiResource('vehicles', VehicleController::class);
+            });
+
             // POS customer lookup by phone — loyalty points + credit for the
             // till (cashiers have sales.manage, not necessarily customers.manage).
             Route::get('customers-lookup', [CustomerController::class, 'lookup'])
                 ->middleware('permission:sales.manage');
+
+            // Same reasoning for the plate: the person on the till needs to
+            // find (and register) a vehicle mid-sale.
+            Route::middleware('permission:sales.manage')->group(function (): void {
+                Route::get('vehicles-lookup', [VehicleController::class, 'index']);
+                Route::post('vehicles-quick', [VehicleController::class, 'store']);
+            });
 
             // Coupons — discount codes for POS + checkout
             Route::middleware('permission:coupons.manage')->group(function (): void {

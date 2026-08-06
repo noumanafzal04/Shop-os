@@ -25,9 +25,7 @@ use Illuminate\Support\Facades\DB;
  */
 class CancelSaleAction
 {
-    public function __construct(private readonly InventoryService $inventory)
-    {
-    }
+    public function __construct(private readonly InventoryService $inventory) {}
 
     public function execute(Sale $sale, ?string $reason = null, ?string $reasonCode = null): Sale
     {
@@ -111,6 +109,30 @@ class CancelSaleAction
                     $loyaltyCustomer->reverseEarnedPoints($loyaltyCustomer->loyaltyEarnedReversible($sale->id), $sale->id, "Cancelled {$sale->invoice_number}");
                     $loyaltyCustomer->refundRedeemedPoints($loyaltyCustomer->loyaltyRedeemedReversible($sale->id), $sale->id, "Cancelled {$sale->invoice_number}");
                 }
+            }
+
+            // Trade-in symmetry: the scrap came in as part of the payment, so
+            // voiding the sale sends it back out. Leaving it on the shelf would
+            // hand the shop a free dead battery every time a sale was rung and
+            // voided — the same shape as the combo and pack restock bugs, and
+            // just as invisible in a stock report.
+            foreach ($sale->tradeIns()->whereNull('reversed_at')->get() as $tradeIn) {
+                if ($tradeIn->product_id !== null) {
+                    $this->inventory->adjust([
+                        'product_id' => $tradeIn->product_id,
+                        'type' => 'out',
+                        'quantity' => (float) $tradeIn->quantity,
+                        'reason' => "Trade-in returned · voided {$sale->invoice_number}",
+                        'reference_type' => 'sale_trade_in_reversal',
+                        'reference_id' => $sale->id,
+                        // The scrap may already have gone to the dealer. A void
+                        // must never be blocked by that — it shows negative for
+                        // recount, which is the honest reading.
+                        'allow_negative' => true,
+                        'branch_id' => $tradeIn->branch_id,
+                    ]);
+                }
+                $tradeIn->forceFill(['reversed_at' => now()])->save();
             }
 
             // Serial registry: put any serialized units this sale sold back in

@@ -2,12 +2,11 @@
 
 namespace App\Http\Requests\Sale;
 
-use App\Enums\PaymentMethod;
 use App\Enums\SaleChannel;
+use App\Rules\OwnOpenShift;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use App\Rules\OwnOpenShift;
 
 class StoreSaleRequest extends FormRequest
 {
@@ -94,6 +93,24 @@ class StoreSaleRequest extends FormRequest
             'payments.*.method' => ['required_with:payments', 'in:cash,card,bank_transfer,other,credit'],
             'payments.*.amount' => ['required_with:payments', 'numeric', 'min:0.01'],
             'payments.*.reference' => ['nullable', 'string', 'max:100'],
+
+            // Goods taken in part-payment — the dead battery, the worn tyres.
+            // Note what is NOT here: an amount. The allowance is quantity ×
+            // unit_allowance, computed server-side, and `trade_in` is not an
+            // accepted tender method above. A client that could name its own
+            // trade-in amount could settle any bill with nothing changing hands.
+            'trade_ins' => ['nullable', 'array', 'max:10'],
+            'trade_ins.*.product_id' => ['required_with:trade_ins', 'uuid'],
+            'trade_ins.*.quantity' => ['nullable', 'numeric', 'min:0.001', 'max:9999'],
+            'trade_ins.*.unit_allowance' => ['required_with:trade_ins', 'numeric', 'min:0', 'max:9999999'],
+            'trade_ins.*.description' => ['nullable', 'string', 'max:255'],
+            'trade_ins.*.notes' => ['nullable', 'string', 'max:500'],
+
+            // The vehicle this work was done on, and the reading at the time.
+            // A tyre shop's real customer key: what a warranty claim hangs off
+            // and what a service reminder is counted from.
+            'vehicle_id' => ['nullable', 'uuid', Rule::exists('customer_vehicles', 'id')],
+            'odometer' => ['nullable', 'integer', 'min:0', 'max:9999999'],
 
             // A tip rides on top of the bill: it raises what must be paid and
             // what the drawer should hold, and never touches revenue.

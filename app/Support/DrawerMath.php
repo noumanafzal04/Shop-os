@@ -70,13 +70,16 @@ class DrawerMath
 
         $changeGiven = (float) (clone $rung)->sum('change_due');
 
-        // Only the cash slice of a refund leaves the till: a khata-settled
-        // return reduced the customer's debt, no cash moved. Keyed by session so
-        // a refund rung on THIS drawer hits this shift even against an older sale.
+        // Only the cash slice of a refund leaves the till. A khata-settled
+        // return reduced the customer's debt and moved no cash; a trade-in slice
+        // was never cash either — it walked in as a dead battery and walks back
+        // out as one. Paying either out in rupees would show as a shortage that
+        // the cashier is then asked to explain. Keyed by session so a refund rung
+        // on THIS drawer hits this shift even against an older sale.
         $cashRefunds = (float) SaleReturn::withoutTenancy()
             ->where('cash_session_id', $session->id)
             ->where('refund_method', 'cash')
-            ->sum(DB::raw('refund_total - refund_credit'));
+            ->sum(DB::raw('refund_total - refund_credit - refund_trade_in'));
 
         $movements = CashMovement::withoutTenancy()
             ->where('cash_session_id', $session->id)

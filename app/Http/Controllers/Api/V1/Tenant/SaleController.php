@@ -6,6 +6,8 @@ use App\Actions\Sale\CancelSaleAction;
 use App\Actions\Sale\CreateSaleAction;
 use App\Actions\Sale\ProcessExchangeAction;
 use App\Actions\Sale\ProcessSaleReturnAction;
+use App\Enums\SaleChannel;
+use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sale\StoreExchangeRequest;
 use App\Http\Requests\Sale\StoreSaleRequest;
@@ -13,10 +15,12 @@ use App\Http\Requests\Sale\StoreSaleReturnRequest;
 use App\Models\Sale;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\CsvExport;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SaleController extends Controller
 {
@@ -50,7 +54,7 @@ class SaleController extends Controller
      * channel / date-range filters as index(), so "export this month's card
      * sales" is just the current filter plus a download.
      */
-    public function export(Request $request, BranchContext $branch): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function export(Request $request, BranchContext $branch): StreamedResponse
     {
         $header = ['invoice_number', 'sold_at', 'branch', 'channel', 'status', 'customer_name', 'customer_phone', 'order_type', 'table_no', 'items', 'subtotal', 'discount', 'tax', 'total', 'payment_method', 'amount_paid', 'change_due', 'notes'];
 
@@ -93,7 +97,7 @@ class SaleController extends Controller
             ])
             ->all();
 
-        return \App\Support\CsvExport::stream('sales-'.now()->format('Y-m-d').'.csv', $header, $rows);
+        return CsvExport::stream('sales-'.now()->format('Y-m-d').'.csv', $header, $rows);
     }
 
     public function store(StoreSaleRequest $request, CreateSaleAction $action, TenantContext $tenant): JsonResponse
@@ -105,13 +109,13 @@ class SaleController extends Controller
         // attached, whose cash belongs to no reconciliation and shows up in no
         // shift report. Enforced here, on the counter channels only — an online
         // order or a phone order has no till to be open.
-        $counterChannels = [\App\Enums\SaleChannel::Pos->value, \App\Enums\SaleChannel::WalkIn->value];
+        $counterChannels = [SaleChannel::Pos->value, SaleChannel::WalkIn->value];
         if (
             empty($data['cash_session_id'])
             && in_array($data['channel'] ?? null, $counterChannels, true)
             && (bool) ($tenant->get()?->setting('pos_require_shift') ?? false)
         ) {
-            throw \App\Exceptions\DomainException::conflict(
+            throw DomainException::conflict(
                 'Open a shift before ringing up a sale.',
                 'SHIFT_REQUIRED',
             );
@@ -125,7 +129,7 @@ class SaleController extends Controller
     public function show(string $id): JsonResponse
     {
         return ApiResponse::ok(
-            Sale::query()->with(['items', 'returns.items', 'serials'])->findOrFail($id),
+            Sale::query()->with(['items', 'returns.items', 'serials', 'tradeIns', 'payments'])->findOrFail($id),
         );
     }
 

@@ -31,6 +31,7 @@
     $qty   = fn ($n) => rtrim(rtrim(number_format((float) $n, 3, '.', ''), '0'), '.') ?: '0';
 
     $payments  = $sale->relationLoaded('payments') ? $sale->payments : collect();
+    $tradeIns  = $sale->relationLoaded('tradeIns') ? $sale->tradeIns : collect();
     $serials   = $sale->relationLoaded('serials') ? $sale->serials : collect();
     $cancelled = $sale->isCancelled();
 
@@ -40,6 +41,10 @@
         // A layaway collected: the customer paid this weeks ago, and the
         // receipt has to say so or it reads as if they paid twice today.
         'deposit' => 'Advance paid earlier',
+        // Part of the bill settled in goods. Printing it as a tender rather
+        // than a discount is the point: the customer's copy shows the full
+        // price they were charged and what their old unit was worth against it.
+        'trade_in' => 'Traded in',
     ];
 
     $ntn   = $settings['invoice_ntn'] ?? null;
@@ -448,6 +453,17 @@
                     <td class="num">{{ $cur }} {{ $money($sale->amount_paid) }}</td>
                 </tr>
             @endif
+
+            {{-- What came the other way across the counter. The tender line
+                 above says how much it was worth; this says what it was, so a
+                 customer disputing the allowance a week later has the make and
+                 the condition written on their own copy. --}}
+            @foreach($tradeIns as $t)
+                <tr class="tender">
+                    <td style="padding-left:10px">↳ {{ $t->description ?: $t->product_name }}@if((float) $t->quantity != 1.0) × {{ rtrim(rtrim(number_format((float) $t->quantity, 3), '0'), '.') }}@endif</td>
+                    <td class="num">− {{ $cur }} {{ $money($t->total_allowance) }}</td>
+                </tr>
+            @endforeach
 
             @if((float) $sale->change_due > 0)
                 <tr class="tender change"><td>Change</td><td class="num">{{ $cur }} {{ $money($sale->change_due) }}</td></tr>

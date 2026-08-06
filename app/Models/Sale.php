@@ -7,6 +7,7 @@ use App\Enums\SaleChannel;
 use App\Enums\SaleStatus;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Sale extends BaseModel
@@ -29,6 +30,7 @@ class Sale extends BaseModel
             // add_food_service_loop migration.
             'tip_amount' => 'decimal:2',
             'amount_paid' => 'decimal:2',
+            'trade_in_total' => 'decimal:2',
             'change_due' => 'decimal:2',
             'points_earned' => 'integer',
             'points_redeemed' => 'integer',
@@ -43,7 +45,7 @@ class Sale extends BaseModel
     }
 
     /** The branch this sale was rung up on (null for legacy/headless sales). */
-    public function branch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
@@ -52,7 +54,7 @@ class Sale extends BaseModel
      * The lane it was rung on. Null for an online order or a shop that never
      * configured registers — the receipt simply omits the counter line.
      */
-    public function register(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function register(): BelongsTo
     {
         return $this->belongsTo(Register::class);
     }
@@ -73,6 +75,18 @@ class Sale extends BaseModel
         'test_sale' => 'Test sale',
         'other' => 'Other',
     ];
+
+    /** The vehicle this job was done on — a tyre or auto shop's real key. */
+    public function vehicle(): BelongsTo
+    {
+        return $this->belongsTo(CustomerVehicle::class, 'vehicle_id');
+    }
+
+    /** Goods taken in part-payment on this sale (old battery, worn tyres). */
+    public function tradeIns(): HasMany
+    {
+        return $this->hasMany(SaleTradeIn::class);
+    }
 
     public function payments(): HasMany
     {

@@ -9,6 +9,7 @@ use App\Exceptions\DomainException;
 use App\Models\BranchPrice;
 use App\Models\CashSession;
 use App\Models\Customer;
+use App\Models\CustomerVehicle;
 use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Models\ProductUnit;
@@ -523,10 +524,50 @@ class CreateSaleAction
                 $total = $taxInclusive
                     ? round($subtotal - $discount, 2)
                     : round($subtotal - $discount + $tax, 2);
+                // ── Trade-in: part of the bill settled in goods ──────────
+                // The dead battery on the counter. It is a TENDER, not a
+                // discount: the sale keeps its full total and the allowance
+                // settles part of it, so revenue stays true and the scrap
+                // becomes a countable asset instead of vanishing.
+                //
+                // The allowance is derived here, from the trade-in lines, and
+                // never accepted as a `trade_in` payment from the client — a
+                // client that could name its own would be able to settle any
+                // bill with nothing crossing the counter.
+                $tradeIns = $this->resolveTradeIns($tenantId, $data['trade_ins'] ?? []);
+                $tradeInTotal = round(array_sum(array_column($tradeIns, 'total')), 2);
+
+                if ($tradeInTotal > $total) {
+                    // The shop would owe the customer money for their scrap.
+                    // That is buying stock, not selling any — and it belongs on
+                    // a purchase, where a supplier and a payment are recorded,
+                    // not on a till that would have to open and hand out cash.
+                    throw DomainException::unprocessable(
+                        'The trade-in allowance ('.number_format($tradeInTotal, 2).') is more than the bill ('
+                        .number_format($total, 2).'). Record it as a purchase instead.',
+                        'TRADE_IN_EXCEEDS_TOTAL',
+                    );
+                }
+
                 // Payment: one tender (payment_method + amount_paid) OR a split of
                 // several tenders. When split, amount_paid is their sum and the
                 // sale's method is 'split' (the breakdown lives in sale_payments).
                 $payments = $data['payments'] ?? [];
+
+                if ($tradeInTotal > 0) {
+                    // Fold the single-tender form into a split so the goods slice
+                    // sits alongside the rupees. From here on the arithmetic —
+                    // amount_paid, PAYMENT_INSUFFICIENT, change_due — is the same
+                    // one every split sale already goes through.
+                    if ($payments === []) {
+                        $payments = [[
+                            'method' => $data['payment_method'],
+                            'amount' => round((float) ($data['amount_paid'] ?? 0), 2),
+                        ]];
+                    }
+                    $payments[] = ['method' => PaymentMethod::TradeIn->value, 'amount' => $tradeInTotal];
+                }
+
                 if (! empty($payments)) {
                     $amountPaid = round(array_sum(array_map(fn ($p) => (float) $p['amount'], $payments)), 2);
                     $methods = array_values(array_unique(array_map(fn ($p) => $p['method'], $payments)));
@@ -600,6 +641,11 @@ class CreateSaleAction
                     'status' => SaleStatus::Completed,
                     'customer_name' => $data['customer_name'] ?? null,
                     'customer_phone' => $data['customer_phone'] ?? null,
+                    // The vehicle the work was done on, and the reading taken
+                    // while it was on the ramp. Null for every trade that does
+                    // not touch vehicles, which is most of them.
+                    'vehicle_id' => $data['vehicle_id'] ?? null,
+                    'odometer' => $data['odometer'] ?? null,
                     'customer_group_id' => $customerGroupId,
                     'order_type' => $data['order_type'] ?? null,
                     'table_no' => $data['table_no'] ?? null,
@@ -614,6 +660,10 @@ class CreateSaleAction
                     'total' => $total,
                     'payment_method' => $paymentMethod,
                     'amount_paid' => $amountPaid,
+                    // How much of the bill was settled in goods rather than
+                    // rupees — so a receipt, a report or a margin calculation
+                    // can separate the two without joining tender rows.
+                    'trade_in_total' => $tradeInTotal,
                     'tip_amount' => $tip,
                     // Change is what's left after the bill AND the tip — otherwise
                     // the cashier would hand the tip back as change.
@@ -629,6 +679,18 @@ class CreateSaleAction
                     'idempotency_key' => $data['idempotency_key'] ?? null,
                     'sold_at' => now(),
                 ]);
+
+                // The vehicle's own record moves forward with the job: the last
+                // odometer reading is what a service interval is counted from,
+                // and a shop that never wrote it down can only guess. Only ever
+                // forward — a lower reading is a typo or a replaced cluster, and
+                // accepting it would silently reset every reminder.
+                if (! empty($data['vehicle_id'])) {
+                    CustomerVehicle::query()
+                        ->whereKey($data['vehicle_id'])
+                        ->first()
+                        ?->recordOdometer($data['odometer'] ?? null);
+                }
 
                 // CRM: capture / link the buyer when a phone was given.
                 $customer = null;
@@ -757,6 +819,39 @@ class CreateSaleAction
                     }
                 }
 
+                // ── The goods that came the other way ────────────────────
+                // The scrap enters stock at the moment it crosses the counter.
+                // A dead battery is worth real money to a scrap dealer; before
+                // this it was bought, stored and sold with no record at either
+                // end, which is exactly the gap a batch of them walks out of.
+                foreach ($tradeIns as $t) {
+                    $sale->tradeIns()->create([
+                        'tenant_id' => $tenantId,
+                        'branch_id' => $branchId,
+                        'product_id' => $t['product']->id,
+                        // Snapshot, like a sale line: deleting the scrap SKU
+                        // later must never corrupt what this sale recorded.
+                        'product_name' => $t['product']->name,
+                        'description' => $t['description'],
+                        'quantity' => $t['quantity'],
+                        'unit_allowance' => $t['unit_allowance'],
+                        'total_allowance' => $t['total'],
+                        'notes' => $t['notes'],
+                    ]);
+
+                    if ($t['product']->track_inventory) {
+                        $this->inventory->adjust([
+                            'product_id' => $t['product']->id,
+                            'type' => 'in',
+                            'quantity' => $t['quantity'],
+                            'reason' => "Trade-in on {$invoiceNumber}",
+                            'reference_type' => 'sale_trade_in',
+                            'reference_id' => $sale->id,
+                            'branch_id' => $branchId,
+                        ]);
+                    }
+                }
+
                 // Record the tender breakdown — a single-tender sale gets one row,
                 // a split gets one per method. Cash-drawer reconciliation reads the
                 // CASH rows here (see CloseCashSessionAction), so a split sale's
@@ -807,7 +902,7 @@ class CreateSaleAction
                     $locked->chargeCredit($creditTotal, $sale->id, "Sale {$invoiceNumber}");
                 }
 
-                return $sale->load('items', 'payments');
+                return $sale->load('items', 'payments', 'tradeIns', 'vehicle');
             });
         } catch (QueryException $e) {
             // A concurrent same-key request won the race: its unique-constraint
@@ -967,6 +1062,73 @@ class CreateSaleAction
         }
 
         return $snapshot ?: null;
+    }
+
+    /**
+     * Resolve the goods a customer handed over in part-payment.
+     *
+     * Each line names a scrap SKU the shop already keeps — "Scrap Battery",
+     * "Used Tyre" — so the allowance lands somewhere countable. A free-text
+     * trade-in would put value into the shop that no stock report could ever
+     * see, which is the failure this whole thing exists to close.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array{product: Product, quantity: float, unit_allowance: float, total: float, description: ?string, notes: ?string}>
+     */
+    private function resolveTradeIns(string $tenantId, array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        $products = Product::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->whereIn('id', array_column($rows, 'product_id'))
+            ->get()
+            ->keyBy('id');
+
+        $out = [];
+
+        foreach ($rows as $row) {
+            $product = $products->get($row['product_id'] ?? '');
+
+            if ($product === null) {
+                throw DomainException::unprocessable(
+                    'That trade-in item is no longer available.',
+                    'PRODUCT_UNAVAILABLE',
+                );
+            }
+
+            // A service cannot be handed across a counter. Accepting one would
+            // create an allowance backed by nothing.
+            if ($product->type !== ItemType::Product) {
+                throw DomainException::unprocessable(
+                    "{$product->name} isn't a stock item — a trade-in has to be something the shop can put on a shelf.",
+                    'TRADE_IN_NOT_STOCKABLE',
+                );
+            }
+
+            $quantity = round((float) ($row['quantity'] ?? 1), 3);
+            $unitAllowance = round((float) ($row['unit_allowance'] ?? 0), 2);
+
+            if ($quantity <= 0) {
+                throw DomainException::unprocessable(
+                    'A trade-in needs a quantity.',
+                    'TRADE_IN_INVALID',
+                );
+            }
+
+            $out[] = [
+                'product' => $product,
+                'quantity' => $quantity,
+                'unit_allowance' => $unitAllowance,
+                'total' => round($quantity * $unitAllowance, 2),
+                'description' => $row['description'] ?? null,
+                'notes' => $row['notes'] ?? null,
+            ];
+        }
+
+        return $out;
     }
 
     private function nextInvoiceNumber(string $tenantId): string

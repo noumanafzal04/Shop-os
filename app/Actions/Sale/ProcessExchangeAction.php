@@ -3,6 +3,7 @@
 namespace App\Actions\Sale;
 
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -32,7 +33,7 @@ class ProcessExchangeAction
      *   payments?: array<array{method: string, amount: float, reference?: ?string}>,
      *   channel?: ?string, cash_session_id?: ?string, reason?: ?string
      * } $data
-     * @return array{return: \App\Models\SaleReturn, sale: Sale, difference: float}
+     * @return array{return: SaleReturn, sale: Sale, difference: float}
      */
     public function execute(Sale $sale, array $data): array
     {

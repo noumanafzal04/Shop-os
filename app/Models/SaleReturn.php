@@ -20,6 +20,7 @@ class SaleReturn extends Model
             'refund_total' => 'decimal:2',
             'refund_tax' => 'decimal:2',
             'refund_credit' => 'decimal:2',
+            'refund_trade_in' => 'decimal:2',
             'returned_at' => 'datetime',
         ];
     }

@@ -147,6 +147,15 @@ class ShopSettings
             // Printed at the foot of the quotation: delivery time, warranty,
             // whether the price includes fitting. Null = print nothing.
             'quotation_terms' => null,
+            // How old a lot has to be before the shelf sweep flags it, in
+            // YEARS from manufacture. Aimed at tyres, whose DOT code says the
+            // week they were built: rubber ages sitting still, and a tyre that
+            // has never touched a road is still not something to sell after six
+            // years. Both are settings because a fleet contract may be stricter
+            // and a shop in a hot climate has its own view. Never a block —
+            // this is a warning, not an expiry fence.
+            'stock_age_warn_years' => 5,
+            'stock_age_old_years' => 6,
             // "Advance rakh do." Money down, goods set aside, balance later.
             'layaway_enabled' => true,
             // The floor under an advance. A token deposit isn't a commitment —
@@ -248,6 +257,8 @@ class ShopSettings
             'quotations_enabled' => ['sometimes', 'boolean'],
             'quotation_valid_days' => ['sometimes', 'integer', 'min:0', 'max:365'],
             'quotation_terms' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'stock_age_warn_years' => ['sometimes', 'integer', 'min:1', 'max:30'],
+            'stock_age_old_years' => ['sometimes', 'integer', 'min:1', 'max:30'],
             'layaway_enabled' => ['sometimes', 'boolean'],
             'layaway_min_deposit_percent' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             'layaway_days' => ['sometimes', 'integer', 'min:0', 'max:730'],

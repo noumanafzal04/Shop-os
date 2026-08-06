@@ -8,6 +8,8 @@ use App\Models\HardwareDevice;
 use App\Models\ReceiptPrint;
 use App\Models\Register;
 use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\SalePayment;
 use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
@@ -16,6 +18,7 @@ use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /**
@@ -32,8 +35,7 @@ class ReceiptController extends Controller
         private readonly TenantContext $tenant,
         private readonly BranchContext $branch,
         private readonly RegisterContext $terminal,
-    ) {
-    }
+    ) {}
 
     /**
      * Print-ready HTML receipt. Every render is logged, and the log decides
@@ -51,7 +53,7 @@ class ReceiptController extends Controller
         ]);
 
         $sale = Sale::query()
-            ->with(['items', 'payments', 'serials', 'branch:id,name', 'register:id,name,code'])
+            ->with(['items', 'payments', 'tradeIns', 'serials', 'branch:id,name', 'register:id,name,code'])
             ->findOrFail($id);
 
         $tenant = $this->tenant->get();
@@ -169,19 +171,19 @@ class ReceiptController extends Controller
         ]);
 
         $sale->setRelation('items', collect([
-            new \App\Models\SaleItem([
+            new SaleItem([
                 'product_name' => 'Basmati Rice', 'unit_name' => '5 kg bag', 'sku' => 'RICE-5K',
                 'quantity' => 2, 'unit_price' => 950.00, 'line_discount' => 0, 'line_total' => 1900.00,
             ]),
-            new \App\Models\SaleItem([
+            new SaleItem([
                 'product_name' => 'Cooking Oil', 'variant_name' => '1 L', 'sku' => 'OIL-1L',
                 'quantity' => 2, 'unit_price' => 325.00, 'line_discount' => 100.00, 'line_total' => 550.00,
             ]),
         ]));
 
         $sale->setRelation('payments', collect([
-            new \App\Models\SalePayment(['method' => 'cash', 'amount' => 1700.00]),
-            new \App\Models\SalePayment(['method' => 'card', 'amount' => 1000.00, 'reference' => '**** 4417']),
+            new SalePayment(['method' => 'cash', 'amount' => 1700.00]),
+            new SalePayment(['method' => 'card', 'amount' => 1000.00, 'reference' => '**** 4417']),
         ]));
 
         $sale->setRelation('serials', collect());
@@ -264,8 +266,8 @@ class ReceiptController extends Controller
             'to' => ['sometimes', 'nullable', 'date'],
         ]);
 
-        $from = isset($data['from']) ? \Illuminate\Support\Carbon::parse($data['from'])->startOfDay() : now()->startOfMonth();
-        $to = isset($data['to']) ? \Illuminate\Support\Carbon::parse($data['to'])->endOfDay() : now()->endOfDay();
+        $from = isset($data['from']) ? Carbon::parse($data['from'])->startOfDay() : now()->startOfMonth();
+        $to = isset($data['to']) ? Carbon::parse($data['to'])->endOfDay() : now()->endOfDay();
 
         $rows = ReceiptPrint::query()
             ->selectRaw('user_id, kind, count(*) as total')

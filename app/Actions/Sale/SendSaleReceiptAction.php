@@ -29,7 +29,7 @@ class SendSaleReceiptAction
 
     /**
      * @return array{sms: bool, email: bool} which channels were sent (both
-     *   false while deferred — nothing is dispatched without credentials)
+     *                                       false while deferred — nothing is dispatched without credentials)
      */
     public function execute(Sale $sale): array
     {
