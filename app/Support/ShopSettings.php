@@ -135,6 +135,20 @@ class ShopSettings
             // default: a cash-only shop has nothing to declare.
             'pos_declare_tenders' => false,
 
+            // ── Settling a cash bill ────────────────────────────────────
+            // The smallest coin this shop actually handles. Sub-rupee coins do
+            // not circulate here, and plenty of counters cannot break a five,
+            // so a bill of 1,247.63 has no exact cash tender: the cashier takes
+            // 1,250 and hands back what they have. The difference has to go
+            // SOMEWHERE, and until now it went into the drawer variance — the
+            // one number a shop uses to detect theft, quietly poisoned a few
+            // paisa at a time by every cash sale it ever rang.
+            //
+            // 0 = off (exact to the paisa, the old behaviour). 1 / 5 / 10 = the
+            // increment a cash total settles to. Ships OFF: a shop that has
+            // been reconciling to the paisa must not silently start rounding.
+            'cash_rounding' => 0,
+
             // ── Quotations & layaway (retail depth) ─────────────────────
             // "Estimate bana do." A written price, held until a date. On by
             // default because almost every counter is asked for one, and a shop
@@ -252,6 +266,7 @@ class ShopSettings
             'pos_denomination_count' => ['sometimes', 'boolean'],
             'pos_blind_close' => ['sometimes', 'boolean'],
             'pos_declare_tenders' => ['sometimes', 'boolean'],
+            'cash_rounding' => ['sometimes', 'integer', 'in:0,1,5,10'],
             'max_discount_percent' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
             'max_discount_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999'],
             'quotations_enabled' => ['sometimes', 'boolean'],

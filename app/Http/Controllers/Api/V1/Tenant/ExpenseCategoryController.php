@@ -17,10 +17,27 @@ use Illuminate\Validation\Rule;
  */
 class ExpenseCategoryController extends Controller
 {
+    /**
+     * Every category with what is actually filed under it.
+     *
+     * The counts are the difference between a screen that lets you try to
+     * delete a category and one that tells you first. A category with history
+     * can only be turned off (see destroy) — knowing that BEFORE clicking is
+     * the whole point, and the running total is what makes the list worth
+     * reading rather than merely maintaining.
+     */
     public function index(): JsonResponse
     {
         return ApiResponse::ok(
-            ExpenseCategory::query()->orderBy('name')->get(),
+            ExpenseCategory::query()
+                ->withCount('expenses')
+                ->withSum('expenses', 'amount')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (ExpenseCategory $c): array => array_merge($c->toArray(), [
+                    'entries_count' => (int) $c->expenses_count,
+                    'entries_total' => round((float) ($c->expenses_sum_amount ?? 0), 2),
+                ])),
         );
     }
 

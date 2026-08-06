@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Income;
 
 use App\Models\Income;
+use App\Models\IncomeCategory;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -40,6 +41,54 @@ class StoreIncomeRequest extends FormRequest
             'income_date' => ['required', 'date', 'before_or_equal:today'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
+    }
+
+    /**
+     * Nothing new is filed under a category the shop has switched off — the
+     * mirror of StoreExpenseRequest, and for the same reason: a retired
+     * category that still accepts entries isn't retired.
+     *
+     * An entry already filed under one keeps it, so correcting an old row does
+     * not force a reclassification.
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($v): void {
+            $categoryId = $this->input('income_category_id');
+            if (! is_string($categoryId) || $v->errors()->has('income_category_id')) {
+                return;
+            }
+
+            if ($categoryId === $this->existingCategoryId()) {
+                return;
+            }
+
+            $active = IncomeCategory::withoutTenancy()
+                ->whereKey($categoryId)
+                ->where('tenant_id', $this->user()->tenant_id)
+                ->value('is_active');
+
+            if ($active !== null && ! $active) {
+                $v->errors()->add(
+                    'income_category_id',
+                    'That category is switched off. Turn it back on under Categories, or pick another.',
+                );
+            }
+        });
+    }
+
+    /** The category this income is already filed under, when editing one. */
+    private function existingCategoryId(): ?string
+    {
+        $id = $this->route('income');
+        if (! is_string($id)) {
+            return null;
+        }
+
+        return Income::withoutTenancy()
+            ->whereKey($id)
+            ->where('tenant_id', $this->user()->tenant_id)
+            ->value('income_category_id');
     }
 
     public function messages(): array

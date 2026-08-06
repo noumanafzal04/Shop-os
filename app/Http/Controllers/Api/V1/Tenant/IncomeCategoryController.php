@@ -18,10 +18,22 @@ use Illuminate\Validation\Rule;
  */
 class IncomeCategoryController extends Controller
 {
+    /**
+     * Every category with what is filed under it — see the expense mirror for
+     * why the counts belong in the list rather than in a failed delete.
+     */
     public function index(): JsonResponse
     {
         return ApiResponse::ok(
-            IncomeCategory::query()->orderBy('name')->get(),
+            IncomeCategory::query()
+                ->withCount('incomes')
+                ->withSum('incomes', 'amount')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (IncomeCategory $c): array => array_merge($c->toArray(), [
+                    'entries_count' => (int) $c->incomes_count,
+                    'entries_total' => round((float) ($c->incomes_sum_amount ?? 0), 2),
+                ])),
         );
     }
 

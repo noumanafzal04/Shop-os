@@ -14,6 +14,7 @@ use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\Expense;
 use App\Models\HeldSale;
+use App\Models\Income;
 use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Product;
@@ -78,15 +79,21 @@ class DashboardService
         // Expenses are branch-scoped: a focused branch deducts only its own
         // costs; the all-branches view (branchId null) sums the whole tenant.
         $expensesByDay = $keepsBooks ? $this->dailyExpenses($tenant, $branchId, $weekStart) : [];
+        $incomeByDay = $keepsBooks ? $this->dailyIncome($tenant, $branchId, $weekStart) : [];
 
         $revenue = $salesByDay[$today]['revenue'] ?? 0.0;
         $expensesToday = $expensesByDay[$today] ?? 0.0;
-        // Net profit: revenue − cost of goods (line snapshots) − expenses.
-        $profit = $revenue - ($cogsByDay[$today] ?? 0.0) - $expensesToday;
+        $incomeToday = $incomeByDay[$today] ?? 0.0;
+        // Net profit: everything that came in (sales AND non-sale income)
+        // − cost of goods (line snapshots) − expenses. Leaving income out made
+        // this the Cashbook's answer minus the whole of what the business
+        // earned — for a books-only tenant, a permanent loss.
+        $profit = $revenue + $incomeToday - ($cogsByDay[$today] ?? 0.0) - $expensesToday;
 
         $prevRevenue = $salesByDay[$yesterday]['revenue'] ?? 0.0;
         $prevExpenses = $expensesByDay[$yesterday] ?? 0.0;
-        $prevProfit = $prevRevenue - ($cogsByDay[$yesterday] ?? 0.0) - $prevExpenses;
+        $prevIncome = $incomeByDay[$yesterday] ?? 0.0;
+        $prevProfit = $prevRevenue + $prevIncome - ($cogsByDay[$yesterday] ?? 0.0) - $prevExpenses;
 
         // Computed once, published twice: as the legacy top-level counts and
         // inside the inventory alert block the new dashboard reads.
@@ -104,6 +111,10 @@ class DashboardService
             'today' => [
                 'sales_count' => $salesByDay[$today]['sales_count'] ?? 0,
                 'revenue' => round($revenue, 2),
+                // Non-sale money in. Published separately from `revenue` so a
+                // shop can still see what it SOLD, and a books-only business
+                // has a figure to put beside what it spent.
+                'other_income' => round($incomeToday, 2),
                 'expenses' => round($expensesToday, 2),
                 'profit' => round($profit, 2),
                 // Buyers served, not tickets rung: an identified customer counts
@@ -147,7 +158,7 @@ class DashboardService
                 : 0,
             // Last 7 days, oldest first, zero-filled — the line chart never has
             // a hole for a day the shop was shut.
-            'sales_series' => $this->salesSeries($weekStart, $salesByDay, $cogsByDay, $expensesByDay),
+            'sales_series' => $this->salesSeries($weekStart, $salesByDay, $cogsByDay, $expensesByDay, $incomeByDay),
             // This month's spend per category — the donut beside the chart.
             'expense_breakdown' => $keepsBooks ? $this->expenseBreakdown($tenant, $branchId, $monthStart) : [],
             'inventory' => [
@@ -264,19 +275,49 @@ class DashboardService
     }
 
     /**
+     * Money in that wasn't a sale, per day — a retainer, an owner's injection,
+     * a supplier refund.
+     *
+     * The dashboard used to know nothing about it, so profit was
+     * revenue − cost − expenses and a business whose earnings ARE income (a
+     * consultant, an agency, anything on the books-only plan) was shown a
+     * permanent loss the size of its own rent. The Cashbook had it right all
+     * along; this is the same sum, bucketed like the others.
+     *
+     * @return array<string, float>
+     */
+    private function dailyIncome(Tenant $tenant, ?string $branchId, Carbon $from): array
+    {
+        $day = $this->dayExpression('income_date');
+
+        return Income::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+            ->where('income_date', '>=', $from->toDateString())
+            ->selectRaw("{$day} as day, COALESCE(SUM(amount), 0) as total")
+            ->groupByRaw($day)
+            ->toBase()
+            ->get()
+            ->mapWithKeys(fn ($row): array => [$row->day => (float) $row->total])
+            ->all();
+    }
+
+    /**
      * The 7-day chart, built in PHP from the rollups so a day with no trade
      * still gets a point.
      *
      * @param  array<string, array{sales_count: int, revenue: float, customers_count: int}>  $salesByDay
      * @param  array<string, float>  $cogsByDay
      * @param  array<string, float>  $expensesByDay
-     * @return array<int, array{day: string, date: string, revenue: float, expenses: float, profit: float}>
+     * @param  array<string, float>  $incomeByDay
+     * @return array<int, array{day: string, date: string, revenue: float, other_income: float, expenses: float, profit: float}>
      */
     private function salesSeries(
         Carbon $from,
         array $salesByDay,
         array $cogsByDay,
         array $expensesByDay,
+        array $incomeByDay,
     ): array {
         $series = [];
         $cursor = $from->copy();
@@ -285,15 +326,17 @@ class DashboardService
             $key = $cursor->toDateString();
             $revenue = $salesByDay[$key]['revenue'] ?? 0.0;
             $expenses = $expensesByDay[$key] ?? 0.0;
+            $otherIncome = $incomeByDay[$key] ?? 0.0;
 
             $series[] = [
                 'day' => $cursor->format('D'),
                 'date' => $key,
                 'revenue' => round($revenue, 2),
+                'other_income' => round($otherIncome, 2),
                 'expenses' => round($expenses, 2),
                 // Same definition as today's profit tile, so the last point of
                 // the chart always equals the number in the tile.
-                'profit' => round($revenue - ($cogsByDay[$key] ?? 0.0) - $expenses, 2),
+                'profit' => round($revenue + $otherIncome - ($cogsByDay[$key] ?? 0.0) - $expenses, 2),
             ];
 
             $cursor = $cursor->addDay();

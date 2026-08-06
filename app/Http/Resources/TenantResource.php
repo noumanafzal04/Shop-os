@@ -8,6 +8,7 @@ use App\Support\Modules;
 use App\Support\PlanLimits;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin Tenant
@@ -32,6 +33,15 @@ class TenantResource extends JsonResource
                 ? BusinessTypes::primary($this->business_type)
                 : null,
             'business_category' => $this->business_category,
+            // What THIS shop may put in its catalog — its trade crossed with
+            // its own module map. Not the same as the `item_types` on
+            // /business-types, which describes the type as shipped and knows
+            // nothing about a per-tenant module grant. Any screen offering a
+            // choice of item type must read this one, or it offers a salon
+            // with the products module a list its own server will reject.
+            'item_types' => $this->business_type !== null
+                ? BusinessTypes::itemTypesFor($this->business_type, $this->moduleMap())
+                : [],
             'delivery_fee' => $this->delivery_fee,
             'city' => $this->whenLoaded('city', fn () => [
                 'id' => $this->city->id,
@@ -66,6 +76,11 @@ class TenantResource extends JsonResource
             'subscription_state' => $this->subscriptionState(),
             'grace_ends_at' => $this->graceEndsAt()?->toIso8601String(),
             'logo_path' => $this->logo_path,
+            // Resolved server-side, like every other image the API hands out
+            // (see ProductImage / GalleryImage) — a client that has to assemble
+            // a storage URL itself is a client that gets it wrong on the first
+            // deployment with a CDN in front.
+            'logo_url' => $this->logo_path ? Storage::disk('public')->url($this->logo_path) : null,
             'address' => $this->address,
             'latitude' => $this->latitude !== null ? (float) $this->latitude : null,
             'longitude' => $this->longitude !== null ? (float) $this->longitude : null,

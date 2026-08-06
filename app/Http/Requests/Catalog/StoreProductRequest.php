@@ -179,16 +179,21 @@ class StoreProductRequest extends FormRequest
      * can't create medicines (batch/expiry/Rx machinery it has no business
      * with), a food shop can't list services, etc. Legacy/null business types
      * skip the check (they predate the 5-type model).
+     *
+     * The tenant's OWN module map is passed, not the type's template: a salon
+     * granted the products module is entitled to a physical product, and this
+     * check used to be the one place that disagreed.
      */
     public function withValidator($validator): void
     {
         $validator->after(function ($v): void {
-            $businessType = $this->user()->tenant?->business_type;
+            $tenant = $this->user()->tenant;
+            $businessType = $tenant?->business_type;
             $itemType = $this->input('item_type');
 
             if ($businessType !== null && is_string($itemType)
                 && in_array($itemType, ItemTypes::codes(), true)
-                && ! in_array($itemType, BusinessTypes::itemTypesFor($businessType), true)) {
+                && ! in_array($itemType, BusinessTypes::itemTypesFor($businessType, $tenant->moduleMap()), true)) {
                 $v->errors()->add('item_type', 'This item type isn\'t available for your business type.');
             }
 

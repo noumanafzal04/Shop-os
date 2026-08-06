@@ -174,18 +174,50 @@ class ServicesEdgeCasesTest extends TestCase
         ])->assertCreated();
     }
 
-    public function test_services_tenant_with_products_feature_flipped_on_still_cannot_catalog_physical(): void
+    /**
+     * The salon that also sells shampoo — the documented upgrade path.
+     *
+     * A type PROPOSES modules; the admin assigns them. `itemTypesFor()` used to
+     * read the TYPE's static template instead of the tenant's own map, so
+     * granting `products` opened the route, drew the Catalog in the sidebar,
+     * opened the product form — and then rejected every save. The one place
+     * that still believed the module was off.
+     */
+    public function test_services_tenant_granted_the_products_module_can_catalog_physical(): void
     {
-        // KNOWN: itemTypesFor() reads the TYPE's static feature defaults, not
-        // the tenant's own feature map — so a services shop whose `products`
-        // feature was switched on per-tenant (the documented path for a salon
-        // that also sells retail) is still 422-blocked from physical_product.
         [, $owner] = $this->shop('services', [
             'features' => array_merge(BusinessTypes::defaultFeatures('services'), ['products' => true, 'inventory' => true]),
         ]);
 
         $this->actingAsUser($owner)->postJson('/api/v1/products', [
             'item_type' => 'physical_product', 'name' => 'Shampoo Bottle', 'price' => 900, 'stock_quantity' => 5,
+        ])->assertCreated();
+
+        // Labour is still billable — the grant ADDS, it doesn't swap.
+        $this->actingAsUser($owner)->postJson('/api/v1/products', [
+            'item_type' => 'service', 'name' => 'Blow dry', 'price' => 800,
+        ])->assertCreated();
+
+        // And what it was never given stays shut: no deal builder for a salon,
+        // no medicine without the chemist's trade.
+        foreach (['medicine', 'food_item', 'deal'] as $forbidden) {
+            $this->actingAsUser($owner)->postJson('/api/v1/products', [
+                'item_type' => $forbidden, 'name' => 'Nope', 'price' => 100,
+            ])->assertStatus(422)->assertJsonStructure(['errors' => ['item_type']]);
+        }
+    }
+
+    /**
+     * The other direction: a services shop with only its own modules is still
+     * held to them. Without this the fix above could have been "allow
+     * everything" and nothing would have noticed.
+     */
+    public function test_services_tenant_without_the_products_module_still_cannot_catalog_physical(): void
+    {
+        [, $owner] = $this->shop('services');
+
+        $this->actingAsUser($owner)->postJson('/api/v1/products', [
+            'item_type' => 'physical_product', 'name' => 'Shampoo Bottle', 'price' => 900,
         ])->assertStatus(422)->assertJsonStructure(['errors' => ['item_type']]);
     }
 

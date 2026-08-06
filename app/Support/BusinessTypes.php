@@ -483,12 +483,29 @@ class BusinessTypes
     }
 
     /**
-     * The catalog item types a given business may create — derived from the
-     * type + its feature flags. Food shops sell food (plus retail drinks),
-     * pharmacies sell medicine (plus retail), service shops sell services,
-     * everyone else sells physical products.
+     * The catalog item types a given business may create.
+     *
+     * The SHAPE comes from the trade — food shops write a menu, pharmacies
+     * dispense medicine, and both of those are true of the type whatever
+     * modules are on. What a shop may *stock or bill*, though, is a module
+     * question, and that is the tenant's own map — not this file's template.
+     *
+     * $features is the tenant's live module map (`tenants.features`). Pass it
+     * whenever a tenant is in context; omit it only where there is none (the
+     * onboarding picker, which describes types rather than shops).
+     *
+     * Reading the template instead was a real defect: a type PROPOSES modules
+     * and the admin assigns them per tenant, so a salon granted `products` —
+     * the documented path, and one this file's own comment promises works —
+     * passed the route gate, was drawn a Catalog in the sidebar, opened the
+     * product form, and then had every save rejected with "this item type
+     * isn't available for your business type". The module was on; only this
+     * function still believed it wasn't.
+     *
+     * @param  array<string, bool>|null  $features
+     * @return list<string>
      */
-    public static function itemTypesFor(string $code): array
+    public static function itemTypesFor(string $code, ?array $features = null): array
     {
         $t = self::get($code);
         if ($t === null) {
@@ -498,35 +515,41 @@ class BusinessTypes
         // Legacy codes answer as the type they became, so a `clinic` may still
         // stock medicine and a `restaurant` still write a menu.
         $primary = self::primary($code);
+        // No tenant in context → describe the type as shipped.
+        $effective = $features ?? ($t['features'] ?? []);
+        $sellsGoods = ! empty($effective['products']);
+        $sellsLabour = ! empty($effective['services']);
 
         $types = [];
-        if ($primary === 'food') {
+        // Trade-shaped, not module-shaped: a food shop's menu items and a
+        // chemist's medicines ARE its products, so they follow the same flag.
+        if ($primary === 'food' && $sellsGoods) {
             $types[] = ItemTypes::FOOD;
         }
-        if ($primary === 'pharmacy') {
+        if ($primary === 'pharmacy' && $sellsGoods) {
             $types[] = ItemTypes::MEDICINE;
         }
-        if (! empty($t['features']['products'])) {
+        if ($sellsGoods) {
             $types[] = ItemTypes::PHYSICAL;
         }
-        if (! empty($t['features']['services'])) {
+        if ($sellsLabour) {
             $types[] = ItemTypes::SERVICE;
         }
         // Combo/deal bundles — for shops that run deals: food, mart, retail
         // (and their legacy equivalents). A deal bundles existing products at
-        // one price.
-        if (in_array($primary, ['food', 'mart', 'retail'], true)) {
+        // one price, so it needs goods to bundle.
+        if ($sellsGoods && in_array($primary, ['food', 'mart', 'retail'], true)) {
             $types[] = ItemTypes::DEAL;
         }
 
-        // A KNOWN type that sells neither products nor services (finance /
-        // books-only) legitimately has NO item types — it must not be handed a
-        // physical fallback, or its catalog editor would offer items it can
-        // never sell. Unknown codes already returned physical above.
-        if (empty($t['features']['products']) && empty($t['features']['services'])) {
-            return array_values(array_unique($types));
+        // A business that sells neither goods nor labour (finance / books-only)
+        // legitimately has NO item types — it must not be handed a physical
+        // fallback, or its catalog editor would offer items it can never sell.
+        // Unknown codes already returned physical above.
+        if (! $sellsGoods && ! $sellsLabour) {
+            return [];
         }
 
-        return array_values(array_unique($types)) ?: [ItemTypes::PHYSICAL];
+        return array_values(array_unique($types));
     }
 }

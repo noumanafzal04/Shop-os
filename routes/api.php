@@ -297,6 +297,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // Gated by the POS module — an online-only shop has no in-shop till.
             Route::prefix('pos')->middleware(['feature:pos', 'permission:sales.manage'])->group(function (): void {
                 Route::get('/lookup', [PosController::class, 'lookup']);
+                // The counter's own shortlist — derived from what this branch
+                // actually sells, un-scannable items first. Never curated: a
+                // favourites list somebody has to maintain is wrong in a month.
+                Route::get('/quick-keys', [PosController::class, 'quickKeys']);
                 Route::get('/session', [PosController::class, 'currentSession']);
                 Route::post('/session/open', [PosController::class, 'openSession']);
                 // Terminal handover — carry an open drawer to another lane.
@@ -440,8 +444,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // Warranty desk (serialized retail): look up a serial / IMEI to see
             // what was sold and whether it's still under warranty.
             // Serialized selling rides stock tracking, so it needs inventory too.
-            Route::get('warranty/lookup', [WarrantyController::class, 'lookup'])
-                ->middleware(['feature:inventory', 'permission:sales.manage']);
+            Route::middleware(['feature:inventory', 'permission:sales.manage'])->group(function (): void {
+                Route::get('warranty/lookup', [WarrantyController::class, 'lookup']);
+                // Taking the unit in, and saying what happened to it. A claim
+                // is NOT a return: no money moves, no stock moves, and the
+                // shop is holding someone else's property for days.
+                Route::get('warranty/claims', [WarrantyController::class, 'index']);
+                Route::post('warranty/claims', [WarrantyController::class, 'store']);
+                Route::post('warranty/claims/{claim}/resolve', [WarrantyController::class, 'resolve']);
+            });
 
             // Inventory: the single write-path for stock
             Route::prefix('inventory')->middleware(['feature:inventory', 'permission:inventory.manage'])->group(function (): void {

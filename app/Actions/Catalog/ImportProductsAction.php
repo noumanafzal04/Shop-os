@@ -2,6 +2,7 @@
 
 namespace App\Actions\Catalog;
 
+use App\Exceptions\DomainException;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductBarcode;
@@ -68,7 +69,7 @@ class ImportProductsAction
             try {
                 $result = $this->importRow($row);
                 $summary[$result]++; // 'created' | 'updated'
-            } catch (\App\Exceptions\DomainException $e) {
+            } catch (DomainException $e) {
                 $summary['failed']++;
                 $summary['errors'][] = ['row' => $lineNo, 'messages' => [$e->getMessage()]];
             } catch (RowValidationException $e) {
@@ -115,10 +116,12 @@ class ImportProductsAction
         }
 
         // The business type constrains what a shop may catalog — same rule the
-        // HTTP form enforces (a mart can't import medicines).
-        $businessType = $this->context->get()?->business_type;
+        // HTTP form enforces (a mart can't import medicines), read off the same
+        // source: the tenant's own module map, not the type's template.
+        $tenant = $this->context->get();
+        $businessType = $tenant?->business_type;
         if ($businessType !== null
-            && ! in_array($data['item_type'], BusinessTypes::itemTypesFor($businessType), true)) {
+            && ! in_array($data['item_type'], BusinessTypes::itemTypesFor($businessType, $tenant->moduleMap()), true)) {
             throw new RowValidationException(["Item type \"{$data['item_type']}\" isn't available for this business type."]);
         }
 
@@ -269,7 +272,7 @@ class ImportProductsAction
         $lines = preg_split('/\r\n|\r|\n/', trim($csv));
 
         if ($lines === false || count($lines) < 2) {
-            throw \App\Exceptions\DomainException::unprocessable('The CSV has no data rows.', 'IMPORT_EMPTY');
+            throw DomainException::unprocessable('The CSV has no data rows.', 'IMPORT_EMPTY');
         }
 
         $header = array_map(
@@ -278,7 +281,7 @@ class ImportProductsAction
         );
 
         if (! in_array('name', $header, true) || ! in_array('price', $header, true)) {
-            throw \App\Exceptions\DomainException::unprocessable(
+            throw DomainException::unprocessable(
                 'The CSV must have at least "name" and "price" columns.',
                 'IMPORT_BAD_HEADER',
             );
@@ -299,7 +302,7 @@ class ImportProductsAction
             $rows[] = $row;
 
             if (count($rows) > self::MAX_ROWS) {
-                throw \App\Exceptions\DomainException::unprocessable(
+                throw DomainException::unprocessable(
                     'Too many rows — import at most '.self::MAX_ROWS.' products per file.',
                     'IMPORT_TOO_LARGE',
                 );

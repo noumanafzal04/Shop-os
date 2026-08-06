@@ -70,15 +70,28 @@ class ReportService
             ->whereBetween('expense_date', [$from.' 00:00:00', $to.' 23:59:59'])
             ->sum('amount');
 
+        // Money the business took in that wasn't a sale — a retainer, an owner's
+        // injection, a supplier refund. It was missing from this total while the
+        // Cashbook counted it, so the two screens answered the same question
+        // differently: a books-only tenant with a paid invoice and a rent bill
+        // was told its net was MINUS the rent. Same rule as the Cashbook —
+        // sales revenue is derived and never sits in `incomes`, so adding the
+        // two can't double-count.
+        $otherIncome = (float) Income::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->whereBetween('income_date', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->sum('amount');
+
         return [
             'period' => ['from' => $from, 'to' => $to, 'granularity' => $granularity],
             'totals' => [
                 'sales_count' => $salesCount,
                 'revenue' => round($revenue, 2),
+                'other_income' => round($otherIncome, 2),
                 'cogs' => round($cogs, 2),
                 'gross_profit' => round($revenue - $cogs, 2),
                 'expenses' => round($expensesTotal, 2),
-                'net_profit' => round($revenue - $cogs - $expensesTotal, 2),
+                'net_profit' => round($revenue + $otherIncome - $cogs - $expensesTotal, 2),
             ],
             'series' => $this->series($tenantId, $fromStart, $toEnd, $granularity),
             'top_products' => $this->topProducts($tenantId, $fromStart, $toEnd),
@@ -108,6 +121,16 @@ class ReportService
             ->groupBy(fn (Expense $e) => $e->expense_date->format($format))
             ->map(fn (Collection $items) => round((float) $items->sum('amount'), 2));
 
+        // Non-sale money in, bucketed the same way. Without it a books-only
+        // chart was a single expense line — everything the business earned was
+        // simply absent from the picture.
+        $incomeByBucket = Income::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->whereBetween('income_date', [$from->toDateString().' 00:00:00', $to->toDateString().' 23:59:59'])
+            ->get(['income_date', 'amount'])
+            ->groupBy(fn (Income $i) => $i->income_date->format($format))
+            ->map(fn (Collection $items) => round((float) $items->sum('amount'), 2));
+
         $buckets = [];
         $cursor = $from;
 
@@ -115,11 +138,16 @@ class ReportService
             $key = $cursor->format($format);
             $revenue = $revenueByBucket[$key] ?? 0.0;
             $expenses = $expensesByBucket[$key] ?? 0.0;
+            $otherIncome = $incomeByBucket[$key] ?? 0.0;
             $buckets[] = [
                 'date' => $key,
                 'revenue' => $revenue,
+                'other_income' => $otherIncome,
                 'expenses' => $expenses,
-                'profit' => round($revenue - $expenses, 2),
+                // Cash-shaped, deliberately: this is the line a chart draws, so
+                // it nets what MOVED in the bucket. The headline `net_profit`
+                // also deducts cost of goods, which no per-day bucket carries.
+                'profit' => round($revenue + $otherIncome - $expenses, 2),
             ];
             $cursor = $granularity === 'month' ? $cursor->addMonth() : $cursor->addDay();
         }

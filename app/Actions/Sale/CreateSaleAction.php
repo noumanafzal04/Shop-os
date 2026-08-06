@@ -21,6 +21,7 @@ use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\PromotionService;
 use App\Support\BranchContext;
+use App\Support\CashRounding;
 use App\Support\ModifierResolver;
 use App\Support\Permissions;
 use App\Support\RegisterContext;
@@ -607,11 +608,26 @@ class CreateSaleAction
                 $tip = max(0, round((float) ($data['tip_amount'] ?? 0), 2));
                 $due = round($total + $tip, 2);
 
+                // ── Settling in coins that exist ────────────────────────
+                // A cash-only bill settles to the smallest coin the shop
+                // handles. `total` is untouched — it is what tax was computed
+                // on — so only what crosses the counter moves, and the gap is
+                // recorded on its own. Without this the difference went into
+                // the drawer variance, a few paisa per sale, until a real
+                // shortage was indistinguishable from a month of change.
+                $tenders = ! empty($payments)
+                    ? array_map(fn ($p) => $p['method'], $payments)
+                    : [$paymentMethod];
+                $rounding = CashRounding::settlesInCashOnly($tenders)
+                    ? CashRounding::adjustment($due, (int) ($tenant?->setting('cash_rounding', 0) ?? 0))
+                    : 0.0;
+                $due = round($due + $rounding, 2);
+
                 if ($amountPaid < $due) {
                     throw DomainException::unprocessable(
                         $tip > 0
                             ? 'Amount paid ('.number_format($amountPaid, 2).') is less than the total plus tip ('.number_format($due, 2).').'
-                            : 'Amount paid ('.number_format($amountPaid, 2).') is less than the total ('.number_format($total, 2).').',
+                            : 'Amount paid ('.number_format($amountPaid, 2).') is less than the total ('.number_format($due, 2).').',
                         'PAYMENT_INSUFFICIENT',
                     );
                 }
@@ -665,8 +681,13 @@ class CreateSaleAction
                     // can separate the two without joining tender rows.
                     'trade_in_total' => $tradeInTotal,
                     'tip_amount' => $tip,
-                    // Change is what's left after the bill AND the tip — otherwise
-                    // the cashier would hand the tip back as change.
+                    // What settling in cash cost (or saved) the shop. Negative
+                    // when it gave up the difference. Never folded into `total`
+                    // — that is the taxed figure.
+                    'rounding_adjustment' => $rounding,
+                    // Change is what's left after the bill, the tip AND the
+                    // rounding — otherwise the cashier hands back the tip, or
+                    // the paisa the shop just agreed to forgo.
                     'change_due' => round($amountPaid - $due, 2),
                     'points_earned' => $pointsEarned,
                     'points_redeemed' => $pointsRedeemed,

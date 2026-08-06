@@ -29,6 +29,7 @@ class Sale extends BaseModel
             // Paid on top of the bill. Never part of `total` — see the
             // add_food_service_loop migration.
             'tip_amount' => 'decimal:2',
+            'rounding_adjustment' => 'decimal:2',
             'amount_paid' => 'decimal:2',
             'trade_in_total' => 'decimal:2',
             'change_due' => 'decimal:2',

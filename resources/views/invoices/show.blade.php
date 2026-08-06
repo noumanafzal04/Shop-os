@@ -438,6 +438,23 @@
                 <tr class="tender change"><td>Tip</td><td class="num">{{ $cur }} {{ $money($sale->tip_amount) }}</td></tr>
             @endif
 
+            {{-- Rounding sits below the total for the same reason as the tip:
+                 the bill is the bill, and this is what the counter could
+                 physically settle it to. A customer who adds the lines up and
+                 gets a different figure from the cash they handed over needs
+                 to see why on the paper, not be told at the counter. --}}
+            @if((float) ($sale->rounding_adjustment ?? 0) !== 0.0)
+                @php($round = (float) $sale->rounding_adjustment)
+                <tr class="tender change">
+                    <td>Rounding</td>
+                    <td class="num">{{ $round < 0 ? '− ' : '+ ' }}{{ $cur }} {{ $money(abs($round)) }}</td>
+                </tr>
+                <tr class="grand">
+                    <td>To pay</td>
+                    <td class="num">{{ $cur }} {{ $money((float) $sale->total + (float) ($sale->tip_amount ?? 0) + $round) }}</td>
+                </tr>
+            @endif
+
             {{-- Every tender, not just the headline method: a split payment that
                  prints as one line is unreconcilable at the end of the day. --}}
             @if($payments->count() > 0)

@@ -150,6 +150,21 @@ class Tenant extends BaseModel
     }
 
     /**
+     * The whole map, for the few callers that must reason about several flags
+     * at once rather than ask about one — BusinessTypes::itemTypesFor, which
+     * needs to know both what this shop stocks AND what it bills.
+     *
+     * Never null: a half-provisioned tenant reads as every module off, which is
+     * the same fail-closed answer featureEnabled() gives.
+     *
+     * @return array<string, bool>
+     */
+    public function moduleMap(): array
+    {
+        return $this->features ?? [];
+    }
+
+    /**
      * The ONE way a tenant's modules are ever written.
      *
      * `online_shop_enabled` is a denormalised copy of the Online Store module —
