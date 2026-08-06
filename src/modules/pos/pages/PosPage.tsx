@@ -11,6 +11,7 @@ import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
 import { apiGet } from "../../../common/api/client";
+import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCategories, useProducts } from "../../catalog/hooks/useCatalog";
 import { useVehicleLookup, useVehicleMutations } from "../../vehicles/hooks/useVehicles";
@@ -198,13 +199,13 @@ const onSale = (p: { price: string | number; discount_price?: string | number | 
 export default function PosPage() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const user = useAuthStore((s) => s.user);
-  const businessType = useAuthStore(
-    (s) => (s.user?.tenant as unknown as { business_type?: string })?.business_type,
-  );
-  // "food" is the current type; "restaurant" is its legacy code (kept for
-  // existing tenants). Food shops browse a visual image grid; high-SKU shops
-  // (mart, pharmacy, retail…) get a dense, search-first list of rows.
-  const isRestaurant = businessType === "food" || businessType === "restaurant";
+  // Resolved on the server, so an older code (`restaurant`, `clinic`,
+  // `workshop`) answers as the type it became and the till behaves the same
+  // for that shop as for a new one.
+  const businessType = usePrimaryBusinessType();
+  // Food shops browse a visual image grid; high-SKU shops (mart, pharmacy,
+  // retail…) get a dense, search-first list of rows.
+  const isRestaurant = businessType === "food";
   // Taking goods in part-payment moves stock, so it needs the inventory module
   // — a shop that doesn't count anything has nowhere to put a dead battery.
   const modules = useAuthStore(
@@ -252,9 +253,9 @@ export default function PosPage() {
 
   // ── Who's at the till, and can it reach the server ──────────────
   const me = useAuthStore((s) => s.user);
-  const isPharmacy = useAuthStore(
-    (s) => (s.user?.tenant as { business_type?: string | null } | null | undefined)?.business_type === "pharmacy",
-  );
+  // An old `clinic` dispenses medicine too — prescription capture must not
+  // depend on which decade the shop was created in.
+  const isPharmacy = businessType === "pharmacy";
   const lockTill = useTillStore((s) => s.lock);
   const tillLocked = useTillStore((s) => s.locked);
   const online = useConnectionStore((s) => s.online);

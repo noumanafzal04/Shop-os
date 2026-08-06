@@ -1,3 +1,4 @@
+import { usePrimaryBusinessType } from "../../../../common/tenant/businessType";
 import { useAuthStore } from "../../../../stores/authStore";
 
 /**
@@ -39,9 +40,9 @@ export function useCapabilities(): Capabilities {
   const features = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features,
   );
-  const businessType = useAuthStore(
-    (s) => (s.user?.tenant as { business_type?: string | null } | null | undefined)?.business_type ?? null,
-  );
+  // Resolved, like every other trade gate on the shop side — see
+  // usePrimaryBusinessType.
+  const businessType = usePrimaryBusinessType();
 
   const has = (key: string) => features?.[key] ?? false;
 

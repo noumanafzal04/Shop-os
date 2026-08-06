@@ -26,11 +26,11 @@ export function useCurrentDay() {
   });
 }
 
-export function useDayHistory(params: { from?: string; to?: string; page?: number } = {}) {
+export function useDayHistory(params: { from?: string; to?: string; page?: number } = {}, enabled = true) {
   return useQuery({
     queryKey: ["pos", "days", params],
     queryFn: () => dayService.history(params),
-    enabled: useTillShop(),
+    enabled: useTillShop() && enabled,
   });
 }
 
@@ -42,11 +42,11 @@ export function useDayDetail(id: string | null) {
   });
 }
 
-export function useDeposits(params: { from?: string; to?: string; page?: number } = {}) {
+export function useDeposits(params: { from?: string; to?: string; page?: number } = {}, enabled = true) {
   return useQuery({
     queryKey: ["pos", "deposits", params],
     queryFn: () => dayService.deposits(params),
-    enabled: useTillShop(),
+    enabled: useTillShop() && enabled,
   });
 }
 

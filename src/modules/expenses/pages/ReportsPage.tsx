@@ -7,6 +7,8 @@ import Alert from "../../../components/ui/alert/Alert";
 import { MetricCard, MetricCardSkeleton } from "../../../common/ui/MetricCard";
 import { usePurchasesReport, useReport, useStaffReport, useTaxReport } from "../hooks/useExpenses";
 import { ReprintReportTab } from "../../receipts/components/ReprintReportTab";
+import { DeadStockTab, MarginsTab, ValuationTab } from "../components/StockReportTabs";
+import { useAuthStore } from "../../../stores/authStore";
 
 
 const PERIODS = [
@@ -16,19 +18,34 @@ const PERIODS = [
   ["yearly", "This Year"],
 ] as const;
 
-const TABS = [
-  ["overview", "Overview"],
-  ["purchases", "Purchases"],
-  ["staff", "Staff"],
-  ["tax", "Tax"],
-  ["receipts", "Receipts"],
-] as const;
+/** Valuation and dead stock read the shelves, so they need the stock module. */
+const STOCK_TABS = ["valuation", "dead-stock"];
 
 export default function ReportsPage() {
   const money = useMoney();
+  const tracksStock = !!useAuthStore((s) => s.user?.tenant?.features?.inventory);
   const [period, setPeriod] = useState<string>("monthly");
-  const [tab, setTab] = useState<string>("overview");
+  const [selectedTab, setTab] = useState<string>("overview");
+  // A shop can lose the stock module while someone is sitting on Stock value.
+  // Falling back beats rendering a tab whose every request now 403s.
+  const tab = STOCK_TABS.includes(selectedTab) && !tracksStock ? "overview" : selectedTab;
   const report = useReport({ period });
+
+  const TABS: Array<[string, string]> = [
+    ["overview", "Overview"],
+    // What actually pays, as opposed to what merely sells.
+    ["margins", "Margins"],
+    ...(tracksStock
+      ? ([
+          ["valuation", "Stock value"],
+          ["dead-stock", "Dead stock"],
+        ] as Array<[string, string]>)
+      : []),
+    ["purchases", "Purchases"],
+    ["staff", "Staff"],
+    ["tax", "Tax"],
+    ["receipts", "Receipts"],
+  ];
 
   const data = report.data;
 
@@ -106,7 +123,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {tab === "purchases" ? <PurchasesTab period={period} /> : tab === "staff" ? <StaffTab period={period} /> : tab === "tax" ? <TaxTab period={period} /> : tab === "receipts" ? <ReprintReportTab period={period} /> : (
+      {tab === "margins" ? <MarginsTab period={period} /> : tab === "valuation" ? <ValuationTab /> : tab === "dead-stock" ? <DeadStockTab /> : tab === "purchases" ? <PurchasesTab period={period} /> : tab === "staff" ? <StaffTab period={period} /> : tab === "tax" ? <TaxTab period={period} /> : tab === "receipts" ? <ReprintReportTab period={period} /> : (
       <>
       {/* Totals */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-6 md:gap-6">

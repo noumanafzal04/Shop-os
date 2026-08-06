@@ -20,12 +20,17 @@ import { useUiMode, type UiMode } from "../context/UiModeContext";
 import { useShopSettings } from "../modules/shop/hooks/useShop";
 import { useAuthStore } from "../stores/authStore";
 import { homeForRole } from "../common/routing/guards";
+import { usePrimaryBusinessType } from "../common/tenant/businessType";
+
+type SubItem = { name: string; path: string; pro?: boolean; new?: boolean; can?: string };
 
 type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  /** The permission the screen's own action needs — see filterByPermission. */
+  can?: string;
+  subItems?: SubItem[];
 };
 
 /**
@@ -34,19 +39,34 @@ type NavItem = {
  * (tap to expand — the section with the active page auto-opens). Items only
  * appear when the business has the matching feature enabled (no marketplace
  * feature → no Collections; no reservations feature → no Reservations).
+ *
+ * Three axes decide what a person sees, and all three have to agree:
+ *
+ *   MODULE  — what the shop bought (`features`)
+ *   TRADE   — what the shop is (`businessType`, already resolved to a current
+ *             code, so an old `clinic` still gets the chemist's register)
+ *   PERSON  — what this user may do (`can`)
+ *
+ * The third was missing: a cashier with only sales.manage was offered Staff,
+ * Reports and Day & banking and got a 403 from each. Every `can` here names
+ * the permission the server asks for on that screen's own action, so the menu
+ * can no longer promise something the API will refuse.
  */
-function shopNav(
+export function shopNav(
   features: Record<string, boolean> | undefined,
   businessType: string | null | undefined,
   mode: UiMode,
   multiBranch: boolean,
+  can: (permission: string) => boolean = () => true,
 ): NavItem[] {
   const branchItem: NavItem = {
     icon: <BoxCubeIcon />,
     name: "Branches",
     subItems: [
-      { name: "Locations", path: "/tenant/branches" },
-      { name: "Transfers", path: "/tenant/transfers" },
+      // Adding a location is configuration; moving stock between them is
+      // stock work — two different people in a bigger shop.
+      { name: "Locations", path: "/tenant/branches", can: "settings.manage" },
+      { name: "Transfers", path: "/tenant/transfers", can: "inventory.manage" },
     ],
   };
   // A capability shows only when its flag is explicitly on. Types that don't
@@ -63,54 +83,57 @@ function shopNav(
   const hasCatalog = has("products") || has("services");
 
   // The Expense & Income module — one home for all money in/out.
-  const expenseManager = {
+  const expenseManager: NavItem = {
     icon: <FileIcon />,
     name: "Expense Manager",
     subItems: [
-      { name: "Cashbook", path: "/tenant/cashbook" },
-      { name: "Income", path: "/tenant/income" },
-      { name: "Expenses", path: "/tenant/expenses" },
+      { name: "Cashbook", path: "/tenant/cashbook", can: "expenses.manage" },
+      { name: "Income", path: "/tenant/income", can: "expenses.manage" },
+      { name: "Expenses", path: "/tenant/expenses", can: "expenses.manage" },
     ],
   };
 
   // Basic mode: the daily essentials only — the calm view for a new merchant.
   if (mode === "basic") {
-    return [
+    return filterByPermission([
       { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
-      ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
-      ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
-      ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
+      ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos", can: "sales.manage" }] : []),
+      ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in", can: "sales.manage" }] : []),
+      ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales", can: "sales.manage" }] : []),
       // End of day. Even the calm view needs it — without it a shop can never
       // close a day off or record what went to the bank.
-      ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
-      ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders" }] : []),
-      ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products" }] : []),
+      ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day", can: "sales.manage" }] : []),
+      ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders", can: "orders.manage" }] : []),
+      ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products", can: "products.manage" }] : []),
       ...(has("expenses") ? [expenseManager] : []),
       ...(multiBranch ? [branchItem] : []),
-      { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
-    ];
+      { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings", can: "settings.manage" },
+    ], can);
   }
 
-  return [
+  return filterByPermission([
     // ── Daily essentials ──────────────────────────────────────────
     { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
     // POS till is only for shops on a plan that includes it (not online-only).
-    ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
-    ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
+    ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos", can: "sales.manage" }] : []),
+    ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in", can: "sales.manage" }] : []),
     // The kitchen board is a separate screen because it lives on a different
     // wall from the till — the same shop, two people, two displays.
-    ...(has("dine_in") ? [{ icon: <ListIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
-    ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
+    ...(has("dine_in") ? [{ icon: <ListIcon />, name: "Kitchen", path: "/tenant/kitchen", can: "sales.manage" }] : []),
+    ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales", can: "sales.manage" }] : []),
     // The 10pm question: what did the shop take today across every drawer, and
     // how much of it went to the bank. No shift answers it, however well
     // counted — so it sits with the daily screens, not in a reports folder.
-    ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
+    // A cashier is entitled to the record of their own drawer, so it carries
+    // the same permission as ringing a sale; the day CLOSE is manager-only,
+    // checked on the server.
+    ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day", can: "sales.manage" }] : []),
     // Promises outstanding: prices quoted, and goods held on advance. Sits
     // beside Sales because it is the same ledger one step earlier — and a
     // shopkeeper holding customers' money needs it where they'll see it daily.
-    ...(has("pos") ? [{ icon: <ListIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
-    ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders" }] : []),
-    ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
+    ...(has("pos") ? [{ icon: <ListIcon />, name: "Quotes & Advances", path: "/tenant/documents", can: "sales.manage" }] : []),
+    ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders", can: "orders.manage" }] : []),
+    ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders", can: "orders.manage" }] : []),
     // The forecourt. A station runs its day off the shift, so it sits with the
     // daily screens rather than buried in setup — the equipment page is its
     // sub-item because it's touched once and then left alone.
@@ -119,9 +142,12 @@ function shopNav(
           icon: <BoltIcon />,
           name: "Forecourt",
           subItems: [
-            { name: "Shifts", path: "/tenant/fuel" },
-            { name: "Deliveries & rates", path: "/tenant/fuel/deliveries" },
-            { name: "Tanks & pumps", path: "/tenant/fuel/setup" },
+            // A forecourt shift ends by setting fuel stock to the dip, so it
+            // is a stock correction; a tanker is goods received; the plant is
+            // configuration. Three screens, three different people.
+            { name: "Shifts", path: "/tenant/fuel", can: "inventory.manage" },
+            { name: "Deliveries & rates", path: "/tenant/fuel/deliveries", can: "purchases.manage" },
+            { name: "Tanks & pumps", path: "/tenant/fuel/setup", can: "settings.manage" },
           ],
         }]
       : []),
@@ -131,76 +157,111 @@ function shopNav(
     ...(multiBranch ? [branchItem] : []),
 
     // ── Grouped dropdowns ─────────────────────────────────────────
-    {
-      icon: <BoxIcon />,
-      name: "Catalog",
-      subItems: [
-        { name: "Products & Services", path: "/tenant/products" },
-        { name: "Categories", path: "/tenant/categories" },
-        // Collections merchandise the ONLINE storefront — pointless without it.
-        ...(has("marketplace") ? [{ name: "Collections", path: "/tenant/collections" }] : []),
-      ],
-    },
+    // Basic mode already hid these from a books-only shop; Full view was
+    // showing a Catalog it can never fill and coupons for sales it never
+    // makes. The rule is the same in both modes or the switch changes what
+    // the business IS, not just how much of it is on screen.
+    ...(hasCatalog
+      ? [{
+          icon: <BoxIcon />,
+          name: "Catalog",
+          subItems: [
+            { name: "Products & Services", path: "/tenant/products", can: "products.manage" },
+            { name: "Categories", path: "/tenant/categories", can: "products.manage" },
+            // Collections merchandise the ONLINE storefront — pointless without it.
+            ...(has("marketplace") ? [{ name: "Collections", path: "/tenant/collections", can: "products.manage" }] : []),
+          ],
+        }]
+      : []),
     ...(has("inventory")
       ? [
           {
             icon: <BoxCubeIcon />,
             name: "Inventory",
             subItems: [
-              { name: "Stock", path: "/tenant/inventory" },
-              { name: "Barcode Labels", path: "/tenant/labels" },
-              { name: "Suppliers", path: "/tenant/suppliers" },
-              { name: "Purchases", path: "/tenant/purchases" },
+              { name: "Stock", path: "/tenant/inventory", can: "inventory.manage" },
+              // Counting the shelves against the books. The only way a shop
+              // finds out what it is actually losing.
+              { name: "Stocktake", path: "/tenant/stocktake", can: "inventory.manage" },
+              // A label is printed from the catalog record, not the shelf.
+              { name: "Barcode Labels", path: "/tenant/labels", can: "products.manage" },
+              { name: "Suppliers", path: "/tenant/suppliers", can: "suppliers.manage" },
+              { name: "Purchases", path: "/tenant/purchases", can: "purchases.manage" },
             ],
           },
         ]
       : []),
-    {
-      icon: <GroupIcon />,
-      name: "Customers",
-      subItems: [
-        { name: "Customer List", path: "/tenant/customers" },
-        { name: "Coupons", path: "/tenant/coupons" },
-        { name: "Promotions", path: "/tenant/promotions" },
-        ...(has("marketplace") ? [{ name: "Reviews", path: "/tenant/reviews" }] : []),
-        ...(has("reservations") ? [{ name: "Reservations", path: "/tenant/reservations" }] : []),
-      ],
-    },
+    ...(canSell || hasCatalog
+      ? [{
+          icon: <GroupIcon />,
+          name: "Customers",
+          subItems: [
+            { name: "Customer List", path: "/tenant/customers", can: "customers.manage" },
+            { name: "Coupons", path: "/tenant/coupons", can: "coupons.manage" },
+            { name: "Promotions", path: "/tenant/promotions", can: "coupons.manage" },
+            // Replying is the only thing anyone does on the reviews screen,
+            // and the server asks for settings.manage to do it.
+            ...(has("marketplace") ? [{ name: "Reviews", path: "/tenant/reviews", can: "settings.manage" }] : []),
+            ...(has("reservations") ? [{ name: "Reservations", path: "/tenant/reservations", can: "reservations.manage" }] : []),
+          ],
+        }]
+      : []),
     {
       icon: <BoltIcon />,
       name: "More",
       subItems: [
-        { name: "Reports", path: "/tenant/reports" },
-        { name: "Staff", path: "/tenant/staff" },
+        { name: "Reports", path: "/tenant/reports", can: "reports.view" },
+        { name: "Staff", path: "/tenant/staff", can: "staff.manage" },
         // The chemist's paperwork: the dispensing register and batch recall.
         // Pharmacy-only — a mart that happens to stock paracetamol keeps no
         // register, and the page would be an empty table forever.
         ...(has("inventory") && businessType === "pharmacy"
-          ? [{ name: "Pharmacy", path: "/tenant/pharmacy" }]
+          ? [{ name: "Pharmacy", path: "/tenant/pharmacy", can: "sales.manage" }]
           : []),
         // A tyre or auto shop's real customer key: the plate, what the car
         // takes, and what was fitted last time. Only the trades that work on
-        // vehicles — a grocery would never open it twice.
+        // vehicles — a grocery would never open it twice. A vehicle IS
+        // customer data, so it carries the CRM permission.
         ...(has("products") && (businessType === "automotive" || businessType === "petroleum")
-          ? [{ name: "Vehicles", path: "/tenant/vehicles" }]
+          ? [{ name: "Vehicles", path: "/tenant/vehicles", can: "customers.manage" }]
           : []),
         // Serialized retail (phones/electronics) — look up a serial's warranty.
         // Retail-only: a grocery or pharmacy never sells a serial-tracked unit.
+        // A counter lookup, so it sits with the till.
         ...(has("pos") && has("inventory") && businessType === "retail"
-          ? [{ name: "Warranty lookup", path: "/tenant/warranty" }]
+          ? [{ name: "Warranty lookup", path: "/tenant/warranty", can: "sales.manage" }]
           : []),
         // The public service menu belongs to service businesses — petroleum has
         // the `services` flag for pump labour, but no portfolio to show off.
+        // It is what the shop shows the world, hence the settings permission.
         ...(has("services") && businessType === "services"
-          ? [{ name: "Portfolio", path: "/tenant/portfolio" }]
+          ? [{ name: "Portfolio", path: "/tenant/portfolio", can: "settings.manage" }]
           : []),
       ],
     },
 
     // Settings + subscription stand alone at the bottom — one click away.
+    // Subscription carries no permission because the server asks for none:
+    // what the shop pays is not a secret from the people who work in it.
     { icon: <DollarLineIcon />, name: "Subscription", path: "/tenant/subscription" },
-    { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
-  ];
+    { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings", can: "settings.manage" },
+  ], can);
+}
+
+/**
+ * Drops what this person may not do.
+ *
+ * A dropdown whose every child was dropped goes with them — an empty "More"
+ * that opens onto nothing is worse than no More at all. A parent with its own
+ * path keeps it (nothing today has both).
+ */
+function filterByPermission(items: NavItem[], can: (permission: string) => boolean): NavItem[] {
+  return items
+    .filter((item) => item.can === undefined || can(item.can))
+    .map((item) => (item.subItems
+      ? { ...item, subItems: item.subItems.filter((sub) => sub.can === undefined || can(sub.can)) }
+      : item))
+    .filter((item) => item.path !== undefined || (item.subItems?.length ?? 0) > 0);
 }
 
 // Admin nav is split into two groups for a clean, scannable sidebar:
@@ -232,9 +293,17 @@ const AppSidebar: React.FC = () => {
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features,
   );
   // Some items are feature-on but type-specific (warranty = retail only), so
-  // the nav needs the business type alongside the flags.
-  const businessType = useAuthStore(
-    (s) => (s.user?.tenant as { business_type?: string | null } | null | undefined)?.business_type,
+  // the nav needs the business type alongside the flags — always the RESOLVED
+  // one, or an older tenant loses screens its current type is entitled to.
+  const businessType = usePrimaryBusinessType();
+  // What this person may do. The permission LIST is what we subscribe to —
+  // the store's hasPermission is a stable closure, so selecting it alone would
+  // leave the rail stale after a fresh /me changed what a staff member holds.
+  const permissions = useAuthStore((s) => s.user?.permissions);
+  const can = useCallback(
+    // Mirrors authStore.hasPermission: scope owners hold every permission.
+    (permission: string) => role === "shop_owner" || (permissions?.includes(permission) ?? false),
+    [role, permissions],
   );
 
   const { mode, toggleMode } = useUiMode();
@@ -243,7 +312,9 @@ const AppSidebar: React.FC = () => {
   // (max_branches null = unlimited → true; 1 → false).
   const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
   const isAdmin = role === "super_admin" || role === "admin_staff";
-  const navItems = isAdmin ? adminMainItems : shopNav(features, businessType, mode, multiBranch);
+  const navItems = isAdmin
+    ? adminMainItems
+    : shopNav(features, businessType, mode, multiBranch, can);
   // Second group: platform config for admins; unused on the shop side.
   const othersItems: NavItem[] = isAdmin ? adminPlatformItems : [];
 

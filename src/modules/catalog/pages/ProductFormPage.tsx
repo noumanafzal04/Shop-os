@@ -6,6 +6,7 @@ import Select from "../../../components/form/Select";
 import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError, type ApiMeta } from "../../../common/types/api";
+import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { useAuthStore } from "../../../stores/authStore";
 import {
   useCategories,
@@ -101,9 +102,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const features = useAuthStore(
     (s) => (s.user?.tenant as unknown as { features?: Record<string, boolean> })?.features,
   );
-  const businessType = useAuthStore(
-    (s) => (s.user?.tenant as unknown as { business_type?: string })?.business_type,
-  );
+  // Resolved, so an older `clinic` still gets the medicine fields its current
+  // type (pharmacy) is entitled to.
+  const businessType = usePrimaryBusinessType();
   const marketplaceEnabled = features?.marketplace ?? false;
   // The in-shop till: an online-only plan has POS off, so it never needs the
   // counter/scanner fields (barcode, packs, scale PLU, wholesale price level).
@@ -324,7 +325,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         ? comboRows.filter((r) => r.component_product_id && Number(r.quantity) > 0)
             .map((r) => ({ component_product_id: r.component_product_id, quantity: Number(r.quantity) }))
         : undefined,
-      recipe_items: isFood
+      // Only when the recipe editor was on screen. Sending an empty list from
+      // a form that never showed the section would silently wipe a recipe the
+      // merchant still has — e.g. editing a dish's price after the Inventory
+      // module was switched off.
+      recipe_items: isFood && inventoryEnabled
         ? recipeRows.filter((r) => r.ingredient_product_id && Number(r.quantity) > 0)
             .map((r) => ({ ingredient_product_id: r.ingredient_product_id, quantity: Number(r.quantity) }))
         : undefined,
@@ -718,11 +723,14 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           </Section>
         )}
 
-        {/* Recipe / ingredients (food dish) — raw items consumed per portion. */}
-        {isFood && (
+        {/* Recipe / ingredients (food dish) — raw items consumed per portion.
+            A recipe does one thing: it deducts ingredients from stock. Without
+            the Inventory module there is nothing to deduct from, so the shop
+            is not offered a form that would save and then do nothing. */}
+        {isFood && inventoryEnabled && (
           <Section
             title="Recipe / ingredients"
-            hint="Optional. List the raw ingredients one portion uses — selling the dish deducts each from stock. The dish itself needn't track stock. E.g. Bun ×2, Patty ×1."
+            hint="Optional. List the raw ingredients one portion uses — selling the dish deducts each from stock. The dish itself needn't track stock. E.g. Bun ×2, Patty ×1. An ingredient that isn't stock-tracked yet is switched on when you save."
           >
             <div className="mb-2 flex justify-end">
               <button

@@ -146,3 +146,30 @@ export function useTaxReport(period: string, enabled: boolean) {
     placeholderData: keepPreviousData,
   });
 }
+
+export function useMarginsReport(period: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["reports", "margins", period],
+    queryFn: async () => (await expensesService.marginsReport({ period })).data,
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** A snapshot of the shelves, not a period — no `period` in the key. */
+export function useValuationReport(enabled: boolean) {
+  return useQuery({
+    queryKey: ["reports", "valuation"],
+    queryFn: async () => (await expensesService.valuationReport()).data,
+    enabled,
+  });
+}
+
+export function useDeadStockReport(days: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["reports", "dead-stock", days],
+    queryFn: async () => (await expensesService.deadStockReport({ days })).data,
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}

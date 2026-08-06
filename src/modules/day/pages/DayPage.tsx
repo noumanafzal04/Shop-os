@@ -32,8 +32,18 @@ const TENDER_LABELS: Record<string, string> = {
   trade_in: "Traded in",
 };
 
+/**
+ * A trading date is a CALENDAR day, and the backend sends it as an ISO instant
+ * at UTC midnight. Handing that to `new Date()` renders as the day before for
+ * anyone west of Greenwich, so the date is rebuilt in local time from its parts.
+ */
+function calendarDay(value: string, opts: Intl.DateTimeFormatOptions): string {
+  const [y, m, d] = value.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, opts);
+}
+
 const dayDate = (d: string) =>
-  new Date(d).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  calendarDay(d, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
 const clock = (t: string | null) =>
   t ? new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—";
@@ -149,8 +159,10 @@ export default function DayPage() {
     setPage(1);
   };
   const listParams = { from: range.from || undefined, to: range.to || undefined, page };
-  const history = useDayHistory(listParams);
-  const deposits = useDeposits(listParams);
+  // Only the visible tab fetches. Today is the tab people land on, and it has
+  // no use for either list.
+  const history = useDayHistory(listParams, tab === "history");
+  const deposits = useDeposits(listParams, tab === "banking");
   const pagination = (tab === "history" ? history.data : deposits.data)?.meta.pagination;
 
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -504,7 +516,9 @@ export default function DayPage() {
                         {d.slip_number ?? <span className="font-sans text-gray-400">no slip</span>}
                       </td>
                       <td className="px-5 py-3 text-gray-600 dark:text-gray-400">
-                        {d.business_day ? new Date(d.business_day.trading_date).toLocaleDateString() : "—"}
+                        {d.business_day
+                          ? calendarDay(d.business_day.trading_date, { day: "numeric", month: "short", year: "numeric" })
+                          : "—"}
                       </td>
                       <td className="px-5 py-3 text-gray-600 dark:text-gray-400">{signerName(d.deposited_by) ?? "—"}</td>
                       <td className="px-5 py-3 text-right font-semibold tabular-nums text-gray-800 dark:text-white/90">

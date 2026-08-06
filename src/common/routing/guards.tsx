@@ -66,11 +66,42 @@ export function RequireSetupComplete() {
  * typing its URL (hiding the sidebar link is not access control). Applies to
  * shop_owner and staff alike — the flag belongs to the shop, not the person.
  * A missing key reads as OFF, mirroring the server's EnsureFeature middleware.
+ *
+ * A list of modules reads as ANY of them, exactly like `feature:a,b` on the
+ * server: the catalog belongs to a shop that sells goods OR bills labour.
  */
-export function RequireFeature({ feature }: { feature: string }) {
+export function RequireFeature({ feature }: { feature: string | string[] }) {
   const features = useAuthStore((s) => s.user?.tenant?.features);
+  const wanted = Array.isArray(feature) ? feature : [feature];
 
-  if (!features?.[feature]) {
+  if (!wanted.some((f) => features?.[f])) {
+    return <Navigate to="/tenant" replace />;
+  }
+
+  return <Outlet />;
+}
+
+/**
+ * Permission gate: the person, where RequireFeature gates the shop.
+ *
+ * The sidebar hides what a staff member may not do, but a hidden link is a
+ * courtesy, not a lock — without this, a cashier who typed /tenant/staff got
+ * the screen, the queries, and a 403 from every one of them. Sending them home
+ * is both the honest answer and the readable one.
+ *
+ * Scope owners hold every permission implicitly (see authStore.hasPermission),
+ * so this only ever narrows staff.
+ */
+export function RequirePermission({ permission }: { permission: string }) {
+  // Subscribe to the permission LIST, not to the store's hasPermission — that
+  // is a stable closure, so a fresh /me changing what a staff member holds
+  // would not re-run this gate.
+  const role = useAuthStore((s) => s.user?.role);
+  const permissions = useAuthStore((s) => s.user?.permissions);
+
+  const allowed = role === "shop_owner" || (permissions?.includes(permission) ?? false);
+
+  if (!allowed) {
     return <Navigate to="/tenant" replace />;
   }
 

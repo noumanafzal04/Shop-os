@@ -52,6 +52,13 @@ export interface Tenant {
   subscription_state?: "active" | "grace" | "read_only";
   grace_ends_at?: string | null;
   business_type?: string | null;
+  /**
+   * The current type the shop's code stands for — identical to business_type
+   * for every type in the picker, and the type that absorbed it for an older
+   * code (clinic → pharmacy, workshop → automotive). Anything deciding what
+   * the business IS reads this; business_type is what the admin chose.
+   */
+  business_type_primary?: string | null;
   logo_path: string | null;
   address: string | null;
   deleted_at?: string | null;

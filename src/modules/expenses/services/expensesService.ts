@@ -152,7 +152,80 @@ export const expensesService = {
     apiGet<StaffReport>("/reports/staff", { params }),
   taxReport: (params: { period: string }) =>
     apiGet<TaxReport>("/reports/tax", { params }),
+
+  /** What each item actually earned — revenue crowns the expensive, margin crowns what pays. */
+  marginsReport: (params: { period: string }) =>
+    apiGet<MarginsReport>("/reports/margins", { params }),
+  /** What the shelves are worth. Branch-scoped by the active branch header. */
+  valuationReport: () => apiGet<ValuationReport>("/reports/valuation"),
+  /** Stock nobody has bought inside the window. */
+  deadStockReport: (params: { days: number }) =>
+    apiGet<DeadStockReport>("/reports/dead-stock", { params }),
 };
+
+export interface MarginLine {
+  name: string;
+  category: string;
+  units: number;
+  revenue: number;
+  cogs: number;
+  profit: number;
+  /** Null when nothing was taken — 0% would read as break-even on a giveaway. */
+  margin_pct: number | null;
+}
+
+export interface MarginsReport {
+  period: { from: string; to: string };
+  totals: { revenue: number; cogs: number; profit: number; margin_pct: number | null };
+  best: MarginLine[];
+  /** Sold below cost — almost always a costing mistake, invisible in a revenue ranking. */
+  losing: MarginLine[];
+  by_category: Array<{ category: string; revenue: number; cogs: number; profit: number; margin_pct: number | null }>;
+}
+
+export interface ValuationReport {
+  branch_scope: string | null;
+  totals: {
+    lines: number;
+    units: number;
+    cost_value: number;
+    retail_value: number;
+    potential_profit: number;
+    /** In the retail figure but not the cost one — the margin above is optimistic by this much. */
+    uncosted_items: number;
+    uncosted_units: number;
+  };
+  by_category: Array<{ category: string; units: number; cost_value: number; retail_value: number }>;
+  items: Array<{
+    product_id: string;
+    variant_id: string | null;
+    name: string;
+    sku: string | null;
+    category: string;
+    quantity: number;
+    cost: number | null;
+    cost_value: number;
+    retail_value: number;
+  }>;
+}
+
+export interface DeadStockReport {
+  branch_scope: string | null;
+  days: number;
+  totals: { lines: number; units: number; value: number; never_sold: number };
+  items: Array<{
+    product_id: string;
+    name: string;
+    sku: string | null;
+    category: string;
+    quantity: number;
+    cost: number;
+    value: number;
+    /** Null means it has NEVER sold — a buying mistake, not a selling one. */
+    last_sold_at: string | null;
+    days_idle: number | null;
+  }>;
+}
 
 export interface PurchasesReport {
   period: { from: string; to: string };
