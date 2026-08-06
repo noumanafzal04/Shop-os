@@ -43,6 +43,9 @@ export default function InventoryPage() {
   const [bExpiry, setBExpiry] = useState("");
   const [bQty, setBQty] = useState("");
   const [bCost, setBCost] = useState("");
+  // The four digits off a tyre's sidewall. Optional everywhere; the shops that
+  // need it need it badly, and nobody else ever sees the consequence.
+  const [bDot, setBDot] = useState("");
   const batches = useBatches(batchTarget?.id ?? null);
 
   const movements = useMovements({ product_id: target?.id });
@@ -61,10 +64,11 @@ export default function InventoryPage() {
         productId: batchTarget.id,
         batch_number: bNo.trim(),
         expiry_date: bExpiry || undefined,
+        dot_code: bDot.length === 4 ? bDot : undefined,
         quantity: Number(bQty),
         cost: bCost ? Number(bCost) : undefined,
       },
-      { onSuccess: () => { setBNo(""); setBExpiry(""); setBQty(""); setBCost(""); } },
+      { onSuccess: () => { setBNo(""); setBExpiry(""); setBQty(""); setBCost(""); setBDot(""); } },
     );
   };
 
@@ -383,6 +387,13 @@ export default function InventoryPage() {
             )}
           </div>
           <div>
+            <Label>DOT code (tyres)</Label>
+            <Input value={bDot} onChange={(e) => setBDot(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 2224" />
+            <p className="mt-1 text-theme-xs text-gray-400">
+              Week then year off the sidewall — rubber ages on the shelf.
+            </p>
+          </div>
+          <div>
             <Label>Quantity</Label>
             <Input type="number" min="0" step={batchTarget?.sold_by === "weight" ? 0.001 : 1} value={bQty} onChange={(e) => setBQty(e.target.value)} />
           </div>
@@ -414,6 +425,21 @@ export default function InventoryPage() {
                     <span className="text-gray-700 dark:text-gray-300">
                       <span className="font-mono">{b.batch_number}</span> · {qty(b.quantity)} left
                       {expired && <span className="ml-2 text-error-500">EXPIRED</span>}
+                      {/* Age, not expiry. "old" is a nudge to price it or send
+                          it back — never a block on selling it. */}
+                      {b.age && (
+                        <span
+                          className={`ml-2 rounded px-1.5 py-0.5 text-theme-xs ${
+                            b.age_status === "old"
+                              ? "bg-error-50 text-error-600 dark:bg-error-500/10"
+                              : b.age_status === "ageing"
+                                ? "bg-warning-50 text-warning-600 dark:bg-warning-500/10"
+                                : "text-gray-400"
+                          }`}
+                        >
+                          {b.age} old{b.dot_code ? ` · DOT ${b.dot_code}` : ""}
+                        </span>
+                      )}
                     </span>
                     <span className="flex items-center gap-2">
                       {/* Lot metadata is editable in place (e.g. filling in the

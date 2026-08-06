@@ -13,6 +13,8 @@ import { ApiError } from "../../../common/types/api";
 import { apiGet } from "../../../common/api/client";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCategories, useProducts } from "../../catalog/hooks/useCatalog";
+import { useVehicleLookup, useVehicleMutations } from "../../vehicles/hooks/useVehicles";
+import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { catalogService } from "../../catalog/services/catalogService";
 import type { Product as CatalogProduct, ProductUnit } from "../../catalog/types";
 import { salesService } from "../../sales/services/salesService";
@@ -203,6 +205,15 @@ export default function PosPage() {
   // existing tenants). Food shops browse a visual image grid; high-SKU shops
   // (mart, pharmacy, retail…) get a dense, search-first list of rows.
   const isRestaurant = businessType === "food" || businessType === "restaurant";
+  // Taking goods in part-payment moves stock, so it needs the inventory module
+  // — a shop that doesn't count anything has nowhere to put a dead battery.
+  const modules = useAuthStore(
+    (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features,
+  );
+  const has = (key: string) => modules?.[key] ?? false;
+  // The trades that work on vehicles. A grocery never sees the plate field, and
+  // the ones that live by it never have to go looking for it.
+  const isAutoTrade = businessType === "automotive" || businessType === "petroleum";
   const posLayout: "grid" | "list" = isRestaurant ? "grid" : "list";
   const canDiscount = hasPermission("discounts.apply");
   const qc = useQueryClient();
@@ -364,6 +375,38 @@ export default function PosPage() {
   const [method, setMethod] = useState<"cash" | "card" | "credit" | "split">("cash");
   const [tenders, setTenders] = useState<Array<{ method: "cash" | "card" | "bank_transfer" | "credit"; amount: string }>>([{ method: "cash", amount: "" }]);
   const [tendered, setTendered] = useState("");
+  /**
+   * Goods taken in part-payment: the dead battery, the worn set of tyres.
+   *
+   * NOT a discount. The sale keeps its full price and the allowance settles
+   * part of it, so revenue stays true and the scrap becomes stock the shop can
+   * count and sell on. Faking it as a discount lost both.
+   */
+  const [tradeIns, setTradeIns] = useState<Array<{
+    product_id: string; product_name: string; quantity: string; unit_allowance: string; description: string;
+  }>>([]);
+  const [tradeInSearch, setTradeInSearch] = useState("");
+  /**
+   * The vehicle this job is on.
+   *
+   * A tyre shop's real customer key — what a warranty claim hangs off, and what
+   * lets the counter say "your alignment was 11,000 km ago" instead of guessing.
+   * Never required: most trades never touch it.
+   */
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [odometer, setOdometer] = useState("");
+  const [tradeInQuery, setTradeInQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setTradeInQuery(tradeInSearch.trim()), 250);
+    return () => clearTimeout(t);
+  }, [tradeInSearch]);
+  const tradeInResults = useProducts({ search: tradeInQuery || undefined });
+  const vehicleResults = useVehicleLookup(vehicleSearch);
+  const { quickCreate: quickCreateVehicle } = useVehicleMutations();
+  // Only stock items can be taken in: an allowance backed by a service is
+  // backed by nothing you can put on a shelf.
+  const tradeInOptions = (tradeInResults.data?.data ?? []).filter((p) => p.type === "product");
   const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [soundMuted, setSoundMuted] = useState<boolean>(() => posSound.isMuted());
@@ -534,8 +577,15 @@ export default function PosPage() {
   const maxRedeemable = Math.max(0, Math.min(customerPoints ?? 0, Math.floor((subtotal - otherDiscount) / (redeemValue || 1))));
   const earnEst = loyaltyOn && earnPer > 0 && customerPhone.trim() !== "" ? Math.floor(Math.max(0, subtotal - cartDiscount) / earnPer) : 0;
   const splitPaid = tenders.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-  const change = method === "cash" ? Math.max(0, (Number(tendered) || 0) - total)
-    : method === "split" ? Math.max(0, splitPaid - total) : 0;
+  const tradeInTotal = tradeIns.reduce(
+    (s, t) => s + (Number(t.quantity) || 1) * (Number(t.unit_allowance) || 0), 0,
+  );
+  // What the customer still hands over in rupees. Every tender comparison
+  // below works off THIS, not the bill — the goods have already settled their
+  // share, and asking for the full total again would refuse a paid sale.
+  const payable = Math.max(0, Math.round((total - tradeInTotal) * 100) / 100);
+  const change = method === "cash" ? Math.max(0, (Number(tendered) || 0) - payable)
+    : method === "split" ? Math.max(0, splitPaid - payable) : 0;
   const open = session.data;
 
   // Validate a code against a given subtotal and store the resulting discount.
@@ -592,6 +642,8 @@ export default function PosPage() {
 
   const clearSale = () => {
     setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone("");
+    setTradeIns([]); setTradeInSearch("");
+    setVehicle(null); setVehicleSearch(""); setOdometer("");
     setTableNo(""); setOrderType("takeaway"); setMethod("cash"); setTenders([{ method: "cash", amount: "" }]); clearCoupon();
     setRxNumber(""); setRxPrescriber(""); setRxPatient("");
     setCustomerPoints(null); setRedeemPts(""); setPromo(null);
@@ -634,7 +686,25 @@ export default function PosPage() {
         // Split payment sends the tender breakdown; otherwise a single tender.
         ...(method === "split"
           ? { payments: tenders.filter((t) => Number(t.amount) > 0).map((t) => ({ method: t.method, amount: Number(t.amount) })) }
-          : { payment_method: method, amount_paid: method === "cash" ? Number(tendered) || total : total }),
+          : { payment_method: method, amount_paid: method === "cash" ? Number(tendered) || payable : payable }),
+        // Only the lines — never an amount. The server computes the allowance
+        // and adds it as a `trade_in` tender itself, because a till that could
+        // name its own would be able to settle any bill with nothing crossing
+        // the counter.
+        ...(tradeIns.length > 0
+          ? {
+              trade_ins: tradeIns.map((t) => ({
+                product_id: t.product_id,
+                quantity: Number(t.quantity) || 1,
+                unit_allowance: Number(t.unit_allowance) || 0,
+                description: t.description.trim() || undefined,
+              })),
+            }
+          : {}),
+        // Auto: the vehicle worked on, and the reading taken while it was on
+        // the ramp. The vehicle's own record moves forward from this.
+        ...(vehicle ? { vehicle_id: vehicle.id } : {}),
+        ...(odometer ? { odometer: Number(odometer) } : {}),
         // Pharmacy: prescription record (sent when the cashier filled it in).
         ...(rxNumber || rxPrescriber || rxPatient
           ? { prescription_number: rxNumber || undefined, prescriber_name: rxPrescriber || undefined, patient_name: rxPatient || undefined }
@@ -934,13 +1004,16 @@ export default function PosPage() {
   const cartHasRx = cart.some((l) => l.requires_prescription);
   const splitHasCredit = method === "split" && tenders.some((t) => t.method === "credit" && Number(t.amount) > 0);
   const creditNeedsCustomer = (method === "credit" || splitHasCredit) && !hasCustomer;
-  const canCheckout = cart.length > 0 && !!open && !creditNeedsCustomer && (
-    method === "cash" ? (Number(tendered) || 0) >= total
+  // The allowance can never exceed the bill: the shop would owe the customer
+  // money for their scrap, which is buying stock, not selling any.
+  const tradeInTooBig = tradeInTotal > total;
+  const canCheckout = cart.length > 0 && !!open && !creditNeedsCustomer && !tradeInTooBig && (
+    method === "cash" ? (Number(tendered) || 0) >= payable
       : method === "credit" ? total > 0
-      : method === "split" ? total > 0 && splitPaid >= total
+      : method === "split" ? total > 0 && splitPaid >= payable
       : true
   );
-  const quickTenders = [total, Math.ceil(total / 500) * 500, Math.ceil(total / 1000) * 1000, Math.ceil(total / 5000) * 5000]
+  const quickTenders = [payable, Math.ceil(payable / 500) * 500, Math.ceil(payable / 1000) * 1000, Math.ceil(payable / 5000) * 5000]
     .filter((v, i, a) => v > 0 && a.indexOf(v) === i)
     .slice(0, 4);
 
@@ -948,7 +1021,7 @@ export default function PosPage() {
   actionsRef.current = {
     focusSearch: () => scanRef.current?.focus(),
     hold: () => { if (cart.length > 0) askHold(); },
-    pay: () => { if (cart.length > 0 && open) { setMethod("cash"); setTendered((t) => t || String(total)); tenderModal.openModal(); } },
+    pay: () => { if (cart.length > 0 && open) { setMethod("cash"); setTendered((t) => t || String(payable)); tenderModal.openModal(); } },
     openHeld: () => { held.refetch(); heldModal.openModal(); },
     document: () => { if (cart.length > 0) documentModal.openModal(); },
     clearSearch: () => setSearch(""),
@@ -1568,6 +1641,77 @@ export default function PosPage() {
                 </div>
               )}
 
+              {/* Auto: the vehicle on the ramp. A tyre shop's real customer
+                  key — what a warranty claim hangs off, and what lets the
+                  counter say "your alignment was 11,000 km ago" instead of
+                  guessing. Shown for the trades that work on vehicles; never
+                  required, and invisible everywhere else. */}
+              {isAutoTrade && (
+                <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                  {vehicle === null ? (
+                    <>
+                      <div className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Vehicle (optional)</div>
+                      <input
+                        value={vehicleSearch}
+                        onChange={(e) => setVehicleSearch(e.target.value.toUpperCase())}
+                        placeholder="Registration — e.g. LEA-1234"
+                        className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 font-mono text-theme-sm uppercase dark:border-gray-700 dark:bg-gray-900"
+                      />
+                      {vehicleSearch.trim().length >= 2 && (
+                        <div className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                          {(vehicleResults.data ?? []).map((v) => (
+                            <button key={v.id} type="button"
+                              onClick={() => { setVehicle(v); setVehicleSearch(""); }}
+                              className="block w-full px-2 py-1.5 text-left text-theme-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5">
+                              <span className="font-mono font-medium">{v.registration}</span>
+                              {(v.make || v.model) && <span className="text-gray-400"> · {[v.make, v.model].filter(Boolean).join(" ")}</span>}
+                              {v.tyre_size && <span className="text-gray-400"> · {v.tyre_size}</span>}
+                            </button>
+                          ))}
+                          {/* A plate nobody has seen before is the normal case,
+                              not an error — register it without leaving the sale. */}
+                          {(vehicleResults.data ?? []).length === 0 && !vehicleResults.isLoading && (
+                            <button type="button"
+                              disabled={quickCreateVehicle.isPending}
+                              onClick={() =>
+                                quickCreateVehicle.mutate(
+                                  { registration: vehicleSearch.trim() },
+                                  { onSuccess: ({ data }) => { setVehicle(data); setVehicleSearch(""); } },
+                                )
+                              }
+                              className="block w-full px-2 py-2 text-left text-theme-sm text-brand-600 transition hover:bg-gray-50 dark:hover:bg-white/5">
+                              + Register <span className="font-mono font-medium">{vehicleSearch.trim()}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-semibold text-gray-800 dark:text-white/90">{vehicle.registration}</span>
+                          <button onClick={() => { setVehicle(null); setOdometer(""); }} className="text-gray-400 hover:text-error-500" aria-label="Remove vehicle">
+                            <CloseIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <div className="truncate text-theme-xs text-gray-400">
+                          {[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "No make recorded"}
+                          {vehicle.tyre_size ? ` · takes ${vehicle.tyre_size}` : ""}
+                          {vehicle.odometer ? ` · last seen at ${vehicle.odometer.toLocaleString()} km` : ""}
+                        </div>
+                      </div>
+                      <input
+                        type="number" min="0" value={odometer}
+                        onChange={(e) => setOdometer(e.target.value)}
+                        placeholder="Odometer"
+                        className="h-9 w-32 rounded-lg border border-gray-200 bg-white px-3 text-theme-sm dark:border-gray-700 dark:bg-gray-900"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Pharmacy: prescription capture — shown when the cart holds an
                   Rx-required medicine. Optional, but recorded on the sale. */}
               {cartHasRx && (
@@ -1612,7 +1756,7 @@ export default function PosPage() {
                 <div className="text-theme-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">Grand Total</div>
                 <div className="mb-2.5 mt-0.5 text-4xl font-extrabold tabular-nums text-gray-900 dark:text-white">{money(total)}</div>
                 <button type="button" disabled={cart.length === 0 || !open}
-                  onClick={() => { setMethod("cash"); setTendered((t) => t || String(total)); tenderModal.openModal(); }}
+                  onClick={() => { setMethod("cash"); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40">
                   <CardGlyph /> Tender / Pay <kbd className="rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px]">F9</kbd>
                 </button>
@@ -1769,10 +1913,93 @@ export default function PosPage() {
             <button onClick={tenderModal.closeModal} className="text-gray-400 hover:text-gray-700"><CloseIcon className="h-5 w-5" /></button>
           </div>
           <div className="px-6 py-5">
-            <div className="mb-5 flex items-baseline justify-between rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10">
-              <span className="text-theme-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">Amount due</span>
-              <span className="text-3xl font-extrabold tabular-nums text-gray-900 dark:text-white">{money(total)}</span>
+            <div className="mb-5 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10">
+              <div className="flex items-baseline justify-between">
+                <span className="text-theme-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+                  {tradeInTotal > 0 ? "To pay" : "Amount due"}
+                </span>
+                <span className="text-3xl font-extrabold tabular-nums text-gray-900 dark:text-white">{money(payable)}</span>
+              </div>
+              {/* The bill and the goods, stated separately. The customer is
+                  being charged the full price — their old unit is settling part
+                  of it, not reducing what the shop asked for. */}
+              {tradeInTotal > 0 && (
+                <div className="mt-2 space-y-0.5 border-t border-brand-200/60 pt-2 text-theme-xs dark:border-brand-500/20">
+                  <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                    <span>Bill</span><span className="tabular-nums">{money(total)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                    <span>Traded in</span><span className="tabular-nums">− {money(tradeInTotal)}</span>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* ── Goods taken in part-payment ───────────────────────────
+                The dead battery on the counter. Recorded as a tender, so the
+                sale keeps its price and the scrap becomes stock the shop can
+                count — instead of a discount that loses both. */}
+            {has("inventory") && (
+              <div className="mb-5 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-theme-sm font-medium text-gray-500 dark:text-gray-400">Take goods in part-payment</span>
+                  {tradeInTotal > 0 && (
+                    <span className="text-theme-sm font-semibold tabular-nums text-gray-700 dark:text-gray-200">{money(tradeInTotal)}</span>
+                  )}
+                </div>
+
+                {tradeIns.map((t, i) => (
+                  <div key={i} className="mb-2 rounded-lg bg-gray-50 p-2 dark:bg-white/[0.04]">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <span className="min-w-0 flex-1 truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">{t.product_name}</span>
+                      <button onClick={() => setTradeIns((xs) => xs.filter((_, j) => j !== i))} className="text-gray-400 hover:text-error-500" aria-label="Remove trade-in">
+                        <CloseIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Input type="number" min="0" step={1} value={t.quantity} placeholder="Qty"
+                        onChange={(e) => setTradeIns((xs) => xs.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
+                      <Input type="number" min="0" value={t.unit_allowance} placeholder="Allowance"
+                        onChange={(e) => setTradeIns((xs) => xs.map((x, j) => (j === i ? { ...x, unit_allowance: e.target.value } : x)))} />
+                      <Input value={t.description} placeholder="e.g. Osaka 70Ah"
+                        onChange={(e) => setTradeIns((xs) => xs.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
+                    </div>
+                  </div>
+                ))}
+
+                <Input value={tradeInSearch} placeholder="Search the item taken in — scrap battery, used tyre…"
+                  onChange={(e) => setTradeInSearch(e.target.value)} />
+                {tradeInSearch.trim().length > 1 && (
+                  <div className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                    {tradeInOptions.length === 0 ? (
+                      <p className="px-2 py-3 text-center text-theme-xs text-gray-400">
+                        No stock item matches. Add one (e.g. "Scrap Battery") so what comes in can be counted.
+                      </p>
+                    ) : (
+                      tradeInOptions.map((p) => (
+                        <button key={p.id} type="button"
+                          onClick={() => {
+                            setTradeIns((xs) => [...xs, {
+                              product_id: p.id, product_name: p.name,
+                              quantity: "1", unit_allowance: "", description: "",
+                            }]);
+                            setTradeInSearch("");
+                          }}
+                          className="block w-full truncate px-2 py-1.5 text-left text-theme-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5">
+                          {p.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {tradeInTooBig && (
+                  <p className="mt-2 text-theme-xs text-error-500">
+                    The allowance is more than the bill. The shop would owe them money — record that as a purchase instead.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Payment method</div>
             <div className="mb-5 grid grid-cols-4 gap-2">
               {(["cash", "card", "credit", "split"] as const).map((m) => (
@@ -1804,7 +2031,7 @@ export default function PosPage() {
             )}
             {method === "credit" && (
               <div className={`rounded-lg border p-3 text-theme-sm ${creditNeedsCustomer ? "border-error-200 bg-error-50 text-error-600 dark:border-error-500/30 dark:bg-error-500/10" : "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"}`}>
-                {creditNeedsCustomer ? "Attach a customer (Customer button) to sell on credit — the balance is tracked against them." : <>Adds <span className="font-semibold">{money(total)}</span> to {customer || customerPhone}'s khata (to pay later).</>}
+                {creditNeedsCustomer ? "Attach a customer (Customer button) to sell on credit — the balance is tracked against them." : <>Adds <span className="font-semibold">{money(payable)}</span> to {customer || customerPhone}'s khata (to pay later).</>}
               </div>
             )}
             {method === "split" && (
@@ -1821,7 +2048,7 @@ export default function PosPage() {
                 ))}
                 <div className="flex items-center justify-between">
                   <button onClick={() => setTenders((ts) => [...ts, { method: "card", amount: "" }])} className="flex items-center gap-1 text-theme-sm text-brand-600 hover:underline"><PlusIcon className="h-4 w-4" /> Add tender</button>
-                  <span className={`text-theme-sm font-medium ${splitPaid >= total ? "text-success-600" : "text-warning-500"}`}>{splitPaid >= total ? `Change ${money(change)}` : `Remaining ${money(total - splitPaid)}`}</span>
+                  <span className={`text-theme-sm font-medium ${splitPaid >= payable ? "text-success-600" : "text-warning-500"}`}>{splitPaid >= payable ? `Change ${money(change)}` : `Remaining ${money(payable - splitPaid)}`}</span>
                 </div>
               </div>
             )}
@@ -1831,7 +2058,7 @@ export default function PosPage() {
           <div className="flex gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
             <Button size="sm" variant="outline" onClick={tenderModal.closeModal}>Cancel</Button>
             <Button size="sm" className="flex-1" onClick={() => checkout.mutate()} disabled={!canCheckout || checkout.isPending}>
-              {checkout.isPending ? "Processing…" : method === "credit" ? `Complete · on credit ${money(total)}` : `Complete sale · ${money(total)}`}
+              {checkout.isPending ? "Processing…" : method === "credit" ? `Complete · on credit ${money(total)}` : `Complete sale · ${money(payable)}`}
             </Button>
           </div>
         </div>

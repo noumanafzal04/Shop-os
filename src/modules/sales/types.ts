@@ -41,6 +41,9 @@ export interface Sale {
   total: string;
   payment_method: PaymentMethod;
   amount_paid: string;
+  /** How much of the bill was settled in goods rather than rupees. */
+  trade_in_total?: string;
+  trade_ins?: SaleTradeIn[];
   change_due: string;
   notes: string | null;
   sold_at: string;
@@ -102,6 +105,17 @@ export interface SaleLineInput {
   modifier_option_ids?: string[];
 }
 
+export interface SaleTradeIn {
+  id: string;
+  product_id: string | null;
+  product_name: string;
+  description: string | null;
+  quantity: string;
+  unit_allowance: string;
+  total_allowance: string;
+  reversed_at: string | null;
+}
+
 export interface SaleInput {
   channel: SaleChannel;
   customer_name?: string;
@@ -119,6 +133,21 @@ export interface SaleInput {
   amount_paid?: number;
   // Multi-tender / split payment; when present it replaces the single tender.
   payments?: TenderInput[];
+  /**
+   * Goods taken in part-payment — the dead battery, the worn tyres.
+   *
+   * Note there is no amount: the allowance is quantity × unit_allowance and the
+   * server computes it, then adds a `trade_in` tender of its own. A till that
+   * could name its own trade-in amount could settle any bill with nothing
+   * changing hands.
+   */
+  trade_ins?: Array<{
+    product_id: string;
+    quantity?: number;
+    unit_allowance: number;
+    description?: string;
+    notes?: string;
+  }>;
   notes?: string;
   // Pharmacy: prescription record captured for a sale of Rx-required items.
   prescription_number?: string;

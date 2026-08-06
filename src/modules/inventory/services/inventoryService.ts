@@ -5,7 +5,18 @@ export interface ProductBatch {
   id: string;
   product_id: string;
   batch_number: string;
+  /** A fence: a medicine past it may not be dispensed. */
   expiry_date: string | null;
+  /**
+   * An AGE, not a fence. From a tyre's DOT code — 2224 is week 22 of 2024.
+   * Rubber ages sitting still, so the shop needs to see how old a lot is and
+   * sell the oldest first. Nothing is ever blocked on it.
+   */
+  dot_code?: string | null;
+  manufactured_on?: string | null;
+  /** Computed server-side; changes every day on its own. */
+  age?: string | null;
+  age_status?: "fresh" | "ageing" | "old" | null;
   quantity: number | string;
   cost: number | string | null;
 }
@@ -53,9 +64,23 @@ export const inventoryService = {
   lowStock: () => apiGet<Product[]>("/inventory/low-stock"),
 
   batches: (productId: string) => apiGet<ProductBatch[]>(`/inventory/products/${productId}/batches`),
-  addBatch: (productId: string, payload: { batch_number: string; expiry_date?: string; quantity: number; cost?: number }) =>
+  addBatch: (
+    productId: string,
+    payload: {
+      batch_number: string;
+      expiry_date?: string;
+      /** Four digits off a tyre's sidewall: 2224 = week 22 of 2024. */
+      dot_code?: string;
+      manufactured_on?: string;
+      quantity: number;
+      cost?: number;
+    },
+  ) =>
     apiPost<ProductBatch>(`/inventory/products/${productId}/batches`, payload),
-  updateBatch: (id: string, payload: { batch_number?: string; expiry_date?: string | null }) =>
+  updateBatch: (
+    id: string,
+    payload: { batch_number?: string; expiry_date?: string | null; dot_code?: string | null; manufactured_on?: string | null },
+  ) =>
     apiPatch<ProductBatch>(`/inventory/batches/${id}`, payload),
   removeBatch: (id: string) => apiDelete<null>(`/inventory/batches/${id}`),
   expiring: (days = 30) => apiGet<ExpiringBatch[]>("/inventory/expiring", { params: { days } }),

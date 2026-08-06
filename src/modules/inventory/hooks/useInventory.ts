@@ -43,12 +43,18 @@ export function useBatchMutations() {
     qc.invalidateQueries({ queryKey: ["products"] });
   };
   const add = useMutation({
-    mutationFn: ({ productId, ...payload }: { productId: string; batch_number: string; expiry_date?: string; quantity: number; cost?: number }) =>
+    mutationFn: ({ productId, ...payload }: {
+      productId: string; batch_number: string; expiry_date?: string;
+      dot_code?: string; manufactured_on?: string; quantity: number; cost?: number;
+    }) =>
       inventoryService.addBatch(productId, payload),
     onSuccess: invalidate,
   });
   const update = useMutation({
-    mutationFn: ({ id, ...payload }: { id: string; batch_number?: string; expiry_date?: string | null }) =>
+    mutationFn: ({ id, ...payload }: {
+      id: string; batch_number?: string; expiry_date?: string | null;
+      dot_code?: string | null; manufactured_on?: string | null;
+    }) =>
       inventoryService.updateBatch(id, payload),
     onSuccess: invalidate,
   });

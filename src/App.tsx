@@ -38,6 +38,7 @@ const ShopSettingsPage = lazy(() => import("./modules/shop/pages/ShopSettingsPag
 const BranchesPage = lazy(() => import("./modules/branches/pages/BranchesPage"));
 const TransfersPage = lazy(() => import("./modules/transfers/pages/TransfersPage"));
 const WarrantyLookupPage = lazy(() => import("./modules/warranty/pages/WarrantyLookupPage"));
+const VehiclesPage = lazy(() => import("./modules/vehicles/pages/VehiclesPage"));
 const SubscriptionPage = lazy(() => import("./modules/shop/pages/SubscriptionPage"));
 const ShopDashboard = lazy(() => import("./pages/Dashboard/ShopDashboard"));
 const ShopSetupPage = lazy(() => import("./modules/shop/pages/ShopSetupPage"));
@@ -217,6 +218,12 @@ export default function App() {
                   </Route>
                   <Route path="staff" element={<TenantStaffPage />} />
                   <Route path="branches" element={<BranchesPage />} />
+                  {/* Vehicles are customer data, so they ride the products
+                      gate like the CRM does — the sidebar decides which trades
+                      ever see the screen. */}
+                  <Route element={<RequireFeature feature="products" />}>
+                    <Route path="vehicles" element={<VehiclesPage />} />
+                  </Route>
                   <Route element={<RequireFeature feature="inventory" />}>
                     <Route path="transfers" element={<TransfersPage />} />
                     <Route path="warranty" element={<WarrantyLookupPage />} />

@@ -171,6 +171,12 @@ function shopNav(
         ...(has("inventory") && businessType === "pharmacy"
           ? [{ name: "Pharmacy", path: "/tenant/pharmacy" }]
           : []),
+        // A tyre or auto shop's real customer key: the plate, what the car
+        // takes, and what was fitted last time. Only the trades that work on
+        // vehicles — a grocery would never open it twice.
+        ...(has("products") && (businessType === "automotive" || businessType === "petroleum")
+          ? [{ name: "Vehicles", path: "/tenant/vehicles" }]
+          : []),
         // Serialized retail (phones/electronics) — look up a serial's warranty.
         // Retail-only: a grocery or pharmacy never sells a serial-tracked unit.
         ...(has("pos") && has("inventory") && businessType === "retail"
