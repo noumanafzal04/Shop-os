@@ -10,8 +10,12 @@ use App\Models\CashMovement;
 use App\Models\Income;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\CsvExport;
+use App\Support\MoneyEntryFilters;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Manual, non-sales income entries (rent received, owner investment, supplier
@@ -24,20 +28,49 @@ class IncomeController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $query = $this->filtered($request)->with('category:id,name');
+        $totals = MoneyEntryFilters::totals($query);
+
+        $incomes = $query->paginate(min((int) $request->query('per_page', 15), 100));
+
+        return ApiResponse::paginated($incomes, 'OK', ['totals' => $totals]);
+    }
+
+    /** The filtered rows as a CSV — see ExpenseController::export. */
+    public function export(Request $request): StreamedResponse
+    {
+        $rows = $this->filtered($request)
+            ->with('category:id,name')
+            ->get()
+            ->map(fn (Income $i): array => [
+                $i->income_date?->toDateString(),
+                $i->category?->name,
+                $i->description,
+                $i->reference,
+                $i->payment_method,
+                $i->amount,
+                $i->notes,
+            ])
+            ->all();
+
+        return CsvExport::stream(
+            'income-'.now()->format('Y-m-d').'.csv',
+            ['Date', 'Category', 'Description', 'Reference', 'Method', 'Amount', 'Notes'],
+            $rows,
+        );
+    }
+
+    /** @return Builder<Income> */
+    private function filtered(Request $request): Builder
+    {
         $branchScope = $this->branch->scopeId();
 
-        $incomes = Income::query()
-            ->with('category:id,name')
-            ->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b))
-            ->when($request->query('search'), fn ($q, $s) => $q->where('description', 'like', "%{$s}%"))
-            ->when($request->query('category_id'), fn ($q, $id) => $q->where('income_category_id', $id))
-            ->when($request->query('from'), fn ($q, $from) => $q->where('income_date', '>=', $from))
-            ->when($request->query('to'), fn ($q, $to) => $q->where('income_date', '<=', $to))
-            ->orderByDesc('income_date')
-            ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
-
-        return ApiResponse::paginated($incomes);
+        return MoneyEntryFilters::apply(
+            Income::query()->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b)),
+            $request,
+            'income_date',
+            'income_category_id',
+        );
     }
 
     public function store(StoreIncomeRequest $request, RecordIncomeAction $action): JsonResponse

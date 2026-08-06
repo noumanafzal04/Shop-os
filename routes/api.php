@@ -490,6 +490,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('expenses/budgets', [ExpenseBudgetController::class, 'index']);
                 Route::post('expenses/budgets', [ExpenseBudgetController::class, 'store']);
 
+                // Before the resource, or "export" is swallowed as an {expense}.
+                Route::get('expenses/export', [ExpenseController::class, 'export']);
                 Route::apiResource('expenses', ExpenseController::class)->except(['show']);
                 // The photo of the bill.
                 Route::post('expenses/{expense}/attachment', [ExpenseController::class, 'attach']);
@@ -498,12 +500,22 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Income is the other half of the same module.
                 Route::apiResource('income-categories', IncomeCategoryController::class)
                     ->except(['show']);
+                Route::get('incomes/export', [IncomeController::class, 'export']);
                 Route::apiResource('incomes', IncomeController::class)->except(['show']);
 
                 // Cashbook: unified money-in / money-out ledger. DERIVES sales
                 // revenue + refunds + expenses (never duplicates them) and adds
                 // the manual income entries — a day-by-day running balance.
                 Route::get('/cashbook', [ReportController::class, 'cashbook']);
+
+                // The ledger is the Cashbook at line level: every movement, in
+                // the order it happened, balance carried down. It rides the
+                // Expense module rather than reports.view because for a
+                // books-only shop this IS the module they bought — gating it
+                // behind a reporting permission would put a Finance Manager's
+                // only real screen out of their own reach.
+                Route::get('/ledger', [ReportController::class, 'ledger']);
+                Route::get('/ledger/export', [ReportController::class, 'exportLedger']);
             });
 
             // Reports

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Services\LedgerService;
 use App\Services\ReportService;
 use App\Services\StockReportService;
 use App\Support\ApiResponse;
@@ -74,6 +75,50 @@ class ReportController extends Controller
 
         return ApiResponse::ok(
             $reports->cashbook($context->id(), $p['from'], $p['to'], $p['granularity']),
+        );
+    }
+
+    /**
+     * The ledger: every movement, one row each, balance carried down the page.
+     *
+     * The Cashbook above says what each DAY came to. This says what each day
+     * was MADE of — the bill, the invoice number, the category, the method.
+     * For a books-only business that is not a drill-down, it is the product.
+     */
+    public function ledger(
+        Request $request,
+        LedgerService $ledger,
+        ReportService $reports,
+        TenantContext $context,
+        BranchContext $branch,
+    ): JsonResponse {
+        $p = $this->period($request, $reports);
+
+        $result = $ledger->page($context->id(), $branch->scopeId(), $p['from'], $p['to'], $request);
+        $entries = $result['entries'];
+
+        return ApiResponse::paginated($entries, 'OK', [
+            'period' => ['from' => $p['from'], 'to' => $p['to']],
+            'opening' => $result['opening'],
+            'closing' => $result['closing'],
+            'totals' => $result['totals'],
+        ]);
+    }
+
+    /** The whole filtered ledger as a CSV — an export of page one is not one. */
+    public function exportLedger(
+        Request $request,
+        LedgerService $ledger,
+        ReportService $reports,
+        TenantContext $context,
+        BranchContext $branch,
+    ): StreamedResponse {
+        $p = $this->period($request, $reports);
+
+        return CsvExport::stream(
+            "ledger-{$p['from']}-to-{$p['to']}.csv",
+            ['Date', 'Type', 'Reference', 'Description', 'Category', 'Method', 'In', 'Out', 'Balance'],
+            $ledger->rows($context->id(), $branch->scopeId(), $p['from'], $p['to'], $request),
         );
     }
 

@@ -31,15 +31,23 @@ class ApiResponse
     /**
      * Paginated payload — meta carries the pagination block.
      */
-    public static function paginated(ResourceCollection|LengthAwarePaginator $items, string $message = 'OK'): JsonResponse
-    {
+    /**
+     * @param  array<string, mixed>  $meta  extra meta alongside `pagination` —
+     *                                      e.g. what the FILTERED set totals,
+     *                                      which a page of rows cannot say.
+     */
+    public static function paginated(
+        ResourceCollection|LengthAwarePaginator $items,
+        string $message = 'OK',
+        array $meta = [],
+    ): JsonResponse {
         $paginator = $items instanceof ResourceCollection ? $items->resource : $items;
 
         return self::success(
             $items instanceof ResourceCollection ? $items->collection : $paginator->items(),
             $message,
             200,
-            [
+            $meta + [
                 'pagination' => [
                     'current_page' => $paginator->currentPage(),
                     'per_page' => $paginator->perPage(),

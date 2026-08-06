@@ -9,9 +9,13 @@ use App\Http\Requests\Expense\StoreExpenseRequest;
 use App\Models\Expense;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\CsvExport;
+use App\Support\MoneyEntryFilters;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExpenseController extends Controller
 {
@@ -19,23 +23,64 @@ class ExpenseController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        // Owner "all branches" (scopeId null) sees every expense; a focused
-        // branch view sees only that branch's costs.
+        $query = $this->filtered($request)->with(['category:id,name', 'supplier:id,name']);
+
+        // What the filtered set adds up to, alongside the page of rows. A
+        // merchant who narrows to "rent, this quarter" is asking a question
+        // whose answer is the total — making them add up three pages by hand
+        // is the difference between a book and a list.
+        $totals = MoneyEntryFilters::totals($query);
+
+        $expenses = $query->paginate(min((int) $request->query('per_page', 15), 100));
+
+        return ApiResponse::paginated($expenses, 'OK', ['totals' => $totals]);
+    }
+
+    /**
+     * The filtered rows as a CSV — the same query the merchant is looking at,
+     * not an approximation of it, so what they hand their accountant matches
+     * what they saw on screen.
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        $rows = $this->filtered($request)
+            ->with(['category:id,name', 'supplier:id,name'])
+            ->get()
+            ->map(fn (Expense $e): array => [
+                $e->expense_date?->toDateString(),
+                $e->category?->name,
+                $e->description,
+                $e->reference,
+                $e->supplier?->name,
+                $e->payment_method,
+                $e->amount,
+                $e->notes,
+            ])
+            ->all();
+
+        return CsvExport::stream(
+            'expenses-'.now()->format('Y-m-d').'.csv',
+            ['Date', 'Category', 'Description', 'Reference', 'Paid to', 'Method', 'Amount', 'Notes'],
+            $rows,
+        );
+    }
+
+    /**
+     * Owner "all branches" (scopeId null) sees every expense; a focused branch
+     * view sees only that branch's costs.
+     *
+     * @return Builder<Expense>
+     */
+    private function filtered(Request $request): Builder
+    {
         $branchScope = $this->branch->scopeId();
 
-        $expenses = Expense::query()
-            ->with(['category:id,name', 'supplier:id,name'])
-            ->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b))
-            ->when($request->query('search'), fn ($q, $s) => $q->where('description', 'like', "%{$s}%"))
-            ->when($request->query('category_id'), fn ($q, $id) => $q->where('expense_category_id', $id))
-            ->when($request->query('payment_method'), fn ($q, $m) => $q->where('payment_method', $m))
-            ->when($request->query('from'), fn ($q, $from) => $q->where('expense_date', '>=', $from))
-            ->when($request->query('to'), fn ($q, $to) => $q->where('expense_date', '<=', $to))
-            ->orderByDesc('expense_date')
-            ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
-
-        return ApiResponse::paginated($expenses);
+        return MoneyEntryFilters::apply(
+            Expense::query()->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b)),
+            $request,
+            'expense_date',
+            'expense_category_id',
+        );
     }
 
     public function store(StoreExpenseRequest $request, RecordExpenseAction $action): JsonResponse
