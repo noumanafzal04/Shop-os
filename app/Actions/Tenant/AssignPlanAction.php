@@ -10,28 +10,27 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Assigns (or changes/renews) a tenant's plan and optionally records the
- * payment that bought the period. The Super Admin decides here which bundle a
- * business gets: Business/POS (in-shop only), Online Business (online only),
- * or both.
+ * Assigns, changes or renews a tenant's plan, and records the payment that
+ * bought the period.
  *
- * The plan's `features` are the plan-gated modules it grants (pos, expenses,
- * marketplace…); they're merged over the shop's existing (business-type)
- * modules, so assigning a plan actually turns its modules on/off. Modules the
- * plan doesn't name (products, inventory, images…) are left as the business
- * type set them.
+ * This action moves money and dates. It does NOT touch what the shop can do.
+ *
+ * It used to. A plan carried a module map and assignment merged it over the
+ * tenant's, which meant a renewal — the most routine billing event there is —
+ * silently revoked any module an admin had granted that shop. Nobody was told;
+ * a screen was simply gone the next morning. Modules now belong to the tenant
+ * (Tenant::applyModules) and nothing in billing may rewrite them.
+ *
+ * What a plan still decides is how much the shop may hold: products, storage,
+ * orders a month. Those read through PlanLimits, live, so raising a plan's
+ * product ceiling lifts every shop on it without touching a single tenant row.
  *
  * Billing:
- *  - renewing the SAME plan while still active → new period stacks onto the
- *    current end date (customer doesn't lose paid days)
- *  - switching plans, or renewing after expiry → period starts now
- *  - a payment row is written whenever payment details are supplied (who
- *    paid, how much, for which period) — the billing ledger
- *
- * Edge cases:
- *  - inactive plan → 422 PLAN_INACTIVE
- *  - downgrade (online → in-shop) → online off + marketplace module off,
- *    data PRESERVED
+ *  - renewing the SAME plan while still active → the new period stacks onto
+ *    the current end date, so paid days are never lost
+ *  - switching plans, or renewing after expiry → the period starts now
+ *  - a payment row is written whenever an amount is due (who paid, how much,
+ *    for which period) — the billing ledger
  */
 class AssignPlanAction
 {
@@ -52,14 +51,11 @@ class AssignPlanAction
 
             $tenant->forceFill([
                 'plan_id' => $plan->id,
-                'online_shop_enabled' => $plan->online_shop_enabled,
-                // Plan-gated modules win over the business-type defaults.
-                'features' => array_merge($tenant->features ?? [], $plan->features ?? []),
                 'subscription_starts_at' => $samePlanRenewal ? $tenant->subscription_starts_at : now(),
                 'subscription_ends_at' => $end,
             ])->save();
 
-            // Record payment if amount supplied (free plans skip the ledger).
+            // Record payment if an amount is due (free plans skip the ledger).
             $amount = $payment['amount'] ?? ($plan->price > 0 ? (float) $plan->price : null);
 
             if ($amount !== null && $amount > 0) {

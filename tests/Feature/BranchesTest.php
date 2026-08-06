@@ -12,7 +12,7 @@ use Tests\TestCase;
 
 /**
  * Multi-branch Phase 1: every tenant is born with a default "Main" branch, and
- * adding more branches is gated by the plan's max_branches (Main counts). The
+ * adding more branches is gated by the branches assigned to the shop (Main counts). The
  * Main branch can never be deleted.
  */
 class BranchesTest extends TestCase
@@ -33,19 +33,29 @@ class BranchesTest extends TestCase
         return $this->withToken($token);
     }
 
-    private function planWith(array $limits): Plan
+    private function plan(): Plan
     {
         return Plan::query()->create([
             'name' => 'Test Plan', 'code' => uniqid('plan_'), 'price' => 0,
-            'billing_period_months' => 1, 'online_shop_enabled' => true, 'grace_period_days' => 7,
-            ...$limits,
+            'billing_period_months' => 1, 'grace_period_days' => 7,
         ]);
     }
 
-    /** @return array{0: Tenant, 1: User} */
-    private function shopOn(Plan $plan): array
+    /**
+     * A shop allowed this many branches.
+     *
+     * Branches are assigned to the SHOP, not sold on a plan. Before that split,
+     * a business opening its second site needed a whole plan minted for it —
+     * which is how a three-tier price list turns into forty.
+     *
+     * @return array{0: Tenant, 1: User}
+     */
+    private function shopWithBranches(int $branches): array
     {
-        $tenant = Tenant::factory()->provisioned()->create(['plan_id' => $plan->id]);
+        $tenant = Tenant::factory()->provisioned()->create([
+            'plan_id' => $this->plan()->id,
+            'limits' => ['branches' => $branches],
+        ]);
         $owner = User::factory()->shopOwner($tenant)->create();
 
         return [$tenant, $owner];
@@ -68,7 +78,7 @@ class BranchesTest extends TestCase
 
     public function test_owner_can_add_a_branch_within_the_plan_limit(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_branches' => 3]));
+        [$tenant, $owner] = $this->shopWithBranches(3);
 
         $this->login($owner)->postJson('/api/v1/branches', [
             'name' => 'Gulberg', 'code' => 'GLB', 'address' => '5 Main Blvd',
@@ -79,8 +89,8 @@ class BranchesTest extends TestCase
 
     public function test_adding_a_branch_is_blocked_at_the_plan_limit(): void
     {
-        // max_branches = 1 → the Main branch is the only one allowed.
-        [, $owner] = $this->shopOn($this->planWith(['max_branches' => 1]));
+        // One branch assigned → the Main branch is the only one allowed.
+        [, $owner] = $this->shopWithBranches(1);
 
         $this->login($owner)->postJson('/api/v1/branches', ['name' => 'Second'])
             ->assertStatus(422)
@@ -89,7 +99,7 @@ class BranchesTest extends TestCase
 
     public function test_the_main_branch_cannot_be_deleted(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_branches' => 3]));
+        [$tenant, $owner] = $this->shopWithBranches(3);
         $main = $this->branchesOf($tenant)->where('is_default', true)->first();
 
         $this->login($owner)->deleteJson("/api/v1/branches/{$main->id}")
@@ -99,7 +109,7 @@ class BranchesTest extends TestCase
 
     public function test_a_secondary_branch_can_be_deleted(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_branches' => 3]));
+        [$tenant, $owner] = $this->shopWithBranches(3);
         $id = $this->login($owner)->postJson('/api/v1/branches', ['name' => 'Extra'])->json('data.id');
 
         $this->login($owner)->deleteJson("/api/v1/branches/{$id}")->assertOk();
@@ -108,8 +118,8 @@ class BranchesTest extends TestCase
 
     public function test_branches_are_scoped_to_the_tenant(): void
     {
-        [, $ownerA] = $this->shopOn($this->planWith(['max_branches' => 3]));
-        [$tenantB] = $this->shopOn($this->planWith(['max_branches' => 3]));
+        [, $ownerA] = $this->shopWithBranches(3);
+        [$tenantB] = $this->shopWithBranches(3);
         $this->branchesOf($tenantB)->first()->update(['name' => 'Other-Main']);
 
         $names = collect($this->login($ownerA)->getJson('/api/v1/branches')->json('data'))->pluck('name');

@@ -169,7 +169,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             // Branches — physical locations under the tenant (multi-branch).
             // Every tenant has a default Main branch; adding more is gated by
-            // the plan's max_branches.
+            // the branches assigned to this shop.
             Route::middleware('permission:settings.manage')->group(function (): void {
                 Route::get('branches', [BranchController::class, 'index']);
                 Route::post('branches', [BranchController::class, 'store']);

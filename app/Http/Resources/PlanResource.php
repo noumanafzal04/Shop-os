@@ -20,19 +20,17 @@ class PlanResource extends JsonResource
             'description' => $this->description,
             'price' => $this->price,
             'billing_period_months' => $this->billing_period_months,
-            'online_shop_enabled' => $this->online_shop_enabled,
             'grace_period_days' => $this->grace_period_days,
-            'features' => $this->features,
-            // Plan limits — null = unlimited for that resource.
+            // Billed usage ceilings — null = unlimited for that resource.
+            // Branches, staff and lanes are assigned per tenant, not here.
             'limits' => [
                 'products' => $this->max_products,
-                'branches' => $this->max_branches,
-                'registers' => $this->max_registers,
-                'staff' => $this->max_staff,
                 'storage_mb' => $this->max_storage_mb,
                 'orders_month' => $this->max_orders_month,
             ],
             'is_active' => $this->is_active,
+            // A bespoke deal for one business rather than a rung on the ladder.
+            'is_custom' => $this->is_custom,
             'tenants_count' => $this->whenCounted('tenants'),
         ];
     }

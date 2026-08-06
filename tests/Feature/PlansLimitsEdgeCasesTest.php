@@ -41,6 +41,12 @@ class PlansLimitsEdgeCasesTest extends TestCase
         return $this->withToken($token);
     }
 
+    /**
+     * A shop with these ceilings. The keys split by owner, exactly as the
+     * platform does: max_products / max_storage_mb / max_orders_month are what
+     * the PLAN sells, while staff, branches and lanes are ASSIGNED to this shop
+     * — so a two-branch business no longer needs a plan of its own.
+     */
     private function planWith(array $limits): Plan
     {
         return Plan::query()->create([
@@ -48,10 +54,18 @@ class PlansLimitsEdgeCasesTest extends TestCase
             'code' => 'edge-plan',
             'price' => 0,
             'billing_period_months' => 1,
-            'online_shop_enabled' => true,
             'grace_period_days' => 7,
-            ...$limits,
+            ...collect($limits)->only(['max_products', 'max_storage_mb', 'max_orders_month'])->all(),
         ]);
+    }
+
+    /** The tenant-side half of the same array: max_staff → limits.staff, etc. */
+    private function assignedFrom(array $limits): array
+    {
+        $map = ['max_staff' => 'staff', 'max_branches' => 'branches', 'max_registers' => 'registers'];
+
+        return collect($limits)->only(array_keys($map))
+            ->mapWithKeys(fn ($v, $k) => [$map[$k] => $v])->all();
     }
 
     /** @return array{0: Tenant, 1: User} */
@@ -59,6 +73,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
     {
         $tenant = Tenant::factory()->provisioned()->create(array_merge([
             'plan_id' => $plan?->id,
+            'limits' => null,
         ], $overrides));
         $owner = User::factory()->shopOwner($tenant)->create();
 
@@ -86,7 +101,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
 
     public function test_nth_product_lands_and_n_plus_one_is_refused(): void
     {
-        [, $owner] = $this->shopOn($this->planWith(['max_products' => 3]));
+        [, $owner] = $this->shopOn($this->planWith(['max_products' => 3]), ['limits' => $this->assignedFrom(['max_products' => 3])]);
 
         $this->createProduct($owner, 'One')->assertCreated();
         $this->createProduct($owner, 'Two')->assertCreated();
@@ -104,7 +119,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
 
     public function test_override_extends_past_the_plan_and_clearing_rearms_the_baseline(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 2]));
+        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 2]), ['limits' => $this->assignedFrom(['max_products' => 2])]);
 
         $this->createProduct($owner, 'One')->assertCreated();
         $this->createProduct($owner, 'Two')->assertCreated();
@@ -114,7 +129,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
         // Admin extends THIS tenant to 4 — creation resumes past the plan.
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'limits' => ['products' => 4],
-        ])->assertOk()->assertJsonPath('data.limit_overrides.products', 4);
+        ])->assertOk()->assertJsonPath('data.limits.products', 4);
 
         $this->createProduct($owner, 'Three')->assertCreated();
         $this->createProduct($owner, 'Four')->assertCreated();
@@ -126,7 +141,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
         // Clearing (null) drops the override entirely...
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'limits' => ['products' => null],
-        ])->assertOk()->assertJsonPath('data.limit_overrides', []);
+        ])->assertOk()->assertJsonPath('data.limits', []);
 
         // ...so the plan baseline (2) governs again: with 4 already on the
         // books the shop is over-quota and stays blocked.
@@ -138,7 +153,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
 
     public function test_staff_boundary_excludes_the_owner_and_extends_like_products(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_staff' => 2]));
+        [$tenant, $owner] = $this->shopOn($this->planWith(['max_staff' => 2]), ['limits' => $this->assignedFrom(['max_staff' => 2])]);
 
         // Two seats, two staff — the OWNER never occupies a staff seat.
         $this->createStaff($owner, 'Aisha')->assertCreated();
@@ -160,7 +175,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
 
     public function test_csv_import_fails_only_the_rows_beyond_the_limit(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 3]));
+        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 3]), ['limits' => $this->assignedFrom(['max_products' => 3])]);
         Product::withoutTenancy()->create([
             'tenant_id' => $tenant->id, 'type' => 'product',
             'name' => 'Keeper', 'sku' => 'KEEP-1', 'price' => 100, 'stock_quantity' => 5,
@@ -187,7 +202,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
         // Only the over-limit row errored — line 4 of the file (Flour).
         $this->assertCount(1, $res['errors']);
         $this->assertSame(4, $res['errors'][0]['row']);
-        $this->assertStringContainsString('plan limit', $res['errors'][0]['messages'][0]);
+        $this->assertStringContainsString('reached your limit', $res['errors'][0]['messages'][0]);
 
         // The catalog sits exactly AT the ceiling and the update row really
         // landed (price moved to 150).
@@ -198,10 +213,17 @@ class PlansLimitsEdgeCasesTest extends TestCase
         );
     }
 
-    // ── (5) no plan = unlimited everywhere ───────────────────────────────
+    // ── (5) no plan = unlimited on what a plan sells ─────────────────────
 
-    public function test_tenant_without_a_plan_is_unlimited_everywhere(): void
+    public function test_a_tenant_without_a_plan_is_unlimited_on_what_a_plan_sells(): void
     {
+        // A plan meters usage: products, storage, orders a month. With no plan
+        // there is nothing metering them, so they are uncapped.
+        //
+        // Branches, staff and lanes are a different thing — they are assigned
+        // to the shop, and an unassigned one falls to the platform default
+        // rather than to "as many as you like". A shop nobody sized should look
+        // like a small shop, not an unlimited one.
         [, $owner] = $this->shopOn(null);
 
         foreach (['A', 'B', 'C', 'D'] as $name) {
@@ -210,23 +232,28 @@ class PlansLimitsEdgeCasesTest extends TestCase
         $this->createStaff($owner, 'Aisha')->assertCreated();
         $this->createStaff($owner, 'Bilal')->assertCreated();
 
-        // The subscription page agrees: every meter reads unlimited.
         $data = $this->login($owner)->getJson('/api/v1/shop/subscription')
             ->assertOk()->json('data');
 
         $this->assertNull($data['plan']);
-        $this->assertTrue(collect($data['limits_usage'])->every(
-            fn ($u) => $u['unlimited'] === true && $u['limit'] === null && $u['remaining'] === null,
-        ));
+
+        $usage = collect($data['limits_usage']);
+        $billed = $usage->where('owner', 'plan');
+        $assigned = $usage->where('owner', 'tenant');
+
+        $this->assertTrue($billed->every(fn ($u) => $u['unlimited'] === true && $u['limit'] === null));
+        $this->assertTrue($assigned->every(fn ($u) => $u['unlimited'] === false && $u['limit'] !== null));
+        $this->assertSame(5, $usage->firstWhere('key', 'staff')['limit']);
     }
 
     // ── (6) subscription page: effective limit + live usage ──────────────
 
     public function test_subscription_page_shows_the_overridden_limit_and_live_usage(): void
     {
-        $plan = $this->planWith(['max_products' => 5, 'max_staff' => 2]);
+        $plan = $this->planWith(['max_products' => 5]);
         [, $owner] = $this->shopOn($plan, [
-            'limit_overrides' => ['products' => 8],
+            // Products extended past the plan's 5; staff assigned outright.
+            'limits' => ['products' => 8, 'staff' => 2],
             'subscription_starts_at' => now()->subDays(5),
             'subscription_ends_at' => now()->addDays(25),
         ]);
@@ -247,7 +274,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
         $this->assertSame(6, $products['remaining']);
         $this->assertFalse($products['unlimited']);
 
-        // Staff has no override — the plan baseline shows.
+        // Staff was assigned to this shop; no plan has an opinion on it.
         $staff = $usage->firstWhere('key', 'staff');
         $this->assertSame(2, $staff['limit']);
         $this->assertSame(1, $staff['used']);
@@ -266,7 +293,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
 
     public function test_deleting_a_product_frees_its_slot_immediately(): void
     {
-        [, $owner] = $this->shopOn($this->planWith(['max_products' => 1]));
+        [, $owner] = $this->shopOn($this->planWith(['max_products' => 1]), ['limits' => $this->assignedFrom(['max_products' => 1])]);
 
         $solo = $this->createProduct($owner, 'Solo')->assertCreated()->json('data');
         $this->createProduct($owner, 'Extra')

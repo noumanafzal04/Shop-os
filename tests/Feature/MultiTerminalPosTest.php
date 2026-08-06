@@ -188,21 +188,18 @@ class MultiTerminalPosTest extends TestCase
             ->assertStatus(403)->assertJsonPath('meta.error_code', 'MODULE_DISABLED');
     }
 
-    public function test_adding_a_register_respects_the_plan_limit(): void
+    public function test_adding_a_register_respects_the_lanes_assigned_to_the_shop(): void
     {
-        $plan = Plan::query()->create([
-            'code' => 'two-lanes', 'name' => 'Two lanes', 'price' => 0,
-            'billing_period_months' => 1, 'online_shop_enabled' => false, 'grace_period_days' => 7,
-            'features' => ['pos' => true], 'max_registers' => 2, 'is_active' => true,
-        ]);
-        $this->tenant->forceFill(['plan_id' => $plan->id])->save();
+        // Lanes belong to the shop, like branches and staff — a mart with six
+        // tills is a bigger shop, not a different product.
+        $this->tenant->forceFill(['limits' => ['registers' => 2]])->save();
 
         // Two lanes already exist, so the third is over the line.
         $this->actingAsUser($this->owner)->postJson('/api/v1/registers', ['name' => 'Lane 3'])
             ->assertStatus(422)->assertJsonPath('meta.error_code', 'LIMIT_REACHED');
 
-        // Extending this one tenant (not a new plan) unlocks it.
-        $this->tenant->forceFill(['limit_overrides' => ['registers' => 6]])->save();
+        // Raising it for this one shop unlocks it — no plan involved.
+        $this->tenant->forceFill(['limits' => ['registers' => 6]])->save();
         $this->actingAsUser($this->owner)->postJson('/api/v1/registers', ['name' => 'Lane 3'])
             ->assertCreated();
     }

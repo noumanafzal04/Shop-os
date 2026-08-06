@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Permissions;
+use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
@@ -18,6 +20,8 @@ class StaffManagementTest extends TestCase
         parent::setUp();
 
         $this->withoutMiddleware(ThrottleRequests::class);
+        // Creating a tenant needs a plan to put it on.
+        $this->seed(PlanSeeder::class);
     }
 
     private function actingAsUser(User $user): static
@@ -71,6 +75,7 @@ class StaffManagementTest extends TestCase
         $this->actingAsUser($staff)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Allowed Mart',
             'business_type' => 'mart',
+            'plan_id' => Plan::query()->where('code', 'basic')->value('id'),
             'owner' => ['name' => 'X', 'email' => 'x@x.com', 'password' => 'password123'],
         ])->assertCreated();
     }

@@ -20,14 +20,20 @@ class PlanController extends Controller
     {
         return ApiResponse::ok(
             PlanResource::collection(
-                Plan::query()->withCount('tenants')->orderBy('price')->get(),
+                // The standard ladder first, bespoke deals after it. A price
+                // list that opens with somebody's negotiated one-off is a price
+                // list nobody can read.
+                Plan::query()->withCount('tenants')
+                    ->orderBy('is_custom')->orderBy('price')->orderBy('name')->get(),
             ),
         );
     }
 
     public function store(StorePlanRequest $request): JsonResponse
     {
-        $plan = Plan::query()->create($this->normalizeModules($request->validated()));
+        // ->fresh(): Eloquent doesn't hydrate columns the caller never
+        // set, so is_custom would serialise as null instead of its default.
+        $plan = Plan::query()->create($request->validated())->fresh();
 
         return ApiResponse::created(new PlanResource($plan));
     }
@@ -35,38 +41,9 @@ class PlanController extends Controller
     public function update(UpdatePlanRequest $request, string $id): JsonResponse
     {
         $plan = Plan::query()->findOrFail($id);
-        $plan->fill($this->normalizeModules($request->validated()))->save();
+        $plan->fill($request->validated())->save();
 
         return ApiResponse::ok(new PlanResource($plan->loadCount('tenants')), 'Plan updated');
-    }
-
-    /**
-     * Keep a plan's module selection internally consistent, whatever the client
-     * sent:
-     *  - POS bundles Expense & Income (pos ⇒ expenses).
-     *  - A product catalog exists only when the plan sells (POS or Online),
-     *    so `products` is derived — an Expense-only plan has no catalog.
-     *  - The online-shop flag mirrors the Online (marketplace) module.
-     */
-    private function normalizeModules(array $data): array
-    {
-        if (! array_key_exists('features', $data)) {
-            return $data;
-        }
-
-        $f = $data['features'] ?? [];
-        $pos = (bool) ($f['pos'] ?? false);
-        $online = (bool) ($f['marketplace'] ?? false);
-
-        $f['pos'] = $pos;
-        $f['marketplace'] = $online;
-        $f['expenses'] = $pos || (bool) ($f['expenses'] ?? false);
-        $f['products'] = $pos || $online;
-
-        $data['features'] = $f;
-        $data['online_shop_enabled'] = $online;
-
-        return $data;
     }
 
     /**

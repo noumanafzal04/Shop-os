@@ -12,9 +12,10 @@ namespace App\Support;
  *   - default expense categories (template, fully editable after)
  *   - the finer `categories` a tenant picks WITHIN the type (its business_category)
  *
- * The effective capability of a tenant is always:
- *   plan allows it (online_shop_enabled) AND business type supports it
- *   AND tenant hasn't disabled it — computed via Tenant::featureEnabled().
+ * A type PROPOSES modules; it does not grant them. What a tenant can actually
+ * do is its own module map (Tenant::featureEnabled), set from this proposal
+ * when the admin creates it and adjustable afterwards. Plans have no say —
+ * see Modules and PlanLimits for why that split exists.
  *
  * === The primary types ===
  * The core five are food, mart, pharmacy, retail and services, plus three that

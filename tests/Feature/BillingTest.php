@@ -26,7 +26,7 @@ class BillingTest extends TestCase
         $this->withoutMiddleware(ThrottleRequests::class);
         $this->seed(PlanSeeder::class);
         $this->admin = User::factory()->superAdmin()->create();
-        $this->onlinePlan = Plan::query()->where('code', 'business-pos-online')->first();
+        $this->onlinePlan = Plan::query()->where('code', 'premium')->first();
     }
 
     private function asAdmin(): static
@@ -84,7 +84,7 @@ class BillingTest extends TestCase
 
     public function test_switching_plan_starts_period_now(): void
     {
-        $core = Plan::query()->where('code', 'business-pos')->first();
+        $core = Plan::query()->where('code', 'basic')->first();
         $tenant = Tenant::factory()->create([
             'plan_id' => $core->id,
             'subscription_ends_at' => now()->addDays(20),
@@ -101,7 +101,12 @@ class BillingTest extends TestCase
 
     public function test_free_plan_assignment_records_no_payment(): void
     {
-        $core = Plan::query()->where('code', 'business-pos')->first(); // price 0
+        // A free tier — a pilot, a trial, an internal shop. Nothing was paid,
+        // so nothing belongs in the ledger.
+        $core = Plan::query()->create([
+            'name' => 'Free trial', 'code' => 'free-trial', 'price' => 0,
+            'billing_period_months' => 1, 'grace_period_days' => 7, 'is_active' => true,
+        ]);
         $tenant = Tenant::factory()->create();
 
         $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", [
@@ -145,7 +150,7 @@ class BillingTest extends TestCase
         $this->asAdmin()->getJson('/api/v1/admin/billing/payments')
             ->assertOk()
             ->assertJsonPath('meta.pagination.total', 1)
-            ->assertJsonPath('data.0.plan_name', 'Business / POS + Online Business');
+            ->assertJsonPath('data.0.plan_name', 'Premium');
 
         $this->asAdmin()->getJson("/api/v1/admin/billing/payments?tenant_id={$tenant->id}")
             ->assertOk()

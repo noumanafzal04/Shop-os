@@ -10,15 +10,21 @@ use App\Actions\Shop\ApplyBusinessTypeDefaultsAction;
 use App\Enums\ReservationStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\Branch;
+use App\Models\BranchStock;
 use App\Models\Category;
 use App\Models\City;
 use App\Models\Collection;
+use App\Models\CustomerGroup;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Plan;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\Reservation;
+use App\Models\SubscriptionPayment;
 use App\Models\Supplier;
+use App\Models\TaxGroup;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\ItemTypes;
@@ -43,8 +49,21 @@ class DemoDataSeeder extends Seeder
     public function run(): void
     {
         $cities = City::query()->where('is_active', true)->orderBy('name')->get();
-        $onlinePlan = Plan::query()->where('code', 'business-pos-online')->firstOrFail();
-        $corePlan = Plan::query()->where('code', 'business-pos')->firstOrFail();
+
+        // A bespoke deal, so the panel has one to show: a chain that wanted its
+        // own ceiling and its own price instead of climbing a rung.
+        Plan::query()->updateOrCreate(
+            ['code' => 'karahi-house-custom'],
+            [
+                'name' => 'Karahi House — custom',
+                'description' => 'Negotiated for Karahi House: unlimited catalog, 20 GB of photos, 45-day grace.',
+                'price' => 24000, 'billing_period_months' => 12, 'grace_period_days' => 45,
+                'max_products' => null, 'max_storage_mb' => 20480, 'max_orders_month' => null,
+                'is_active' => true, 'is_custom' => true,
+            ],
+        );
+
+        $plans = Plan::query()->get()->keyBy('code');
 
         $customers = $this->seedCustomers();
         $tenants = [];
@@ -54,7 +73,7 @@ class DemoDataSeeder extends Seeder
                 index: $i + 1,
                 blueprint: $blueprint,
                 city: $cities[$i % $cities->count()],
-                plan: $blueprint['online'] ? $onlinePlan : $corePlan,
+                plan: $plans[$blueprint['plan']],
             );
         }
 
@@ -97,7 +116,6 @@ class DemoDataSeeder extends Seeder
                 'business_category' => $blueprint['category'],
                 'city_id' => $city->id,
                 'plan_id' => $plan->id,
-                'online_shop_enabled' => $plan->online_shop_enabled,
                 'status' => 'active',
                 'setup_completed' => true,
                 'address' => "{$blueprint['name']}, Main Market, {$city->name}",
@@ -106,7 +124,7 @@ class DemoDataSeeder extends Seeder
                 'longitude' => $city->longitude !== null ? round($city->longitude + (($index % 7) - 3) * 0.008, 7) : null,
                 'subscription_starts_at' => now()->subMonth(),
                 'subscription_ends_at' => now()->addYear(),
-                'delivery_fee' => $plan->online_shop_enabled ? 150 : 0,
+                'delivery_fee' => ($blueprint['modules']['delivery'] ?? false) ? 150 : 0,
             ],
         );
 
@@ -122,10 +140,26 @@ class DemoDataSeeder extends Seeder
             ],
         );
 
-        // Business-type templates (categories, expense categories, features).
+        // Business-type templates: categories, expense categories, and the
+        // module set the type proposes.
         app(ApplyBusinessTypeDefaultsAction::class)->execute($tenant, $blueprint['type']);
 
-        if (! Product::withoutTenancy()->where('tenant_id', $tenant->id)->exists()) {
+        // Then what this particular shop was actually given. Same three steps
+        // an admin walks through on the create screen — type, then modules,
+        // then the size of the business — so the demo world shows the model
+        // rather than just the data: MediPlus delivers without an online store,
+        // Karachi Books & Ledgers runs the cashbook and nothing else, and both
+        // sit on the same plans as everyone else.
+        $tenant->applyModules($blueprint['modules']);
+        $tenant->assignLimits($blueprint['limits']);
+
+        // A books-only tenant never gets a catalog, so "has no products" can't
+        // be the marker for "not seeded yet" — it would re-seed its expenses on
+        // every run. Either kind of content counts as done.
+        $seeded = Product::withoutTenancy()->where('tenant_id', $tenant->id)->exists()
+            || Expense::withoutTenancy()->where('tenant_id', $tenant->id)->exists();
+
+        if (! $seeded) {
             $this->seedProducts($tenant, $blueprint['items'], $blueprint['type']);
             $this->seedMarketingExtras($tenant);
             $this->seedCollections($tenant);
@@ -137,14 +171,15 @@ class DemoDataSeeder extends Seeder
             }
         }
 
-        $this->command?->info("  ✓ {$blueprint['name']} ({$blueprint['type']}, {$city->name}, ".($blueprint['online'] ? 'online shop' : 'expense manager').')');
+        $on = collect($tenant->refresh()->features ?? [])->filter()->keys()->implode(', ');
+        $this->command?->info("  ✓ {$blueprint['name']} ({$blueprint['type']}, {$city->name}, {$plan->name}) — {$on}");
 
         return $tenant->refresh();
     }
 
     private function seedProducts(Tenant $tenant, array $items, string $businessType): void
     {
-        $mainBranchId = \App\Models\Branch::withoutTenancy()
+        $mainBranchId = Branch::withoutTenancy()
             ->where('tenant_id', $tenant->id)->where('is_default', true)->value('id');
 
         foreach ($items as $item) {
@@ -191,7 +226,7 @@ class DemoDataSeeder extends Seeder
             ]);
 
             // Phase 2: per-branch on-hand at Main mirrors the rollup.
-            \App\Models\BranchStock::withoutTenancy()->create([
+            BranchStock::withoutTenancy()->create([
                 'tenant_id' => $tenant->id, 'branch_id' => $mainBranchId,
                 'product_id' => $product->id, 'variant_id' => null,
                 'quantity' => $product->stock_quantity,
@@ -207,7 +242,7 @@ class DemoDataSeeder extends Seeder
                     'stock_quantity' => $variant['stock'] ?? 0,
                     'low_stock_threshold' => $variant['low_at'] ?? null,
                 ]);
-                \App\Models\BranchStock::withoutTenancy()->create([
+                BranchStock::withoutTenancy()->create([
                     'tenant_id' => $tenant->id, 'branch_id' => $mainBranchId,
                     'product_id' => $product->id, 'variant_id' => $created->id,
                     'quantity' => $created->stock_quantity,
@@ -245,23 +280,23 @@ class DemoDataSeeder extends Seeder
      */
     private function seedMarketingExtras(Tenant $tenant): void
     {
-        \App\Models\TaxGroup::withoutTenancy()->firstOrCreate(
+        TaxGroup::withoutTenancy()->firstOrCreate(
             ['tenant_id' => $tenant->id, 'name' => 'GST 17%'],
             ['rate' => 17, 'is_active' => true],
         );
 
         // A trade/wholesale tier + a VIP tier for tiered pricing demos.
-        \App\Models\CustomerGroup::withoutTenancy()->firstOrCreate(
+        CustomerGroup::withoutTenancy()->firstOrCreate(
             ['tenant_id' => $tenant->id, 'name' => 'Wholesale / Trade'],
             ['price_level' => 'wholesale', 'discount_percent' => null, 'is_active' => true],
         );
-        \App\Models\CustomerGroup::withoutTenancy()->firstOrCreate(
+        CustomerGroup::withoutTenancy()->firstOrCreate(
             ['tenant_id' => $tenant->id, 'name' => 'VIP'],
             ['price_level' => 'retail', 'discount_percent' => 5, 'is_active' => true],
         );
 
         // Automatic order-wide discount over a minimum spend.
-        \App\Models\Promotion::withoutTenancy()->firstOrCreate(
+        Promotion::withoutTenancy()->firstOrCreate(
             ['tenant_id' => $tenant->id, 'name' => 'Weekend 10% Off'],
             ['type' => 'percent', 'value' => 10, 'scope' => 'order', 'min_spend' => 500, 'is_active' => true, 'priority' => 1],
         );
@@ -274,7 +309,7 @@ class DemoDataSeeder extends Seeder
             ->havingRaw('COUNT(*) >= 2')
             ->value('category_id');
         if ($categoryId !== null) {
-            \App\Models\Promotion::withoutTenancy()->firstOrCreate(
+            Promotion::withoutTenancy()->firstOrCreate(
                 ['tenant_id' => $tenant->id, 'name' => 'Buy 1 Get 1 Free'],
                 ['type' => 'bogo', 'value' => 0, 'scope' => 'category', 'category_id' => $categoryId,
                     'buy_qty' => 1, 'get_qty' => 1, 'get_discount_pct' => 100, 'is_active' => false, 'priority' => 2],
@@ -436,7 +471,7 @@ class DemoDataSeeder extends Seeder
      * A few months of billing history + varied subscription end dates so the
      * Super Admin billing screens show active / expiring-soon / expired.
      */
-    private function seedSubscriptionPayments(Tenant $tenant, \App\Models\Plan $plan, int $index): void
+    private function seedSubscriptionPayments(Tenant $tenant, Plan $plan, int $index): void
     {
         // Give tenants varied expiry so the "expiring soon" / "expired"
         // buckets are populated: index 3 expires soon, index 6 expired.
@@ -449,8 +484,13 @@ class DemoDataSeeder extends Seeder
 
         // Skip a ledger row for the free (price 0) plan.
         if ((float) $plan->price <= 0) {
-            // Still add a nominal monthly fee for demo realism on paid-looking plans.
-            $monthly = $plan->online_shop_enabled ? 3000 : 1500;
+            // Still add a nominal fee for demo realism on the free tiers, so
+            // the billing screens have a ledger to show.
+            $monthly = match ($plan->code) {
+                'enterprise' => 6000,
+                'premium' => 3000,
+                default => 1500,
+            };
         } else {
             $monthly = (float) $plan->price;
         }
@@ -458,7 +498,7 @@ class DemoDataSeeder extends Seeder
         // 3 past monthly payments.
         foreach (range(3, 1) as $monthsAgo) {
             $start = now()->subMonths($monthsAgo)->startOfMonth();
-            \App\Models\SubscriptionPayment::query()->create([
+            SubscriptionPayment::query()->create([
                 'tenant_id' => $tenant->id,
                 'plan_id' => $plan->id,
                 'plan_name' => $plan->name,
@@ -531,7 +571,6 @@ class DemoDataSeeder extends Seeder
 
     // ─────────────────────────────────────────────────────────────────
 
-
     /**
      * One tenant per PRIMARY business type, each on a fitting plan, each with a
      * 50-item type-appropriate catalog (see catalogFor).
@@ -539,13 +578,65 @@ class DemoDataSeeder extends Seeder
      */
     private function tenantBlueprints(): array
     {
+        // Each shop names its PLAN (what it pays and how much it may hold), the
+        // MODULES it was actually given, and the LIMITS assigned to it. The
+        // three are independent on purpose, and the demo world is picked to
+        // show that they are:
+        //
+        //   · MediPlus is on Basic, has no online store, and still delivers —
+        //     the pharmacy that takes orders on the phone.
+        //   · Highway Fuel and Sahil Tyre are both plain Basic shops and each
+        //     keeps its trade module (forecourt, workshop labour).
+        //   · Karachi Books runs the cashbook alone with no catalog and no
+        //     till, on the same Basic plan as everybody else — the case that
+        //     used to need a plan of its own.
+        //   · Karahi House is on a bespoke plan: a chain that negotiated its
+        //     own ceiling rather than climbing to Enterprise.
         return [
-            ['name' => 'Karahi House',          'type' => 'food',     'category' => 'restaurant',   'online' => true,  'items' => $this->catalogFor('food')],
-            ['name' => 'FreshMart Grocery',     'type' => 'mart',     'category' => 'supermarket',  'online' => true,  'items' => $this->catalogFor('mart')],
-            ['name' => 'MediPlus Pharmacy',     'type' => 'pharmacy', 'category' => 'medical_store','online' => false, 'items' => $this->catalogFor('pharmacy')],
-            ['name' => 'Trendz Retail',         'type' => 'retail',   'category' => 'garments',     'online' => true,  'items' => $this->catalogFor('retail')],
-            ['name' => 'GlowUp Salon & Studio', 'type' => 'services', 'category' => 'salon_beauty', 'online' => false, 'items' => $this->catalogFor('services')],
-            ['name' => 'Highway Fuel Station',  'type' => 'petroleum', 'category' => 'petrol_pump', 'online' => false, 'items' => $this->catalogFor('petroleum')],
+            ['name' => 'Karahi House', 'type' => 'food', 'category' => 'restaurant',
+                'plan' => 'karahi-house-custom', 'items' => $this->catalogFor('food'),
+                'modules' => ['marketplace' => true, 'delivery' => true, 'dine_in' => true],
+                'limits' => ['branches' => 4, 'staff' => 30, 'registers' => 6]],
+
+            ['name' => 'FreshMart Grocery', 'type' => 'mart', 'category' => 'supermarket',
+                'plan' => 'premium', 'items' => $this->catalogFor('mart'),
+                'modules' => ['marketplace' => true, 'delivery' => true],
+                'limits' => ['branches' => 3, 'staff' => 20, 'registers' => 5]],
+
+            ['name' => 'MediPlus Pharmacy', 'type' => 'pharmacy', 'category' => 'medical_store',
+                'plan' => 'basic', 'items' => $this->catalogFor('pharmacy'),
+                'modules' => ['marketplace' => false, 'delivery' => true],
+                'limits' => ['branches' => 2, 'staff' => 6, 'registers' => 2]],
+
+            ['name' => 'Trendz Retail', 'type' => 'retail', 'category' => 'garments',
+                'plan' => 'premium', 'items' => $this->catalogFor('retail'),
+                'modules' => ['marketplace' => true, 'delivery' => true, 'reservations' => true],
+                'limits' => ['branches' => 2, 'staff' => 10, 'registers' => 3]],
+
+            ['name' => 'GlowUp Salon & Studio', 'type' => 'services', 'category' => 'salon_beauty',
+                'plan' => 'basic', 'items' => $this->catalogFor('services'),
+                'modules' => [],
+                'limits' => ['branches' => 1, 'staff' => 8, 'registers' => 1]],
+
+            ['name' => 'Highway Fuel Station', 'type' => 'petroleum', 'category' => 'petrol_pump',
+                'plan' => 'basic', 'items' => $this->catalogFor('petroleum'),
+                'modules' => ['fuel' => true],
+                'limits' => ['branches' => 1, 'staff' => 12, 'registers' => 2]],
+
+            ['name' => 'Sahil Tyre & Auto', 'type' => 'automotive', 'category' => 'tyre_shop',
+                'plan' => 'basic', 'items' => $this->catalogFor('automotive'),
+                'modules' => [],
+                'limits' => ['branches' => 1, 'staff' => 6, 'registers' => 1]],
+
+            ['name' => 'Karachi Books & Ledgers', 'type' => 'finance', 'category' => 'agency',
+                'plan' => 'basic', 'items' => [],
+                'modules' => [],
+                'limits' => ['branches' => 1, 'staff' => 4]],
+
+            ['name' => 'Metro Chain Superstore', 'type' => 'mart', 'category' => 'supermarket',
+                'plan' => 'enterprise', 'items' => $this->catalogFor('mart'),
+                'modules' => ['marketplace' => true, 'delivery' => true],
+                'limits' => ['branches' => 12, 'staff' => 120, 'registers' => 24]],
         ];
     }
 
@@ -559,8 +650,67 @@ class DemoDataSeeder extends Seeder
             'retail' => $this->retailCatalog(),
             'services' => $this->servicesCatalog(),
             'petroleum' => $this->petroleumCatalog(),
+            'automotive' => $this->automotiveCatalog(),
             default => [],
         };
+    }
+
+    /**
+     * A tyre and auto shop: goods and labour on the same invoice. Tyres carry
+     * their size in the name because that is how a customer asks for one, and
+     * fitting/balancing are service lines with no stock behind them.
+     */
+    private function automotiveCatalog(): array
+    {
+        $items = [];
+
+        foreach ([
+            ['General 185/65 R15', 14500, 'Tyres'], ['General 195/65 R15', 15800, 'Tyres'],
+            ['Yokohama 205/55 R16', 22500, 'Tyres'], ['Dunlop 155/70 R13', 9800, 'Tyres'],
+            ['Bridgestone 215/60 R17', 28900, 'Tyres'], ['Panther 145/70 R12', 7200, 'Tyres'],
+            ['CEAT 165/65 R14', 11200, 'Tyres'], ['MRF 175/70 R13', 10400, 'Tyres'],
+        ] as [$name, $price, $category]) {
+            $items[] = [
+                'name' => $name, 'category' => $category, 'price' => $price,
+                'cost' => (int) round($price * 0.78), 'stock' => random_int(4, 40),
+                'low_at' => 4, 'unit' => 'Piece', 'brand' => explode(' ', $name)[0],
+            ];
+        }
+
+        foreach ([
+            ['Osaka S-70 Battery (12V 70Ah)', 24500, 'Batteries'],
+            ['Exide 55Ah Battery', 18900, 'Batteries'],
+            ['AGS Washer 100Ah', 33500, 'Batteries'],
+            ['Tube 13"', 950, 'Tubes & Rims'],
+            ['Alloy Rim 15" (set of 4)', 42000, 'Tubes & Rims'],
+            ['Shell Helix 5W-30 (4L)', 8400, 'Lubricants & Oils'],
+            ['ZIC X7 10W-40 (4L)', 7200, 'Lubricants & Oils'],
+            ['Brake Pads — Corolla (front)', 5600, 'Spare Parts'],
+            ['Air Filter — Civic', 2400, 'Spare Parts'],
+            ['Wiper Blade Pair', 1800, 'Accessories'],
+            ['Car Mat Set', 3200, 'Accessories'],
+        ] as [$name, $price, $category]) {
+            $items[] = [
+                'name' => $name, 'category' => $category, 'price' => $price,
+                'cost' => (int) round($price * 0.75), 'stock' => random_int(3, 30),
+                'low_at' => 3, 'unit' => 'Piece',
+            ];
+        }
+
+        // Labour: billed by the job, nothing to count in a store room.
+        foreach ([
+            ['Tyre Fitting (per wheel)', 250, 15], ['Wheel Balancing (per wheel)', 350, 20],
+            ['Wheel Alignment', 1500, 45], ['Puncture Repair', 400, 20],
+            ['Battery Fitting & Check', 500, 20], ['Oil Change (labour)', 800, 30],
+            ['AC Gas Refill', 4500, 60], ['Suspension Check', 1200, 40],
+        ] as [$name, $price, $minutes]) {
+            $items[] = [
+                'name' => $name, 'category' => 'Labour & Services', 'type' => 'service',
+                'price' => $price, 'track' => false, 'unit' => 'Job', 'duration' => $minutes,
+            ];
+        }
+
+        return $items;
     }
 
     /**

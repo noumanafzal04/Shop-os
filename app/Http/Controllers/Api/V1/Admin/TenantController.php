@@ -79,39 +79,38 @@ class TenantController extends Controller
         return ApiResponse::noContent('Tenant deleted');
     }
 
-    /** The catalog of manageable modules (labels + descriptions). */
+    /** The catalog of manageable modules — labels, groups and dependencies. */
     public function moduleCatalog(): JsonResponse
     {
-        return ApiResponse::ok(
-            collect(Modules::all())->map(fn ($m, $key) => ['key' => $key] + $m)->values(),
-        );
+        return ApiResponse::ok(Modules::catalog());
     }
 
-    /** Toggle a tenant's enabled modules (its feature flags). */
+    /**
+     * Change which modules a tenant has. This is the only lever on a shop's
+     * capability — no plan grants or revokes one, so nothing can undo what is
+     * set here except an admin setting it again.
+     */
     public function updateModules(UpdateTenantModulesRequest $request, string $id): JsonResponse
     {
         /** @var Tenant $tenant */
         $tenant = Tenant::query()->findOrFail($id);
 
-        // Merge only known keys over the current feature map.
-        $features = array_merge(
-            $tenant->features ?? [],
-            collect($request->validated('modules'))
-                ->only(Modules::keys())
-                ->map(fn ($v) => (bool) $v)
-                ->all(),
+        $tenant->applyModules(
+            collect($request->validated('modules'))->only(Modules::keys())->all(),
         );
-
-        $tenant->forceFill(['features' => $features])->save();
 
         return ApiResponse::ok(new TenantResource($tenant->fresh()->load('city', 'plan')), 'Modules updated');
     }
 
     /**
-     * Extend (or clear) a single tenant's plan limits. Sends a sparse map of
-     * {limit_key: value|null}; null clears the override (back to the plan).
-     * Most tenants share a common plan; this is how the odd one that needs more
-     * gets it — without creating a bespoke plan.
+     * Set (or clear) a single tenant's limits. Sends a sparse map of
+     * {limit_key: value|null}; null clears it, so the resource falls back to
+     * its plan (products, storage) or its platform default (branches, staff,
+     * lanes).
+     *
+     * This is the endpoint behind "give this shop a second branch" and "let
+     * them hold 200 more products" alike — one place, whichever side of the
+     * plan/tenant line the resource sits on.
      *
      * Two things here are load-bearing:
      *
@@ -132,12 +131,12 @@ class TenantController extends Controller
         $tenant = Tenant::query()->findOrFail($id)->loadMissing('plan');
 
         $mode = $request->validated('mode') ?? 'set';
-        $overrides = $tenant->limit_overrides ?? [];
+        $next = [];
         $applied = [];
 
         foreach ($request->validated('limits') as $key => $value) {
             if ($value === null) {
-                unset($overrides[$key]); // clear → fall back to the plan
+                $next[$key] = null; // clear → fall back to plan / default
                 $applied[$key] = null;
 
                 continue;
@@ -154,31 +153,31 @@ class TenantController extends Controller
                 );
             }
 
-            $next = $mode === 'add' ? (int) $current + (int) $value : (int) $value;
+            $value = $mode === 'add' ? (int) $current + (int) $value : (int) $value;
 
-            if ($next < 1) {
+            if ($value < 1) {
                 throw DomainException::unprocessable(
-                    "That would leave {$key} at {$next}. A limit has to be at least 1.",
+                    "That would leave {$key} at {$value}. A limit has to be at least 1.",
                     'LIMIT_TOO_LOW',
                 );
             }
 
             // The guard against a typo becoming an outage.
             $used = PlanLimits::usage($tenant, $key);
-            if ($next < $used) {
+            if ($value < $used) {
                 $label = PlanLimits::REGISTRY[$key]['label'];
                 throw DomainException::unprocessable(
-                    "This shop already has {$used} {$label} — the limit can't be set to {$next}. "
+                    "This shop already has {$used} {$label} — the limit can't be set to {$value}. "
                     ."Set it to {$used} or more, or remove the extra {$label} first.",
                     'LIMIT_BELOW_USAGE',
                 );
             }
 
-            $overrides[$key] = $next;
-            $applied[$key] = $next;
+            $next[$key] = $value;
+            $applied[$key] = $value;
         }
 
-        $tenant->forceFill(['limit_overrides' => $overrides ?: null])->save();
+        $tenant->assignLimits($next);
 
         return ApiResponse::ok(
             new TenantResource($tenant->fresh()->load('city', 'plan')),

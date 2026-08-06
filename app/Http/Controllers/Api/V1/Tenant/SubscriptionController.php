@@ -17,9 +17,7 @@ use Illuminate\Http\JsonResponse;
  */
 class SubscriptionController extends Controller
 {
-    public function __construct(private readonly TenantContext $context)
-    {
-    }
+    public function __construct(private readonly TenantContext $context) {}
 
     public function show(): JsonResponse
     {
@@ -35,15 +33,17 @@ class SubscriptionController extends Controller
                 'description' => $plan->description,
                 'price' => $plan->price,
                 'billing_period_months' => $plan->billing_period_months,
-                'online_shop_enabled' => $plan->online_shop_enabled,
-                'features' => $plan->features ?? [],
+                'grace_period_days' => $plan->grace_period_days,
+                'is_custom' => $plan->is_custom,
             ],
             'state' => $tenant->subscriptionState(),
             'subscription_ends_at' => $tenant->subscription_ends_at?->toIso8601String(),
             'grace_ends_at' => $tenant->graceEndsAt()?->toIso8601String(),
             'modules' => $tenant->features ?? [],
-            // Usage vs the EFFECTIVE ceiling (per-tenant extension wins over
-            // the plan baseline) — same engine the admin panel meters with.
+            // Usage vs the EFFECTIVE ceiling — the shop's own assigned limit
+            // wins, then its plan, then the platform default. Same engine the
+            // admin panel meters with. The plan above is only what it pays;
+            // what it can DO is `modules`, and no renewal touches that.
             'limits_usage' => PlanLimits::snapshot($tenant),
             'payments' => SubscriptionPayment::query()
                 ->where('tenant_id', $tenant->id)

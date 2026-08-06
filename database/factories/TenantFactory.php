@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\TenantStatus;
 use App\Models\Tenant;
+use App\Support\BusinessTypes;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -24,6 +25,11 @@ class TenantFactory extends Factory
             'business_category' => fake()->randomElement(['grocery', 'electronics', 'clothing', 'pharmacy', 'restaurant']),
             'status' => TenantStatus::Active,
             'online_shop_enabled' => false,
+            // Room to work in. Branches, staff and lanes are assigned per shop
+            // and default to a small business; a test that isn't about limits
+            // should never trip over one it never set. Tests that ARE about
+            // limits override this explicitly.
+            'limits' => ['branches' => 20, 'staff' => 100, 'registers' => 20],
         ];
     }
 
@@ -45,7 +51,7 @@ class TenantFactory extends Factory
     public function provisioned(): static
     {
         return $this->state(fn (array $attributes) => [
-            'features' => array_fill_keys(\App\Support\BusinessTypes::FEATURES, true),
+            'features' => array_fill_keys(BusinessTypes::FEATURES, true),
         ]);
     }
 }

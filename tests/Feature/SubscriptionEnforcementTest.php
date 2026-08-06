@@ -23,7 +23,7 @@ class SubscriptionEnforcementTest extends TestCase
 
         $this->withoutMiddleware(ThrottleRequests::class);
         $this->seed(PlanSeeder::class);
-        $this->plan = Plan::query()->where('code', 'business-pos')->first(); // 7-day grace
+        $this->plan = Plan::query()->where('code', 'basic')->first(); // 7-day grace
     }
 
     private function actingAsUser(User $user): static

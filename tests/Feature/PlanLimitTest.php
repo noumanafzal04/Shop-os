@@ -38,6 +38,12 @@ class PlanLimitTest extends TestCase
         return $this->withToken($token);
     }
 
+    /**
+     * A shop with these ceilings. The keys split by owner, exactly as the
+     * platform does: max_products / max_storage_mb / max_orders_month are what
+     * the PLAN sells, while staff, branches and lanes are ASSIGNED to this shop
+     * — so a two-branch business no longer needs a plan of its own.
+     */
     private function planWith(array $limits): Plan
     {
         return Plan::query()->create([
@@ -45,16 +51,29 @@ class PlanLimitTest extends TestCase
             'code' => 'test-plan',
             'price' => 0,
             'billing_period_months' => 1,
-            'online_shop_enabled' => true,
             'grace_period_days' => 7,
-            ...$limits,
+            ...collect($limits)->only(['max_products', 'max_storage_mb', 'max_orders_month'])->all(),
         ]);
     }
 
-    /** @return array{0: Tenant, 1: User} */
-    private function shopOn(Plan $plan): array
+    /** The tenant-side half of the same array: max_staff → limits.staff, etc. */
+    private function assignedFrom(array $limits): array
     {
-        $tenant = Tenant::factory()->provisioned()->create(['plan_id' => $plan->id]);
+        $map = ['max_staff' => 'staff', 'max_branches' => 'branches', 'max_registers' => 'registers'];
+
+        return collect($limits)->only(array_keys($map))
+            ->mapWithKeys(fn ($v, $k) => [$map[$k] => $v])->all();
+    }
+
+    /** @return array{0: Tenant, 1: User} */
+    private function shopOn(Plan $plan, array $assigned = []): array
+    {
+        $tenant = Tenant::factory()->provisioned()->create([
+            'plan_id' => $plan->id,
+            // The factory is deliberately roomy; a test about a ceiling states
+            // its own, so nothing here is inherited by accident.
+            'limits' => $assigned ?: null,
+        ]);
         $owner = User::factory()->shopOwner($tenant)->create();
 
         return [$tenant, $owner];
@@ -83,13 +102,12 @@ class PlanLimitTest extends TestCase
     {
         $this->login($this->admin)->postJson('/api/v1/admin/plans', [
             'name' => 'Limited', 'code' => 'limited', 'price' => 500,
-            'billing_period_months' => 1, 'online_shop_enabled' => false, 'grace_period_days' => 7,
-            'max_products' => 50, 'max_staff' => 3, 'max_branches' => 2,
+            'billing_period_months' => 1, 'grace_period_days' => 7,
+            'max_products' => 50, 'max_storage_mb' => 2048,
         ])
             ->assertCreated()
             ->assertJsonPath('data.limits.products', 50)
-            ->assertJsonPath('data.limits.staff', 3)
-            ->assertJsonPath('data.limits.branches', 2)
+            ->assertJsonPath('data.limits.storage_mb', 2048)
             ->assertJsonPath('data.limits.orders_month', null); // omitted = unlimited
     }
 
@@ -97,7 +115,7 @@ class PlanLimitTest extends TestCase
 
     public function test_product_creation_blocked_at_plan_limit(): void
     {
-        [, $owner] = $this->shopOn($this->planWith(['max_products' => 2]));
+        [, $owner] = $this->shopOn($this->planWith(['max_products' => 2]), $this->assignedFrom(['max_products' => 2]));
 
         $this->createProduct($owner, 'One')->assertCreated();
         $this->createProduct($owner, 'Two')->assertCreated();
@@ -108,7 +126,7 @@ class PlanLimitTest extends TestCase
 
     public function test_null_limit_is_unlimited(): void
     {
-        [, $owner] = $this->shopOn($this->planWith(['max_products' => null]));
+        [, $owner] = $this->shopOn($this->planWith(['max_products' => null]), $this->assignedFrom(['max_products' => null]));
 
         foreach (['A', 'B', 'C', 'D', 'E'] as $name) {
             $this->createProduct($owner, $name)->assertCreated();
@@ -129,7 +147,7 @@ class PlanLimitTest extends TestCase
 
     public function test_per_tenant_extend_lifts_the_ceiling(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 1]));
+        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 1]), $this->assignedFrom(['max_products' => 1]));
 
         $this->createProduct($owner, 'One')->assertCreated();
         $this->createProduct($owner, 'Two')->assertStatus(422);
@@ -137,7 +155,7 @@ class PlanLimitTest extends TestCase
         // Admin extends just this tenant past the plan baseline.
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'limits' => ['products' => 5],
-        ])->assertOk()->assertJsonPath('data.limit_overrides.products', 5);
+        ])->assertOk()->assertJsonPath('data.limits.products', 5);
 
         $this->createProduct($owner, 'Two')->assertCreated();
         $this->createProduct($owner, 'Three')->assertCreated();
@@ -145,16 +163,16 @@ class PlanLimitTest extends TestCase
 
     public function test_extend_null_clears_the_override(): void
     {
-        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1]));
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1]), $this->assignedFrom(['max_products' => 1]));
 
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'limits' => ['products' => 9],
-        ])->assertOk()->assertJsonPath('data.limit_overrides.products', 9);
+        ])->assertOk()->assertJsonPath('data.limits.products', 9);
 
         // Clearing falls back to the plan baseline.
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'limits' => ['products' => null],
-        ])->assertOk()->assertJsonPath('data.limit_overrides', []);
+        ])->assertOk()->assertJsonPath('data.limits', []);
     }
 
     /**
@@ -164,29 +182,29 @@ class PlanLimitTest extends TestCase
      */
     public function test_add_mode_raises_the_ceiling_by_the_amount_typed(): void
     {
-        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1000]));
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1000]), $this->assignedFrom(['max_products' => 1000]));
 
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'mode' => 'add',
             'limits' => ['products' => 100],
-        ])->assertOk()->assertJsonPath('data.limit_overrides.products', 1100);
+        ])->assertOk()->assertJsonPath('data.limits.products', 1100);
 
         // And again — extending twice compounds, it doesn't overwrite.
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'mode' => 'add',
             'limits' => ['products' => 50],
-        ])->assertOk()->assertJsonPath('data.limit_overrides.products', 1150);
+        ])->assertOk()->assertJsonPath('data.limits.products', 1150);
     }
 
     /** A tenant downgrading gives some back. Negative deltas are legitimate. */
     public function test_add_mode_accepts_a_reduction(): void
     {
-        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1000]));
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1000]), $this->assignedFrom(['max_products' => 1000]));
 
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'mode' => 'add',
             'limits' => ['products' => -400],
-        ])->assertOk()->assertJsonPath('data.limit_overrides.products', 600);
+        ])->assertOk()->assertJsonPath('data.limits.products', 600);
     }
 
     /**
@@ -196,7 +214,7 @@ class PlanLimitTest extends TestCase
      */
     public function test_a_limit_can_never_be_set_below_what_is_already_used(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 1000]));
+        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 1000]), $this->assignedFrom(['max_products' => 1000]));
         $this->createProduct($owner, 'One')->assertCreated();
         $this->createProduct($owner, 'Two')->assertCreated();
         $this->createProduct($owner, 'Three')->assertCreated();
@@ -209,13 +227,13 @@ class PlanLimitTest extends TestCase
             ->assertJsonPath('meta.error_code', 'LIMIT_BELOW_USAGE');
 
         // Nothing was written — the shop still has its full ceiling.
-        $this->assertNull($tenant->fresh()->limit_overrides);
+        $this->assertNull($tenant->fresh()->limits);
     }
 
     public function test_adding_to_an_unlimited_resource_is_refused_rather_than_inventing_a_ceiling(): void
     {
         // No max_products on the plan = unlimited.
-        [$tenant] = $this->shopOn($this->planWith([]));
+        [$tenant] = $this->shopOn($this->planWith([]), $this->assignedFrom([]));
 
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'mode' => 'add',
@@ -225,9 +243,9 @@ class PlanLimitTest extends TestCase
             ->assertJsonPath('meta.error_code', 'ALREADY_UNLIMITED');
     }
 
-    public function test_the_snapshot_separates_the_plan_baseline_from_what_was_granted(): void
+    public function test_the_snapshot_separates_the_baseline_from_what_was_granted(): void
     {
-        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1000]));
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1000]), $this->assignedFrom(['max_products' => 1000]));
 
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'mode' => 'add',
@@ -242,13 +260,15 @@ class PlanLimitTest extends TestCase
         // "1,100" alone can't tell an admin whether that's the plan or
         // something a colleague granted last March.
         $this->assertSame(1100, $usage['limit']);
-        $this->assertSame(1000, $usage['plan_limit']);
+        $this->assertSame(1000, $usage['baseline']);
         $this->assertSame(100, $usage['extra']);
+        $this->assertSame('plan', $usage['owner']);
+        $this->assertTrue($usage['assigned']);
     }
 
     public function test_extend_rejects_unknown_limit_key(): void
     {
-        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1]));
+        [$tenant] = $this->shopOn($this->planWith(['max_products' => 1]), $this->assignedFrom(['max_products' => 1]));
 
         $this->login($this->admin)->putJson("/api/v1/admin/tenants/{$tenant->id}/limits", [
             'limits' => ['bananas' => 5],
@@ -259,7 +279,7 @@ class PlanLimitTest extends TestCase
 
     public function test_staff_limit_enforced_and_extendable(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_staff' => 1]));
+        [$tenant, $owner] = $this->shopOn($this->planWith(['max_staff' => 1]), $this->assignedFrom(['max_staff' => 1]));
 
         $this->createStaff($owner, 'Aisha')->assertCreated();
         $this->createStaff($owner, 'Bilal')
@@ -277,7 +297,7 @@ class PlanLimitTest extends TestCase
 
     public function test_tenant_detail_exposes_usage_vs_limit(): void
     {
-        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 10]));
+        [$tenant, $owner] = $this->shopOn($this->planWith(['max_products' => 10]), $this->assignedFrom(['max_products' => 10]));
         $this->createProduct($owner, 'One')->assertCreated();
         $this->createProduct($owner, 'Two')->assertCreated();
 

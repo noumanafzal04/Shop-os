@@ -24,6 +24,7 @@ class CatalogTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(\Database\Seeders\PlanSeeder::class);
 
         $this->withoutMiddleware(ThrottleRequests::class);
         $this->tenant = Tenant::factory()->create();
@@ -109,6 +110,7 @@ class CatalogTest extends TestCase
         $this->actingAsUser($admin)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Spaceship Co',
             'business_type' => 'spaceship-dealer', // not a real business type
+            'plan_id' => \App\Models\Plan::query()->where('code', 'basic')->value('id'),
             'owner' => ['name' => 'O', 'email' => 'o@space.test', 'password' => 'password123'],
         ])->assertStatus(422)->assertJsonStructure(['errors' => ['business_type']]);
     }

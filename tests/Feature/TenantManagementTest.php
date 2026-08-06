@@ -57,6 +57,9 @@ class TenantManagementTest extends TestCase
             'phone' => '+923000000001',
             'business_type' => 'mart',
             'business_category' => 'grocery',
+            // Required: a tenant with no plan has no product ceiling and no
+            // billing period — a state nobody chose.
+            'plan_id' => Plan::query()->where('code', 'basic')->value('id'),
             'owner' => [
                 'name' => 'Ali Khan',
                 'email' => 'ali@test.com',
@@ -73,7 +76,11 @@ class TenantManagementTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('data.business_name', 'Karachi General Store')
-            ->assertJsonPath('data.online_shop_enabled', false);
+            // A mart's type proposes an online store, and online_shop_enabled
+            // now tracks that module instead of a flag on the plan — so ticking
+            // Online Store is the ONE thing that turns a shop's storefront on.
+            ->assertJsonPath('data.online_shop_enabled', true)
+            ->assertJsonPath('data.features.marketplace', true);
 
         $this->assertDatabaseHas('users', [
             'email' => 'ali@test.com',
@@ -82,19 +89,29 @@ class TenantManagementTest extends TestCase
         ]);
     }
 
-    public function test_create_with_plan_sets_subscription_and_online_flag(): void
+    public function test_create_with_plan_sets_the_subscription_period(): void
     {
-        $plan = Plan::query()->where('code', 'business-pos-online')->first();
+        $plan = Plan::query()->where('code', 'premium')->first();
 
         $response = $this->asAdmin()->postJson('/api/v1/admin/tenants', $this->tenantPayload([
             'plan_id' => $plan->id,
         ]));
 
-        $response->assertCreated()
-            ->assertJsonPath('data.online_shop_enabled', true)
-            ->assertJsonPath('data.plan.code', 'business-pos-online');
+        $response->assertCreated()->assertJsonPath('data.plan.code', 'premium');
 
         $this->assertNotNull($response->json('data.subscription_ends_at'));
+    }
+
+    public function test_a_tenant_cannot_be_created_without_a_plan(): void
+    {
+        $payload = $this->tenantPayload();
+        unset($payload['plan_id']);
+
+        // The state that used to be reachable: no plan, no ceilings, and an
+        // admin panel with no way to fix it afterwards.
+        $this->asAdmin()->postJson('/api/v1/admin/tenants', $payload)
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['plan_id']]);
     }
 
     public function test_duplicate_business_name_rejected(): void
@@ -244,64 +261,60 @@ class TenantManagementTest extends TestCase
 
     // ── Plan assignment ─────────────────────────────────────────────
 
-    public function test_upgrade_to_online_shop_plan(): void
+    public function test_upgrading_raises_the_ceiling_the_plan_owns(): void
     {
-        $tenant = Tenant::factory()->create();
-        $plan = Plan::query()->where('code', 'business-pos-online')->first();
+        $tenant = Tenant::factory()->create(['limits' => null]);
 
-        $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", [
-            'plan_id' => $plan->id,
-        ])->assertOk()->assertJsonPath('data.online_shop_enabled', true);
+        foreach (['basic' => 1000, 'enterprise' => null] as $code => $expected) {
+            $plan = Plan::query()->where('code', $code)->first();
+            $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", ['plan_id' => $plan->id])
+                ->assertOk();
+
+            $this->assertSame($expected, \App\Support\PlanLimits::limit($tenant->fresh(), 'products'));
+        }
     }
 
-    public function test_downgrade_disables_online_shop_but_preserves_data(): void
+    public function test_downgrading_keeps_every_row_the_shop_owns(): void
     {
-        $tenant = Tenant::factory()->onlineShop()->create();
-        $expenseOnly = Plan::query()->where('code', 'business-pos')->first();
+        $tenant = Tenant::factory()->create(['plan_id' => Plan::query()->where('code', 'enterprise')->value('id')]);
+        $basic = Plan::query()->where('code', 'basic')->first();
 
         $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", [
-            'plan_id' => $expenseOnly->id,
-        ])->assertOk()->assertJsonPath('data.online_shop_enabled', false);
+            'plan_id' => $basic->id,
+        ])->assertOk()->assertJsonPath('data.plan.code', 'basic');
 
-        // Tenant row (and everything hanging off it) still exists.
+        // Data is NEVER deleted by a billing change — renewal restores the
+        // ceiling and everything is still there.
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'deleted_at' => null]);
     }
 
-    public function test_plan_drives_pos_and_online_modules(): void
+    public function test_a_plan_grants_no_capability_at_all(): void
     {
+        // The heart of the split. A shop's modules are its own; a plan decides
+        // what it pays and how much it may hold. Assigning, switching or
+        // renewing one must leave every module exactly where the admin put it.
         $tenant = Tenant::factory()->create();
-        $owner = User::factory()->shopOwner($tenant)->create();
-        $product = Product::withoutTenancy()->create([
-            'tenant_id' => $tenant->id, 'type' => 'product',
-            'name' => 'Widget', 'price' => 100, 'stock_quantity' => 10, 'track_inventory' => true,
-        ]);
-        $ringSale = fn () => $this->actingAsUser($owner)->postJson('/api/v1/sales', [
-            'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 100,
-            'items' => [['product_id' => $product->id, 'quantity' => 1]],
-        ]);
+        $tenant->applyModules(['pos' => true, 'products' => true, 'expenses' => true, 'marketplace' => false]);
 
-        // Online Business plan → POS module OFF, online ON.
-        $online = Plan::query()->where('code', 'online-business')->first();
-        $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", ['plan_id' => $online->id])
-            ->assertOk()->assertJsonPath('data.online_shop_enabled', true);
-        $this->assertFalse($tenant->fresh()->featureEnabled('pos'));
-        $ringSale()->assertStatus(403)->assertJsonPath('meta.error_code', 'MODULE_DISABLED');
-        $this->actingAsUser($owner)->getJson('/api/v1/pos/session')
-            ->assertStatus(403)->assertJsonPath('meta.error_code', 'MODULE_DISABLED');
+        $basic = Plan::query()->where('code', 'basic')->first();
+        $premium = Plan::query()->where('code', 'premium')->first();
 
-        // Business/POS plan → POS module ON, online OFF (can't sell online).
-        $pos = Plan::query()->where('code', 'business-pos')->first();
-        $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", ['plan_id' => $pos->id])
-            ->assertOk()->assertJsonPath('data.online_shop_enabled', false);
-        $this->assertTrue($tenant->fresh()->featureEnabled('pos'));
-        $this->assertFalse($tenant->fresh()->featureEnabled('marketplace'));
-        $ringSale()->assertCreated();
+        foreach ([$basic, $premium, $premium, $basic] as $plan) {
+            $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", ['plan_id' => $plan->id])
+                ->assertOk();
+        }
+
+        $fresh = $tenant->fresh();
+        $this->assertTrue($fresh->featureEnabled('pos'));
+        $this->assertTrue($fresh->featureEnabled('expenses'));
+        $this->assertFalse($fresh->featureEnabled('marketplace'));
+        $this->assertFalse($fresh->online_shop_enabled);
     }
 
     public function test_inactive_plan_cannot_be_assigned(): void
     {
         $tenant = Tenant::factory()->create();
-        $plan = Plan::query()->where('code', 'business-pos')->first();
+        $plan = Plan::query()->where('code', 'basic')->first();
         $plan->update(['is_active' => false]);
 
         $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", [
@@ -338,10 +351,12 @@ class TenantManagementTest extends TestCase
         $response = $this->asAdmin()->getJson('/api/v1/admin/plans');
 
         $response->assertOk();
-        // Finance Manager (books only), Business/POS, Online Business, and both.
-        $this->assertCount(4, $response->json('data'));
-        $this->assertEqualsCanonicalizing(
-            ['finance-manager', 'business-pos', 'online-business', 'business-pos-online'],
+        // One ladder, three rungs. They differ only in size and price — which
+        // is why a petrol pump, a restaurant and a books-only office can all
+        // sit on the same rung and still each run what their trade needs.
+        $this->assertCount(3, $response->json('data'));
+        $this->assertSame(
+            ['basic', 'premium', 'enterprise'],
             array_column($response->json('data'), 'code'),
         );
     }

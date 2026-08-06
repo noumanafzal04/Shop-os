@@ -32,14 +32,13 @@ class SubscriptionPageTest extends TestCase
     {
         $plan = Plan::query()->create([
             'name' => 'Common', 'code' => 'common', 'price' => 1500,
-            'billing_period_months' => 1, 'online_shop_enabled' => true, 'grace_period_days' => 7,
-            'features' => ['pos' => true, 'expenses' => true, 'marketplace' => true],
-            'max_products' => 100, 'max_staff' => 5,
+            'billing_period_months' => 1, 'grace_period_days' => 7,
+            'max_products' => 100,
         ]);
         $tenant = Tenant::factory()->provisioned()->create([
             'plan_id' => $plan->id,
-            // Extended past the plan baseline for THIS tenant.
-            'limit_overrides' => ['staff' => 10],
+            // Staff is assigned to the shop, never sold on the plan.
+            'limits' => ['staff' => 10],
             'subscription_starts_at' => now()->subDays(10),
             'subscription_ends_at' => now()->addDays(20),
         ]);
@@ -66,11 +65,11 @@ class SubscriptionPageTest extends TestCase
         $products = $usage->firstWhere('key', 'products');
         $this->assertSame(100, $products['limit']);
         $this->assertSame(1, $products['used']);
-        // The per-tenant extension (not the plan's 5) is the effective ceiling.
+        // Staff is assigned to the shop; the plan has no say in it.
         $this->assertSame(10, $usage->firstWhere('key', 'staff')['limit']);
     }
 
-    public function test_tenant_without_a_plan_sees_unlimited(): void
+    public function test_tenant_without_a_plan_sees_unlimited_on_billed_usage(): void
     {
         $tenant = Tenant::factory()->provisioned()->create(['plan_id' => null]);
         $owner = User::factory()->shopOwner($tenant)->create();
@@ -80,6 +79,11 @@ class SubscriptionPageTest extends TestCase
 
         $this->assertNull($data['plan']);
         $this->assertSame('active', $data['state']);
-        $this->assertTrue(collect($data['limits_usage'])->every(fn ($u) => $u['unlimited']));
+
+        // Only what a PLAN sells goes uncapped. Branches, staff and lanes are
+        // assigned to the shop and fall back to the platform default.
+        $usage = collect($data['limits_usage']);
+        $this->assertTrue($usage->where('owner', 'plan')->every(fn ($u) => $u['unlimited']));
+        $this->assertTrue($usage->where('owner', 'tenant')->every(fn ($u) => ! $u['unlimited']));
     }
 }

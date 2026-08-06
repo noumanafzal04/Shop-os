@@ -40,8 +40,8 @@ class PlanManagementTest extends TestCase
             'description' => 'Everything, unlimited.',
             'price' => 9999,
             'billing_period_months' => 1,
-            'online_shop_enabled' => true,
             'grace_period_days' => 7,
+            'max_products' => 5000,
         ], $overrides);
     }
 
@@ -50,7 +50,10 @@ class PlanManagementTest extends TestCase
         $this->asAdmin()->postJson('/api/v1/admin/plans', $this->payload())
             ->assertCreated()
             ->assertJsonPath('data.code', 'pro-plan')
-            ->assertJsonPath('data.online_shop_enabled', true);
+            ->assertJsonPath('data.limits.products', 5000)
+            // A plan is a price and a ceiling. It grants no capability, so
+            // there is nothing here that a renewal could revoke.
+            ->assertJsonPath('data.is_custom', false);
 
         $this->assertDatabaseHas('plans', ['code' => 'pro-plan', 'price' => 9999]);
     }

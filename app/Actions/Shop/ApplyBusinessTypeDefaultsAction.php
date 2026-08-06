@@ -27,12 +27,15 @@ class ApplyBusinessTypeDefaultsAction
             return;
         }
 
-        $tenant->forceFill([
-            'business_type' => $businessType,
-            // defaultFeatures() (not the raw template) so admin-controlled
-            // modules like Expense Manager get their baseline default.
-            'features' => $tenant->features ?? BusinessTypes::defaultFeatures($businessType),
-        ])->save();
+        $tenant->forceFill(['business_type' => $businessType])->save();
+
+        // The type PROPOSES a module set; it never overrules one already there.
+        // On the create screen the admin sees this proposal and adjusts it
+        // before anything is saved, so by the time a tenant has features they
+        // are a decision someone made, not a default nobody looked at.
+        if ($tenant->features === null) {
+            $tenant->applyModules(BusinessTypes::defaultFeatures($businessType), merge: false);
+        }
 
         if (! Category::query()->where('tenant_id', $tenant->id)->exists()) {
             foreach ($template['product_categories'] as $i => $name) {

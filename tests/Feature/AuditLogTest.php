@@ -33,7 +33,7 @@ class AuditLogTest extends TestCase
     public function test_tenant_lifecycle_actions_are_audited_with_actor(): void
     {
         $admin = User::factory()->superAdmin()->create();
-        $plan = \App\Models\Plan::query()->where('code', 'business-pos')->first();
+        $plan = \App\Models\Plan::query()->where('code', 'basic')->first();
 
         $tenant = $this->actingAsUser($admin)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Audited Mart',
@@ -63,10 +63,12 @@ class AuditLogTest extends TestCase
     public function test_secrets_are_never_written_to_the_audit_log(): void
     {
         $admin = User::factory()->superAdmin()->create();
+        $plan = \App\Models\Plan::query()->where('code', 'basic')->first();
 
         $this->actingAsUser($admin)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Secret Mart',
             'business_type' => 'mart',
+            'plan_id' => $plan->id,
             'owner' => ['name' => 'O', 'email' => 'secret@audit.test', 'password' => 'password123'],
         ]);
 

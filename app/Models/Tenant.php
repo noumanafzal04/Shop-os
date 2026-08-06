@@ -4,10 +4,13 @@ namespace App\Models;
 
 use App\Enums\TenantStatus;
 use App\Models\Concerns\Auditable;
+use App\Support\Modules;
+use App\Support\ShopSettings;
 use Database\Factories\TenantFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 class Tenant extends BaseModel
 {
@@ -41,7 +44,7 @@ class Tenant extends BaseModel
             'online_shop_enabled' => 'boolean',
             'delivery_fee' => 'decimal:2',
             'features' => 'array',
-            'limit_overrides' => 'array',
+            'limits' => 'array',
             'setup_completed' => 'boolean',
             'subscription_starts_at' => 'datetime',
             'subscription_ends_at' => 'datetime',
@@ -116,7 +119,7 @@ class Tenant extends BaseModel
         return $graceEndsAt->isFuture() ? 'grace' : 'read_only';
     }
 
-    public function graceEndsAt(): ?\Illuminate\Support\Carbon
+    public function graceEndsAt(): ?Carbon
     {
         if ($this->subscription_ends_at === null) {
             return null;
@@ -137,13 +140,66 @@ class Tenant extends BaseModel
     }
 
     /**
-     * Business-type aware capability check. Effective = the tenant's feature
-     * map (seeded from the business-type matrix, adjustable later). Online
-     * capabilities additionally require the plan flag — see sellsOnline().
+     * Capability check. The tenant's own module map is the only authority —
+     * proposed by its business type when it was created, adjusted by an admin,
+     * and never rewritten by a billing event.
      */
     public function featureEnabled(string $feature): bool
     {
         return (bool) ($this->features[$feature] ?? false);
+    }
+
+    /**
+     * The ONE way a tenant's modules are ever written.
+     *
+     * `online_shop_enabled` is a denormalised copy of the Online Store module —
+     * it exists because the marketplace listing query runs on every shopper's
+     * homepage and an indexed boolean beats a JSON lookup. Keeping the two in
+     * step is exactly the kind of thing that gets forgotten in one of three
+     * call sites, and when it was, ticking Online Store did nothing at all:
+     * sellsOnline() wants both, so the module went on and the shop stayed
+     * invisible. Writing them together, here, is the fix.
+     *
+     * @param  array<string, mixed>  $modules  full or partial map
+     * @param  bool  $merge  false replaces the map outright rather than layering
+     */
+    public function applyModules(array $modules, bool $merge = true): static
+    {
+        $features = Modules::normalize(
+            $merge ? array_merge($this->features ?? [], $modules) : $modules,
+        );
+
+        $this->forceFill([
+            'features' => $features,
+            'online_shop_enabled' => $features['marketplace'],
+        ])->save();
+
+        return $this;
+    }
+
+    /**
+     * Assign this shop's own ceilings — branches, staff, lanes, or an extension
+     * past its plan on products and storage. A null value clears the assignment
+     * and lets the resource fall back to its plan or platform default.
+     *
+     * @param  array<string, int|null>  $limits
+     */
+    public function assignLimits(array $limits): static
+    {
+        $current = $this->limits ?? [];
+
+        foreach ($limits as $key => $value) {
+            if ($value === null || $value === '') {
+                unset($current[$key]);
+
+                continue;
+            }
+            $current[$key] = (int) $value;
+        }
+
+        $this->forceFill(['limits' => $current ?: null])->save();
+
+        return $this;
     }
 
     /**
@@ -166,7 +222,7 @@ class Tenant extends BaseModel
      * shop-configured time-of-day or calendar date (business hours, food
      * serving windows, coupon validity) must use this, not the UTC now().
      */
-    public function localNow(): \Illuminate\Support\Carbon
+    public function localNow(): Carbon
     {
         return now()->setTimezone($this->timezone ?: 'Asia/Karachi');
     }
@@ -211,7 +267,7 @@ class Tenant extends BaseModel
     /** Effective config = ShopSettings defaults merged with saved overrides. */
     public function allSettings(): array
     {
-        return array_merge(\App\Support\ShopSettings::defaults(), $this->settings ?? []);
+        return array_merge(ShopSettings::defaults(), $this->settings ?? []);
     }
 
     public function setting(string $key, mixed $default = null): mixed

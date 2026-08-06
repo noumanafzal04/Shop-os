@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Tenant;
+use App\Support\Modules;
 use App\Support\PlanLimits;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -34,8 +35,12 @@ class TenantResource extends JsonResource
             ]),
             'online_shop_enabled' => $this->online_shop_enabled,
             'features' => $this->features ?? [],
-            // Per-tenant limit extensions (empty = plain plan limits).
-            'limit_overrides' => $this->limit_overrides ?? [],
+            // What this shop was assigned: branches, staff and lanes, plus any
+            // extension past its plan. Empty = every resource on its default.
+            'limits' => $this->limits ?? [],
+            // What its type would have proposed — so the admin can see at a
+            // glance which modules were a deliberate choice for this shop.
+            'default_modules' => Modules::defaultsFor($this->business_type),
             // Live usage-vs-limit — detail view only (loads `users`), to keep
             // the tenant list free of per-row count queries.
             'limits_usage' => $this->when(

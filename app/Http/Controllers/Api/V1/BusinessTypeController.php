@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiResponse;
 use App\Support\BusinessTypes;
 use App\Support\ItemTypes;
+use App\Support\Modules;
 use Illuminate\Http\JsonResponse;
 
 class BusinessTypeController extends Controller
@@ -25,6 +26,11 @@ class BusinessTypeController extends Controller
                 'examples' => $t['examples'],
                 'available' => $t['available'],
                 'features' => $t['features'],
+                // The full, normalised module set this type proposes — what the
+                // create-tenant screen ticks before the admin adjusts it. The
+                // raw `features` above is the template's own partial map and
+                // says nothing about expenses, images or the till.
+                'default_modules' => Modules::defaultsFor($code),
                 'item_types' => BusinessTypes::itemTypesFor($code),
                 'categories' => BusinessTypes::categoriesFor($code),
                 'units' => BusinessTypes::unitsFor($code),

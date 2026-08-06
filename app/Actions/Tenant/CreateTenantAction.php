@@ -2,6 +2,7 @@
 
 namespace App\Actions\Tenant;
 
+use App\Actions\Shop\ApplyBusinessTypeDefaultsAction;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\Plan;
@@ -13,14 +14,26 @@ use Illuminate\Support\Str;
 /**
  * Creates a tenant together with its owner account — atomically. A tenant
  * without an owner (or an owner without a tenant) can never exist.
+ *
+ * A shop is defined in three layers, each one overriding the last:
+ *
+ *   1. BUSINESS TYPE proposes the modules a trade of that kind needs, and
+ *      seeds its product / expense / income categories.
+ *   2. The PLAN sets what it pays and how much it may hold.
+ *   3. The ADMIN's own choices — the modules actually given and the branches,
+ *      staff and lanes assigned to this shop — win over both.
+ *
+ * The order is the point. Before this, a shop could be created with no plan and
+ * no explicit modules, which left it in a state nobody had decided: unlimited
+ * on every metered resource and running whatever its type happened to default
+ * to. Now every tenant leaves this action fully specified.
  */
 class CreateTenantAction
 {
     public function __construct(
         private readonly AssignPlanAction $assignPlan,
-        private readonly \App\Actions\Shop\ApplyBusinessTypeDefaultsAction $applyDefaults,
-    ) {
-    }
+        private readonly ApplyBusinessTypeDefaultsAction $applyDefaults,
+    ) {}
 
     public function execute(array $data): Tenant
     {
@@ -34,9 +47,8 @@ class CreateTenantAction
                 'city_id' => $data['city_id'] ?? null,
             ]);
 
-            // The admin picks the type at creation — seed its features and
-            // default categories now so the owner's first login is ready to go
-            // (they only add basic info at setup, never the type).
+            // ① The type: features proposed, categories and terminology seeded.
+            // The owner never picks this — the admin does, once.
             if (! empty($data['business_type'])) {
                 $this->applyDefaults->execute($tenant, $data['business_type']);
             }
@@ -51,8 +63,18 @@ class CreateTenantAction
                 'status' => UserStatus::Active,
             ]);
 
-            if (isset($data['plan_id'])) {
+            // ② The plan: price, period, and the usage ceilings it baselines.
+            if (! empty($data['plan_id'])) {
                 $this->assignPlan->execute($tenant, Plan::query()->findOrFail($data['plan_id']));
+            }
+
+            // ③ The admin's own decisions, last, so they win over both.
+            if (isset($data['modules'])) {
+                $tenant->applyModules($data['modules']);
+            }
+
+            if (! empty($data['limits'])) {
+                $tenant->assignLimits($data['limits']);
             }
 
             return $tenant->refresh()->load('city', 'plan', 'users');

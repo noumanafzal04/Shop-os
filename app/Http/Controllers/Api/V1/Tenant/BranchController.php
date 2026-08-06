@@ -26,7 +26,7 @@ class BranchController extends Controller
         return ApiResponse::ok($branches);
     }
 
-    /** Add a branch — gated by the plan's max_branches (Main counts as one). */
+    /** Add a branch — gated by the branches assigned to this shop (Main counts as one). */
     public function store(StoreBranchRequest $request, TenantContext $context): JsonResponse
     {
         PlanLimits::assert($context->get(), 'branches');
