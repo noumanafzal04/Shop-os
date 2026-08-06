@@ -7,22 +7,84 @@ export interface ExpenseCategory {
   is_active: boolean;
 }
 
+/** Only `cash` moves a drawer — the rest leave the till alone. */
+export const PAYMENT_METHODS = [
+  { value: "cash", label: "Cash (from till)" },
+  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "card", label: "Card" },
+  { value: "credit", label: "On credit" },
+  { value: "other", label: "Other" },
+] as const;
+
 export interface Expense {
   id: string;
   expense_category_id: string | null;
+  supplier_id: string | null;
   description: string;
+  reference: string | null;
   amount: string;
+  payment_method: string;
+  /** Set when this expense took cash out of an open drawer. */
+  cash_movement_id: string | null;
   expense_date: string;
   notes: string | null;
+  attachment_path: string | null;
+  /** Ready-to-open URL for the receipt, resolved server-side. */
+  attachment_url: string | null;
+  recurring_expense_id: string | null;
   category?: { id: string; name: string } | null;
+  supplier?: { id: string; name: string } | null;
   created_at: string;
 }
 
 export interface ExpenseInput {
   expense_category_id: string;
+  supplier_id?: string | null;
+  description: string;
+  reference?: string;
+  amount: number;
+  payment_method?: string;
+  expense_date: string;
+  notes?: string;
+}
+
+/** A category's ceiling for a month, and how it is tracking. */
+export interface BudgetRow {
+  expense_category_id: string;
+  category: string;
+  /** null = unbudgeted, which is not the same as a budget of zero. */
+  budget: number | null;
+  spent: number;
+  remaining: number | null;
+  over: boolean;
+}
+
+export interface RecurringExpense {
+  id: string;
+  expense_category_id: string;
+  supplier_id: string | null;
+  description: string;
+  amount: string;
+  payment_method: string;
+  frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+  next_due_on: string;
+  last_posted_on: string | null;
+  is_active: boolean;
+  notes: string | null;
+  is_due: boolean;
+  category?: { id: string; name: string } | null;
+  supplier?: { id: string; name: string } | null;
+}
+
+export interface RecurringInput {
+  expense_category_id: string;
   description: string;
   amount: number;
-  expense_date: string;
+  payment_method?: string;
+  frequency: string;
+  next_due_on: string;
+  supplier_id?: string | null;
+  is_active?: boolean;
   notes?: string;
 }
 
@@ -58,6 +120,28 @@ export const expensesService = {
   update: (id: string, payload: ExpenseInput) => apiPut<Expense>(`/expenses/${id}`, payload),
 
   remove: (id: string) => apiDelete<null>(`/expenses/${id}`),
+
+  attach: (id: string, file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return apiPost<Expense>(`/expenses/${id}/attachment`, body, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+  detach: (id: string) => apiDelete<Expense>(`/expenses/${id}/attachment`),
+
+  budgets: (month?: string) => apiGet<BudgetRow[]>("/expenses/budgets", { params: { month } }),
+  setBudget: (payload: { expense_category_id: string; amount: number | null; month?: string }) =>
+    apiPost<unknown>("/expenses/budgets", payload),
+
+  recurring: (due = false) =>
+    apiGet<RecurringExpense[]>("/expenses/recurring", { params: { due: due ? 1 : undefined } }),
+  createRecurring: (payload: RecurringInput) => apiPost<RecurringExpense>("/expenses/recurring", payload),
+  updateRecurring: (id: string, payload: Partial<RecurringInput>) =>
+    apiPut<RecurringExpense>(`/expenses/recurring/${id}`, payload),
+  removeRecurring: (id: string) => apiDelete<null>(`/expenses/recurring/${id}`),
+  postRecurring: (id: string, payload: { amount?: number; payment_method?: string; reference?: string }) =>
+    apiPost<Expense>(`/expenses/recurring/${id}/post`, payload),
 
   report: (params: { period: string; from?: string; to?: string }) =>
     apiGet<ReportSummary>("/reports/summary", { params }),

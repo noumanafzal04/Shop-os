@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { expensesService, type ExpenseInput } from "../services/expensesService";
+import { expensesService, type ExpenseInput, type RecurringInput } from "../services/expensesService";
 
 export function useExpenseCategories() {
   return useQuery({
@@ -27,6 +27,9 @@ export function useExpenseMutations() {
     queryClient.invalidateQueries({ queryKey: ["expenses"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     queryClient.invalidateQueries({ queryKey: ["reports"] });
+    // A cash expense moves the drawer, so the till's own view of expected
+    // cash is stale the moment one is filed.
+    queryClient.invalidateQueries({ queryKey: ["pos"] });
   };
 
   const create = useMutation({
@@ -45,7 +48,68 @@ export function useExpenseMutations() {
     onSuccess: invalidate,
   });
 
-  return { create, update, remove };
+  const attach = useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => expensesService.attach(id, file),
+    onSuccess: invalidate,
+  });
+
+  const detach = useMutation({
+    mutationFn: (id: string) => expensesService.detach(id),
+    onSuccess: invalidate,
+  });
+
+  return { create, update, remove, attach, detach };
+}
+
+/** Category ceilings for a month, with what has been spent against each. */
+export function useBudgets(month?: string) {
+  return useQuery({
+    queryKey: ["expenses", "budgets", month ?? "current"],
+    queryFn: async () => (await expensesService.budgets(month)).data,
+  });
+}
+
+/**
+ * Recurring templates. `due` narrows to the ones that have fallen due —
+ * nothing posts itself, so this list is the whole prompt.
+ */
+export function useRecurringExpenses(due = false) {
+  return useQuery({
+    queryKey: ["expenses", "recurring", due],
+    queryFn: async () => {
+      const res = await expensesService.recurring(due);
+      return { rows: res.data, dueCount: (res.meta as { due_count?: number })?.due_count ?? 0 };
+    },
+  });
+}
+
+export function useExpenseAdminMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    queryClient.invalidateQueries({ queryKey: ["reports"] });
+  };
+
+  return {
+    setBudget: useMutation({
+      mutationFn: (payload: { expense_category_id: string; amount: number | null; month?: string }) =>
+        expensesService.setBudget(payload),
+      onSuccess: invalidate,
+    }),
+    createRecurring: useMutation({
+      mutationFn: (payload: RecurringInput) => expensesService.createRecurring(payload),
+      onSuccess: invalidate,
+    }),
+    removeRecurring: useMutation({
+      mutationFn: (id: string) => expensesService.removeRecurring(id),
+      onSuccess: invalidate,
+    }),
+    postRecurring: useMutation({
+      mutationFn: ({ id, ...payload }: { id: string; amount?: number; payment_method?: string }) =>
+        expensesService.postRecurring(id, payload),
+      onSuccess: invalidate,
+    }),
+  };
 }
 
 export function useReport(params: { period: string; from?: string; to?: string }) {

@@ -46,6 +46,10 @@ const ProductEditorRoute = lazy(() => import("./modules/catalog/pages/ProductEdi
 const CategoriesPage = lazy(() => import("./modules/catalog/pages/CategoriesPage"));
 const CollectionsPage = lazy(() => import("./modules/catalog/pages/CollectionsPage"));
 const LabelsPage = lazy(() => import("./modules/catalog/pages/LabelsPage"));
+const ForecourtPage = lazy(() => import("./modules/fuel/pages/ForecourtPage"));
+const ForecourtShiftPage = lazy(() => import("./modules/fuel/pages/ForecourtShiftPage"));
+const FuelSetupPage = lazy(() => import("./modules/fuel/pages/FuelSetupPage"));
+const FuelDeliveriesPage = lazy(() => import("./modules/fuel/pages/FuelDeliveriesPage"));
 const PosPage = lazy(() => import("./modules/pos/pages/PosPage"));
 const FloorPage = lazy(() => import("./modules/dinein/pages/FloorPage"));
 const TabPage = lazy(() => import("./modules/dinein/pages/TabPage"));
@@ -168,6 +172,15 @@ export default function App() {
                   </Route>
                   <Route element={<RequireFeature feature="inventory" />}>
                     <Route path="inventory" element={<InventoryPage />} />
+                  </Route>
+                  {/* The forecourt. Only a station has tanks and meters, so the
+                      whole thing rides the `fuel` module — on by default for
+                      petroleum, off for everyone else. */}
+                  <Route element={<RequireFeature feature="fuel" />}>
+                    <Route path="fuel" element={<ForecourtPage />} />
+                    <Route path="fuel/shifts/:id" element={<ForecourtShiftPage />} />
+                    <Route path="fuel/setup" element={<FuelSetupPage />} />
+                    <Route path="fuel/deliveries" element={<FuelDeliveriesPage />} />
                   </Route>
                   <Route path="sales" element={<SalesPage />} />
                   <Route path="sales/new" element={<NewSalePage />} />

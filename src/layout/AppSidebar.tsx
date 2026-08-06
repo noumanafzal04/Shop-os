@@ -104,6 +104,20 @@ function shopNav(
     ...(has("pos") ? [{ icon: <ListIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
     ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
     ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
+    // The forecourt. A station runs its day off the shift, so it sits with the
+    // daily screens rather than buried in setup — the equipment page is its
+    // sub-item because it's touched once and then left alone.
+    ...(has("fuel")
+      ? [{
+          icon: <BoltIcon />,
+          name: "Forecourt",
+          subItems: [
+            { name: "Shifts", path: "/tenant/fuel" },
+            { name: "Deliveries & rates", path: "/tenant/fuel/deliveries" },
+            { name: "Tanks & pumps", path: "/tenant/fuel/setup" },
+          ],
+        }]
+      : []),
     // Expense & Income module — one home for all money in/out.
     ...(has("expenses") ? [expenseManager] : []),
     // Multi-branch: a locations manager appears only when the plan allows >1.

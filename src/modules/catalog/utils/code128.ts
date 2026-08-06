@@ -34,6 +34,13 @@ const PATTERNS = [
 const START_B = 104;
 const STOP = 106;
 
+/**
+ * Blank modules either side of the code. Not decoration — a scanner needs this
+ * margin to find the start of the symbol, so it travels with the bars and gets
+ * scaled with them.
+ */
+const QUIET = 10;
+
 /** Build the full module bit-string for a value (Code B). */
 function encode(value: string): string {
   const chars = value.split("");
@@ -59,11 +66,55 @@ export interface BarcodeOptions {
   showText?: boolean;
 }
 
+/**
+ * How many modules wide the finished symbol is, quiet zones included.
+ *
+ * A label prints at a fixed physical width, so this is what decides how thin
+ * each bar ends up. Divide the printable width by this and you have the
+ * X-dimension — the one number that says whether a scanner will read it.
+ */
+export function code128ModuleCount(value: string): number {
+  return encode(value).length + QUIET * 2;
+}
+
+/**
+ * Bars alone, as an SVG that fills whatever box it is given.
+ *
+ * Labels are cut to a physical size, so the barcode has to be sized by the
+ * label rather than the label by the barcode — the fixed-width variant below
+ * happily renders 280px of bars into a 50mm sticker and spills over its
+ * neighbours. Every bar is scaled by the same factor, so the symbol stays
+ * readable; the human-readable digits are drawn separately in HTML, where they
+ * keep their own proportions instead of stretching with the bars.
+ */
+export function code128BarsSvg(value: string): string {
+  const bits = encode(value);
+  const total = bits.length + QUIET * 2;
+
+  let rects = "";
+  let x = QUIET;
+  let i = 0;
+  while (i < bits.length) {
+    if (bits[i] === "1") {
+      let run = 1;
+      while (i + run < bits.length && bits[i + run] === "1") run++;
+      rects += `<rect x="${x}" y="0" width="${run}" height="100" fill="#000"/>`;
+      x += run;
+      i += run;
+    } else {
+      x += 1;
+      i += 1;
+    }
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 ${total} 100" preserveAspectRatio="none" shape-rendering="crispEdges">${rects}</svg>`;
+}
+
 /** Render a scannable Code128 barcode as an inline SVG string. */
 export function code128Svg(value: string, opts: BarcodeOptions = {}): string {
   const { height = 44, moduleWidth = 1.6, showText = true } = opts;
   const bits = encode(value);
-  const quiet = 10; // quiet zone in modules
+  const quiet = QUIET; // quiet zone in modules
   const totalModules = bits.length + quiet * 2;
   const width = totalModules * moduleWidth;
   const textH = showText ? 14 : 0;
