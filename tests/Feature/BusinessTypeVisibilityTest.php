@@ -143,9 +143,13 @@ class BusinessTypeVisibilityTest extends TestCase
         $this->assertBlocked($owner, 'purchase_orders');
         $this->assertBlocked($owner, 'inventory');
         $this->assertBlocked($owner, 'collections');
-        $this->assertBlocked($owner, 'orders');
         $this->assertBlocked($owner, 'riders');
         $this->assertBlocked($owner, 'reviews');
+
+        // Orders follow `products` now, not `marketplace`. A services business
+        // has no catalog to order FROM, so it is still blocked here — for the
+        // right reason this time: nothing to sell, rather than no storefront.
+        $this->assertBlocked($owner, 'orders');
 
         // What it DOES have: the portfolio/gallery (services module).
         $this->assertReachable($owner, 'gallery');
@@ -243,9 +247,18 @@ class BusinessTypeVisibilityTest extends TestCase
         $this->assertFalse($shop->featureEnabled('marketplace'));
 
         $this->assertBlocked($owner, 'collections');
-        $this->assertBlocked($owner, 'orders');
         $this->assertBlocked($owner, 'riders');
         $this->assertBlocked($owner, 'reviews');
+
+        // Orders are NOT a marketplace endpoint any more. They were gated on
+        // `marketplace`, which meant a shop that delivers but sells nothing
+        // online — a pharmacy, a station's lubricant round — could manage
+        // riders and never see an order to give one. The gate is now
+        // `products`: this station reaches an EMPTY list rather than a 403,
+        // and can take an order over the phone the day it wants to.
+        $this->actingAsUser($owner)->getJson(self::PROBE['orders'])
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
 
         // It still runs a stock chain (fuel, lubricants, tyres) and a till.
         $this->assertReachable($owner, 'inventory');

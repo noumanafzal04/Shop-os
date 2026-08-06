@@ -484,9 +484,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     ->middleware('permission:settings.manage');
             });
 
-            // Online orders (owner side)
-            Route::prefix('orders')->middleware(['feature:marketplace', 'permission:orders.manage'])->group(function (): void {
+            // Orders (owner side) — online checkouts AND the ones the shop
+            // takes itself over the phone or WhatsApp.
+            //
+            // Gated on `products`, not `marketplace`: a pharmacy that delivers
+            // but sells nothing online has marketplace off, and gating here
+            // meant it could manage riders (correctly gated on `delivery`) but
+            // never see an order to give one. A shop that takes no orders at
+            // all simply has an empty list.
+            Route::prefix('orders')->middleware(['feature:products', 'permission:orders.manage'])->group(function (): void {
                 Route::get('/', [OrderController::class, 'index']);
+                // A call, a WhatsApp message, someone at the counter asking for
+                // delivery. Server-priced like any other order.
+                Route::post('/', [OrderController::class, 'store']);
                 Route::get('/{id}', [OrderController::class, 'show']);
                 Route::post('/{id}/advance', [OrderController::class, 'advance']);
                 Route::post('/{id}/assign-rider', [OrderController::class, 'assignRider']);
