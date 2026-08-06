@@ -18,6 +18,13 @@
         </include>
     </source>
     <php>
+        <!-- The whole suite runs in ONE process against an in-memory SQLite
+             database, so every migration, container and model class stays
+             resident for the duration. Past ~1,100 tests that tips over PHP's
+             128M default and the run dies mid-way with a fatal that looks like
+             a random test failure. Raised here rather than on the command line
+             because `artisan test` spawns a child that would not inherit -d. -->
+        <ini name="memory_limit" value="1G"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>

@@ -70,10 +70,24 @@ class BusinessTypes
         'automotive' => ['Size', 'Brand', 'Load Rating', 'Ampere', 'Model'],
     ];
 
-    /** Legacy code → its primary type, so old tenants get the right units/variants. */
+    /**
+     * Legacy code → the primary type it became.
+     *
+     * This is the ONE place a narrow old code is translated, and everything
+     * type-shaped goes through primary(): units, variant attributes, catalog
+     * item types, and the trade-specific screens the panel offers. Before it
+     * did, a `clinic` tenant kept working but was quietly missing the chemist's
+     * register, and a `workshop` the vehicle register — each gate named the
+     * eight current codes and nothing resolved the older ones.
+     *
+     * `workshop` maps to automotive, not services: its module set (products +
+     * services + inventory, sold at the shop) is automotive's exactly, and a
+     * mechanic wants the plate register and part-shaped units far more than a
+     * public portfolio.
+     */
     private const LEGACY_PRIMARY = [
         'restaurant' => 'food', 'grocery' => 'mart', 'clinic' => 'pharmacy',
-        'salon' => 'services', 'workshop' => 'services', 'service' => 'services',
+        'salon' => 'services', 'workshop' => 'automotive', 'service' => 'services',
         'wholesale' => 'retail', 'books' => 'retail', 'hardware' => 'retail',
     ];
 
@@ -404,20 +418,31 @@ class BusinessTypes
         return self::get($code)['categories'] ?? [];
     }
 
+    /**
+     * The current type a code stands for. A primary code is its own primary;
+     * a legacy one resolves to what it was absorbed into; an unknown code is
+     * returned untouched so nothing is invented for it.
+     *
+     * Anything deciding what a business IS — units, variant hints, item types,
+     * the trade screens in the sidebar — must ask this rather than compare
+     * against the eight current codes, or old tenants silently lose features
+     * they are entitled to.
+     */
+    public static function primary(string $code): string
+    {
+        return self::LEGACY_PRIMARY[$code] ?? $code;
+    }
+
     /** Suggested selling units for a type (legacy codes map to their primary). */
     public static function unitsFor(string $code): array
     {
-        $code = self::LEGACY_PRIMARY[$code] ?? $code;
-
-        return self::UNITS[$code] ?? self::DEFAULT_UNITS;
+        return self::UNITS[self::primary($code)] ?? self::DEFAULT_UNITS;
     }
 
     /** Suggested variant attribute names for a type (Size/Color, Strength/Pack…). */
     public static function variantAttributesFor(string $code): array
     {
-        $code = self::LEGACY_PRIMARY[$code] ?? $code;
-
-        return self::VARIANT_ATTRIBUTES[$code] ?? ['Size', 'Color'];
+        return self::VARIANT_ATTRIBUTES[self::primary($code)] ?? ['Size', 'Color'];
     }
 
     /**
@@ -470,11 +495,15 @@ class BusinessTypes
             return [ItemTypes::PHYSICAL];
         }
 
+        // Legacy codes answer as the type they became, so a `clinic` may still
+        // stock medicine and a `restaurant` still write a menu.
+        $primary = self::primary($code);
+
         $types = [];
-        if (in_array($code, ['food', 'restaurant'], true)) {
+        if ($primary === 'food') {
             $types[] = ItemTypes::FOOD;
         }
-        if (in_array($code, ['pharmacy', 'clinic'], true)) {
+        if ($primary === 'pharmacy') {
             $types[] = ItemTypes::MEDICINE;
         }
         if (! empty($t['features']['products'])) {
@@ -486,7 +515,7 @@ class BusinessTypes
         // Combo/deal bundles — for shops that run deals: food, mart, retail
         // (and their legacy equivalents). A deal bundles existing products at
         // one price.
-        if (in_array($code, ['food', 'mart', 'retail', 'restaurant', 'grocery'], true)) {
+        if (in_array($primary, ['food', 'mart', 'retail'], true)) {
             $types[] = ItemTypes::DEAL;
         }
 

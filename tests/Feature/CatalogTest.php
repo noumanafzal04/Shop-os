@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\City;
 use App\Models\ExpenseCategory;
+use App\Models\Plan;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Permissions;
+use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
@@ -24,10 +26,17 @@ class CatalogTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed(\Database\Seeders\PlanSeeder::class);
+        $this->seed(PlanSeeder::class);
 
         $this->withoutMiddleware(ThrottleRequests::class);
-        $this->tenant = Tenant::factory()->create();
+        // The modules this file exercises. The catalog is gated on products OR
+        // services (a shop with neither has nothing to catalogue) and both are
+        // used below; expenses carries the category tests at the bottom.
+        // Modules are assigned when an admin creates the shop and setup never
+        // rewrites them, so they have to be here rather than arrive later.
+        $this->tenant = Tenant::factory()->create([
+            'features' => ['products' => true, 'services' => true, 'expenses' => true],
+        ]);
         $this->owner = User::factory()->shopOwner($this->tenant)->create();
     }
 
@@ -110,7 +119,7 @@ class CatalogTest extends TestCase
         $this->actingAsUser($admin)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Spaceship Co',
             'business_type' => 'spaceship-dealer', // not a real business type
-            'plan_id' => \App\Models\Plan::query()->where('code', 'basic')->value('id'),
+            'plan_id' => Plan::query()->where('code', 'basic')->value('id'),
             'owner' => ['name' => 'O', 'email' => 'o@space.test', 'password' => 'password123'],
         ])->assertStatus(422)->assertJsonStructure(['errors' => ['business_type']]);
     }

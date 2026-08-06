@@ -22,9 +22,7 @@ use Illuminate\Support\Facades\DB;
  */
 class TransferStockAction
 {
-    public function __construct(private readonly InventoryService $inventory)
-    {
-    }
+    public function __construct(private readonly InventoryService $inventory) {}
 
     public function execute(Tenant $tenant, array $data): StockTransfer
     {

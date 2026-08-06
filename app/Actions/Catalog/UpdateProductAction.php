@@ -31,7 +31,9 @@ class UpdateProductAction
         $recipeItems = array_key_exists('recipe_items', $data) ? ($data['recipe_items'] ?? []) : null;
         unset($data['recipe_items']);
 
-        DB::transaction(function () use ($product, $data, $collectionIds, $barcodes, $units, $comboItems, $recipeItems): void {
+        $warnings = [];
+
+        DB::transaction(function () use ($product, $data, $collectionIds, $barcodes, $units, $comboItems, $recipeItems, &$warnings): void {
             $product->fill($data)->save();
 
             if ($collectionIds !== null) {
@@ -53,13 +55,13 @@ class UpdateProductAction
             }
 
             if ($recipeItems !== null) {
-                $this->syncRecipe->execute($product, $recipeItems);
+                // Saving a recipe can switch stock tracking on for an
+                // ingredient — the merchant is told which ones.
+                $warnings = $this->syncRecipe->execute($product, $recipeItems);
             }
         });
 
         $product->load('category', 'variants', 'images', 'collections', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name');
-
-        $warnings = [];
 
         if ($product->cost !== null && (float) $product->price < (float) $product->cost) {
             $warnings[] = 'Selling price is below cost — this item sells at a loss.';

@@ -148,6 +148,106 @@ class ReportService
     }
 
     /**
+     * What each item actually earned.
+     *
+     * Revenue alone crowns whatever is expensive; margin crowns what pays. A
+     * shop's best-selling line and its most profitable line are frequently not
+     * the same item, and only one of those facts changes what you buy next.
+     *
+     * Costs come from the LINE snapshot, not today's price list — a product
+     * repriced last week must not rewrite last month's margin.
+     *
+     * @return array<string, mixed>
+     */
+    public function margins(string $tenantId, string $from, string $to, int $limit = 50): array
+    {
+        $fromStart = CarbonImmutable::parse($from)->startOfDay();
+        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+
+        $rows = SaleItem::query()
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->leftJoin('products', 'products.id', '=', 'sale_items.product_id')
+            ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
+            ->where('sale_items.tenant_id', $tenantId)
+            ->whereNull('sales.deleted_at')
+            ->where('sales.status', SaleStatus::Completed)
+            ->whereBetween('sales.sold_at', [$fromStart, $toEnd])
+            ->groupBy('sale_items.product_name', 'sale_items.variant_name', 'category_name')
+            ->selectRaw(implode(', ', [
+                'sale_items.product_name as product_name',
+                'sale_items.variant_name as variant_name',
+                "COALESCE(categories.name, 'Uncategorized') as category_name",
+                'SUM(sale_items.quantity) as units',
+                'SUM(sale_items.line_total) as revenue',
+                'SUM(sale_items.unit_cost * sale_items.quantity) as cogs',
+            ]))
+            ->get();
+
+        $items = $rows
+            ->map(function ($row): array {
+                $revenue = round((float) $row->revenue, 2);
+                $cogs = round((float) $row->cogs, 2);
+                $profit = round($revenue - $cogs, 2);
+
+                return [
+                    'name' => $row->variant_name
+                        ? "{$row->product_name} / {$row->variant_name}"
+                        : $row->product_name,
+                    'category' => $row->category_name,
+                    'units' => round((float) $row->units, 3),
+                    'revenue' => $revenue,
+                    'cogs' => $cogs,
+                    'profit' => $profit,
+                    // Null, not zero, when nothing was taken: there is no
+                    // margin on a giveaway, and 0% would read as break-even.
+                    'margin_pct' => $revenue > 0 ? round(($profit / $revenue) * 100, 1) : null,
+                ];
+            })
+            ->sortByDesc('profit')
+            ->values();
+
+        $byCategory = $rows
+            ->groupBy('category_name')
+            ->map(function (Collection $group, string $category): array {
+                $revenue = round((float) $group->sum(fn ($r) => (float) $r->revenue), 2);
+                $cogs = round((float) $group->sum(fn ($r) => (float) $r->cogs), 2);
+
+                return [
+                    'category' => $category,
+                    'revenue' => $revenue,
+                    'cogs' => $cogs,
+                    'profit' => round($revenue - $cogs, 2),
+                    'margin_pct' => $revenue > 0 ? round((($revenue - $cogs) / $revenue) * 100, 1) : null,
+                ];
+            })
+            ->sortByDesc('profit')
+            ->values()
+            ->all();
+
+        $revenue = round((float) $items->sum('revenue'), 2);
+        $cogs = round((float) $items->sum('cogs'), 2);
+
+        return [
+            'period' => ['from' => $from, 'to' => $to],
+            'totals' => [
+                'revenue' => $revenue,
+                'cogs' => $cogs,
+                'profit' => round($revenue - $cogs, 2),
+                'margin_pct' => $revenue > 0 ? round((($revenue - $cogs) / $revenue) * 100, 1) : null,
+            ],
+            'best' => $items->take($limit)->all(),
+            // Sold at a loss. Usually a costing mistake rather than a decision,
+            // and it is invisible in any report ranked by revenue.
+            'losing' => $items->filter(fn (array $i): bool => $i['profit'] < 0)
+                ->sortBy('profit')
+                ->take($limit)
+                ->values()
+                ->all(),
+            'by_category' => $byCategory,
+        ];
+    }
+
+    /**
      * Purchases report: what was ordered/received/paid and what's outstanding,
      * plus a per-supplier breakdown. Cancelled POs excluded.
      */

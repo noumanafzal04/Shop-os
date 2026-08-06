@@ -2,6 +2,8 @@
 
 namespace App\Actions\Catalog;
 
+use App\Models\Branch;
+use App\Models\BranchStock;
 use App\Models\Product;
 use App\Support\ItemTypes;
 use App\Support\PlanLimits;
@@ -35,7 +37,9 @@ class CreateProductAction
             PlanLimits::assert($tenant, 'products');
         }
 
-        $product = DB::transaction(function () use ($data): Product {
+        $recipeWarnings = [];
+
+        $product = DB::transaction(function () use ($data, &$recipeWarnings): Product {
             $itemType = $data['item_type'] ?? ItemTypes::PHYSICAL;
             $coarse = ItemTypes::coarse($itemType); // product | service
             $canTrack = ItemTypes::canTrackInventory($itemType);
@@ -84,9 +88,9 @@ class CreateProductAction
             // branch. branch_stock is the per-branch source of truth;
             // product.stock_quantity (set above) is its sum-across-branches
             // rollup — so the product-level Main row mirrors it exactly.
-            $mainBranchId = \App\Models\Branch::withoutTenancy()
+            $mainBranchId = Branch::withoutTenancy()
                 ->where('tenant_id', $product->tenant_id)->where('is_default', true)->value('id');
-            \App\Models\BranchStock::withoutTenancy()->create([
+            BranchStock::withoutTenancy()->create([
                 'tenant_id' => $product->tenant_id,
                 'branch_id' => $mainBranchId,
                 'product_id' => $product->id,
@@ -126,7 +130,7 @@ class CreateProductAction
 
                 // Per-branch on-hand for this variant at Main (mirrors the
                 // variant's rollup stock_quantity).
-                \App\Models\BranchStock::withoutTenancy()->create([
+                BranchStock::withoutTenancy()->create([
                     'tenant_id' => $product->tenant_id,
                     'branch_id' => $mainBranchId,
                     'product_id' => $product->id,
@@ -170,11 +174,15 @@ class CreateProductAction
             }
 
             if (! empty($data['recipe_items'])) {
-                app(SyncRecipeItemsAction::class)->execute($product, $data['recipe_items']);
+                // Saving a recipe can switch stock tracking on for an
+                // ingredient — the merchant is told which ones.
+                $recipeWarnings = app(SyncRecipeItemsAction::class)->execute($product, $data['recipe_items']);
             }
 
             return $product;
         });
+
+        $warnings = array_merge($warnings, $recipeWarnings);
 
         if (isset($data['cost']) && $data['cost'] !== null && (float) $data['price'] < (float) $data['cost']) {
             $warnings[] = 'Selling price is below cost — this item sells at a loss.';

@@ -66,6 +66,7 @@ use App\Http\Controllers\Api\V1\Tenant\SaleDocumentController;
 use App\Http\Controllers\Api\V1\Tenant\SearchController;
 use App\Http\Controllers\Api\V1\Tenant\ShopController;
 use App\Http\Controllers\Api\V1\Tenant\StaffController as TenantStaffController;
+use App\Http\Controllers\Api\V1\Tenant\StockCountController;
 use App\Http\Controllers\Api\V1\Tenant\SubscriptionController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
@@ -193,8 +194,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::apiResource('collections', CollectionController::class);
             });
 
-            // Catalog: categories + items (products & services)
-            Route::middleware('permission:products.manage')->group(function (): void {
+            // Catalog: categories + items (products & services).
+            //
+            // The module gate is ANY of products/services, because either one
+            // alone justifies a catalog: a mart lists goods, a salon lists
+            // labour, a workshop lists both. A books-only tenant has neither
+            // and gets a straight MODULE_DISABLED — until now that shop was
+            // stopped only by the item-type registry handing it no creatable
+            // type, which reached the same place through a different door and
+            // left the catalog as the one screen guarded unlike every other.
+            Route::middleware(['feature:products,services', 'permission:products.manage'])->group(function (): void {
                 Route::post('categories/reorder', [CategoryController::class, 'reorder']);
                 Route::apiResource('categories', CategoryController::class);
                 // Bulk CSV import (before the resource so /products/import isn't
@@ -449,6 +458,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Branch-to-branch transfers (multi-branch).
                 Route::get('/transfers', [TransferController::class, 'index']);
                 Route::post('/transfers', [TransferController::class, 'store']);
+
+                // Stocktake. Counting is floor work, so anyone who manages
+                // stock may draw a sheet and enter figures; APPLYING it writes
+                // off stock against the shop's own books and is manager-only
+                // (checked in the controller).
+                Route::get('/counts', [StockCountController::class, 'index']);
+                Route::get('/counts/current', [StockCountController::class, 'current']);
+                Route::post('/counts', [StockCountController::class, 'store']);
+                Route::get('/counts/{count}', [StockCountController::class, 'show']);
+                Route::post('/counts/{count}/lines', [StockCountController::class, 'record']);
+                Route::post('/counts/{count}/apply', [StockCountController::class, 'apply']);
+                Route::delete('/counts/{count}', [StockCountController::class, 'destroy']);
             });
 
             // Expense categories (templates from business type, editable).
@@ -491,6 +512,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/reports/purchases', [ReportController::class, 'purchases']);
                 Route::get('/reports/staff', [ReportController::class, 'staff']);
                 Route::get('/reports/tax', [ReportController::class, 'tax']);
+                // What each item actually earned — revenue crowns whatever is
+                // expensive, margin crowns what pays.
+                Route::get('/reports/margins', [ReportController::class, 'margins']);
+                Route::get('/reports/margins/export', [ReportController::class, 'exportMargins']);
+
+                // Stock-shaped reports: they read the shelves, so they need the
+                // stock module as well as the reporting permission.
+                Route::middleware('feature:inventory')->group(function (): void {
+                    Route::get('/reports/valuation', [ReportController::class, 'valuation']);
+                    Route::get('/reports/valuation/export', [ReportController::class, 'exportValuation']);
+                    Route::get('/reports/dead-stock', [ReportController::class, 'deadStock']);
+                    Route::get('/reports/dead-stock/export', [ReportController::class, 'exportDeadStock']);
+                });
             });
 
             // Reviews (owner side: view + reply) — customers can only review a

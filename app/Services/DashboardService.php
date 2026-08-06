@@ -471,15 +471,19 @@ class DashboardService
             ->orderBy('trading_date')
             ->get(['id', 'trading_date']);
 
-        $todayDay = $openDays->first(fn (BusinessDay $d): bool => $d->trading_date->toDateString() === $today);
+        // A day belongs to a branch, so the all-branches view is looking at
+        // SEVERAL of today's days at once. Counting one branch's shifts and
+        // calling it the chain's would tell an owner every till was counted out
+        // while two sites were still selling.
+        $todayDays = $openDays->filter(fn (BusinessDay $d): bool => $d->trading_date->toDateString() === $today);
         $unclosed = $openDays->filter(fn (BusinessDay $d): bool => $d->trading_date->toDateString() < $today);
 
         return [
-            'day_open' => $todayDay !== null,
-            'day_id' => $todayDay?->id,
-            'open_shifts' => $todayDay === null ? 0 : CashSession::withoutTenancy()
+            'day_open' => $todayDays->isNotEmpty(),
+            'day_id' => $todayDays->first()?->id,
+            'open_shifts' => $todayDays->isEmpty() ? 0 : CashSession::withoutTenancy()
                 ->where('tenant_id', $tenant->id)
-                ->where('business_day_id', $todayDay->id)
+                ->whereIn('business_day_id', $todayDays->pluck('id'))
                 ->where('status', 'open')
                 ->count(),
             'banked_today' => round((float) BankDeposit::withoutTenancy()

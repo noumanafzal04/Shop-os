@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Tenant;
+use App\Support\BusinessTypes;
 use App\Support\Modules;
 use App\Support\PlanLimits;
 use Illuminate\Http\Request;
@@ -22,6 +23,14 @@ class TenantResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'business_type' => $this->business_type,
+            // The current type this shop's code stands for. Identical to
+            // business_type for every type in the picker; for an older code
+            // (clinic, workshop, grocery…) it is the type that absorbed it.
+            // Anything deciding what the business IS reads this one — the raw
+            // code stays for display and for the admin who chose it.
+            'business_type_primary' => $this->business_type !== null
+                ? BusinessTypes::primary($this->business_type)
+                : null,
             'business_category' => $this->business_category,
             'delivery_fee' => $this->delivery_fee,
             'city' => $this->whenLoaded('city', fn () => [

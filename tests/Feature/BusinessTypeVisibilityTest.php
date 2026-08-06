@@ -363,6 +363,119 @@ class BusinessTypeVisibilityTest extends TestCase
         $this->assertTrue($shop->featureEnabled('expenses'));
     }
 
+    /**
+     * The catalog is gated on products OR services — either module alone is
+     * enough (a mart lists goods, a salon lists labour), and a shop with
+     * neither has nothing to catalogue at all.
+     *
+     * A books-only shop used to be stopped one step later, by the item-type
+     * registry handing it no type to create anything AS. That reached the same
+     * place through a different door, and left the catalog as the one area of
+     * the API guarded unlike every other — the kind of asymmetry that survives
+     * exactly until somebody adds an endpoint here and forgets which rule was
+     * doing the work.
+     */
+    public function test_a_books_only_shop_cannot_put_anything_in_a_catalog(): void
+    {
+        [, $owner] = $this->makeShop('finance');
+
+        foreach ([
+            ['GET', '/api/v1/products', []],
+            ['GET', '/api/v1/categories', []],
+            ['POST', '/api/v1/products', ['name' => 'Consulting', 'type' => 'service', 'price' => 5000]],
+            ['POST', '/api/v1/products', ['name' => 'Ledger book', 'type' => 'physical', 'price' => 300]],
+        ] as [$method, $uri, $payload]) {
+            $this->actingAsUser($owner)->json($method, $uri, $payload)
+                ->assertForbidden()
+                ->assertJsonPath('meta.error_code', 'MODULE_DISABLED');
+        }
+    }
+
+    /**
+     * The other half of that rule: either module on its own opens the catalog.
+     * A services-only shop (no `products`) bills labour and must still be able
+     * to list what it does.
+     */
+    public function test_a_services_only_shop_still_has_a_catalog(): void
+    {
+        [$shop, $owner] = $this->makeShop('services');
+
+        $this->assertFalse($shop->featureEnabled('products'));
+        $this->assertTrue($shop->featureEnabled('services'));
+
+        $this->actingAsUser($owner)->getJson('/api/v1/products')->assertOk();
+        $this->actingAsUser($owner)->postJson('/api/v1/products', [
+            'item_type' => 'service', 'name' => 'Haircut', 'price' => 800,
+        ])->assertCreated();
+    }
+
+    // ── Older business-type codes ───────────────────────────────────
+    //
+    // A tenant created before the eight current types — or imported from one —
+    // still carries a narrow code like `clinic` or `workshop`. Those codes
+    // resolve for modules and keep trading, but every rule written as "is this
+    // shop a pharmacy?" compared against the CURRENT list and silently said no:
+    // an old clinic kept no dispensing register, an old workshop no vehicle
+    // register. primary() is the one translation, and everything type-shaped
+    // asks it.
+
+    public function test_an_older_code_answers_as_the_type_it_became(): void
+    {
+        foreach ([
+            'restaurant' => 'food',
+            'grocery' => 'mart',
+            'clinic' => 'pharmacy',
+            'salon' => 'services',
+            'service' => 'services',
+            // Products + services + inventory, sold at the shop: that IS the
+            // automotive module set, and a mechanic wants the plate register
+            // and part-shaped units, not a portfolio.
+            'workshop' => 'automotive',
+            'wholesale' => 'retail',
+            'books' => 'retail',
+            'hardware' => 'retail',
+        ] as $legacy => $primary) {
+            $this->assertSame($primary, BusinessTypes::primary($legacy), "{$legacy} should resolve to {$primary}");
+        }
+    }
+
+    public function test_a_current_code_is_its_own_primary(): void
+    {
+        foreach (BusinessTypes::codes() as $code) {
+            $this->assertSame($code, BusinessTypes::primary($code));
+        }
+
+        // An unknown code is handed back untouched — nothing is invented for it.
+        $this->assertSame('spaceship-dealer', BusinessTypes::primary('spaceship-dealer'));
+    }
+
+    public function test_the_panel_is_told_which_type_to_gate_on(): void
+    {
+        // The sidebar decides trade-specific screens (pharmacy register,
+        // vehicles, portfolio) from this field, so an old code must arrive
+        // resolved — and the raw code must survive beside it, because that is
+        // what the admin chose and what the admin screens display.
+        [, $owner] = $this->makeShop('clinic');
+
+        $me = $this->actingAsUser($owner)->getJson('/api/v1/auth/me')->assertOk();
+
+        $this->assertSame('clinic', $me->json('data.tenant.business_type'));
+        $this->assertSame('pharmacy', $me->json('data.tenant.business_type_primary'));
+    }
+
+    public function test_an_old_clinic_may_still_stock_medicine(): void
+    {
+        // itemTypesFor used to name the legacy codes by hand, one list at a
+        // time — the sort of thing that is right on the day it is written and
+        // wrong the next time a code is added.
+        $this->assertContains('medicine', BusinessTypes::itemTypesFor('clinic'));
+        $this->assertContains('food_item', BusinessTypes::itemTypesFor('restaurant'));
+        $this->assertContains('deal', BusinessTypes::itemTypesFor('grocery'));
+        // And a workshop bills labour as well as selling parts.
+        $this->assertContains('service', BusinessTypes::itemTypesFor('workshop'));
+        $this->assertContains('physical_product', BusinessTypes::itemTypesFor('workshop'));
+    }
+
     /** A books-only shop has no catalog at all — not even a physical fallback. */
     public function test_finance_tenant_has_no_item_types(): void
     {

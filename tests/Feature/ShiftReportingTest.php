@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BankDeposit;
+use App\Models\Branch;
 use App\Models\BusinessDay;
 use App\Models\CashSession;
 use App\Models\City;
@@ -526,6 +527,32 @@ class ShiftReportingTest extends TestCase
         $this->assertFalse($till['day_open']);
         $this->assertSame(now()->subDays(3)->toDateString(), $till['unclosed_day']);
         $this->assertSame(1, $till['unclosed_days']);
+    }
+
+    public function test_the_hq_view_counts_every_branch_still_selling(): void
+    {
+        $gulberg = Branch::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id, 'name' => 'Gulberg', 'is_default' => false, 'is_active' => true,
+        ]);
+        // Staff are PINNED to their branch; a header would be ignored (and it
+        // would also leak onto the owner's own request afterwards).
+        $second = User::factory()->tenantStaff($this->shop, ['sales.manage'])
+            ->create(['name' => 'Sana', 'branch_id' => $gulberg->id]);
+
+        $this->openShift(5000);
+        $this->actingAsUser($second)
+            ->postJson('/api/v1/pos/session/open', ['opening_float' => 3000])
+            ->assertCreated();
+
+        // A day belongs to a branch, so all-branches is looking at two of
+        // today's days at once. Reporting one site's shifts as the chain's
+        // would tell an owner every till was counted out while another
+        // branch was still selling.
+        $till = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/dashboard')->assertOk()->json('data.till');
+
+        $this->assertTrue($till['day_open']);
+        $this->assertSame(2, $till['open_shifts']);
     }
 
     public function test_an_online_only_shop_is_told_nothing_about_a_till_it_does_not_have(): void

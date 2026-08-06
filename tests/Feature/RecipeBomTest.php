@@ -182,6 +182,7 @@ class RecipeBomTest extends TestCase
 
     public function test_recipe_persists_through_the_product_api(): void
     {
+        $this->withInventory();
         $bun = $this->ingredient('Bun', 100);
 
         $dish = $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
@@ -192,5 +193,139 @@ class RecipeBomTest extends TestCase
 
         $this->assertCount(1, $dish['product']['recipe_items'] ?? $dish['recipe_items'] ?? []);
         $this->assertTrue(Product::withoutTenancy()->find($dish['product']['id'] ?? $dish['id'])->hasRecipe());
+    }
+
+    // ── A recipe that actually deducts something ────────────────────
+    //
+    // Two defaults used to make a recipe inert for a brand-new restaurant, and
+    // neither said so on screen: food shops start with the Inventory module
+    // OFF, and food items start untracked. A merchant could write out a full
+    // recipe, save it without complaint, and sell a thousand burgers while
+    // every ingredient stayed at its opening figure.
+
+    /** Grants the stock module — what an admin does for a kitchen that counts. */
+    private function withInventory(): void
+    {
+        $this->tenant->forceFill([
+            'features' => array_merge($this->tenant->features ?? [], ['inventory' => true]),
+        ])->save();
+        $this->tenant->refresh();
+    }
+
+    /** A menu item as a food shop actually creates one: no stock of its own. */
+    private function untrackedItem(string $name): Product
+    {
+        return Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product', 'item_type' => 'food_item',
+            'name' => $name, 'price' => 0, 'track_inventory' => false, 'stock_quantity' => 0,
+        ]);
+    }
+
+    public function test_a_shop_without_the_stock_module_cannot_keep_a_recipe(): void
+    {
+        // The default food shop. There is no stock for a recipe to draw down,
+        // so it is refused rather than stored as decoration.
+        $this->assertFalse($this->tenant->featureEnabled('inventory'));
+        $flour = $this->ingredient('Flour', 100);
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
+            'item_type' => 'food_item', 'name' => 'Naan', 'price' => 60, 'track_inventory' => false,
+            'recipe_items' => [['ingredient_product_id' => $flour->id, 'quantity' => 0.2]],
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'RECIPE_NEEDS_INVENTORY');
+    }
+
+    public function test_clearing_a_recipe_survives_losing_the_stock_module(): void
+    {
+        // A shop whose module is switched off after the fact must still be
+        // able to tidy up — the refusal is on keeping a recipe, not on
+        // abandoning one.
+        $this->withInventory();
+        $bun = $this->ingredient('Bun', 100);
+        $burger = $this->dish('Burger', 500, [[$bun, 2]]);
+
+        $this->tenant->forceFill([
+            'features' => array_merge($this->tenant->features ?? [], ['inventory' => false]),
+        ])->save();
+
+        $this->actingAsUser($this->owner)->putJson("/api/v1/products/{$burger->id}", [
+            'recipe_items' => [],
+        ])->assertOk();
+
+        $this->assertFalse($burger->refresh()->hasRecipe());
+    }
+
+    public function test_naming_an_ingredient_starts_counting_it(): void
+    {
+        $this->withInventory();
+        // Created the way a restaurant creates everything: untracked.
+        $chicken = $this->untrackedItem('Chicken (raw)');
+        $this->assertFalse($chicken->track_inventory);
+
+        $response = $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
+            'item_type' => 'food_item', 'name' => 'Karahi', 'price' => 1200, 'track_inventory' => false,
+            'recipe_items' => [['ingredient_product_id' => $chicken->id, 'quantity' => 0.5]],
+        ])->assertCreated();
+
+        // Being named as an ingredient IS the declaration that it gets
+        // consumed and counted.
+        $this->assertTrue($chicken->refresh()->track_inventory);
+        // And the merchant is told, because it changes how that item behaves
+        // when sold on its own.
+        $this->assertStringContainsString(
+            'Chicken (raw)',
+            implode(' ', $response->json('meta.warnings') ?? []),
+        );
+    }
+
+    public function test_the_whole_journey_a_restaurant_actually_takes(): void
+    {
+        // Admin grants the stock module → the kitchen writes a recipe against
+        // items it never tracked → selling the dish moves real stock.
+        $this->withInventory();
+        $rice = $this->untrackedItem('Rice');
+        $chicken = $this->untrackedItem('Chicken (raw)');
+
+        $dish = $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
+            'item_type' => 'food_item', 'name' => 'Biryani', 'price' => 450, 'track_inventory' => false,
+            'recipe_items' => [
+                ['ingredient_product_id' => $rice->id, 'quantity' => 0.25],
+                ['ingredient_product_id' => $chicken->id, 'quantity' => 0.2],
+            ],
+        ])->assertCreated()->json('data');
+
+        // Opening stock, now that there is something to count.
+        foreach ([[$rice, 50], [$chicken, 30]] as [$item, $qty]) {
+            $this->actingAsUser($this->owner)->postJson('/api/v1/inventory/adjust', [
+                'product_id' => $item->id, 'type' => 'in', 'quantity' => $qty, 'reason' => 'Opening',
+            ])->assertSuccessful();
+        }
+
+        $this->sell(Product::withoutTenancy()->find($dish['id']), 4);
+
+        // 4 plates → 1kg rice, 0.8kg chicken.
+        $this->assertEqualsWithDelta(49.0, (float) $rice->refresh()->stock_quantity, 0.001);
+        $this->assertEqualsWithDelta(29.2, (float) $chicken->refresh()->stock_quantity, 0.001);
+    }
+
+    public function test_a_service_ingredient_is_named_as_uncountable_rather_than_ignored(): void
+    {
+        $this->withInventory();
+        $labour = Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'service', 'item_type' => 'service',
+            'name' => 'Chef time', 'price' => 0, 'track_inventory' => false,
+        ]);
+
+        $response = $this->actingAsUser($this->owner)->postJson('/api/v1/products', [
+            'item_type' => 'food_item', 'name' => 'Tasting menu', 'price' => 3000, 'track_inventory' => false,
+            'recipe_items' => [['ingredient_product_id' => $labour->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        // Nothing to count, so nothing is switched on — and the merchant is
+        // told, rather than left believing the labour line is consumed.
+        $this->assertFalse($labour->refresh()->track_inventory);
+        $this->assertStringContainsString(
+            'Not deducted from stock',
+            implode(' ', $response->json('meta.warnings') ?? []),
+        );
     }
 }
