@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { ordersService, type OrderStatus, type PlaceOrderPayload } from "../services/ordersService";
+import { ordersService, type CounterOrderPayload, type OrderStatus, type PlaceOrderPayload } from "../services/ordersService";
 import { uuid } from "../../../common/uuid";
 
 export function useMyOrders(page = 1) {
@@ -29,6 +29,23 @@ export function useCancelMyOrder() {
   return useMutation({
     mutationFn: (id: string) => ordersService.cancelMine(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),
+  });
+}
+
+/**
+ * The shop taking an order itself. Keyed idempotently because a shop phone in
+ * a noisy room gets double-tapped, and two identical orders would each hold
+ * their own stock.
+ */
+export function useTakeOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CounterOrderPayload) =>
+      ordersService.takeOrder({ idempotency_key: uuid(), ...payload }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders", "shop"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
   });
 }
 

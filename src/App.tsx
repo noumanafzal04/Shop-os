@@ -196,7 +196,12 @@ export default function App() {
                     <Route path="cashbook" element={<CashbookPage />} />
                   </Route>
                   <Route path="reports" element={<ReportsPage />} />
-                  <Route element={<RequireFeature feature="marketplace" />}>
+                  {/* Orders follow PRODUCTS, matching the API. They used to
+                      follow marketplace, which locked out the exact shop the
+                      phone-order flow exists for: a pharmacy that delivers
+                      and sells nothing online could manage riders and never
+                      reach an order to give one. */}
+                  <Route element={<RequireFeature feature="products" />}>
                     <Route path="orders" element={<OwnerOrdersPage />} />
                   </Route>
                   {/* Riders follow DELIVERY, not marketplace: a pharmacy

@@ -11,7 +11,7 @@ import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
-import { useAdminTenant, useExtendLimits, useModuleCatalog, usePayments, usePlans, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import { useAdminCities, useAdminTenant, useExtendLimits, useModuleCatalog, usePayments, usePlans, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
 import type { Plan } from "../services/adminService";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
@@ -363,9 +363,16 @@ export default function AdminTenantDetailPage() {
   const tenant = useAdminTenant(id);
   const plans = usePlans();
   const payments = usePayments({ tenant_id: id });
-  const { suspend, activate, remove, restore, assignPlan } = useTenantMutations();
+  const { update, suspend, activate, remove, restore, assignPlan } = useTenantMutations();
+  const cities = useAdminCities();
+  const businessTypes = useBusinessTypes();
 
   const planModal = useModal();
+  const editModal = useModal();
+  const [form, setForm] = useState({
+    business_name: "", email: "", phone: "",
+    business_type: "", business_category: "", city_id: "",
+  });
   const toast = useToast();
   const confirm = useConfirm();
   const [planId, setPlanId] = useState("");
@@ -512,6 +519,22 @@ export default function AdminTenantDetailPage() {
         {/* Actions sidebar */}
         <div className="h-fit space-y-3 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
           <h3 className="mb-2 font-semibold text-gray-800 dark:text-white/90">Actions</h3>
+          {/* Editing a tenant had no UI at all: the API and the mutation both
+              existed, nothing called them. A business created with a typo in
+              its name — or with no plan picked — could not be corrected. */}
+          <Button size="sm" variant="outline" className="w-full" onClick={() => {
+            setForm({
+              business_name: t.business_name ?? "",
+              email: t.email ?? "",
+              phone: t.phone ?? "",
+              business_type: t.business_type ?? "",
+              business_category: t.business_category ?? "",
+              city_id: t.city?.id ?? "",
+            });
+            editModal.openModal();
+          }}>
+            Edit details
+          </Button>
           <Button size="sm" className="w-full" onClick={() => { setPlanId(t.plan?.id ?? ""); planModal.openModal(); }}>
             Assign / renew plan
           </Button>
@@ -536,17 +559,100 @@ export default function AdminTenantDetailPage() {
       </div>
 
       {/* Assign plan + optional payment */}
+      {/* Edit business details */}
+      <Modal isOpen={editModal.isOpen} onClose={editModal.closeModal} className="max-w-md p-6">
+        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Edit business details</h3>
+        <div className="space-y-4">
+          <div>
+            <Label>Business name</Label>
+            <Input value={form.business_name} onChange={(e) => setForm((f) => ({ ...f, business_name: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Email</Label>
+              <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Phone</Label>
+              <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <Label>Business type</Label>
+            <Select
+              value={form.business_type}
+              options={(businessTypes.data ?? []).map((b) => ({ value: b.code, label: b.label }))}
+              placeholder="Choose type"
+              onChange={(v) => setForm((f) => ({ ...f, business_type: v, business_category: "" }))}
+            />
+            <p className="mt-1 text-theme-xs text-gray-400">
+              Changing the type re-bases the module defaults. Anything already switched on stays on.
+            </p>
+          </div>
+          <div>
+            <Label>Category</Label>
+            <Select
+              value={form.business_category}
+              options={((businessTypes.data ?? []).find((b) => b.code === form.business_type)?.categories ?? [])
+                .map((c) => ({ value: c.value, label: c.label }))}
+              placeholder="Choose category"
+              onChange={(v) => setForm((f) => ({ ...f, business_category: v }))}
+            />
+          </div>
+          <div>
+            <Label>City</Label>
+            <Select
+              value={form.city_id}
+              options={(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+              placeholder="Choose city"
+              onChange={(v) => setForm((f) => ({ ...f, city_id: v }))}
+            />
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button size="sm" variant="outline" onClick={editModal.closeModal}>Cancel</Button>
+          <Button
+            size="sm"
+            disabled={update.isPending || !form.business_name.trim()}
+            onClick={() => {
+              if (!id) return;
+              update.mutate(
+                {
+                  id,
+                  business_name: form.business_name.trim(),
+                  // Empty strings would fail the email/uuid rules; the API
+                  // takes null for "cleared".
+                  email: form.email.trim() || null,
+                  phone: form.phone.trim() || null,
+                  business_type: form.business_type || undefined,
+                  business_category: form.business_category || null,
+                  city_id: form.city_id || null,
+                },
+                { onSuccess: () => { toast.success("Tenant updated"); editModal.closeModal(); }, onError },
+              );
+            }}
+          >
+            {update.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </Modal>
+
       <Modal isOpen={planModal.isOpen} onClose={planModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Assign / renew plan</h3>
         <div className="space-y-4">
           <div>
             <Label>Plan</Label>
             <Select
-              defaultValue={planId}
+              value={planId}
               options={(plans.data ?? []).map((p) => ({ value: p.id, label: `${p.name}${Number(p.price) > 0 ? ` — ${money(p.price)}` : ""}` }))}
               placeholder="Choose plan"
               onChange={setPlanId}
             />
+            {(plans.data ?? []).length === 0 && (
+              <p className="mt-1 text-theme-xs text-warning-600 dark:text-warning-400">
+                No plans exist yet — create one under Plans first.
+              </p>
+            )}
           </div>
           <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
             <p className="mb-3 text-theme-xs text-gray-400">Record payment (optional — leave amount blank for a free/complimentary assignment)</p>

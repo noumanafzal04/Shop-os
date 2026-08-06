@@ -8,6 +8,8 @@ import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
 import { Link } from "react-router";
 import { useOrderActions, useRiders, useShopOrders } from "../hooks/useOrders";
+import { useModal } from "../../../hooks/useModal";
+import TakeOrderModal from "../components/TakeOrderModal";
 import type { OrderStatus, OwnerOrder } from "../services/ordersService";
 
 
@@ -39,6 +41,7 @@ export default function OwnerOrdersPage() {
   const riders = useRiders();
   const activeRiders = (riders.data ?? []).filter((r) => r.is_active);
   const [error, setError] = useState<string | null>(null);
+  const takeModal = useModal();
 
   const rows = orders.data?.data ?? [];
   const pagination = orders.data?.meta.pagination;
@@ -51,8 +54,13 @@ export default function OwnerOrdersPage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Online Orders</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Fulfil customer orders — stock is held until you complete or cancel.</p>
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Orders</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Online checkouts and the ones you take yourself — one queue, stock held until you complete or cancel.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={takeModal.openModal}>Take an order</Button>
         </div>
         <div className="w-48">
           <Select
@@ -90,6 +98,14 @@ export default function OwnerOrdersPage() {
                   <div>
                     <span className="font-semibold text-gray-800 dark:text-white/90">{o.order_number}</span>
                     <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">{o.customer_name}{o.customer_phone ? ` · ${o.customer_phone}` : ""}</span>
+                    {/* Which door it came through. A shop asking whether the
+                        online storefront earns its keep cannot get an answer
+                        from a list that treats a call and a checkout alike. */}
+                    {o.channel && o.channel !== "online" && (
+                      <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium capitalize text-gray-500 dark:bg-white/10 dark:text-gray-400">
+                        {o.channel.replace("_", " ")}
+                      </span>
+                    )}
                   </div>
                   <Badge color={STATUS_COLOR[o.status]}>{o.status.replace(/_/g, " ")}</Badge>
                 </div>
@@ -160,6 +176,7 @@ export default function OwnerOrdersPage() {
           </div>
         </div>
       )}
+      <TakeOrderModal isOpen={takeModal.isOpen} onClose={takeModal.closeModal} />
     </>
   );
 }

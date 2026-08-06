@@ -39,6 +39,25 @@ export interface PlaceOrderPayload {
   coupon_code?: string;
 }
 
+/**
+ * An order the shop takes itself — a phone call, a WhatsApp message, someone
+ * at the counter asking for delivery. Deliberately carries NO prices: the
+ * server decides what it costs, exactly as it does for a web checkout. A
+ * counter that could type its own prices is a counter that can discount
+ * without anyone knowing.
+ */
+export interface CounterOrderPayload {
+  channel?: "phone" | "whatsapp" | "walk_in";
+  customer_name: string;
+  customer_phone?: string;
+  fulfillment_type: "delivery" | "pickup";
+  delivery_address?: string;
+  payment_method?: "cod" | "paid";
+  items: Array<{ product_id: string; variant_id?: string | null; quantity: number }>;
+  notes?: string;
+  idempotency_key?: string;
+}
+
 export interface Rider {
   id: string;
   name: string;
@@ -57,6 +76,8 @@ export interface OwnerOrder {
   payment_status: string;
   customer_name: string;
   customer_phone: string | null;
+  /** Which door it came through: online | phone | whatsapp | walk_in. */
+  channel: string;
   delivery_address: string | null;
   subtotal: string;
   delivery_fee: string;
@@ -79,6 +100,7 @@ export const ordersService = {
     apiGet<OwnerOrder[]>("/orders", {
       params: { status: params.status || undefined, page: params.page ?? 1 },
     }),
+  takeOrder: (payload: CounterOrderPayload) => apiPost<OwnerOrder>("/orders", payload),
   advance: (id: string, status: OrderStatus) => apiPost<OwnerOrder>(`/orders/${id}/advance`, { status }),
   cancel: (id: string, reason?: string) => apiPost<OwnerOrder>(`/orders/${id}/cancel`, { reason }),
   assignRider: (id: string, riderId: string | null) =>

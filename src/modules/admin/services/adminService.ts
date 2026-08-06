@@ -85,11 +85,12 @@ export interface Announcement {
 
 export interface TenantInput {
   business_name: string;
-  email?: string;
-  phone?: string;
+  // null clears the field on an update; the API's rules take null, not "".
+  email?: string | null;
+  phone?: string | null;
   business_type: string;
-  business_category?: string;
-  city_id?: string;
+  business_category?: string | null;
+  city_id?: string | null;
   plan_id?: string;
   owner: { name: string; email?: string; phone?: string; password: string };
 }

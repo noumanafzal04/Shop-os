@@ -33,7 +33,7 @@ type NavItem = {
  * links on top; everything specialised folds into DROPDOWN parents below
  * (tap to expand — the section with the active page auto-opens). Items only
  * appear when the business has the matching feature enabled (no marketplace
- * feature → no Online Orders; no reservations feature → no Reservations).
+ * feature → no Collections; no reservations feature → no Reservations).
  */
 function shopNav(
   features: Record<string, boolean> | undefined,
@@ -80,7 +80,7 @@ function shopNav(
       ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
       ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
       ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
-      ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
+      ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders" }] : []),
       ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products" }] : []),
       ...(has("expenses") ? [expenseManager] : []),
       ...(multiBranch ? [branchItem] : []),
@@ -102,7 +102,7 @@ function shopNav(
     // beside Sales because it is the same ledger one step earlier — and a
     // shopkeeper holding customers' money needs it where they'll see it daily.
     ...(has("pos") ? [{ icon: <ListIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
-    ...(has("marketplace") ? [{ icon: <PlugInIcon />, name: "Online Orders", path: "/tenant/orders" }] : []),
+    ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders" }] : []),
     ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
     // The forecourt. A station runs its day off the shift, so it sits with the
     // daily screens rather than buried in setup — the equipment page is its
