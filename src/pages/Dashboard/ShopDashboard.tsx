@@ -8,6 +8,7 @@ import { ExpenseDonut } from "../../modules/dashboard/components/shop/ExpenseDon
 import { HighlightsRow } from "../../modules/dashboard/components/shop/HighlightsRow";
 import { InventoryTiles, hasInventoryTiles } from "../../modules/dashboard/components/shop/InventoryTiles";
 import { KpiRow, KpiRowSkeleton } from "../../modules/dashboard/components/shop/KpiRow";
+import { MoneyPanel, hasMoneyPanel } from "../../modules/dashboard/components/shop/MoneyPanel";
 import { PipelinePanel } from "../../modules/dashboard/components/shop/PipelinePanel";
 import { QuickActions } from "../../modules/dashboard/components/shop/QuickActions";
 import { RecentExpensesCard, RecentSalesCard, TableSkeleton } from "../../modules/dashboard/components/shop/RecentTables";
@@ -150,6 +151,10 @@ export default function ShopDashboard() {
               {caps.keepsBooks && <ExpenseDonut breakdown={data.expense_breakdown} money={money} />}
             </div>
           )}
+
+          {/* Shown in BOTH modes: "who owes me" and "is the day closed" are
+              daily questions for a corner shop, not advanced reporting. */}
+          {hasMoneyPanel(data, caps) && <MoneyPanel data={data} caps={caps} money={money} />}
 
           <div
             className={`grid grid-cols-1 gap-5 md:gap-6 ${

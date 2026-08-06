@@ -12,6 +12,7 @@ import { useAdminDashboard } from "../../modules/dashboard/hooks/useDashboard";
 import { ActivityPanel } from "../../modules/dashboard/components/admin/ActivityPanel";
 import { BusinessTypesPanel } from "../../modules/dashboard/components/admin/BusinessTypesPanel";
 import { KpiTile, KpiTileSkeleton } from "../../modules/dashboard/components/admin/KpiTile";
+import { ModuleAdoptionPanel } from "../../modules/dashboard/components/admin/ModuleAdoptionPanel";
 import { PlansPanel } from "../../modules/dashboard/components/admin/PlansPanel";
 import { QuickActions } from "../../modules/dashboard/components/admin/QuickActions";
 import { RecentPaymentsPanel } from "../../modules/dashboard/components/admin/RecentPaymentsPanel";
@@ -131,6 +132,11 @@ export default function AdminDashboard() {
             <PlansPanel plans={data?.plans} loading={isLoading} />
           </div>
         </div>
+
+        {/* What the platform is really shipping. Since modules are assigned per
+            tenant rather than sold in a bundle, nothing else on this page says
+            which of them anyone uses. */}
+        <ModuleAdoptionPanel modules={data?.modules} loading={isLoading} />
 
         <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-3">
           <div className="space-y-6 xl:col-span-2">

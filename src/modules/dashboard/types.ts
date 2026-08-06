@@ -109,6 +109,28 @@ export interface TenantDashboard {
     pending_pos: number;
   };
   order_pipeline: OrderPipeline;
+  /**
+   * Today at the till. NULL for a shop with no POS module — an online-only
+   * business has no drawer, so it is told nothing about one.
+   *
+   * `unclosed_day` is the one figure nothing else in the product surfaces: a
+   * trading day left open never got its roll-up, so the record of that day
+   * quietly does not exist.
+   */
+  till: {
+    day_open: boolean;
+    day_id: string | null;
+    open_shifts: number;
+    banked_today: number;
+    /** The oldest day still hanging open. Null is the healthy answer. */
+    unclosed_day: string | null;
+    unclosed_days: number;
+  } | null;
+  /** Who owes whom. Positive balances only — credit held is not a debt. */
+  money_owed: {
+    receivable: { total: number; accounts: number };
+    payable: { total: number; accounts: number };
+  };
   recent_sales: RecentSaleRow[];
   recent_expenses: RecentExpenseRow[];
   /** Each entry is null when there is nothing to crown yet. */
@@ -144,7 +166,24 @@ export interface AdminDashboard {
   /** 6 months of sign-ups, split by where those tenants stand today. */
   tenant_growth: Array<{ month: string; ym: string; active: number; suspended: number; total: number }>;
   business_types: Array<{ type: string | null; label: string; count: number }>;
-  plans: Array<{ id: string; name: string; code: string; active_tenants: number; revenue: number }>;
+  plans: Array<{
+    id: string;
+    name: string;
+    code: string;
+    /** PKR per billing period. */
+    price: number;
+    /** A bespoke enterprise deal, not a rung on the ladder. */
+    is_custom: boolean;
+    is_active: boolean;
+    active_tenants: number;
+    revenue: number;
+  }>;
+  /**
+   * What the platform's active shops actually run. Modules are assigned per
+   * tenant, not bundled into a plan, so the plan ladder says nothing about
+   * usage — this is the only view of it.
+   */
+  modules: Array<{ key: string; label: string; count: number; share: number }>;
   recent_payments: Array<{
     id: string;
     tenant: string | null;

@@ -80,6 +80,9 @@ function shopNav(
       ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
       ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
       ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
+      // End of day. Even the calm view needs it — without it a shop can never
+      // close a day off or record what went to the bank.
+      ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
       ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders" }] : []),
       ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products" }] : []),
       ...(has("expenses") ? [expenseManager] : []),
@@ -98,6 +101,10 @@ function shopNav(
     // wall from the till — the same shop, two people, two displays.
     ...(has("dine_in") ? [{ icon: <ListIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
     ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
+    // The 10pm question: what did the shop take today across every drawer, and
+    // how much of it went to the bank. No shift answers it, however well
+    // counted — so it sits with the daily screens, not in a reports folder.
+    ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
     // Promises outstanding: prices quoted, and goods held on advance. Sits
     // beside Sales because it is the same ledger one step earlier — and a
     // shopkeeper holding customers' money needs it where they'll see it daily.
@@ -525,33 +532,48 @@ const AppSidebar: React.FC = () => {
         )}
       </nav>
 
-      {/* Basic / Advanced view toggle — shop side only. Basic trims the menu to
-          the essentials; Full reveals every module. Remembered per device. */}
+      {/* Simple / Full view toggle — shop side only. Simple trims the menu to
+          the essentials; Full reveals every module the shop has. Remembered per
+          device.
+
+          Carried in the brand colour rather than sidebar grey: a merchant who
+          can't find half their modules needs to SEE the switch that hid them —
+          a quiet control at the bottom of a scroller reads as decoration. */}
       {!isAdmin && (
         <div className="shrink-0 border-t border-gray-100 px-4 py-4 dark:border-gray-800">
           {showLabels ? (
-            <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
-              {(["basic", "advanced"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => mode !== m && toggleMode()}
-                  className={`flex-1 rounded-md py-1.5 text-theme-xs font-medium transition-colors ${
-                    mode === m
-                      ? "bg-white text-gray-800 shadow-theme-xs dark:bg-gray-900 dark:text-white/90"
-                      : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
-                  }`}
-                >
-                  {m === "basic" ? "Simple" : "Full menu"}
-                </button>
-              ))}
-            </div>
+            <>
+              <p className="mb-2 px-1 text-[11px] font-medium uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500">
+                Menu view
+              </p>
+              <div className="flex items-center gap-1 rounded-xl border border-brand-100 bg-brand-50 p-1.5 dark:border-brand-500/25 dark:bg-brand-500/10">
+                {(["basic", "advanced"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => mode !== m && toggleMode()}
+                    className={`flex-1 rounded-lg py-2.5 text-theme-sm font-semibold transition-colors ${
+                      mode === m
+                        ? "bg-brand-500 text-white shadow-theme-xs"
+                        : "text-brand-600 hover:bg-white/70 dark:text-brand-300 dark:hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    {m === "basic" ? "Simple" : "Full view"}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 px-1 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
+                {mode === "basic"
+                  ? "Daily essentials only. Switch to Full view for every module."
+                  : "Every module this shop has."}
+              </p>
+            </>
           ) : (
             <button
               type="button"
               onClick={toggleMode}
-              title={mode === "basic" ? "Switch to full menu" : "Switch to simple menu"}
-              className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+              title={mode === "basic" ? "Switch to full view" : "Switch to simple menu"}
+              className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:hover:bg-brand-500/25"
             >
               {mode === "basic" ? <ListIcon className="size-5" /> : <GridIcon className="size-5" />}
             </button>

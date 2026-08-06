@@ -151,6 +151,24 @@ export function AttentionPanel({ data, caps }: Props) {
     });
   }
 
+  // A day left open never gets its roll-up, so the shop's record of that day
+  // quietly does not exist — and nothing else in the product would ever
+  // mention it. By the time anyone goes looking for the figure it is months
+  // too late to reconstruct.
+  if (data.till?.unclosed_day) {
+    items.push({
+      key: "unclosed_day",
+      severity: "critical",
+      title:
+        data.till.unclosed_days === 1
+          ? `${formatDate(data.till.unclosed_day)} was never closed off`
+          : `${data.till.unclosed_days} trading days were never closed off`,
+      detail: "Until a day is closed, it has no record of what the shop took.",
+      icon: <CalenderIcon className="size-5" />,
+      to: "/tenant/day",
+    });
+  }
+
   if (caps.pos && data.inventory.pending_pos > 0) {
     items.push({
       key: "parked",

@@ -39,6 +39,7 @@ const BranchesPage = lazy(() => import("./modules/branches/pages/BranchesPage"))
 const TransfersPage = lazy(() => import("./modules/transfers/pages/TransfersPage"));
 const WarrantyLookupPage = lazy(() => import("./modules/warranty/pages/WarrantyLookupPage"));
 const VehiclesPage = lazy(() => import("./modules/vehicles/pages/VehiclesPage"));
+const DayPage = lazy(() => import("./modules/day/pages/DayPage"));
 const SubscriptionPage = lazy(() => import("./modules/shop/pages/SubscriptionPage"));
 const ShopDashboard = lazy(() => import("./pages/Dashboard/ShopDashboard"));
 const ShopSetupPage = lazy(() => import("./modules/shop/pages/ShopSetupPage"));
@@ -190,6 +191,10 @@ export default function App() {
                   <Route element={<RequireFeature feature="pos" />}>
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="documents/:id" element={<DocumentDetailPage />} />
+                    {/* The trading day and the safe-to-bank leg. A day is
+                        drawers, so it needs the till module — an online-only
+                        shop has none. */}
+                    <Route path="day" element={<DayPage />} />
                   </Route>
                   <Route element={<RequireFeature feature="expenses" />}>
                     <Route path="expenses" element={<ExpensesPage />} />

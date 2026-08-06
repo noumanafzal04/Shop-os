@@ -32,9 +32,16 @@ export function PlansPanel({ plans, loading = false }: Props) {
           {plans.map((p) => (
             <div key={p.id} className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
               <div className="flex items-start justify-between gap-2">
-                <p className="font-medium text-gray-800 dark:text-white/90">{p.name}</p>
-                <Badge size="sm" color="light">
-                  {p.code}
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-gray-800 dark:text-white/90">{p.name}</p>
+                  <p className="text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
+                    {money(p.price)} / month
+                  </p>
+                </div>
+                {/* A bespoke deal is not a rung on the ladder; a retired plan
+                    still holding tenants is an obligation, not an offer. */}
+                <Badge size="sm" color={p.is_custom ? "info" : p.is_active ? "light" : "warning"}>
+                  {p.is_custom ? "Custom" : p.is_active ? p.code : "Retired"}
                 </Badge>
               </div>
               <div className="mt-3 flex items-end justify-between gap-3">
