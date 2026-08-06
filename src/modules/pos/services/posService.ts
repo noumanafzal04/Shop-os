@@ -148,6 +148,13 @@ export const posService = {
       };
     }>("/pos/lookup", { params: { code } }),
 
+  /**
+   * The counter's own shortlist — what this branch actually sells, with
+   * un-scannable items first. Derived on the server; nobody maintains it, and
+   * a shop with no trade yet gets an empty list and no strip.
+   */
+  quickKeys: () => apiGet<Product[]>("/pos/quick-keys"),
+
   currentSession: () => apiGet<CashSession | null>("/pos/session"),
   // The lane may be named explicitly (the picker) or left to the terminal's
   // own X-Register-Id header. Re-opening the lane you already hold RESUMES it.

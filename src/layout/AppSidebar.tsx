@@ -21,7 +21,7 @@ import { useShopSettings } from "../modules/shop/hooks/useShop";
 import { useAuthStore } from "../stores/authStore";
 import { homeForRole } from "../common/routing/guards";
 import { canVisit } from "../common/routing/screenPermissions";
-import { usePrimaryBusinessType } from "../common/tenant/businessType";
+import { tracksSerials, usePrimaryBusinessType } from "../common/tenant/businessType";
 
 type SubItem = { name: string; path: string; pro?: boolean; new?: boolean };
 
@@ -228,10 +228,12 @@ export function shopNav(
         ...(has("products") && (businessType === "automotive" || businessType === "petroleum")
           ? [{ name: "Vehicles", path: "/tenant/vehicles" }]
           : []),
-        // Serialized retail (phones/electronics) — look up a serial's warranty.
-        // Retail-only: a grocery or pharmacy never sells a serial-tracked unit.
-        // A counter lookup, so it sits with the till.
-        ...(has("pos") && has("inventory") && businessType === "retail"
+        // Serialized goods (phones, electronics, batteries) — look up a
+        // serial's warranty. The trades that sell a unit somebody brings back;
+        // a grocery or pharmacy never does. Same list the product form gates
+        // the serial toggle on, so where you turn it on and where you look it
+        // up cannot disagree. A counter lookup, so it sits with the till.
+        ...(has("pos") && has("inventory") && tracksSerials(businessType)
           ? [{ name: "Warranty lookup", path: "/tenant/warranty" }]
           : []),
         // The public service menu belongs to service businesses — petroleum has

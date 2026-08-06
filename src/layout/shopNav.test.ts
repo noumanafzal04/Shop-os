@@ -152,9 +152,19 @@ describe("trade-specific screens go only to the trades that use them", () => {
     expect(paths("mart", "advanced")).not.toContain("/tenant/vehicles");
   });
 
-  it("warranty lookup is for serialised retail", () => {
+  it("warranty lookup goes to every trade that sells a serialised unit", () => {
     expect(paths("retail", "advanced")).toContain("/tenant/warranty");
-    expect(paths("pharmacy", "advanced")).not.toContain("/tenant/warranty");
+    // Batteries carry a serial and a warranty, and the auto trade is where
+    // they are claimed. Locking this to `retail` left the capability built,
+    // tested and unreachable for the shops that need it most.
+    expect(paths("automotive", "advanced")).toContain("/tenant/warranty");
+    expect(paths("petroleum", "advanced")).toContain("/tenant/warranty");
+  });
+
+  it("and to nobody who never sells one", () => {
+    for (const trade of ["pharmacy", "mart", "food", "services", "finance"]) {
+      expect(paths(trade, "advanced"), trade).not.toContain("/tenant/warranty");
+    }
   });
 
   it("a portfolio belongs to a service business, not to a filling station", () => {

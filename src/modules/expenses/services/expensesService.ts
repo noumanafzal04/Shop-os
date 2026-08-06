@@ -6,6 +6,14 @@ export interface ExpenseCategory {
   name: string;
   is_default: boolean;
   is_active: boolean;
+  /**
+   * What is filed here. The server refuses to delete a category with history
+   * (it would strand the entries under a blank), so the list shows the count
+   * and hides the Delete button rather than letting someone find out by
+   * clicking.
+   */
+  entries_count: number;
+  entries_total: number;
 }
 
 /** Creating or renaming a category. `is_active` retires one without erasing history. */
@@ -100,12 +108,14 @@ export interface ReportSummary {
   totals: {
     sales_count: number;
     revenue: number;
+    /** Money in that wasn't a sale — a retainer, an owner's injection, a refund. */
+    other_income: number;
     cogs: number;
     gross_profit: number;
     expenses: number;
     net_profit: number;
   };
-  series: Array<{ date: string; revenue: number; expenses: number; profit: number }>;
+  series: Array<{ date: string; revenue: number; other_income: number; expenses: number; profit: number }>;
   top_products: Array<{ name: string; units: number; revenue: number }>;
   expenses_by_category: Array<{ category: string; total: number }>;
 }

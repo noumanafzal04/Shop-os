@@ -18,7 +18,8 @@ import {
   useDayMutations,
   useDeposits,
 } from "../hooks/useDay";
-import { signerName, type BusinessDay, type DayShift } from "../services/dayService";
+import { dayService, signerName, type BusinessDay, type DayShift } from "../services/dayService";
+import { printHtmlDocument } from "../../../common/print";
 
 type Tab = "today" | "history" | "banking";
 
@@ -96,6 +97,18 @@ export default function DayPage() {
 
   const day = useCurrentDay();
   const { close, deposit } = useDayMutations();
+
+  /**
+   * The end-of-shift slip. The server has built this since shifts shipped and
+   * nothing ever opened it — a cashier counted out and had no record to file.
+   */
+  const printZReport = async (sessionId: string) => {
+    try {
+      await printHtmlDocument(await dayService.zReport(sessionId));
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Could not open the Z-read to print.");
+    }
+  };
 
   // ── Banking a deposit ────────────────────────────────────────────
   const depositModal = useModal();
@@ -305,6 +318,7 @@ export default function DayPage() {
                           <th className="px-5 py-3 text-right">Expected</th>
                           <th className="px-5 py-3 text-right">Counted</th>
                           <th className="px-5 py-3 text-right">Variance</th>
+                          <th className="px-5 py-3 text-right">Z-read</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -336,6 +350,25 @@ export default function DayPage() {
                                 <span className="text-gray-400">—</span>
                               ) : (
                                 <VarianceText value={Number(s.variance ?? 0)} money={money} />
+                              )}
+                            </td>
+                            {/* The end-of-shift slip. Built on the server off
+                                the FROZEN close figures — reprint it next year
+                                and it still matches what was signed that
+                                night, which is the only thing that makes it
+                                evidence. A running drawer has none: there is
+                                nothing counted to record. */}
+                            <td className="px-5 py-3 text-right">
+                              {s.status === "open" ? (
+                                <span className="text-theme-xs text-gray-400">still open</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => printZReport(s.id)}
+                                  className="rounded-lg border border-gray-300 px-2.5 py-1 text-theme-xs font-medium text-gray-700 transition-colors hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:text-gray-200 dark:hover:border-brand-500/50"
+                                >
+                                  Print
+                                </button>
                               )}
                             </td>
                           </tr>

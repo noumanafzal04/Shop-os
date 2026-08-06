@@ -35,7 +35,24 @@ const CONNECTION_LABEL: Record<ConnectionType, string> = {
   native: "Built-in (device app)",
 };
 
-const TYPE_OPTIONS = (Object.keys(TYPE_LABEL) as HardwareType[]).map((v) => ({ value: v, label: TYPE_LABEL[v] }));
+/**
+ * Peripherals nothing in the app drives yet.
+ *
+ * A customer display could be registered here — named, given a connection,
+ * saved, listed like any other device — and no code path has ever rendered a
+ * single character to one. That is not an unimplemented feature to a merchant;
+ * it is a broken one, and the trust it costs is out of all proportion to the
+ * peripheral. So the option is withheld until something drives it.
+ *
+ * Kept in TYPE_LABEL rather than deleted: the server still accepts the type,
+ * and a shop that already saved one must see it listed with an honest note
+ * instead of a blank row.
+ */
+const UNDRIVEN_TYPES: HardwareType[] = ["customer_display"];
+
+const TYPE_OPTIONS = (Object.keys(TYPE_LABEL) as HardwareType[])
+  .filter((v) => !UNDRIVEN_TYPES.includes(v))
+  .map((v) => ({ value: v, label: TYPE_LABEL[v] }));
 const CONNECTION_OPTIONS = (Object.keys(CONNECTION_LABEL) as ConnectionType[]).map((v) => ({ value: v, label: CONNECTION_LABEL[v] }));
 
 interface Draft {
@@ -178,6 +195,12 @@ export default function HardwareDevices() {
                   <span className="truncate text-sm font-medium text-gray-800 dark:text-white/90">{d.name}</span>
                   {d.is_default && <Badge size="sm" color="success">Default</Badge>}
                   {!d.is_active && <Badge size="sm" color="light">Off</Badge>}
+                  {/* Registered before the option was withheld. Saying so is
+                      the point — a device listed like every other one, that
+                      nothing drives, is worse than no device at all. */}
+                  {UNDRIVEN_TYPES.includes(d.type) && (
+                    <Badge size="sm" color="warning">Not supported yet</Badge>
+                  )}
                 </div>
                 <div className="truncate text-theme-xs text-gray-400">
                   {TYPE_LABEL[d.type]} · {CONNECTION_LABEL[d.connection_type]}

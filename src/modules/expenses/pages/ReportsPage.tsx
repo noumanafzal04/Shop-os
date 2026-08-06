@@ -58,9 +58,13 @@ export default function ReportsPage() {
   };
 
   // A flat zero revenue line under a real expense line is not a comparison,
-  // it is a line the reader has to work out is meaningless.
+  // it is a line the reader has to work out is meaningless. A books-only
+  // business has a real line to draw there — it just isn't sales, so it plots
+  // what it actually took in instead.
   const chartSeries = [
-    ...(sells ? [{ name: "Revenue", data: (data?.series ?? []).map((b) => b.revenue) }] : []),
+    ...(sells
+      ? [{ name: "Revenue", data: (data?.series ?? []).map((b) => b.revenue) }]
+      : [{ name: "Money in", data: (data?.series ?? []).map((b) => b.other_income) }]),
     { name: "Expenses", data: (data?.series ?? []).map((b) => b.expenses) },
   ];
 
@@ -118,20 +122,27 @@ export default function ReportsPage() {
       {tab === "margins" ? <MarginsTab period={period} /> : tab === "valuation" ? <ValuationTab /> : tab === "dead-stock" ? <DeadStockTab /> : tab === "purchases" ? <PurchasesTab period={period} /> : tab === "staff" ? <StaffTab period={period} /> : tab === "tax" ? <TaxTab period={period} /> : tab === "receipts" ? <ReprintReportTab period={period} /> : (
       <>
       {/* Totals. A shop that sells nothing is shown what it actually has —
-          money out and what that leaves — not four cards of Rs 0 padding out
-          a row. Net profit stays either way: for a books-only business it is
-          simply the other side of what they spent. */}
+          money in, money out, and what that leaves — not four cards of Rs 0
+          padding out a row. `Money in` is not optional here: without it this
+          screen printed Net as minus the whole of what the business spent,
+          while the Cashbook one click away had it right. */}
       <div
         className={`mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 ${
-          sells ? "xl:grid-cols-6" : "sm:grid-cols-2"
+          sells ? "xl:grid-cols-6" : "sm:grid-cols-3"
         }`}
       >
         {report.isLoading || !data ? (
-          Array.from({ length: sells ? 6 : 2 }).map((_, i) => <MetricCardSkeleton key={i} />)
+          Array.from({ length: sells ? 6 : 3 }).map((_, i) => <MetricCardSkeleton key={i} />)
         ) : sells ? (
           <>
             <MetricCard label="Sales" value={data.totals.sales_count} />
             <MetricCard label="Revenue" value={money(data.totals.revenue)} />
+            {/* Only when there IS some. Most shops record no non-sale income,
+                and a permanent Rs 0 card is the padding this row was cleaned
+                of in the first place. */}
+            {data.totals.other_income > 0 && (
+              <MetricCard label="Other Income" value={money(data.totals.other_income)} />
+            )}
             <MetricCard label="Cost of Goods" value={money(data.totals.cogs)} />
             <MetricCard label="Gross Profit" value={money(data.totals.gross_profit)} />
             <MetricCard label="Expenses" value={money(data.totals.expenses)} />
@@ -139,7 +150,8 @@ export default function ReportsPage() {
           </>
         ) : (
           <>
-            <MetricCard label="Expenses" value={money(data.totals.expenses)} />
+            <MetricCard label="Money In" value={money(data.totals.other_income)} />
+            <MetricCard label="Money Out" value={money(data.totals.expenses)} />
             <MetricCard label="Net" value={money(data.totals.net_profit)} />
           </>
         )}
@@ -148,7 +160,7 @@ export default function ReportsPage() {
       {/* Revenue vs Expenses chart */}
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
         <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">
-          {sells ? "Revenue vs Expenses" : "Expenses over time"}
+          {sells ? "Revenue vs Expenses" : "Money in vs money out"}
         </h3>
         {report.isLoading ? (
           <div className="h-64 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />

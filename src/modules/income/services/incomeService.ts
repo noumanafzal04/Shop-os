@@ -7,6 +7,9 @@ export interface IncomeCategory {
   name: string;
   is_default: boolean;
   is_active: boolean;
+  /** What is filed here — see ExpenseCategory for why the list carries it. */
+  entries_count: number;
+  entries_total: number;
 }
 
 export interface Income {

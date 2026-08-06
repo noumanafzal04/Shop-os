@@ -22,6 +22,8 @@ export interface SeriesDay {
   day: string; // "Mon"
   date: string; // "2026-08-05"
   revenue: number;
+  /** Money in that wasn't a sale. Zero for a shop that records none. */
+  other_income: number;
   expenses: number;
   profit: number;
 }
@@ -79,6 +81,8 @@ export interface TenantDashboard {
   today: {
     sales_count: number;
     revenue: number;
+    /** Non-sale money in — kept apart from `revenue` so "what we sold" stays honest. */
+    other_income: number;
     expenses: number;
     profit: number;
     /** Buyers served, not tickets rung. */

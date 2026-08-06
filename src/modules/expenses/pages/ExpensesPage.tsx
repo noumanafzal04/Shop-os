@@ -22,7 +22,7 @@ import {
   useRecurringExpenses,
 } from "../hooks/useExpenses";
 import { PAYMENT_METHODS, type BudgetRow, type Expense, type RecurringExpense } from "../services/expensesService";
-import { activeFilterCount, toParams, type MoneyFilters, type MoneyTotals } from "../services/moneyFilters";
+import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../services/moneyFilters";
 import { MoneyFilterBar } from "../components/MoneyFilterBar";
 import { CategoryManager } from "../components/CategoryManager";
 import { downloadFile } from "../../../common/api/download";
@@ -96,7 +96,7 @@ export default function ExpensesPage() {
       {tab === "expenses" && <ExpensesTab money={money} toast={toast} />}
       {tab === "recurring" && <RecurringTab money={money} toast={toast} />}
       {tab === "budgets" && <BudgetsTab money={money} toast={toast} />}
-      {tab === "categories" && <ExpenseCategoriesTab />}
+      {tab === "categories" && <ExpenseCategoriesTab money={money} />}
     </>
   );
 }
@@ -118,10 +118,16 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
   const expenses = useExpenses(query);
   const totals = (expenses.data?.meta as { totals?: MoneyTotals } | undefined)?.totals;
   const categories = useExpenseCategories();
-  const { create, remove, attach, detach } = useExpenseMutations();
+  const { create, update, remove, attach, detach } = useExpenseMutations();
   const confirm = useConfirm();
 
   const modal = useModal();
+  // Which row this modal is editing, or null for a new one. Correcting a
+  // mis-keyed amount used to mean deleting the row and typing it again — and
+  // once the shift that paid it had closed, the delete was refused too, so a
+  // typo made yesterday could never be fixed at all. Income had this button
+  // from the start; expenses, the far busier half, did not.
+  const [editing, setEditing] = useState<Expense | null>(null);
   const [form, setForm] = useState({
     category: "", description: "", reference: "", amount: "",
     method: "cash", date: today(), notes: "",
@@ -136,40 +142,61 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
   const rows = expenses.data?.data ?? [];
   const pagination = expenses.data?.meta.pagination;
 
-  const apiError = create.error instanceof ApiError ? create.error : null;
+  // Whichever mutation this modal is driving — the form, its errors and its
+  // pending state all read from one place so the two paths can't drift.
+  const active = editing ? update : create;
+  const apiError = active.error instanceof ApiError ? active.error : null;
   const errorFor = (key: string) => apiError?.errors[key]?.[0];
   const generalError = apiError && Object.keys(apiError.errors).length === 0 ? apiError.message : null;
 
   const openAdd = () => {
+    setEditing(null);
     setForm({ category: "", description: "", reference: "", amount: "", method: "cash", date: today(), notes: "" });
     setWarnings([]);
     create.reset();
+    update.reset();
+    modal.openModal();
+  };
+
+  const openEdit = (expense: Expense) => {
+    setEditing(expense);
+    setForm({
+      category: expense.expense_category_id ?? expense.category?.id ?? "",
+      description: expense.description,
+      reference: expense.reference ?? "",
+      amount: String(expense.amount),
+      method: expense.payment_method,
+      date: expense.expense_date.slice(0, 10),
+      notes: expense.notes ?? "",
+    });
+    setWarnings([]);
+    create.reset();
+    update.reset();
     modal.openModal();
   };
 
   const submit = () => {
-    if (create.isPending) return;
-    create.mutate(
-      {
-        expense_category_id: form.category,
-        description: form.description.trim(),
-        reference: form.reference.trim() || undefined,
-        amount: Number(form.amount),
-        payment_method: form.method,
-        expense_date: form.date,
-        notes: form.notes.trim() || undefined,
-      },
-      {
-        onSuccess: (response) => {
-          const w = (response.meta as { warnings?: string[] })?.warnings ?? [];
-          // Warnings are things the shop needs to hear — a budget passed, a
-          // cash payment with no drawer open — never reasons to hold the form.
-          if (w.length) setWarnings(w);
-          else modal.closeModal();
-          toast.success("Expense recorded");
-        },
-      },
-    );
+    if (active.isPending) return;
+    const payload = {
+      expense_category_id: form.category,
+      description: form.description.trim(),
+      reference: form.reference.trim() || undefined,
+      amount: Number(form.amount),
+      payment_method: form.method,
+      expense_date: form.date,
+      notes: form.notes.trim() || undefined,
+    };
+    const onSuccess = (response: { meta?: unknown }) => {
+      const w = (response.meta as { warnings?: string[] } | undefined)?.warnings ?? [];
+      // Warnings are things the shop needs to hear — a budget passed, a
+      // cash payment with no drawer open — never reasons to hold the form.
+      if (w.length) setWarnings(w);
+      else modal.closeModal();
+      toast.success(editing ? "Expense updated" : "Expense recorded");
+    };
+
+    if (editing) update.mutate({ id: editing.id, ...payload }, { onSuccess });
+    else create.mutate(payload, { onSuccess });
   };
 
   const onFilePicked = (file: File | undefined) => {
@@ -197,7 +224,10 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
       <MoneyFilterBar
         filters={filters}
         onChange={setFilters}
-        categories={(categories.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name }))}
+        // Every category, retired ones included. The filter is how you FIND
+        // history, and hiding a switched-off category here is what made three
+        // years of "Cooking Gas" unreachable the day it was retired.
+        categories={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name, retired: !c.is_active }))}
         methods={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
         totals={totals}
         money={money}
@@ -276,19 +306,27 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                       )}
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <button
-                        className="text-theme-xs text-gray-400 hover:text-error-500"
-                        onClick={async () => {
-                          if (await confirm({ title: `Delete "${e.description}"?`, tone: "danger" })) {
-                            remove.mutate(e.id, {
-                              onSuccess: () => toast.success("Expense deleted"),
-                              onError: (err) => toast.error(err instanceof Error ? err.message : "Could not delete"),
-                            });
-                          }
-                        }}
-                      >
-                        Delete
-                      </button>
+                      <span className="inline-flex items-center gap-3">
+                        <button
+                          className="text-theme-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                          onClick={() => openEdit(e)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="text-theme-xs text-gray-400 hover:text-error-500"
+                          onClick={async () => {
+                            if (await confirm({ title: `Delete "${e.description}"?`, tone: "danger" })) {
+                              remove.mutate(e.id, {
+                                onSuccess: () => toast.success("Expense deleted"),
+                                onError: (err) => toast.error(err instanceof Error ? err.message : "Could not delete"),
+                              });
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </span>
                     </td>
                   </tr>
                 ))
@@ -311,7 +349,9 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
       </div>
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Add expense</h3>
+        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
+          {editing ? "Edit expense" : "Add expense"}
+        </h3>
 
         {generalError && <div className="mb-4"><Alert variant="error" title="Couldn't save" message={generalError} /></div>}
         {warnings.map((w, i) => (
@@ -322,12 +362,17 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
           <div>
             <Label>Category <span className="text-error-500">*</span></Label>
             <Select
-              options={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+              options={categoryOptions(categories.data, editing?.expense_category_id)}
               placeholder="Choose category"
               value={form.category}
               onChange={(v) => setForm((f) => ({ ...f, category: v }))}
             />
             {errorFor("expense_category_id") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("expense_category_id")}</p>}
+            {categories.data?.length === 0 && (
+              <p className="mt-1 text-theme-xs text-gray-400">
+                No categories yet — add one on the <strong>Categories</strong> tab first.
+              </p>
+            )}
           </div>
           <div>
             <Label>Description <span className="text-error-500">*</span></Label>
@@ -369,8 +414,8 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
 
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={modal.closeModal}>{warnings.length ? "Done" : "Cancel"}</Button>
-          <Button size="sm" onClick={submit} disabled={create.isPending || !form.category || !form.description.trim() || !form.amount}>
-            {create.isPending ? "Saving…" : "Save expense"}
+          <Button size="sm" onClick={submit} disabled={active.isPending || !form.category || !form.description.trim() || !form.amount}>
+            {active.isPending ? "Saving…" : editing ? "Save changes" : "Save expense"}
           </Button>
         </div>
       </Modal>
@@ -383,10 +428,11 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
 function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
   const list = useRecurringExpenses();
   const categories = useExpenseCategories();
-  const { createRecurring, removeRecurring, postRecurring } = useExpenseAdminMutations();
+  const { createRecurring, updateRecurring, removeRecurring, postRecurring } = useExpenseAdminMutations();
   const confirm = useConfirm();
   const modal = useModal();
 
+  const [editing, setEditing] = useState<RecurringExpense | null>(null);
   const [form, setForm] = useState({
     category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: today(),
   });
@@ -395,26 +441,51 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
 
   const rows = list.data?.rows ?? [];
   const due = rows.filter((r) => r.is_due);
+  const active = editing ? updateRecurring : createRecurring;
+
+  const blank = () => ({
+    category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: today(),
+  });
+
+  const openAdd = () => {
+    setEditing(null);
+    setForm(blank());
+    modal.openModal();
+  };
+
+  const openEdit = (r: RecurringExpense) => {
+    setEditing(r);
+    setForm({
+      category: r.expense_category_id ?? r.category?.id ?? "",
+      description: r.description,
+      amount: String(Number(r.amount)),
+      method: r.payment_method,
+      frequency: r.frequency,
+      next_due_on: r.next_due_on.slice(0, 10),
+    });
+    modal.openModal();
+  };
 
   const save = () => {
-    createRecurring.mutate(
-      {
-        expense_category_id: form.category,
-        description: form.description.trim(),
-        amount: Number(form.amount),
-        payment_method: form.method,
-        frequency: form.frequency,
-        next_due_on: form.next_due_on,
-      },
-      {
-        onSuccess: () => {
-          toast.success("Recurring expense added");
-          setForm({ category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: today() });
-          modal.closeModal();
-        },
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not save"),
-      },
-    );
+    if (active.isPending) return;
+    const payload = {
+      expense_category_id: form.category,
+      description: form.description.trim(),
+      amount: Number(form.amount),
+      payment_method: form.method,
+      frequency: form.frequency,
+      next_due_on: form.next_due_on,
+    };
+    const onSuccess = () => {
+      toast.success(editing ? "Recurring expense updated" : "Recurring expense added");
+      setEditing(null);
+      setForm(blank());
+      modal.closeModal();
+    };
+    const onError = (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not save");
+
+    if (editing) updateRecurring.mutate({ id: editing.id, ...payload }, { onSuccess, onError });
+    else createRecurring.mutate(payload, { onSuccess, onError });
   };
 
   const post = () => {
@@ -434,7 +505,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Rent, salaries, the internet bill. Nothing posts on its own — you confirm the real figure.
         </p>
-        <Button size="sm" onClick={modal.openModal}>Add recurring</Button>
+        <Button size="sm" onClick={openAdd}>Add recurring</Button>
       </div>
 
       {due.length > 0 && (
@@ -490,6 +561,12 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
                     <td className="px-5 py-3.5 text-right tabular-nums">{money(r.amount)}</td>
                     <td className="px-5 py-3.5 text-right">
                       <button
+                        className="mr-3 text-theme-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                        onClick={() => openEdit(r)}
+                      >
+                        Edit
+                      </button>
+                      <button
                         className="text-theme-xs text-gray-400 hover:text-error-500"
                         onClick={async () => {
                           if (await confirm({ title: `Remove "${r.description}"?`, tone: "danger" })) {
@@ -508,14 +585,16 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
         </div>
       </div>
 
-      {/* Add template */}
+      {/* Add / edit template */}
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Add recurring expense</h3>
+        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
+          {editing ? "Edit recurring expense" : "Add recurring expense"}
+        </h3>
         <div className="space-y-4">
           <div>
             <Label>Category</Label>
             <Select
-              options={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+              options={categoryOptions(categories.data, editing?.expense_category_id)}
               placeholder="Choose category"
               value={form.category}
               onChange={(v) => setForm((f) => ({ ...f, category: v }))}
@@ -546,7 +625,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>First due on</Label>
+              <Label>{editing ? "Next due on" : "First due on"}</Label>
               <Input type="date" value={form.next_due_on} onChange={(e) => setForm((f) => ({ ...f, next_due_on: e.target.value }))} />
             </div>
             <div>
@@ -564,8 +643,8 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={save} disabled={!form.category || !form.description.trim() || !form.amount || createRecurring.isPending}>
-            Save
+          <Button size="sm" onClick={save} disabled={!form.category || !form.description.trim() || !form.amount || active.isPending}>
+            {active.isPending ? "Saving…" : editing ? "Save changes" : "Save"}
           </Button>
         </div>
       </Modal>
@@ -596,7 +675,10 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
 
   const save = (row: BudgetRow) => {
     const raw = drafts[row.expense_category_id];
-    setDrafts((d) => { const { [row.expense_category_id]: _drop, ...rest } = d; return rest; });
+    // Drop this row's draft — the saved value comes back from the server.
+    setDrafts((d) => Object.fromEntries(
+      Object.entries(d).filter(([key]) => key !== row.expense_category_id),
+    ));
     if (raw === undefined) return;
 
     // An empty box removes the ceiling. That is not the same as zero — zero
@@ -689,14 +771,16 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
  * day one and edited from here after — a restaurant that starts with
  * "Ingredients" and later wants "Dairy" separately should not have to ask us.
  */
-function ExpenseCategoriesTab() {
+function ExpenseCategoriesTab({ money }: { money: Money }) {
   const categories = useExpenseCategories();
   const mutations = useExpenseCategoryMutations();
 
   return (
     <CategoryManager
       title="Expense categories"
-      hint="Seeded from your trade, then yours. A category with entries filed under it is turned off rather than deleted, so past months stay readable."
+      hint="Seeded from your trade, then yours. One with entries filed under it is turned off rather than deleted, so past months stay readable."
+      noun="expense"
+      money={money}
       categories={categories.data ?? []}
       loading={categories.isLoading}
       mutations={mutations}

@@ -28,6 +28,31 @@ export interface MoneyTotals {
 }
 
 /**
+ * The categories an ENTRY form may offer — live ones only.
+ *
+ * A shop retires a category instead of deleting it because deleting one with
+ * history strands a year of entries under a blank. Retiring only means
+ * something if nothing new can be filed there, and the entry forms offered
+ * every category regardless, so switching one off changed nothing a merchant
+ * could see. (The FILTER bar keeps them — that is where history is found.)
+ *
+ * `keepId` is the category a row being edited already sits under. It stays in
+ * the list even when retired, or opening an old expense would silently blank
+ * its category and the next save would move it somewhere it never belonged.
+ */
+export function categoryOptions(
+  categories: Array<{ id: string; name: string; is_active: boolean }> | undefined,
+  keepId?: string | null,
+): Array<{ value: string; label: string }> {
+  return (categories ?? [])
+    .filter((c) => c.is_active || c.id === keepId)
+    .map((c) => ({
+      value: c.id,
+      label: c.is_active ? c.name : `${c.name} (switched off)`,
+    }));
+}
+
+/**
  * Filters as query params. Empty values are DROPPED rather than sent blank:
  * an empty string reaching the server as `search=` would be a filter for
  * nothing, and the row count would quietly stop matching the total.

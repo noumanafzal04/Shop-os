@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -11,6 +11,7 @@ import MapPicker from "../../../components/maps/MapPicker";
 import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPut } from "../../../common/api/client";
 import { useCities, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
+import { shopService } from "../services/shopService";
 import { useAuthStore } from "../../../stores/authStore";
 import type { Tenant } from "../../auth/types";
 import HardwareDevices from "../../hardware/components/HardwareDevices";
@@ -118,6 +119,16 @@ export default function ShopSettingsPage() {
   });
   const [saved, setSaved] = useState(false);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  // ── The shop's mark, as printed on its invoices ──────────────────────
+  const logoRef = useRef<HTMLInputElement>(null);
+  const uploadLogo = useMutation({
+    mutationFn: (file: File) => shopService.uploadLogo(file),
+    onSuccess: ({ data }) => {
+      queryClient.invalidateQueries({ queryKey: ["shop"] });
+      if (user) setUser({ ...user, tenant: data });
+    },
+  });
 
   useEffect(() => {
     if (shop.data) {
@@ -346,6 +357,59 @@ export default function ShopSettingsPage() {
                       <Toggle checked={!!prefs.invoice_show_logo} onChange={(v) => setP("invoice_show_logo", v)} label="Show logo" />
                       <Toggle checked={!!prefs.receipt_show_cashier} onChange={(v) => setP("receipt_show_cashier", v)} label="Show who served" />
                     </div>
+
+                    {/* The logo itself. "Show logo" was a live toggle with
+                        nothing behind it — switch it on, print nothing, and no
+                        screen anywhere to say why. */}
+                    {!!prefs.invoice_show_logo && (
+                      <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                        <input
+                          ref={logoRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) uploadLogo.mutate(file);
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                        {shop.data?.logo_url ? (
+                          <img
+                            src={shop.data.logo_url}
+                            alt="Shop logo"
+                            className="h-14 w-14 rounded-lg border border-gray-200 object-contain dark:border-gray-700"
+                          />
+                        ) : (
+                          <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-gray-300 text-theme-xs text-gray-400 dark:border-gray-700">
+                            None
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                            {shop.data?.logo_url ? "Your invoice logo" : "No logo uploaded yet"}
+                          </p>
+                          <p className="text-theme-xs text-gray-400">
+                            {shop.data?.logo_url
+                              ? "PNG, JPG or WebP. It prints at the top of every invoice."
+                              : "Nothing will print at the top of your invoices until you add one."}
+                          </p>
+                          {uploadLogo.isError && (
+                            <p className="mt-1 text-theme-xs text-error-500">
+                              {uploadLogo.error instanceof ApiError ? uploadLogo.error.message : "Upload failed"}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={uploadLogo.isPending}
+                          onClick={() => logoRef.current?.click()}
+                        >
+                          {uploadLogo.isPending ? "Uploading…" : shop.data?.logo_url ? "Replace" : "Upload logo"}
+                        </Button>
+                      </div>
+                    )}
                   </SectionCard>
 
                   <SectionCard icon={<PercentGlyph />} title="Tax identifiers" description="Printed on the receipt when you're registered. Leave blank if you're not — nothing prints.">
@@ -409,9 +473,31 @@ export default function ShopSettingsPage() {
                     <Toggle checked={!!prefs.pos_declare_tenders} onChange={(v) => setP("pos_declare_tenders", v)} label="Declare card totals" />
                   </div>
                 </div>
+                <Field
+                  label="Round cash bills to"
+                  hint="Cash only — a card or khata bill always settles to the exact figure, and the bill itself never changes. The difference is printed on the receipt and totalled in your reports."
+                >
+                  <Select
+                    className="max-w-xs"
+                    value={String(prefs.cash_rounding ?? 0)}
+                    options={[
+                      { value: "0", label: "Nothing — exact to the paisa" },
+                      { value: "1", label: "Nearest Rs 1" },
+                      { value: "5", label: "Nearest Rs 5" },
+                      { value: "10", label: "Nearest Rs 10" },
+                    ]}
+                    placeholder="Nothing — exact to the paisa"
+                    onChange={(v) => setP("cash_rounding", Number(v))}
+                  />
+                </Field>
                 <p className="text-theme-xs text-gray-400">
                   "Require open shift" refuses a counter sale unless the cashier has a drawer open, so every rupee
                   belongs to a shift that gets counted. Recommended once you have staff.
+                </p>
+                <p className="text-theme-xs text-gray-400">
+                  Rounding exists so the drawer can be counted. A bill of Rs 1,238.15 has no exact cash tender —
+                  without it the till expects a figure the drawer can never hold, and the difference shows up as
+                  a variance somebody has to explain. A tie is always rounded in the customer's favour.
                 </p>
                 <p className="text-theme-xs text-gray-400">
                   "Count by note &amp; coin" adds the total up from the drawer itself, so a second person can

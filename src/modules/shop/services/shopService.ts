@@ -129,6 +129,12 @@ export interface ShopSettings {
   pos_blind_close: boolean;
   /** Ask the cashier what the card terminal took. */
   pos_declare_tenders: boolean;
+  /**
+   * The smallest coin this shop handles, for CASH bills only. 0 = exact to the
+   * paisa. The bill itself never moves — the difference is recorded separately
+   * so tax and reporting stay honest.
+   */
+  cash_rounding: number;
   pos_drawer_kick: boolean;
   /** Lock the till after this many idle minutes. 0 = never. */
   pos_idle_lock_minutes: number;
@@ -166,6 +172,20 @@ export const shopService = {
   subscription: () => apiGet<SubscriptionInfo>("/shop/subscription"),
   settings: () => apiGet<ShopSettings>("/shop/settings"),
   updateSettings: (payload: Partial<ShopSettings>) => apiPut<ShopSettings>("/shop/settings", payload),
+
+  /**
+   * The shop's mark, as printed on its invoices.
+   *
+   * The endpoint has existed since the beginning and no screen ever called it,
+   * while Settings offered a live "Show logo" toggle — so a merchant could
+   * switch it on and print nothing, with no way to find out why.
+   */
+  uploadLogo: (file: File) => {
+    const fd = new FormData();
+    fd.append("logo", file);
+
+    return apiPost<Tenant>("/shop/logo", fd);
+  },
 
   gallery: () => apiGet<GalleryImage[]>("/shop/gallery"),
   uploadGallery: (files: File[]) => {

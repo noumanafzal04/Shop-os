@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "../../../common/api/client";
+import { api, apiGet, apiPost } from "../../../common/api/client";
 
 /**
  * A person on a record — who opened the day, who signed it off, who took the
@@ -126,6 +126,25 @@ export interface DepositInput {
 export const dayService = {
   /** The day currently trading. `data` is null when no shift has opened yet. */
   current: () => apiGet<DayView | null>("/pos/day"),
+
+  /**
+   * The Z-read for a counted shift, as printable HTML.
+   *
+   * Every figure on it comes off the frozen close row rather than being
+   * recomputed, so a slip reprinted next year still matches the one that was
+   * signed that night — a Z-read that moves retroactively is evidence of
+   * nothing. The server refuses an open shift for the same reason.
+   */
+  zReport: async (sessionId: string, paper?: string): Promise<string> => {
+    const res = await api.get<string>(`/pos/sessions/${sessionId}/z-report/print`, {
+      params: { paper },
+      responseType: "text",
+      headers: { Accept: "text/html" },
+      transformResponse: (r) => r, // keep raw HTML — don't try to JSON-parse it
+    });
+
+    return res.data;
+  },
 
   history: (params: { from?: string; to?: string; page?: number } = {}) =>
     apiGet<BusinessDay[]>("/pos/days", { params }),

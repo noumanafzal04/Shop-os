@@ -24,7 +24,7 @@ import { posService, type HeldSale } from "../services/posService";
 import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
 import CloseShiftModal from "../components/CloseShiftModal";
-import { useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
+import { useQuickKeys, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
 import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
 import { receiptService, type ReceiptKind } from "../../receipts/services/receiptService";
 import { useFailedReceipts } from "../../receipts/hooks/useReceipts";
@@ -36,6 +36,7 @@ import SubstitutePicker from "../../pharmacy/components/SubstitutePicker";
 import ParkAsDocumentModal from "../../documents/components/ParkAsDocumentModal";
 import { parkCart, readParkedCart } from "../cartStorage";
 import { canKick, kickDrawer } from "../../../common/escpos";
+import { NumPad } from "../components/NumPad";
 import { useTerminalStore } from "../../../stores/terminalStore";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
@@ -235,6 +236,10 @@ export default function PosPage() {
   const terminalId = useTerminalStore((s) => s.activeRegisterId);
   const terminalName = useTerminalStore((s) => s.activeRegisterName);
   const setTerminal = useTerminalStore((s) => s.setTerminal);
+  // Per-device, like the lane: whether this till needs a keypad is a fact
+  // about the hardware in front of you, not about who logged in.
+  const showPad = useTerminalStore((s) => s.numPad);
+  const setShowPad = useTerminalStore((s) => s.setNumPad);
   const laneModal = useModal();
   // The lane of the shift actually running beats the stored choice — after a
   // handover the badge must show where the drawer really is.
@@ -318,6 +323,8 @@ export default function PosPage() {
   const [page, setPage] = useState(1);
   const categories = useCategories();
   const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, page });
+  // The counter's shortlist — derived, never curated. See useQuickKeys.
+  const quickKeys = useQuickKeys();
   const [tiles, setTiles] = useState<CatalogProduct[]>([]);
   const scanRef = useRef<HTMLInputElement>(null);
   // Keyboard-first result navigation: ↑/↓ move the highlight, Enter adds it.
@@ -497,6 +504,12 @@ export default function PosPage() {
   const [holdLabel, setHoldLabel] = useState("");
   // Half-typed quantities, keyed by cart line. See commitQty().
   const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
+  // Keying a quantity on a touch till. The +/− steppers are fine for three
+  // packets of biscuits and useless for 1.250 kg of mince — that is 1,250 taps
+  // at a step of one gram. With the keypad on, the quantity box opens a pad
+  // instead of asking the OS for a keyboard that may never come.
+  const [padLine, setPadLine] = useState<{ key: string; weight: boolean } | null>(null);
+  const [padQty, setPadQty] = useState("");
   const [lastSale, setLastSale] = useState<Sale | null>(null);
 
   // Modifier configurator (food items with choices / add-ons)
@@ -584,7 +597,25 @@ export default function PosPage() {
   // What the customer still hands over in rupees. Every tender comparison
   // below works off THIS, not the bill — the goods have already settled their
   // share, and asking for the full total again would refuse a paid sale.
-  const payable = Math.max(0, Math.round((total - tradeInTotal) * 100) / 100);
+  const exactPayable = Math.max(0, Math.round((total - tradeInTotal) * 100) / 100);
+  // ── Settling in coins that exist ────────────────────────────────
+  // A bill of Rs 1,238.15 has no exact cash tender: sub-rupee coins don't
+  // circulate and plenty of counters can't break a five. The shop states the
+  // smallest coin it handles and a CASH bill settles to it — the till has to
+  // show the cashier the figure they will actually take, or they compute it in
+  // their head at the counter and the drawer stops matching. Card and split
+  // are exact, so they see the exact number. Mirrors CashRounding on the
+  // server, which is the authority; this only has to agree with it on screen.
+  const roundingStep = Number(settings.data?.cash_rounding ?? 0);
+  const roundCash = (n: number) => {
+    if (!roundingStep) return n;
+    const units = n / roundingStep;
+    const floor = Math.floor(units);
+    // A tie goes down, in the customer's favour — same rule as the server.
+    return ((units - floor > 0.5 ? floor + 1 : floor) * roundingStep);
+  };
+  const payable = method === "cash" ? roundCash(exactPayable) : exactPayable;
+  const rounding = Math.round((payable - exactPayable) * 100) / 100;
   const change = method === "cash" ? Math.max(0, (Number(tendered) || 0) - payable)
     : method === "split" ? Math.max(0, splitPaid - payable) : 0;
   const open = session.data;
@@ -862,9 +893,13 @@ export default function PosPage() {
   const setQty = (key: string, q: number) =>
     setCart((c) => c.map((l) => (l.key === key ? { ...l, quantity: Math.max(l.sold_by === "weight" ? 0.001 : 1, q) } : l)));
 
+  /** Forget a line's in-progress quantity edit. */
+  const clearQtyDraft = (key: string) =>
+    setQtyDraft((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== key)));
+
   const removeLine = (key: string) => {
     setCart((c) => c.filter((l) => l.key !== key));
-    setQtyDraft((d) => { const { [key]: _drop, ...rest } = d; return rest; });
+    clearQtyDraft(key);
   };
 
   /**
@@ -874,7 +909,7 @@ export default function PosPage() {
    */
   const commitQty = (l: CartLine) => {
     const raw = qtyDraft[l.key];
-    setQtyDraft((d) => { const { [l.key]: _drop, ...rest } = d; return rest; });
+    clearQtyDraft(l.key);
     if (raw === undefined) return;
     const n = Number(raw);
     // Empty or nonsense → snap back to what it was. Never a deletion, and
@@ -923,7 +958,7 @@ export default function PosPage() {
         label: holdLabel.trim() || undefined, total_estimate: total,
         // Park the WHOLE ticket so nothing is lost on resume.
         cart: {
-          items: cart.map(({ key, ...l }) => l),
+          items: cart.map((l) => { const copy = { ...l }; delete (copy as Partial<CartLine>).key; return copy; }),
           // The name typed at the hold prompt becomes the cart's customer when
           // the cart had none — otherwise resuming loses the one piece of
           // information the cashier just took the trouble to record.
@@ -1303,6 +1338,46 @@ export default function PosPage() {
             )}
           </div>
 
+          {/* ── Quick keys ─────────────────────────────────────────────
+              What this counter reaches for. A scanner handles everything with
+              a barcode; it cannot handle the loose half of a shop — tomatoes,
+              rice by the kilo, chai, the samosas by the till — and in a mart
+              those are the fastest-moving lines there are. Reaching them meant
+              typing a name, per item, all day.
+
+              Derived on the server from what this branch actually sells, with
+              un-scannable items first. Nobody maintains it, and it disappears
+              the moment the cashier starts searching — a shortlist is only
+              useful when you have not already said what you want. */}
+          {quickKeys.data && quickKeys.data.length > 0 && search === "" && categoryId === "" && (
+            <div className="mb-3 shrink-0">
+              <div className="mb-1.5 flex items-center gap-2 px-1">
+                <span className="text-theme-xs font-semibold uppercase tracking-wide text-gray-400">Quick keys</span>
+                <span className="text-theme-xs text-gray-400">· what sells here</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {quickKeys.data.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => commitProduct(p as unknown as CatalogProduct)}
+                    className="group flex max-w-[11rem] items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-left transition hover:border-brand-400 hover:shadow-sm active:bg-brand-50 dark:border-gray-800 dark:bg-white/[0.03] dark:active:bg-brand-500/10"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                        {p.name}
+                      </span>
+                      <span className="block text-theme-xs tabular-nums text-gray-400">
+                        {money(sellingPrice(p as unknown as CatalogProduct))}
+                        {p.sold_by === "weight" && p.unit ? ` /${p.unit}` : ""}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Scrollable product area — only this scrolls, search + category stay put */}
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {/* FOOD: visual image-tile grid. */}
@@ -1560,14 +1635,25 @@ export default function PosPage() {
                                   // Click in and type: the old value is replaced instead of
                                   // having to be deleted first, which is what caused the
                                   // empty-string keystroke in the first place.
-                                  onFocus={(e) => e.currentTarget.select()}
+                                  onFocus={(e) => {
+                                    // On a keypad till, the box is a target, not
+                                    // a text field — hand it to the pad rather
+                                    // than waiting on an OS keyboard.
+                                    if (showPad) {
+                                      e.currentTarget.blur();
+                                      setPadLine({ key: l.key, weight: isWeight });
+                                      setPadQty(fmtQty(l.quantity));
+                                      return;
+                                    }
+                                    e.currentTarget.select();
+                                  }}
                                   onChange={(e) => setQtyDraft((d) => ({ ...d, [l.key]: e.target.value }))}
                                   onBlur={() => commitQty(l)}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
                                     // Abandon the edit and put the old number back.
                                     if (e.key === "Escape") {
-                                      setQtyDraft((d) => { const { [l.key]: _drop, ...rest } = d; return rest; });
+                                      clearQtyDraft(l.key);
                                       e.currentTarget.blur();
                                     }
                                   }}
@@ -1934,6 +2020,20 @@ export default function PosPage() {
                   </div>
                 </div>
               )}
+              {/* The bill and what it settles to, stated separately — the
+                  cashier is taking a figure the drawer can actually hold, and
+                  the customer is entitled to see where the difference went. */}
+              {rounding !== 0 && (
+                <div className="mt-2 space-y-0.5 border-t border-brand-200/60 pt-2 text-theme-xs dark:border-brand-500/20">
+                  <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                    <span>Bill</span><span className="tabular-nums">{money(exactPayable)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                    <span>Rounded to nearest {cur} {roundingStep}</span>
+                    <span className="tabular-nums">{rounding < 0 ? "−" : "+"} {money(Math.abs(rounding))}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── Goods taken in part-payment ───────────────────────────
@@ -2014,7 +2114,24 @@ export default function PosPage() {
             </div>
             {method === "cash" && (
               <div>
-                <div className="mb-1.5 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Amount tendered</div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-theme-sm font-medium text-gray-500 dark:text-gray-400">Amount tendered</span>
+                  {/* A tablet on a stand may have no keyboard at all, and the
+                      OS one covers the figures the cashier is reading. Opt-in
+                      per terminal, remembered — a shop with a real keyboard
+                      never sees it. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowPad(!showPad)}
+                    className={`rounded-lg border px-2.5 py-1 text-theme-xs font-medium transition-colors ${
+                      showPad
+                        ? "border-brand-400 bg-brand-50 text-brand-600 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-400"
+                        : "border-gray-300 text-gray-500 hover:text-brand-600 dark:border-gray-700 dark:text-gray-400"
+                    }`}
+                  >
+                    Keypad
+                  </button>
+                </div>
                 <div className="mb-3"><Input type="number" min="0" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder="Cash tendered" /></div>
                 <div className="mb-4 flex flex-wrap gap-2">
                   {quickTenders.map((v) => (
@@ -2024,6 +2141,14 @@ export default function PosPage() {
                     </button>
                   ))}
                 </div>
+                {showPad && (
+                  <NumPad
+                    value={tendered}
+                    onChange={setTendered}
+                    className="mb-4"
+                    allowDecimal={false}
+                  />
+                )}
                 <div className="flex items-baseline justify-between border-t border-dashed border-gray-200 pt-3 dark:border-gray-700">
                   <span className="font-medium text-gray-500 dark:text-gray-400">Change due</span>
                   <span className="text-2xl font-extrabold tabular-nums text-success-600">{money(change)}</span>
@@ -2379,6 +2504,41 @@ export default function PosPage() {
                 <span className="text-sm text-gray-500 dark:text-gray-400">Line total <span className="font-semibold text-gray-800 dark:text-white/90">{money(lineNet(l))}</span></span>
                 <Button size="sm" onClick={lineEditModal.closeModal}>Done</Button>
               </div>
+            </>
+          );
+        })()}
+      </Modal>
+
+      {/* Quantity on a keyboard-less till. Opened from the cart's quantity box
+          when the keypad is on — a weight of 1.250 kg is not reachable with a
+          stepper, and the OS keyboard is exactly what these terminals lack. */}
+      <Modal isOpen={padLine !== null} onClose={() => setPadLine(null)} className="max-w-xs p-5">
+        {padLine && (() => {
+          const line = cart.find((x) => x.key === padLine.key);
+          const commit = () => {
+            const n = Number(padQty);
+            if (Number.isFinite(n) && n > 0) setQty(padLine.key, n);
+            setPadLine(null);
+          };
+
+          return (
+            <>
+              <h3 className="mb-1 text-theme-sm font-semibold text-gray-800 dark:text-white/90">
+                {line?.name ?? "Quantity"}
+              </h3>
+              <p className="mb-3 text-theme-xs text-gray-400">
+                {padLine.weight ? "Weight" : "How many"}
+              </p>
+              <div className="mb-3 rounded-xl border border-gray-200 px-3 py-2.5 text-right text-2xl font-bold tabular-nums text-gray-900 dark:border-gray-700 dark:text-white">
+                {padQty || "0"}
+              </div>
+              <NumPad
+                value={padQty}
+                onChange={setPadQty}
+                onSubmit={commit}
+                submitLabel="Set quantity"
+                allowDecimal={padLine.weight}
+              />
             </>
           );
         })()}

@@ -208,29 +208,61 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       }
     }
   } else if (caps.keepsBooks) {
-    // Books-only: the same expense payload, rolled up over the windows it
-    // covers — this month (the donut's own total) and the 7-day series.
+    // Books-only: this strip was money OUT only — every tile a way of saying
+    // what the business had spent, and not one saying what it had earned. For
+    // a Finance Manager tenant, whose entire income is Income rows, that was
+    // the whole business missing from its own dashboard. Money in, money out,
+    // and what that leaves — in that order, because it is the order the
+    // question is asked in.
     const monthTotal = data.expense_breakdown.reduce((sum, slice) => sum + slice.total, 0);
-    const weekTotal = data.sales_series.reduce((sum, day) => sum + day.expenses, 0);
+    const weekOut = data.sales_series.reduce((sum, day) => sum + day.expenses, 0);
+    const weekIn = data.sales_series.reduce((sum, day) => sum + day.other_income, 0);
     const biggest = data.expense_breakdown[0];
+
+    tiles.push({
+      key: "income_today",
+      label: "Money In Today",
+      value: money(today.other_income),
+      icon: <DollarLineIcon className="size-5" />,
+      tone: "success",
+    });
 
     tiles.push({
       key: "month_spend",
       label: "Spent This Month",
       value: money(monthTotal),
       icon: <PieChartIcon className="size-5" />,
-      tone: "brand",
-      emphasis: true,
+      tone: "warning",
       caption: `${data.expense_breakdown.length} ${
         data.expense_breakdown.length === 1 ? "category" : "categories"
       }`,
     });
 
+    // The bottom line, and the reason the other tiles are here. Same figure the
+    // Cashbook and the Reports summary print, to the rupee.
+    tiles.push({
+      key: "net_today",
+      label: "Net Today",
+      value: money(today.profit),
+      delta: today.deltas.profit,
+      icon: <PieChartIcon className="size-5" />,
+      tone: today.profit < 0 ? "error" : "brand",
+      emphasis: true,
+      caption: "Money in − money out",
+    });
+
     if (!compact) {
       tiles.push({
+        key: "week_in",
+        label: "In, Last 7 Days",
+        value: money(weekIn),
+        icon: <CalenderIcon className="size-5" />,
+        tone: "success",
+      });
+      tiles.push({
         key: "week_spend",
-        label: "Spent Last 7 Days",
-        value: money(weekTotal),
+        label: "Out, Last 7 Days",
+        value: money(weekOut),
         icon: <CalenderIcon className="size-5" />,
         tone: "brand",
       });

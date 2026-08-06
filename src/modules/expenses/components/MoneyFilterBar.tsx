@@ -7,6 +7,12 @@ import { activeFilterCount, type MoneyFilters, type MoneyTotals } from "../servi
 interface Option {
   value: string;
   label: string;
+  /**
+   * A category the shop has switched off. It stays FILTERABLE — retiring
+   * "Cooking Gas" must not make three years of gas bills unfindable — but it
+   * reads as retired so nobody mistakes it for somewhere to file today's.
+   */
+  retired?: boolean;
 }
 
 interface Props {
@@ -196,10 +202,13 @@ function Chips({
               type="button"
               onClick={() => onToggle(option.value)}
               aria-pressed={on}
+              title={option.retired ? "Switched off — kept here so its history stays searchable" : undefined}
               className={`rounded-full border px-3 py-1.5 text-theme-xs font-medium transition-colors ${
                 on
                   ? "border-brand-500 bg-brand-500 text-white"
-                  : "border-gray-300 text-gray-600 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
+                  : option.retired
+                    ? "border-dashed border-gray-300 text-gray-400 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-500"
+                    : "border-gray-300 text-gray-600 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
               }`}
             >
               {option.label}

@@ -6,7 +6,7 @@ import Select from "../../../components/form/Select";
 import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError, type ApiMeta } from "../../../common/types/api";
-import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
+import { SERIAL_TRADES, usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { useAuthStore } from "../../../stores/authStore";
 import {
   useCategories,
@@ -102,6 +102,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const features = useAuthStore(
     (s) => (s.user?.tenant as unknown as { features?: Record<string, boolean> })?.features,
   );
+  // Select the array itself, not a derived object — a fresh `?? []` in the
+  // selector re-renders forever.
+  const tenantItemTypes = useAuthStore((s) => s.user?.tenant?.item_types);
   // Resolved, so an older `clinic` still gets the medicine fields its current
   // type (pharmacy) is entitled to.
   const businessType = usePrimaryBusinessType();
@@ -126,10 +129,16 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const images = useProductImages(id);
   const mutation = isEdit ? update : create;
 
-  // Which item types this business may create (physical/food/medicine/service).
+  // Which item types THIS shop may create (physical/food/medicine/service).
+  //
+  // Read off the tenant, not the /business-types catalogue. That catalogue
+  // describes each type as shipped and knows nothing about a per-tenant module
+  // grant — so a salon given the products module was shown "Service" only,
+  // while a books-only tenant given the catalog was shown nothing at all and
+  // could not save whatever it picked. The server computes this from the same
+  // trade + module map it validates against, so the two can't drift.
   const allowedTypes: ItemTypeCode[] =
-    ((businessTypesQ.data ?? []).find((b) => b.code === businessType)?.item_types as ItemTypeCode[]) ??
-    ["physical_product"];
+    (tenantItemTypes as ItemTypeCode[] | undefined) ?? ["physical_product"];
 
   const [itemType, setItemType] = useState<ItemTypeCode>("physical_product");
   const [name, setName] = useState("");
@@ -647,9 +656,13 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           </Section>
         )}
 
-        {/* Serialized retail — capture a serial/IMEI per unit + warranty.
-            Retail-only: a grocery or pharmacy never tracks a unit by serial. */}
-        {isPhysical && businessType === "retail" && (
+        {/* Serialized goods — capture a serial/IMEI per unit + warranty.
+            The trades that sell a unit somebody later brings back under
+            warranty: retail (phones, electronics) and the auto aftermarket
+            (batteries above all — the most-claimed warranty item on a
+            Pakistani forecourt, and one this section used to lock out
+            entirely). A grocery or pharmacy never tracks a unit by serial. */}
+        {isPhysical && SERIAL_TRADES.includes(businessType ?? "") && (
           <Section title="Serial & warranty">
             <div className="space-y-3">
               <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
@@ -659,7 +672,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   onChange={(e) => setTrackSerial(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
                 />
-                Capture a serial / IMEI for each unit sold (phones, electronics)
+                Capture a serial / IMEI for each unit sold (phones, electronics, batteries)
               </label>
               {trackSerial && (
                 <div>

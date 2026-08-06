@@ -28,3 +28,24 @@ export function usePrimaryBusinessType(): string | null {
     return tenant?.business_type_primary ?? tenant?.business_type ?? null;
   });
 }
+
+/**
+ * The trades that sell a unit somebody can bring back under warranty.
+ *
+ * Serial capture is driven end to end by the product's own `tracks_serial`
+ * flag — the till renders the IMEI prompt from it and the server carries no
+ * type gate at all. Two panel conditions decided who could ever SET that flag
+ * and who could reach the warranty desk, and both said `retail` alone. So the
+ * auto aftermarket, whose batteries are the most-claimed warranty item on a
+ * Pakistani forecourt, could neither record a serial nor answer "is this still
+ * covered?" — against a capability that was fully built.
+ *
+ * One list, read by the product form and the sidebar, so the place you turn it
+ * on and the place you look it up can never disagree again.
+ */
+export const SERIAL_TRADES = ["retail", "automotive", "petroleum"];
+
+/** Does this trade sell serial-tracked, warrantied units? */
+export function tracksSerials(businessType: string | null | undefined): boolean {
+  return SERIAL_TRADES.includes(businessType ?? "");
+}

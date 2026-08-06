@@ -133,6 +133,13 @@ export function useExpenseAdminMutations() {
       mutationFn: (payload: RecurringInput) => expensesService.createRecurring(payload),
       onSuccess: invalidate,
     }),
+    // Rent goes from 40k to 45k. Without this the only way to say so was to
+    // delete the template and build it again, losing the schedule with it.
+    updateRecurring: useMutation({
+      mutationFn: ({ id, ...payload }: { id: string } & Partial<RecurringInput>) =>
+        expensesService.updateRecurring(id, payload),
+      onSuccess: invalidate,
+    }),
     removeRecurring: useMutation({
       mutationFn: (id: string) => expensesService.removeRecurring(id),
       onSuccess: invalidate,

@@ -18,6 +18,16 @@ interface TerminalState {
   /** Remembered for the picker's label so a cold load has no blank frame. */
   activeRegisterName: string | null;
   setTerminal: (id: string | null, name?: string | null) => void;
+  /**
+   * Show the on-screen number pad at this till.
+   *
+   * Per-device for the same reason the lane is: whether you need a keypad is a
+   * fact about the hardware in front of you, not about who logged in. The
+   * tablet on a stand keeps it; the desktop with a real keyboard never shows
+   * it, however many cashiers pass through both.
+   */
+  numPad: boolean;
+  setNumPad: (on: boolean) => void;
 }
 
 export const useTerminalStore = create<TerminalState>()(
@@ -26,6 +36,8 @@ export const useTerminalStore = create<TerminalState>()(
       activeRegisterId: null,
       activeRegisterName: null,
       setTerminal: (id, name = null) => set({ activeRegisterId: id, activeRegisterName: name }),
+      numPad: false,
+      setNumPad: (on) => set({ numPad: on }),
     }),
     { name: "shopos-terminal" },
   ),

@@ -19,7 +19,7 @@ import {
 } from "../hooks/useIncome";
 import { CategoryManager } from "../../expenses/components/CategoryManager";
 import { MoneyFilterBar } from "../../expenses/components/MoneyFilterBar";
-import { activeFilterCount, toParams, type MoneyFilters, type MoneyTotals } from "../../expenses/services/moneyFilters";
+import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../../expenses/services/moneyFilters";
 import { downloadFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
 
@@ -157,7 +157,9 @@ export default function IncomePage() {
       {showCategories ? (
         <CategoryManager
           title="Income categories"
-          hint="Where money in that isn't a sale gets filed. Yours to change — a category with entries under it is turned off rather than deleted."
+          hint="Where money in that isn't a sale gets filed. Yours to change — one with entries under it is turned off rather than deleted."
+          noun="income entry"
+          money={money}
           categories={categories.data ?? []}
           loading={categories.isLoading}
           mutations={categoryMutations}
@@ -167,7 +169,9 @@ export default function IncomePage() {
       <MoneyFilterBar
         filters={filters}
         onChange={setFilters}
-        categories={(categories.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name }))}
+        // Retired categories stay filterable — that is how their history is
+        // found. Only the ENTRY form drops them.
+        categories={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name, retired: !c.is_active }))}
         methods={INCOME_METHODS}
         totals={totals}
         money={money}
@@ -257,13 +261,18 @@ export default function IncomePage() {
           <div>
             <Label>Category <span className="text-error-500">*</span></Label>
             <Select
-              options={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+              options={categoryOptions(categories.data, editing?.income_category_id)}
               placeholder="Choose category"
               value={formCategory}
               onChange={setFormCategory}
             />
             {errorFor("income_category_id") && (
               <p className="mt-1 text-theme-xs text-error-500">{errorFor("income_category_id")}</p>
+            )}
+            {categories.data?.length === 0 && (
+              <p className="mt-1 text-theme-xs text-gray-400">
+                No categories yet — add one with <strong>Manage categories</strong> first.
+              </p>
             )}
           </div>
           <div>

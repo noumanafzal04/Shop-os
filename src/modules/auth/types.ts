@@ -59,7 +59,16 @@ export interface Tenant {
    * the business IS reads this; business_type is what the admin chose.
    */
   business_type_primary?: string | null;
+  /**
+   * What THIS shop may put in its catalog — its trade crossed with its own
+   * module map. Distinct from the `item_types` on /business-types, which
+   * describes a type as shipped and knows nothing about a per-tenant module
+   * grant. Any item-type picker must read this one.
+   */
+  item_types?: string[];
   logo_path: string | null;
+  /** Resolved server-side — never assemble a storage URL in the client. */
+  logo_url?: string | null;
   address: string | null;
   deleted_at?: string | null;
   users?: User[];
