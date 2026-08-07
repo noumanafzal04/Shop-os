@@ -6,11 +6,13 @@ use App\Actions\Pos\CloseCashSessionAction;
 use App\Actions\Pos\MoveCashSessionAction;
 use App\Actions\Pos\OpenCashSessionAction;
 use App\Actions\Pos\RecordCashMovementAction;
+use App\Actions\Pos\ReliefCoverAction;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Models\CashMovement;
 use App\Models\CashSession;
+use App\Models\CashSessionCover;
 use App\Models\HeldSale;
 use App\Models\Product;
 use App\Models\ProductBarcode;
@@ -196,7 +198,136 @@ class PosController extends Controller
             ->where('status', 'open')
             ->first();
 
-        return ApiResponse::ok($session);
+        if ($session !== null) {
+            // My own drawer, with whoever is standing in for me right now.
+            $active = $session->activeCover();
+
+            return ApiResponse::ok([
+                ...$session->toArray(),
+                'covered_by' => $active === null ? null : [
+                    'user_id' => $active->user_id,
+                    'user_name' => $active->user?->name,
+                    'started_at' => $active->started_at?->toIso8601String(),
+                ],
+            ]);
+        }
+
+        // No drawer of my own — but I may be holding someone else's lane.
+        $cover = $this->activeCoverFor($request->user());
+
+        return ApiResponse::ok($cover === null ? null : $this->coverView($cover));
+    }
+
+    /**
+     * Take the lane while the cashier is away.
+     *
+     * The drawer does not change hands: the cashier who opened the shift still
+     * counts it and still carries the variance. What changes is that the sales
+     * rung in the next ten minutes are stamped with the person who actually
+     * rang them, instead of with whoever happened to be logged in.
+     */
+    public function startCover(Request $request, ReliefCoverAction $action): JsonResponse
+    {
+        $data = $request->validate([
+            'session_id' => ['nullable', 'uuid'],
+            'reason' => ['nullable', 'string', 'max:191'],
+        ]);
+
+        $session = isset($data['session_id'])
+            ? CashSession::query()->findOrFail($data['session_id'])
+            : $this->terminal->get()?->openSession();
+
+        if ($session === null) {
+            throw DomainException::conflict(
+                'There is no open shift on this register to cover. Open your own shift instead.',
+                'SHIFT_NOT_OPEN',
+            );
+        }
+
+        $cover = $action->start($request->user(), $session, $data['reason'] ?? null);
+
+        return ApiResponse::ok(
+            $this->coverView($cover),
+            'You are covering '.($session->user?->name ?? 'this till'),
+        );
+    }
+
+    /**
+     * Hand the till back.
+     *
+     * Callable by the reliever (finished), the cashier (I'm back) or a manager.
+     * The cashier returning usually never touches this — unlocking the till
+     * with their own PIN ends the cover for them.
+     */
+    public function endCover(Request $request, ReliefCoverAction $action): JsonResponse
+    {
+        $user = $request->user();
+
+        $cover = $this->activeCoverFor($user);
+
+        if ($cover === null) {
+            // The cashier ending someone else's cover on their own drawer.
+            $mine = CashSession::query()
+                ->where('user_id', $user->id)
+                ->where('status', 'open')
+                ->first();
+
+            $cover = $mine?->activeCover();
+        }
+
+        if ($cover === null && $request->filled('session_id')) {
+            abort_unless($user->hasPermission(Permissions::SETTINGS_MANAGE), 403);
+            $cover = CashSession::query()->findOrFail($request->input('session_id'))->activeCover();
+        }
+
+        if ($cover === null) {
+            throw DomainException::conflict('Nobody is covering a till.', 'NOT_COVERING');
+        }
+
+        $ended = $action->end($cover, $user);
+
+        return ApiResponse::ok($this->coverView($ended->fresh()), 'Till handed back');
+    }
+
+    /** The cover this user is currently holding on somebody else's drawer. */
+    private function activeCoverFor(User $user): ?CashSessionCover
+    {
+        return CashSessionCover::query()
+            ->with(['user:id,name', 'session.user:id,name', 'session.register:id,name,code'])
+            ->whereNull('ended_at')
+            ->where('user_id', $user->id)
+            ->whereHas('session', fn ($q) => $q->where('status', 'open'))
+            ->latest('started_at')
+            ->first();
+    }
+
+    /**
+     * What a reliever is allowed to see of a drawer that isn't theirs.
+     *
+     * The shift id (they have to name it on every sale), the lane, and whose
+     * drawer it is. Not the opening float, not the expected cash — those are
+     * the numbers the cashier will be measured against, and a cover grants the
+     * right to sell, not the right to reconcile.
+     *
+     * @return array<string, mixed>
+     */
+    private function coverView(CashSessionCover $cover): array
+    {
+        $session = $cover->session;
+
+        return [
+            'id' => $cover->id,
+            'covering' => true,
+            'session_id' => $cover->cash_session_id,
+            'cashier_name' => $session?->user?->name,
+            'register' => $session?->register?->only(['id', 'name', 'code']),
+            'started_at' => $cover->started_at?->toIso8601String(),
+            'ended_at' => $cover->ended_at?->toIso8601String(),
+            'reason' => $cover->reason,
+            // What I have rung while standing here — my own figure, not the
+            // drawer's.
+            'mine' => $cover->figures(),
+        ];
     }
 
     public function openSession(Request $request, OpenCashSessionAction $action): JsonResponse
@@ -251,8 +382,26 @@ class PosController extends Controller
             ->first();
 
         if ($session === null) {
+            // A reliever gets told what they are actually holding, rather than
+            // "no open shift" — which reads as a bug when they have been
+            // selling on this lane for ten minutes.
+            $cover = $this->activeCoverFor($request->user());
+
+            if ($cover !== null) {
+                throw DomainException::conflict(
+                    'You are covering '.($cover->session?->user?->name ?? 'another cashier')
+                        .'\'s drawer. They count it — hand the till back instead.',
+                    'COVERING_ANOTHER_DRAWER',
+                );
+            }
+
             throw DomainException::conflict('You have no open shift to close.', 'SHIFT_NOT_OPEN');
         }
+
+        // Somebody was still standing here when the cashier counted out. End it
+        // now so the cover's figures freeze against the same drawer they were
+        // rung into, instead of dangling past the close.
+        app(ReliefCoverAction::class)->endFor($session, $request->user());
 
         $closed = $action->execute(
             $session,
