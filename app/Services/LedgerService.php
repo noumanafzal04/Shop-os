@@ -348,6 +348,10 @@ class LedgerService
         $q = DB::table('sales')
             ->whereNull('sales.deleted_at')
             ->where('sales.tenant_id', $tenantId)
+            // A query builder does not go through Eloquent, so the model's
+            // not_training scope never runs here. This is the only raw read of
+            // the sales table, and it has to fence practice out by hand.
+            ->where('sales.is_training', false)
             ->whereIn('sales.status', $live)
             ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
             ->selectRaw(

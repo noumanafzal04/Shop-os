@@ -38,7 +38,18 @@ class CashSession extends Model
             'declared_tenders' => 'array',
             'tender_variances' => 'array',
             'blind_close' => 'boolean',
+            'is_training' => 'boolean',
         ];
+    }
+
+    /**
+     * A practice shift. Set once when the shift is opened and never changed —
+     * a switch you could flip mid-shift would mix practice and real money in
+     * one drawer, which is the mistake the whole feature exists to prevent.
+     */
+    public function isTraining(): bool
+    {
+        return (bool) $this->is_training;
     }
 
     public function businessDay(): BelongsTo

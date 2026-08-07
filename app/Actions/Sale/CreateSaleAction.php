@@ -92,6 +92,23 @@ class CreateSaleAction
                 // from HTTP it would be a "sell without decrementing" switch.
                 $skipStock = $trusted && ! empty($data['skip_stock']);
 
+                // ── Training ────────────────────────────────────────────
+                // The shift decides, never the request: a client-supplied
+                // "this one is practice" flag is a switch for making real
+                // stock and real money disappear. A sale inherits it from the
+                // drawer it is rung on, and nothing else can set it.
+                $training = ! empty($data['cash_session_id'])
+                    && (bool) CashSession::query()
+                        ->whereKey($data['cash_session_id'])
+                        ->value('is_training');
+
+                // Practice takes nothing off the shelf.
+                $skipStock = $skipStock || $training;
+
+                if ($training) {
+                    $this->assertTrainable($data);
+                }
+
                 // ── Build lines with fresh, locked product data ──────────
                 $lines = [];
                 $subtotal = 0.0;
@@ -460,8 +477,10 @@ class CreateSaleAction
                 // ALL discounts, incl. any redeemed value — so a customer never
                 // earns points for spending points). Only when loyalty is on and a
                 // customer will be linked (a phone was given).
+                // Never on a practice sale: a trainee ringing their own phone
+                // number all afternoon would earn a real balance to spend.
                 $pointsEarned = 0;
-                if ($loyaltyOn && ! empty($data['customer_phone'])) {
+                if ($loyaltyOn && ! $training && ! empty($data['customer_phone'])) {
                     $earnPer = (float) ($tenant?->setting('loyalty_earn_per_amount', 0));
                     $earnBase = round($subtotal - $discount, 2);
                     if ($earnPer > 0 && $earnBase > 0) {
@@ -633,7 +652,11 @@ class CreateSaleAction
                 }
 
                 // ── Gap-free invoice number (locked counter row) ─────────
-                $invoiceNumber = $this->nextInvoiceNumber($tenantId);
+                // Practice takes its numbers from a separate sequence. The real
+                // one is gap-free on purpose — a tax authority reads a hole in
+                // it as a deleted sale — and an afternoon of training would
+                // punch holes in it every day.
+                $invoiceNumber = $this->nextInvoiceNumber($tenantId, $training);
 
                 // The lane this sale was rung on: the shift knows it (a shift is
                 // cashier × terminal). A shop that doesn't enforce shifts still has
@@ -655,6 +678,10 @@ class CreateSaleAction
                     // the cash physically went, not what a browser claimed.
                     'register_id' => $registerId,
                     'status' => SaleStatus::Completed,
+                    // Copied from the shift, never accepted from the client.
+                    // A global scope on this model fences these out of every
+                    // query that does not explicitly ask for them.
+                    'is_training' => $training,
                     'customer_name' => $data['customer_name'] ?? null,
                     'customer_phone' => $data['customer_phone'] ?? null,
                     // The vehicle the work was done on, and the reading taken
@@ -1152,7 +1179,58 @@ class CreateSaleAction
         return $out;
     }
 
-    private function nextInvoiceNumber(string $tenantId): string
+    /**
+     * What a practice sale may not do.
+     *
+     * Training rings ordinary sales: items, discounts, tenders, change, a
+     * printed receipt. That is the cashier's job and the thing worth practising.
+     *
+     * Everything refused here reaches OUTSIDE the sale and touches a real
+     * record — a customer's debt, their points balance, a serial's history, the
+     * scrap that entered stock. Each could be skipped instead, and each skip
+     * would be a quiet lie: a khata sale that never charged anyone, a serial
+     * sold twice. Refusing says so out loud, which is what a trainee needs to
+     * hear anyway.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function assertTrainable(array $data): void
+    {
+        if ((int) ($data['redeem_points'] ?? 0) > 0) {
+            throw DomainException::unprocessable(
+                'Loyalty points cannot be redeemed on a training shift — that would spend a real customer’s points.',
+                'TRAINING_NOT_AVAILABLE',
+            );
+        }
+
+        $onCredit = collect($data['payments'] ?? [])
+            ->contains(fn ($p) => ($p['method'] ?? null) === 'credit');
+
+        if ($onCredit || ($data['payment_method'] ?? null) === 'credit') {
+            throw DomainException::unprocessable(
+                'Credit (khata) is not available on a training shift — it would put a real debt on a real customer.',
+                'TRAINING_NOT_AVAILABLE',
+            );
+        }
+
+        if (! empty($data['trade_ins'])) {
+            throw DomainException::unprocessable(
+                'Trade-ins are not available on a training shift — the goods taken in would enter real stock.',
+                'TRAINING_NOT_AVAILABLE',
+            );
+        }
+
+        foreach ($data['items'] ?? [] as $item) {
+            if (! empty($item['serials'])) {
+                throw DomainException::unprocessable(
+                    'Serialized items cannot be sold on a training shift — the serial would be marked sold for good.',
+                    'TRAINING_NOT_AVAILABLE',
+                );
+            }
+        }
+    }
+
+    private function nextInvoiceNumber(string $tenantId, bool $training = false): string
     {
         // Ensure the counter row exists, then lock + increment it. Rollback
         // of the surrounding transaction rolls the increment back too —
@@ -1164,6 +1242,8 @@ class CreateSaleAction
             'updated_at' => now(),
         ]);
 
+        $column = $training ? 'training_next_number' : 'next_number';
+
         $counter = DB::table('invoice_counters')
             ->where('tenant_id', $tenantId)
             ->lockForUpdate()
@@ -1171,9 +1251,12 @@ class CreateSaleAction
 
         DB::table('invoice_counters')
             ->where('tenant_id', $tenantId)
-            ->update(['next_number' => $counter->next_number + 1, 'updated_at' => now()]);
+            ->update([$column => $counter->{$column} + 1, 'updated_at' => now()]);
 
-        return 'INV-'.str_pad((string) $counter->next_number, 6, '0', STR_PAD_LEFT);
+        // A different prefix, so a practice receipt can never be mistaken for a
+        // real one on paper — the number itself says which it is.
+        return ($training ? 'TRN-' : 'INV-')
+            .str_pad((string) $counter->{$column}, 6, '0', STR_PAD_LEFT);
     }
 
     /**

@@ -126,10 +126,16 @@ class SaleController extends Controller
         return ApiResponse::created($sale, "Sale {$sale->invoice_number} completed");
     }
 
+    /**
+     * One sale by id, practice included — a trainee reprinting the receipt they
+     * just rang is the point of the exercise. Fetching by id is not a report:
+     * the row says `is_training` and the receipt says TRAINING across it, so
+     * nothing can be mistaken for real. Only LISTS and TOTALS stay fenced.
+     */
     public function show(string $id): JsonResponse
     {
         return ApiResponse::ok(
-            Sale::query()->with(['items', 'returns.items', 'serials', 'tradeIns', 'payments'])->findOrFail($id),
+            Sale::withTraining()->with(['items', 'returns.items', 'serials', 'tradeIns', 'payments'])->findOrFail($id),
         );
     }
 

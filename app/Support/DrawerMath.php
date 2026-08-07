@@ -8,6 +8,7 @@ use App\Models\CashSession;
 use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Models\SaleReturn;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -57,7 +58,7 @@ class DrawerMath
      */
     public static function for(CashSession $session): array
     {
-        $rung = Sale::withoutTenancy()
+        $rung = self::sales()
             ->where('cash_session_id', $session->id)
             ->whereIn('status', self::RUNG_STATUSES);
 
@@ -90,7 +91,7 @@ class DrawerMath
 
         // Sales figures exclude cancelled sales — a void is not a sale, even
         // though its cash passed through the drawer.
-        $sold = Sale::withoutTenancy()
+        $sold = self::sales()
             ->where('cash_session_id', $session->id)
             ->whereIn('status', [SaleStatus::Completed, SaleStatus::PartiallyRefunded, SaleStatus::Refunded]);
 
@@ -125,12 +126,28 @@ class DrawerMath
             'sales_total' => round((float) (clone $sold)->sum('total'), 2),
             'discounts' => round((float) (clone $sold)->sum('discount'), 2),
             'tax' => round((float) (clone $sold)->sum('tax'), 2),
-            'voids' => (int) Sale::withoutTenancy()
+            'voids' => (int) self::sales()
                 ->where('cash_session_id', $session->id)
                 ->where('status', SaleStatus::Cancelled)->count(),
             'refunds' => (int) SaleReturn::withoutTenancy()
                 ->where('cash_session_id', $session->id)->count(),
             'tender_mix' => $tenderMix,
         ];
+    }
+
+    /**
+     * Every sale rung on a drawer, practice included.
+     *
+     * This is the one place that must see training sales, and the one place
+     * where doing so is safe by construction: every query below is keyed by
+     * `cash_session_id`, and a sale inherits `is_training` from the shift it was
+     * rung on — so a live drawer can never pick up a practice sale, or the
+     * reverse. Leaving the scope on instead would show a trainee an expected
+     * cash of exactly their opening float while the drawer filled with notes,
+     * which teaches the wrong lesson at the only moment that lesson lands.
+     */
+    private static function sales(): Builder
+    {
+        return Sale::withoutTenancy()->withoutGlobalScope('not_training');
     }
 }

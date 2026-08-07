@@ -7,6 +7,7 @@ use App\Enums\SaleChannel;
 use App\Enums\SaleStatus;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -14,11 +15,39 @@ class Sale extends BaseModel
 {
     use Auditable, BelongsToTenant;
 
+    /**
+     * Practice sales are invisible by default.
+     *
+     * A new cashier's afternoon on a training till must never reach a revenue
+     * figure, a stock count, a tax return or a commission. Filtering it out
+     * report by report would work until the next report was written, so the
+     * fence is a global scope — the same mechanism this codebase already trusts
+     * for tenant isolation, and for the same reason: what must never leak
+     * cannot depend on every future query remembering.
+     *
+     * Opt in with Sale::withTraining() where seeing them is the point: the
+     * drawer count of the training shift itself, and reprinting a practice
+     * receipt.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope('not_training', function ($builder): void {
+            $builder->where($builder->qualifyColumn('is_training'), false);
+        });
+    }
+
+    /** Include practice sales — for the training shift's own reads only. */
+    public static function withTraining(): Builder
+    {
+        return static::query()->withoutGlobalScope('not_training');
+    }
+
     protected function casts(): array
     {
         return [
             'channel' => SaleChannel::class,
             'status' => SaleStatus::class,
+            'is_training' => 'boolean',
             'payment_method' => PaymentMethod::class,
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',

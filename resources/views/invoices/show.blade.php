@@ -25,6 +25,11 @@
     $preview = $preview ?? false;
     $gift    = $kind === 'gift';
     $isCopy  = $copyNo > 1;
+    // A practice receipt. Stated at the top AND the bottom, in words rather
+    // than a stamp in the corner: this piece of paper looks exactly like a real
+    // one, and the only thing standing between it and a customer's refund claim
+    // is how obviously it says otherwise.
+    $training = (bool) ($sale->is_training ?? false);
 
     $money = fn ($n) => number_format((float) $n, 2);
     // 2.000 kg reads wrong on a receipt; 2 does. Keep real fractions.
@@ -116,6 +121,20 @@
         }
         .stamp.void { border-color: #b42318; color: #b42318; }
 
+        /* Practice paper. A solid fill is exactly what a thermal head renders
+           badly, so this is a heavy double rule instead — legible on a 58mm
+           roll and on A4, and unmissable on both. */
+        .training-banner {
+            border-top: 3px double var(--ink); border-bottom: 3px double var(--ink);
+            padding: {{ $roll ? '5px 0' : '10px 0' }}; margin-bottom: {{ $roll ? '8px' : '16px' }};
+            text-align: center; font-weight: 700; letter-spacing: .18em;
+            text-transform: uppercase; font-size: {{ $roll ? '12px' : '16px' }};
+        }
+        .training-sub {
+            font-weight: 400; letter-spacing: 0; text-transform: none;
+            font-size: {{ $roll ? '10px' : '11px' }}; margin-top: 3px;
+        }
+
         /* ── Meta ─────────────────────────────────────────────────── */
         .meta { width: 100%; font-size: {{ $roll ? '11px' : '12px' }}; }
         .meta td { padding: 1px 0; vertical-align: top; }
@@ -186,6 +205,13 @@
 @endunless
 
 <div class="doc">
+
+    @if($training)
+        <div class="training-banner">
+            Training — not a real sale
+            <div class="training-sub">No goods were sold, no money was taken, and nothing was recorded.</div>
+        </div>
+    @endif
 
     {{-- ══ Masthead ══════════════════════════════════════════════ --}}
     @if($roll)
@@ -558,6 +584,12 @@
                 <div>Customer signature</div>
                 <div class="r">For {{ $tenant->business_name }}</div>
             </div>
+        </div>
+    @endif
+
+    @if($training)
+        <div class="training-banner" style="margin-top:{{ $roll ? '8px' : '16px' }};margin-bottom:0">
+            Training — not a real sale
         </div>
     @endif
 

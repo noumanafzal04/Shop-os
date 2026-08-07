@@ -321,6 +321,11 @@ class PosController extends Controller
             'session_id' => $cover->cash_session_id,
             'cashier_name' => $session?->user?->name,
             'register' => $session?->register?->only(['id', 'name', 'code']),
+            // Withheld figures are one thing; withholding that the whole drawer
+            // is practice is another. A reliever who does not know would ring
+            // real customers onto a training shift and take money for sales
+            // that were never recorded.
+            'is_training' => (bool) $session?->is_training,
             'started_at' => $cover->started_at?->toIso8601String(),
             'ended_at' => $cover->ended_at?->toIso8601String(),
             'reason' => $cover->reason,
@@ -341,20 +346,26 @@ class PosController extends Controller
             // opening float rather than sitting beside it.
             'denominations' => ['sometimes', 'array'],
             'denominations.*' => ['integer', 'min:0', 'max:100000'],
+            // Practice. Everything rung on this shift is fenced off from stock,
+            // the day's takings and every report — see the training_mode
+            // migration. Chosen at open and fixed for the life of the shift.
+            'is_training' => ['sometimes', 'boolean'],
         ]);
 
         $register = $this->resolveRegister($data['register_id'] ?? null);
+        $training = (bool) ($data['is_training'] ?? false);
         $session = $action->execute(
             $request->user(),
             (float) $data['opening_float'],
             $register,
             $data['denominations'] ?? null,
+            $training,
         );
 
         // A resumed shift is not a new one — say so, so the POS doesn't report
         // "Shift opened" over a drawer that has been running since morning.
         return $session->wasRecentlyCreated
-            ? ApiResponse::created($session, 'Shift opened')
+            ? ApiResponse::created($session, $training ? 'Training shift opened' : 'Shift opened')
             : ApiResponse::ok($session, 'Resumed your open shift');
     }
 
@@ -660,18 +671,24 @@ class PosController extends Controller
             ->orderByDesc('opened_at')
             ->get();
 
+        // A training shift is LISTED but never SUMMED. It happened — somebody
+        // stood at a till for two hours — and dropping it from the history
+        // would make a real stretch of the day vanish. What must not happen is
+        // its practice cash landing in the totals a manager reads as takings.
+        $real = $sessions->where('is_training', false);
+
         return ApiResponse::ok([
             'sessions' => $sessions,
             'totals' => [
-                'shifts' => $sessions->count(),
-                'open' => $sessions->where('status', 'open')->count(),
-                'opening_float' => round((float) $sessions->sum('opening_float'), 2),
-                'cash_sales' => round((float) $sessions->sum('cash_sales'), 2),
-                'expected_cash' => round((float) $sessions->sum('expected_cash'), 2),
-                'counted_cash' => round((float) $sessions->sum('counted_cash'), 2),
-                'variance' => round((float) $sessions->sum('variance'), 2),
-                'sales_total' => round((float) $sessions->sum('sales_total'), 2),
-                'sales_count' => (int) $sessions->sum('sales_count'),
+                'shifts' => $real->count(),
+                'open' => $real->where('status', 'open')->count(),
+                'opening_float' => round((float) $real->sum('opening_float'), 2),
+                'cash_sales' => round((float) $real->sum('cash_sales'), 2),
+                'expected_cash' => round((float) $real->sum('expected_cash'), 2),
+                'counted_cash' => round((float) $real->sum('counted_cash'), 2),
+                'variance' => round((float) $real->sum('variance'), 2),
+                'sales_total' => round((float) $real->sum('sales_total'), 2),
+                'sales_count' => (int) $real->sum('sales_count'),
             ],
             'from' => $from->toDateTimeString(),
             'to' => $to->toDateTimeString(),

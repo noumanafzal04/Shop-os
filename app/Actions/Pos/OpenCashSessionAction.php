@@ -44,8 +44,9 @@ class OpenCashSessionAction
         float $openingFloat,
         ?Register $register = null,
         ?array $denominations = null,
+        bool $training = false,
     ): CashSession {
-        return DB::transaction(function () use ($user, $openingFloat, $register, $denominations): CashSession {
+        return DB::transaction(function () use ($user, $openingFloat, $register, $denominations, $training): CashSession {
             if ($register !== null) {
                 // Serialise concurrent opens on the same lane: two cashiers
                 // tapping "Open shift" on lane 3 at the same instant must not
@@ -78,6 +79,18 @@ class OpenCashSessionAction
             }
 
             if ($mine !== null) {
+                // Resuming is for the shift you already hold — not for changing
+                // what kind of shift it is. Practice and real money share one
+                // drawer the moment this is allowed to flip mid-shift.
+                if ($mine->isTraining() !== $training) {
+                    throw DomainException::conflict(
+                        $mine->isTraining()
+                            ? 'You are on a training shift. Close it before ringing real sales.'
+                            : 'You have a live shift open. Close it before starting training.',
+                        'SHIFT_MODE_MISMATCH',
+                    );
+                }
+
                 // Same lane → resume the shift already in progress.
                 if ($register !== null && $mine->register_id === $register->id) {
                     return $mine;
@@ -112,7 +125,12 @@ class OpenCashSessionAction
             // first cashier through the door. Making the owner remember to
             // "start the day" before anyone can sell would strand a shop at
             // 7am for a step that carries no decision.
-            $day = $this->days->open($user, $branchId);
+            //
+            // Except a training shift, which belongs to NO day. That is the
+            // fence: the day's roll-up and its banking gather sessions by
+            // business_day_id, so practice is not filtered out of the day's
+            // takings — it was never in them.
+            $day = $training ? null : $this->days->open($user, $branchId);
 
             $counted = DenominationCount::clean($denominations);
 
@@ -122,10 +140,11 @@ class OpenCashSessionAction
                 // pins it exactly; otherwise a staff member pinned to a branch
                 // resolves there and owners to the selected (or Main) branch.
                 'branch_id' => $branchId,
-                'business_day_id' => $day->id,
+                'business_day_id' => $day?->id,
                 'register_id' => $register?->id,
                 'user_id' => $user->id,
                 'status' => 'open',
+                'is_training' => $training,
                 // A counted float wins over a typed one, same as at close.
                 'opening_float' => $counted !== null
                     ? DenominationCount::total($counted)

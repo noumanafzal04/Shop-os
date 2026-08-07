@@ -88,6 +88,14 @@
 <div class="center">
     <h1>{{ $settings['invoice_header'] ?? ($tenant->business_name ?? 'Shop') }}</h1>
     <div class="muted">END OF SHIFT — Z READ</div>
+    {{-- A practice Z-read reconciles a real drawer of real notes, so it is a
+         useful thing to print and a dangerous thing to file. Say which it is
+         before any of the figures. --}}
+    @if ($session->is_training)
+        <div class="muted" style="margin-top:4px;font-weight:700;letter-spacing:.14em">
+            TRAINING — NOT PART OF THE DAY'S TAKINGS
+        </div>
+    @endif
 </div>
 
 <div class="rule"></div>
