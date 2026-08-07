@@ -72,6 +72,19 @@ class RestaurantTicket extends BaseModel
         return $this->status === RestaurantTicketStatus::Open;
     }
 
+    /**
+     * Whether this tab is this person's to work.
+     *
+     * A tab with no waiter belongs to NOBODY, and nobody's table is everybody's
+     * — a takeaway rung at the counter, or a tab opened before the column
+     * existed, must not become an orphan that only an owner can settle.
+     */
+    public function isServedBy(?User $user): bool
+    {
+        return $this->waiter_id === null
+            || ($user !== null && $this->waiter_id === $user->id);
+    }
+
     /** Non-void items only (void items don't count toward the bill or KOT). */
     public function liveItems(): Collection
     {

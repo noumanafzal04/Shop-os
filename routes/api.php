@@ -606,10 +606,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // kitchen tickets (KOT), and settle + split-bill. Gated by the
             // dine_in module (defaults on for restaurants only).
             Route::prefix('restaurant')->middleware('feature:dine_in')->group(function (): void {
+                // READING the floor is floor work, not configuration: the table
+                // grid IS the dine-in screen, and behind settings.manage it was
+                // invisible to every waiter — no preset grants settings.manage,
+                // on purpose. Laying the floor out stays with the owner.
+                Route::middleware('permission:sales.manage')->group(function (): void {
+                    Route::get('tables', [DiningTableController::class, 'index']);
+                    Route::get('tables/{table}', [DiningTableController::class, 'show']);
+                });
+
                 // Floor setup (owner / manager).
                 Route::middleware('permission:settings.manage')->group(function (): void {
                     Route::post('tables/reorder', [DiningTableController::class, 'reorder']);
-                    Route::apiResource('tables', DiningTableController::class);
+                    Route::apiResource('tables', DiningTableController::class)->except(['index', 'show']);
                 });
 
                 // Floor operations (waiters / cashiers with sales.manage).

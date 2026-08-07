@@ -49,11 +49,14 @@ class StaffPresets
             [
                 'code' => 'cashier',
                 'label' => 'Cashier',
-                'description' => 'Rings sales and takes payment. Cannot void a completed sale or hand money back — those stay with a supervisor.',
+                'description' => 'Rings sales and takes payment, and settles any waiter’s table. Cannot void a completed sale or hand money back — those stay with a supervisor.',
                 'permissions' => [
                     Permissions::SALES_MANAGE,
                     Permissions::DISCOUNTS_APPLY,
                     Permissions::CUSTOMERS_MANAGE,
+                    // The till settles what the floor opened. A cashier who
+                    // cannot pick up a waiter's tab cannot take the payment.
+                    Permissions::TABLES_SERVE_ANY,
                 ],
                 'modules' => ['pos'],
                 'trades' => [],
@@ -69,6 +72,7 @@ class StaffPresets
                     Permissions::SALES_VOID,
                     Permissions::SALES_REFUND,
                     Permissions::DISCOUNTS_OVERRIDE,
+                    Permissions::TABLES_SERVE_ANY,
                     Permissions::REPORTS_VIEW,
                 ],
                 'modules' => ['pos'],
@@ -77,7 +81,11 @@ class StaffPresets
             [
                 'code' => 'waiter',
                 'label' => 'Waiter',
-                'description' => 'Opens tables, takes orders, sends them to the kitchen and settles the bill.',
+                // The one preset that deliberately WITHHOLDS tables.serve_any.
+                // A waiter's own tables are the unit the service report pays
+                // tips off, and it stops being true the moment anyone can
+                // settle anyone's bill.
+                'description' => 'Opens tables, takes orders, sends them to the kitchen and settles the bill — their own tables only.',
                 'permissions' => [
                     Permissions::SALES_MANAGE,
                     Permissions::CUSTOMERS_MANAGE,
@@ -175,6 +183,7 @@ class StaffPresets
                     Permissions::DISCOUNTS_OVERRIDE,
                     Permissions::SALES_VOID,
                     Permissions::SALES_REFUND,
+                    Permissions::TABLES_SERVE_ANY,
                     Permissions::PRODUCTS_MANAGE,
                     Permissions::INVENTORY_MANAGE,
                     Permissions::SUPPLIERS_MANAGE,

@@ -16,13 +16,17 @@ use Illuminate\Http\Request;
  */
 class DiningTableController extends Controller
 {
-    private const OPEN_TICKET = 'openTicket:id,dining_table_id,ticket_number,opened_at,guest_count,status';
+    /**
+     * The tab carries its waiter so the floor can say whose table it is — the
+     * difference between "occupied" and "occupied, and not yours to touch".
+     */
+    private const OPEN_TICKET = ['openTicket:id,dining_table_id,ticket_number,opened_at,guest_count,status,waiter_id', 'openTicket.waiter:id,name'];
 
     public function index(Request $request)
     {
         $tables = DiningTable::query()
             ->when($request->boolean('active_only'), fn ($q) => $q->where('is_active', true))
-            ->with([self::OPEN_TICKET])
+            ->with(self::OPEN_TICKET)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -39,7 +43,7 @@ class DiningTableController extends Controller
 
     public function show(DiningTable $table)
     {
-        return ApiResponse::ok($table->load([self::OPEN_TICKET]));
+        return ApiResponse::ok($table->load(self::OPEN_TICKET));
     }
 
     public function update(UpdateDiningTableRequest $request, DiningTable $table)

@@ -65,6 +65,20 @@ class Permissions
      */
     public const DISCOUNTS_OVERRIDE = 'discounts.override';
 
+    /**
+     * Working a table that is not yours.
+     *
+     * A tab belongs to the waiter serving it. Without this, a waiter opens
+     * tables, works their own and settles their own — which is what makes the
+     * per-waiter service report worth paying tips off. With it, you can pick up
+     * anyone's table: a cashier settling at the till, a supervisor covering a
+     * break, a manager fixing a bill.
+     *
+     * Opening a NEW tab never needs it — you become the waiter by opening it —
+     * and neither does reading. It gates writes to someone else's tab only.
+     */
+    public const TABLES_SERVE_ANY = 'tables.serve_any';
+
     public const CUSTOMERS_MANAGE = 'customers.manage';
 
     public const COUPONS_MANAGE = 'coupons.manage';
@@ -113,6 +127,7 @@ class Permissions
             self::DISCOUNTS_OVERRIDE,
             self::SALES_VOID,
             self::SALES_REFUND,
+            self::TABLES_SERVE_ANY,
             self::CUSTOMERS_MANAGE,
             self::COUPONS_MANAGE,
             self::EXPENSES_MANAGE,

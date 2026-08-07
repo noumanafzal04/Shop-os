@@ -24,6 +24,7 @@ use App\Models\RestaurantTicketItem;
 use App\Models\Sale;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\Permissions;
 use App\Support\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -35,9 +36,7 @@ use Illuminate\Validation\Rule;
  */
 class RestaurantTicketController extends Controller
 {
-    public function __construct(private readonly TenantContext $context)
-    {
-    }
+    public function __construct(private readonly TenantContext $context) {}
 
     public function index(Request $request)
     {
@@ -45,7 +44,7 @@ class RestaurantTicketController extends Controller
 
         $tickets = RestaurantTicket::query()
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
-            ->with(['table', 'items'])
+            ->with(['table', 'items', 'waiter:id,name'])
             ->orderByDesc('opened_at')
             ->paginate((int) $request->input('per_page', 30));
 
@@ -59,13 +58,20 @@ class RestaurantTicketController extends Controller
         return ApiResponse::created($ticket, "Tab {$ticket->ticket_number} opened.");
     }
 
+    /**
+     * Read-only, and open to the whole floor on purpose — see assertMayWork().
+     * The response carries the waiter, so a client can show whose table it is
+     * and grey out what this user may not do to it.
+     */
     public function show(RestaurantTicket $ticket)
     {
-        return ApiResponse::ok($ticket->load(['table', 'items', 'kitchenTickets']));
+        return ApiResponse::ok($ticket->load(['table', 'items', 'kitchenTickets', 'waiter:id,name']));
     }
 
     public function addItems(AddTicketItemsRequest $request, RestaurantTicket $ticket, AddTicketItemsAction $action)
     {
+        $this->assertMayWork($ticket);
+
         $ticket = $action->execute($ticket, $request->validated());
 
         return ApiResponse::ok($ticket, 'Items added to the tab.');
@@ -76,6 +82,7 @@ class RestaurantTicketController extends Controller
      */
     public function voidItem(Request $request, RestaurantTicket $ticket, RestaurantTicketItem $item)
     {
+        $this->assertMayWork($ticket);
         $this->assertBelongs($item->ticket_id, $ticket->id);
 
         if ($item->isSettled()) {
@@ -102,6 +109,8 @@ class RestaurantTicketController extends Controller
      */
     public function fire(FireKitchenTicketRequest $request, RestaurantTicket $ticket, FireKitchenTicketAction $action)
     {
+        $this->assertMayWork($ticket);
+
         $kots = $action->execute($ticket, $request->validated());
 
         $numbers = $kots->pluck('kot_number')->map(fn ($n) => "#{$n}")->implode(', ');
@@ -129,6 +138,8 @@ class RestaurantTicketController extends Controller
 
     public function settle(SettleTicketRequest $request, RestaurantTicket $ticket, SettleTicketAction $action)
     {
+        $this->assertMayWork($ticket);
+
         $result = $action->execute($ticket, $request->validated());
 
         $closed = $result['ticket']->status === RestaurantTicketStatus::Closed;
@@ -143,6 +154,8 @@ class RestaurantTicketController extends Controller
      */
     public function cancel(Request $request, RestaurantTicket $ticket)
     {
+        $this->assertMayWork($ticket);
+
         if (! $ticket->isOpen()) {
             throw DomainException::conflict('This tab is already closed.', 'TICKET_NOT_OPEN');
         }
@@ -173,6 +186,8 @@ class RestaurantTicketController extends Controller
     /** A party changes table — or gives one up and becomes a counter order. */
     public function move(MoveTicketRequest $request, RestaurantTicket $ticket, MoveTicketAction $action)
     {
+        $this->assertMayWork($ticket);
+
         $ticket = $action->execute($ticket, $request->validated());
 
         return ApiResponse::ok($ticket, $ticket->table !== null
@@ -184,10 +199,17 @@ class RestaurantTicketController extends Controller
      * Two tabs become one bill. The source is named in the body and folded into
      * the tab in the URL, so the survivor is always the one the waiter is
      * looking at.
+     *
+     * BOTH tabs must be yours. Folding someone else's table into your own moves
+     * their evening's takings onto your name, which is the one thing table
+     * ownership exists to prevent.
      */
     public function merge(MergeTicketsRequest $request, RestaurantTicket $ticket, MergeTicketsAction $action)
     {
         $source = RestaurantTicket::query()->findOrFail($request->validated('source_ticket_id'));
+
+        $this->assertMayWork($ticket);
+        $this->assertMayWork($source);
 
         $ticket = $action->execute($ticket, $source);
 
@@ -197,9 +219,15 @@ class RestaurantTicketController extends Controller
     /**
      * Hand a table to another waiter — a section changing hands at shift change
      * is the normal case, not an exception.
+     *
+     * You may GIVE your own table to anyone; TAKING someone else's needs
+     * `tables.serve_any`. Both fall out of the same check: without it, this
+     * endpoint would be the way around every other one.
      */
     public function assignWaiter(Request $request, RestaurantTicket $ticket)
     {
+        $this->assertMayWork($ticket);
+
         $data = $request->validate([
             'waiter_id' => [
                 'required', 'uuid',
@@ -292,5 +320,34 @@ class RestaurantTicketController extends Controller
         if ($childParentId !== $ticketId) {
             throw DomainException::unprocessable('That item does not belong to this tab.', 'ITEM_MISMATCH');
         }
+    }
+
+    /**
+     * A tab belongs to the waiter serving it, and only they may write to it.
+     *
+     * READING is deliberately left open — a waiter running a colleague's food
+     * needs to see the tab, and a floor where half the tables are blank is
+     * worse than one where half are read-only. What this protects is the
+     * per-waiter service report: if anyone can settle anyone's bill, the
+     * takings it reports are not the waiter's, and a restaurant paying tips off
+     * it is paying the wrong people.
+     *
+     * `tables.serve_any` lifts it — the till, a supervisor covering a break, a
+     * manager fixing a bill.
+     */
+    private function assertMayWork(RestaurantTicket $ticket): void
+    {
+        $user = request()->user();
+
+        if ($ticket->isServedBy($user) || $user?->hasPermission(Permissions::TABLES_SERVE_ANY)) {
+            return;
+        }
+
+        $whose = $ticket->waiter?->name ?? 'another waiter';
+
+        throw DomainException::forbidden(
+            "This tab is {$whose}'s. Ask them or a supervisor to hand the table over.",
+            'NOT_YOUR_TABLE',
+        );
     }
 }
