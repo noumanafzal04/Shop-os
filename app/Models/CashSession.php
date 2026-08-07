@@ -67,6 +67,24 @@ class CashSession extends Model
         return $this->hasMany(Sale::class);
     }
 
+    /** Every stretch where somebody other than the cashier was ringing on it. */
+    public function covers(): HasMany
+    {
+        return $this->hasMany(CashSessionCover::class)->orderBy('started_at');
+    }
+
+    /**
+     * Who is standing here instead of the cashier right now, if anyone.
+     *
+     * Deliberately derived rather than kept as a pointer on the shift: one fact
+     * in one place cannot go stale against itself, and this is read on the path
+     * of every sale a reliever rings.
+     */
+    public function activeCover(): ?CashSessionCover
+    {
+        return $this->covers()->whereNull('ended_at')->latest('started_at')->first();
+    }
+
     public function isOpen(): bool
     {
         return $this->status === 'open';

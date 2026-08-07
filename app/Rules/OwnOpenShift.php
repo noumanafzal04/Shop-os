@@ -19,6 +19,13 @@ use Illuminate\Contracts\Validation\ValidationRule;
  *
  * The tenant scope still applies through the model's global scope, so this only
  * narrows "any open shift here" to "the shift I am standing at".
+ *
+ * A RELIEF COVER is the one legitimate way to be standing at a drawer that is
+ * not yours — the cashier is on a break and someone is holding the lane. It is
+ * an explicit, recorded, time-boxed act (see ReliefCoverAction), and the sale
+ * is still stamped with whoever rang it, so nothing the rule exists to prevent
+ * is opened back up: the reliever cannot ring onto a drawer they are not
+ * standing at, and the cover says exactly who was there and when.
  */
 class OwnOpenShift implements ValidationRule
 {
@@ -35,8 +42,20 @@ class OwnOpenShift implements ValidationRule
             return;
         }
 
-        if ($this->user === null || $session->user_id !== $this->user->id) {
+        if ($this->user === null) {
             $fail('That shift belongs to another cashier. Ring this sale on your own shift.');
+
+            return;
         }
+
+        if ($session->user_id === $this->user->id) {
+            return;
+        }
+
+        if ($session->activeCover()?->user_id === $this->user->id) {
+            return;
+        }
+
+        $fail('That shift belongs to another cashier. Ring this sale on your own shift.');
     }
 }

@@ -4,13 +4,16 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Actions\Auth\EnsureUserCanAuthenticate;
 use App\Actions\Auth\IssueTokensAction;
+use App\Actions\Pos\ReliefCoverAction;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Models\CashSession;
 use App\Models\User;
 use App\Rules\TillPin;
 use App\Support\ApiResponse;
 use App\Support\Permissions;
+use App\Support\RegisterContext;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,8 +35,8 @@ class TillIdentityController extends Controller
         private readonly TenantContext $tenant,
         private readonly EnsureUserCanAuthenticate $guards,
         private readonly IssueTokensAction $issueTokens,
-    ) {
-    }
+        private readonly RegisterContext $register,
+    ) {}
 
     /**
      * The roster: who can take this till, and who has a PIN to do it with.
@@ -112,11 +115,18 @@ class TillIdentityController extends Controller
             throw DomainException::forbidden('This account cannot operate the till.', 'NOT_A_TILL_USER');
         }
 
+        // The cashier is back. Unlocking with their own PIN is the gesture that
+        // says so, and it is the only one the counter will reliably make — a
+        // reliever who has to remember to "hand the till back" will sometimes
+        // not, and the next sale would carry the wrong name.
+        $ended = $this->coverEndedFor($target);
+
         // Unlocking as yourself: nothing to re-issue.
         if ($target->id === $current->id) {
             return ApiResponse::ok([
                 'user' => (new UserResource($target->load('tenant.city', 'tenant.plan')))->resolve(),
                 'switched' => false,
+                'cover_ended' => $ended,
             ], 'Unlocked');
         }
 
@@ -136,8 +146,62 @@ class TillIdentityController extends Controller
         return ApiResponse::ok([
             'user' => (new UserResource($target->load('tenant.city', 'tenant.plan')))->resolve(),
             'switched' => true,
+            'cover_ended' => $ended,
+            // This lane has an open drawer that isn't theirs — so the POS can
+            // offer "cover this till" instead of the dead end the incoming
+            // cashier would otherwise hit (REGISTER_BUSY, and no way forward).
+            'cover_available' => $this->coverAvailableFor($target),
             ...$tokens,
         ], "{$target->name} is now on this till");
+    }
+
+    /**
+     * End whatever cover is running on this user's own drawer. Returns true
+     * only when there was one to end, so the till can say "you're back on your
+     * own drawer" rather than announcing nothing.
+     */
+    private function coverEndedFor(User $target): bool
+    {
+        $mine = CashSession::query()
+            ->where('user_id', $target->id)
+            ->where('status', 'open')
+            ->first();
+
+        if ($mine === null) {
+            return false;
+        }
+
+        return app(ReliefCoverAction::class)->endFor($mine, $target) !== null;
+    }
+
+    /**
+     * A drawer on this terminal that belongs to somebody else and is not
+     * already being covered — i.e. an offer this user could take up.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function coverAvailableFor(User $target): ?array
+    {
+        $session = $this->register->get()?->openSession();
+
+        if ($session === null || $session->user_id === $target->id) {
+            return null;
+        }
+
+        // Someone with a drawer of their own cannot cover — don't offer it.
+        $holdsOwn = CashSession::query()
+            ->where('user_id', $target->id)
+            ->where('status', 'open')
+            ->exists();
+
+        if ($holdsOwn || $session->activeCover() !== null) {
+            return null;
+        }
+
+        return [
+            'session_id' => $session->id,
+            'cashier_name' => $session->user?->name,
+        ];
     }
 
     /** Set or change your own till PIN. Your password is the proof it's you. */

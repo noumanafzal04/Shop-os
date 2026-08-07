@@ -199,6 +199,29 @@
     </div>
 @endif
 
+{{-- Who else stood at this drawer. On the paper slip because that is the
+     version that gets signed, and "I wasn't even here for that hour" has to be
+     answerable from the same sheet as the variance. --}}
+@if (! empty($covers))
+    <div class="section">
+        <div class="section-title">Covered by</div>
+        <table>
+            @foreach ($covers as $c)
+                <tr>
+                    <td>
+                        {{ $c['user_name'] ?? 'Unknown' }}
+                        <span class="muted">
+                            · {{ \Illuminate\Support\Carbon::parse($c['started_at'])->format('H:i') }}–{{ $c['ended_at'] ? \Illuminate\Support\Carbon::parse($c['ended_at'])->format('H:i') : '…' }}
+                        </span>
+                        @if ($c['reason'])<span class="muted"> · {{ $c['reason'] }}</span>@endif
+                    </td>
+                    <td class="num">{{ $c['sales_count'] }} sale{{ $c['sales_count'] === 1 ? '' : 's' }} · {{ $money($c['cash_taken']) }}</td>
+                </tr>
+            @endforeach
+        </table>
+    </div>
+@endif
+
 @if ($session->notes)
     <div class="section">
         <div class="section-title">Notes</div>
