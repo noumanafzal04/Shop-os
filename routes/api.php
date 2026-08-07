@@ -786,6 +786,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // ── Tenant side: staff management (owner or staff w/ staff.manage) ──
         Route::prefix('staff')->middleware(['role:shop_owner,staff', 'permission:staff.manage', 'subscription'])->group(function (): void {
             Route::get('/permissions', [TenantStaffController::class, 'permissions']);
+            // Job presets — "Cashier", "Waiter" — filtered to this shop's
+            // modules and trade. A starting point for the checkboxes below,
+            // never stored against anyone.
+            Route::get('/presets', [TenantStaffController::class, 'presets']);
             // Till PINs for staff — an owner hands a new cashier one on their
             // first shift, the same way they'd set a password.
             Route::put('/{staff}/pin', [TillIdentityController::class, 'setStaffPin']);

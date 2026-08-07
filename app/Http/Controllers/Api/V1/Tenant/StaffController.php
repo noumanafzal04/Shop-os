@@ -13,6 +13,7 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\Permissions;
+use App\Support\StaffPresets;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,9 +25,7 @@ use Illuminate\Http\Request;
  */
 class StaffController extends Controller
 {
-    public function __construct(private readonly TenantContext $context)
-    {
-    }
+    public function __construct(private readonly TenantContext $context) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -81,6 +80,21 @@ class StaffController extends Controller
     public function permissions(): JsonResponse
     {
         return ApiResponse::ok(Permissions::tenant());
+    }
+
+    /**
+     * "What job does this person do?" — the jobs worth offering THIS shop.
+     *
+     * Filtered by the modules the tenant was granted and, where a job exists in
+     * only one trade, by the trade: offering "Waiter" to a pharmacy is noise,
+     * and noise on a permission screen is how the wrong box gets ticked.
+     *
+     * Nothing here is stored against a user. A preset ticks boxes and is
+     * forgotten — see StaffPresets.
+     */
+    public function presets(): JsonResponse
+    {
+        return ApiResponse::ok(StaffPresets::for($this->context->get()));
     }
 
     private function findStaff(string $id): User
