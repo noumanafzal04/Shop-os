@@ -15,6 +15,17 @@ export interface UnlockResult {
   user: User;
   /** True when the till changed hands and new tokens came with it. */
   switched: boolean;
+  /**
+   * The cashier came back to their own drawer and whoever was covering it has
+   * been handed back automatically — unlocking with your own PIN is the gesture
+   * a counter will actually make, so it is the one that ends a cover.
+   */
+  cover_ended?: boolean;
+  /**
+   * This lane holds a drawer belonging to somebody else, and this user could
+   * cover it. Null when there is nothing to offer.
+   */
+  cover_available?: { session_id: string; cashier_name: string | null } | null;
   access_token?: string;
   refresh_token?: string;
 }

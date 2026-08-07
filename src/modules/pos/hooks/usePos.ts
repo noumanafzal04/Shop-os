@@ -62,6 +62,32 @@ export function useShiftMutations() {
 }
 
 /**
+ * Relief cover — holding a lane while its cashier is on a break.
+ *
+ * Invalidates the same keys as opening a shift, because from the till's point
+ * of view it is the same event: who is standing here changed.
+ */
+export function useCoverMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["pos", "session"] });
+    qc.invalidateQueries({ queryKey: ["pos", "lanes"] });
+  };
+
+  const start = useMutation({
+    mutationFn: (payload: { session_id?: string; reason?: string } = {}) =>
+      posService.startCover(payload),
+    onSuccess: invalidate,
+  });
+  const end = useMutation({
+    mutationFn: () => posService.endCover(),
+    onSuccess: invalidate,
+  });
+
+  return { start, end };
+}
+
+/**
  * The X-read: what this drawer should hold right now.
  *
  * `enabled` is the caller's answer to "is a shift open AND is anyone looking" —

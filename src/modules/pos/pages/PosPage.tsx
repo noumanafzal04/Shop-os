@@ -24,7 +24,8 @@ import { posService, type HeldSale } from "../services/posService";
 import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
 import CloseShiftModal from "../components/CloseShiftModal";
-import { useQuickKeys, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
+import { useQuickKeys, useCoverMutations, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
+import { isCover, type ActiveCover, type CashSession } from "../services/posService";
 import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
 import { receiptService, type ReceiptKind } from "../../receipts/services/receiptService";
 import { useFailedReceipts } from "../../receipts/hooks/useReceipts";
@@ -243,7 +244,24 @@ export default function PosPage() {
   const laneModal = useModal();
   // The lane of the shift actually running beats the stored choice — after a
   // handover the badge must show where the drawer really is.
-  const myLane = laneList.find((l) => l.id === (session.data?.register_id ?? terminalId));
+  // `/pos/session` answers with my own drawer, the one I'm covering, or null.
+  // Covering is deliberately NOT a session: it carries the shift id to ring
+  // against and nothing the cashier will be measured on, so it has to stay a
+  // separate value rather than being smuggled in as a CashSession.
+  const covering = isCover(session.data ?? null) ? (session.data as ActiveCover) : null;
+  const open = covering ? null : ((session.data as CashSession | null) ?? null);
+  // The drawer a sale must be rung into — mine, or the one I'm standing at.
+  const activeSessionId = covering ? covering.session_id : (open?.id ?? null);
+  const myLane = laneList.find(
+    (l) => l.id === (covering?.register?.id ?? open?.register_id ?? terminalId),
+  );
+  const coverMutations = useCoverMutations();
+  // Whose drawer is sitting on the lane in front of me, when it isn't mine and
+  // I don't have one of my own. Null means there is nothing here to cover.
+  const laneIsSomeoneElses =
+    !open && !covering && terminalId
+      ? (laneList.find((l) => l.id === terminalId && l.is_busy)?.open_session?.user_name ?? null)
+      : null;
   const laneLabel = myLane?.name ?? terminalName ?? null;
   const settings = useShopSettings();
   const cur = settings.data?.currency_symbol ?? "Rs";
@@ -618,7 +636,6 @@ export default function PosPage() {
   const rounding = Math.round((payable - exactPayable) * 100) / 100;
   const change = method === "cash" ? Math.max(0, (Number(tendered) || 0) - payable)
     : method === "split" ? Math.max(0, splitPaid - payable) : 0;
-  const open = session.data;
 
   // Validate a code against a given subtotal and store the resulting discount.
   // Shared by manual apply, resume, and the auto-revalidate effect below.
@@ -685,7 +702,7 @@ export default function PosPage() {
     mutationFn: () =>
       salesService.create({
         channel: "pos",
-        cash_session_id: open?.id ?? null,
+        cash_session_id: activeSessionId,
         customer_name: customer || undefined,
         customer_phone: customerPhone || undefined,
         ...(isRestaurant
@@ -1187,6 +1204,27 @@ export default function PosPage() {
             <UserCircleIcon className="h-3.5 w-3.5" />
             {me?.name?.split(" ")[0] ?? "Till"}
           </button>
+
+          {/* Standing at someone else's drawer is a state you must not be able
+              to forget you are in — every sale from here lands in their
+              reconciliation. Stated plainly, next to your own name. */}
+          {covering && (
+            <span
+              title={`Sales you ring go into ${covering.cashier_name ?? "the cashier"}'s drawer. They still count it.`}
+              className="flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-theme-xs font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+            >
+              Covering {covering.cashier_name ?? "this till"}
+            </span>
+          )}
+          {/* And the other way round: your drawer, someone else on it. */}
+          {open?.covered_by && (
+            <span
+              title={`${open.covered_by.user_name ?? "Someone"} is ringing on your drawer. It is still yours to count.`}
+              className="flex items-center gap-1.5 rounded-full border border-warning-200 bg-warning-50 px-2.5 py-1 text-theme-xs font-semibold text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+            >
+              {open.covered_by.user_name ?? "Someone"} is covering you
+            </span>
+          )}
           {/* A rule before the money buttons, so the status chips on the left
               and the actions on the right read as two groups rather than one
               long undifferentiated row. */}
@@ -1206,8 +1244,22 @@ export default function PosPage() {
 
           {/* Open vs close are opposite acts and must never be mistaken for
               each other at the end of a long shift: green starts the day,
-              amber ends it and asks for a count. */}
-          {open ? (
+              amber ends it and asks for a count.
+
+              A reliever gets neither. They are standing at a drawer they will
+              never count, so the only thing they can end is their own turn at
+              it — "Hand back", not "Close shift". */}
+          {covering ? (
+            <button
+              type="button"
+              onClick={() => coverMutations.end.mutate()}
+              disabled={coverMutations.end.isPending}
+              title={`Give the till back to ${covering.cashier_name ?? "the cashier"}`}
+              className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-theme-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+            >
+              Hand back
+            </button>
+          ) : open ? (
             <button
               type="button"
               onClick={closeModal.openModal}
@@ -1217,14 +1269,30 @@ export default function PosPage() {
               Close shift
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => { setOpeningFloat(""); openModal.openModal(); }}
-              title="Open a shift to start selling"
-              className="flex items-center gap-1.5 rounded-lg bg-success-500 px-3.5 py-1.5 text-theme-sm font-semibold text-white transition hover:bg-success-600"
-            >
-              Open shift
-            </button>
+            <>
+              {/* Somebody else's drawer is open on this lane. Without this the
+                  cashier covering a ten-minute break hits REGISTER_BUSY and has
+                  no way forward but to count out a drawer that isn't theirs. */}
+              {laneIsSomeoneElses && (
+                <button
+                  type="button"
+                  onClick={() => coverMutations.start.mutate({})}
+                  disabled={coverMutations.start.isPending}
+                  title={`Hold the lane while ${laneIsSomeoneElses} is away — the drawer stays theirs`}
+                  className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-theme-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+                >
+                  Cover this till
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { setOpeningFloat(""); openModal.openModal(); }}
+                title="Open a shift to start selling"
+                className="flex items-center gap-1.5 rounded-lg bg-success-500 px-3.5 py-1.5 text-theme-sm font-semibold text-white transition hover:bg-success-600"
+              >
+                Open shift
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -2300,7 +2368,12 @@ export default function PosPage() {
       />
 
       {/* Drawer X-read + the cashier's cash movements */}
-      <CashDrawerPanel isOpen={drawerModal.isOpen} onClose={drawerModal.closeModal} hasOpenShift={!!open} />
+      <CashDrawerPanel
+        isOpen={drawerModal.isOpen}
+        onClose={drawerModal.closeModal}
+        hasOpenShift={!!open}
+        coveringFor={covering?.cashier_name ?? null}
+      />
 
       {/* Held sales */}
       <Modal isOpen={heldModal.isOpen} onClose={heldModal.closeModal} className="max-w-md p-6">

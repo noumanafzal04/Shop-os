@@ -15,7 +15,52 @@ export interface CashSession {
   closed_at: string | null;
   register_id?: string | null;
   register?: { id: string; name: string; code: string | null } | null;
+  /** Somebody is standing in for me right now. */
+  covered_by?: { user_id: string; user_name: string | null; started_at: string } | null;
 }
+
+/**
+ * What a reliever holds: someone else's open drawer, while its cashier is on
+ * a break.
+ *
+ * This is deliberately NOT a CashSession. A cover grants the right to sell,
+ * never the right to reconcile — so the server hands back the shift id (needed
+ * on every sale), whose drawer it is, and nothing else. There is no
+ * `opening_float` or `expected_cash` here because the reliever is not the one
+ * being measured against them.
+ */
+export interface ActiveCover {
+  id: string;
+  covering: true;
+  session_id: string;
+  cashier_name: string | null;
+  register: { id: string; name: string; code: string | null } | null;
+  started_at: string;
+  ended_at: string | null;
+  reason: string | null;
+  /** What I have rung while standing here — mine, not the drawer's. */
+  mine: { sales_count: number; sales_total: number; cash_taken: number };
+}
+
+/** One stretch where somebody else rang on a drawer. */
+export interface CoverRecord {
+  id: string;
+  user_name: string | null;
+  started_at: string;
+  ended_at: string | null;
+  ended_by_name: string | null;
+  reason: string | null;
+  open: boolean;
+  sales_count: number;
+  sales_total: number;
+  cash_taken: number;
+}
+
+/** `/pos/session` answers with my own drawer, a cover, or nothing at all. */
+export type SessionState = CashSession | ActiveCover | null;
+
+export const isCover = (s: SessionState): s is ActiveCover =>
+  s !== null && (s as ActiveCover).covering === true;
 
 export interface HeldSale {
   id: string;
@@ -127,6 +172,8 @@ export interface SessionReport {
   declare_tenders: boolean;
   /** Notes and coins to offer, largest first. */
   denominations: number[];
+  /** Who else rang on this drawer, and what they took. */
+  covers: CoverRecord[];
   movements: CashMovement[];
 }
 
@@ -155,7 +202,19 @@ export const posService = {
    */
   quickKeys: () => apiGet<Product[]>("/pos/quick-keys"),
 
-  currentSession: () => apiGet<CashSession | null>("/pos/session"),
+  // Answers with my own drawer, the one I'm covering, or null. Narrow it with
+  // `isCover()` before reading any figure off it.
+  currentSession: () => apiGet<SessionState>("/pos/session"),
+
+  /**
+   * Hold the lane while its cashier is away. The drawer stays theirs — this
+   * only puts my name on the sales I ring in the meantime.
+   */
+  startCover: (payload: { session_id?: string; reason?: string } = {}) =>
+    apiPost<ActiveCover>("/pos/session/cover", payload),
+
+  /** Hand it back. The cashier unlocking with their own PIN also does this. */
+  endCover: () => apiPost<ActiveCover>("/pos/session/cover/end", {}),
   // The lane may be named explicitly (the picker) or left to the terminal's
   // own X-Register-Id header. Re-opening the lane you already hold RESUMES it.
   openSession: (opening_float: number, register_id?: string | null) =>

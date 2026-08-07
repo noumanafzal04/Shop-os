@@ -25,6 +25,12 @@ interface Props {
   onClose: () => void;
   /** No drawer, no X-read — the panel explains instead of calling the endpoint. */
   hasOpenShift: boolean;
+  /**
+   * The cashier whose drawer I'm covering, if I am. A reliever gets no X-read:
+   * expected cash is the figure its owner will be counted against, and cover
+   * grants the right to sell, not the right to reconcile.
+   */
+  coveringFor?: string | null;
 }
 
 /** The counter's vocabulary, not accounting's. System types included — the
@@ -108,7 +114,7 @@ const DirectionPill = ({ direction }: { direction: CashMovement["direction"] }) 
   );
 };
 
-export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props) {
+export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift, coveringFor = null }: Props) {
   const settings = useShopSettings();
   const cur = settings.data?.currency_symbol ?? "Rs";
   // Cash is counted to the paisa here — a drawer read that rounds is a variance
@@ -150,6 +156,7 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props
   const drawer = report.data?.drawer;
   const session = report.data?.session;
   const movements = report.data?.movements ?? [];
+  const covers = report.data?.covers ?? [];
 
   const submit = () => {
     if (!action) return;
@@ -177,6 +184,28 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props
             e instanceof ApiError
               ? { message: e.message, code: e.errorCode }
               : { message: "Could not record the movement." },
+          ),
+      },
+    );
+  };
+
+  /**
+   * A no-sale straight off the cover screen. It carries no amount and no
+   * reason, so routing it through the two-step form would be a step that asks
+   * nothing — and a reliever making change for a customer is waiting at the
+   * counter while they do it.
+   */
+  const openDrawerOnly = () => {
+    setError(null);
+    record.mutate(
+      { type: "no_sale" },
+      {
+        onSuccess: () => toast.success("No sale recorded — drawer opened"),
+        onError: (e) =>
+          setError(
+            e instanceof ApiError
+              ? { message: e.message, code: e.errorCode }
+              : { message: "Could not open the drawer." },
           ),
       },
     );
@@ -222,8 +251,24 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props
           </button>
         </div>
 
-        {/* ── No drawer to read ─────────────────────────────────────── */}
-        {noShift ? (
+        {/* ── Covering someone else's drawer ────────────────────────── */}
+        {coveringFor ? (
+          <div className="rounded-xl border border-brand-200 bg-brand-50 p-6 text-center dark:border-brand-500/30 dark:bg-brand-500/10">
+            <p className="text-theme-sm font-medium text-brand-700 dark:text-brand-400">
+              This drawer is {coveringFor}&rsquo;s
+            </p>
+            <p className="mx-auto mt-1 max-w-sm text-theme-sm text-gray-600 dark:text-gray-300">
+              Everything you ring goes into it, and they count it at the end of their shift — so the read and the
+              cash actions stay with them. You can still open the drawer to make change.
+            </p>
+            <Button size="sm" variant="outline" className="mt-4" disabled={record.isPending} onClick={openDrawerOnly}>
+              Open drawer
+            </Button>
+            {error && (
+              <p className="mt-3 text-theme-xs text-error-600 dark:text-error-400">{error.message}</p>
+            )}
+          </div>
+        ) : noShift ? (
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-800 dark:bg-white/[0.03]">
             <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-400 dark:bg-gray-800">
               <EventGlyph className="h-5 w-5" />
@@ -467,6 +512,48 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift }: Props
                 ))}
               </div>
             </div>
+
+            {/* Who else rang on this drawer while you were away.
+                Without it a variance is one undifferentiated number covering a
+                stretch you were not even standing here for — this is the line
+                that lets a cashier say "that hour wasn't mine". */}
+            {covers.length > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+                <p className="mb-3 text-theme-xs font-medium uppercase tracking-wide text-gray-400">
+                  Covered by <span className="text-gray-400">({covers.length})</span>
+                </p>
+                <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {covers.map((c) => (
+                    <li key={c.id} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                            {c.user_name ?? "Unknown"}
+                          </span>
+                          {c.open && (
+                            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-theme-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+                              here now
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 truncate text-theme-xs text-gray-500 dark:text-gray-400">
+                          {when(c.started_at)}–{c.ended_at ? when(c.ended_at) : "now"}
+                          {c.reason ? ` · ${c.reason}` : ""}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-theme-sm font-medium tabular-nums text-gray-800 dark:text-white/90">
+                          {money(c.cash_taken)}
+                        </p>
+                        <p className="text-theme-xs text-gray-400">
+                          {c.sales_count} sale{c.sales_count === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Who moved cash, why, and when — the audit trail for the close. */}
             <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
