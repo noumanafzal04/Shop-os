@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: a4ba9d48-2a02-4ea8-81fb-a04eeaffd6b9
-  modified: 2026-08-07T13:07:10.601Z
+  modified: 2026-08-07T13:50:35.285Z
 ---
 
 **Directive (2026-08-07): complete the WEB side first, excluding offline.**
@@ -42,14 +42,17 @@ result twice.
 the money IS in the drawer and `DrawerMath` expects it. There is no shortage to
 prevent. It is a client prompt toggle like `pos_auto_print`.
 
-## Remaining on the web
+## Remaining on the web: NOTHING
 
-**Training mode only** — ranked last. Waiter floor scoping SHIPPED 2026-08-07,
-see [[shopos-table-ownership]].
+**The web side is feature-complete as of 2026-08-07** (excluding offline).
+Waiter floor scoping → [[shopos-table-ownership]]; training mode →
+[[shopos-training-mode]]. Backend 1329 green, panel 121.
+
+**Deployment/CI-CD is the only thing left before a live shop**, and it is ops.
 
 Multi-lane is already done: `registers` (one per checkout, own printer/drawer/
 shift), owner-created, `registers` limit defaults to **2** per tenant and an
-admin raises it.
+admin raises it — raise it before a supermarket's Lane 3 is refused.
 
 Related: [[shopos-loose-ends-aug07]], [[shopos-build-sequence]],
 [[shopos-food-dinein]], [[shopos-no-roles]], [[shopos-deployment]].

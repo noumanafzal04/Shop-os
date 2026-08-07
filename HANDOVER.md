@@ -25,9 +25,9 @@ Folder names matter — the docs, and Claude's memory, refer to these exact path
 
 | Branch | App | Stack | Head at handover |
 |---|---|---|---|
-| `main` | this overview + all docs | — | `9f98e3a` |
-| `backend` | REST API `/api/v1` | Laravel 12 · PHP 8.4 · MySQL 8 · Redis · Sanctum | `c9b183e` |
-| `admin-panel` | Web SPA (super-admin + shop panel) | Vite · React 19 · TS · Tailwind v4 · TailAdmin · TanStack Query · zustand | `1930f61` |
+| `main` | this overview + all docs | — | `7c97d16` |
+| `backend` | REST API `/api/v1` | Laravel 12 · PHP 8.4 · MySQL 8 · Redis · Sanctum | `24966a5` |
+| `admin-panel` | Web SPA (super-admin + shop panel) | Vite · React 19 · TS · Tailwind v4 · TailAdmin · TanStack Query · zustand | `123969c` |
 | `mobile` | React Native customer app (~55%) | React Native CLI · TS | `0913477` |
 
 Then:
@@ -100,7 +100,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1295 tests / 5501 assertions green. Panel 109 tests green.** Gates all
+**Backend 1329 tests / 5645 assertions green. Panel 121 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint`.
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
@@ -135,22 +135,26 @@ Nothing. `wip/relief-cover` shipped on 2026-08-07 and is merged into `backend`.
 
 ## 6. What's left
 
-**The current order is: finish the web side first, excluding offline.** Decided
-2026-08-07. One feature gap remains on the web:
+**The web side is feature-complete as of 2026-08-07**, excluding offline. Every
+known gap is closed: the settings sweep, waiter table scoping, and training
+mode were the last three.
 
-1. **Training mode.** Ranked last; it earns its keep at a supermarket with six
-   checkout lanes and a stream of new cashiers, not at a three-person shop
-   where the owner teaches over their shoulder on the live till.
+**Deployment / CI-CD is now the only thing standing between this and a live
+shop.** It is ops rather than product, and it is parked by choice. Staging is a
+$6 DigitalOcean droplet, `shopos-dev` at `159.223.78.102` — backend health at
+`/api/v1/health`, panel on `:8080`. It reflects none of the last five sessions.
 
-Multi-lane itself is **done** — `registers` are created by the owner, one per
-checkout, each with its own printer, drawer and shift. The `registers` limit
-defaults to **2** per tenant and an admin raises it; worth remembering when a
-supermarket signs, or their Lane 3 is refused at creation.
+Two things worth knowing when a supermarket signs:
 
-**Deployment / CI-CD is the only hard launch blocker**, and it is ops rather
-than product. Staging is a $6 DigitalOcean droplet, `shopos-dev` at
-`159.223.78.102` — backend health at `/api/v1/health`, panel on `:8080`. It
-reflects none of the last four sessions of work.
+- Multi-lane is done — `registers` are owner-created, one per checkout, each
+  with its own printer, drawer and shift. But the `registers` limit **defaults
+  to 2** per tenant and an admin has to raise it, or their Lane 3 is refused at
+  creation.
+- `useShiftDay()` (panel, `src/modules/registers/hooks/useRegisters.ts`) has no
+  component using it — `/pos/sessions` returns a full shift history with
+  per-lane totals and nothing renders it. A shift-history screen is the obvious
+  next small piece of product, and the row type already carries `is_training`
+  for whoever builds it.
 
 Parked deliberately, in order: the offline PWA POS (plan in
 `docs/decisions/shopos-offline-plan.md`); the mobile apps, whose contracts have
@@ -168,6 +172,55 @@ session log).
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-08-07 — training mode (the web side is feature-complete)
+
+A new cashier has to learn on something. The live till at a busy counter costs
+phantom stock and a variance nobody can explain; nothing at all means learning
+on real customers.
+
+**The unit is the SHIFT, not the sale.** A per-sale switch lets practice and
+real money mix in one drawer, and forgetting to switch back is exactly the
+mistake that must be impossible. You open a shift in training, everything rung
+on it is practice, and the mode cannot change while it runs
+(`SHIFT_MODE_MISMATCH`).
+
+Two structural fences, both chosen over "remember to filter it":
+
+- **A global scope on `Sale`.** Practice is invisible to every query that does
+  not explicitly ask for it (`Sale::withTraining()`). This is the mechanism the
+  codebase already trusts for tenant isolation, and for the same reason: what
+  must never leak cannot depend on every report written next year remembering
+  to exclude it. The one raw `DB::table('sales')` read — `LedgerService` — does
+  not go through Eloquent and filters by hand.
+- **No business day.** A training shift belongs to no trading day, and the
+  day's roll-up and banking gather sessions by `business_day_id`. Practice is
+  not filtered out of the day's takings; it was never in them.
+
+Training invoices take their own **`TRN-`** sequence. The real one is gap-free
+on purpose — a tax authority reads a hole in it as a deleted sale.
+
+**What training refuses matters as much as what it allows.** Khata, loyalty
+redemption, serials and trade-ins all reach outside the sale and touch a real
+record. Each could have been skipped silently, and each skip would be a quiet
+lie — a khata sale that charged nobody, a serial sold twice. It refuses, with
+`TRAINING_NOT_AVAILABLE` and a reason.
+
+**What it deliberately keeps:** the drawer still reconciles — `DrawerMath` is
+the one place that lifts the scope, safe because every query there is keyed by
+`cash_session_id` and a sale inherits the shift's flag — and the receipt still
+prints, stamped TRAINING top and bottom, in words, because that paper is
+otherwise indistinguishable from a real one. The POS wears a full-width bar,
+not a chip among chips.
+
+**One leak found while building it:** the shift history summed every session
+into its totals. A training shift is now listed but never summed.
+
+There is also a test asserting a practice sale writes to **no table but the
+sale itself** — it will fail on the next feature that writes somewhere new
+during a sale, which is better than discovering it in a revenue figure.
+
+Backend **1312 → 1329**. Panel **116 → 121**.
 
 ### 2026-08-07 — a tab belongs to the waiter serving it
 
