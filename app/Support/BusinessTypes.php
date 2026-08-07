@@ -204,7 +204,14 @@ class BusinessTypes
                     ['value' => 'spa', 'label' => 'Spa'],
                     ['value' => 'mobile_repair', 'label' => 'Mobile Repair'],
                     ['value' => 'computer_repair', 'label' => 'Computer Repair'],
-                    ['value' => 'auto_workshop', 'label' => 'Auto Workshop'],
+                    // Also offered under `automotive`, and the two are NOT the
+                    // same shop. Here the trade is labour only — no products,
+                    // no inventory — which suits a mechanic who fits parts the
+                    // customer brings. A workshop that SELLS parts belongs
+                    // under Auto & Tyre; picking this one would leave it unable
+                    // to stock a single tyre. Same words, silently different
+                    // capability, so the label has to carry the difference.
+                    ['value' => 'auto_workshop', 'label' => 'Auto Workshop (labour only)'],
                     ['value' => 'tailor', 'label' => 'Tailor'],
                     ['value' => 'laundry', 'label' => 'Laundry'],
                     ['value' => 'printing', 'label' => 'Printing'],
