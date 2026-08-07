@@ -31,3 +31,4 @@
 - [ShopOS Auto Depth](shopos-auto-depth.md) — 2026-08-06 SHIPPED: trade-in is a TENDER not a discount, vehicle record + history, DOT tyre dating = age not expiry
 - [ShopOS Audit Aug-06](shopos-audit-aug06.md) — 3 PROVEN P0s in a green build (itemTypesFor upgrade path, serial fenced to retail, income missing from profit) + 5 dead endpoints
 - [Docs Discipline](shopos-docs-discipline.md) — STANDING: update HANDOVER.md + docs/decisions/ as work happens; laptop may be wiped any time
+- [ShopOS Relief Cover](shopos-relief-cover.md) — 2026-08-07 SHIPPED; rule = "a cover moves the queue, not the drawer" (sell yes, reconcile never)

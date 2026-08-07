@@ -29,7 +29,6 @@ Folder names matter — the docs, and Claude's memory, refer to these exact path
 | `backend` | REST API `/api/v1` | Laravel 12 · PHP 8.4 · MySQL 8 · Redis · Sanctum | `b5b5b8b` |
 | `admin-panel` | Web SPA (super-admin + shop panel) | Vite · React 19 · TS · Tailwind v4 · TailAdmin · TanStack Query · zustand | `98dd9e3` |
 | `mobile` | React Native customer app (~55%) | React Native CLI · TS | `0913477` |
-| `wip/relief-cover` | unfinished feature, see §5 | — | `21eeea2` |
 
 Then:
 
@@ -101,13 +100,13 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1258 tests / 5288 assertions green. Panel 102 tests green.** Gates all
+**Backend 1279 tests / 5395 assertions green. Panel 109 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint`.
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
 a single audited stock write-path; POS with server-authoritative pricing,
 multi-tender + split, returns/exchange, held tickets, cash rounding, on-screen
-numpad, derived quick-keys; shifts, drawers, X/Z-reads, business day + banking;
+numpad, derived quick-keys; shifts, drawers, X/Z-reads, business day + banking, relief cover;
 pharmacy (Rx capture, FEFO, expiry); khata (sell-on-credit); loyalty points;
 restaurant dine-in (tables, tabs, KOT, settle + split); serialized selling with
 warranty lookup **and claim intake**; vehicles + trade-in as a tender; fuel /
@@ -128,23 +127,9 @@ module they were granted.
 
 ---
 
-## 5. In flight — `wip/relief-cover`
+## 5. In flight
 
-Half-built and **not merged**. The suite is green with it because everything in
-it is additive, but the endpoints are not routed and there is no UI.
-
-Done: migration + `CashSessionCover`, `ReliefCoverAction` (start/end, figures
-frozen at hand-back), `OwnOpenShift` accepting an active cover, controller
-methods, close-ends-a-running-cover.
-
-Left: routes for `POST /pos/session/cover` and `/cover/end`; restrict a
-reliever's cash movements to `no_sale`; cover breakdown on the X-read and
-Z-read; end the cover when the cashier unlocks the till again; tests; panel UI.
-
-The rule the design protects: **a cover moves the queue, not the drawer.** The
-reliever sells under their own name; the cashier who opened the shift still
-counts the box and still wears the variance. Cover grants the right to sell,
-never the right to reconcile.
+Nothing. `wip/relief-cover` shipped on 2026-08-07 and is merged into `backend`.
 
 ---
 
@@ -174,6 +159,41 @@ Finance Manager tenant a "shop" four times, and city is required there.
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-08-07 — relief cover shipped
+
+A cashier can now step away without the lane stopping. Someone else takes the
+till, rings under their **own** name, and the drawer stays the responsibility of
+the cashier who will count it.
+
+`POST /pos/session/cover` · `/cover/end`. New `cash_session_covers` table.
+
+The rule the whole design protects: **a cover moves the queue, not the drawer.**
+Cover grants the right to SELL, never the right to RECONCILE — so a reliever
+cannot close the drawer, cannot pay in or out of it (only `no_sale`, to make
+change), and is never shown its opening float or expected cash. If it granted
+both it would just be a handover with extra steps, and two people would be
+accountable for one box.
+
+Three decisions worth keeping:
+
+- **Figures freeze at hand-back**, not on read. "What did the reliever take" is
+  asked when the drawer is short, and an answer that drifts as sales are voided
+  later settles nothing. Live while the cover is running, frozen once it ends —
+  the same rule the day view already followed for open shifts.
+- **The cashier's PIN ends the cover.** Unlocking with your own PIN is the
+  gesture a counter will actually make; a reliever who has to remember to hand
+  the till back sometimes won't, and the next sale would carry the wrong name.
+- **Nobody holding their own drawer may cover another.** Two open drawers and
+  one screen is how cash lands in the wrong box, and the person who really
+  covers a break — the owner, a floor staffer — isn't holding a lane anyway.
+
+The cover breakdown appears on the X-read, the Z-read and the printed slip, so a
+cashier can say "that hour wasn't mine" from the same sheet that carries the
+variance.
+
+Backend **1258 → 1279** (21 new, 5395 assertions). Panel **102 → 109** (7 new).
+All gates clean.
 
 ### 2026-08-07 — preservation
 
