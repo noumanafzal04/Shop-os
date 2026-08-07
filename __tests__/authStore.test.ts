@@ -14,6 +14,7 @@ const fakeUser: User = {
   role: 'shop_owner',
   status: 'active',
   permissions: [],
+  branch_id: null,
   email_verified: true,
   phone_verified: false,
   last_login_at: null,
