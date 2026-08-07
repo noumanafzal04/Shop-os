@@ -78,6 +78,25 @@ export interface SettlePayload {
   tip_amount?: number;
 }
 
+/** One waiter's section over a date range. */
+export interface WaiterRow {
+  waiter_id: string;
+  waiter_name: string;
+  tables: number;
+  /** Guests seated. Zero means nobody recorded it, not an empty section. */
+  covers: number;
+  sales_count: number;
+  sales_total: number;
+  tips_total: number;
+  open_tabs: number;
+}
+
+export interface WaiterReport {
+  from: string;
+  to: string;
+  rows: WaiterRow[];
+}
+
 export const dineInService = {
   tables: () => apiGet<DiningTable[]>("/restaurant/tables", { params: { active_only: true } }),
 
@@ -143,6 +162,18 @@ export const dineInService = {
     apiPost<Ticket>(`/restaurant/tickets/${id}/waiter`, { waiter_id }),
 
   openTickets: () => apiGet<Ticket[]>("/restaurant/tickets", { params: { status: "open" } }),
+
+  /** Lay the floor out in a given order. Index in the array IS the position. */
+  reorderTables: (order: string[]) => apiPost<null>("/restaurant/tables/reorder", { order }),
+
+  /**
+   * How each waiter's section did. Defaults to today.
+   *
+   * `covers` under-reports rather than guessing: guest count is optional when
+   * a tab is opened, and a guessed cover average is worse than an honest gap.
+   */
+  waiterReport: (params: { from?: string; to?: string } = {}) =>
+    apiGet<WaiterReport>("/restaurant/reports/waiters", { params }),
 
   settle: (id: string, payload: SettlePayload) =>
     apiPost<{ ticket: Ticket; sale: { id: string; invoice_number: string; total: string } }>(

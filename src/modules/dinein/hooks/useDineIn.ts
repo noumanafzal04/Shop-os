@@ -94,5 +94,10 @@ export function useDineInMutations(ticketId?: string) {
     onSuccess: invalidate,
   });
 
-  return { openTicket, addItems, voidItem, fire, settle, move, merge, cancel, createTable, deleteTable };
+  const reorderTables = useMutation({
+    mutationFn: (order: string[]) => dineInService.reorderTables(order),
+    onSuccess: invalidate,
+  });
+
+  return { openTicket, addItems, voidItem, fire, settle, move, merge, cancel, createTable, deleteTable, reorderTables };
 }

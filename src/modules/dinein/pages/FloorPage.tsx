@@ -10,13 +10,15 @@ import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useTables, useDineInMutations } from "../hooks/useDineIn";
 import type { DiningTable } from "../services/dineInService";
+import WaiterReportModal from "../components/WaiterReportModal";
 
 export default function FloorPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const confirm = useConfirm();
   const tables = useTables();
-  const { openTicket, createTable, deleteTable } = useDineInMutations();
+  const { openTicket, createTable, deleteTable, reorderTables: reorder } = useDineInMutations();
+  const reportModal = useModal();
 
   const modal = useModal();
   const [seating, setSeating] = useState<DiningTable | null>(null);
@@ -81,6 +83,22 @@ export default function FloorPage() {
 
   const rows = tables.data ?? [];
 
+  /**
+   * Shuffle one table along by a place. The server takes the whole order and
+   * uses each id's index as its position, so the list is sent entire — a
+   * per-table "sort_order" nudge would leave two tables sharing a slot the
+   * first time one was deleted.
+   */
+  const moveTable = (id: string, delta: number) => {
+    if (reorder.isPending) return;
+    const order = rows.map((r) => r.id);
+    const at = order.indexOf(id);
+    const to = at + delta;
+    if (at < 0 || to < 0 || to >= order.length) return;
+    [order[at], order[to]] = [order[to], order[at]];
+    reorder.mutate(order, { onError: () => toast.error("Couldn't move that table.") });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <PageMeta title="Dine-in | ShopOS" description="Restaurant floor" />
@@ -94,6 +112,11 @@ export default function FloorPage() {
         </div>
         <div className="flex items-center gap-2">
           {editMode && <Button size="sm" variant="outline" onClick={addTable}>+ Add table</Button>}
+          {!editMode && (
+            <Button size="sm" variant="outline" onClick={reportModal.openModal}>
+              Sections
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => setEditMode((v) => !v)}>
             {editMode ? "Done" : "Edit floor"}
           </Button>
@@ -158,6 +181,30 @@ export default function FloorPage() {
                       ×
                     </button>
                   )}
+                  {/* Move, rather than drag. The floor is laid out on a tablet
+                      propped by the till, and a drag target that small is a
+                      table dropped in the wrong place — which on a busy floor
+                      means a waiter walking to the wrong one. */}
+                  {editMode && (
+                    <div className="absolute inset-x-0 -bottom-3 flex justify-center gap-1">
+                      <button
+                        onClick={() => moveTable(t.id, -1)}
+                        disabled={reorder.isPending || rows.indexOf(t) === 0}
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:opacity-30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                        aria-label={`Move ${t.name} earlier`}
+                      >
+                        ‹
+                      </button>
+                      <button
+                        onClick={() => moveTable(t.id, 1)}
+                        disabled={reorder.isPending || rows.indexOf(t) === rows.length - 1}
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:opacity-30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                        aria-label={`Move ${t.name} later`}
+                      >
+                        ›
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -207,6 +254,8 @@ export default function FloorPage() {
           </Button>
         </div>
       </Modal>
+
+      <WaiterReportModal isOpen={reportModal.isOpen} onClose={reportModal.closeModal} />
     </div>
   );
 }

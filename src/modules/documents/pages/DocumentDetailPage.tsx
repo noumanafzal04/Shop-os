@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -10,7 +10,7 @@ import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
-import { useMoney } from "../../shop/hooks/useShop";
+import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { receiptService } from "../../receipts/services/receiptService";
 import { useDocument, useDocumentMutations } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
@@ -25,6 +25,7 @@ export default function DocumentDetailPage() {
   const navigate = useNavigate();
   const money = useMoney();
   const toast = useToast();
+  const settings = useShopSettings();
 
   const query = useDocument(id);
   const doc = query.data;
@@ -271,6 +272,9 @@ export default function DocumentDetailPage() {
         onClose={cancelModal.closeModal}
         paid={Number(doc.deposit_paid)}
         money={money}
+        // The shop's usual fee, as a starting figure only. It is never applied
+        // for you — see the note in CancelModal.
+        feePercent={Number(settings.data?.layaway_cancellation_fee_percent ?? 0)}
         pending={mut.cancel.isPending}
         onSubmit={(payload) =>
           mut.cancel.mutate(payload, {
@@ -457,6 +461,7 @@ function CancelModal({
   onClose,
   paid,
   money,
+  feePercent,
   pending,
   onSubmit,
 }: {
@@ -464,11 +469,29 @@ function CancelModal({
   onClose: () => void;
   paid: number;
   money: (n: string | number) => string;
+  /** The shop's usual cancellation fee. A suggestion, never an application. */
+  feePercent: number;
   pending: boolean;
   onSubmit: (p: { reason?: string; forfeit_amount?: number; refund_method?: string }) => void;
 }) {
   const [reason, setReason] = useState("");
   const [forfeit, setForfeit] = useState("");
+
+  /**
+   * The shop's usual fee, filled in for whoever is cancelling.
+   *
+   * It is a STARTING FIGURE, not a rule. The server still defaults to handing
+   * every rupee back when no split is stated — keeping a customer's money by
+   * accident is the worse mistake, so nothing is ever deducted without someone
+   * choosing it. All this saves is the arithmetic.
+   */
+  const suggested = feePercent > 0 ? Math.round(paid * feePercent) / 100 : 0;
+
+  // Re-seed each time the dialog opens: a fee typed for the last cancellation
+  // must not carry over onto a different customer's money.
+  useEffect(() => {
+    if (isOpen) setForfeit(suggested > 0 ? String(suggested) : "");
+  }, [isOpen, suggested]);
 
   const kept = Math.min(Math.max(0, Number(forfeit) || 0), paid);
   const back = Math.max(0, paid - kept);
@@ -493,6 +516,12 @@ function CancelModal({
             <div>
               <Label>Cancellation fee kept</Label>
               <Input type="number" value={forfeit} onChange={(e) => setForfeit(e.target.value)} placeholder="0" />
+              {suggested > 0 && (
+                <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                  Your usual fee is {feePercent}% — {money(suggested)} on this booking. Change it or clear it to
+                  return everything.
+                </p>
+              )}
             </div>
             {/* Say plainly what the customer walks away with — this is the
                 number they will remember, and getting it wrong is the kind of

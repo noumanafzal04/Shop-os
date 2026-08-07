@@ -19,6 +19,7 @@ import RegistersPanel from "../../registers/components/RegistersPanel";
 import TaxGroupsManager from "../../catalog/components/TaxGroupsManager";
 import { ReceiptPreview } from "../../receipts/components/ReceiptPreview";
 import TillPinsPanel from "../../pos/components/TillPinsPanel";
+import DeviceSessionsPanel from "../../auth/components/DeviceSessionsPanel";
 
 /** One saved shop preference. Arrays exist because kitchen stations are a list. */
 type PrefValue = string | number | boolean | string[] | null;
@@ -627,9 +628,25 @@ export default function ShopSettingsPage() {
                         className="max-w-[10rem]"
                       />
                     </Field>
+                    <Field
+                      label="Usual cancellation fee"
+                      hint="Holding a fridge for six weeks costs you the floor space and the sale you couldn't make. This fills in the fee box when a booking is cancelled — it's a starting figure, not a rule, and whoever cancels can change it or waive it there and then. 0 = suggest nothing."
+                    >
+                      <div className="flex max-w-[10rem] items-center gap-2">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={String(prefs.layaway_cancellation_fee_percent ?? 0)}
+                          onChange={(e) => setP("layaway_cancellation_fee_percent", Number(e.target.value))}
+                        />
+                        <span className="text-theme-sm text-gray-500">%</span>
+                      </div>
+                    </Field>
                     <p className="text-theme-xs text-gray-400">
-                      Cancelling a booking puts the goods back on your shelf and returns the advance in full unless
-                      you keep a fee — you set that per cancellation, so it's always a deliberate decision.
+                      Cancelling a booking always puts the goods back on your shelf. The advance goes back in full
+                      unless a fee is kept, and that stays a deliberate decision on the day — nothing is ever
+                      deducted from a customer's money without someone choosing it.
                     </p>
                   </>
                 )}
@@ -637,6 +654,14 @@ export default function ShopSettingsPage() {
 
               <SectionCard icon={<UserGlyph />} title="Till PINs" description="A short PIN lets someone take the till in a second, so sales, voids and drawers belong to whoever actually made them. A PIN only works at a till already signed in — never to log in.">
                 <TillPinsPanel />
+              </SectionCard>
+
+              <SectionCard
+                icon={<UserGlyph />}
+                title="Signed-in devices"
+                description="Every browser and tablet currently signed in to your account. Lost one, or lent it out and never got it back? Sign that one out without throwing every working till off mid-queue."
+              >
+                <DeviceSessionsPanel />
               </SectionCard>
               </>
             )}

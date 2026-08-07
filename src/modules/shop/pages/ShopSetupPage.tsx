@@ -8,6 +8,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import MapPicker, { type PickedLocation } from "../../../components/maps/MapPicker";
 import { ApiError } from "../../../common/types/api";
 import { useBusinessTypes, useCities, useCompleteSetup } from "../hooks/useShop";
+import { useCapabilities } from "../../dashboard/components/shop/capabilities";
 import { useAuthStore } from "../../../stores/authStore";
 
 /**
@@ -25,6 +26,20 @@ export default function ShopSetupPage() {
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
+
+  /**
+   * What to call this tenant.
+   *
+   * A Finance Manager tenant sells nothing — it is a bookkeeping office, and
+   * calling it a "shop" four times on the first screen it ever shows tells the
+   * owner the product was not built for them before they have entered a single
+   * figure. The distinction is already known here: a tenant granted no selling
+   * module keeps books and nothing else.
+   */
+  const caps = useCapabilities();
+  const noun = caps.sells
+    ? { Title: "Shop", lower: "shop" }
+    : { Title: "Business", lower: "business" };
 
   // The admin-assigned type, shown for reassurance (not editable here).
   const assignedType = user?.tenant?.business_type ?? null;
@@ -66,14 +81,14 @@ export default function ShopSetupPage() {
 
   return (
     <>
-      <PageMeta title="Shop Setup | ShopOS" description="Complete your shop profile" />
+      <PageMeta title={`${noun.Title} setup | ShopOS`} description={`Complete your ${noun.lower} profile`} />
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6 dark:bg-gray-900">
         <div className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-white/[0.03]">
           <h1 className="mb-1 text-title-sm font-semibold text-gray-800 dark:text-white/90">
-            Set up {user?.tenant?.business_name ?? "your shop"}
+            Set up {user?.tenant?.business_name ?? `your ${noun.lower}`}
           </h1>
           <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
-            Just a couple of basics — tell us where your shop is and you're ready to go.
+            Just a couple of basics — tell us where your {noun.lower} is and you&rsquo;re ready to go.
           </p>
 
           {generalError && (
@@ -112,7 +127,7 @@ export default function ShopSetupPage() {
             </div>
 
             <div>
-              <Label>Shop location</Label>
+              <Label>{noun.Title} location</Label>
               <MapPicker value={coords} onChange={onLocation} />
               {coords && (
                 <p className="mt-1 text-theme-xs text-success-600 dark:text-success-400">
@@ -129,7 +144,7 @@ export default function ShopSetupPage() {
 
             <div>
               <Label>Address {coords ? "" : "(optional)"}</Label>
-              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Shop street address" />
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder={`${noun.Title} street address`} />
             </div>
 
             <Button className="w-full" size="sm" disabled={setup.isPending || !cityId}>
