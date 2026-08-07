@@ -136,13 +136,16 @@ Nothing. `wip/relief-cover` shipped on 2026-08-07 and is merged into `backend`.
 ## 6. What's left
 
 **The current order is: finish the web side first, excluding offline.** Decided
-2026-08-07. Two feature gaps remain on the web:
+2026-08-07. One feature gap remains on the web:
 
-1. **Waiter floor scoping.** A waiter sees and can open every table in the shop.
-   `dining_tables.area` is a label, and `restaurant_tickets.waiter_id` records
-   who served — neither says who *may* open what.
-2. **Training mode.** Ranked last; it earns its keep at a six-lane supermarket,
-   not a three-person shop.
+1. **Training mode.** Ranked last; it earns its keep at a supermarket with six
+   checkout lanes and a stream of new cashiers, not at a three-person shop
+   where the owner teaches over their shoulder on the live till.
+
+Multi-lane itself is **done** — `registers` are created by the owner, one per
+checkout, each with its own printer, drawer and shift. The `registers` limit
+defaults to **2** per tenant and an admin raises it; worth remembering when a
+supermarket signs, or their Lane 3 is refused at creation.
 
 **Deployment / CI-CD is the only hard launch blocker**, and it is ops rather
 than product. Staging is a $6 DigitalOcean droplet, `shopos-dev` at
@@ -165,6 +168,55 @@ session log).
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-08-07 — a tab belongs to the waiter serving it
+
+The dine-in floor had one gate, `sales.manage`, and behind it every waiter could
+open, work, settle and cancel every table in the building. The floor showed
+which tables were taken and said nothing about by whom.
+
+The reason that matters is money, not privacy. `/restaurant/reports/waiters` is
+what a restaurant pays tips and commission off, and it attributes each tab's
+takings to its waiter. If anybody can settle anybody's bill that report says
+nothing about who earned it — and the error is **invisible**, because a settled
+tab looks identical either way.
+
+Writes to a tab now require that it is yours, or the new `tables.serve_any`.
+Three edges are deliberate:
+
+- **Reads stay open.** A waiter running a colleague's food needs to see the tab.
+  A floor where half the tables are blank is worse than one where half are
+  read-only, and hiding a bill prevents no mistake.
+- **An unclaimed tab is everyone's.** No waiter set — a counter takeaway, a tab
+  from before the column existed — must not become an orphan only an owner can
+  settle.
+- **Opening is always allowed.** You cannot trespass on a table nobody is
+  serving; opening it is what makes it yours.
+
+Hand-over is not the loophole: you may give your own table to anyone, but
+taking someone else's needs the permission. Merge checks **both** tabs, since
+folding another waiter's table into yours moves their evening onto your name.
+
+Cashier, shift supervisor and manager presets carry `tables.serve_any` — the
+till settles what the floor opened. **Waiter deliberately does not; that is the
+feature.** A migration grants it to every existing staff member holding
+`sales.manage`, so nobody loses access overnight, and it is tested by being run
+by hand — `RefreshDatabase` migrates an empty database and would never execute
+the loop.
+
+**A real bug found while testing it:** reading the floor sat behind
+`settings.manage`, which no preset grants. So the Waiter preset produced someone
+who could not load the one screen they work all night. Reading the floor is now
+`sales.manage`; laying it out stays with the owner.
+
+Two more things that existed and did nothing: `dining_tables.area` was accepted
+by the API and never set by the panel (now a Section field with grouped
+headings, and a reorder that stays inside its section), and `hint` in the
+panel's permission map was declared and never rendered — now shown under the
+checkbox, which is exactly where "void a sale" and "refund a sale" needed
+telling apart.
+
+Backend **1295 → 1312**. Panel **109 → 116**.
 
 ### 2026-08-07 — settings the server enforced and nobody could set
 
