@@ -25,9 +25,9 @@ Folder names matter — the docs, and Claude's memory, refer to these exact path
 
 | Branch | App | Stack | Head at handover |
 |---|---|---|---|
-| `main` | this overview + all docs | — | `f49b141` |
-| `backend` | REST API `/api/v1` | Laravel 12 · PHP 8.4 · MySQL 8 · Redis · Sanctum | `b5b5b8b` |
-| `admin-panel` | Web SPA (super-admin + shop panel) | Vite · React 19 · TS · Tailwind v4 · TailAdmin · TanStack Query · zustand | `98dd9e3` |
+| `main` | this overview + all docs | — | `9f98e3a` |
+| `backend` | REST API `/api/v1` | Laravel 12 · PHP 8.4 · MySQL 8 · Redis · Sanctum | `c9b183e` |
+| `admin-panel` | Web SPA (super-admin + shop panel) | Vite · React 19 · TS · Tailwind v4 · TailAdmin · TanStack Query · zustand | `1930f61` |
 | `mobile` | React Native customer app (~55%) | React Native CLI · TS | `0913477` |
 
 Then:
@@ -100,7 +100,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1279 tests / 5395 assertions green. Panel 109 tests green.** Gates all
+**Backend 1295 tests / 5501 assertions green. Panel 109 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint`.
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
@@ -135,18 +135,28 @@ Nothing. `wip/relief-cover` shipped on 2026-08-07 and is merged into `backend`.
 
 ## 6. What's left
 
-**Deployment / CI-CD is the only hard launch blocker.** Staging is a $6 DigitalOcean
-droplet, `shopos-dev` at `159.223.78.102` — backend health at `/api/v1/health`,
-panel on `:8080`. It reflects none of the last three sessions of work.
+**The current order is: finish the web side first, excluding offline.** Decided
+2026-08-07. Two feature gaps remain on the web:
 
-Then, roughly in order: the offline PWA POS (parked for last — the plan is in
-`docs/decisions/shopos-offline-plan.md`); finishing the mobile app, whose
-contracts have moved under it (`item_types`, `other_income`, `logo_url` all
-changed shape); training mode (ranked last — it earns its keep at a six-lane
-supermarket, not a three-person shop).
+1. **Waiter floor scoping.** A waiter sees and can open every table in the shop.
+   `dining_tables.area` is a label, and `restaurant_tickets.waiter_id` records
+   who served — neither says who *may* open what.
+2. **Training mode.** Ranked last; it earns its keep at a six-lane supermarket,
+   not a three-person shop.
+
+**Deployment / CI-CD is the only hard launch blocker**, and it is ops rather
+than product. Staging is a $6 DigitalOcean droplet, `shopos-dev` at
+`159.223.78.102` — backend health at `/api/v1/health`, panel on `:8080`. It
+reflects none of the last four sessions of work.
+
+Parked deliberately, in order: the offline PWA POS (plan in
+`docs/decisions/shopos-offline-plan.md`); the mobile apps, whose contracts have
+moved under them (`item_types`, `other_income`, `logo_url` all changed shape) —
+plan in `docs/MOBILE-PLAN.md`; the rider backend that the rider app needs; a
+payment gateway (there is none anywhere, and COD launches without one).
 
 The smaller loose ends from the 2026-08-06 audit are all cleared (see the
-session log). Nothing known is outstanding below the two items above.
+session log).
 
 ---
 
@@ -155,6 +165,49 @@ session log). Nothing known is outstanding below the two items above.
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-08-07 — settings the server enforced and nobody could set
+
+Auditing the web side rather than answering from memory. Two sweeps:
+
+**Dead endpoints: none.** Every tenant route has a panel caller. The first pass
+reported 45 orphans and every one was false — the probe matched literal paths
+and the panel builds most of its URLs from template literals
+(`/products/${id}/images`). This is the *second* time that trap has produced a
+fake audit result. Match on the longest literal segment, never the whole path.
+
+**Inert settings: four real.** Of 57 keys, 18 looked suspicious and four were:
+
+- **The discount ceiling was unreachable.** `max_discount_percent` and
+  `max_discount_amount` have been enforced in `CreateSaleAction` and
+  `CreateSaleDocumentAction` since they shipped, and `discounts.override` exists
+  precisely to let a supervisor exceed them — but no field ever existed to set
+  them, so both sat `null`, the ceiling was infinite and the permission guarded
+  nothing. A cashier could take any amount off any bill. The enforcing code's own
+  comment said *"an owner sets them in Settings → POS"*. Now that is true.
+  Blank still means no limit, which is why this stayed silent for so long.
+- **Tips were trapped inside the Kitchen card**, which only renders for dine-in
+  tenants — so a salon, a workshop, a café counter or a delivery-only shop could
+  never switch them on. Now its own card, gated by nothing.
+- **Stock ageing had no field.** `BatchController` reads
+  `stock_age_warn_years` / `stock_age_old_years` and its comment calls them
+  "both configurable". Trade-gated to `automotive`: for a tyre this is age from
+  a DOT week, not an expiry date, and calling it expiry in a pharmacy would be
+  a dangerous mislabel.
+- **`delivery_provider` was removed.** Declared in defaults, validated on save,
+  read by nothing. Config that promises behaviour it doesn't have is worse than
+  a missing feature; it comes back with the code that reads it.
+
+**One thing I got wrong, recorded because the reasoning is the useful part.** I
+also added server-side enforcement of `tips_enabled` — reject a tip when the
+shop has tips off. It broke four `FoodServiceTest` cases, and on checking, the
+premise was wrong: a tip is added to `$due`, so the cash really is in the drawer
+and `DrawerMath` already expects it. There is no shortage to prevent.
+`tips_enabled` is a client prompt toggle like `pos_auto_print`, and enforcing it
+server-side would have rejected legitimate money. Reverted rather than amended
+the tests to fit.
+
+Backend **1295** (unchanged; a deletion). Panel 109.
 
 ### 2026-08-07 — job presets on the staff form
 

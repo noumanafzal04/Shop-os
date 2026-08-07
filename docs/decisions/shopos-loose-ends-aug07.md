@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: a4ba9d48-2a02-4ea8-81fb-a04eeaffd6b9
-  modified: 2026-08-07T07:29:34.407Z
+  modified: 2026-08-07T12:33:23.169Z
 ---
 
 The smaller loose ends from the 2026-08-06 audit are all fixed and pushed
@@ -31,6 +31,8 @@ a green test suite never catches. The reusable check that found them: dump
 `route:list --json` and regex every tenant route against the whole panel source
 — but match template literals too, or you get false positives.
 
-**Remaining, and nothing else known:** deployment/CI-CD (the only hard launch
-blocker) and training mode (ranked last). See [[shopos-audit-aug06]],
-[[shopos-relief-cover]], [[shopos-deployment]], [[shopos-docs-discipline]].
+**Superseded on remaining work** by [[shopos-web-completion]] — a later sweep
+found 4 more inert settings, and the web list is now waiter scoping + training
+mode, with deployment/CI-CD still the only hard launch blocker. See also
+[[shopos-audit-aug06]], [[shopos-relief-cover]], [[shopos-deployment]],
+[[shopos-docs-discipline]].

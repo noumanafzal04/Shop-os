@@ -34,3 +34,4 @@
 - [ShopOS Relief Cover](shopos-relief-cover.md) — 2026-08-07 SHIPPED; rule = "a cover moves the queue, not the drawer" (sell yes, reconcile never)
 - [Loose Ends Aug-07](shopos-loose-ends-aug07.md) — all 4 Aug-06 audit loose ends cleared; only deployment + training mode remain
 - [No Roles — Permissions Only](shopos-no-roles.md) — ARCHITECTURE: cashier/waiter/kitchen are permission SETS not roles; job presets shipped
+- [Web Completion](shopos-web-completion.md) — DIRECTIVE web-first excluding offline; 4 inert settings fixed; only waiter scoping + training mode left
