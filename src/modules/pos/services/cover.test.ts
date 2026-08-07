@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCover, type ActiveCover, type CashSession, type SessionState } from "./posService";
+import { isCover, isTraining, type ActiveCover, type CashSession, type SessionState } from "./posService";
 
 /**
  * `/pos/session` answers with one of three things: my own drawer, the drawer
@@ -82,5 +82,41 @@ describe("session state", () => {
 
   it("still tells them whose drawer it is, because they must not forget", () => {
     expect(cover.cashier_name).toBe("Ayesha");
+  });
+});
+
+/**
+ * Training rides on the same three-state answer, and the flag belongs to the
+ * DRAWER rather than the person standing at it. That is the whole rule, and
+ * getting it wrong in either direction is bad: a real till wearing the banner
+ * teaches a cashier to ignore it, and a practice till without one takes real
+ * money for sales nobody recorded.
+ */
+describe("isTraining", () => {
+  it("is false for an ordinary drawer", () => {
+    expect(isTraining(drawer)).toBe(false);
+  });
+
+  it("is false when nobody has a shift open", () => {
+    expect(isTraining(null)).toBe(false);
+  });
+
+  it("marks my own practice drawer", () => {
+    expect(isTraining({ ...drawer, is_training: true })).toBe(true);
+  });
+
+  /** Covering a practice drawer is practising, whoever is standing there. */
+  it("marks a cover of a practice drawer", () => {
+    expect(isTraining({ ...cover, is_training: true })).toBe(true);
+    expect(isTraining(cover)).toBe(false);
+  });
+
+  /**
+   * A server that has never heard of training sends no flag at all. Absent
+   * must read as "real" — the alternative dresses every live till in a banner
+   * saying its takings do not count.
+   */
+  it("treats a missing flag as a real shift", () => {
+    expect(isTraining({ ...drawer, is_training: undefined })).toBe(false);
   });
 });

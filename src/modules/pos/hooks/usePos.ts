@@ -35,8 +35,11 @@ export function useShiftMutations() {
   };
 
   const open = useMutation({
-    mutationFn: ({ float, registerId }: { float: number; registerId?: string | null }) =>
-      posService.openSession(float, registerId),
+    mutationFn: ({ float, registerId, training }: {
+      float: number;
+      registerId?: string | null;
+      training?: boolean;
+    }) => posService.openSession(float, registerId, training ?? false),
     onSuccess: invalidate,
   });
   // Handover — the same drawer, a different lane.

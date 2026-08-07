@@ -52,6 +52,13 @@ export interface ShiftRow {
   user?: { id: string; name: string } | null;
   register?: { id: string; name: string; code: string | null } | null;
   branch?: { id: string; name: string } | null;
+  /**
+   * A practice shift. Listed in the history — somebody really did stand at a
+   * till — but excluded from `totals`, which is what a manager reads as
+   * takings. Anything rendering these rows must label it, or the figures on a
+   * training row read as real ones.
+   */
+  is_training?: boolean;
 }
 
 export interface ShiftDay {

@@ -25,7 +25,7 @@ import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
 import CloseShiftModal from "../components/CloseShiftModal";
 import { useQuickKeys, useCoverMutations, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
-import { isCover, type ActiveCover, type CashSession } from "../services/posService";
+import { isCover, isTraining, type ActiveCover, type CashSession } from "../services/posService";
 import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
 import { receiptService, type ReceiptKind } from "../../receipts/services/receiptService";
 import { useFailedReceipts } from "../../receipts/hooks/useReceipts";
@@ -252,6 +252,10 @@ export default function PosPage() {
   const open = covering ? null : ((session.data as CashSession | null) ?? null);
   // The drawer a sale must be rung into — mine, or the one I'm standing at.
   const activeSessionId = covering ? covering.session_id : (open?.id ?? null);
+  // A practice shift. Server-decided and fixed at open; the till only reports
+  // it. A reliever covering a training drawer is training too — the flag
+  // belongs to the drawer, not the person standing at it.
+  const training = isTraining(session.data ?? null);
   const myLane = laneList.find(
     (l) => l.id === (covering?.register?.id ?? open?.register_id ?? terminalId),
   );
@@ -516,6 +520,9 @@ export default function PosPage() {
     enabled: !!serialLineProductId && serialModal.isOpen,
   });
   const [openingFloat, setOpeningFloat] = useState("");
+  // Only ever read when a shift is OPENED — the server fixes the mode for the
+  // life of the shift, so this checkbox has no meaning afterwards.
+  const [openTraining, setOpenTraining] = useState(false);
   // Shift conflicts are recoverable, so they're shown in the modal with the way
   // out (move the drawer here) rather than thrown away as a toast.
   const [shiftError, setShiftError] = useState<{ message: string; code?: string } | null>(null);
@@ -1124,6 +1131,21 @@ export default function PosPage() {
         total={total}
         onDone={clearSale}
       />
+
+      {/* Practice. A full-width bar rather than a chip among chips: a till in
+          training looks EXACTLY like a live one, so the one thing that must
+          never be mistaken gets the whole width and sits above everything
+          else. It cannot be dismissed — the only way out is closing the
+          shift, which is the truth of it. */}
+      {training && (
+        <div className="flex shrink-0 items-center justify-center gap-2 bg-warning-500 px-4 py-1.5 text-center text-theme-sm font-semibold uppercase tracking-wider text-white">
+          <AlertIcon className="h-4 w-4 shrink-0" />
+          Training shift — nothing here is real
+          <span className="hidden font-normal normal-case tracking-normal text-white/85 sm:inline">
+            · no stock moves, no money counts, receipts print TRAINING
+          </span>
+        </div>
+      )}
 
       {/* Top bar — full-screen POS has no app sidebar/header, so it carries
           its own: exit, shift status, keyboard legend, shift + online. */}
@@ -2272,6 +2294,25 @@ export default function PosPage() {
         <label className="mt-3 text-sm text-gray-500 dark:text-gray-400">Opening cash float</label>
         <Input type="number" min="0" value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} />
 
+        {/* Chosen here and nowhere else. A switch inside a running shift is how
+            practice and real money end up in one drawer, so the only way in or
+            out of training is opening and closing a shift. */}
+        <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 shrink-0"
+            checked={openTraining}
+            onChange={(e) => setOpenTraining(e.target.checked)}
+          />
+          <span>
+            <span className="text-theme-sm font-medium text-gray-700 dark:text-gray-200">Training shift</span>
+            <span className="block text-theme-xs text-gray-400">
+              For practice. Nothing sold comes off the shelf, no money reaches the day's takings, and
+              every receipt prints TRAINING. Close the shift to go back to real sales.
+            </span>
+          </span>
+        </label>
+
         {shiftError && (
           <div className="mt-4 rounded-lg border border-warning-200 bg-warning-50 p-3 text-theme-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
             <div className="flex items-start gap-1.5"><AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />{shiftError.message}</div>
@@ -2301,7 +2342,7 @@ export default function PosPage() {
             disabled={shift.open.isPending}
             onClick={() => {
               setShiftError(null);
-              shift.open.mutate({ float: Number(openingFloat) || 0, registerId: terminalId }, {
+              shift.open.mutate({ float: Number(openingFloat) || 0, registerId: terminalId, training: openTraining }, {
                 onSuccess: () => openModal.closeModal(),
                 onError: (e) => setShiftError(
                   e instanceof ApiError

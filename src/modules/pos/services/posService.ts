@@ -15,6 +15,11 @@ export interface CashSession {
   closed_at: string | null;
   register_id?: string | null;
   register?: { id: string; name: string; code: string | null } | null;
+  /**
+   * A practice shift. Fixed at open — nothing rung on it reaches stock, the
+   * day's takings or any report, and its receipts print TRAINING.
+   */
+  is_training?: boolean;
   /** Somebody is standing in for me right now. */
   covered_by?: { user_id: string; user_name: string | null; started_at: string } | null;
 }
@@ -35,6 +40,13 @@ export interface ActiveCover {
   session_id: string;
   cashier_name: string | null;
   register: { id: string; name: string; code: string | null } | null;
+  /**
+   * Whether the drawer I am standing at is a practice one. The float and the
+   * expected cash are withheld from a reliever on purpose; this is not — ring
+   * a real customer onto a training shift and you take money for a sale that
+   * was never recorded.
+   */
+  is_training?: boolean;
   started_at: string;
   ended_at: string | null;
   reason: string | null;
@@ -61,6 +73,19 @@ export type SessionState = CashSession | ActiveCover | null;
 
 export const isCover = (s: SessionState): s is ActiveCover =>
   s !== null && (s as ActiveCover).covering === true;
+
+/**
+ * Is this till practising?
+ *
+ * The flag belongs to the DRAWER, not the person standing at it — so a
+ * reliever covering a training shift is training too. Both shapes carry it for
+ * that reason, and reading it off whichever one arrived is the whole rule.
+ *
+ * Defaults to false when absent: a server that has not been told about
+ * training must not leave a real till wearing the banner.
+ */
+export const isTraining = (s: SessionState): boolean =>
+  s !== null && (s as { is_training?: boolean }).is_training === true;
 
 export interface HeldSale {
   id: string;
@@ -217,8 +242,12 @@ export const posService = {
   endCover: () => apiPost<ActiveCover>("/pos/session/cover/end", {}),
   // The lane may be named explicitly (the picker) or left to the terminal's
   // own X-Register-Id header. Re-opening the lane you already hold RESUMES it.
-  openSession: (opening_float: number, register_id?: string | null) =>
-    apiPost<CashSession>("/pos/session/open", register_id ? { opening_float, register_id } : { opening_float }),
+  openSession: (opening_float: number, register_id?: string | null, is_training = false) =>
+    apiPost<CashSession>("/pos/session/open", {
+      opening_float,
+      ...(register_id ? { register_id } : {}),
+      ...(is_training ? { is_training: true } : {}),
+    }),
   // Handover: carry an open drawer to another lane when a terminal dies or the
   // shop closes the far lanes for the evening.
   moveSession: (register_id: string) => apiPost<CashSession>("/pos/session/move", { register_id }),
