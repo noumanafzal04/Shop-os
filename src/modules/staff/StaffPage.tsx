@@ -11,7 +11,7 @@ import { ApiError } from "../../common/types/api";
 import { useDebouncedValue } from "../../common/hooks/useDebouncedValue";
 import type { User } from "../auth/types";
 import { useStaffModule, type StaffInput } from "./hooks/useStaff";
-import { labelFor } from "./permissions";
+import { hintFor, labelFor } from "./permissions";
 
 interface Props {
   title: string;
@@ -262,12 +262,18 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
 
             <Label>Permissions <span className="text-error-500">*</span></Label>
             <div className="mt-1 grid grid-cols-1 gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800 sm:grid-cols-2">
-              {catalog.map((key) => (
-                <label key={key} className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
-                  <input type="checkbox" className="h-4 w-4" checked={form.permissions.includes(key)} onChange={() => togglePerm(key)} />
-                  {labelFor(key)}
-                </label>
-              ))}
+              {catalog.map((key) => {
+                const hint = hintFor(key);
+                return (
+                  <label key={key} className="flex cursor-pointer items-start gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={form.permissions.includes(key)} onChange={() => togglePerm(key)} />
+                    <span>
+                      {labelFor(key)}
+                      {hint && <span className="block text-theme-xs text-gray-400">{hint}</span>}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
             {errorFor("permissions") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("permissions")}</p>}
           </div>

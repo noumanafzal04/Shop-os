@@ -12,6 +12,8 @@ interface InputProps {
   min?: string;
   max?: string;
   step?: number;
+  /** id of a <datalist> — suggestions the field offers without restricting it. */
+  list?: string;
   disabled?: boolean;
   success?: boolean;
   error?: boolean;
@@ -29,6 +31,7 @@ const Input: FC<InputProps> = ({
   min,
   max,
   step,
+  list,
   disabled = false,
   success = false,
   error = false,
@@ -58,6 +61,7 @@ const Input: FC<InputProps> = ({
         min={min}
         max={max}
         step={step}
+        list={list}
         disabled={disabled}
         className={inputClasses}
       />

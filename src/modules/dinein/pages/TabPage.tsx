@@ -15,6 +15,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { catalogService } from "../../catalog/services/catalogService";
 import type { Product, ModifierGroup } from "../../catalog/types";
 import { useTicket, useDineInMutations, useOpenTickets, useTables } from "../hooks/useDineIn";
+import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
 
 const KOT_BADGE: Record<string, { label: string; cls: string }> = {
@@ -32,6 +33,12 @@ export default function TabPage() {
 
   const ticketQ = useTicket(id);
   const ticket = ticketQ.data;
+
+  // A tab belongs to the waiter serving it. Someone else's is READ-ONLY here:
+  // the screen opens so food can be run and questions answered, and every
+  // control that would write is gone rather than present and refused.
+  const mayWork = useMayWorkTable();
+  const mine = mayWork(ticket?.waiter_id);
   const settings = useShopSettings();
   const taxRate = Number(settings.data?.default_tax_rate ?? 0);
   const { addItems, voidItem, fire, settle, move, merge, cancel } = useDineInMutations(id);
@@ -260,24 +267,34 @@ export default function TabPage() {
             <p className="text-theme-xs text-gray-400">
               {ticket.order_type === "dine_in" ? "Dine-in" : "Takeaway"}
               {ticket.guest_count ? ` · ${ticket.guest_count} guests` : ""}
+              {ticket.waiter ? ` · ${ticket.waiter.name}` : ""}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          {/* A floor moves: a party changes table, and two tables turn out to
-              be one party. Both used to mean voiding the tab and re-ringing
-              the meal, which loses the KOTs already fired. */}
-          <button onClick={() => { setMoveTable(ticket.table?.id ?? ""); moveModal.openModal(); }}
-            className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
-            Move table
-          </button>
-          <button onClick={() => { setMergeSource(""); mergeModal.openModal(); }}
-            className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
-            Merge tab
-          </button>
-          <button onClick={onCancel} className="text-theme-sm text-error-500 hover:text-error-600">Cancel tab</button>
-        </div>
+        {mine && (
+          <div className="flex items-center gap-4">
+            {/* A floor moves: a party changes table, and two tables turn out to
+                be one party. Both used to mean voiding the tab and re-ringing
+                the meal, which loses the KOTs already fired. */}
+            <button onClick={() => { setMoveTable(ticket.table?.id ?? ""); moveModal.openModal(); }}
+              className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
+              Move table
+            </button>
+            <button onClick={() => { setMergeSource(""); mergeModal.openModal(); }}
+              className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
+              Merge tab
+            </button>
+            <button onClick={onCancel} className="text-theme-sm text-error-500 hover:text-error-600">Cancel tab</button>
+          </div>
+        )}
       </header>
+
+      {!mine && (
+        <div className="border-b border-warning-200 bg-warning-50 px-5 py-2 text-theme-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
+          {ticket.waiter?.name ?? "Another waiter"} is serving this table. You can see the tab but not change it —
+          ask them or a supervisor to hand it over.
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Menu */}
@@ -301,7 +318,7 @@ export default function TabPage() {
                 <button
                   key={p.id}
                   onClick={() => addProduct(p)}
-                  disabled={addItems.isPending}
+                  disabled={addItems.isPending || !mine}
                   className="flex h-24 flex-col justify-between rounded-xl border border-gray-200 bg-white p-3 text-left transition-colors hover:border-brand-400 disabled:opacity-50 dark:border-gray-800 dark:bg-white/[0.03]"
                 >
                   <span className="line-clamp-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">{p.name}</span>
@@ -338,7 +355,7 @@ export default function TabPage() {
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           <span className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">{money(i.line_total)}</span>
-                          {!i.sale_id && (
+                          {!i.sale_id && mine && (
                             <button onClick={() => onVoid(i)} className="text-theme-xs text-error-500 hover:text-error-600">Void</button>
                           )}
                         </div>
@@ -356,10 +373,10 @@ export default function TabPage() {
               <span className="text-xl font-bold text-gray-800 dark:text-white/90">{money(ticket.running_total)}</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" onClick={onFire} disabled={firable.length === 0 || fire.isPending}>
+              <Button size="sm" variant="outline" onClick={onFire} disabled={firable.length === 0 || fire.isPending || !mine}>
                 {fire.isPending ? "Firing…" : `Fire to kitchen${firable.length ? ` (${firable.length})` : ""}`}
               </Button>
-              <Button size="sm" onClick={openSettle} disabled={unsettled.length === 0}>Settle</Button>
+              <Button size="sm" onClick={openSettle} disabled={unsettled.length === 0 || !mine}>Settle</Button>
             </div>
           </div>
         </div>
@@ -448,8 +465,11 @@ export default function TabPage() {
           value={mergeSource}
           options={[
             { value: "", label: "— Choose a tab —" },
+            // Only tabs you may work. Folding another waiter's table into
+            // yours moves their takings onto your name, so the server refuses
+            // it — offering it here would only produce a refusal.
             ...(openTabs.data ?? [])
-              .filter((t) => t.id !== id)
+              .filter((t) => t.id !== id && mayWork(t.waiter_id))
               .map((t) => ({ value: t.id, label: `${t.table?.name ?? "Takeaway"} · ${t.ticket_number}` })),
           ]}
           onChange={setMergeSource}

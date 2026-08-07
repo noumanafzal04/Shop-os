@@ -4,6 +4,8 @@ import { printHtmlDocument } from "../../../common/print";
 export interface DiningTable {
   id: string;
   name: string;
+  /** A section of the floor — "Garden", "Rooftop". Grouping, not authority. */
+  area: string | null;
   seats: number | null;
   sort_order: number;
   is_active: boolean;
@@ -13,6 +15,9 @@ export interface DiningTable {
     opened_at: string;
     guest_count: number | null;
     status: string;
+    /** Whose table this is. Null = nobody's, so anyone may work it. */
+    waiter_id: string | null;
+    waiter: { id: string; name: string } | null;
   } | null;
 }
 
