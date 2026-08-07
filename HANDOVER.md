@@ -145,12 +145,8 @@ contracts have moved under it (`item_types`, `other_income`, `logo_url` all
 changed shape); training mode (ranked last — it earns its keep at a six-lane
 supermarket, not a three-person shop).
 
-Smaller loose ends: three dead endpoints (`GET /restaurant/reports/waiters`,
-`POST /restaurant/tables/reorder`, `GET`/`DELETE /auth/sessions`);
-`layaway_cancellation_fee_percent` is orphaned — not in the settings form, unread
-by the backend, and it doesn't pre-fill the cancel dialog; `auto_workshop` exists
-as a category under both `services` and `automotive`; `ShopSetupPage` calls a
-Finance Manager tenant a "shop" four times, and city is required there.
+The smaller loose ends from the 2026-08-06 audit are all cleared (see the
+session log). Nothing known is outstanding below the two items above.
 
 ---
 
@@ -159,6 +155,33 @@ Finance Manager tenant a "shop" four times, and city is required there.
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-08-07 — loose ends cleared
+
+Four small defects, each real:
+
+- **`layaway_cancellation_fee_percent` was inert.** It existed in settings and
+  in the panel's types, and nothing anywhere read it. It now has a field in
+  Shop Settings and pre-fills the cancel dialog. Deliberately a **suggestion,
+  never an application** — the server still defaults to handing every rupee
+  back when no split is stated, because keeping a customer's money by accident
+  is the worse mistake. All the setting saves is the arithmetic.
+- **Three endpoints existed with no caller.** `GET /auth/sessions` +
+  `DELETE /auth/sessions/{id}` — signed-in devices, now in Shop Settings, so a
+  lost tablet can be signed out without throwing every working till off with
+  "log out everywhere". `GET /restaurant/reports/waiters` — now the *Sections*
+  button on the dine-in floor. `POST /restaurant/tables/reorder` — now move
+  buttons in Edit floor mode (move, not drag: the floor is laid out on a tablet
+  by the till, and a drag target that small means a table in the wrong place).
+- **`auto_workshop` sat under two business types** with the same words and
+  silently different capability — under `services` it cannot stock a single
+  tyre. Relabelled "Auto Workshop (labour only)" rather than removed, because a
+  mechanic who fits customer-supplied parts is a real trade.
+- **Setup called a Finance Manager tenant a "shop" four times** on the first
+  screen it ever shows. Now reads the capability the panel already knows.
+
+City stays required at setup — every business has a location, and reports group
+by it. Only the framing was wrong.
 
 ### 2026-08-07 — relief cover shipped
 
