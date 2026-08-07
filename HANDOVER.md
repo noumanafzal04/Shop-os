@@ -156,6 +156,46 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-08-07 — job presets on the staff form
+
+Confirmed the architecture rather than changed it: **ShopOS has no job roles.**
+`UserRole` has five cases and a shop uses two — `shop_owner` and `staff`.
+Cashier, waiter, kitchen and rider are **permission sets**, not roles, and
+anything that branches on a role name for them is a bug that compiles.
+
+What was missing was the question, not the model. An owner hiring their first
+cashier faced seventeen bare checkboxes and had to already know that a cashier
+needs `sales.manage` and `discounts.apply` but must **not** have `sales.void` —
+knowledge the software has and the owner does not.
+
+`GET /staff/presets` now answers "what job does this person do?", and the form
+asks that first.
+
+Three properties make it safe:
+
+- **A preset is a starting point and leaves no trace.** What is stored is the
+  same plain `permissions[]` array — no role column, no preset id on the user,
+  nothing downstream that can tell one was used. That is precisely why it
+  cannot rot into a shadow role. It also means editing a preset later does not
+  silently re-permission anyone hired under it, which is the intended
+  behaviour.
+- **Filtered to the shop.** By granted modules, and by trade where a job exists
+  in only one. A pharmacy is never offered "Waiter"; a books-only tenant is
+  offered Accounts and Manager and nothing implying a counter. Noise on a
+  permission screen is how the wrong box gets ticked.
+- **No preset hands out `staff.manage` or `settings.manage`** — who works here
+  and how the shop is configured stay with the owner unless deliberately
+  ticked. There is a test asserting it for every preset.
+
+The Kitchen preset says out loud that it also grants the floor, because the
+kitchen board deliberately shares `sales.manage` (in a small kitchen the same
+person cooks and rings up). Better stated than discovered.
+
+The form shows which job the current ticks describe, recomputed from the ticks
+themselves — deviate by one box and it reads "Custom".
+
+Backend **1279 → 1295** (16 new). Panel 109.
+
 ### 2026-08-07 — loose ends cleared
 
 Four small defects, each real:
