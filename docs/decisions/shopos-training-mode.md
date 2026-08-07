@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: a4ba9d48-2a02-4ea8-81fb-a04eeaffd6b9
-  modified: 2026-08-07T13:50:27.017Z
+  modified: 2026-08-07T14:20:52.576Z
 ---
 
 **Training mode shipped 2026-08-07. With it, the WEB SIDE IS FEATURE-COMPLETE**
@@ -47,11 +47,13 @@ stock_movements, ledgers, serials, trade-ins, bank_deposits, business_days. The
 next feature that writes somewhere new during a sale fails there rather than in
 a revenue figure. Keep it.
 
-## Loose end noted
+## Where a training shift is visible
 
-`useShiftDay()` (panel `src/modules/registers/hooks/useRegisters.ts`) has NO
-component — `/pos/sessions` returns a full shift history that nothing renders.
-`ShiftRow` already carries `is_training` for whoever builds the screen.
+**`Day & banking → Shifts`** (added 2026-08-07, closing the dead `useShiftDay()`
+hook). That tab is organised by DRAWER, not trading day — which is exactly why
+it is the only screen where a training shift appears, since those have no
+business day. Rows are tinted + badged and excluded from the totals, with a line
+saying so. Gated on `sales.manage` AND `settings.manage` (what the route asks).
 
 Related: [[shopos-web-completion]], [[shopos-table-ownership]],
 [[shopos-deployment]], [[shopos-offline-plan]].

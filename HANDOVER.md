@@ -27,7 +27,7 @@ Folder names matter — the docs, and Claude's memory, refer to these exact path
 |---|---|---|---|
 | `main` | this overview + all docs | — | `7c97d16` |
 | `backend` | REST API `/api/v1` | Laravel 12 · PHP 8.4 · MySQL 8 · Redis · Sanctum | `24966a5` |
-| `admin-panel` | Web SPA (super-admin + shop panel) | Vite · React 19 · TS · Tailwind v4 · TailAdmin · TanStack Query · zustand | `123969c` |
+| `admin-panel` | Web SPA (super-admin + shop panel) | Vite · React 19 · TS · Tailwind v4 · TailAdmin · TanStack Query · zustand | `2011da0` |
 | `mobile` | React Native customer app (~55%) | React Native CLI · TS | `0913477` |
 
 Then:
@@ -150,11 +150,9 @@ Two things worth knowing when a supermarket signs:
   with its own printer, drawer and shift. But the `registers` limit **defaults
   to 2** per tenant and an admin has to raise it, or their Lane 3 is refused at
   creation.
-- `useShiftDay()` (panel, `src/modules/registers/hooks/useRegisters.ts`) has no
-  component using it — `/pos/sessions` returns a full shift history with
-  per-lane totals and nothing renders it. A shift-history screen is the obvious
-  next small piece of product, and the row type already carries `is_training`
-  for whoever builds it.
+- Shift history now renders — `Day & banking → Shifts`, added 2026-08-07. It is
+  organised by DRAWER rather than trading day, which is why it is also the only
+  place a training shift is visible at all.
 
 Parked deliberately, in order: the offline PWA POS (plan in
 `docs/decisions/shopos-offline-plan.md`); the mobile apps, whose contracts have
@@ -172,6 +170,27 @@ session log).
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-08-07 — shift history
+
+`/pos/sessions` has returned every shift in a date range, with per-lane totals,
+since registers shipped, and `useShiftDay()` has been fetching it. **Nothing
+rendered either.** A cashier counted out and a manager had no way to look back.
+
+It is a fourth tab on the Day page rather than a new screen, because it is the
+same subject the other way round: Today and Past days are organised by TRADING
+DAY, this one by DRAWER. That answers what a day view cannot — how Lane 3 has
+been counting out this week, which of Adeel's shifts came up short — and it is
+the only place a **training shift** appears at all, since those belong to no
+business day.
+
+Unpaginated on purpose: the server returns the range whole with its own totals,
+so the rows always add up to the figures above them. Training rows are tinted,
+badged, and stated in words beneath the totals, because a total that visibly
+skips rows reads as a bug until you know why.
+
+Gated on `sales.manage` **and** `settings.manage` — what the route actually
+asks for. Naming only one would have offered a tab that answers 403.
 
 ### 2026-08-07 — training mode (the web side is feature-complete)
 
