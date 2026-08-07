@@ -22,6 +22,7 @@ interface Props {
 export default function StaffPage({ title, subtitle, basePath }: Props) {
   const staff = useStaffModule(basePath);
   const permissions = staff.usePermissionCatalog();
+  const presets = staff.useJobPresets();
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -42,6 +43,23 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
   const rows = list.data?.data ?? [];
   const pagination = list.data?.meta.pagination;
   const catalog = permissions.data ?? [];
+  const jobs = presets.data ?? [];
+
+  /**
+   * Which job the ticked boxes currently describe, if any.
+   *
+   * Feedback rather than state: nothing stores which preset was used, so this
+   * is recomputed from the ticks themselves. Deviate by one box and it reads
+   * "Custom", which is the honest answer and tells the owner their edit landed.
+   */
+  const samePermissions = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((p) => b.includes(p));
+  const activeJob = jobs.find((j) => samePermissions(j.permissions, form.permissions)) ?? null;
+
+  // "Start from" replaces rather than merges — going from Manager back down to
+  // Cashier has to be possible, and merging would make it a one-way door.
+  const applyJob = (job: { permissions: string[] }) =>
+    setForm((f) => ({ ...f, permissions: [...job.permissions] }));
 
   const openCreate = () => {
     setEditing(null);
@@ -204,6 +222,44 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
           </div>
 
           <div>
+            {/* The job comes first. Seventeen checkboxes is the right model and
+                a terrible question to open with — an owner knows they are
+                hiring a cashier, not that a cashier needs sales.manage but
+                must not have sales.void. */}
+            {jobs.length > 0 && (
+              <div className="mb-4">
+                <Label>What do they do?</Label>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {jobs.map((job) => {
+                    const active = activeJob?.code === job.code;
+                    return (
+                      <button
+                        key={job.code}
+                        type="button"
+                        onClick={() => applyJob(job)}
+                        aria-pressed={active}
+                        title={job.description}
+                        className={`rounded-full border px-3 py-1.5 text-theme-sm font-medium transition ${
+                          active
+                            ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
+                            : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+                        }`}
+                      >
+                        {job.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">
+                  {activeJob
+                    ? activeJob.description
+                    : form.permissions.length > 0
+                      ? "Custom \u2014 these permissions don\u2019t match a standard job."
+                      : "Pick a job to fill in the usual permissions, then change anything you like below."}
+                </p>
+              </div>
+            )}
+
             <Label>Permissions <span className="text-error-500">*</span></Label>
             <div className="mt-1 grid grid-cols-1 gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800 sm:grid-cols-2">
               {catalog.map((key) => (
