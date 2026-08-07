@@ -155,8 +155,15 @@ Legend: **[M]** mobile · **[B]** backend · **[D]** decision
 
 ### Phase 0 — Foundation
 
-- [D] 0.1 Theme: keep green+ink, or adopt `#FF8002`. *(Cheap either way if 0.5 is done first.)*
-- [D] 0.2 Confirm monorepo split (§3) and which app is which native project
+- [x] **0.1 DECIDED 2026-08-07 — keep green + ink. No rebrand.** `#3BB77E`
+  brand, `#010F1C` ink, `#999999` gray, `#EDE9E0` cream, flat with no shadows —
+  already in `src/theme.ts` and marked user-approved. The spec's `#FF8002` was a
+  suggestion, not a brand decision, and adopting it would have rebranded shipped
+  work for nothing. Mobile and the panel stay in agreement.
+- [x] **0.2 DECIDED 2026-08-07 — Business App first**, after the shared
+  foundation. It is worth money to every tenant that already exists, Phases 0–3
+  need no backend work, and a customer app cannot function until merchants are
+  accepting orders on their phones. Monorepo split per §3 confirmed.
 - [M] 0.3 Restructure to `apps/*` + `packages/shared`, npm workspaces
 - [M] 0.4 Strict TS config, path aliases, lint + format
 - [M] 0.5 **Theme tokens** — palette, spacing, radius, typography; `LightTheme`/`DarkTheme`; lint rule banning hex literals in components
