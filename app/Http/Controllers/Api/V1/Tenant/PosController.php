@@ -496,12 +496,43 @@ class PosController extends Controller
             'denomination_count' => (bool) $this->context->get()?->setting('pos_denomination_count', true),
             'declare_tenders' => (bool) $this->context->get()?->setting('pos_declare_tenders', false),
             'denominations' => DenominationCount::PKR,
+            // Who else rang on this drawer while the cashier was away. Without
+            // it a variance is one undifferentiated number covering a stretch
+            // the cashier wasn't even standing there for.
+            'covers' => $this->coverBreakdown($session),
             'movements' => CashMovement::query()
                 ->with('user:id,name')
                 ->where('cash_session_id', $session->id)
                 ->latest()
                 ->get(),
         ]);
+    }
+
+    /**
+     * Every stretch somebody else held this lane, with what they took.
+     *
+     * Frozen figures once a cover has ended, live while one is still running —
+     * the same rule the day view follows for open shifts, and the same reason:
+     * a running total that gets frozen halfway is worse than none.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function coverBreakdown(CashSession $session): array
+    {
+        return $session->covers()
+            ->with(['user:id,name', 'endedBy:id,name'])
+            ->get()
+            ->map(fn (CashSessionCover $c) => [
+                'id' => $c->id,
+                'user_name' => $c->user?->name,
+                'started_at' => $c->started_at?->toIso8601String(),
+                'ended_at' => $c->ended_at?->toIso8601String(),
+                'ended_by_name' => $c->endedBy?->name,
+                'reason' => $c->reason,
+                'open' => $c->isOpen(),
+                ...$c->figures(),
+            ])
+            ->all();
     }
 
     /**
@@ -534,6 +565,10 @@ class PosController extends Controller
                 ->where('cash_session_id', $session->id)
                 ->orderBy('created_at')
                 ->get(),
+            // Part of the permanent record: a shift where someone else stood in
+            // for twenty minutes is a different shift, and the Z-read is where
+            // that has to be visible a year later.
+            'covers' => $this->coverBreakdown($session),
             'closed_by' => $session->closed_by !== null
                 ? User::query()->whereKey($session->closed_by)->value('name')
                 : null,
@@ -574,6 +609,26 @@ class PosController extends Controller
             'reason' => ['nullable', 'string', 'max:191'],
             'note' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // A reliever may open the drawer to make change, and nothing else.
+        // Taking money out of a box you will never count is the exact hole a
+        // cover has to stay clear of — the cashier would come back to a
+        // shortfall with a paid-out slip they never authorised.
+        $cover = $this->activeCoverFor($request->user());
+
+        if ($cover !== null) {
+            if ($data['type'] !== 'no_sale') {
+                throw DomainException::forbidden(
+                    'You are covering '.($cover->session?->user?->name ?? 'another cashier')
+                        .'\'s drawer. You can open it to make change, but only they can pay in or out of it.',
+                    'COVER_CANNOT_MOVE_CASH',
+                );
+            }
+
+            $movement = $action->execute($request->user(), $data, $cover->session);
+
+            return ApiResponse::created($movement, 'Recorded');
+        }
 
         $movement = $action->execute($request->user(), $data);
 
@@ -656,6 +711,7 @@ class PosController extends Controller
                 ->where('cash_session_id', $session->id)
                 ->orderBy('created_at')
                 ->get(),
+            'covers' => $this->coverBreakdown($session),
         ]);
     }
 

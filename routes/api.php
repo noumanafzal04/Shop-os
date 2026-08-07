@@ -305,6 +305,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('/session/open', [PosController::class, 'openSession']);
                 // Terminal handover — carry an open drawer to another lane.
                 Route::post('/session/move', [PosController::class, 'moveSession']);
+                // Relief cover: hold the lane while the cashier is on a break.
+                // The reliever sells under their own name; the drawer stays the
+                // cashier's to count. Sales.manage only — covering is ringing.
+                Route::post('/session/cover', [PosController::class, 'startCover']);
+                Route::post('/session/cover/end', [PosController::class, 'endCover']);
                 Route::post('/session/close', [PosController::class, 'closeSession']);
                 // The live X-read: what this drawer should hold right now.
                 Route::get('/session/report', [PosController::class, 'sessionReport']);
