@@ -1,11 +1,43 @@
 # ShopOS Mobile — product & technical requirements
 
-> **Status: REFERENCE.** This document was drafted with ChatGPT and handed over
-> on 2026-08-07 as a starting point. It is **not** a specification of what
-> ShopOS has — it describes a plausible mobile product in general terms, and
-> several of its assumptions do not match our modules. Build to **our** module
-> map; use this for shape and priority. §R at the end records where the two
-> disagree and what that costs.
+> **Status: REFERENCE ONLY. The code is the authority.**
+>
+> Drafted with ChatGPT and handed over 2026-08-07 as a starting point. It
+> describes a plausible mobile product in general terms; several of its
+> assumptions are not true of ShopOS. Ruled 2026-08-07: **where this document
+> and the codebase disagree, the codebase wins and the document is ignored.**
+>
+> Read §R before building anything from §1–19.
+
+## How to read this document
+
+Two kinds of mismatch live in here, and they need **opposite** treatment. Do
+not confuse them.
+
+**① The spec is wrong about us → IGNORE IT.** It describes something we already
+do differently, and better. Changing our code to match would be damage.
+
+| The spec says | We do | Ruling |
+|---|---|---|
+| Roles: owner, manager, cashier, waiter, kitchen, rider | `UserRole` has 5 cases; a shop has **2** (`shop_owner`, `staff`). Cashier/waiter/kitchen/rider are **permission sets** | **Ignore.** Permissions only. `if (role === "waiter")` compiles and is always false |
+| Brand `#FF8002` orange | `#3BB77E` green + `#010F1C` ink, user-approved, shipped, and shared with the panel | **Ignored** — decided 2026-08-07 |
+| `src/features/` | `src/modules/`, matching the web panel | **Ignore.** Same idea; matching the panel matters more |
+| *(implied)* a mobile-specific API | `/marketplace/*` already exists and is mobile-first; the business API is shared | **Ignore.** See MOBILE-PLAN §8 |
+
+**② The spec asks for something we genuinely lack → BUILD IT.** These are not
+mismatches to wave away. They are real work, and skipping them means the
+feature does not exist.
+
+| Missing | Blocks | Size |
+|---|---|---|
+| Rider: user link, login, self-serve API, status transitions, location, earnings | The entire rider experience | Large |
+| Waiter floor/table scoping | Restricting which tables a waiter may open | Small |
+| Payment gateway | Online prepay only — COD ships without it | Large, deferrable |
+| Per-event push coverage | Some notification types | Small |
+
+Everything else in §1–19 — the two-app split, module-awareness, online-first,
+lightweight POS, i18n/RTL, light+dark, the design system, POS safety rules — we
+agree with and are building.
 
 ---
 
