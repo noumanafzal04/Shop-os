@@ -13,6 +13,7 @@ import { apiGet, apiPut } from "../../../common/api/client";
 import { useCities, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
 import { shopService } from "../services/shopService";
 import { useAuthStore } from "../../../stores/authStore";
+import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import type { Tenant } from "../../auth/types";
 import HardwareDevices from "../../hardware/components/HardwareDevices";
 import RegistersPanel from "../../registers/components/RegistersPanel";
@@ -98,6 +99,7 @@ export default function ShopSettingsPage() {
   const cities = useCities();
   const setUser = useAuthStore((s) => s.setUser);
   const user = useAuthStore((s) => s.user);
+  const trade = usePrimaryBusinessType();
 
   const shop = useQuery({
     queryKey: ["shop", "profile"],
@@ -512,7 +514,107 @@ export default function ShopSettingsPage() {
                   pulse to send, and the till will say so instead of pretending.
                 </p>
               </SectionCard>
+              {/* The ceiling the `discounts.override` permission exists to
+                  guard. The server has enforced this since day one — there was
+                  simply no way to set the number, so it sat at null and the
+                  permission guarded nothing. */}
+              <SectionCard
+                icon={<PercentGlyph />}
+                title="Discount limits"
+                description="How much a cashier may take off without asking. Anyone holding “Override discount limit” can go past it; everyone else is stopped at the till."
+              >
+                <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+                  <Field
+                    label="Most they can discount"
+                    hint="As a share of the bill. Leave empty for no limit."
+                  >
+                    <div className="flex max-w-[10rem] items-center gap-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={prefs.max_discount_percent == null ? "" : String(prefs.max_discount_percent)}
+                        onChange={(e) => setP("max_discount_percent", e.target.value === "" ? null : Number(e.target.value))}
+                        placeholder="No limit"
+                      />
+                      <span className="text-theme-sm text-gray-500">%</span>
+                    </div>
+                  </Field>
+                  <Field
+                    label="Or at most"
+                    hint="A cash ceiling, whatever the percentage works out to. Leave empty for no limit."
+                  >
+                    <div className="flex max-w-[12rem] items-center gap-2">
+                      <span className="text-theme-sm text-gray-500">{String(prefs.currency_symbol ?? "Rs")}</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={prefs.max_discount_amount == null ? "" : String(prefs.max_discount_amount)}
+                        onChange={(e) => setP("max_discount_amount", e.target.value === "" ? null : Number(e.target.value))}
+                        placeholder="No limit"
+                      />
+                    </div>
+                  </Field>
+                </div>
+                <p className="text-theme-xs text-gray-400">
+                  Set both and whichever is hit first stops the sale. Leave both empty and any cashier can discount
+                  anything — which is the setting most shops discover they had after the fact.
+                </p>
+              </SectionCard>
+
+              {/* Tips are not a restaurant feature. A salon, a workshop and a
+                  delivery service all take them, and burying this in the
+                  Kitchen card meant a shop without dine-in could never turn
+                  them on at all. */}
+              <SectionCard
+                icon={<GiftGlyph />}
+                title="Tips"
+                description="Whether the till asks for a tip after payment. The money is the staff’s — it never counts as a sale, and it is shown separately on the drawer count."
+              >
+                <Toggle checked={!!prefs.tips_enabled} onChange={(v) => setP("tips_enabled", v)} label="Ask for a tip at checkout" />
+              </SectionCard>
+
               {prefsFooter}
+              {/* Stock that ages rather than expires. A tyre is not unsafe on a
+                  date stamped by a supplier — it is unsafe after so many years
+                  from its DOT week, which is why this is a span and not an
+                  expiry. BatchController has read these since it shipped;
+                  there was no way to set them. */}
+              {trade === "automotive" && (
+                <SectionCard
+                  icon={<BarcodeGlyph />}
+                  title="Stock ageing"
+                  description="When goods dated by manufacture — tyres above all — start counting as old. Nothing is blocked from sale; the counter is told, and the decision stays with whoever is standing there."
+                >
+                  <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+                    <Field label="Flag as ageing after" hint="Years from the DOT week.">
+                      <div className="flex max-w-[9rem] items-center gap-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={String(prefs.stock_age_warn_years ?? 5)}
+                          onChange={(e) => setP("stock_age_warn_years", Number(e.target.value))}
+                        />
+                        <span className="text-theme-sm text-gray-500">yrs</span>
+                      </div>
+                    </Field>
+                    <Field label="Flag as old after" hint="The stronger warning. Keep it above the first.">
+                      <div className="flex max-w-[9rem] items-center gap-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={String(prefs.stock_age_old_years ?? 6)}
+                          onChange={(e) => setP("stock_age_old_years", Number(e.target.value))}
+                        />
+                        <span className="text-theme-sm text-gray-500">yrs</span>
+                      </div>
+                    </Field>
+                  </div>
+                </SectionCard>
+              )}
+
               {/* Lanes live with the till, not with hardware: a register is an
                   operating position, and the printer bound to it comes after. */}
               <SectionCard icon={<CartGlyph />} title="Registers" description="Your checkout lanes. One counter needs none — add a lane each for a busy mart, and each drawer reconciles on its own.">
@@ -541,10 +643,7 @@ export default function ShopSettingsPage() {
                       placeholder={"Kitchen\nBar"}
                     />
                   </Field>
-                  <div className="flex flex-wrap items-center gap-6">
-                    <Toggle checked={prefs.kot_auto_print !== false} onChange={(v) => setP("kot_auto_print", v)} label="Print kitchen tickets" />
-                    <Toggle checked={!!prefs.tips_enabled} onChange={(v) => setP("tips_enabled", v)} label="Ask for a tip" />
-                  </div>
+                  <Toggle checked={prefs.kot_auto_print !== false} onChange={(v) => setP("kot_auto_print", v)} label="Print kitchen tickets" />
                   <p className="text-theme-xs text-gray-400">
                     Turn printing off only if the kitchen works from the Kitchen screen — a ticket that was never
                     printed has not reached anyone.
