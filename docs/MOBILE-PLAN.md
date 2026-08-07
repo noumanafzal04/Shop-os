@@ -5,7 +5,7 @@ Written 2026-08-07 against `backend@d9360eb`, `admin-panel@839153e`,
 — that file is the reference spec and its §R the reconciliation; this file is
 how we actually build it.
 
----
+--- 
 
 ## 1. What this is, in five lines
 
@@ -266,7 +266,56 @@ Everything mobile needs from the server that does not exist yet:
 Nothing blocks Phases 0–3. That is the argument for the ordering in §5: the
 first three phases are pure mobile against an API that is already complete.
 
-## 8. What this plan deliberately does not do
+## 8. Should mobile get its own endpoints? — decided: no
+
+Asked 2026-08-07: *"should we build separate mobile endpoints? we don't need to
+show all the data to customers or shop owners on mobile."*
+
+The instinct about over-sending is correct. The conclusion — a `/mobile/*`
+mirror — is not.
+
+**The customer split already exists.** `/api/v1/marketplace/*` is public,
+customer-facing and was built mobile-first: `GET /marketplace/home` is a
+one-round-trip home screen, `/locate` exists so mobile needs no city picker.
+That is the separate customer API. The Customer App lives there and extends it,
+and never touches a tenant route.
+
+**A mobile mirror of the business API buys zero security.** The same shop-owner
+token authenticates both. If a slim mobile response were the protection, the
+same user could call the web endpoint and get everything. Authorisation lives in
+the tenant scope, module gate and permission check that already run on every
+route. **Trimming a payload is a performance decision and never a safety one** —
+believing otherwise is how a team ships a hole.
+
+**And it duplicates the part we least want duplicated.** 361 routes today; a
+mirror is ~150 more, each re-implementing tenant scoping and permission checks.
+Two copies of that logic means one gets fixed and the other does not.
+
+### What to do instead
+
+1. **Shape responses, don't fork routes.** A slim variant on the few fat
+   resources — `TenantResource` first, at ~30 fields with `limits_usage`
+   loading related users. Same controller, same gate, same tests; only the
+   serialisation differs.
+2. **Add aggregates only where a screen genuinely needs 3+ calls** —
+   `GET /dashboard/summary`, `GET /pos/bootstrap`. Additive, and they *compose*
+   existing services rather than re-implementing them. `/marketplace/home` is
+   this pattern already working.
+3. **Existing responses become additive-only, permanently.** This is what
+   actually protects mobile: an app sits on a phone for months, and a removed or
+   renamed field breaks a version nobody can update. Add fields, never remove or
+   rename. That discipline — not a namespace — keeps old builds alive.
+
+Backend cost: ~4 small tasks (B5–B8 below) instead of a parallel API.
+
+| ID | Work | Size |
+|---|---|---|
+| B5 | Slim `TenantResource` variant for the mobile bootstrap | Small |
+| B6 | `GET /dashboard/summary` aggregate | Small |
+| B7 | `GET /pos/bootstrap` aggregate (terminal + shift + quick keys) | Small |
+| B8 | Write the additive-only contract rule into the backend README | Tiny |
+
+## 9. What this plan deliberately does not do
 
 - **No offline POS.** Spec §3. A queued sale that looks completed is worse than
   a refused one.
