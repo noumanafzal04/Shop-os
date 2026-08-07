@@ -19,9 +19,10 @@ import {
   useDeposits,
 } from "../hooks/useDay";
 import { dayService, signerName, type BusinessDay, type DayShift } from "../services/dayService";
+import { useLanes, useShiftDay } from "../../registers/hooks/useRegisters";
 import { printHtmlDocument } from "../../../common/print";
 
-type Tab = "today" | "history" | "banking";
+type Tab = "today" | "shifts" | "history" | "banking";
 
 const TENDER_LABELS: Record<string, string> = {
   cash: "Cash",
@@ -48,6 +49,14 @@ const dayDate = (d: string) =>
 
 const clock = (t: string | null) =>
   t ? new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—";
+
+/**
+ * When a shift STARTED. Unlike a trading date this is a real instant, so it is
+ * rendered in local time — a shift opened at 11pm belongs to that evening for
+ * the person who worked it, whatever day the server filed it under.
+ */
+const shiftDate = (t: string) =>
+  new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 
 /** Over and short are both problems; only zero is the good colour. */
 function VarianceText({ value, money }: { value: number; money: (n: number) => string }) {
@@ -92,6 +101,10 @@ export default function DayPage() {
   const toast = useToast();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canManage = hasPermission("settings.manage");
+  // `/pos/sessions` sits inside the POS group (sales.manage) AND behind
+  // settings.manage, so it needs BOTH. Naming only one here would offer a tab
+  // that answers 403 — the rule on screen has to be the rule on the route.
+  const canSeeShifts = canManage && hasPermission("sales.manage");
 
   const [tab, setTab] = useState<Tab>("today");
 
@@ -176,7 +189,30 @@ export default function DayPage() {
   // no use for either list.
   const history = useDayHistory(listParams, tab === "history");
   const deposits = useDeposits(listParams, tab === "banking");
-  const pagination = (tab === "history" ? history.data : deposits.data)?.meta.pagination;
+  // Shifts come back whole rather than paged, so only these two tabs have one.
+  const pagination = tab === "history"
+    ? history.data?.meta.pagination
+    : tab === "banking"
+      ? deposits.data?.meta.pagination
+      : undefined;
+
+  // ── Shifts ───────────────────────────────────────────────────────
+  // Organised by DRAWER rather than by trading day: "how has Lane 3 counted
+  // out this week", "which of Adeel's shifts came up short". Unpaginated by
+  // design — the server returns the range whole, with its own totals, so the
+  // figures on screen always add up to the ones above them.
+  const [lane, setLane] = useState("");
+  const lanes = useLanes(tab === "shifts");
+  // Every lane's takings and every cashier's variance is a manager's view. The
+  // tab is hidden rather than offered and refused; the server decides either
+  // way, and this only keeps the offer honest.
+  const shifts = useShiftDay(
+    { from: range.from || undefined, to: range.to || undefined, register_id: lane || undefined },
+    tab === "shifts" && canSeeShifts,
+  );
+  const shiftRows = shifts.data?.sessions ?? [];
+  const shiftTotals = shifts.data?.totals;
+  const practiceCount = shiftRows.filter((s) => s.is_training).length;
 
   const [detailId, setDetailId] = useState<string | null>(null);
   const detail = useDayDetail(detailId);
@@ -212,11 +248,12 @@ export default function DayPage() {
       </div>
 
       <div className="mb-5 flex gap-1 rounded-xl border border-gray-200 p-1 dark:border-gray-800 sm:w-fit">
-        {([
+        {(([
           ["today", "Today"],
+          ["shifts", "Shifts"],
           ["history", "Past days"],
           ["banking", "Banking"],
-        ] as [Tab, string][]).map(([key, label]) => (
+        ] as [Tab, string][]).filter(([key]) => key !== "shifts" || canSeeShifts)).map(([key, label]) => (
           <button
             key={key}
             onClick={() => { setTab(key); setPage(1); }}
@@ -428,11 +465,150 @@ export default function DayPage() {
             <Label>To</Label>
             <Input type="date" value={range.to} onChange={(e) => setRangeField("to", e.target.value)} />
           </div>
-          {(range.from || range.to) && (
-            <Button size="sm" variant="outline" onClick={() => { setRange({ from: "", to: "" }); setPage(1); }}>
+          {/* Which counter. Only shown once a shop has more than one — a
+              single-till shop is never asked to think about lanes. */}
+          {tab === "shifts" && (lanes.data ?? []).length > 1 && (
+            <div>
+              <Label>Lane</Label>
+              <select
+                value={lane}
+                onChange={(e) => setLane(e.target.value)}
+                className="h-11 rounded-lg border border-gray-300 bg-transparent px-3 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              >
+                <option value="">Every lane</option>
+                {(lanes.data ?? []).map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {(range.from || range.to || lane) && (
+            <Button size="sm" variant="outline" onClick={() => { setRange({ from: "", to: "" }); setLane(""); setPage(1); }}>
               Clear
             </Button>
           )}
+        </div>
+      )}
+
+      {/* ── Shifts ─────────────────────────────────────────────────── */}
+      {tab === "shifts" && (
+        <div className="space-y-5">
+          {shiftTotals && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              <Stat
+                label="Shifts"
+                value={String(shiftTotals.shifts)}
+                hint={shiftTotals.open > 0 ? `${shiftTotals.open} still open` : "all counted out"}
+              />
+              <Stat label="Rung up" value={money(shiftTotals.sales_total)} tone="accent" />
+              <Stat label="Expected" value={money(shiftTotals.expected_cash)} hint="What the drawers should have held" />
+              <Stat label="Counted" value={money(shiftTotals.counted_cash)} hint="What was actually in them" />
+              <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                <p className="text-theme-xs uppercase tracking-wide text-gray-400">Variance</p>
+                <p className="mt-1 text-lg font-semibold">
+                  <VarianceText value={Number(shiftTotals.variance)} money={money} />
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Practice shifts are LISTED but never SUMMED — somebody really did
+              stand at a till, so hiding the row would make a real stretch of
+              their day vanish; counting it would put practice cash in the
+              figure above. Said out loud, because a total that skips rows on
+              screen looks like a bug until you know why. */}
+          {practiceCount > 0 && (
+            <p className="text-theme-xs text-gray-400">
+              {practiceCount === 1 ? "One training shift is" : `${practiceCount} training shifts are`} listed
+              below and left out of the totals above.
+            </p>
+          )}
+
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+            {shifts.isLoading ? (
+              <div className="space-y-2 p-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-10 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                ))}
+              </div>
+            ) : shiftRows.length === 0 ? (
+              <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                No shifts in this range.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-theme-sm">
+                  <thead className="border-b border-gray-100 text-theme-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
+                    <tr>
+                      <th className="px-5 py-3">Opened</th>
+                      <th className="px-5 py-3">Cashier</th>
+                      <th className="px-5 py-3">Lane</th>
+                      <th className="px-5 py-3">Hours</th>
+                      <th className="px-5 py-3 text-right">Rung up</th>
+                      <th className="px-5 py-3 text-right">Expected</th>
+                      <th className="px-5 py-3 text-right">Counted</th>
+                      <th className="px-5 py-3 text-right">Variance</th>
+                      <th className="px-5 py-3 text-right">Z-read</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shiftRows.map((s) => (
+                      <tr
+                        key={s.id}
+                        className={`border-b border-gray-50 last:border-0 dark:border-gray-800/60 ${
+                          s.is_training ? "bg-warning-50/40 dark:bg-warning-500/[0.06]" : ""
+                        }`}
+                      >
+                        <td className="px-5 py-3 text-gray-600 dark:text-gray-400">{shiftDate(s.opened_at)}</td>
+                        <td className="px-5 py-3">
+                          <span className="text-gray-800 dark:text-white/90">{s.user?.name ?? "—"}</span>
+                          {s.status === "open" && (
+                            <span className="ml-2"><Badge size="sm" color="success">on till</Badge></span>
+                          )}
+                          {s.is_training && (
+                            <span className="ml-2"><Badge size="sm" color="warning">Training</Badge></span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-gray-600 dark:text-gray-400">{s.register?.name ?? "—"}</td>
+                        <td className="px-5 py-3 text-gray-600 dark:text-gray-400">
+                          {clock(s.opened_at)} – {s.closed_at ? clock(s.closed_at) : "now"}
+                        </td>
+                        <td className="px-5 py-3 text-right tabular-nums text-gray-800 dark:text-white/90">
+                          {money(Number(s.sales_total ?? 0))}
+                        </td>
+                        <td className="px-5 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                          {money(Number(s.expected_cash ?? 0))}
+                        </td>
+                        <td className="px-5 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                          {s.status === "open"
+                            ? <span className="text-gray-400">not counted</span>
+                            : money(Number(s.counted_cash ?? 0))}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          {s.status === "open"
+                            ? <span className="text-gray-400">—</span>
+                            : <VarianceText value={Number(s.variance ?? 0)} money={money} />}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          {s.status === "open" ? (
+                            <span className="text-theme-xs text-gray-400">still open</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => printZReport(s.id)}
+                              className="rounded-lg border border-gray-300 px-2.5 py-1 text-theme-xs font-medium text-gray-700 transition-colors hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:text-gray-200 dark:hover:border-brand-500/50"
+                            >
+                              Print
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

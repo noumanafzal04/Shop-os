@@ -63,12 +63,22 @@ export function useRegisterMutations() {
   };
 }
 
-/** The consolidated day: every lane's drawer on one screen. */
-export function useShiftDay(params?: { from?: string; to?: string; register_id?: string }) {
+/**
+ * Every shift in a date range, across lanes and across days.
+ *
+ * Distinct from the business-day view, which is organised by trading day: this
+ * is organised by DRAWER, so it answers "how has Lane 3 been counting out this
+ * week" and "which of Adeel's shifts came up short". It is also the only place
+ * a training shift appears at all — those belong to no business day.
+ */
+export function useShiftDay(
+  params?: { from?: string; to?: string; register_id?: string },
+  enabled = true,
+) {
   const role = useAuthStore((s) => s.user?.role);
   return useQuery({
     queryKey: ["pos", "shift-day", params],
     queryFn: async () => (await registerService.shiftDay(params)).data,
-    enabled: role === "shop_owner" || role === "staff",
+    enabled: enabled && (role === "shop_owner" || role === "staff"),
   });
 }
