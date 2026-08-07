@@ -55,7 +55,6 @@ class ShopSettings
             'delivery_enabled' => true,
             // Who carries deliveries: 'self' = the shop's own riders (Model A,
             // available now) · 'platform' = the ShopOS rider pool (coming soon).
-            'delivery_provider' => 'self',
             'prep_time_minutes' => null,   // estimated prep / handover time
             'delivery_radius_km' => null,  // null = no distance limit (city-wide)
             'min_order_amount' => null,    // delivery orders below this are rejected
@@ -241,7 +240,6 @@ class ShopSettings
             'service_area' => ['sometimes', 'nullable', 'string', 'max:300'],
             'pickup_enabled' => ['sometimes', 'boolean'],
             'delivery_enabled' => ['sometimes', 'boolean'],
-            'delivery_provider' => ['sometimes', 'in:self,platform'],
             'prep_time_minutes' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:480'],
             'delivery_radius_km' => ['sometimes', 'nullable', 'numeric', 'min:0.5', 'max:100'],
             'min_order_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
