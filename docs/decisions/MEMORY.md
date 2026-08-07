@@ -30,3 +30,4 @@
 - [Expense Manager](shopos-expense-manager-gaps.md) — 2nd pass SHIPPED: drawer link (expense_out/income_in), budgets, recurring, receipts; approval skipped
 - [ShopOS Auto Depth](shopos-auto-depth.md) — 2026-08-06 SHIPPED: trade-in is a TENDER not a discount, vehicle record + history, DOT tyre dating = age not expiry
 - [ShopOS Audit Aug-06](shopos-audit-aug06.md) — 3 PROVEN P0s in a green build (itemTypesFor upgrade path, serial fenced to retail, income missing from profit) + 5 dead endpoints
+- [Docs Discipline](shopos-docs-discipline.md) — STANDING: update HANDOVER.md + docs/decisions/ as work happens; laptop may be wiped any time

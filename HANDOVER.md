@@ -169,7 +169,31 @@ Finance Manager tenant a "shop" four times, and city is required there.
 
 ---
 
-## 7. Rules that must not be broken
+## 7. Session log
+
+Newest first. Appended as work happens, not at the end of a sprint — this
+machine may be rebuilt at any time, and anything not written down here and
+pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-08-07 — preservation
+
+Audited what would actually survive a rebuild. Two things would not have:
+
+- The **mobile app** had no git repository of its own. 134 tracked files, ~55%
+  complete, sitting in a folder that `main`'s `.gitignore` excludes outright, so
+  it was tracked nowhere. Now on the `mobile` branch (`0913477`).
+- **31 files of decision history** lived only in `~/.claude/`. Now in
+  `docs/decisions/`.
+
+Also: committed the half-built relief-cover work to `wip/relief-cover` rather
+than leaving it in a dirty tree; wrote this file; corrected README's shipped list
+and test count. Flagged the public repo + exposed Geoapify key (§2).
+
+Backend verified green at 1258 / 5288 with the WIP applied.
+
+---
+
+## 8. Rules that must not be broken
 
 These are settled decisions, not preferences — most of them were paid for with a
 bug.
