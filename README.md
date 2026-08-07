@@ -4,6 +4,11 @@ A cloud business-management platform for local businesses (retail, grocery,
 pharmacy, restaurant, salon, workshop, and more), with an optional customer
 marketplace and mobile apps.
 
+> **Setting up a machine, or picking this up cold?** Read
+> **[HANDOVER.md](HANDOVER.md)** first — restore steps, current state, what's in
+> flight, and the rules that must not be broken. The reasoning behind the build
+> is in **[docs/decisions/](docs/decisions/)**.
+
 ## Repository layout — one branch per app
 
 This repo keeps each application on its **own branch** (each branch's root is
@@ -13,12 +18,13 @@ that app's project root). The `main` branch is this overview only.
 |---|---|---|
 | [`backend`](../../tree/backend) | REST API (`/api/v1`), multi-tenant core, queues, scheduler | Laravel · PHP 8.4 · MySQL 8+ · Redis · Sanctum |
 | [`admin-panel`](../../tree/admin-panel) | Web SPA — Super Admin console + Shop Owner/Staff panel (role-based) | Vite · React 19 · TS · React Router 7 · Tailwind v4 · TailAdmin |
-| `mobile` *(coming next)* | Shop Owner + Customer + Rider apps (iOS + Android) | React Native / Expo |
+| [`mobile`](../../tree/mobile) | Customer app (~55%); Shop Owner + Rider apps to follow | React Native CLI · TS |
 
 ```bash
 # Clone a specific app's branch
 git clone -b backend      https://github.com/noumanafzal04/Shop-os.git shopos-backend
-git clone -b admin-panel  https://github.com/noumanafzal04/Shop-os.git shopos-admin-panel
+git clone -b admin-panel  https://github.com/noumanafzal04/Shop-os.git shopos-admin-and-user-panel
+git clone -b mobile       https://github.com/noumanafzal04/Shop-os.git shopos-mobile
 ```
 
 ## Locked architectural decisions
@@ -63,7 +69,10 @@ Catalog endpoint: `GET /api/v1/business-types`.
 - Sell-on-credit (khata) — customer ledger + repayments.
 - Online orders + delivery/riders, reservations, coupons, suppliers + purchases + payables.
 - **Restaurant dine-in** — floor tables, running tabs, kitchen tickets (KOT), settle + split-bill.
-- **480 backend tests green.**
+- Shifts + drawers — X/Z-reads, denomination counts, blind close, business day + banking.
+- Serialized selling (IMEI/serial) with warranty lookup **and claim intake**; vehicles + trade-in as a tender.
+- Fuel / forecourt, loyalty points, promotions, tax groups, customer groups, multi-branch.
+- **1258 backend tests · 102 panel tests green.**
 
 ## Running each app (once configured)
 
