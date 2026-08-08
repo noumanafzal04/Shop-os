@@ -3,16 +3,36 @@
  * wired as an option so a later switch is a config change, not a rewrite.
  *
  * These keys are client-side by design (both Geoapify and Google Maps JS run
- * in the browser) — lock them down by allowed domain/referrer in the provider
- * dashboard, not by hiding them. Values come from Vite env with a dev fallback.
+ * in the browser) — the real protection is an allowed-domain/referrer lock in
+ * the provider dashboard, not secrecy.
+ *
+ * What is NOT fine is committing one. A literal default here shipped a working
+ * key into a public repo, where it stays in git history after any edit, and it
+ * made rotation a code change rather than a config change. The key now comes
+ * only from the environment, and a missing one fails loudly at startup instead
+ * of silently falling back to somebody else's quota.
  */
 export type MapsProvider = "geoapify" | "google";
 
-export const mapsConfig = {
-  provider: ((import.meta.env.VITE_MAPS_PROVIDER as string) || "geoapify") as MapsProvider,
-  geoapifyApiKey: (import.meta.env.VITE_GEOAPIFY_API_KEY as string) || "b6b195b0c6d946d282733dbc9b2c841e",
-  googleMapsApiKey: (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || "",
-};
+const provider = ((import.meta.env.VITE_MAPS_PROVIDER as string) || "geoapify") as MapsProvider;
+const geoapifyApiKey = (import.meta.env.VITE_GEOAPIFY_API_KEY as string) || "";
+const googleMapsApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || "";
+
+// Fail where a developer will see it, not on the map screen a shopkeeper opens
+// while pinning their shop. Dev only: a production build must not crash on a
+// missing map key when every other screen works fine without one.
+if (import.meta.env.DEV) {
+  const missing = provider === "geoapify" ? !geoapifyApiKey : !googleMapsApiKey;
+  if (missing) {
+    console.error(
+      `[maps] No API key for provider "${provider}". Set VITE_${
+        provider === "geoapify" ? "GEOAPIFY" : "GOOGLE_MAPS"
+      }_API_KEY in .env — see .env.example. Address search and the map tiles will not load.`,
+    );
+  }
+}
+
+export const mapsConfig = { provider, geoapifyApiKey, googleMapsApiKey };
 
 /** Country bias for geocoding (ISO 3166-1 alpha-2). Most shops are here. */
 export const MAPS_COUNTRY_BIAS = "pk";

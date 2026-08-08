@@ -4,7 +4,7 @@ import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
-import { Modal } from "../../../components/ui/modal";
+import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useToast } from "../../../components/ui/toast";
@@ -220,43 +220,48 @@ export default function FuelSetupPage() {
       </div>
 
       {/* ── Add tank ───────────────────────────────────────────────── */}
-      <Modal isOpen={tankModal.isOpen} onClose={tankModal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Add tank</h3>
-        <div className="space-y-4">
-          <div>
-            <Label>Name</Label>
-            <Input placeholder="Tank 1 — Petrol" value={tankForm.name} onChange={(e) => setTankForm((f) => ({ ...f, name: e.target.value }))} />
-          </div>
-          <div>
-            <Label>Holds</Label>
-            {/* Fuel is an ordinary product — the tank points at the catalog so
-                the rate is never kept in two places. */}
-            <Select options={productOptions} placeholder="Pick the fuel" value={tankForm.product_id} onChange={(v) => setTankForm((f) => ({ ...f, product_id: v }))} />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
+      <Modal isOpen={tankModal.isOpen} onClose={tankModal.closeModal} className="max-w-md">
+        <ModalForm
+          title="Add tank"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={tankModal.closeModal}>Cancel</Button>
+              <Button size="sm" onClick={saveTank} disabled={!tankForm.name || !tankForm.product_id || m.createTank.isPending}>
+                Add tank
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
             <div>
-              <Label>Capacity (L)</Label>
-              <Input type="number" value={tankForm.capacity_litres} onChange={(e) => setTankForm((f) => ({ ...f, capacity_litres: e.target.value }))} />
+              <Label>Name</Label>
+              <Input placeholder="Tank 1 — Petrol" value={tankForm.name} onChange={(e) => setTankForm((f) => ({ ...f, name: e.target.value }))} />
             </div>
             <div>
-              <Label>Current dip (L)</Label>
-              <Input type="number" value={tankForm.current_dip_litres} onChange={(e) => setTankForm((f) => ({ ...f, current_dip_litres: e.target.value }))} />
+              <Label>Holds</Label>
+              {/* Fuel is an ordinary product — the tank points at the catalog so
+                  the rate is never kept in two places. */}
+              <Select options={productOptions} placeholder="Pick the fuel" value={tankForm.product_id} onChange={(v) => setTankForm((f) => ({ ...f, product_id: v }))} />
             </div>
-            <div>
-              <Label>Dead stock (L)</Label>
-              <Input type="number" value={tankForm.dead_stock_litres} onChange={(e) => setTankForm((f) => ({ ...f, dead_stock_litres: e.target.value }))} />
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Capacity (L)</Label>
+                <Input type="number" value={tankForm.capacity_litres} onChange={(e) => setTankForm((f) => ({ ...f, capacity_litres: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Current dip (L)</Label>
+                <Input type="number" value={tankForm.current_dip_litres} onChange={(e) => setTankForm((f) => ({ ...f, current_dip_litres: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Dead stock (L)</Label>
+                <Input type="number" value={tankForm.dead_stock_litres} onChange={(e) => setTankForm((f) => ({ ...f, dead_stock_litres: e.target.value }))} />
+              </div>
             </div>
+            <p className="text-theme-xs text-gray-400">
+              Dead stock is the unpumpable bottom. Capacity less dead stock is what can actually be sold.
+            </p>
           </div>
-          <p className="text-theme-xs text-gray-400">
-            Dead stock is the unpumpable bottom. Capacity less dead stock is what can actually be sold.
-          </p>
-        </div>
-        <div className="mt-6 flex justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={tankModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={saveTank} disabled={!tankForm.name || !tankForm.product_id || m.createTank.isPending}>
-            Add tank
-          </Button>
-        </div>
+        </ModalForm>
       </Modal>
 
       {/* ── Add pump ───────────────────────────────────────────────── */}
@@ -271,31 +276,36 @@ export default function FuelSetupPage() {
       </Modal>
 
       {/* ── Add nozzle ─────────────────────────────────────────────── */}
-      <Modal isOpen={!!nozzleFor} onClose={() => setNozzleFor(null)} className="max-w-sm p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Add nozzle</h3>
-        <div className="space-y-4">
-          <div>
-            <Label>Name</Label>
-            <Input placeholder="A1" value={nozzleForm.name} onChange={(e) => setNozzleForm((f) => ({ ...f, name: e.target.value }))} />
+      <Modal isOpen={!!nozzleFor} onClose={() => setNozzleFor(null)} className="max-w-sm">
+        <ModalForm
+          title="Add nozzle"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={() => setNozzleFor(null)}>Cancel</Button>
+              <Button size="sm" onClick={saveNozzle} disabled={!nozzleForm.name || !nozzleForm.fuel_tank_id || m.createNozzle.isPending}>
+                Add nozzle
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input placeholder="A1" value={nozzleForm.name} onChange={(e) => setNozzleForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Draws from</Label>
+              <Select options={tankOptions} placeholder="Pick the tank" value={nozzleForm.fuel_tank_id} onChange={(v) => setNozzleForm((f) => ({ ...f, fuel_tank_id: v }))} />
+            </div>
+            <div>
+              <Label>Meter reading now</Label>
+              <Input type="number" value={nozzleForm.current_reading} onChange={(e) => setNozzleForm((f) => ({ ...f, current_reading: e.target.value }))} />
+              <p className="mt-1 text-theme-xs text-gray-400">
+                The totaliser as it stands today. After this, only a shift close moves it — a meter only counts up.
+              </p>
+            </div>
           </div>
-          <div>
-            <Label>Draws from</Label>
-            <Select options={tankOptions} placeholder="Pick the tank" value={nozzleForm.fuel_tank_id} onChange={(v) => setNozzleForm((f) => ({ ...f, fuel_tank_id: v }))} />
-          </div>
-          <div>
-            <Label>Meter reading now</Label>
-            <Input type="number" value={nozzleForm.current_reading} onChange={(e) => setNozzleForm((f) => ({ ...f, current_reading: e.target.value }))} />
-            <p className="mt-1 text-theme-xs text-gray-400">
-              The totaliser as it stands today. After this, only a shift close moves it — a meter only counts up.
-            </p>
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={() => setNozzleFor(null)}>Cancel</Button>
-          <Button size="sm" onClick={saveNozzle} disabled={!nozzleForm.name || !nozzleForm.fuel_tank_id || m.createNozzle.isPending}>
-            Add nozzle
-          </Button>
-        </div>
+        </ModalForm>
       </Modal>
     </>
   );

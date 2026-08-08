@@ -5,7 +5,7 @@ import Badge from "../../components/ui/badge/Badge";
 import Input from "../../components/form/input/InputField";
 import Label from "../../components/form/Label";
 import Alert from "../../components/ui/alert/Alert";
-import { Modal } from "../../components/ui/modal";
+import { Modal, ModalForm } from "../../components/ui/modal";
 import { useModal } from "../../hooks/useModal";
 import { ApiError } from "../../common/types/api";
 import { useDebouncedValue } from "../../common/hooks/useDebouncedValue";
@@ -191,13 +191,27 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
       </div>
 
       {/* Create / edit */}
-      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-lg p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          {editing ? `Edit ${editing.name}` : "Add Staff"}
-        </h3>
-        {generalError && <div className="mb-4"><Alert variant="error" title="Couldn't save" message={generalError} /></div>}
+      {/* Eighteen permissions, ten job pills and five fields do not fit a laptop
+          screen, so the form scrolls inside itself: the name of the person and
+          the button that saves them both stay put while the middle moves. */}
+      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-2xl">
+        <ModalForm
+          title={editing ? `Edit ${editing.name}` : "Add Staff"}
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={submit}
+                disabled={mutation.isPending || !form.name.trim() || form.permissions.length === 0 || (!editing && !form.password) || (!editing && !form.email.trim() && !form.phone.trim())}
+              >
+                {mutation.isPending ? "Saving…" : editing ? "Save changes" : "Add staff"}
+              </Button>
+            </>
+          }
+        >
+        {generalError && <Alert variant="error" title="Couldn't save" message={generalError} />}
 
-        <div className="space-y-4">
           <div>
             <Label>Name <span className="text-error-500">*</span></Label>
             <Input value={form.name} onChange={(e) => set("name", e.target.value)} />
@@ -277,18 +291,7 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
             </div>
             {errorFor("permissions") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("permissions")}</p>}
           </div>
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
-          <Button
-            size="sm"
-            onClick={submit}
-            disabled={mutation.isPending || !form.name.trim() || form.permissions.length === 0 || (!editing && !form.password) || (!editing && !form.email.trim() && !form.phone.trim())}
-          >
-            {mutation.isPending ? "Saving…" : editing ? "Save changes" : "Add staff"}
-          </Button>
-        </div>
+        </ModalForm>
       </Modal>
     </>
   );

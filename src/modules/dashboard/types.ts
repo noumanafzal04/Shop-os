@@ -144,6 +144,30 @@ export interface TenantDashboard {
     top_customer: { id: string; name: string; sales_count: number; revenue: number } | null;
     top_staff: { id: string; name: string; sales_count: number; revenue: number } | null;
   };
+  /**
+   * The restaurant floor as it stands this minute — NOT a "today" figure.
+   * Null for a shop with no dine-in module, so the panel is absent rather than
+   * a grid of zeroes. Not branch-scoped: the dine-in tables carry no branch.
+   */
+  floor: {
+    tables: number;
+    occupied: number;
+    open_tabs: number;
+    /** Fired, still cooking. */
+    kot_waiting: number;
+    /** Under the lamp, waiting to be run — the ones that go cold. */
+    kot_ready: number;
+  } | null;
+  /**
+   * Today's prescription trade, kept apart from over-the-counter sales. Null
+   * for any shop that is not a pharmacy (legacy `clinic` resolves in).
+   */
+  dispensing: {
+    rx_sales: number;
+    rx_revenue: number;
+    /** Distinct prescribers today. */
+    prescribers: number;
+  } | null;
   activity: ActivityRow[];
   // Per-branch today's sales (HQ comparison). Empty for single-branch shops.
   branches: Array<{ branch_id: string; branch: string; sales_count: number; revenue: number }>;

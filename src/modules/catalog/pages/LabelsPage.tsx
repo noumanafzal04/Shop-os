@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMoney } from "../../shop/hooks/useShop";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -59,6 +59,7 @@ type FieldKey = (typeof FIELDS)[number]["key"];
 
 export default function LabelsPage() {
   const money = useMoney();
+  const settings = useShopSettings();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const shopName = useAuthStore((s) => s.user?.tenant?.business_name) ?? "";
 
@@ -86,9 +87,22 @@ export default function LabelsPage() {
   const [showOptions, setShowOptions] = useState(false);
   const [mode, setMode] = useState<"sheet" | "roll">("sheet");
   const [skip, setSkip] = useState(0);
+  // Settings → Barcodes says what a label carries in this shop; the tick boxes
+  // here override it for one print run. The two switches used to save and then
+  // be read by nobody, so a shop that turned the price off still printed it.
   const [fields, setFields] = useState<Record<FieldKey, boolean>>({
     name: true, price: true, digits: true, shop: false, pack: false, cut: true,
   });
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || !settings.data) return;
+    seeded.current = true;
+    setFields((f) => ({
+      ...f,
+      name: settings.data.barcode_show_name !== false,
+      price: settings.data.barcode_show_price !== false,
+    }));
+  }, [settings.data]);
 
   const [bulkBusy, setBulkBusy] = useState(false);
 

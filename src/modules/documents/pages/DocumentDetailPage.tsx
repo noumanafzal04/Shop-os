@@ -6,7 +6,7 @@ import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import Badge from "../../../components/ui/badge/Badge";
 import Alert from "../../../components/ui/alert/Alert";
-import { Modal } from "../../../components/ui/modal";
+import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
@@ -312,59 +312,62 @@ function DepositModal({
   const money = useMoney();
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} className="max-w-md p-6">
-      <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Take an instalment</h3>
-      <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
-        {money(balance)} still owed. You can't take more than that.
-      </p>
-
-      <div className="space-y-4">
-        <div>
-          <Label>Amount</Label>
-          <Input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder={String(balance)}
-          />
-        </div>
-        <div>
-          <Label>Paid by</Label>
-          <div className="flex flex-wrap gap-2">
-            {DEPOSIT_METHODS.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                onClick={() => setMethod(m.value)}
-                className={`rounded-lg border px-3.5 py-2 text-theme-sm font-medium transition ${
-                  method === m.value
-                    ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
-                    : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {method !== "cash" && (
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
+      <ModalForm
+        title="Take an instalment"
+        footer={
+          <>
+            <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button
+              size="sm"
+              disabled={pending || !(Number(amount) > 0)}
+              onClick={() => onSubmit({ amount: Number(amount), method, reference: reference || undefined })}
+            >
+              Record
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
+          {money(balance)} still owed. You can't take more than that.
+        </p>
+        <div className="space-y-4">
           <div>
-            <Label>Reference</Label>
-            <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Slip / txn no." />
+            <Label>Amount</Label>
+            <Input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={String(balance)}
+            />
           </div>
-        )}
-      </div>
-
-      <div className="mt-6 flex justify-end gap-2">
-        <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button
-          size="sm"
-          disabled={pending || !(Number(amount) > 0)}
-          onClick={() => onSubmit({ amount: Number(amount), method, reference: reference || undefined })}
-        >
-          Record
-        </Button>
-      </div>
+          <div>
+            <Label>Paid by</Label>
+            <div className="flex flex-wrap gap-2">
+              {DEPOSIT_METHODS.map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  onClick={() => setMethod(m.value)}
+                  className={`rounded-lg border px-3.5 py-2 text-theme-sm font-medium transition ${
+                    method === m.value
+                      ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                      : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {method !== "cash" && (
+            <div>
+              <Label>Reference</Label>
+              <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Slip / txn no." />
+            </div>
+          )}
+        </div>
+      </ModalForm>
     </Modal>
   );
 }
@@ -393,65 +396,68 @@ function CollectModal({
   const short = due > 0 && paid < due;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} className="max-w-md p-6">
-      <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Bill &amp; hand over</h3>
-      <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
-        {due > 0
-          ? `Take ${money(due)} and the goods go out.`
-          : layaway
-            ? "This booking is paid in full — nothing to collect."
-            : "Nothing has been paid yet, so take the full amount."}
-      </p>
-
-      {due > 0 && (
-        <div className="space-y-4">
-          <div>
-            <Label>Amount taken</Label>
-            <Input type="number" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder={String(due)} />
-          </div>
-          <div>
-            <Label>Paid by</Label>
-            <div className="flex flex-wrap gap-2">
-              {DEPOSIT_METHODS.map((m) => (
-                <button
-                  key={m.value}
-                  type="button"
-                  onClick={() => setMethod(m.value)}
-                  className={`rounded-lg border px-3.5 py-2 text-theme-sm font-medium transition ${
-                    method === m.value
-                      ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
-                      : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
+      <ModalForm
+        title="Bill &amp; hand over"
+        footer={
+          <>
+            <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button
+              size="sm"
+              disabled={pending || (due > 0 && paid < due)}
+              onClick={() =>
+                onSubmit(
+                  due > 0
+                    ? { payment_method: method, amount_paid: paid, idempotency_key: crypto.randomUUID() }
+                    : { idempotency_key: crypto.randomUUID() },
+                )
+              }
+            >
+              Bill it
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
+          {due > 0
+            ? `Take ${money(due)} and the goods go out.`
+            : layaway
+              ? "This booking is paid in full — nothing to collect."
+              : "Nothing has been paid yet, so take the full amount."}
+        </p>
+        {due > 0 && (
+          <div className="space-y-4">
+            <div>
+              <Label>Amount taken</Label>
+              <Input type="number" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder={String(due)} />
             </div>
+            <div>
+              <Label>Paid by</Label>
+              <div className="flex flex-wrap gap-2">
+                {DEPOSIT_METHODS.map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setMethod(m.value)}
+                    className={`rounded-lg border px-3.5 py-2 text-theme-sm font-medium transition ${
+                      method === m.value
+                        ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                        : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {short && paid > 0 && (
+              <p className="text-theme-sm text-warning-600 dark:text-warning-400">
+                {money(due - paid)} short of the balance.
+              </p>
+            )}
           </div>
-          {short && paid > 0 && (
-            <p className="text-theme-sm text-warning-600 dark:text-warning-400">
-              {money(due - paid)} short of the balance.
-            </p>
-          )}
-        </div>
-      )}
-
-      <div className="mt-6 flex justify-end gap-2">
-        <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button
-          size="sm"
-          disabled={pending || (due > 0 && paid < due)}
-          onClick={() =>
-            onSubmit(
-              due > 0
-                ? { payment_method: method, amount_paid: paid, idempotency_key: crypto.randomUUID() }
-                : { idempotency_key: crypto.randomUUID() },
-            )
-          }
-        >
-          Bill it
-        </Button>
-      </div>
+        )}
+      </ModalForm>
     </Modal>
   );
 }
@@ -497,67 +503,69 @@ function CancelModal({
   const back = Math.max(0, paid - kept);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} className="max-w-md p-6">
-      <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Cancel this document</h3>
-      <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
-        {paid > 0
-          ? "The goods go back on the shelf, and the advance is accounted for below."
-          : "Nothing was paid and nothing is being held — this just closes it."}
-      </p>
-
-      <div className="space-y-4">
-        <div>
-          <Label>Reason</Label>
-          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Customer changed their mind" />
-        </div>
-
-        {paid > 0 && (
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
+      <ModalForm
+        title="Cancel this document"
+        footer={
           <>
-            <div>
-              <Label>Cancellation fee kept</Label>
-              <Input type="number" value={forfeit} onChange={(e) => setForfeit(e.target.value)} placeholder="0" />
-              {suggested > 0 && (
-                <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
-                  Your usual fee is {feePercent}% — {money(suggested)} on this booking. Change it or clear it to
-                  return everything.
-                </p>
-              )}
-            </div>
-            {/* Say plainly what the customer walks away with — this is the
-                number they will remember, and getting it wrong is the kind of
-                mistake that ends up in an argument at the counter. */}
-            <div className="rounded-xl bg-gray-50 px-4 py-3 text-theme-sm dark:bg-white/5">
-              <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Returned to customer</span>
-                <span className="font-semibold tabular-nums text-gray-800 dark:text-white/90">{money(back)}</span>
-              </div>
-              {kept > 0 && (
-                <div className="mt-1 flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Kept by the shop</span>
-                  <span className="tabular-nums text-gray-600 dark:text-gray-400">{money(kept)}</span>
-                </div>
-              )}
-            </div>
+            <Button size="sm" variant="outline" onClick={onClose}>Keep it open</Button>
+            <Button
+              size="sm"
+              disabled={pending}
+              onClick={() =>
+                onSubmit({
+                  reason: reason || undefined,
+                  forfeit_amount: paid > 0 ? kept : undefined,
+                  refund_method: paid > 0 ? "cash" : undefined,
+                })
+              }
+            >
+              Cancel document
+            </Button>
           </>
-        )}
-      </div>
-
-      <div className="mt-6 flex justify-end gap-2">
-        <Button size="sm" variant="outline" onClick={onClose}>Keep it open</Button>
-        <Button
-          size="sm"
-          disabled={pending}
-          onClick={() =>
-            onSubmit({
-              reason: reason || undefined,
-              forfeit_amount: paid > 0 ? kept : undefined,
-              refund_method: paid > 0 ? "cash" : undefined,
-            })
-          }
-        >
-          Cancel document
-        </Button>
-      </div>
+        }
+      >
+        <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
+          {paid > 0
+            ? "The goods go back on the shelf, and the advance is accounted for below."
+            : "Nothing was paid and nothing is being held — this just closes it."}
+        </p>
+        <div className="space-y-4">
+          <div>
+            <Label>Reason</Label>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Customer changed their mind" />
+          </div>
+          {paid > 0 && (
+            <>
+              <div>
+                <Label>Cancellation fee kept</Label>
+                <Input type="number" value={forfeit} onChange={(e) => setForfeit(e.target.value)} placeholder="0" />
+                {suggested > 0 && (
+                  <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                    Your usual fee is {feePercent}% — {money(suggested)} on this booking. Change it or clear it to
+                    return everything.
+                  </p>
+                )}
+              </div>
+              {/* Say plainly what the customer walks away with — this is the
+                  number they will remember, and getting it wrong is the kind of
+                  mistake that ends up in an argument at the counter. */}
+              <div className="rounded-xl bg-gray-50 px-4 py-3 text-theme-sm dark:bg-white/5">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Returned to customer</span>
+                  <span className="font-semibold tabular-nums text-gray-800 dark:text-white/90">{money(back)}</span>
+                </div>
+                {kept > 0 && (
+                  <div className="mt-1 flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Kept by the shop</span>
+                    <span className="tabular-nums text-gray-600 dark:text-gray-400">{money(kept)}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </ModalForm>
     </Modal>
   );
 }

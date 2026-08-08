@@ -18,7 +18,7 @@ import {
   useProductMutations,
   useSyncModifiers,
 } from "../hooks/useCatalog";
-import { useBusinessTypes } from "../../shop/hooks/useShop";
+import { useBusinessTypes, useShopSettings } from "../../shop/hooks/useShop";
 import { useTaxGroups } from "../hooks/useTaxGroups";
 import { catalogService } from "../services/catalogService";
 import type { ItemTypeCode, ModifierGroup, VariantInput } from "../types";
@@ -159,6 +159,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   // The regulator's schedule. Setting it makes the till demand the
   // prescription details before this drug can be dispensed at all.
   const [drugSchedule, setDrugSchedule] = useState("");
+  const [kitchenStation, setKitchenStation] = useState("");
+  const shopSettings = useShopSettings();
   // Serialized retail (phones/electronics): capture a serial/IMEI per unit at
   // the till, with a default warranty length.
   const [trackSerial, setTrackSerial] = useState(false);
@@ -196,6 +198,10 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const isCombo = itemType === "deal";
   const isMedicine = itemType === "medicine";
   const isFood = itemType === "food_item";
+  // Offered from the shop's OWN station list rather than typed free-hand: a
+  // station that does not exist routes the ticket nowhere, and the failure only
+  // shows up at dinner service.
+  const stations = (shopSettings.data?.kitchen_stations ?? []) as string[];
   const isPhysical = itemType === "physical_product";
   const canTrackStock = typeInfo ? typeInfo.inventory !== "never" : !isService;
   const showVariants = typeInfo ? typeInfo.variants !== false : !isService;
@@ -258,6 +264,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setDosageForm(p.dosage_form ?? "");
       setRequiresRx(p.requires_prescription ?? false);
       setDrugSchedule(p.drug_schedule ?? "");
+      setKitchenStation(p.kitchen_station ?? "");
       setTrackSerial(p.tracks_serial ?? false);
       setWarrantyMonths(p.warranty_months != null ? String(p.warranty_months) : "");
       setExtraBarcodes((p.barcodes ?? []).map((b) => b.barcode));
@@ -323,6 +330,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       dosage_form: isMedicine ? (dosageForm || null) : undefined,
       requires_prescription: isMedicine ? requiresRx : undefined,
       drug_schedule: isMedicine ? (drugSchedule.trim() || null) : undefined,
+      kitchen_station: isFood ? (kitchenStation.trim() || null) : undefined,
       // Serialized retail — only physical goods carry a serial/IMEI + warranty.
       tracks_serial: isPhysical ? trackSerial : undefined,
       warranty_months: isPhysical && trackSerial && warrantyMonths ? Number(warrantyMonths) : isPhysical ? null : undefined,
@@ -780,6 +788,29 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         )}
 
         {/* Food menu hours */}
+        {isFood && (
+          <Section
+            title="Made at"
+            hint="Which station cooks this. A fired order splits into one ticket per station, so the bar never gets the biryani. Leave empty for the single kitchen printer."
+          >
+            <Select
+              className="max-w-xs"
+              value={kitchenStation}
+              options={[
+                { value: "", label: "Default kitchen" },
+                ...stations.map((st) => ({ value: st, label: st })),
+              ]}
+              placeholder="Default kitchen"
+              onChange={setKitchenStation}
+            />
+            {stations.length === 0 && (
+              <p className="mt-1 text-theme-xs text-gray-400">
+                No stations set up yet — add them under Settings → Point of Sale → Kitchen.
+              </p>
+            )}
+          </Section>
+        )}
+
         {isFood && (
           <Section title="Available hours (optional)" hint="Leave empty to sell all day. Set a window for breakfast/lunch menus.">
             <div className="flex items-center gap-3">

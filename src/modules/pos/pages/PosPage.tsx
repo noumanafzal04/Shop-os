@@ -46,6 +46,12 @@ import { couponsService } from "../../coupons/services/couponsService";
 import { promotionsService, type PromoPreview } from "../../promotions/services/promotionsService";
 
 interface CartLine {
+  /**
+   * Pharmacy: how to take THIS medicine — "1 tablet twice daily after meals".
+   * Per line, because a prescription says something different about each item
+   * on it, and this is the line the patient reads off the label.
+   */
+  directions?: string;
   key: string;
   product_id: string;
   variant_id: string | null;
@@ -275,6 +281,10 @@ export default function PosPage() {
   const laneLabel = myLane?.name ?? terminalName ?? null;
   const settings = useShopSettings();
   const cur = settings.data?.currency_symbol ?? "Rs";
+  // Settings → Point of Sale → Default payment. The setting was saved, typed
+  // and validated, and then read by nobody: the till always opened on cash. A
+  // shop that mostly takes card was one extra press away on every single sale.
+  const defaultTender: PayMethod = settings.data?.pos_default_payment === "card" ? "card" : "cash";
   const money = (n: string | number) => `${cur} ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
 
   // ── Receipts & drawer ───────────────────────────────────────────
@@ -713,7 +723,7 @@ export default function PosPage() {
     setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone("");
     setTradeIns([]); setTradeInSearch("");
     setVehicle(null); setVehicleSearch(""); setOdometer("");
-    setTableNo(""); setOrderType("takeaway"); setMethod("cash"); setTenders([{ method: "cash", amount: "" }]); clearCoupon();
+    setTableNo(""); setOrderType("takeaway"); setMethod(defaultTender); setTenders([{ method: "cash", amount: "" }]); clearCoupon();
     setRxNumber(""); setRxPrescriber(""); setRxPatient("");
     setCustomerPoints(null); setRedeemPts(""); setPromo(null);
   };
@@ -746,6 +756,9 @@ export default function PosPage() {
             ? { serials: l.serials.map((s) => s.trim()).filter(Boolean) }
             : {}),
           ...(l.tracks_serial && l.warranty_months != null ? { warranty_months: l.warranty_months } : {}),
+          // Pharmacy: how to take this one. Per line, because a prescription
+          // says something different about each medicine on it.
+          ...(l.directions?.trim() ? { directions: l.directions.trim() } : {}),
         })),
         discount: Number(discount) || 0,
         coupon_code: couponCode || undefined,
@@ -1056,7 +1069,7 @@ export default function PosPage() {
     setDiscount(h.cart.discount ? String(h.cart.discount) : "");
     setOrderType(h.cart.order_type ?? "takeaway");
     setTableNo(h.cart.table_no ?? "");
-    setMethod(h.cart.payment_method ?? "cash");
+    setMethod(h.cart.payment_method ?? defaultTender);
     // Re-validate the parked coupon against the resumed cart (subtotal may
     // differ from when it was applied) rather than trusting a stale amount.
     if (h.cart.coupon_code) {
@@ -1094,7 +1107,7 @@ export default function PosPage() {
   actionsRef.current = {
     focusSearch: () => scanRef.current?.focus(),
     hold: () => { if (cart.length > 0) askHold(); },
-    pay: () => { if (cart.length > 0 && open) { setMethod("cash"); setTendered((t) => t || String(payable)); tenderModal.openModal(); } },
+    pay: () => { if (cart.length > 0 && open) { setMethod(defaultTender); setTendered((t) => t || String(payable)); tenderModal.openModal(); } },
     openHeld: () => { held.refetch(); heldModal.openModal(); },
     document: () => { if (cart.length > 0) documentModal.openModal(); },
     clearSearch: () => setSearch(""),
@@ -2006,6 +2019,37 @@ export default function PosPage() {
                     <input value={rxPrescriber} onChange={(e) => setRxPrescriber(e.target.value)} placeholder="Prescriber / doctor"
                       className="col-span-2 h-9 rounded-lg border border-gray-200 bg-white px-3 text-theme-sm dark:border-gray-700 dark:bg-gray-900" />
                   </div>
+
+                  {/* Directions, per medicine. The three boxes above describe
+                      the PRESCRIPTION; these describe each MEDICINE on it, and
+                      they are what gets printed on the label the patient
+                      actually follows. Only Rx-required lines are asked about —
+                      a shampoo in the same basket needs no directions. */}
+                  {cart.some((l) => l.requires_prescription) && (
+                    <div className="mt-2.5 border-t border-warning-200 pt-2.5 dark:border-warning-500/30">
+                      <div className="mb-1.5 text-theme-xs font-medium text-warning-700 dark:text-warning-400">
+                        How to take each one — printed on the label
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        {cart.filter((l) => l.requires_prescription).map((l) => (
+                          <div key={l.key} className="flex items-center gap-2">
+                            <span className="w-28 shrink-0 truncate text-theme-xs text-gray-700 dark:text-gray-300" title={l.name}>
+                              {l.name}
+                            </span>
+                            <input
+                              value={l.directions ?? ""}
+                              onChange={(e) =>
+                                setCart((c) => c.map((x) => (x.key === l.key ? { ...x, directions: e.target.value } : x)))
+                              }
+                              maxLength={255}
+                              placeholder="1 tablet twice daily after meals"
+                              className="h-9 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-theme-sm dark:border-gray-700 dark:bg-gray-900"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2055,7 +2099,7 @@ export default function PosPage() {
                 <div className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-brand-600 dark:text-brand-400">Grand Total</div>
                 <div className="mb-2 mt-1 text-4xl font-extrabold leading-none tabular-nums text-gray-900 dark:text-white">{money(total)}</div>
                 <button type="button" disabled={cart.length === 0 || !open}
-                  onClick={() => { setMethod("cash"); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
+                  onClick={() => { setMethod(defaultTender); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40">
                   <CardGlyph /> Tender / Pay <kbd className="rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px]">F9</kbd>
                 </button>

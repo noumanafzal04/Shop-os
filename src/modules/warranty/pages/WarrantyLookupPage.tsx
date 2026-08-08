@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -7,7 +8,7 @@ import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
 import TextArea from "../../../components/form/input/TextArea";
 import Badge from "../../../components/ui/badge/Badge";
-import { Modal } from "../../../components/ui/modal";
+import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import {
@@ -62,21 +63,7 @@ export default function WarrantyLookupPage() {
           </p>
         </div>
 
-        <div className="mb-5 flex gap-1 border-b border-gray-200 dark:border-gray-800">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`-mb-px border-b-2 px-4 py-2.5 text-sm transition ${
-                tab === t.key
-                  ? "border-brand-500 font-medium text-brand-600 dark:text-brand-400"
-                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <FilterTabs tabs={TABS} value={tab} onChange={setTab} className="mb-5" />
 
         {tab === "lookup" ? <LookupTab /> : <HoldingTab />}
       </div>
@@ -244,43 +231,46 @@ function LookupTab() {
         </div>
       )}
 
-      <Modal isOpen={bookModal.isOpen} onClose={bookModal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Take the unit in</h3>
-        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
-          No money and no stock moves — this records that the shop is holding it.
-          Whether it's in warranty is fixed at today's date, so a slow supplier
-          can't turn a fair decision into a wrong one.
-        </p>
-
-        <div className="space-y-4">
-          <div>
-            <Label>What's wrong with it <span className="text-error-500">*</span></Label>
-            <TextArea
-              value={fault}
-              onChange={(v) => setFault(v)}
-              rows={2}
-              placeholder="In the customer's words — e.g. not holding charge overnight"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+      <Modal isOpen={bookModal.isOpen} onClose={bookModal.closeModal} className="max-w-md">
+        <ModalForm
+          title="Take the unit in"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={bookModal.closeModal}>Cancel</Button>
+              <Button size="sm" disabled={!fault.trim() || book.isPending} onClick={() => book.mutate()}>
+                {book.isPending ? "Booking in…" : "Book it in"}
+              </Button>
+            </>
+          }
+        >
+          <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
+            No money and no stock moves — this records that the shop is holding it.
+            Whether it's in warranty is fixed at today's date, so a slow supplier
+            can't turn a fair decision into a wrong one.
+          </p>
+          <div className="space-y-4">
             <div>
-              <Label>Customer</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
+              <Label>What's wrong with it <span className="text-error-500">*</span></Label>
+              <TextArea
+                value={fault}
+                onChange={(v) => setFault(v)}
+                rows={2}
+                placeholder="In the customer's words — e.g. not holding charge overnight"
+              />
             </div>
-            <div>
-              <Label>Phone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="03xx…" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Customer</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
+              </div>
+              <div>
+                <Label>Phone</Label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="03xx…" />
+              </div>
             </div>
+            {bookError && <p className="text-theme-xs text-error-500">{bookError}</p>}
           </div>
-          {bookError && <p className="text-theme-xs text-error-500">{bookError}</p>}
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={bookModal.closeModal}>Cancel</Button>
-          <Button size="sm" disabled={!fault.trim() || book.isPending} onClick={() => book.mutate()}>
-            {book.isPending ? "Booking in…" : "Book it in"}
-          </Button>
-        </div>
+        </ModalForm>
       </Modal>
     </>
   );
@@ -368,41 +358,42 @@ function HoldingTab() {
         </ul>
       )}
 
-      <Modal isOpen={closing !== null} onClose={() => setClosing(null)} className="max-w-md p-6">
-        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">
-          Close {closing?.product_name}
-        </h3>
-        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
-          Recorded once and not editable afterwards — this is the sentence somebody
-          may need to prove later.
-        </p>
-
-        <div className="space-y-4">
-          <div>
-            <Label>What happened</Label>
-            <Select
-              options={RESOLUTIONS.map((r) => ({ value: r.value, label: r.label }))}
-              value={resolution}
-              onChange={setResolution}
-            />
+      <Modal isOpen={closing !== null} onClose={() => setClosing(null)} className="max-w-md">
+        <ModalForm
+          title="Close {closing?.product_name}"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={() => setClosing(null)}>Cancel</Button>
+              <Button size="sm" disabled={resolve.isPending} onClick={() => resolve.mutate()}>
+                {resolve.isPending ? "Saving…" : "Close claim"}
+              </Button>
+            </>
+          }
+        >
+          <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
+            Recorded once and not editable afterwards — this is the sentence somebody
+            may need to prove later.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <Label>What happened</Label>
+              <Select
+                options={RESOLUTIONS.map((r) => ({ value: r.value, label: r.label }))}
+                value={resolution}
+                onChange={setResolution}
+              />
+            </div>
+            <div>
+              <Label>Note</Label>
+              <TextArea
+                value={note}
+                onChange={(v) => setNote(v)}
+                rows={2}
+                placeholder="e.g. Swapped under Osaka warranty — old unit returned to supplier"
+              />
+            </div>
           </div>
-          <div>
-            <Label>Note</Label>
-            <TextArea
-              value={note}
-              onChange={(v) => setNote(v)}
-              rows={2}
-              placeholder="e.g. Swapped under Osaka warranty — old unit returned to supplier"
-            />
-          </div>
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={() => setClosing(null)}>Cancel</Button>
-          <Button size="sm" disabled={resolve.isPending} onClick={() => resolve.mutate()}>
-            {resolve.isPending ? "Saving…" : "Close claim"}
-          </Button>
-        </div>
+        </ModalForm>
       </Modal>
     </>
   );

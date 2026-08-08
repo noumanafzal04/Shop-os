@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
+import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
 import Alert from "../../../components/ui/alert/Alert";
-import { Modal } from "../../../components/ui/modal";
+import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useToast } from "../../../components/ui/toast";
@@ -70,28 +71,20 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      <div className="mb-5 flex gap-1 border-b border-gray-200 dark:border-gray-800">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm transition ${
-              tab === t.key
-                ? "border-brand-500 font-medium text-brand-600 dark:text-brand-400"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            }`}
-          >
-            {t.label}
-            {/* Bills that have fallen due are the only thing on this page that
-                is time-sensitive, so the count follows you between tabs. */}
-            {t.key === "recurring" && dueCount > 0 && (
-              <span className="rounded-full bg-warning-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                {dueCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      {/* Bills that have fallen due are the only thing on this page that is
+          time-sensitive, so the count follows you between tabs. */}
+      <FilterTabs
+        tabs={TABS.map((t) => ({
+          ...t,
+          badge:
+            t.key === "recurring" && dueCount > 0 ? (
+              <span className="rounded-full bg-warning-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">{dueCount}</span>
+            ) : undefined,
+        }))}
+        value={tab}
+        onChange={setTab}
+        className="mb-5"
+      />
 
       {tab === "expenses" && <ExpensesTab money={money} toast={toast} />}
       {tab === "recurring" && <RecurringTab money={money} toast={toast} />}
@@ -348,76 +341,76 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
         )}
       </div>
 
-      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          {editing ? "Edit expense" : "Add expense"}
-        </h3>
-
-        {generalError && <div className="mb-4"><Alert variant="error" title="Couldn't save" message={generalError} /></div>}
-        {warnings.map((w, i) => (
-          <div className="mb-3" key={i}><Alert variant="warning" title="Saved" message={w} /></div>
-        ))}
-
-        <div className="space-y-4">
-          <div>
-            <Label>Category <span className="text-error-500">*</span></Label>
-            <Select
-              options={categoryOptions(categories.data, editing?.expense_category_id)}
-              placeholder="Choose category"
-              value={form.category}
-              onChange={(v) => setForm((f) => ({ ...f, category: v }))}
-            />
-            {errorFor("expense_category_id") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("expense_category_id")}</p>}
-            {categories.data?.length === 0 && (
-              <p className="mt-1 text-theme-xs text-gray-400">
-                No categories yet — add one on the <strong>Categories</strong> tab first.
+      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md">
+        <ModalForm
+          title={editing ? "Edit expense" : "Add expense"}
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={modal.closeModal}>{warnings.length ? "Done" : "Cancel"}</Button>
+              <Button size="sm" onClick={submit} disabled={active.isPending || !form.category || !form.description.trim() || !form.amount}>
+                {active.isPending ? "Saving…" : editing ? "Save changes" : "Save expense"}
+              </Button>
+            </>
+          }
+        >
+          {generalError && <div className="mb-4"><Alert variant="error" title="Couldn't save" message={generalError} /></div>}
+          {warnings.map((w, i) => (
+            <div className="mb-3" key={i}><Alert variant="warning" title="Saved" message={w} /></div>
+          ))}
+          <div className="space-y-4">
+            <div>
+              <Label>Category <span className="text-error-500">*</span></Label>
+              <Select
+                options={categoryOptions(categories.data, editing?.expense_category_id)}
+                placeholder="Choose category"
+                value={form.category}
+                onChange={(v) => setForm((f) => ({ ...f, category: v }))}
+              />
+              {errorFor("expense_category_id") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("expense_category_id")}</p>}
+              {categories.data?.length === 0 && (
+                <p className="mt-1 text-theme-xs text-gray-400">
+                  No categories yet — add one on the <strong>Categories</strong> tab first.
+                </p>
+              )}
+            </div>
+            <div>
+              <Label>Description <span className="text-error-500">*</span></Label>
+              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. July shop rent" />
+              {errorFor("description") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("description")}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Amount <span className="text-error-500">*</span></Label>
+                <Input type="number" min="0" step={0.01} value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
+                {errorFor("amount") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("amount")}</p>}
+              </div>
+              <div>
+                <Label>Date <span className="text-error-500">*</span></Label>
+                <Input type="date" value={form.date} max={today()} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+                {errorFor("expense_date") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("expense_date")}</p>}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Paid by</Label>
+                <Select
+                  options={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
+                  value={form.method}
+                  onChange={(v) => setForm((f) => ({ ...f, method: v }))}
+                />
+              </div>
+              <div>
+                <Label>Bill / voucher no.</Label>
+                <Input value={form.reference} onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))} />
+              </div>
+            </div>
+            {form.method === "cash" && (
+              <p className="text-theme-xs text-gray-400">
+                Cash comes out of your open drawer, so the shift's expected cash drops by this amount.
               </p>
             )}
           </div>
-          <div>
-            <Label>Description <span className="text-error-500">*</span></Label>
-            <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. July shop rent" />
-            {errorFor("description") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("description")}</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Amount <span className="text-error-500">*</span></Label>
-              <Input type="number" min="0" step={0.01} value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
-              {errorFor("amount") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("amount")}</p>}
-            </div>
-            <div>
-              <Label>Date <span className="text-error-500">*</span></Label>
-              <Input type="date" value={form.date} max={today()} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
-              {errorFor("expense_date") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("expense_date")}</p>}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Paid by</Label>
-              <Select
-                options={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
-                value={form.method}
-                onChange={(v) => setForm((f) => ({ ...f, method: v }))}
-              />
-            </div>
-            <div>
-              <Label>Bill / voucher no.</Label>
-              <Input value={form.reference} onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))} />
-            </div>
-          </div>
-          {form.method === "cash" && (
-            <p className="text-theme-xs text-gray-400">
-              Cash comes out of your open drawer, so the shift's expected cash drops by this amount.
-            </p>
-          )}
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={modal.closeModal}>{warnings.length ? "Done" : "Cancel"}</Button>
-          <Button size="sm" onClick={submit} disabled={active.isPending || !form.category || !form.description.trim() || !form.amount}>
-            {active.isPending ? "Saving…" : editing ? "Save changes" : "Save expense"}
-          </Button>
-        </div>
+        </ModalForm>
       </Modal>
     </>
   );
@@ -586,67 +579,70 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
       </div>
 
       {/* Add / edit template */}
-      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          {editing ? "Edit recurring expense" : "Add recurring expense"}
-        </h3>
-        <div className="space-y-4">
-          <div>
-            <Label>Category</Label>
-            <Select
-              options={categoryOptions(categories.data, editing?.expense_category_id)}
-              placeholder="Choose category"
-              value={form.category}
-              onChange={(v) => setForm((f) => ({ ...f, category: v }))}
-            />
-          </div>
-          <div>
-            <Label>Description</Label>
-            <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. Shop rent" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md">
+        <ModalForm
+          title={editing ? "Edit recurring expense" : "Add recurring expense"}
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
+              <Button size="sm" onClick={save} disabled={!form.category || !form.description.trim() || !form.amount || active.isPending}>
+                {active.isPending ? "Saving…" : editing ? "Save changes" : "Save"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
             <div>
-              <Label>Usual amount</Label>
-              <Input type="number" min="0" step={0.01} value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Every</Label>
+              <Label>Category</Label>
               <Select
-                options={[
-                  { value: "weekly", label: "Week" },
-                  { value: "monthly", label: "Month" },
-                  { value: "quarterly", label: "Quarter" },
-                  { value: "yearly", label: "Year" },
-                ]}
-                value={form.frequency}
-                onChange={(v) => setForm((f) => ({ ...f, frequency: v }))}
+                options={categoryOptions(categories.data, editing?.expense_category_id)}
+                placeholder="Choose category"
+                value={form.category}
+                onChange={(v) => setForm((f) => ({ ...f, category: v }))}
               />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>{editing ? "Next due on" : "First due on"}</Label>
-              <Input type="date" value={form.next_due_on} onChange={(e) => setForm((f) => ({ ...f, next_due_on: e.target.value }))} />
+              <Label>Description</Label>
+              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. Shop rent" />
             </div>
-            <div>
-              <Label>Paid by</Label>
-              <Select
-                options={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
-                value={form.method}
-                onChange={(v) => setForm((f) => ({ ...f, method: v }))}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Usual amount</Label>
+                <Input type="number" min="0" step={0.01} value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Every</Label>
+                <Select
+                  options={[
+                    { value: "weekly", label: "Week" },
+                    { value: "monthly", label: "Month" },
+                    { value: "quarterly", label: "Quarter" },
+                    { value: "yearly", label: "Year" },
+                  ]}
+                  value={form.frequency}
+                  onChange={(v) => setForm((f) => ({ ...f, frequency: v }))}
+                />
+              </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>{editing ? "Next due on" : "First due on"}</Label>
+                <Input type="date" value={form.next_due_on} onChange={(e) => setForm((f) => ({ ...f, next_due_on: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Paid by</Label>
+                <Select
+                  options={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
+                  value={form.method}
+                  onChange={(v) => setForm((f) => ({ ...f, method: v }))}
+                />
+              </div>
+            </div>
+            <p className="text-theme-xs text-gray-400">
+              The amount is a starting point — you can correct it each time you post.
+            </p>
           </div>
-          <p className="text-theme-xs text-gray-400">
-            The amount is a starting point — you can correct it each time you post.
-          </p>
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={save} disabled={!form.category || !form.description.trim() || !form.amount || active.isPending}>
-            {active.isPending ? "Saving…" : editing ? "Save changes" : "Save"}
-          </Button>
-        </div>
+        </ModalForm>
       </Modal>
 
       {/* Post one */}

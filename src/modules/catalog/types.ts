@@ -77,6 +77,8 @@ export interface Product {
   requires_prescription?: boolean;
   /** Regulator schedule (G / H / X …). Set = the till demands prescription details. */
   drug_schedule?: string | null;
+  /** Which station cooks this — one KOT per station when an order is fired. */
+  kitchen_station?: string | null;
   // Serialized retail (phones/electronics): capture a serial/IMEI per unit + warranty.
   tracks_serial?: boolean;
   warranty_months?: number | null;
@@ -185,6 +187,8 @@ export interface ProductInput {
   requires_prescription?: boolean;
   /** Regulator schedule (G / H / X …). Set = the till demands prescription details. */
   drug_schedule?: string | null;
+  /** Which station cooks this — one KOT per station when an order is fired. */
+  kitchen_station?: string | null;
   tracks_serial?: boolean;
   warranty_months?: number | null;
   barcodes?: string[];

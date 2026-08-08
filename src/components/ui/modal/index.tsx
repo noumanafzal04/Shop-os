@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, type ReactNode } from "react";
 
 interface ModalProps {
   isOpen: boolean;
@@ -54,7 +54,16 @@ export const Modal: React.FC<ModalProps> = ({
     : "relative w-full rounded-3xl bg-white  dark:bg-gray-900";
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-99999">
+    /**
+     * `items-center` and `overflow-y-auto` on the SAME element is the classic
+     * trap: a modal taller than the window gets centred, which pushes its top
+     * edge above the scroll container's origin — and nothing scrolls above
+     * origin, so the head of the form (title, name, email) is unreachable on a
+     * short laptop screen. Centring therefore happens on an inner wrapper with
+     * `min-h-full`: short content still sits in the middle, tall content grows
+     * the wrapper past the viewport and scrolls from its true top.
+     */
+    <div className="modal fixed inset-0 z-99999 overflow-y-auto">
       {/* Light scrim, NO heavy blur — a 32px backdrop-blur made every modal
           open feel sluggish and buried the page behind fog. */}
       {!isFullscreen && (
@@ -63,6 +72,12 @@ export const Modal: React.FC<ModalProps> = ({
           onClick={onClose}
         ></div>
       )}
+      {/* The wrapper covers the scrim, so click-to-dismiss has to live here
+          too — the panel below stops the event from reaching it. */}
+      <div
+        className={`relative flex min-h-full justify-center ${isFullscreen ? "items-stretch" : "items-center p-4"}`}
+        onClick={onClose}
+      >
       <div
         ref={modalRef}
         className={`${contentClasses}  ${className}`}
@@ -91,6 +106,42 @@ export const Modal: React.FC<ModalProps> = ({
         )}
         <div>{children}</div>
       </div>
+      </div>
     </div>
   );
 };
+
+/**
+ * A modal that is a form.
+ *
+ * A long form — thirteen fields, a permission grid, a delivery breakdown — does
+ * not fit a laptop screen. Left to grow it takes its title off the top and puts
+ * the button that saves the work below the fold, so the two things you always
+ * need are the two things you cannot see. This pins both ends and moves only
+ * the middle.
+ *
+ * Pass it a Modal with no padding: `className="max-w-md"`, not `"max-w-md p-6"`
+ * — the padding belongs to the three bands, or the header would scroll its own
+ * whitespace.
+ */
+export function ModalForm({ title, description, footer, children }: {
+  title: ReactNode;
+  description?: ReactNode;
+  footer?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex max-h-[85vh] flex-col">
+      <header className="shrink-0 border-b border-gray-200 px-6 py-5 pr-16 dark:border-gray-800">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{title}</h3>
+        {description && <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">{description}</p>}
+      </header>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">{children}</div>
+      {footer && (
+        <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-800">
+          {footer}
+        </footer>
+      )}
+    </div>
+  );
+}

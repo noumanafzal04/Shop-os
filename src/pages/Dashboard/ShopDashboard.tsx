@@ -14,6 +14,7 @@ import { QuickActions } from "../../modules/dashboard/components/shop/QuickActio
 import { RecentExpensesCard, RecentSalesCard, TableSkeleton } from "../../modules/dashboard/components/shop/RecentTables";
 import { ChartSkeleton, SalesTrendChart } from "../../modules/dashboard/components/shop/SalesTrendChart";
 import { EmptyPanel, SectionCard } from "../../modules/dashboard/components/shop/SectionCard";
+import { DispensingPanel, FloorPanel } from "../../modules/dashboard/components/shop/TradePanel";
 import { useCapabilities } from "../../modules/dashboard/components/shop/capabilities";
 import { useMoney } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
@@ -134,6 +135,14 @@ export default function ShopDashboard() {
       ) : (
         <div className="space-y-5 md:space-y-6">
           <KpiRow data={data} caps={caps} money={money} compact={basic} />
+
+          {/* The trade's own panel, directly under the money and above the
+              charts — and in BOTH modes. A restaurant at eight in the evening
+              is not reading a 7-day trend, and what is on the pass right now
+              outranks everything below it. Absent, never empty: the server
+              sends null for a shop that is not this trade. */}
+          {data.floor && <FloorPanel floor={data.floor} caps={caps} />}
+          {data.dispensing && <DispensingPanel dispensing={data.dispensing} money={money} />}
 
           {/* Basic mode is the calm view: what needs doing, and the counters
               behind it. Charts, ledgers and history live in the full menu. */}

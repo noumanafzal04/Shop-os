@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal } from "../../../components/ui/modal";
+import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -236,77 +236,82 @@ export default function HardwareDevices() {
 
       <Button size="sm" variant="outline" onClick={openNew}>+ Add device</Button>
 
-      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-lg p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">{isEdit ? "Edit device" : "Add device"}</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {!isEdit && (
+      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-lg">
+        <ModalForm
+          title={isEdit ? "Edit device" : "Add device"}
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
+              <Button size="sm" onClick={save} disabled={!draft.name.trim() || create.isPending || update.isPending}>
+                {isEdit ? "Save" : "Add device"}
+              </Button>
+            </>
+          }
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {!isEdit && (
+              <div>
+                <Label>Type</Label>
+                <Select value={draft.type} options={TYPE_OPTIONS} onChange={(v) => setDraft((d) => ({ ...d, type: v as HardwareType }))} />
+              </div>
+            )}
             <div>
-              <Label>Type</Label>
-              <Select value={draft.type} options={TYPE_OPTIONS} onChange={(v) => setDraft((d) => ({ ...d, type: v as HardwareType }))} />
+              <Label>Name</Label>
+              <Input value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="e.g. Front counter" />
             </div>
-          )}
-          <div>
-            <Label>Name</Label>
-            <Input value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="e.g. Front counter" />
-          </div>
-          <div>
-            <Label>Connection</Label>
-            <Select value={draft.connection_type} options={CONNECTION_OPTIONS} onChange={(v) => setDraft((d) => ({ ...d, connection_type: v as ConnectionType }))} />
-          </div>
-          <div>
-            <Label>Address / device ID <span className="font-normal text-gray-400">(optional)</span></Label>
-            <Input value={draft.connection_value} onChange={(e) => setDraft((d) => ({ ...d, connection_value: e.target.value }))} placeholder="e.g. 192.168.1.50:9100" />
-          </div>
-          <div>
-            <Label>Brand</Label>
-            <Input value={draft.brand} onChange={(e) => setDraft((d) => ({ ...d, brand: e.target.value }))} placeholder="e.g. XPrinter" />
-          </div>
-          <div>
-            <Label>Model</Label>
-            <Input value={draft.model} onChange={(e) => setDraft((d) => ({ ...d, model: e.target.value }))} placeholder="e.g. XP-80" />
-          </div>
-          {isPrinter && (
             <div>
-              <Label>Paper size</Label>
-              <Select
-                value={draft.paper_size}
-                options={[{ value: "58mm", label: "58mm thermal" }, { value: "80mm", label: "80mm thermal" }, { value: "a4", label: "A4 / Letter" }]}
-                onChange={(v) => setDraft((d) => ({ ...d, paper_size: v as Draft["paper_size"] }))}
-              />
+              <Label>Connection</Label>
+              <Select value={draft.connection_type} options={CONNECTION_OPTIONS} onChange={(v) => setDraft((d) => ({ ...d, connection_type: v as ConnectionType }))} />
             </div>
-          )}
-          {/* Only worth asking once the shop actually has lanes. */}
-          {laneList.length > 0 && (
             <div>
-              <Label>Register</Label>
-              <Select
-                value={draft.register_id}
-                options={[
-                  { value: "", label: "Shared — any register" },
-                  ...laneList.map((l) => ({ value: l.id, label: l.name })),
-                ]}
-                placeholder="Shared — any register"
-                onChange={(v) => setDraft((d) => ({ ...d, register_id: v }))}
-              />
+              <Label>Address / device ID <span className="font-normal text-gray-400">(optional)</span></Label>
+              <Input value={draft.connection_value} onChange={(e) => setDraft((d) => ({ ...d, connection_value: e.target.value }))} placeholder="e.g. 192.168.1.50:9100" />
             </div>
-          )}
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-6">
-          <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
-            <input type="checkbox" checked={draft.is_default} onChange={(e) => setDraft((d) => ({ ...d, is_default: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
-            {draft.register_id ? "Default for this register" : "Default for its type"}
-          </label>
-          <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
-            <input type="checkbox" checked={draft.is_active} onChange={(e) => setDraft((d) => ({ ...d, is_active: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
-            Active
-          </label>
-        </div>
-        <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
-          <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={save} disabled={!draft.name.trim() || create.isPending || update.isPending}>
-            {isEdit ? "Save" : "Add device"}
-          </Button>
-        </div>
+            <div>
+              <Label>Brand</Label>
+              <Input value={draft.brand} onChange={(e) => setDraft((d) => ({ ...d, brand: e.target.value }))} placeholder="e.g. XPrinter" />
+            </div>
+            <div>
+              <Label>Model</Label>
+              <Input value={draft.model} onChange={(e) => setDraft((d) => ({ ...d, model: e.target.value }))} placeholder="e.g. XP-80" />
+            </div>
+            {isPrinter && (
+              <div>
+                <Label>Paper size</Label>
+                <Select
+                  value={draft.paper_size}
+                  options={[{ value: "58mm", label: "58mm thermal" }, { value: "80mm", label: "80mm thermal" }, { value: "a4", label: "A4 / Letter" }]}
+                  onChange={(v) => setDraft((d) => ({ ...d, paper_size: v as Draft["paper_size"] }))}
+                />
+              </div>
+            )}
+            {/* Only worth asking once the shop actually has lanes. */}
+            {laneList.length > 0 && (
+              <div>
+                <Label>Register</Label>
+                <Select
+                  value={draft.register_id}
+                  options={[
+                    { value: "", label: "Shared — any register" },
+                    ...laneList.map((l) => ({ value: l.id, label: l.name })),
+                  ]}
+                  placeholder="Shared — any register"
+                  onChange={(v) => setDraft((d) => ({ ...d, register_id: v }))}
+                />
+              </div>
+            )}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-6">
+            <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={draft.is_default} onChange={(e) => setDraft((d) => ({ ...d, is_default: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
+              {draft.register_id ? "Default for this register" : "Default for its type"}
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={draft.is_active} onChange={(e) => setDraft((d) => ({ ...d, is_active: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
+              Active
+            </label>
+          </div>
+        </ModalForm>
       </Modal>
     </div>
   );

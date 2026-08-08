@@ -16,6 +16,7 @@ import {
 import type { TenantDashboard } from "../../types";
 import type { Capabilities } from "./capabilities";
 import { formatDelta } from "./format";
+import { tradeProfile, type FocusKey } from "./trade";
 
 type Tone = "brand" | "success" | "warning" | "error";
 
@@ -70,10 +71,12 @@ function DeltaPill({ delta, invert }: { delta: number | null | undefined; invert
 function KpiTile({ label, value, icon, tone, delta, invertDelta, emphasis, caption }: TileProps) {
   return (
     <div
-      className={`rounded-2xl border bg-white p-4 shadow-theme-xs dark:bg-white/[0.03] sm:p-5 ${
+      // The one figure the strip exists for gets a ground of its own, not just a
+      // heavier border — a border alone is invisible in a row of six cards.
+      className={`rounded-2xl border p-4 shadow-theme-xs transition-colors sm:p-5 ${
         emphasis
-          ? "border-brand-500 dark:border-brand-500/60"
-          : "border-gray-200 dark:border-gray-800"
+          ? "border-brand-200 bg-gradient-to-b from-brand-50 to-white dark:border-brand-500/40 dark:from-brand-500/10 dark:to-white/[0.03]"
+          : "border-gray-200 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700"
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -92,7 +95,7 @@ function KpiTile({ label, value, icon, tone, delta, invertDelta, emphasis, capti
       >
         {value}
       </p>
-      <p className="mt-1 truncate text-theme-sm text-gray-500 dark:text-gray-400">{label}</p>
+      <p className={`mt-1 truncate text-theme-sm ${emphasis ? "font-medium text-brand-600/80 dark:text-brand-400/80" : "text-gray-500 dark:text-gray-400"}`}>{label}</p>
       {caption && (
         <p className="mt-0.5 truncate text-theme-xs text-gray-400 dark:text-gray-500" title={caption}>
           {caption}
@@ -127,6 +130,7 @@ interface Props {
  */
 export function KpiRow({ data, caps, money, compact }: Props) {
   const today = data.today;
+  const trade = tradeProfile(caps.businessType);
   const tiles: TileSpec[] = [];
 
   if (caps.sells) {
@@ -167,45 +171,64 @@ export function KpiRow({ data, caps, money, compact }: Props) {
     if (!compact) {
       tiles.push({
         key: "orders",
-        label: "Orders Today",
+        label: trade.orders,
         value: today.sales_count.toLocaleString(),
         icon: <TaskIcon className="size-5" />,
         tone: "brand",
       });
       tiles.push({
         key: "customers",
-        label: "Customers Today",
+        label: trade.customers,
         value: today.customers_count.toLocaleString(),
         icon: <GroupIcon className="size-5" />,
         tone: "brand",
       });
 
-      // Sixth tile: whichever number this business actually keeps.
-      if (caps.takesOrders) {
-        tiles.push({
-          key: "pending_orders",
-          label: "Orders Awaiting Action",
-          value: data.pending_orders.toLocaleString(),
-          icon: <PlugInIcon className="size-5" />,
-          tone: "warning",
-        });
-      } else if (caps.tracksStock) {
-        tiles.push({
-          key: "low_stock",
-          label: "Low Stock Items",
-          value: data.low_stock_count.toLocaleString(),
-          icon: <BoxIconLine className="size-5" />,
-          tone: data.low_stock_count > 0 ? "error" : "brand",
-        });
-      } else if (caps.catalog) {
-        tiles.push({
-          key: "catalog",
-          label: caps.products ? "Active Products" : "Active Services",
-          value: data.products_count.toLocaleString(),
-          icon: <BoxIconLine className="size-5" />,
-          tone: "brand",
-        });
-      }
+      // Sixth tile: the figure THIS trade opens the app to check. What the shop
+      // is capable of carrying is a module question; which of those figures
+      // comes first is a trade one, and only the trade profile knows it.
+      const focusTile: Record<FocusKey, TileSpec | null> = {
+        expiring: caps.tracksStock
+          ? {
+              key: "expiring",
+              label: "Expiring Within 30 Days",
+              value: data.expiring_soon_count.toLocaleString(),
+              icon: <CalenderIcon className="size-5" />,
+              tone: data.expiring_soon_count > 0 ? "error" : "success",
+              caption: data.expiring_soon_count > 0 ? "Move it or lose it" : "Nothing dated soon",
+            }
+          : null,
+        lowStock: caps.tracksStock
+          ? {
+              key: "low_stock",
+              label: "Low Stock Items",
+              value: data.low_stock_count.toLocaleString(),
+              icon: <BoxIconLine className="size-5" />,
+              tone: data.low_stock_count > 0 ? "error" : "brand",
+            }
+          : null,
+        pipeline: caps.takesOrders
+          ? {
+              key: "pending_orders",
+              label: "Orders Awaiting Action",
+              value: data.pending_orders.toLocaleString(),
+              icon: <PlugInIcon className="size-5" />,
+              tone: data.pending_orders > 0 ? "warning" : "brand",
+            }
+          : null,
+        catalog: caps.catalog
+          ? {
+              key: "catalog",
+              label: caps.products ? "Active Products" : "Active Services",
+              value: data.products_count.toLocaleString(),
+              icon: <BoxIconLine className="size-5" />,
+              tone: "brand",
+            }
+          : null,
+      };
+
+      const sixth = trade.focus.map((k) => focusTile[k]).find((t) => t !== null);
+      if (sixth) tiles.push(sixth);
     }
   } else if (caps.keepsBooks) {
     // Books-only: this strip was money OUT only — every tile a way of saying

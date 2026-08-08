@@ -4,7 +4,7 @@ import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
-import { Modal } from "../../../components/ui/modal";
+import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -175,79 +175,89 @@ export default function FuelDeliveriesPage() {
       </section>
 
       {/* ── Record delivery ────────────────────────────────────────── */}
-      <Modal isOpen={deliveryModal.isOpen} onClose={deliveryModal.closeModal} className="max-w-lg p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Record delivery</h3>
-        <div className="space-y-4">
-          <div>
-            <Label>Into</Label>
-            <Select options={tankOptions} placeholder="Pick the tank" value={form.fuel_tank_id} onChange={(v) => setForm((f) => ({ ...f, fuel_tank_id: v }))} />
+      <Modal isOpen={deliveryModal.isOpen} onClose={deliveryModal.closeModal} className="max-w-lg">
+        <ModalForm
+          title="Record delivery"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={deliveryModal.closeModal}>Cancel</Button>
+              <Button size="sm" onClick={saveDelivery} disabled={!form.fuel_tank_id || !form.invoiced_litres || m.createDelivery.isPending}>
+                Record
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <Label>Into</Label>
+              <Select options={tankOptions} placeholder="Pick the tank" value={form.fuel_tank_id} onChange={(v) => setForm((f) => ({ ...f, fuel_tank_id: v }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Invoiced litres</Label>
+                <Input type="number" value={form.invoiced_litres} onChange={(e) => setForm((f) => ({ ...f, invoiced_litres: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Rate per litre</Label>
+                <Input type="number" value={form.unit_cost} onChange={(e) => setForm((f) => ({ ...f, unit_cost: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Dip before</Label>
+                <Input type="number" value={form.dip_before} onChange={(e) => setForm((f) => ({ ...f, dip_before: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Dip after</Label>
+                <Input type="number" value={form.dip_after} onChange={(e) => setForm((f) => ({ ...f, dip_after: e.target.value }))} />
+              </div>
+            </div>
+            <p className="text-theme-xs text-gray-400">
+              The dips are the station's own count. Given both, the delivery is received on what they say
+              arrived — not on the invoice — and the difference is recorded as a shortage.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Invoice no.</Label>
+                <Input value={form.invoice_number} onChange={(e) => setForm((f) => ({ ...f, invoice_number: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Tanker no.</Label>
+                <Input value={form.tanker_number} onChange={(e) => setForm((f) => ({ ...f, tanker_number: e.target.value }))} />
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Invoiced litres</Label>
-              <Input type="number" value={form.invoiced_litres} onChange={(e) => setForm((f) => ({ ...f, invoiced_litres: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Rate per litre</Label>
-              <Input type="number" value={form.unit_cost} onChange={(e) => setForm((f) => ({ ...f, unit_cost: e.target.value }))} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Dip before</Label>
-              <Input type="number" value={form.dip_before} onChange={(e) => setForm((f) => ({ ...f, dip_before: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Dip after</Label>
-              <Input type="number" value={form.dip_after} onChange={(e) => setForm((f) => ({ ...f, dip_after: e.target.value }))} />
-            </div>
-          </div>
-          <p className="text-theme-xs text-gray-400">
-            The dips are the station's own count. Given both, the delivery is received on what they say
-            arrived — not on the invoice — and the difference is recorded as a shortage.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Invoice no.</Label>
-              <Input value={form.invoice_number} onChange={(e) => setForm((f) => ({ ...f, invoice_number: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Tanker no.</Label>
-              <Input value={form.tanker_number} onChange={(e) => setForm((f) => ({ ...f, tanker_number: e.target.value }))} />
-            </div>
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={deliveryModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={saveDelivery} disabled={!form.fuel_tank_id || !form.invoiced_litres || m.createDelivery.isPending}>
-            Record
-          </Button>
-        </div>
+        </ModalForm>
       </Modal>
 
       {/* ── New rate ───────────────────────────────────────────────── */}
-      <Modal isOpen={rateModal.isOpen} onClose={rateModal.closeModal} className="max-w-sm p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">New rate</h3>
-        <div className="space-y-4">
-          <div>
-            <Label>Fuel</Label>
-            <Select options={fuelOptions} placeholder="Pick the fuel" value={rate.product_id} onChange={(v) => setRate((r) => ({ ...r, product_id: v }))} />
+      <Modal isOpen={rateModal.isOpen} onClose={rateModal.closeModal} className="max-w-sm">
+        <ModalForm
+          title="New rate"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={rateModal.closeModal}>Cancel</Button>
+              <Button size="sm" onClick={saveRate} disabled={!rate.product_id || !rate.new_price || m.createPrice.isPending}>
+                Apply
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <Label>Fuel</Label>
+              <Select options={fuelOptions} placeholder="Pick the fuel" value={rate.product_id} onChange={(v) => setRate((r) => ({ ...r, product_id: v }))} />
+            </div>
+            <div>
+              <Label>New rate</Label>
+              <Input type="number" value={rate.new_price} onChange={(e) => setRate((r) => ({ ...r, new_price: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Reason</Label>
+              <Input placeholder="OGRA notification" value={rate.reason} onChange={(e) => setRate((r) => ({ ...r, reason: e.target.value }))} />
+            </div>
           </div>
-          <div>
-            <Label>New rate</Label>
-            <Input type="number" value={rate.new_price} onChange={(e) => setRate((r) => ({ ...r, new_price: e.target.value }))} />
-          </div>
-          <div>
-            <Label>Reason</Label>
-            <Input placeholder="OGRA notification" value={rate.reason} onChange={(e) => setRate((r) => ({ ...r, reason: e.target.value }))} />
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={rateModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={saveRate} disabled={!rate.product_id || !rate.new_price || m.createPrice.isPending}>
-            Apply
-          </Button>
-        </div>
+        </ModalForm>
       </Modal>
     </>
   );

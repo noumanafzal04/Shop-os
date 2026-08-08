@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -37,22 +38,12 @@ export default function PharmacyPage() {
         </p>
       </div>
 
-      <div className="mb-6 flex gap-1 border-b border-gray-200 dark:border-gray-800">
-        {TABS.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`-mb-px whitespace-nowrap border-b-2 px-4 py-2.5 text-theme-sm font-medium transition ${
-              tab === key
-                ? "border-brand-500 text-brand-500"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <FilterTabs
+        tabs={TABS.map(([key, label]) => ({ key, label }))}
+        value={tab}
+        onChange={setTab}
+        className="mb-6"
+      />
 
       {tab === "register" ? <RegisterTab /> : <RecallTab />}
     </>

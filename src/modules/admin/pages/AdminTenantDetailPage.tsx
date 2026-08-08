@@ -6,7 +6,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
-import { Modal } from "../../../components/ui/modal";
+import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
@@ -191,91 +191,92 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
         </div>
       )}
 
-      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Change limits</h3>
-        <p className="mb-4 text-theme-xs text-gray-400">
-          Only fill in what you want to change — anything left blank stays exactly as it is.
-        </p>
-
-        {/* The two meanings a number in this box can have. Making it a visible
-            choice is the fix: the field used to be absolute-only while the
-            button said "Extend", so typing the increase cut the ceiling to it. */}
-        <div className="mb-4 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("add")}
-            className={`rounded-xl border p-3 text-left transition ${
-              mode === "add"
-                ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
-                : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
-            }`}
-          >
-            <div className={`text-sm font-medium ${mode === "add" ? "text-brand-600 dark:text-brand-400" : "text-gray-800 dark:text-white/90"}`}>
-              Add to current
-            </div>
-            <div className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-              Type 100 to give 100 more.
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("set")}
-            className={`rounded-xl border p-3 text-left transition ${
-              mode === "set"
-                ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
-                : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
-            }`}
-          >
-            <div className={`text-sm font-medium ${mode === "set" ? "text-brand-600 dark:text-brand-400" : "text-gray-800 dark:text-white/90"}`}>
-              Set exact total
-            </div>
-            <div className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-              Type 1,100 for a ceiling of 1,100.
-            </div>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {EXTENDABLE.map(({ key, label }) => {
-            const r = row(key);
-            const next = preview(key);
-            const bad = belowUsage(key);
-            return (
-              <div key={key}>
-                <Label>{label}</Label>
-                <Input
-                  type="number"
-                  value={form[key] ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                  placeholder={mode === "add" ? "+ how many?" : fmt(r?.limit)}
-                />
-                {/* Now → after. The arithmetic is on screen before the request,
-                    so a wrong number is caught by reading, not by an error. */}
-                <p className={`mt-1 text-theme-xs ${bad ? "text-error-500" : "text-gray-400"}`}>
-                  {bad ? (
-                    <>Already using {r?.used.toLocaleString()} — can’t go to {next?.toLocaleString()}</>
-                  ) : next !== null ? (
-                    <>{fmt(r?.limit)} → <span className="font-medium text-gray-600 dark:text-gray-300">{next.toLocaleString()}</span></>
-                  ) : (
-                    <>Now {fmt(r?.limit)} · {r?.owner === "tenant" ? "default" : "plan"} {fmt(baseline(key))} · using {r?.used.toLocaleString() ?? 0}</>
-                  )}
-                </p>
-                {fieldErr(key) && <p className="mt-1 text-theme-xs text-error-500">{fieldErr(key)}</p>}
+      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md">
+        <ModalForm
+          title="Change limits"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
+              <Button size="sm" onClick={save} disabled={extend.isPending || anyBelowUsage}>
+                {extend.isPending ? "Saving…" : "Save limits"}
+              </Button>
+            </>
+          }
+        >
+          <p className="mb-4 text-theme-xs text-gray-400">
+            Only fill in what you want to change — anything left blank stays exactly as it is.
+          </p>
+          {/* The two meanings a number in this box can have. Making it a visible
+              choice is the fix: the field used to be absolute-only while the
+              button said "Extend", so typing the increase cut the ceiling to it. */}
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMode("add")}
+              className={`rounded-xl border p-3 text-left transition ${
+                mode === "add"
+                  ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
+                  : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
+              }`}
+            >
+              <div className={`text-sm font-medium ${mode === "add" ? "text-brand-600 dark:text-brand-400" : "text-gray-800 dark:text-white/90"}`}>
+                Add to current
               </div>
-            );
-          })}
-        </div>
-
-        {extErr && Object.keys(extErr.errors).length === 0 && (
-          <p className="mt-4 text-theme-sm text-error-500">{extErr.message}</p>
-        )}
-
-        <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={save} disabled={extend.isPending || anyBelowUsage}>
-            {extend.isPending ? "Saving…" : "Save limits"}
-          </Button>
-        </div>
+              <div className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                Type 100 to give 100 more.
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("set")}
+              className={`rounded-xl border p-3 text-left transition ${
+                mode === "set"
+                  ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
+                  : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
+              }`}
+            >
+              <div className={`text-sm font-medium ${mode === "set" ? "text-brand-600 dark:text-brand-400" : "text-gray-800 dark:text-white/90"}`}>
+                Set exact total
+              </div>
+              <div className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                Type 1,100 for a ceiling of 1,100.
+              </div>
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {EXTENDABLE.map(({ key, label }) => {
+              const r = row(key);
+              const next = preview(key);
+              const bad = belowUsage(key);
+              return (
+                <div key={key}>
+                  <Label>{label}</Label>
+                  <Input
+                    type="number"
+                    value={form[key] ?? ""}
+                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                    placeholder={mode === "add" ? "+ how many?" : fmt(r?.limit)}
+                  />
+                  {/* Now → after. The arithmetic is on screen before the request,
+                      so a wrong number is caught by reading, not by an error. */}
+                  <p className={`mt-1 text-theme-xs ${bad ? "text-error-500" : "text-gray-400"}`}>
+                    {bad ? (
+                      <>Already using {r?.used.toLocaleString()} — can’t go to {next?.toLocaleString()}</>
+                    ) : next !== null ? (
+                      <>{fmt(r?.limit)} → <span className="font-medium text-gray-600 dark:text-gray-300">{next.toLocaleString()}</span></>
+                    ) : (
+                      <>Now {fmt(r?.limit)} · {r?.owner === "tenant" ? "default" : "plan"} {fmt(baseline(key))} · using {r?.used.toLocaleString() ?? 0}</>
+                    )}
+                  </p>
+                  {fieldErr(key) && <p className="mt-1 text-theme-xs text-error-500">{fieldErr(key)}</p>}
+                </div>
+              );
+            })}
+          </div>
+          {extErr && Object.keys(extErr.errors).length === 0 && (
+            <p className="mt-4 text-theme-sm text-error-500">{extErr.message}</p>
+          )}
+        </ModalForm>
       </Modal>
     </div>
   );
@@ -637,133 +638,143 @@ export default function AdminTenantDetailPage() {
 
       {/* Assign plan + optional payment */}
       {/* Edit business details */}
-      <Modal isOpen={editModal.isOpen} onClose={editModal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Edit business details</h3>
-        <div className="space-y-4">
-          <div>
-            <Label>Business name</Label>
-            <Input value={form.business_name} onChange={(e) => setForm((f) => ({ ...f, business_name: e.target.value }))} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+      <Modal isOpen={editModal.isOpen} onClose={editModal.closeModal} className="max-w-md">
+        <ModalForm
+          title="Edit business details"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={editModal.closeModal}>Cancel</Button>
+              <Button
+                size="sm"
+                disabled={update.isPending || !form.business_name.trim()}
+                onClick={() => {
+                  if (!id) return;
+                  update.mutate(
+                    {
+                      id,
+                      business_name: form.business_name.trim(),
+                      // Empty strings would fail the email/uuid rules; the API
+                      // takes null for "cleared".
+                      email: form.email.trim() || null,
+                      phone: form.phone.trim() || null,
+                      business_type: form.business_type || undefined,
+                      business_category: form.business_category || null,
+                      city_id: form.city_id || null,
+                    },
+                    { onSuccess: () => { toast.success("Tenant updated"); editModal.closeModal(); }, onError },
+                  );
+                }}
+              >
+                {update.isPending ? "Saving…" : "Save changes"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
             <div>
-              <Label>Email</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              <Label>Business name</Label>
+              <Input value={form.business_name} onChange={(e) => setForm((f) => ({ ...f, business_name: e.target.value }))} />
             </div>
-            <div>
-              <Label>Phone</Label>
-              <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <Label>Business type</Label>
-            <Select
-              value={form.business_type}
-              options={(businessTypes.data ?? []).map((b) => ({ value: b.code, label: b.label }))}
-              placeholder="Choose type"
-              onChange={(v) => setForm((f) => ({ ...f, business_type: v, business_category: "" }))}
-            />
-            <p className="mt-1 text-theme-xs text-gray-400">
-              Changing the type re-bases the module defaults. Anything already switched on stays on.
-            </p>
-          </div>
-          <div>
-            <Label>Category</Label>
-            <Select
-              value={form.business_category}
-              options={((businessTypes.data ?? []).find((b) => b.code === form.business_type)?.categories ?? [])
-                .map((c) => ({ value: c.value, label: c.label }))}
-              placeholder="Choose category"
-              onChange={(v) => setForm((f) => ({ ...f, business_category: v }))}
-            />
-          </div>
-          <div>
-            <Label>City</Label>
-            <Select
-              value={form.city_id}
-              options={(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-              placeholder="Choose city"
-              onChange={(v) => setForm((f) => ({ ...f, city_id: v }))}
-            />
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={editModal.closeModal}>Cancel</Button>
-          <Button
-            size="sm"
-            disabled={update.isPending || !form.business_name.trim()}
-            onClick={() => {
-              if (!id) return;
-              update.mutate(
-                {
-                  id,
-                  business_name: form.business_name.trim(),
-                  // Empty strings would fail the email/uuid rules; the API
-                  // takes null for "cleared".
-                  email: form.email.trim() || null,
-                  phone: form.phone.trim() || null,
-                  business_type: form.business_type || undefined,
-                  business_category: form.business_category || null,
-                  city_id: form.city_id || null,
-                },
-                { onSuccess: () => { toast.success("Tenant updated"); editModal.closeModal(); }, onError },
-              );
-            }}
-          >
-            {update.isPending ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
-      </Modal>
-
-      <Modal isOpen={planModal.isOpen} onClose={planModal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Assign / renew plan</h3>
-        <div className="space-y-4">
-          <div>
-            <Label>Plan</Label>
-            <Select
-              value={planId}
-              options={(plans.data ?? []).map((p) => ({ value: p.id, label: `${p.name}${Number(p.price) > 0 ? ` — ${money(p.price)}` : ""}` }))}
-              placeholder="Choose plan"
-              onChange={setPlanId}
-            />
-            {(plans.data ?? []).length === 0 && (
-              <p className="mt-1 text-theme-xs text-warning-600 dark:text-warning-400">
-                No plans exist yet — create one under Plans first.
-              </p>
-            )}
-          </div>
-          <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
-            <p className="mb-3 text-theme-xs text-gray-400">Record payment (optional — leave amount blank for a free/complimentary assignment)</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Amount</Label>
-                <Input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+                <Label>Email</Label>
+                <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
               </div>
               <div>
-                <Label>Method</Label>
-                <Select
-                  options={[
-                    { value: "cash", label: "Cash" },
-                    { value: "bank_transfer", label: "Bank transfer" },
-                    { value: "card", label: "Card" },
-                    { value: "other", label: "Other" },
-                  ]}
-                  placeholder="Cash"
-                  onChange={setMethod}
-                />
+                <Label>Phone</Label>
+                <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
               </div>
             </div>
-            <div className="mt-3">
-              <Label>Reference (optional)</Label>
-              <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Txn / receipt no." />
+            <div>
+              <Label>Business type</Label>
+              <Select
+                value={form.business_type}
+                options={(businessTypes.data ?? []).map((b) => ({ value: b.code, label: b.label }))}
+                placeholder="Choose type"
+                onChange={(v) => setForm((f) => ({ ...f, business_type: v, business_category: "" }))}
+              />
+              <p className="mt-1 text-theme-xs text-gray-400">
+                Changing the type re-bases the module defaults. Anything already switched on stays on.
+              </p>
+            </div>
+            <div>
+              <Label>Category</Label>
+              <Select
+                value={form.business_category}
+                options={((businessTypes.data ?? []).find((b) => b.code === form.business_type)?.categories ?? [])
+                  .map((c) => ({ value: c.value, label: c.label }))}
+                placeholder="Choose category"
+                onChange={(v) => setForm((f) => ({ ...f, business_category: v }))}
+              />
+            </div>
+            <div>
+              <Label>City</Label>
+              <Select
+                value={form.city_id}
+                options={(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                placeholder="Choose city"
+                onChange={(v) => setForm((f) => ({ ...f, city_id: v }))}
+              />
             </div>
           </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={planModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={doAssignPlan} disabled={assignPlan.isPending || !planId}>
-            {assignPlan.isPending ? "Saving…" : "Assign plan"}
-          </Button>
-        </div>
+        </ModalForm>
+      </Modal>
+
+      <Modal isOpen={planModal.isOpen} onClose={planModal.closeModal} className="max-w-md">
+        <ModalForm
+          title="Assign / renew plan"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={planModal.closeModal}>Cancel</Button>
+              <Button size="sm" onClick={doAssignPlan} disabled={assignPlan.isPending || !planId}>
+                {assignPlan.isPending ? "Saving…" : "Assign plan"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <Label>Plan</Label>
+              <Select
+                value={planId}
+                options={(plans.data ?? []).map((p) => ({ value: p.id, label: `${p.name}${Number(p.price) > 0 ? ` — ${money(p.price)}` : ""}` }))}
+                placeholder="Choose plan"
+                onChange={setPlanId}
+              />
+              {(plans.data ?? []).length === 0 && (
+                <p className="mt-1 text-theme-xs text-warning-600 dark:text-warning-400">
+                  No plans exist yet — create one under Plans first.
+                </p>
+              )}
+            </div>
+            <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
+              <p className="mb-3 text-theme-xs text-gray-400">Record payment (optional — leave amount blank for a free/complimentary assignment)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Amount</Label>
+                  <Input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+                </div>
+                <div>
+                  <Label>Method</Label>
+                  <Select
+                    options={[
+                      { value: "cash", label: "Cash" },
+                      { value: "bank_transfer", label: "Bank transfer" },
+                      { value: "card", label: "Card" },
+                      { value: "other", label: "Other" },
+                    ]}
+                    placeholder="Cash"
+                    onChange={setMethod}
+                  />
+                </div>
+              </div>
+              <div className="mt-3">
+                <Label>Reference (optional)</Label>
+                <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Txn / receipt no." />
+              </div>
+            </div>
+          </div>
+        </ModalForm>
       </Modal>
     </>
   );
