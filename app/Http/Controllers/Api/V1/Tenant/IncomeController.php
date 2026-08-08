@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Actions\Expense\RecordIncomeAction;
+use App\Actions\Pos\RecordCashMovementAction;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Income\StoreIncomeRequest;
 use App\Models\CashMovement;
 use App\Models\Income;
 use App\Support\ApiResponse;
+use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\MoneyEntryFilters;
@@ -88,17 +90,20 @@ class IncomeController extends Controller
         ], 201);
     }
 
-    public function update(StoreIncomeRequest $request, string $id): JsonResponse
+    public function update(StoreIncomeRequest $request, string $id, RecordCashMovementAction $cash): JsonResponse
     {
         /** @var Income $income */
         $income = Income::query()->findOrFail($id);
         $this->assertAmendable($income);
 
+        $wasCash = $income->payment_method === 'cash';
         $income->fill($request->validated())->save();
 
         $movement = $income->cash_movement_id !== null
             ? CashMovement::query()->whereKey($income->cash_movement_id)->first()
             : null;
+
+        $warnings = [];
 
         if ($movement !== null && $income->payment_method !== 'cash') {
             // Re-marked as a bank transfer: the cash never reached the till.
@@ -106,9 +111,33 @@ class IncomeController extends Controller
             $income->forceFill(['cash_movement_id' => null])->save();
         } elseif ($movement !== null) {
             $movement->update(['amount' => (float) $income->amount, 'reason' => $income->description]);
+        } elseif (! $wasCash && $income->payment_method === 'cash') {
+            // Corrected to cash: the money IS in a drawer, so one has to move.
+            // See ReviseExpenseAction — the same gap, the same fix, and the
+            // same rule about whose drawer it may be.
+            $practice = BooksDrawer::isPractice($request->user());
+            $created = $practice ? null : $cash->record($request->user(), [
+                'type' => 'income_in',
+                'amount' => (float) $income->amount,
+                'reason' => $income->description,
+                'source_type' => 'income',
+                'source_id' => $income->id,
+            ]);
+
+            if ($created !== null) {
+                $income->forceFill(['cash_movement_id' => $created->id])->save();
+            } else {
+                $warnings[] = BooksDrawer::untouchedDrawerWarning($practice, 'Changed to cash');
+            }
         }
 
-        return ApiResponse::ok($income->load('category:id,name'), 'Income updated');
+        return response()->json([
+            'success' => true,
+            'message' => 'Income updated',
+            'data' => $income->load('category:id,name'),
+            'errors' => (object) [],
+            'meta' => (object) array_filter(['warnings' => $warnings]),
+        ]);
     }
 
     public function destroy(string $id): JsonResponse

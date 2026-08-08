@@ -171,6 +171,91 @@ class ExpenseManagerDepthTest extends TestCase
         $this->assertNull(Expense::withoutTenancy()->whereKey($expense['id'])->value('cash_movement_id'));
     }
 
+    public function test_re_marking_a_bank_expense_as_cash_takes_it_out_of_the_drawer(): void
+    {
+        $session = $this->openShift(10000);
+        $expense = $this->recordExpense(['amount' => 3000, 'payment_method' => 'bank_transfer']);
+
+        $this->assertNull($expense['cash_movement_id']);
+
+        // The correction direction nobody had covered. Cash → card removed the
+        // movement and cash → cash amended it; card → cash did NOTHING, so the
+        // row said the money came out of the till, the drawer had never heard
+        // of it, and the shift closed 3,000 short with no explanation.
+        $this->actingAsUser($this->owner)->putJson("/api/v1/expenses/{$expense['id']}", [
+            'expense_category_id' => $this->utilities->id,
+            'description' => 'K-Electric bill',
+            'amount' => 3000,
+            'payment_method' => 'cash',
+            'expense_date' => now()->toDateString(),
+        ])->assertOk();
+
+        $movementId = Expense::withoutTenancy()->whereKey($expense['id'])->value('cash_movement_id');
+        $this->assertNotNull($movementId);
+        $this->assertSame('expense_out', CashMovement::withoutTenancy()->whereKey($movementId)->value('type'));
+        $this->assertEquals(7000, DrawerMath::for($session->fresh())['expected_cash']);
+    }
+
+    public function test_correcting_to_cash_with_no_shift_open_says_the_drawer_was_untouched(): void
+    {
+        $expense = $this->recordExpense(['amount' => 3000, 'payment_method' => 'bank_transfer']);
+
+        $warnings = $this->actingAsUser($this->owner)->putJson("/api/v1/expenses/{$expense['id']}", [
+            'expense_category_id' => $this->utilities->id,
+            'description' => 'K-Electric bill',
+            'amount' => 3000,
+            'payment_method' => 'cash',
+            'expense_date' => now()->toDateString(),
+        ])->assertOk()->json('meta.warnings');
+
+        // Silence here is how a drawer and its books drift apart unnoticed.
+        $this->assertStringContainsString('no shift open', implode(' ', $warnings ?? []));
+        $this->assertNull(Expense::withoutTenancy()->whereKey($expense['id'])->value('cash_movement_id'));
+    }
+
+    public function test_re_marking_a_bank_income_as_cash_puts_it_in_the_drawer(): void
+    {
+        $session = $this->openShift(10000);
+
+        $income = $this->actingAsUser($this->owner)->postJson('/api/v1/incomes', [
+            'income_category_id' => $this->miscIncome->id,
+            'description' => 'Rent received',
+            'amount' => 5000,
+            'payment_method' => 'bank_transfer',
+            'income_date' => now()->toDateString(),
+        ])->assertCreated()->json('data');
+
+        $this->actingAsUser($this->owner)->putJson("/api/v1/incomes/{$income['id']}", [
+            'income_category_id' => $this->miscIncome->id,
+            'description' => 'Rent received',
+            'amount' => 5000,
+            'payment_method' => 'cash',
+            'income_date' => now()->toDateString(),
+        ])->assertOk();
+
+        $this->assertNotNull(Income::withoutTenancy()->whereKey($income['id'])->value('cash_movement_id'));
+        $this->assertEquals(15000, DrawerMath::for($session->fresh())['expected_cash']);
+    }
+
+    public function test_income_recorded_as_a_bank_transfer_leaves_the_drawer_alone(): void
+    {
+        $session = $this->openShift(10000);
+
+        // The panel had no method picker at all, and the server defaults a
+        // missing one to cash — so an owner logging a bank transfer while a
+        // cashier was open handed them an overage they could not explain.
+        $income = $this->actingAsUser($this->owner)->postJson('/api/v1/incomes', [
+            'income_category_id' => $this->miscIncome->id,
+            'description' => 'Owner injection by bank',
+            'amount' => 20000,
+            'payment_method' => 'bank_transfer',
+            'income_date' => now()->toDateString(),
+        ])->assertCreated()->json('data');
+
+        $this->assertNull($income['cash_movement_id']);
+        $this->assertEquals(10000, DrawerMath::for($session->fresh())['expected_cash']);
+    }
+
     public function test_deleting_a_cash_expense_puts_the_money_back(): void
     {
         $session = $this->openShift(10000);
@@ -180,6 +265,41 @@ class ExpenseManagerDepthTest extends TestCase
 
         $this->assertEquals(10000, DrawerMath::for($session->fresh())['expected_cash']);
         $this->assertSame(0, CashMovement::withoutTenancy()->where('type', 'expense_out')->count());
+    }
+
+    public function test_a_real_expense_never_posts_to_a_practice_till(): void
+    {
+        $session = $this->openShift(10000, training: true);
+
+        $response = $this->postExpense(['amount' => 3000, 'payment_method' => 'cash'])->assertCreated();
+        $expense = $response->json('data');
+
+        // There is no such thing as a practice expense — this row is in the
+        // books, the cashbook and every report the moment it is filed. Posting
+        // its cash leg to a till whose contents are thrown away loses the money
+        // twice: the REAL drawer never learns the cash left, and the entry ends
+        // up frozen by a practice shift the moment that shift is counted.
+        $this->assertNull($expense['cash_movement_id']);
+        $this->assertEquals(10000, DrawerMath::for($session->fresh())['expected_cash']);
+        $this->assertSame(1, Expense::withoutTenancy()->count(), 'The expense itself is real and is kept.');
+        $this->assertStringContainsString('practice till', implode(' ', $response->json('meta.warnings')));
+    }
+
+    public function test_cash_income_never_lands_in_a_practice_till_either(): void
+    {
+        $session = $this->openShift(10000, training: true);
+
+        $response = $this->actingAsUser($this->owner)->postJson('/api/v1/incomes', [
+            'income_category_id' => $this->miscIncome->id,
+            'description' => 'Rent received',
+            'amount' => 5000,
+            'payment_method' => 'cash',
+            'income_date' => now()->toDateString(),
+        ])->assertCreated();
+
+        $this->assertNull($response->json('data.cash_movement_id'));
+        $this->assertEquals(10000, DrawerMath::for($session->fresh())['expected_cash']);
+        $this->assertStringContainsString('practice till', implode(' ', $response->json('meta.warnings')));
     }
 
     public function test_an_expense_paid_from_a_closed_shift_can_no_longer_be_rewritten(): void
@@ -231,6 +351,27 @@ class ExpenseManagerDepthTest extends TestCase
 
         $rent = collect($rows)->firstWhere('category', 'Rent');
         $this->assertEquals(90000, $rent['budget']);
+    }
+
+    public function test_the_budget_list_says_which_of_the_two_ceilings_is_in_force(): void
+    {
+        $this->setBudget($this->rent, 50000);                                   // standing
+        $this->setBudget($this->rent, 90000, month: now()->toDateString());     // this month only
+
+        $rows = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/expenses/budgets')->assertOk()->json('data');
+
+        // The effective figure alone cannot be edited: a box showing 90,000
+        // with no way to know whether that is the standing number or this
+        // month's override writes the wrong row half the time.
+        $rent = collect($rows)->firstWhere('category', 'Rent');
+        $this->assertEquals(90000, $rent['budget']);
+        $this->assertEquals(50000, $rent['standing']);
+        $this->assertTrue($rent['is_override']);
+
+        $utilities = collect($rows)->firstWhere('category', 'Utilities');
+        $this->assertNull($utilities['standing']);
+        $this->assertFalse($utilities['is_override']);
     }
 
     public function test_an_unbudgeted_category_is_not_the_same_as_a_budget_of_zero(): void
@@ -473,10 +614,13 @@ class ExpenseManagerDepthTest extends TestCase
         ]);
     }
 
-    private function openShift(float $float): CashSession
+    private function openShift(float $float, bool $training = false): CashSession
     {
         $id = $this->actingAsUser($this->owner)
-            ->postJson('/api/v1/pos/session/open', ['opening_float' => $float])
+            ->postJson('/api/v1/pos/session/open', array_filter([
+                'opening_float' => $float,
+                'is_training' => $training ?: null,
+            ], fn ($v) => $v !== null))
             ->assertCreated()->json('data.id');
 
         return CashSession::withoutTenancy()->findOrFail($id);

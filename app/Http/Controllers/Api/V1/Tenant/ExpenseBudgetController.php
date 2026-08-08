@@ -50,13 +50,21 @@ class ExpenseBudgetController extends Controller
             ->orderBy('name')
             ->get()
             ->map(function (ExpenseCategory $c) use ($month, $branchScope, $spend): array {
-                $ceiling = ExpenseBudget::ceilingFor($c->id, $month, $branchScope);
+                $inForce = ExpenseBudget::inForce($c->id, $month, $branchScope);
+                $ceiling = $inForce['amount'];
                 $spent = round((float) ($spend[$c->id] ?? 0), 2);
 
                 return [
                     'expense_category_id' => $c->id,
                     'category' => $c->name,
                     'budget' => $ceiling,
+                    // Which row set it, so the screen can offer a box that
+                    // edits the one the merchant meant. Without these two the
+                    // month-override half of the model is unreachable from any
+                    // UI, and clearing a budget uncovers another one without
+                    // warning.
+                    'standing' => $inForce['standing'],
+                    'is_override' => $inForce['is_override'],
                     'spent' => $spent,
                     'remaining' => $ceiling === null ? null : round($ceiling - $spent, 2),
                     'over' => $ceiling !== null && $spent > $ceiling,

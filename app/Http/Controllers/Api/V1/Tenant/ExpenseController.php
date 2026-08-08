@@ -107,7 +107,18 @@ class ExpenseController extends Controller
         /** @var Expense $expense */
         $expense = Expense::query()->findOrFail($id);
 
-        return ApiResponse::ok($action->update($expense, $request->validated()), 'Expense updated');
+        $result = $action->update($request->user(), $expense, $request->validated());
+
+        // A correction can move the drawer too, and can fail to — "you changed
+        // this to cash with no shift open" is exactly as worth saying on an
+        // edit as it is on the original entry.
+        return response()->json([
+            'success' => true,
+            'message' => 'Expense updated',
+            'data' => $result['expense'],
+            'errors' => (object) [],
+            'meta' => (object) array_filter(['warnings' => $result['warnings']]),
+        ]);
     }
 
     public function destroy(string $id, ReviseExpenseAction $action): JsonResponse

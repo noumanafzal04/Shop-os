@@ -6,6 +6,7 @@ use App\Actions\Pos\RecordCashMovementAction;
 use App\Models\Expense;
 use App\Models\ExpenseBudget;
 use App\Models\User;
+use App\Support\BooksDrawer;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -30,6 +31,11 @@ use Illuminate\Support\Facades\DB;
  *    would put a stranger's variance on their shift. This mirrors what void
  *    refunds and supplier payouts already do.
  *
+ *  - a PRACTICE shift is not a drawer. There is no such thing as a practice
+ *    expense — this row reaches the books either way — so posting it to a till
+ *    whose whole contents are discarded loses the money twice over. See
+ *    App\Support\BooksDrawer.
+ *
  *  - a budget never blocks. The bill arrived; refusing to record it does not
  *    unspend the money, it only means the books stop matching the world. The
  *    ceiling is reported back as a warning at the moment of entry — the only
@@ -47,6 +53,7 @@ class RecordExpenseAction
     {
         return DB::transaction(function () use ($user, $data): array {
             $paidInCash = ($data['payment_method'] ?? 'cash') === 'cash';
+            $practice = BooksDrawer::isPractice($user);
 
             // Re-read after insert: Eloquent doesn't hydrate columns the caller
             // never set, so a fresh row is the only way the response carries
@@ -54,7 +61,7 @@ class RecordExpenseAction
             // silently omitting them.
             $expense = Expense::query()->create($data)->fresh();
 
-            if ($paidInCash) {
+            if ($paidInCash && ! $practice) {
                 // record() returns null when the actor has no open shift —
                 // "no drawer, no cash moved through one".
                 $movement = $this->cash->record($user, [
@@ -72,7 +79,7 @@ class RecordExpenseAction
 
             return [
                 'expense' => $expense->load(['category:id,name', 'supplier:id,name']),
-                'warnings' => $this->warningsFor($expense, $paidInCash),
+                'warnings' => $this->warningsFor($expense, $paidInCash, $practice),
             ];
         });
     }
@@ -83,7 +90,7 @@ class RecordExpenseAction
      *
      * @return array<int, string>
      */
-    private function warningsFor(Expense $expense, bool $paidInCash): array
+    private function warningsFor(Expense $expense, bool $paidInCash, bool $practice): array
     {
         $warnings = [];
 
@@ -101,7 +108,7 @@ class RecordExpenseAction
         }
 
         if ($paidInCash && $expense->cash_movement_id === null) {
-            $warnings[] = 'Recorded as cash, but you have no shift open — the drawer was not adjusted.';
+            $warnings[] = BooksDrawer::untouchedDrawerWarning($practice);
         }
 
         $month = Carbon::parse($expense->expense_date)->startOfMonth();

@@ -2,9 +2,12 @@
 
 namespace App\Actions\Expense;
 
+use App\Actions\Pos\RecordCashMovementAction;
 use App\Exceptions\DomainException;
 use App\Models\CashMovement;
 use App\Models\Expense;
+use App\Models\User;
+use App\Support\BooksDrawer;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -15,8 +18,8 @@ use Illuminate\Support\Facades\DB;
  * been counted:
  *
  *   SHIFT STILL OPEN    the drawer hasn't been counted, so the mistake is
- *                       simply corrected — the movement is amended or removed
- *                       alongside the expense.
+ *                       simply corrected — the movement is amended, removed or
+ *                       created alongside the expense.
  *
  *   SHIFT CLOSED        somebody counted that drawer, signed off a variance and
  *                       went home. Rewriting the movement now changes a figure
@@ -24,15 +27,28 @@ use Illuminate\Support\Facades\DB;
  *                       leaves the shift short with no record of why. Refused;
  *                       the fix is a compensating entry, which is how cash
  *                       books have always handled yesterday.
+ *
+ * All three directions of the method change matter, and only two of them used
+ * to work. Cash → card removed the movement, cash → cash amended it, and card →
+ * cash did NOTHING: the row said the money came out of the till, the drawer had
+ * never heard of it, and the shift closed on a short of exactly that amount —
+ * the precise failure this module was built to end, arriving through the
+ * correction rather than the entry.
  */
 class ReviseExpenseAction
 {
-    /** @param array<string, mixed> $data */
-    public function update(Expense $expense, array $data): Expense
+    public function __construct(private readonly RecordCashMovementAction $cash) {}
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{expense: Expense, warnings: array<int, string>}
+     */
+    public function update(User $user, Expense $expense, array $data): array
     {
-        return DB::transaction(function () use ($expense, $data): Expense {
+        return DB::transaction(function () use ($user, $expense, $data): array {
             $this->assertAmendable($expense);
 
+            $wasCash = $expense->payment_method === 'cash';
             $expense->fill($data)->save();
 
             $movement = $expense->cash_movement_id !== null
@@ -40,6 +56,7 @@ class ReviseExpenseAction
                 : null;
 
             $stillCash = ($data['payment_method'] ?? $expense->payment_method) === 'cash';
+            $warnings = [];
 
             if ($movement !== null && ! $stillCash) {
                 // Re-marked as paid by card or bank: the cash never left the
@@ -51,9 +68,30 @@ class ReviseExpenseAction
                     'amount' => (float) $expense->amount,
                     'reason' => $expense->description,
                 ]);
+            } elseif ($stillCash && ! $wasCash) {
+                // Corrected from card/bank to cash. The money did come out of
+                // a drawer, so one has to move — the actor's own, real and
+                // open, or none at all: the rule the original entry follows.
+                $practice = BooksDrawer::isPractice($user);
+                $created = $practice ? null : $this->cash->record($user, [
+                    'type' => 'expense_out',
+                    'amount' => (float) $expense->amount,
+                    'reason' => $expense->description,
+                    'source_type' => 'expense',
+                    'source_id' => $expense->id,
+                ]);
+
+                if ($created !== null) {
+                    $expense->forceFill(['cash_movement_id' => $created->id])->save();
+                } else {
+                    $warnings[] = BooksDrawer::untouchedDrawerWarning($practice, 'Changed to cash');
+                }
             }
 
-            return $expense->load(['category:id,name', 'supplier:id,name']);
+            return [
+                'expense' => $expense->load(['category:id,name', 'supplier:id,name']),
+                'warnings' => $warnings,
+            ];
         });
     }
 

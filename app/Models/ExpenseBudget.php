@@ -47,6 +47,22 @@ class ExpenseBudget extends Model
      */
     public static function ceilingFor(string $categoryId, Carbon $month, ?string $branchId = null): ?float
     {
+        return self::inForce($categoryId, $month, $branchId)['amount'];
+    }
+
+    /**
+     * The ceiling in force AND which of the two rows set it.
+     *
+     * The effective figure alone is not enough to edit a budget: a screen that
+     * shows "90,000" without saying whether that is the standing number or
+     * this month's override cannot offer a box to change it — whichever row it
+     * wrote would be wrong half the time, and clearing the box would silently
+     * uncover a different ceiling underneath. So the caller gets both.
+     *
+     * @return array{amount: ?float, standing: ?float, is_override: bool}
+     */
+    public static function inForce(string $categoryId, Carbon $month, ?string $branchId = null): array
+    {
         $rows = self::query()
             ->where('expense_category_id', $categoryId)
             ->when($branchId !== null, fn ($q) => $q->where(fn ($w) => $w->where('branch_id', $branchId)->orWhereNull('branch_id')))
@@ -60,6 +76,10 @@ class ExpenseBudget extends Model
 
         $chosen = $specific ?? $standing;
 
-        return $chosen !== null ? (float) $chosen->amount : null;
+        return [
+            'amount' => $chosen !== null ? (float) $chosen->amount : null,
+            'standing' => $standing !== null ? (float) $standing->amount : null,
+            'is_override' => $specific !== null,
+        ];
     }
 }

@@ -5,6 +5,7 @@ namespace App\Actions\Expense;
 use App\Actions\Pos\RecordCashMovementAction;
 use App\Models\Income;
 use App\Models\User;
+use App\Support\BooksDrawer;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -32,12 +33,15 @@ class RecordIncomeAction
     {
         return DB::transaction(function () use ($user, $data): array {
             $inCash = ($data['payment_method'] ?? 'cash') === 'cash';
+            // A practice till is not a drawer real money may land in — see
+            // App\Support\BooksDrawer. The income itself is always real.
+            $practice = BooksDrawer::isPractice($user);
 
             // See RecordExpenseAction: a fresh read is what makes the response
             // a complete row rather than only the fields that were posted.
             $income = Income::query()->create($data)->fresh();
 
-            if ($inCash) {
+            if ($inCash && ! $practice) {
                 $movement = $this->cash->record($user, [
                     'type' => 'income_in',
                     'amount' => (float) $income->amount,
@@ -65,7 +69,7 @@ class RecordIncomeAction
             }
 
             if ($inCash && $income->cash_movement_id === null) {
-                $warnings[] = 'Recorded as cash, but you have no shift open — the drawer was not adjusted.';
+                $warnings[] = BooksDrawer::untouchedDrawerWarning($practice);
             }
 
             return ['income' => $income->load('category:id,name'), 'warnings' => $warnings];
