@@ -503,6 +503,13 @@ bug.
   columns one by one and `UpdateProductAction` fills wholesale — so they saved on
   the *second* press of Save. `2026-08-09`, see
   `docs/decisions/shopos-import-and-dropped-columns.md`.
+- **Real money must never post to a practice till.** An expense is always real;
+  a practice shift discards everything on it. Pair them and the real drawer
+  closes short while the entry is frozen by the practice shift's close. Use
+  `App\Support\BooksDrawer` — a practice shift is treated as no shift.
+- **Filters: always-visible bar + right-side canvas + removable chips above the
+  table.** The chips are not decoration; a canvas that hides what is applied is
+  how a merchant concludes the numbers are wrong. Bottom sheet only below `sm`.
 - Commit and push only when asked.
 
 ### Gates, run from each app's directory
