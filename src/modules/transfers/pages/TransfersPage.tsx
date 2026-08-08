@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { NoAccess } from "../../../common/ui/NoAccess";
+import { deniedReason } from "../../../common/api/denied";
 import { useQuery } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -91,6 +93,14 @@ export default function TransfersPage() {
         </div>
         <Button size="sm" onClick={open} disabled={branchOptions.length < 2}>+ New transfer</Button>
       </div>
+
+      {/* A refused branch list left this button greyed out with no reason
+          given — indistinguishable from a shop that only has one branch. */}
+      {deniedReason(branches.error) && (
+        <div className="mb-6">
+          <NoAccess reason={deniedReason(branches.error)!} what="the branch list" />
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">

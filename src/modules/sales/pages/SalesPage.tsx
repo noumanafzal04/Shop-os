@@ -16,6 +16,8 @@ import { downloadFile } from "../../../common/api/download";
 import { useToast } from "../../../components/ui/toast";
 import { useSale, useSaleMutations, useSales } from "../hooks/useSales";
 import { useProducts } from "../../catalog/hooks/useCatalog";
+import { NoAccess } from "../../../common/ui/NoAccess";
+import { deniedReason } from "../../../common/api/denied";
 import { useAuthStore } from "../../../stores/authStore";
 import { ApiError } from "../../../common/types/api";
 import type { SaleStatus } from "../types";
@@ -495,7 +497,12 @@ export default function SalesPage() {
                 <div>
                   <Label>2 · Replacement items</Label>
                   <Input placeholder="Search products…" value={exSearch} onChange={(e) => setExSearch(e.target.value)} />
-                  {exSearch && (
+                  {exSearch && deniedReason(exProducts.error) && (
+                    <div className="mt-1">
+                      <NoAccess reason={deniedReason(exProducts.error)!} what="the product list" />
+                    </div>
+                  )}
+                  {exSearch && !deniedReason(exProducts.error) && (
                     <div className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800">
                       {(exProducts.data?.data ?? []).slice(0, 8).map((p) => (
                         <button key={p.id} onClick={() => addExItem(p)}

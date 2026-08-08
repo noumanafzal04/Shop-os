@@ -278,15 +278,28 @@ describe("the menu offers nothing the API will refuse", () => {
   });
 
   it("a dropdown keeps the rows the person does hold", () => {
-    // A stock-keeper counts and adjusts; buying and paying suppliers is
-    // somebody else's job.
+    // A stock keeper counts, adjusts, moves stock between branches, and
+    // receives what arrives — so they need the supplier's name and the order
+    // they are checking the delivery against. RAISING an order and paying a
+    // supplier are still somebody else's job; the server draws the line at the
+    // same place (Permissions::READS_PURCHASE_ORDERS).
     const inventory = nav("mart", "advanced", false, holding("inventory.manage"))
       .find((i) => i.name === "Inventory");
 
     expect(inventory?.subItems?.map((s) => s.path)).toEqual([
       "/tenant/inventory",
       "/tenant/stocktake",
+      "/tenant/suppliers",
+      "/tenant/purchases",
     ]);
+  });
+
+  it("buying screens stay shut to someone with neither stock nor purchase authority", () => {
+    const menu = nav("mart", "advanced", false, holding("customers.manage"));
+    const all = menu.flatMap((i) => i.subItems?.map((s) => s.path) ?? [i.path]);
+
+    expect(all).not.toContain("/tenant/suppliers");
+    expect(all).not.toContain("/tenant/purchases");
   });
 
   it("the trade screens carry the permission their own action needs", () => {

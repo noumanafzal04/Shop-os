@@ -223,4 +223,6 @@ export interface ProductFilters {
   category_id?: string;
   low_stock?: boolean;
   page?: number;
+  /** Server caps this at 100; omitted means the API's own default of 15. */
+  per_page?: number;
 }

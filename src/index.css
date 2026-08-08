@@ -41,6 +41,29 @@ layer(base);
   --color-white: #ffffff;
   --color-black: #101828;
 
+  /* ── The till's own two grounds ──────────────────────────────────
+     Deliberately NOT part of the brand ramp. applyTenantTheme() derives the
+     whole 25→950 scale from whatever colour a shop picks in Appearance, so
+     while the POS sat on brand-950 a shop that chose red got a dark red
+     scan side — and every contrast ratio tuned against the old ground moved
+     with it. The POS is the one screen that must look the same in every
+     shop: it is used ten hours a day, in shop light, by someone who learns
+     it by position and colour rather than by reading. These two stay put.
+
+     One ground under the whole workspace, both halves. It is fixed rather than
+     taken from the brand ramp because it covers most of the screen and every
+     contrast ratio on the product cards is measured against it — a shop
+     picking red would otherwise get a screen-filling dark red till and take
+     the readability of the catalogue with it. Chrome (gray-900 #101828) sits
+     a shade darker so the bars still frame the work, and the cart is a white
+     plate on top: three layers, no borders needed.
+
+     The chrome stays NEUTRAL (gray-900) rather than a darker tint of this
+     hue. Tried the same-hue version: it made the bars read as part of the
+     workspace, and the point of chrome is that it is not — the near-black
+     bars are what stop the coloured workspace running to the screen edge. */
+  --color-pos-ground: #212a45;
+
   --color-brand-25: #f2f7ff;
   --color-brand-50: #ecf3ff;
   --color-brand-100: #dde9ff;

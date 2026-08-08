@@ -100,11 +100,16 @@ export default function DayPage() {
   const money = useMoney();
   const toast = useToast();
   const hasPermission = useAuthStore((s) => s.hasPermission);
-  const canManage = hasPermission("settings.manage");
+  // Signing off the day and banking the takings are supervision, not shop
+  // configuration. This asked for settings.manage, which the Manager preset
+  // deliberately withholds — so the person hired to close the shop saw no
+  // close button. The server now agrees (Permissions::SUPERVISES_TILLS).
+  const canManage = hasPermission("settings.manage") || hasPermission("reports.view");
   // `/pos/sessions` sits inside the POS group (sales.manage) AND behind
   // settings.manage, so it needs BOTH. Naming only one here would offer a tab
   // that answers 403 — the rule on screen has to be the rule on the route.
-  const canSeeShifts = canManage && hasPermission("sales.manage");
+  // Matches what GET /pos/sessions asks for, and nothing more.
+  const canSeeShifts = canManage;
 
   const [tab, setTab] = useState<Tab>("today");
 

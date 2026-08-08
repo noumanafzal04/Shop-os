@@ -20,7 +20,15 @@
  *                        pays is not a secret from the people who work in it
  *   /tenant/setup        an unfinished shop must be finishable
  */
-const SCREEN_PERMISSIONS: Record<string, string> = {
+/**
+ * A screen may name SEVERAL permissions, and then it reads as ANY of them —
+ * the same shape the server's permission gate uses. Receiving a delivery is
+ * the clearest case: raising a purchase order is buying, but checking the
+ * goods off the loading bay is stockroom work, and the two are different
+ * people. A single-permission map could not say that, so the person hired to
+ * receive stock had no Purchases menu at all.
+ */
+const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   // The counter. A cashier is entitled to the record of their own drawer, so
   // the day and its banking sit here too — CLOSING a day off is manager-only
   // and enforced on the server, not by hiding the screen.
@@ -62,8 +70,12 @@ const SCREEN_PERMISSIONS: Record<string, string> = {
   "/tenant/inventory": "inventory.manage",
   "/tenant/stocktake": "inventory.manage",
   "/tenant/transfers": "inventory.manage",
-  "/tenant/suppliers": "suppliers.manage",
-  "/tenant/purchases": "purchases.manage",
+  // Naming who a delivery came from, and receiving against the order, are
+  // both stockroom work. Editing the vendor directory and raising an order
+  // are not — the server draws the same line (Permissions::READS_SUPPLIERS,
+  // READS_PURCHASE_ORDERS).
+  "/tenant/suppliers": ["suppliers.manage", "purchases.manage", "inventory.manage"],
+  "/tenant/purchases": ["purchases.manage", "inventory.manage"],
 
   // A vehicle IS customer data — the plate is how an auto shop finds a person.
   "/tenant/customers": "customers.manage",
@@ -82,9 +94,24 @@ const SCREEN_PERMISSIONS: Record<string, string> = {
   "/tenant/settings": "settings.manage",
 };
 
-/** The permission a screen needs, or null when anyone in the shop may open it. */
+/**
+ * The permission a screen needs, or null when anyone in the shop may open it.
+ * Where a screen accepts several, this returns the first — enough to name the
+ * rule, not enough to evaluate it. Use canVisit() to decide.
+ */
 export function permissionForScreen(path: string): string | null {
-  return SCREEN_PERMISSIONS[path] ?? null;
+  const rule = SCREEN_PERMISSIONS[path];
+  if (rule === undefined) return null;
+
+  return Array.isArray(rule) ? rule[0] : rule;
+}
+
+/** Every permission that opens a screen, in the order they are declared. */
+export function permissionsForScreen(path: string): string[] {
+  const rule = SCREEN_PERMISSIONS[path];
+  if (rule === undefined) return [];
+
+  return Array.isArray(rule) ? rule : [rule];
 }
 
 /**
@@ -104,7 +131,7 @@ export function mappedScreens(): string[] {
  * means for an owner versus a staff member.
  */
 export function canVisit(path: string, can: (permission: string) => boolean): boolean {
-  const permission = permissionForScreen(path);
+  const permissions = permissionsForScreen(path);
 
-  return permission === null || can(permission);
+  return permissions.length === 0 || permissions.some(can);
 }

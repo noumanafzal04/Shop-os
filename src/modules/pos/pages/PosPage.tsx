@@ -14,6 +14,8 @@ import { apiGet } from "../../../common/api/client";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCategories, useProducts } from "../../catalog/hooks/useCatalog";
+import { NoAccess } from "../../../common/ui/NoAccess";
+import { deniedReason } from "../../../common/api/denied";
 import { useVehicleLookup, useVehicleMutations } from "../../vehicles/hooks/useVehicles";
 import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { catalogService } from "../../catalog/services/catalogService";
@@ -96,12 +98,16 @@ const SHORTCUTS: Array<{
   tone: string;
   run: "focusSearch" | "hold" | "openHeld" | "document" | "pay";
 }> = [
-  { k: "F2", label: "Search", tone: "border-blue-light-200 bg-blue-light-50 text-blue-light-700 dark:border-blue-light-500/30 dark:bg-blue-light-500/10 dark:text-blue-light-400", run: "focusSearch" },
-  { k: "F4", label: "Hold", tone: "border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400", run: "hold" },
-  { k: "F6", label: "Drafts", tone: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400", run: "openHeld" },
-  { k: "F7", label: "Quote", tone: "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400", run: "document" },
-  { k: "F9", label: "Pay", tone: "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400", run: "pay" },
+  { k: "F2", label: "Search", tone: "border-blue-light-500/40 bg-blue-light-500/15 text-blue-light-300", run: "focusSearch" },
+  { k: "F4", label: "Hold", tone: "border-warning-500/40 bg-warning-500/15 text-warning-300", run: "hold" },
+  { k: "F6", label: "Drafts", tone: "border-orange-500/40 bg-orange-500/15 text-orange-300", run: "openHeld" },
+  { k: "F7", label: "Quote", tone: "border-success-500/40 bg-success-500/15 text-success-300", run: "document" },
+  { k: "F9", label: "Pay", tone: "border-brand-500/40 bg-brand-500/15 text-brand-300", run: "pay" },
 ];
+
+/** First letter of the first two words — "Adeel Khan" -> AK, "Adeel" -> A. */
+const initials = (name: string): string =>
+  name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] ?? "").join("").toUpperCase() || "?";
 
 // A few glyphs the shared icon set doesn't ship — kept as inline SVG (real
 // icons, never emoji) so the POS matches the rest of the UI.
@@ -344,7 +350,11 @@ export default function PosPage() {
   const [categoryId, setCategoryId] = useState("");
   const [page, setPage] = useState(1);
   const categories = useCategories();
-  const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, page });
+  // 20 rather than the API's default 15: three full rows of tiles on a
+  // 1366 laptop, so a cashier browsing by category usually finds the item
+  // without paging at all.
+  const POS_PAGE_SIZE = 20;
+  const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, page, per_page: POS_PAGE_SIZE });
   // The counter's shortlist — derived, never curated. See useQuickKeys.
   const quickKeys = useQuickKeys();
   const [tiles, setTiles] = useState<CatalogProduct[]>([]);
@@ -367,6 +377,9 @@ export default function PosPage() {
   }, [products.data]);
   const pagination = products.data?.meta?.pagination;
   const hasMore = !!pagination && pagination.current_page < pagination.last_page;
+  // A refused catalog and an empty catalog used to draw the same blank grid.
+  // If the till cannot read the product list, say so on the till.
+  const productsDenied = deniedReason(products.error);
 
   // Snap the highlight back to the top whenever the result set changes; keep
   // the highlighted tile scrolled into view as ↑/↓ move it.
@@ -1149,18 +1162,17 @@ export default function PosPage() {
 
       {/* Top bar — full-screen POS has no app sidebar/header, so it carries
           its own: exit, shift status, keyboard legend, shift + online. */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-2.5 dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="flex items-center gap-3">
+      <div className="no-scrollbar flex shrink-0 flex-nowrap items-center justify-between gap-4 overflow-x-auto border-b border-white/10 bg-gray-900 px-4 py-2">
+        <div className="flex shrink-0 items-center gap-4">
           <Link
             to="/tenant"
-            className="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-theme-sm text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+            className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-theme-sm text-white/70 hover:bg-white/10"
             title="Exit POS"
           >
             <ChevronLeftIcon className="h-4 w-4" /> Exit
           </Link>
-          <span className="text-base font-bold text-gray-800 dark:text-white/90">Point of Sale</span>
-          <span className={`hidden items-center gap-2 rounded-full border px-3 py-1 text-theme-xs font-medium sm:flex ${open ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400" : "border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-white/5 dark:text-gray-400"}`}>
-            <span className={`h-2 w-2 rounded-full ${open ? "bg-success-500" : "bg-gray-400"}`} />
+          <span className={`hidden items-center gap-2 rounded-full border px-3 py-1 text-theme-xs font-medium sm:flex ${open ? "border-success-500/40 bg-success-500/15 text-success-300" : "border-white/15 bg-white/5 text-white/60"}`}>
+            <span className={`h-2 w-2 rounded-full ${open ? "bg-success-500" : "bg-white/40"}`} />
             {open ? `Shift open · float ${money(open.opening_float)}` : "No open shift"}
           </span>
           {/* Which lane this device is. Only shown once the shop has lanes —
@@ -1172,8 +1184,8 @@ export default function PosPage() {
               title="Which register is this device?"
               className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 text-theme-xs font-medium sm:flex ${
                 laneLabel
-                  ? "border-brand-200 bg-brand-50 text-brand-600 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
-                  : "border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+                  ? "border-brand-500/40 bg-brand-500/15 text-brand-300"
+                  : "border-warning-500/40 bg-warning-500/15 text-warning-300"
               }`}
             >
               <DollarLineIcon className="h-3.5 w-3.5" />
@@ -1183,48 +1195,43 @@ export default function PosPage() {
         </div>
         {/* gap-3 with wrapping: on a 1366 laptop the legend, the status chips
             and three buttons used to jam into one another. */}
-        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+        <div className="flex shrink-0 items-center justify-end gap-4">
           {/* Keyboard legend. The till is keyboard-first, and a cashier learns
               these by GLANCING at them for the first week — a row of identical
               grey chips is read as decoration and never learned. Each key keeps
               the colour of the thing it does, matching its button below, so the
               eye can jump straight to the one it wants. Clickable too: the same
               action, for anyone still reaching for the mouse. */}
-          <div className="hidden items-center gap-1.5 xl:flex">
+          <div className="hidden items-center gap-2.5 xl:flex">
             {SHORTCUTS.map(({ k, label, tone, run }) => (
               <button
                 key={k}
                 type="button"
                 onClick={() => actionsRef.current?.[run]?.()}
                 title={`${label} (${k})`}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition hover:brightness-95 ${tone}`}
+                className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-theme-xs font-semibold transition hover:brightness-125 ${tone}`}
               >
-                <kbd className="rounded bg-white/70 px-1 py-px font-sans text-[10px] font-bold dark:bg-black/25">{k}</kbd>
+                <kbd className="rounded-md bg-white/20 px-1.5 py-0.5 font-sans text-[11px] font-bold tracking-wide text-white">{k}</kbd>
                 {label}
               </button>
             ))}
           </div>
-          {/* Connection. This used to be a green dot that said "Online" no
-              matter what — the one indicator that must never lie, since the
-              cashier decides whether to re-ring a sale by looking at it. */}
-          <span
-            className={`hidden items-center gap-1.5 text-theme-xs font-medium sm:flex ${
-              connected ? "text-gray-500 dark:text-gray-400" : "text-error-600 dark:text-error-400"
-            }`}
-            title={connected ? "The till reached the server on its last request." : "The last request never reached the server. Sales can't be rung until this clears."}
-          >
-            <span className={`h-2 w-2 rounded-full ${connected ? "bg-success-500" : "bg-error-500 animate-pulse"}`} />
-            {connected ? "Online" : online ? "No server" : "Offline"}
-          </span>
-          {/* Who the next sale will be stamped with, and one tap to hand over. */}
+          {/* Who the next sale will be stamped with, and one tap to hand over.
+              Pressing it locks the till and asks for a PIN, so the outgoing
+              cashier's name comes off the sales the moment they step away.
+              Given an avatar because that is the shape people press when they
+              are looking for "who am I signed in as" — here the affordance and
+              the action happen to be the same thing. */}
           <button
             type="button"
             onClick={() => lockTill("manual")}
-            title="Lock the till / hand it to someone else"
-            className="hidden items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-theme-xs font-medium text-gray-600 hover:bg-gray-100 sm:flex dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+            title={`${me?.name ?? "This till"} — press to lock and hand over (PIN)`}
+            className="hidden items-center gap-2 rounded-full border border-white/30 bg-white/[0.14] py-1 pl-1 pr-3.5 text-theme-xs font-bold text-white shadow-[0_0_0_3px_rgba(255,255,255,0.06)] transition hover:border-brand-400 hover:bg-white/20 sm:flex"
           >
-            <UserCircleIcon className="h-3.5 w-3.5" />
-            {me?.name?.split(" ")[0] ?? "Till"}
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-500 text-[11px] font-bold uppercase text-white ring-2 ring-white/25">
+              {me?.name ? initials(me.name) : <UserCircleIcon className="h-4 w-4" />}
+            </span>
+            <span className="max-w-24 truncate">{me?.name?.split(" ")[0] ?? "Till"}</span>
           </button>
 
           {/* Standing at someone else's drawer is a state you must not be able
@@ -1233,7 +1240,7 @@ export default function PosPage() {
           {covering && (
             <span
               title={`Sales you ring go into ${covering.cashier_name ?? "the cashier"}'s drawer. They still count it.`}
-              className="flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-theme-xs font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+              className="flex items-center gap-1.5 rounded-full border border-brand-500/40 bg-brand-500/15 px-2.5 py-1 text-theme-xs font-semibold text-brand-300"
             >
               Covering {covering.cashier_name ?? "this till"}
             </span>
@@ -1242,7 +1249,7 @@ export default function PosPage() {
           {open?.covered_by && (
             <span
               title={`${open.covered_by.user_name ?? "Someone"} is ringing on your drawer. It is still yours to count.`}
-              className="flex items-center gap-1.5 rounded-full border border-warning-200 bg-warning-50 px-2.5 py-1 text-theme-xs font-semibold text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+              className="flex items-center gap-1.5 rounded-full border border-warning-500/40 bg-warning-500/15 px-2.5 py-1 text-theme-xs font-semibold text-warning-300"
             >
               {open.covered_by.user_name ?? "Someone"} is covering you
             </span>
@@ -1250,7 +1257,7 @@ export default function PosPage() {
           {/* A rule before the money buttons, so the status chips on the left
               and the actions on the right read as two groups rather than one
               long undifferentiated row. */}
-          <span className="mx-1 hidden h-6 w-px bg-gray-200 sm:block dark:bg-gray-700" />
+          <span className="mx-1 hidden h-6 w-px bg-white/15 sm:block" />
 
           {/* The X-read. Always reachable — with no shift the panel explains
               why there is nothing to count rather than erroring. Blue: it only
@@ -1259,7 +1266,7 @@ export default function PosPage() {
             type="button"
             onClick={drawerModal.openModal}
             title="Count the drawer (X-read)"
-            className="flex items-center gap-1.5 rounded-lg border border-blue-light-200 bg-blue-light-50 px-3 py-1.5 text-theme-sm font-semibold text-blue-light-700 transition hover:bg-blue-light-100 dark:border-blue-light-500/30 dark:bg-blue-light-500/10 dark:text-blue-light-400"
+            className="flex items-center gap-1.5 rounded-lg border border-blue-light-500/40 bg-blue-light-500/15 px-3 py-1.5 text-theme-sm font-semibold text-blue-light-300 transition hover:bg-blue-light-500/25"
           >
             <DollarLineIcon className="h-4 w-4" /> Drawer
           </button>
@@ -1277,7 +1284,7 @@ export default function PosPage() {
               onClick={() => coverMutations.end.mutate()}
               disabled={coverMutations.end.isPending}
               title={`Give the till back to ${covering.cashier_name ?? "the cashier"}`}
-              className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-theme-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+              className="flex items-center gap-1.5 rounded-lg border border-brand-500/40 bg-brand-500/15 px-3 py-1.5 text-theme-sm font-semibold text-brand-300 transition hover:bg-brand-500/25 disabled:opacity-60"
             >
               Hand back
             </button>
@@ -1286,7 +1293,7 @@ export default function PosPage() {
               type="button"
               onClick={closeModal.openModal}
               title="Count up and close this shift"
-              className="flex items-center gap-1.5 rounded-lg border border-warning-200 bg-warning-50 px-3 py-1.5 text-theme-sm font-semibold text-warning-700 transition hover:bg-warning-100 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+              className="flex items-center gap-1.5 rounded-lg border border-warning-500/40 bg-warning-500/15 px-3 py-1.5 text-theme-sm font-semibold text-warning-300 transition hover:bg-warning-500/25"
             >
               Close shift
             </button>
@@ -1301,7 +1308,7 @@ export default function PosPage() {
                   onClick={() => coverMutations.start.mutate({})}
                   disabled={coverMutations.start.isPending}
                   title={`Hold the lane while ${laneIsSomeoneElses} is away — the drawer stays theirs`}
-                  className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-theme-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+                  className="flex items-center gap-1.5 rounded-lg border border-brand-500/40 bg-brand-500/15 px-3 py-1.5 text-theme-sm font-semibold text-brand-300 transition hover:bg-brand-500/25 disabled:opacity-60"
                 >
                   Cover this till
                 </button>
@@ -1327,18 +1334,31 @@ export default function PosPage() {
           the screen edges. */}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12">
         {/* ── Products / scan ─────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-col p-3 lg:col-span-5 lg:border-r lg:border-gray-200 lg:dark:border-gray-800">
-          <div className="mb-3">
+        {/* The scan side sits on the dark primary. Two-tone is doing the work a
+            border cannot: the eye finds "where I look things up" and "where the
+            money is" without reading a word, which is the whole job at a
+            counter you use ten hours a day. Dark on the left also stops white
+            product tiles from bleeding into a white page — on this side the
+            tile IS the content, so it should be the brightest thing on it. The
+            GROUND is deliberately fixed rather than theme-dependent, so the
+            two-tone split survives whichever theme the shop runs; the cards on
+            it still follow the theme, which is why nothing inside had to be
+            re-coloured except the few labels that had no card under them. */}
+        <div className="flex min-h-0 flex-col bg-pos-ground p-3 lg:col-span-5">
+          {/* Everything you type or scan into, in one raised card. Loose
+              controls on a dark ground read as floating; a card gives the
+              scan box a home and an edge to aim at. */}
+          <div className="mb-3 rounded-2xl bg-white/[0.05] p-2.5 ring-1 ring-white/[0.08]">
             <div className="flex items-stretch gap-2">
               {/* Category dropdown — sits in front of the search box. */}
               <div className="relative shrink-0">
                 <button
                   type="button"
                   onClick={() => setCatMenuOpen((o) => !o)}
-                  className="flex h-12 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-700 transition hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  className={`flex h-12 items-center gap-2 rounded-xl border bg-white px-3.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 ${catMenuOpen ? "border-brand-400 ring-4 ring-brand-400/25" : "border-transparent"}`}
                 >
                   <span className="max-w-[7rem] truncate">{categoryId === "" ? "All" : (catList.find((c) => c.id === categoryId)?.name ?? "All")}</span>
-                  <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition ${catMenuOpen ? "rotate-180" : ""}`} />
+                  <ChevronDownIcon className={`h-4 w-4 shrink-0 text-gray-500 transition ${catMenuOpen ? "rotate-180 text-brand-500" : ""}`} />
                 </button>
                 {catMenuOpen && (
                   <>
@@ -1360,7 +1380,7 @@ export default function PosPage() {
               </div>
               {/* Search */}
               <div className="relative flex-1">
-              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"><SearchGlyph /></span>
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"><SearchGlyph /></span>
               <input
                 ref={scanRef}
                 autoFocus
@@ -1372,7 +1392,7 @@ export default function PosPage() {
                   else if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, tiles.length - 1)); }
                   else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)); }
                 }}
-                className="h-12 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-24 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                className="h-12 w-full rounded-xl border border-transparent bg-white pl-11 pr-24 text-sm text-gray-800 shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:outline-hidden focus:ring-4 focus:ring-brand-400/25"
               />
               <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
                 <button
@@ -1394,7 +1414,7 @@ export default function PosPage() {
             </div>
             {/* Live hint: how many results + how to add with the keyboard. */}
             {search.trim() && !scanError && (
-              <p className="mt-1.5 px-1 text-theme-xs text-gray-400">
+              <p className="mt-1.5 px-1 text-theme-xs text-white/60">
                 {tiles.length === 0 ? "No matches — check the spelling or scan the barcode."
                   : `${tiles.length}${hasMore ? "+" : ""} result${tiles.length === 1 ? "" : "s"} · ↑ ↓ to move · Enter to add`}
               </p>
@@ -1442,22 +1462,22 @@ export default function PosPage() {
           {quickKeys.data && quickKeys.data.length > 0 && search === "" && categoryId === "" && (
             <div className="mb-3 shrink-0">
               <div className="mb-1.5 flex items-center gap-2 px-1">
-                <span className="text-theme-xs font-semibold uppercase tracking-wide text-gray-400">Quick keys</span>
-                <span className="text-theme-xs text-gray-400">· what sells here</span>
+                <span className="text-theme-xs font-semibold uppercase tracking-wide text-white/60">Quick keys</span>
+                <span className="text-theme-xs text-white/40">· what sells here</span>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="no-scrollbar -mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-0.5">
                 {quickKeys.data.map((p) => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => commitProduct(p as unknown as CatalogProduct)}
-                    className="group flex max-w-[11rem] items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-left transition hover:border-brand-400 hover:shadow-sm active:bg-brand-50 dark:border-gray-800 dark:bg-white/[0.03] dark:active:bg-brand-500/10"
+                    className="group flex max-w-[9rem] shrink-0 snap-start items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.10] px-2.5 py-1.5 text-left transition hover:border-brand-400 hover:bg-white/[0.16] active:bg-brand-500/25"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                      <span className="block truncate text-[12px] font-medium leading-tight text-white/90">
                         {p.name}
                       </span>
-                      <span className="block text-theme-xs tabular-nums text-gray-400">
+                      <span className="block text-[10px] leading-tight tabular-nums text-white/60">
                         {money(sellingPrice(p as unknown as CatalogProduct))}
                         {p.sold_by === "weight" && p.unit ? ` /${p.unit}` : ""}
                       </span>
@@ -1474,9 +1494,11 @@ export default function PosPage() {
           {posLayout === "grid" && (
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 2xl:grid-cols-4">
               {products.isLoading && tiles.length === 0 ? (
-                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-36 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />)
+                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-36 animate-pulse rounded-xl bg-white/10" />)
+              ) : productsDenied ? (
+                <div className="col-span-full"><NoAccess reason={productsDenied} what="the product list" /></div>
               ) : tiles.length === 0 ? (
-                <p className="col-span-full py-8 text-center text-sm text-gray-400">No products match.</p>
+                <p className="col-span-full py-8 text-center text-sm text-white/60">No products match.</p>
               ) : (
                 tiles.map((p, i) => {
                   const img = p.images?.[0]?.url;
@@ -1486,13 +1508,13 @@ export default function PosPage() {
                       key={p.id}
                       ref={i === activeIndex ? activeRef : null}
                       onClick={() => commitProduct(p)}
-                      className={`group flex flex-col overflow-hidden rounded-xl border bg-white text-left transition hover:border-brand-400 hover:shadow-md dark:bg-white/[0.03] ${i === activeIndex ? "border-brand-500 ring-2 ring-brand-500/30" : "border-gray-200 dark:border-gray-800"}`}
+                      className={`group flex flex-col overflow-hidden rounded-xl border bg-white/[0.10] text-left transition hover:border-brand-400 hover:bg-white/[0.16] ${i === activeIndex ? "border-brand-400 bg-brand-500/25 ring-2 ring-brand-400/70" : "border-white/10"}`}
                     >
-                      <div className="relative h-20 w-full bg-gray-100 dark:bg-gray-800">
+                      <div className="relative h-24 w-full bg-black/25">
                         {img ? (
                           <img src={img} alt="" className="h-full w-full object-cover" />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-gray-300 dark:text-gray-600">
+                          <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-white/30">
                             {p.name.charAt(0)}
                           </div>
                         )}
@@ -1500,12 +1522,12 @@ export default function PosPage() {
                         {p.item_type === "deal" && <span className="absolute right-1.5 top-1.5 rounded bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white">DEAL</span>}
                         {p.modifier_groups?.length ? <span className="absolute right-1.5 top-1.5 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">options</span> : null}
                       </div>
-                      <div className="flex flex-1 flex-col justify-between p-2.5">
-                        <span className="line-clamp-2 text-sm font-medium text-gray-800 dark:text-white/90">{p.name}</span>
-                        <span className="mt-1 font-semibold text-brand-600 dark:text-brand-400">
+                      <div className="flex flex-1 flex-col justify-between gap-1.5 p-3">
+                        <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-white">{p.name}</span>
+                        <span className="text-[13px] font-bold tabular-nums text-brand-200">
                           {money(sellingPrice(p))}
-                          {p.sold_by === "weight" && p.unit ? <span className="text-theme-xs font-normal text-gray-400">/{p.unit}</span> : null}
-                          {sale && <span className="ml-1 text-theme-xs font-normal text-gray-400 line-through">{money(p.price)}</span>}
+                          {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-white/60">/{p.unit}</span> : null}
+                          {sale && <span className="ml-1 text-[11px] font-normal text-white/60 line-through">{money(p.price)}</span>}
                         </span>
                       </div>
                     </button>
@@ -1517,11 +1539,13 @@ export default function PosPage() {
 
           {/* GROCERY / PHARMACY / others: dense, scan-first list of rows. */}
           {posLayout === "list" && (
-            <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+            <div className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/[0.10]">
               {products.isLoading && tiles.length === 0 ? (
-                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 animate-pulse bg-gray-100 dark:bg-gray-800" />)
+                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 animate-pulse bg-white/10" />)
+              ) : productsDenied ? (
+                <NoAccess reason={productsDenied} what="the product list" />
               ) : tiles.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">No products match.</p>
+                <p className="py-8 text-center text-sm text-white/60">No products match.</p>
               ) : (
                 tiles.map((p, i) => {
                   const sale = onSale(p);
@@ -1533,28 +1557,39 @@ export default function PosPage() {
                       ref={active ? activeRef : null}
                       disabled={out}
                       onClick={() => commitProduct(p)}
-                      className={`relative flex w-full items-center gap-3 px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${active ? "bg-brand-50 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-brand-500 dark:bg-brand-500/10" : "bg-white hover:bg-brand-50/60 dark:bg-white/[0.02] dark:hover:bg-white/[0.06]"}`}
+                      className={`group relative flex w-full items-center gap-3 px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${active ? "bg-brand-500/25 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-brand-400" : "hover:bg-white/[0.06]"}`}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-gray-800 dark:text-white/90">
+                        <div className="truncate text-[13px] font-semibold text-white">
                           {p.name}
-                          {p.brand ? <span className="ml-1.5 text-theme-xs font-normal text-gray-400">{p.brand}</span> : null}
+                          {p.brand ? <span className="ml-1.5 text-[11px] font-normal text-white/60">{p.brand}</span> : null}
                         </div>
-                        <div className="truncate text-theme-xs text-gray-400">
-                          {p.generic_name ? <span className="text-gray-500 dark:text-gray-400">{p.generic_name}</span> : null}
+                        <div className="truncate text-[11px] text-white/60">
+                          {p.generic_name ? <span className="text-white/60">{p.generic_name}</span> : null}
                           {p.generic_name && (p.sku || p.type === "product") ? " · " : null}
                           {p.sku ? `#${p.sku}` : null}
                           {p.item_type === "deal" ? `${p.sku ? " · " : ""}Deal` : p.type === "product" && p.track_inventory ? `${p.sku ? " · " : ""}stock ${fmtQty(Number(p.stock_quantity))}${p.unit ? " " + p.unit : ""}` : null}
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <div className="text-sm font-semibold text-brand-600 dark:text-brand-400">
+                        <div className="text-[12px] font-bold tabular-nums text-brand-200">
                           {money(sellingPrice(p))}
-                          {p.sold_by === "weight" && p.unit ? <span className="text-theme-xs font-normal text-gray-400">/{p.unit}</span> : null}
+                          {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-white/60">/{p.unit}</span> : null}
                         </div>
-                        {sale && <div className="text-theme-xs text-gray-400 line-through">{money(p.price)}</div>}
+                        {sale && <div className="text-[11px] text-white/60 line-through">{money(p.price)}</div>}
                       </div>
-                      <span className={`shrink-0 rounded-lg px-2 py-1 text-theme-xs font-medium ${out ? "text-gray-400" : "bg-brand-500 text-white"}`}>
+                      <span
+                        className={`flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition ${
+                          out
+                            ? "border border-white/15 text-white/40"
+                            : "bg-brand-500 text-white group-hover:bg-brand-400 group-active:bg-brand-600"
+                        }`}
+                      >
+                        {!out && (
+                          <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                          </svg>
+                        )}
                         {out ? "Out" : "Add"}
                       </span>
                     </button>
@@ -1565,23 +1600,59 @@ export default function PosPage() {
           )}
 
           {hasMore && (
-            <div className="mt-4 text-center">
-              <Button size="sm" variant="outline" onClick={() => setPage((p) => p + 1)} disabled={products.isFetching}>
-                {products.isFetching ? "Loading…" : `Load more (${tiles.length} of ${pagination?.total})`}
-              </Button>
+            /* The shared outline Button is a white pill built for a white
+               page; on this ground it read as a stray card among the tiles.
+               Same control, dressed for where it actually lives — and it says
+               how much is left rather than only how much is loaded, because
+               "20 of 340" is what tells a cashier to search instead of page. */
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={products.isFetching}
+                className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/[0.10] px-5 py-2.5 text-[13px] font-semibold text-white/85 transition hover:border-brand-400 hover:bg-white/[0.16] hover:text-white disabled:opacity-50"
+              >
+                {products.isFetching ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white/80" />
+                    Loading…
+                  </>
+                ) : (
+                  <>
+                    Load more
+                    <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white/70">
+                      {tiles.length} of {pagination?.total ?? tiles.length}
+                    </span>
+                  </>
+                )}
+              </button>
             </div>
           )}
           </div>
         </div>
 
         {/* ── Cart + payment ──────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-col lg:col-span-7">
-          <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-white/[0.03]">
+        {/* The money side wears the shop's colour. Two panes of identical
+            white read as one long spreadsheet, and the cart is the half a
+            cashier must find without looking — glance down, the tinted band IS
+            the basket. The band carries the colour and the cart floats on it as
+            a plain white card, so every chip, row and figure inside stays
+            exactly as legible as it was; colour is doing navigation here, not
+            decoration, and it never lands on anything you have to read. */}
+        <div className="flex min-h-0 flex-col bg-pos-ground p-3 lg:col-span-7">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white dark:bg-gray-900">
             {/* Cart header — item count, customer, clear */}
-            <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
-              <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-gray-800 dark:text-white/90">
+            <div className="flex items-center gap-2 border-b border-brand-100 bg-brand-50/60 px-4 py-3 dark:border-brand-500/20 dark:bg-brand-500/10">
+              <span className="flex shrink-0 items-center gap-2 text-base font-bold tracking-tight text-gray-900 dark:text-white">
                 Cart
-                {cart.length > 0 && <span className="rounded-full bg-brand-500 px-2 py-0.5 text-[11px] font-bold text-white tabular-nums">{cart.length}</span>}
+                {/* The count is the one number in this header, so it gets a
+                    ring to lift it off the tinted band rather than sitting
+                    flat in it. */}
+                {cart.length > 0 && (
+                  <span className="min-w-6 rounded-full bg-brand-500 px-2 py-0.5 text-center text-[11px] font-bold tabular-nums text-white ring-2 ring-white dark:ring-gray-900">
+                    {cart.length}
+                  </span>
+                )}
               </span>
 
               {/* Live promotion, pinned beside the Cart title.
@@ -1594,24 +1665,55 @@ export default function PosPage() {
               {promo && promo.discount > 0 && (
                 <span
                   title={`${promo.name} · −${money(promo.discount)}`}
-                  className="flex min-w-0 items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2 py-1 text-theme-xs text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+                  className="flex min-w-0 items-center gap-2 rounded-full border border-brand-300 bg-white py-0.5 pl-0.5 pr-2.5 text-theme-xs text-brand-700 shadow-[0_1px_2px_rgba(70,95,255,0.10)] dark:border-brand-500/40 dark:bg-gray-900 dark:text-brand-300"
                 >
-                  <span className="shrink-0 rounded bg-brand-500 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-white">Promo</span>
+                  <span className="shrink-0 rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Promo</span>
                   <span className="truncate font-medium">{promo.name}</span>
-                  <span className="shrink-0 font-semibold tabular-nums">−{money(promo.discount)}</span>
+                  <span className="shrink-0 font-bold tabular-nums text-warning-600 dark:text-warning-400">−{money(promo.discount)}</span>
                 </span>
               )}
-              {/* Customer — defaults to walk-in; click to attach a name/phone */}
-              <button
-                onClick={customerModal.openModal}
-                className={`ml-auto flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-theme-sm ${customer || customerPhone ? "border-brand-300 bg-brand-50 text-brand-600 dark:border-brand-500/40 dark:bg-brand-500/10" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"} hover:bg-gray-100 dark:hover:bg-white/5`}
-                title="Customer"
-              >
-                <UserCircleIcon className="h-4 w-4" />
-                <span className="max-w-32 truncate">{customer || customerPhone || "Walk-in"}</span>
-              </button>
+              {/* Customer — defaults to walk-in; click to attach a name/phone.
+                  Built as an avatar pill so the two states are legible at a
+                  glance rather than by reading: a grey outline with a generic
+                  glyph means nobody is attached to this sale, a brand avatar
+                  with their initials means somebody is, and khata/loyalty
+                  therefore apply. Same shape as the till's own identity button,
+                  because it answers the same kind of question. */}
+              {(() => {
+                const named = (customer || customerPhone || "").trim();
+                return (
+                  <button
+                    onClick={customerModal.openModal}
+                    className={`ml-auto flex items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-theme-sm font-medium transition ${
+                      named
+                        ? "border-brand-300 bg-white text-brand-700 hover:border-brand-400 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-300"
+                        : "border-gray-300 bg-white text-gray-600 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:bg-transparent dark:text-gray-300"
+                    }`}
+                    title={named ? `Customer: ${named} — click to change` : "No customer attached — click to add one"}
+                  >
+                    <span
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold uppercase ${
+                        named ? "bg-brand-500 text-white" : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300"
+                      }`}
+                    >
+                      {named ? initials(named) : <UserCircleIcon className="h-3.5 w-3.5" />}
+                    </span>
+                    <span className="max-w-32 truncate">{named || "Walk-in"}</span>
+                  </button>
+                );
+              })()}
+              {/* Emptying the basket is destructive, so it wears the colour of
+                  what it does before the hand arrives — same rule as Reset in
+                  the footer. Solid red under the finger. */}
               {cart.length > 0 && (
-                <button onClick={clearSale} title="Clear cart" className="rounded-lg p-1.5 text-gray-400 hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10"><TrashBinIcon className="h-4 w-4" /></button>
+                <button
+                  onClick={clearSale}
+                  title="Clear cart"
+                  aria-label="Clear cart"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-error-200 bg-error-50 text-error-500 transition hover:border-error-500 hover:bg-error-500 hover:text-white dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400 dark:hover:bg-error-500 dark:hover:text-white"
+                >
+                  <TrashBinIcon className="h-4 w-4" />
+                </button>
               )}
             </div>
 
@@ -1650,17 +1752,17 @@ export default function PosPage() {
                 {cart.length === 0 ? (
                   <p className="py-16 text-center text-sm text-gray-400">Cart is empty — scan or tap a product.</p>
                 ) : (
-                  <table className="min-w-full border-collapse text-sm">
+                  <table className="min-w-full border-collapse text-[12px]">
                     <thead>
                       {/* Half-width pane: the code rides under the item name and
                           the discount shows amount + % in one cell, so eight
                           columns carry what ten used to. */}
-                      <tr className="text-theme-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        <th className="sticky top-0 z-1 w-8 border-b border-gray-200 bg-gray-50 px-2 py-2 text-left font-semibold dark:border-gray-800 dark:bg-gray-900">#</th>
-                        <th className="sticky top-0 z-1 border-b border-gray-200 bg-gray-50 px-2 py-2 text-left font-semibold dark:border-gray-800 dark:bg-gray-900">Item</th>
-                        <th className="sticky top-0 z-1 border-b border-gray-200 bg-gray-50 px-2 py-2 text-center font-semibold dark:border-gray-800 dark:bg-gray-900">Qty</th>
-                        {["Price","Disc","Tax","Total"].map((h) => (<th key={h} className="sticky top-0 z-1 border-b border-gray-200 bg-gray-50 px-2 py-2 text-right font-semibold dark:border-gray-800 dark:bg-gray-900">{h}</th>))}
-                        <th className="sticky top-0 z-1 w-8 border-b border-gray-200 bg-gray-50 px-2 py-2 dark:border-gray-800 dark:bg-gray-900" />
+                      <tr className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        <th className="sticky top-0 z-1 w-8 border-b border-brand-100 bg-brand-50 px-2 py-2 text-left font-semibold dark:border-gray-800 dark:bg-gray-900">#</th>
+                        <th className="sticky top-0 z-1 border-b border-brand-100 bg-brand-50 px-2 py-2 text-left font-semibold dark:border-gray-800 dark:bg-gray-900">Item</th>
+                        <th className="sticky top-0 z-1 border-b border-brand-100 bg-brand-50 px-2 py-2 text-center font-semibold dark:border-gray-800 dark:bg-gray-900">Qty</th>
+                        {["Price","Disc","Tax","Total"].map((h) => (<th key={h} className="sticky top-0 z-1 border-b border-brand-100 bg-brand-50 px-2 py-2 text-right font-semibold dark:border-gray-800 dark:bg-gray-900">{h}</th>))}
+                        <th className="sticky top-0 z-1 w-8 border-b border-brand-100 bg-brand-50 px-2 py-2 dark:border-gray-800 dark:bg-gray-900" />
                       </tr>
                     </thead>
                     <tbody>
@@ -1681,10 +1783,10 @@ export default function PosPage() {
                         return (
                           <tr key={l.key} onClick={() => { setEditKey(l.key); lineEditModal.openModal(); }}
                             className="cursor-pointer border-b border-gray-100 transition hover:bg-brand-50/40 dark:border-gray-800 dark:hover:bg-brand-500/5">
-                            <td className="px-2 py-2.5 text-left font-medium text-gray-400 tabular-nums">{idx + 1}</td>
-                            <td className="px-2 py-2.5 text-left">
-                              <div className="font-medium text-gray-800 dark:text-white/90">{l.name}</div>
-                              <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-theme-xs text-gray-400">
+                            <td className="px-2 py-1.5 text-left font-medium text-gray-400 tabular-nums">{idx + 1}</td>
+                            <td className="px-2 py-1.5 text-left">
+                              <div className="font-semibold leading-tight text-gray-900 dark:text-white/90">{l.name}</div>
+                              <div className="flex flex-wrap items-center gap-x-1.5 text-[10px] leading-tight text-gray-500 dark:text-gray-400">
                                 {l.sku ? <span className="font-medium text-brand-600 tabular-nums dark:text-brand-400">{l.sku}</span> : null}
                                 {isWeight && l.unit_label ? <span>per {l.unit_label}</span> : null}
                                 {l.unit_name ? <span>{l.unit_name}</span> : null}
@@ -1695,13 +1797,13 @@ export default function PosPage() {
                                 <div className="mt-1 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                   {l.tracks_serial && (
                                     <button type="button" onClick={() => { setSerialKey(l.key); serialModal.openModal(); }}
-                                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-theme-xs font-medium ${serialCount(l) >= l.quantity ? "bg-success-50 text-success-600 dark:bg-success-500/10" : "bg-warning-50 text-warning-600 dark:bg-warning-500/10"}`}>
+                                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${serialCount(l) >= l.quantity ? "bg-success-50 text-success-600 dark:bg-success-500/10" : "bg-warning-50 text-warning-600 dark:bg-warning-500/10"}`}>
                                       IMEI {serialCount(l)}/{Math.floor(l.quantity)}
                                     </button>
                                   )}
                                   {hasWholesale && (
                                     <select value={l.price_level ?? "retail"} onChange={(e) => setLineLevel(l.key, e.target.value as "retail" | "wholesale")}
-                                      className="h-6 rounded-md border border-gray-200 bg-transparent px-1 text-theme-xs text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                      className="h-6 rounded-md border border-gray-200 bg-transparent px-1 text-[11px] text-gray-600 dark:border-gray-700 dark:text-gray-300">
                                       <option value="retail">Retail</option>
                                       <option value="wholesale">Wholesale</option>
                                     </select>
@@ -1709,14 +1811,14 @@ export default function PosPage() {
                                 </div>
                               )}
                             </td>
-                            <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-1">
                                 {/* At the minimum, minus is spent — the ✕ two
                                     columns over is how you remove a line, and
                                     stepping down into a deletion is how people
                                     lose one by accident. */}
                                 <button type="button" aria-label="Decrease" disabled={l.quantity <= (isWeight ? 0.001 : 1)}
-                                  className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-30 dark:bg-gray-800 dark:text-gray-300"
+                                  className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-30 dark:bg-gray-800 dark:text-gray-300"
                                   onClick={() => setQty(l.key, l.quantity - step)}><MinusGlyph /></button>
                                 <input type="number" min="0" step={isWeight ? 0.001 : 1}
                                   // While typing, the box shows the draft — it may be empty
@@ -1748,21 +1850,21 @@ export default function PosPage() {
                                     }
                                   }}
                                   className="h-7 w-12 rounded-md border border-gray-200 bg-transparent text-center text-theme-sm tabular-nums focus:border-brand-400 focus:outline-none dark:border-gray-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                                <button type="button" aria-label="Increase" className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-500 text-white hover:bg-brand-600" onClick={() => setQty(l.key, l.quantity + step)}><PlusGlyph /></button>
+                                <button type="button" aria-label="Increase" className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-500 text-white hover:bg-brand-600" onClick={() => setQty(l.key, l.quantity + step)}><PlusGlyph /></button>
                               </div>
                             </td>
-                            <td className="px-2 py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{money(eff)}</td>
-                            <td className={`px-2 py-2.5 text-right tabular-nums ${disc > 0 ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-400"}`}>
+                            <td className="px-2 py-1.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{money(eff)}</td>
+                            <td className={`px-2 py-1.5 text-right tabular-nums ${disc > 0 ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-400"}`}>
                               {disc > 0 ? (
                                 <>
                                   −{money(disc)}
-                                  {discPct > 0 && <div className="text-theme-xs font-normal text-gray-400">{discPct}%</div>}
+                                  {discPct > 0 && <div className="text-[11px] font-normal text-gray-400">{discPct}%</div>}
                                 </>
                               ) : "—"}
                             </td>
-                            <td className="px-2 py-2.5 text-right tabular-nums text-gray-500 dark:text-gray-400">{lineTax > 0 ? money(lineTax) : "—"}</td>
-                            <td className="px-2 py-2.5 text-right font-semibold tabular-nums text-gray-900 dark:text-white/90">{money(lineNet(l))}</td>
-                            <td className="px-2 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-2 py-1.5 text-right tabular-nums text-gray-500 dark:text-gray-400">{lineTax > 0 ? money(lineTax) : "—"}</td>
+                            <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-gray-900 dark:text-white/90">{money(lineNet(l))}</td>
+                            <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                               {/* The ONE way a line leaves the cart, so it is
                                   worth being able to hit: a proper 28px target
                                   that turns red on approach, instead of a pale
@@ -1772,7 +1874,7 @@ export default function PosPage() {
                                 title="Remove this line"
                                 aria-label="Remove"
                                 onClick={() => removeLine(l.key)}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-gray-400 transition hover:border-error-200 hover:bg-error-50 hover:text-error-600 dark:text-gray-500 dark:hover:border-error-500/40 dark:hover:bg-error-500/10 dark:hover:text-error-400"
+                                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-gray-400 transition hover:border-error-200 hover:bg-error-50 hover:text-error-600 dark:text-gray-500 dark:hover:border-error-500/40 dark:hover:bg-error-500/10 dark:hover:text-error-400"
                               >
                                 <CloseIcon className="h-4 w-4" />
                               </button>
@@ -1911,30 +2013,50 @@ export default function PosPage() {
             </div>
 
             {/* Totals strip + Grand Total + Tender/Pay (opens the modal) */}
-            <div className="grid shrink-0 grid-cols-1 gap-3 rounded-b-2xl border-t border-gray-100 bg-gray-50 p-3 sm:grid-cols-3 dark:border-gray-800 dark:bg-gray-900/40">
-              <div className="grid grid-cols-4 gap-x-4 gap-y-3 rounded-xl border border-gray-200 bg-white p-4 sm:col-span-2 dark:border-gray-800 dark:bg-white/[0.02]">
-                {([
-                  ["Total Items", String(cart.length), false],
-                  ["Total Qty", fmtQty(cart.reduce((s, l) => s + l.quantity, 0)), false],
-                  ["Sub Total", money(grossSubtotal), false],
-                  ["Discount", (cartDiscount + lineDiscountTotal) > 0 ? `−${money(cartDiscount + lineDiscountTotal)}` : money(0), true],
-                  ["Taxable", money(taxableBase), false],
-                  ["Tax", money(taxAmount), false],
-                  ["Charges", money(0), false],
-                  ["Customer", (customer || customerPhone || "Walk-in"), false],
-                ] as const).map(([k, v, isDisc], i) => (
-                  <div key={i}>
-                    <div className="text-theme-xs uppercase tracking-wide text-gray-400">{k}</div>
-                    <div className={`mt-0.5 truncate text-base font-bold tabular-nums ${isDisc && (cartDiscount + lineDiscountTotal) > 0 ? "text-warning-600 dark:text-warning-400" : "text-gray-800 dark:text-white/90"}`}>{v}</div>
-                  </div>
-                ))}
+            <div className="grid shrink-0 grid-cols-1 gap-2.5 rounded-b-2xl border-t border-gray-100 bg-gray-50 p-2.5 sm:grid-cols-3 dark:border-gray-800 dark:bg-gray-900/40">
+              {/* Eight figures used to carry identical weight, so "Charges
+                  Rs 0" shouted as loudly as the subtotal and the eye had to
+                  read all eight to find the two that moved. A zero is now
+                  greyed, money is the only thing set bold, and the customer —
+                  which is not a number — loses the tabular figures it never
+                  should have had. */}
+              <div className="grid grid-cols-4 gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:col-span-2 dark:border-gray-800 dark:bg-white/[0.02]">
+                {(() => {
+                  const discountTotal = cartDiscount + lineDiscountTotal;
+                  const cells: Array<{ k: string; v: string; num?: boolean; tone?: "discount" | "muted" }> = [
+                    { k: "Total Items", v: String(cart.length), num: true, tone: cart.length ? undefined : "muted" },
+                    { k: "Total Qty", v: fmtQty(cart.reduce((s, l) => s + l.quantity, 0)), num: true, tone: cart.length ? undefined : "muted" },
+                    { k: "Sub Total", v: money(grossSubtotal), num: true, tone: grossSubtotal ? undefined : "muted" },
+                    { k: "Discount", v: discountTotal > 0 ? `−${money(discountTotal)}` : money(0), num: true, tone: discountTotal > 0 ? "discount" : "muted" },
+                    { k: "Taxable", v: money(taxableBase), num: true, tone: taxableBase ? undefined : "muted" },
+                    { k: "Tax", v: money(taxAmount), num: true, tone: taxAmount ? undefined : "muted" },
+                    { k: "Charges", v: money(0), num: true, tone: "muted" },
+                    { k: "Customer", v: customer || customerPhone || "Walk-in", tone: (customer || customerPhone) ? undefined : "muted" },
+                  ];
+                  return cells.map((c, i) => (
+                    <div key={i} className="min-w-0">
+                      <div className="truncate text-[10px] font-semibold uppercase leading-tight tracking-wider text-gray-400 dark:text-gray-500">{c.k}</div>
+                      <div
+                        className={`mt-0.5 truncate text-[15px] font-bold leading-tight ${c.num ? "tabular-nums" : ""} ${
+                          c.tone === "discount"
+                            ? "text-warning-600 dark:text-warning-400"
+                            : c.tone === "muted"
+                              ? "text-gray-300 dark:text-gray-600"
+                              : "text-gray-900 dark:text-white/90"
+                        }`}
+                      >
+                        {c.v}
+                      </div>
+                    </div>
+                  ));
+                })()}
               </div>
-              <div className="flex flex-col justify-center rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-25 p-4 dark:border-brand-500/30 dark:from-brand-500/10 dark:to-transparent">
-                <div className="text-theme-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">Grand Total</div>
-                <div className="mb-2.5 mt-0.5 text-4xl font-extrabold tabular-nums text-gray-900 dark:text-white">{money(total)}</div>
+              <div className="flex flex-col justify-center rounded-xl border border-brand-200 bg-gradient-to-br from-brand-100 to-brand-50 px-4 py-3 dark:border-brand-500/30 dark:from-brand-500/15 dark:to-brand-500/5">
+                <div className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-brand-600 dark:text-brand-400">Grand Total</div>
+                <div className="mb-2 mt-1 text-4xl font-extrabold leading-none tabular-nums text-gray-900 dark:text-white">{money(total)}</div>
                 <button type="button" disabled={cart.length === 0 || !open}
                   onClick={() => { setMethod("cash"); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40">
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40">
                   <CardGlyph /> Tender / Pay <kbd className="rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px]">F9</kbd>
                 </button>
                 {!open && <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">Open a shift to sell.</p>}
@@ -1949,15 +2071,37 @@ export default function PosPage() {
           ticket actions on the right — a mis-click there loses the basket.
           Hold / Drafts / Quote carry the same colours as their keys in the top
           legend, so "F4" and the amber button are visibly the same thing. */}
-      <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-white px-4 py-2.5 xl:px-10 2xl:px-16 dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="ml-auto flex items-center gap-2">
+      <div className="no-scrollbar flex shrink-0 items-center gap-3 overflow-x-auto border-t border-white/10 bg-gray-900 px-4 py-2 xl:px-10 2xl:px-16">
+        {/* The footer's left half was empty while the top bar was fighting for
+            room. The two things that belong here are the ones a cashier never
+            acts on and only ever glances at: what this screen is, and whether
+            it can still reach the server. */}
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="text-xl font-bold tracking-tight text-white">Point of Sale</span>
+          {/* Connection. This used to be a green dot that said "Online" no
+              matter what — the one indicator that must never lie, since the
+              cashier decides whether to re-ring a sale by looking at it. */}
+          <span
+            className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-theme-xs font-semibold sm:flex ${
+              connected
+                ? "border-success-500/40 bg-success-500/15 text-success-300"
+                : "border-error-500/50 bg-error-500/15 text-error-300"
+            }`}
+            title={connected ? "The till reached the server on its last request." : "The last request never reached the server. Sales can't be rung until this clears."}
+          >
+            <span className={`h-2 w-2 rounded-full ${connected ? "bg-success-500" : "bg-error-500 animate-pulse"}`} />
+            {connected ? "Online" : online ? "No server" : "Offline"}
+          </span>
+        </div>
+
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-3">
           {/* Reset lives with the others now, but keeps its own gap and a red
               hover: near enough to reach, far enough that the hand going for
               Hold doesn't land on the one that empties the basket. */}
           <button
             onClick={clearSale}
             disabled={cart.length === 0}
-            className="mr-1 flex items-center gap-1.5 rounded-lg border border-gray-200 px-3.5 py-2 text-theme-sm font-medium text-gray-500 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-400 dark:hover:border-error-500/40 dark:hover:bg-error-500/10 dark:hover:text-error-400"
+            className="mr-2 flex items-center gap-1.5 rounded-lg border border-error-500/50 bg-error-500/15 px-3.5 py-2 text-theme-sm font-semibold text-error-300 transition hover:border-error-600 hover:bg-error-600 hover:text-white disabled:opacity-40"
             title="Empty this ticket"
           >
             <TrashBinIcon className="h-4 w-4" /> Reset
@@ -1968,10 +2112,10 @@ export default function PosPage() {
             type="button"
             onClick={discountModal.openModal}
             title="Discount / coupon"
-            className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-theme-sm font-medium transition ${
+            className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-theme-sm font-semibold transition ${
               Number(discount) > 0 || couponCode
-                ? "border-success-300 bg-success-50 text-success-700 dark:border-success-500/40 dark:bg-success-500/10 dark:text-success-400"
-                : "border-gray-200 text-gray-600 hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
+                ? "border-success-400 bg-success-500/25 text-success-200"
+                : "border-warning-500/50 bg-warning-500/15 text-warning-300 hover:border-warning-400 hover:bg-warning-500/25 hover:text-warning-200"
             }`}
           >
             <PlusIcon className="h-4 w-4" />
@@ -1980,28 +2124,28 @@ export default function PosPage() {
               : "Add discount"}
           </button>
 
-          <span className="mx-1 h-6 w-px bg-gray-200 dark:bg-gray-700" />
+          <span className="mx-1 h-6 w-px bg-white/15" />
 
           <button
             onClick={askHold}
             disabled={cart.length === 0 || heldMut.hold.isPending}
-            className="flex items-center gap-1.5 rounded-lg border border-warning-200 bg-warning-50 px-3.5 py-2 text-theme-sm font-semibold text-warning-700 transition hover:bg-warning-100 disabled:opacity-40 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+            className="flex items-center gap-1.5 rounded-lg border border-warning-500/40 bg-warning-500/15 px-3.5 py-2 text-theme-sm font-semibold text-warning-300 transition hover:bg-warning-500/25 disabled:opacity-40"
             title="Hold this ticket (F4)"
           >
             <PauseGlyph /> Hold
-            <kbd className="rounded bg-white/70 px-1 py-px font-sans text-[10px] font-bold dark:bg-black/25">F4</kbd>
+            <kbd className="rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold">F4</kbd>
           </button>
 
           <button
             onClick={() => { held.refetch(); heldModal.openModal(); }}
-            className="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3.5 py-2 text-theme-sm font-semibold text-orange-700 transition hover:bg-orange-100 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400"
+            className="flex items-center gap-1.5 rounded-lg border border-orange-500/40 bg-orange-500/15 px-3.5 py-2 text-theme-sm font-semibold text-orange-300 transition hover:bg-orange-500/25"
             title="Open a parked ticket (F6)"
           >
             <ListIcon className="h-4 w-4" /> Drafts
             {held.data?.length ? (
               <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{held.data.length}</span>
             ) : null}
-            <kbd className="rounded bg-white/70 px-1 py-px font-sans text-[10px] font-bold dark:bg-black/25">F6</kbd>
+            <kbd className="rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold">F6</kbd>
           </button>
 
           {/* A hold is for the next five minutes; this is for the next five
@@ -2010,11 +2154,11 @@ export default function PosPage() {
           <button
             onClick={documentModal.openModal}
             disabled={cart.length === 0}
-            className="flex items-center gap-1.5 rounded-lg border border-success-200 bg-success-50 px-3.5 py-2 text-theme-sm font-semibold text-success-700 transition hover:bg-success-100 disabled:opacity-40 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400"
+            className="flex items-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/15 px-3.5 py-2 text-theme-sm font-semibold text-success-300 transition hover:bg-success-500/25 disabled:opacity-40"
             title="Quotation or advance booking (F7)"
           >
             <ListIcon className="h-4 w-4" /> Quote / Advance
-            <kbd className="rounded bg-white/70 px-1 py-px font-sans text-[10px] font-bold dark:bg-black/25">F7</kbd>
+            <kbd className="rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold">F7</kbd>
           </button>
         </div>
       </div>

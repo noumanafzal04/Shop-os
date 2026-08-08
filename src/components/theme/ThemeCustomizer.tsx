@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuthStore } from "../../stores/authStore";
 import { useShopSettings, useUpdateShopSettings } from "../../modules/shop/hooks/useShop";
 import {
   applyTenantTheme,
@@ -127,8 +128,19 @@ export default function ThemeCustomizer() {
   const settings = useShopSettings();
   const update = useUpdateShopSettings();
 
+  // Two different things live in this canvas and only one of them is yours.
+  // Light/dark is a personal preference on this device. The brand colour,
+  // sidebar and tint are the SHOP's look, saved for everyone, and PUT
+  // /shop/settings asks for settings.manage. A cashier used to be shown all
+  // four, and Save simply did nothing — the mutation 403'd with no onError,
+  // then closing the canvas snapped the preview back to what was stored. It
+  // read as "the theme will not update" rather than "this is not yours to
+  // change", which is the same disguise the empty product grid wore.
+  const canConfigure = useAuthStore((s) => s.hasPermission)("settings.manage");
+
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Working copy. Seeded from what's stored, and re-seeded whenever the stored
   // values change (another device, or our own save landing).
@@ -165,6 +177,7 @@ export default function ThemeCustomizer() {
     primary !== storedPrimary || tint !== storedTint || sidebar !== storedSidebar;
 
   const save = () => {
+    setSaveError(null);
     update.mutate(
       { theme_primary: primary, theme_tint: tint, theme_sidebar: sidebar } as never,
       {
@@ -172,6 +185,11 @@ export default function ThemeCustomizer() {
           setSaved(true);
           setTimeout(() => setSaved(false), 2200);
         },
+        // A save that fails silently is indistinguishable from one that never
+        // fired. Belt and braces: the controls are already hidden without the
+        // permission, but if the server ever refuses for another reason, say so.
+        onError: (e: unknown) =>
+          setSaveError(e instanceof Error ? e.message : "Could not save. Try again."),
       },
     );
   };
@@ -181,6 +199,20 @@ export default function ThemeCustomizer() {
     setTint("subtle");
     setSidebar("light");
   };
+
+  // Owner-only, in full. Everything in this canvas is the SHOP's look — saved
+  // once, seen by everyone who works here — and PUT /shop/settings asks for
+  // settings.manage. Showing a cashier controls whose Save can only fail is
+  // worse than not showing them: the rail button is not offered at all.
+  // Light/dark rides the header toggle instead, which is where a per-device
+  // preference belongs anyway. Note the one gap that buys: the full-screen POS
+  // renders outside AppLayout and so has no header, which leaves a cashier who
+  // only ever works the till with no light/dark control at all. Acceptable
+  // because the till now paints its own fixed two-tone ground and barely moves
+  // between themes — but it IS a real consequence, not an oversight.
+  //
+  // Placed after every hook so the rules of hooks still hold.
+  if (!canConfigure) return null;
 
   return (
     <>
@@ -327,7 +359,10 @@ export default function ThemeCustomizer() {
           </div>
         </div>
 
-        <footer className="flex items-center gap-2 border-t border-gray-100 px-5 py-4 dark:border-gray-800">
+        <footer className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-5 py-4 dark:border-gray-800">
+          {saveError && (
+            <p className="w-full text-theme-xs text-error-500">{saveError}</p>
+          )}
           <button
             type="button"
             onClick={resetAll}
