@@ -61,6 +61,23 @@ class CreateProductAction
                 'generic_name' => $data['generic_name'] ?? null,
                 'strength' => $data['strength'] ?? null,
                 'dosage_form' => $data['dosage_form'] ?? null,
+                // These three were validated by the request, sent by the form,
+                // and then never written: this insert names its columns one by
+                // one and these were missing from the list. UpdateProductAction
+                // fills the model wholesale, so each one saved fine the SECOND
+                // time you pressed save — which is the worst shape a bug can
+                // take, because the field looks like it works.
+                //
+                // `drug_schedule` blanked the controlled-drug marking on every
+                // new medicine. `tax_group_id` silently dropped a chosen rate
+                // and fell back to the shop default, so the item was PRICED
+                // wrong. `kitchen_station` had no writer anywhere at all, while
+                // FireKitchenTicketAction has been reading it to route tickets
+                // — so every dish went to the default station and the bar got
+                // the biryani, which is the exact failure stations prevent.
+                'drug_schedule' => $data['drug_schedule'] ?? null,
+                'tax_group_id' => $data['tax_group_id'] ?? null,
+                'kitchen_station' => $data['kitchen_station'] ?? null,
                 'requires_prescription' => $data['requires_prescription'] ?? false,
                 'tracks_serial' => $data['tracks_serial'] ?? false,
                 'warranty_months' => $data['warranty_months'] ?? null,

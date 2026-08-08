@@ -352,6 +352,9 @@ class CreateSaleAction
                         'modifiers' => $modifierSnapshot,
                         'serials' => $serials,
                         'warranty_months' => $warrantyOverride,
+                        // Trimmed to null so an empty box does not print a
+                        // blank directions line on the label.
+                        'directions' => trim((string) ($item['directions'] ?? '')) ?: null,
                         // Effective tax %% snapshot — tax group, else product rate,
                         // else shop default.
                         'tax_rate' => $product->effectiveTaxRate($defaultTaxRate),
@@ -784,6 +787,7 @@ class CreateSaleAction
                         'product_name' => $line['product']->name,
                         'variant_name' => $line['variant']?->name,
                         'unit_name' => $line['unit']?->name,
+                        'directions' => $line['directions'] ?? null,
                         'modifiers' => $line['modifiers'] ?: null,
                         'components' => $componentsSnapshot,
                         'sku' => $line['variant']?->sku ?? $line['product']->sku,

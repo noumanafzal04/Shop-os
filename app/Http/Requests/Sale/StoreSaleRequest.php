@@ -68,6 +68,10 @@ class StoreSaleRequest extends FormRequest
             // Serialized retail: one serial/IMEI per unit sold on this line, and
             // an optional warranty override (months) that beats the product's
             // default. Serials are data, never pricing — safe from clients.
+            // Pharmacy: how to take THIS medicine, per line. Like serials it
+            // is data about the dispensing, never pricing, so a client may
+            // send it. Printed on the receipt/label and kept on the sale.
+            'items.*.directions' => ['nullable', 'string', 'max:255'],
             'items.*.serials' => ['sometimes', 'array', 'max:1000'],
             'items.*.serials.*' => ['string', 'max:120', 'distinct'],
             'items.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:600'],

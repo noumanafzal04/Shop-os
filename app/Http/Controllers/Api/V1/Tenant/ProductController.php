@@ -4,25 +4,34 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Actions\Catalog\CreateProductAction;
 use App\Actions\Catalog\GenerateBarcodeAction;
+use App\Actions\Catalog\ImportProductsAction;
 use App\Actions\Catalog\SyncModifierGroupsAction;
 use App\Actions\Catalog\UpdateProductAction;
-use App\Http\Requests\Catalog\SyncModifierGroupsRequest;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Catalog\StoreProductRequest;
-use App\Http\Requests\Catalog\UpdateProductRequest;
 use App\Exceptions\DomainException;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Catalog\SetBranchPricesRequest;
+use App\Http\Requests\Catalog\StoreProductRequest;
+use App\Http\Requests\Catalog\SyncModifierGroupsRequest;
+use App\Http\Requests\Catalog\UpdateProductRequest;
+use App\Models\Branch;
+use App\Models\BranchPrice;
+use App\Models\BranchStock;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
+use App\Support\CsvExport;
 use App\Support\ItemTypes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProductController extends Controller
 {
     /**
      * Paginated item list — searchable, filterable by type/category/status.
      */
-    public function index(Request $request, \App\Support\BranchContext $branch): JsonResponse
+    public function index(Request $request, BranchContext $branch): JsonResponse
     {
         $products = Product::query()
             ->with(['category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
@@ -73,7 +82,7 @@ class ProductController extends Controller
         // price this branch will actually charge (Phase 4c).
         if ($branchId = $branch->id()) {
             $ids = collect($products->items())->pluck('id');
-            $overrides = \App\Models\BranchPrice::query()
+            $overrides = BranchPrice::query()
                 ->where('branch_id', $branchId)
                 ->whereNull('variant_id')
                 ->whereIn('product_id', $ids)
@@ -100,7 +109,7 @@ class ProductController extends Controller
     }
 
     /** Bulk-import products from a CSV — create/update by SKU, per-row results. */
-    public function import(Request $request, \App\Actions\Catalog\ImportProductsAction $action): JsonResponse
+    public function import(Request $request, ImportProductsAction $action): JsonResponse
     {
         $request->validate(['file' => ['required', 'file', 'max:4096']]);
 
@@ -113,18 +122,37 @@ class ProductController extends Controller
     }
 
     /** A ready-to-fill CSV template with the supported columns + one example row. */
-    public function importTemplate(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function importTemplate(): StreamedResponse
     {
-        $header = ['name', 'item_type', 'sku', 'barcode', 'barcodes', 'plu_code', 'brand', 'generic_name', 'requires_prescription', 'category', 'unit', 'sold_by', 'price', 'cost', 'discount_price', 'tax_rate', 'stock_quantity', 'low_stock_threshold', 'min_order_qty', 'is_active', 'visible_in_marketplace'];
+        $header = [
+            'name', 'item_type', 'sku', 'barcode', 'barcodes', 'plu_code', 'brand', 'category',
+            'unit', 'sold_by', 'price', 'cost', 'wholesale_price', 'discount_price', 'tax_rate',
+            'tax_group', 'stock_quantity', 'low_stock_threshold', 'min_order_qty', 'track_inventory',
+            // Pharmacy
+            'generic_name', 'strength', 'dosage_form', 'drug_schedule', 'requires_prescription',
+            // Food
+            'kitchen_station',
+            // Retail / automotive / petroleum
+            'tracks_serial', 'warranty_months',
+            // Services
+            'duration_minutes',
+            'description', 'is_active', 'visible_in_marketplace',
+        ];
 
         // A few worked examples so a merchant sees how each column is filled:
         // a retail item, a weight-sold grocery item with a scale PLU code, a
         // discounted item, and a prescription medicine with two extra barcodes.
+        // One worked row per trade, so a merchant can see which columns are
+        // theirs and leave the rest blank. Every column is optional except
+        // `name` and `price`.
         $samples = [
-            ['Classic T-Shirt', 'physical_product', 'TS-01', '8964000100', '', '', 'ACME', '', '0', 'Clothing', 'pcs', 'unit', '1200', '700', '', '0', '40', '5', '', '1', '1'],
-            ['Loose Sugar', 'physical_product', 'SUG-KG', '', '', '21', '', '', '0', 'Grocery', 'kg', 'weight', '180', '150', '', '0', '100', '10', '', '1', '1'],
-            ['Cooking Oil 5L', 'physical_product', 'OIL-5L', '8964000200', '', '', 'Dalda', '', '0', 'Grocery', 'bottle', 'unit', '2800', '2500', '2650', '0', '30', '6', '', '1', '1'],
-            ['Panadol 500mg', 'medicine', 'PAN-500', '8964000111', '8964000112|8964000113', '', 'GSK', 'Paracetamol 500mg', '1', 'Medicines', 'strip', 'unit', '120', '90', '', '0', '200', '20', '', '1', '1'],
+            //  name  item_type  sku  barcode  barcodes  plu  brand  category  unit  sold_by  price  cost  wholesale  discount  tax_rate  tax_group  stock  low_stock  min_qty  track_inv | generic  strength  form  schedule  rx | station | serial  warranty | duration | description  active  marketplace
+            ['Loose Sugar', 'physical_product', 'SUG-KG', '', '', '21', '', 'Grocery', 'kg', 'weight', '180', '150', '', '', '0', '', '100', '10', '', '1', '', '', '', '', '0', '', '0', '', '', 'Sold loose by the kilo', '1', '1'],
+            ['Panadol 500mg', 'medicine', 'PAN-500', '8964000111', '8964000112|8964000113', '', 'GSK', 'Medicines', 'strip', 'unit', '120', '90', '', '', '0', '', '200', '20', '', '1', 'Paracetamol', '500mg', 'Tablet', 'OTC', '0', '', '0', '', '', '', '1', '1'],
+            ['Chicken Karahi', 'food_item', 'KAR-01', '', '', '', '', 'Main Course', 'plate', 'unit', '1400', '600', '', '', '0', '', '', '', '', '0', '', '', '', '', '0', 'Kitchen', '0', '', '', 'Serves two', '1', '1'],
+            ['Fresh Lime Soda', 'food_item', 'LIME-01', '', '', '', '', 'Drinks', 'glass', 'unit', '250', '60', '', '', '0', '', '', '', '', '0', '', '', '', '', '0', 'Bar', '0', '', '', '', '1', '1'],
+            ['Galaxy A16', 'physical_product', 'SGA16', '8964000200', '', '', 'Samsung', 'Mobiles', 'pcs', 'unit', '52000', '46000', '49000', '', '0', '', '12', '3', '', '1', '', '', '', '', '0', '', '1', '12', '', '', '1', '1'],
+            ['Full Service', 'service', 'SRV-FULL', '', '', '', '', 'Workshop', 'job', 'unit', '3500', '1200', '', '', '0', '', '', '', '', '', '', '', '', '', '0', '', '0', '', '90', 'Oil, filter and a check over', '1', '1'],
         ];
 
         return response()->streamDownload(function () use ($header, $samples): void {
@@ -143,12 +171,25 @@ class ProductController extends Controller
      * the import template — an exported file round-trips straight back through
      * /products/import for bulk edits.
      */
-    public function export(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function export(Request $request): StreamedResponse
     {
-        $header = ['name', 'item_type', 'sku', 'barcode', 'barcodes', 'plu_code', 'brand', 'generic_name', 'requires_prescription', 'category', 'unit', 'sold_by', 'price', 'cost', 'discount_price', 'tax_rate', 'stock_quantity', 'low_stock_threshold', 'min_order_qty', 'is_active', 'visible_in_marketplace'];
+        $header = [
+            'name', 'item_type', 'sku', 'barcode', 'barcodes', 'plu_code', 'brand', 'category',
+            'unit', 'sold_by', 'price', 'cost', 'wholesale_price', 'discount_price', 'tax_rate',
+            'tax_group', 'stock_quantity', 'low_stock_threshold', 'min_order_qty', 'track_inventory',
+            // Pharmacy
+            'generic_name', 'strength', 'dosage_form', 'drug_schedule', 'requires_prescription',
+            // Food
+            'kitchen_station',
+            // Retail / automotive / petroleum
+            'tracks_serial', 'warranty_months',
+            // Services
+            'duration_minutes',
+            'description', 'is_active', 'visible_in_marketplace',
+        ];
 
         $rows = Product::query()
-            ->with(['category:id,name', 'barcodes:id,product_id,barcode'])
+            ->with(['category:id,name', 'taxGroup:id,name', 'barcodes:id,product_id,barcode'])
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('name', 'like', "%{$search}%")
@@ -190,24 +231,35 @@ class ProductController extends Controller
                 $p->barcodes->pluck('barcode')->reject(fn ($b) => $b === $p->barcode)->implode('|'),
                 $p->plu_code,
                 $p->brand,
-                $p->generic_name,
-                $p->requires_prescription ? 1 : 0,
                 $p->category?->name,
                 $p->unit,
                 $p->sold_by,
                 $p->price,
                 $p->cost,
+                $p->wholesale_price,
                 $p->discount_price,
                 $p->tax_rate,
+                $p->taxGroup?->name,
                 $p->stock_quantity,
                 $p->low_stock_threshold,
                 $p->min_order_qty,
+                $p->track_inventory ? 1 : 0,
+                $p->generic_name,
+                $p->strength,
+                $p->dosage_form,
+                $p->drug_schedule,
+                $p->requires_prescription ? 1 : 0,
+                $p->kitchen_station,
+                $p->tracks_serial ? 1 : 0,
+                $p->warranty_months,
+                $p->duration_minutes,
+                $p->description,
                 $p->is_active ? 1 : 0,
                 $p->visible_in_marketplace ? 1 : 0,
             ])
             ->all();
 
-        return \App\Support\CsvExport::stream('products-'.now()->format('Y-m-d').'.csv', $header, $rows);
+        return CsvExport::stream('products-'.now()->format('Y-m-d').'.csv', $header, $rows);
     }
 
     public function show(string $id): JsonResponse
@@ -226,7 +278,7 @@ class ProductController extends Controller
         /** @var Product $product */
         $product = Product::query()->findOrFail($id);
 
-        $rows = \App\Models\Branch::query()
+        $rows = Branch::query()
             ->where('is_active', true)
             ->orderByDesc('is_default')
             ->orderBy('name')
@@ -235,7 +287,7 @@ class ProductController extends Controller
                 'branch_id' => $b->id,
                 'branch' => $b->name,
                 'is_default' => $b->is_default,
-                'quantity' => (float) \App\Models\BranchStock::query()
+                'quantity' => (float) BranchStock::query()
                     ->where('branch_id', $b->id)
                     ->where('product_id', $product->id)
                     ->sum('quantity'),
@@ -249,12 +301,12 @@ class ProductController extends Controller
      * serial picker for a serialized sale); pass ?status=sold or ?status=all
      * to widen. Most recent first.
      */
-    public function serials(string $id, \Illuminate\Http\Request $request): JsonResponse
+    public function serials(string $id, Request $request): JsonResponse
     {
         $product = Product::query()->findOrFail($id);
         $status = $request->query('status', 'in_stock');
 
-        $rows = \App\Models\ProductSerial::query()
+        $rows = ProductSerial::query()
             ->where('product_id', $product->id)
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->latest('received_at')
@@ -274,12 +326,12 @@ class ProductController extends Controller
         /** @var Product $product */
         $product = Product::query()->findOrFail($id);
 
-        $overrides = \App\Models\BranchPrice::query()
+        $overrides = BranchPrice::query()
             ->where('product_id', $product->id)
             ->whereNull('variant_id')
             ->pluck('price', 'branch_id');
 
-        $branches = \App\Models\Branch::query()
+        $branches = Branch::query()
             ->where('is_active', true)
             ->orderByDesc('is_default')
             ->orderBy('name')
@@ -302,7 +354,7 @@ class ProductController extends Controller
      * Body: { prices: [{ branch_id, price: number|null }] } — a null price
      * clears that branch's override (it falls back to the catalog price).
      */
-    public function setBranchPrices(\App\Http\Requests\Catalog\SetBranchPricesRequest $request, string $id): JsonResponse
+    public function setBranchPrices(SetBranchPricesRequest $request, string $id): JsonResponse
     {
         /** @var Product $product */
         $product = Product::query()->findOrFail($id);
@@ -310,7 +362,7 @@ class ProductController extends Controller
 
         foreach ($request->validated('prices') as $row) {
             if (($row['price'] ?? null) === null) {
-                \App\Models\BranchPrice::query()
+                BranchPrice::query()
                     ->where('branch_id', $row['branch_id'])
                     ->where('product_id', $product->id)
                     ->whereNull('variant_id')
@@ -319,7 +371,7 @@ class ProductController extends Controller
                 continue;
             }
 
-            \App\Models\BranchPrice::query()->updateOrCreate(
+            BranchPrice::query()->updateOrCreate(
                 ['branch_id' => $row['branch_id'], 'product_id' => $product->id, 'variant_id' => null],
                 ['tenant_id' => $tenantId, 'price' => round((float) $row['price'], 2)],
             );

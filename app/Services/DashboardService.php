@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\PurchaseStatus;
 use App\Enums\ReservationStatus;
+use App\Enums\RestaurantTicketStatus;
 use App\Enums\SaleStatus;
 use App\Enums\TenantStatus;
 use App\Models\AuditLog;
@@ -12,15 +13,18 @@ use App\Models\Branch;
 use App\Models\BusinessDay;
 use App\Models\CashSession;
 use App\Models\Customer;
+use App\Models\DiningTable;
 use App\Models\Expense;
 use App\Models\HeldSale;
 use App\Models\Income;
+use App\Models\KitchenTicket;
 use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\PurchaseOrder;
 use App\Models\Reservation;
+use App\Models\RestaurantTicket;
 use App\Models\Rider;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -189,6 +193,17 @@ class DashboardService
                 'top_customer' => $sells ? $this->topCustomer($tenant, $branchId, $monthStart) : null,
                 'top_staff' => $sells ? $this->topStaff($tenant, $branchId, $monthStart) : null,
             ],
+            // What THIS trade needs and nobody else does. Null when the shop
+            // is not that trade, so the panel is absent rather than empty —
+            // the same rule every other block on this dashboard follows.
+            'floor' => $tenant->featureEnabled('dine_in') ? $this->diningFloor($tenant) : null,
+            // A tenant an admin has not typed yet carries a NULL business_type,
+            // and `primary()` takes a string — so the null is answered here
+            // rather than by widening a signature every caller relies on.
+            'dispensing' => $tenant->business_type !== null
+                && BusinessTypes::primary($tenant->business_type) === 'pharmacy'
+                ? $this->dispensingToday($tenant, $branchId, $todayStart)
+                : null,
             'activity' => $this->tenantActivity($tenant),
             // HQ comparison: today's sales per branch. Only for multi-branch
             // tenants (a single-shop owner gets an empty array, no HQ panel).
@@ -763,6 +778,89 @@ class DashboardService
      *
      * @return array<int, array<string, mixed>>
      */
+    /**
+     * The restaurant floor, right now.
+     *
+     * At 8pm a kitchen does not want today's revenue — it wants how many tables
+     * are sat, whose bill is still running, and what is stacking up on the pass.
+     * None of it is a "today" figure: every number here is the state of this
+     * minute, which is why nothing is windowed by date.
+     *
+     * Occupancy is derived from open tickets, never from a column on the table
+     * — the same rule DiningTable::isOccupied follows, so the dashboard and the
+     * floor plan can never disagree about whether table 4 is free.
+     *
+     * NOT branch-scoped, and deliberately so: `dining_tables`,
+     * `restaurant_tickets` and `kitchen_tickets` carry no `branch_id` at all
+     * (see 2026_07_23_000001 and 2026_08_05_000008). A restaurant's floor is
+     * the floor it is standing on. Filtering these by branch would not narrow
+     * the answer — it would throw.
+     *
+     * @return array{tables: int, occupied: int, open_tabs: int, kot_waiting: int, kot_ready: int}
+     */
+    private function diningFloor(Tenant $tenant): array
+    {
+        $tables = DiningTable::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('is_active', true);
+
+        $openTabs = RestaurantTicket::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('status', RestaurantTicketStatus::Open->value);
+
+        // Fired and not yet served. `ready_at` splits the two states a kitchen
+        // actually distinguishes: still cooking, versus sitting under the lamp
+        // waiting for someone to run it — the second is the one that gets cold.
+        $kots = KitchenTicket::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('served_at');
+
+        return [
+            'tables' => (int) $tables->count(),
+            'occupied' => (int) (clone $tables)->whereHas('openTicket')->count(),
+            'open_tabs' => (int) $openTabs->count(),
+            'kot_waiting' => (int) (clone $kots)->whereNull('ready_at')->count(),
+            'kot_ready' => (int) (clone $kots)->whereNotNull('ready_at')->count(),
+        ];
+    }
+
+    /**
+     * What was dispensed against a prescription today.
+     *
+     * A medical store's day splits in two: over-the-counter trade, and the
+     * prescriptions it is legally answerable for. Only the second has a
+     * prescriber's name attached to it, and only the second is what an
+     * inspector asks about — but the dashboard counted them together, so the
+     * one figure a pharmacist would be asked to produce did not exist anywhere.
+     *
+     * `prescription_number` is the marker: a sale that captured one IS an Rx
+     * sale, whatever else was in the basket beside it.
+     *
+     * @return array{rx_sales: int, rx_revenue: float, prescribers: int}
+     */
+    private function dispensingToday(Tenant $tenant, ?string $branchId, Carbon $todayStart): array
+    {
+        $rx = Sale::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('status', SaleStatus::Completed->value)
+            ->whereNotNull('prescription_number')
+            ->where('prescription_number', '!=', '')
+            ->where('sold_at', '>=', $todayStart)
+            ->when($branchId, fn (Builder $q) => $q->where('branch_id', $branchId));
+
+        return [
+            'rx_sales' => (int) (clone $rx)->count(),
+            'rx_revenue' => (float) (clone $rx)->sum('total'),
+            // Distinct prescribers, because a name that appears on half the
+            // day's scripts is worth knowing about.
+            'prescribers' => (int) (clone $rx)
+                ->whereNotNull('prescriber_name')
+                ->where('prescriber_name', '!=', '')
+                ->distinct()
+                ->count('prescriber_name'),
+        ];
+    }
+
     private function tenantActivity(Tenant $tenant): array
     {
         return AuditLog::query()

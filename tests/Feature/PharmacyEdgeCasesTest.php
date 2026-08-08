@@ -398,4 +398,84 @@ class PharmacyEdgeCasesTest extends TestCase
             'items' => [['product_id' => $rx->id, 'quantity' => 1]],
         ])->assertStatus(422)->assertJsonPath('meta.error_code', 'RX_IN_PERSON_ONLY');
     }
+
+    // ── Dispensing directions ───────────────────────────────────────
+    //
+    // The label a patient reads. Rx capture records who prescribed and for
+    // whom, but all of that sits on the SALE — and a prescription's directions
+    // differ per medicine. One free-text note on the whole sale cannot say
+    // "the antibiotic is a strict course" and "the painkiller is as-needed" at
+    // the same time, which is exactly what a real script says.
+
+    public function test_each_medicine_carries_its_own_directions(): void
+    {
+        [$tenant, $owner] = $this->shop();
+        $antibiotic = $this->medicine($tenant, ['name' => 'Augmentin 625', 'stock_quantity' => 50, 'track_inventory' => false]);
+        $painkiller = $this->medicine($tenant, ['name' => 'Panadol', 'stock_quantity' => 50, 'track_inventory' => false]);
+
+        $sale = $this->actingAsUser($owner)->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'payment_method' => 'cash', 'amount_paid' => 500,
+            'patient_name' => 'Bilal Ahmed',
+            'items' => [
+                ['product_id' => $antibiotic->id, 'quantity' => 1, 'directions' => '1 tablet twice daily after meals — finish the course'],
+                ['product_id' => $painkiller->id, 'quantity' => 1, 'directions' => 'As needed for pain, max 3 a day'],
+            ],
+        ])->assertCreated()->json('data');
+
+        $byName = collect($sale['items'])->keyBy('product_name');
+        $this->assertSame(
+            '1 tablet twice daily after meals — finish the course',
+            $byName['Augmentin 625']['directions'],
+        );
+        $this->assertSame('As needed for pain, max 3 a day', $byName['Panadol']['directions']);
+    }
+
+    /** An empty box must not print a blank line on the label. */
+    public function test_blank_directions_are_stored_as_nothing(): void
+    {
+        [$tenant, $owner] = $this->shop();
+        $med = $this->medicine($tenant, ['stock_quantity' => 10, 'track_inventory' => false]);
+
+        $sale = $this->actingAsUser($owner)->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'payment_method' => 'cash', 'amount_paid' => 100,
+            'items' => [['product_id' => $med->id, 'quantity' => 1, 'directions' => '   ']],
+        ])->assertCreated()->json('data');
+
+        $this->assertNull($sale['items'][0]['directions']);
+    }
+
+    /**
+     * Directions are a fact about THIS dispensing, not about the drug. The
+     * same medicine goes out with different directions to different patients,
+     * so a later catalog edit must not be able to rewrite what someone was
+     * told — the value is snapshotted on the line like unit_price beside it.
+     */
+    public function test_directions_survive_the_product_being_renamed(): void
+    {
+        [$tenant, $owner] = $this->shop();
+        $med = $this->medicine($tenant, ['name' => 'Brufen', 'stock_quantity' => 10, 'track_inventory' => false]);
+
+        $saleId = $this->actingAsUser($owner)->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'payment_method' => 'cash', 'amount_paid' => 100,
+            'items' => [['product_id' => $med->id, 'quantity' => 1, 'directions' => 'One at night']],
+        ])->assertCreated()->json('data.id');
+
+        $med->forceFill(['name' => 'Brufen 400 (renamed)'])->save();
+
+        $item = \App\Models\SaleItem::query()->where('sale_id', $saleId)->firstOrFail();
+        $this->assertSame('One at night', $item->directions);
+        $this->assertSame('Brufen', $item->product_name);
+    }
+
+    /** Long enough for a real sig, bounded so it cannot be abused as a notes field. */
+    public function test_directions_are_length_bounded(): void
+    {
+        [$tenant, $owner] = $this->shop();
+        $med = $this->medicine($tenant, ['stock_quantity' => 10, 'track_inventory' => false]);
+
+        $this->actingAsUser($owner)->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'payment_method' => 'cash', 'amount_paid' => 100,
+            'items' => [['product_id' => $med->id, 'quantity' => 1, 'directions' => str_repeat('x', 256)]],
+        ])->assertStatus(422);
+    }
 }

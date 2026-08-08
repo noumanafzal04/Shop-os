@@ -57,6 +57,13 @@ class UpdateProductRequest extends FormRequest
             // The regulator's schedule (G / H / X …). Set it and the till starts
             // demanding prescriber details before the drug can be sold.
             'drug_schedule' => ['sometimes', 'nullable', 'string', 'max:20'],
+            // Where this item is MADE: "Kitchen", "Bar", "Grill". A fired
+            // order splits into one ticket per station, so the bar never gets
+            // the biryani — FireKitchenTicketAction has read this column since
+            // the food service loop shipped, and no request validated it, so
+            // there was no way to set it and every dish went to the default
+            // station.
+            'kitchen_station' => ['sometimes', 'nullable', 'string', 'max:60'],
             // Serialized retail — toggle serial/IMEI capture and default warranty.
             'tracks_serial' => ['sometimes', 'boolean'],
             'warranty_months' => ['nullable', 'integer', 'min:0', 'max:600'],

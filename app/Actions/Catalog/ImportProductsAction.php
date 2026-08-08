@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\ProductUnit;
+use App\Models\TaxGroup;
 use App\Services\InventoryService;
 use App\Support\BusinessTypes;
 use App\Support\ItemTypes;
@@ -30,11 +31,29 @@ class ImportProductsAction
     private const MAX_ROWS = 2000;
 
     /** Accepted headers → internal field. */
+    /**
+     * Every column a merchant's file may carry. A header outside this list is
+     * dropped in silence, so a trade whose fields are missing here cannot bulk-
+     * load its catalog at all — it can only load the half of each item that
+     * every shop shares.
+     *
+     * The second block is that missing half. `generic_name` and
+     * `requires_prescription` shipped from the start while `strength`,
+     * `dosage_form` and `drug_schedule` did not, which made a medical store's
+     * import look supported and then arrive incomplete. Same for a restaurant's
+     * `kitchen_station` (without it every dish routes to one printer) and a
+     * phone shop's `tracks_serial` (without it 500 handsets import with no way
+     * to look up a warranty).
+     */
     private const COLUMNS = [
         'name', 'item_type', 'sku', 'barcode', 'barcodes', 'plu_code', 'brand', 'generic_name',
         'requires_prescription', 'category', 'unit', 'sold_by', 'price', 'cost',
         'discount_price', 'tax_rate', 'stock_quantity', 'low_stock_threshold',
         'min_order_qty', 'is_active', 'visible_in_marketplace',
+        // Trade-specific, and general fields the catalog has always held.
+        'description', 'strength', 'dosage_form', 'drug_schedule', 'kitchen_station',
+        'tracks_serial', 'warranty_months', 'wholesale_price', 'duration_minutes',
+        'track_inventory', 'tax_group',
     ];
 
     public function __construct(
@@ -109,6 +128,14 @@ class ImportProductsAction
             'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'stock_quantity' => ['nullable', 'numeric', 'min:0'],
             'min_order_qty' => ['nullable', 'numeric', 'min:0.001'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'strength' => ['nullable', 'string', 'max:60'],
+            'dosage_form' => ['nullable', 'string', 'max:40'],
+            'drug_schedule' => ['nullable', 'string', 'max:20'],
+            'kitchen_station' => ['nullable', 'string', 'max:60'],
+            'warranty_months' => ['nullable', 'integer', 'min:0', 'max:600'],
+            'wholesale_price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'duration_minutes' => ['nullable', 'integer', 'min:1', 'max:1440'],
         ]);
 
         if ($validator->fails()) {
@@ -138,6 +165,18 @@ class ImportProductsAction
                 $data['category_id'] = Category::query()->firstOrCreate(['name' => $data['category']])->id;
             }
             unset($data['category']);
+
+            // Tax group by NAME, and only a name that already exists. Unlike a
+            // category, a tax group is a rate: inventing "GST 17%" from a typo
+            // would price a whole import wrong and look deliberate. An unknown
+            // name is left off, so the item falls back to the shop's default
+            // rate rather than a rate nobody chose.
+            if (! empty($data['tax_group'])) {
+                $data['tax_group_id'] = TaxGroup::query()
+                    ->where('name', $data['tax_group'])
+                    ->value('id');
+            }
+            unset($data['tax_group']);
 
             if ($existing !== null) {
                 // Stock is NEVER mass-assigned on update — a recount goes
@@ -252,9 +291,28 @@ class ImportProductsAction
             'low_stock_threshold' => $get('low_stock_threshold'),
             'min_order_qty' => $get('min_order_qty'),
             'requires_prescription' => $bool('requires_prescription', false),
+            'description' => $get('description'),
+            'strength' => $get('strength'),
+            'dosage_form' => $get('dosage_form'),
+            'drug_schedule' => $get('drug_schedule'),
+            'kitchen_station' => $get('kitchen_station'),
+            'tax_group' => $get('tax_group'),
+            'warranty_months' => $get('warranty_months'),
+            'wholesale_price' => $get('wholesale_price'),
+            'duration_minutes' => $get('duration_minutes'),
             'is_active' => $bool('is_active', true),
             'visible_in_marketplace' => $bool('visible_in_marketplace', true),
         ];
+
+        // These two default to the ITEM TYPE's own answer, so a blank column
+        // leaves them alone. Defaulting either to false would quietly turn
+        // stock tracking off across a whole catalog on a re-import.
+        if ($get('tracks_serial') !== null) {
+            $data['tracks_serial'] = $bool('tracks_serial', false);
+        }
+        if ($get('track_inventory') !== null) {
+            $data['track_inventory'] = $bool('track_inventory', true);
+        }
 
         // Multiple barcodes: pipe-separated in one cell.
         if (($raw = $get('barcodes')) !== null) {

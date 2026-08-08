@@ -161,6 +161,12 @@
         @endif
         .lname { font-weight: 600; }
         .lmeta { font-size: {{ $roll ? '10px' : '11px' }}; color: var(--soft); }
+        /* Dispensing directions. Deliberately NOT .lmeta grey: this is the one
+           line on the receipt a patient is meant to act on, and on a thermal
+           roll grey small print is the first thing that stops being readable.
+           Boxed on the left so it survives a bad print head. */
+        .ldose { font-size: {{ $roll ? '10px' : '11px' }}; font-weight: 700;
+                 border-left: 2px solid #000; padding-left: 4px; margin-top: 2px; }
 
         /* ── Totals ───────────────────────────────────────────────── */
         .totals { width: {{ $roll ? '100%' : '300px' }}; margin-left: auto; font-size: {{ $roll ? '12px' : '13px' }}; }
@@ -358,6 +364,9 @@
                         @if($item->variant_name || $item->unit_name)
                             <div class="lmeta">{{ trim(($item->variant_name ?? '').($item->variant_name && $item->unit_name ? ' · ' : '').($item->unit_name ?? '')) }}</div>
                         @endif
+                        @if($item->directions)
+                            <div class="ldose">{{ $item->directions }}</div>
+                        @endif
                         @if(!empty($item->modifiers))
                             <div class="lmeta">
                                 @foreach($item->modifiers as $mod)
@@ -404,6 +413,9 @@
                                 {{ $item->variant_name }}{{ $item->variant_name && $item->unit_name ? ' · ' : '' }}{{ $item->unit_name }}
                                 @if($item->sku)<span>{{ ($item->variant_name || $item->unit_name) ? ' · ' : '' }}SKU {{ $item->sku }}</span>@endif
                             </div>
+                        @endif
+                        @if($item->directions)
+                            <div class="ldose">{{ $item->directions }}</div>
                         @endif
                         @if(!empty($item->modifiers))
                             <div class="lmeta">

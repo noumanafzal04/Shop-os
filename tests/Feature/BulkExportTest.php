@@ -70,12 +70,19 @@ class BulkExportTest extends TestCase
         $csv = $this->csv($this->owner, '/api/v1/products/export');
         $lines = array_values(array_filter(explode("\n", trim($csv))));
 
-        // Header is the exact import template order (BOM stripped for the compare).
+        // An export must round-trip straight back through /products/import, so
+        // the two headers have to be identical — asked of the endpoints
+        // themselves rather than of a literal copied between them, which is
+        // what a column added to one and forgotten on the other looks like.
+        $template = $this->csv($this->owner, '/api/v1/products/import/template');
+        $templateHeader = ltrim(explode("\n", trim($template))[0], "\xEF\xBB\xBF");
         $header = ltrim($lines[0], "\xEF\xBB\xBF");
-        $this->assertSame(
-            'name,item_type,sku,barcode,barcodes,plu_code,brand,generic_name,requires_prescription,category,unit,sold_by,price,cost,discount_price,tax_rate,stock_quantity,low_stock_threshold,min_order_qty,is_active,visible_in_marketplace',
-            $header,
-        );
+
+        $this->assertSame(trim($templateHeader), trim($header));
+        // The columns each trade cannot bulk-load without.
+        foreach (['strength', 'dosage_form', 'kitchen_station', 'tracks_serial', 'duration_minutes'] as $column) {
+            $this->assertStringContainsString($column, $header);
+        }
         $this->assertStringContainsString('Cooking Oil 1L', $csv);
         $this->assertStringContainsString('OIL-1L', $csv);
     }
