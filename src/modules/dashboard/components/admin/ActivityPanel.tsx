@@ -1,3 +1,4 @@
+import { TimeIcon } from "../../../../icons";
 import type { ActivityRow } from "../../types";
 import { Panel, PanelEmpty, Pulse } from "./Panel";
 import { dateTime, humanize } from "./format";
@@ -16,14 +17,14 @@ function subject(row: ActivityRow): string {
   return row.subject ?? row.entity ?? "";
 }
 
-/** Ring colour follows the event itself, and the word beside it says the same. */
-function ring(row: ActivityRow): string {
+/** Marker colour follows the event itself, and the word beside it says the same. */
+function marker(row: ActivityRow): string {
   const v = verb(row).toLowerCase();
-  if (v.includes("creat")) return "border-success-500";
-  if (v.includes("delet")) return "border-error-500";
-  if (v.includes("updat")) return "border-brand-500";
+  if (v.includes("creat")) return "border-success-500 bg-success-50 dark:bg-success-500/20";
+  if (v.includes("delet")) return "border-error-500 bg-error-50 dark:bg-error-500/20";
+  if (v.includes("updat")) return "border-brand-500 bg-brand-50 dark:bg-brand-500/20";
 
-  return "border-gray-300 dark:border-gray-600";
+  return "border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-white/[0.06]";
 }
 
 export function ActivityPanel({ activity, loading = false }: Props) {
@@ -31,6 +32,7 @@ export function ActivityPanel({ activity, loading = false }: Props) {
     <Panel
       title="Recent Activity"
       subtitle="Across every tenant"
+      icon={<TimeIcon className="size-5" />}
       action={{ label: "View All", to: "/admin/audit-logs" }}
     >
       {loading || !activity ? (
@@ -52,13 +54,13 @@ export function ActivityPanel({ activity, loading = false }: Props) {
           {/* The connecting line sits behind the markers. */}
           <span
             aria-hidden="true"
-            className="absolute bottom-3 left-[6px] top-3 w-px bg-gray-200 dark:bg-gray-800"
+            className="absolute bottom-3 left-[7px] top-3 w-px bg-gradient-to-b from-gray-200 via-gray-200 to-transparent dark:from-gray-700 dark:via-gray-800 dark:to-transparent"
           />
           <ol>
             {activity.map((row) => (
               <li key={row.id} className="relative flex gap-3 pb-5 last:pb-0">
                 <span
-                  className={`relative z-10 mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 bg-white dark:bg-gray-900 ${ring(row)}`}
+                  className={`relative z-10 mt-0.5 size-4 shrink-0 rounded-full border-2 ${marker(row)}`}
                 />
                 <div className="min-w-0">
                   <p className="text-theme-sm text-gray-700 dark:text-gray-300">
@@ -75,7 +77,7 @@ export function ActivityPanel({ activity, loading = false }: Props) {
                       </>
                     )}
                   </p>
-                  <p className="mt-0.5 text-theme-xs tabular-nums text-gray-400 dark:text-gray-500">
+                  <p className="mt-0.5 text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
                     {dateTime(row.at)}
                   </p>
                 </div>

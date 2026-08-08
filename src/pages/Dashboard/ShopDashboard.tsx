@@ -13,12 +13,28 @@ import { PipelinePanel } from "../../modules/dashboard/components/shop/PipelineP
 import { QuickActions } from "../../modules/dashboard/components/shop/QuickActions";
 import { RecentExpensesCard, RecentSalesCard, TableSkeleton } from "../../modules/dashboard/components/shop/RecentTables";
 import { ChartSkeleton, SalesTrendChart } from "../../modules/dashboard/components/shop/SalesTrendChart";
-import { EmptyPanel, SectionCard } from "../../modules/dashboard/components/shop/SectionCard";
+import { EmptyPanel, PanelSkeleton, SectionCard } from "../../modules/dashboard/components/shop/SectionCard";
 import { DispensingPanel, FloorPanel } from "../../modules/dashboard/components/shop/TradePanel";
 import { useCapabilities } from "../../modules/dashboard/components/shop/capabilities";
 import { useMoney } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
 import { useUiMode } from "../../context/UiModeContext";
+
+/** Two letters off the shop's own name — a mark, not an avatar upload. */
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "S";
+
+  return (words.length === 1 ? words[0].slice(0, 2) : words[0][0] + words[1][0]).toUpperCase();
+}
+
+/** Reads the shop's clock, not the payload — a greeting is not a figure. */
+function greeting(hour: number): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+
+  return "Good evening";
+}
 
 /**
  * Shop-owner / staff dashboard.
@@ -58,30 +74,52 @@ export default function ShopDashboard() {
     ? data.branches.find((b) => b.branch_id === data.branch_scope)?.branch
     : null;
 
+  const shopName = user?.tenant?.business_name ?? "Dashboard";
+  const now = new Date();
+
   return (
     <>
       <PageMeta title="Dashboard | ShopOS" description="Your business at a glance" />
 
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-            {user?.tenant?.business_name ?? "Dashboard"}
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {new Date().toLocaleDateString(undefined, {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </p>
+      {/* A header band rather than a bare title: this page is a stack of white
+          cards, and without one deliberate plate at the top the first KPI tile
+          becomes the page's masthead by accident. The wash is the tenant's own
+          brand ramp, which is the only colour on the page that is theirs. */}
+      <header className="relative mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] md:mb-6 sm:p-6">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-brand-500/10 blur-3xl dark:bg-brand-500/20"
+        />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-theme-xl font-bold text-white shadow-theme-md sm:size-14">
+              {initials(shopName)}
+            </span>
+            <div className="min-w-0">
+              <p className="text-theme-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">
+                {greeting(now.getHours())}
+              </p>
+              <h2 className="mt-0.5 truncate text-xl font-bold tracking-tight text-gray-800 dark:text-white/90 sm:text-2xl">
+                {shopName}
+              </h2>
+              <p className="mt-0.5 text-theme-sm text-gray-500 dark:text-gray-400">
+                {now.toLocaleDateString(undefined, {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+            </div>
+          </div>
+          {branchName && (
+            <span className="flex items-center gap-2 rounded-full bg-brand-50 px-3.5 py-1.5 text-theme-xs font-semibold text-brand-600 ring-1 ring-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:ring-brand-500/25">
+              <span className="size-1.5 rounded-full bg-brand-500" />
+              {branchName} only
+            </span>
+          )}
         </div>
-        {branchName && (
-          <span className="rounded-full bg-brand-50 px-3 py-1 text-theme-xs font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
-            {branchName} only
-          </span>
-        )}
-      </div>
+      </header>
 
       {data?.subscription_state === "grace" && (
         <div className="mb-6">
@@ -118,18 +156,22 @@ export default function ShopDashboard() {
         <div className="space-y-5 md:space-y-6">
           {tileCount > 0 && <KpiRowSkeleton count={tileCount} />}
           {!basic && (
-            <>
-              <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 md:gap-6">
-                <div className="xl:col-span-2">
-                  <ChartSkeleton />
-                </div>
-                <ChartSkeleton height="h-[240px]" />
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 md:gap-6">
+              <div className="xl:col-span-2">
+                <ChartSkeleton />
               </div>
-              <div className="grid grid-cols-1 gap-5 xl:grid-cols-2 md:gap-6">
-                <TableSkeleton />
-                <TableSkeleton />
-              </div>
-            </>
+              <ChartSkeleton height="h-[240px]" />
+            </div>
+          )}
+          {/* Attention needed carries no module gate, so it is the one panel the
+              loaded page ALWAYS draws — in both modes. Leaving it out of the
+              skeleton is what made the page jump on arrival. */}
+          <PanelSkeleton />
+          {!basic && (
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2 md:gap-6">
+              <TableSkeleton />
+              <TableSkeleton />
+            </div>
           )}
         </div>
       ) : (

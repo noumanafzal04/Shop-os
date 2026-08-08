@@ -1,36 +1,10 @@
 import { Link } from "react-router";
 
+import { DocsIcon, TableIcon } from "../../../../icons";
 import type { TenantDashboard } from "../../types";
 import type { Capabilities } from "./capabilities";
 import { SectionCard } from "./SectionCard";
-
-type Tone = "brand" | "success" | "warning" | "error" | "gray";
-
-const TILE: Record<Tone, string> = {
-  brand: "bg-brand-50 dark:bg-brand-500/10",
-  success: "bg-success-50 dark:bg-success-500/10",
-  warning: "bg-warning-50 dark:bg-warning-500/10",
-  error: "bg-error-50 dark:bg-error-500/10",
-  gray: "bg-gray-50 dark:bg-white/[0.03]",
-};
-
-const NUMBER: Record<Tone, string> = {
-  brand: "text-brand-600 dark:text-brand-400",
-  success: "text-success-600 dark:text-success-500",
-  warning: "text-warning-600 dark:text-warning-500",
-  error: "text-error-600 dark:text-error-500",
-  gray: "text-gray-800 dark:text-white/90",
-};
-
-function Stat({ label, value, caption, tone }: { label: string; value: string; caption?: string; tone: Tone }) {
-  return (
-    <div className={`rounded-xl p-4 ${TILE[tone]}`}>
-      <p className={`text-2xl font-bold tabular-nums ${NUMBER[tone]}`}>{value}</p>
-      <p className="mt-1 text-theme-sm font-medium text-gray-700 dark:text-gray-300">{label}</p>
-      {caption && <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">{caption}</p>}
-    </div>
-  );
-}
+import { StatTile as Stat } from "./StatTile";
 
 /**
  * The floor, right now.
@@ -54,6 +28,7 @@ export function FloorPanel({ floor, caps }: { floor: NonNullable<TenantDashboard
     <SectionCard
       title="On the floor"
       subtitle="Right now, not today"
+      icon={<TableIcon className="size-5" />}
       to={canOpenFloor ? "/tenant/dine-in" : undefined}
       toLabel="Floor plan"
     >
@@ -86,7 +61,7 @@ export function FloorPanel({ floor, caps }: { floor: NonNullable<TenantDashboard
       {canOpenKitchen && floor.kot_ready > 0 && (
         <Link
           to="/tenant/kitchen"
-          className="mt-3 inline-flex text-theme-sm font-medium text-brand-500 hover:text-brand-600"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-2 text-theme-sm font-semibold text-brand-600 ring-1 ring-brand-100 transition-colors hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:ring-brand-500/25 dark:hover:bg-brand-500/25"
         >
           Open the kitchen screen →
         </Link>
@@ -111,7 +86,11 @@ export function DispensingPanel({
   money: (n: string | number) => string;
 }) {
   return (
-    <SectionCard title="Dispensed today" subtitle="Against a prescription, apart from counter trade">
+    <SectionCard
+      title="Dispensed today"
+      subtitle="Against a prescription, apart from counter trade"
+      icon={<DocsIcon className="size-5" />}
+    >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Stat
           label="Prescriptions"

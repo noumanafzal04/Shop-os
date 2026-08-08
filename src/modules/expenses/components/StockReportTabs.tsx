@@ -7,6 +7,7 @@ import { downloadFile } from "../../../common/api/download";
 import { useToast } from "../../../components/ui/toast";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useDeadStockReport, useMarginsReport, useValuationReport } from "../hooks/useExpenses";
+import { rangeParams, type ReportRange } from "../reportPeriod";
 
 /** A report you cannot take to an accountant is half a report. */
 function ExportButton({ url, params, filename }: { url: string; params?: Record<string, unknown>; filename: string }) {
@@ -52,9 +53,9 @@ const Loading = () => (
  * A shop's best-selling line and its most profitable line are frequently not
  * the same item, and only one of those facts changes what to buy next.
  */
-export function MarginsTab({ period }: { period: string }) {
+export function MarginsTab({ range }: { range: ReportRange }) {
   const money = useMoney();
-  const report = useMarginsReport(period, true);
+  const report = useMarginsReport(range, true);
   const data = report.data;
 
   return (
@@ -105,7 +106,13 @@ export function MarginsTab({ period }: { period: string }) {
             <h3 className="font-semibold text-gray-800 dark:text-white/90">What earned the most</h3>
             <p className="text-theme-xs text-gray-400">Ranked by profit, not by revenue.</p>
           </div>
-          <ExportButton url="/reports/margins/export" params={{ period }} filename={`margins-${period}.csv`} />
+          {/* The export takes the window the table is showing — a CSV of a
+              different period than the screen is the one file nobody catches. */}
+          <ExportButton
+            url="/reports/margins/export"
+            params={rangeParams(range)}
+            filename={`margins-${range.from}-to-${range.to}.csv`}
+          />
         </div>
 
         {report.isLoading ? (

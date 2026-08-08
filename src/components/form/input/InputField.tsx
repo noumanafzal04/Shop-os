@@ -37,7 +37,13 @@ const Input: FC<InputProps> = ({
   error = false,
   hint,
 }) => {
-  let inputClasses = ` h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 ${className}`;
+  // `appearance-none` is what made every date field look like a plain text box:
+  // it strips the browser's own calendar affordance, so there was nothing to
+  // click and no sign the field was a date at all. Native pickers are kept for
+  // the date/time family — `date-field` (see index.css) restores the indicator
+  // and tints it for dark mode, where the default glyph is black on black.
+  const isPicker = ["date", "time", "datetime-local", "month", "week"].includes(type);
+  let inputClasses = ` h-11 w-full rounded-lg border ${isPicker ? "date-field" : "appearance-none"} px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 ${className}`;
 
   if (disabled) {
     inputClasses += ` text-gray-500 border-gray-300 opacity-40 bg-gray-100 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 opacity-40`;

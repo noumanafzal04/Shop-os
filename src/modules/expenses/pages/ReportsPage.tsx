@@ -1,24 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { useMoney } from "../../shop/hooks/useShop";
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
 import PageMeta from "../../../components/common/PageMeta";
 import Alert from "../../../components/ui/alert/Alert";
+import Input from "../../../components/form/input/InputField";
+import Label from "../../../components/form/Label";
 import { MetricCard, MetricCardSkeleton } from "../../../common/ui/MetricCard";
 import { usePurchasesReport, useReport, useStaffReport, useTaxReport } from "../hooks/useExpenses";
 import { ReprintReportTab } from "../../receipts/components/ReprintReportTab";
 import { DeadStockTab, MarginsTab, ValuationTab } from "../components/StockReportTabs";
 import { useAuthStore } from "../../../stores/authStore";
 import { reportTabs, shopSells, SALES_TABS, STOCK_TABS } from "../reportTabs";
-
-
-const PERIODS = [
-  ["daily", "Today"],
-  ["weekly", "This Week"],
-  ["monthly", "This Month"],
-  ["yearly", "This Year"],
-] as const;
+import { PERIODS, rangeError, resolveReportRange, type PeriodKey, type ReportRange } from "../reportPeriod";
 
 export default function ReportsPage() {
   const money = useMoney();
@@ -27,14 +22,33 @@ export default function ReportsPage() {
   // A books-only business (Finance Manager) sells nothing and stocks nothing.
   // Which tabs that leaves is decided in reportTabs, where it can be tested.
   const sells = shopSells(features);
-  const [period, setPeriod] = useState<string>("monthly");
+  const [period, setPeriod] = useState<PeriodKey>("monthly");
+  // Only meaningful while `period` is custom, but kept across a switch away
+  // and back so a merchant comparing "this month" against the fortnight they
+  // typed does not have to type it twice.
+  const [custom, setCustom] = useState(() => {
+    const seed = resolveReportRange("custom");
+
+    return { from: seed.from, to: seed.to };
+  });
   const [selectedTab, setTab] = useState<string>("overview");
   // A shop can lose a module while someone is sitting on the tab it fed.
   // Falling back beats rendering a tab whose every request now 403s.
   const unavailable = (STOCK_TABS.includes(selectedTab) && !tracksStock)
     || (SALES_TABS.includes(selectedTab) && !sells);
   const tab = unavailable ? "overview" : selectedTab;
-  const report = useReport({ period });
+
+  const range = useMemo(
+    () => resolveReportRange(period, custom.from, custom.to),
+    [period, custom.from, custom.to],
+  );
+  // Refused here in the server's own words rather than after a round trip,
+  // and — the part that matters — the half-typed range is never SENT, so the
+  // figures on screen never briefly answer a question nobody asked.
+  const invalid = rangeError(range);
+  const asked: ReportRange = invalid ? resolveReportRange("monthly") : range;
+
+  const report = useReport(asked);
 
   const TABS = reportTabs(features);
 
@@ -76,11 +90,14 @@ export default function ReportsPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Reports</h2>
+          {/* The window this screen is showing, resolved locally so it is
+              right before the first response lands rather than a request
+              behind the buttons above it. */}
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {data ? `${data.period.from} → ${data.period.to}` : "Performance summary"}
+            {invalid ? "Choose a range" : `${asked.from} → ${asked.to}`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {PERIODS.map(([value, label]) => (
             <button
               key={value}
@@ -97,6 +114,36 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* A month is an accident of the calendar. A shop closing its books
+          against 1–15, a quarter, or the stretch since the last audit needs
+          to say so — the server has validated exactly this since these
+          reports were written and nothing ever asked for it. */}
+      {period === "custom" && (
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:max-w-lg">
+            <div>
+              <Label>From</Label>
+              <Input
+                type="date"
+                value={custom.from}
+                max={custom.to || undefined}
+                onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>To</Label>
+              <Input
+                type="date"
+                value={custom.to}
+                min={custom.from || undefined}
+                onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
+              />
+            </div>
+          </div>
+          {invalid && <p className="mt-2 text-theme-xs text-error-500">{invalid}</p>}
+        </div>
+      )}
+
       <FilterTabs
         tabs={TABS.map(([key, label]) => ({ key, label }))}
         value={tab}
@@ -110,7 +157,10 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {tab === "margins" ? <MarginsTab period={period} /> : tab === "valuation" ? <ValuationTab /> : tab === "dead-stock" ? <DeadStockTab /> : tab === "purchases" ? <PurchasesTab period={period} /> : tab === "staff" ? <StaffTab period={period} /> : tab === "tax" ? <TaxTab period={period} /> : tab === "receipts" ? <ReprintReportTab period={period} /> : (
+      {/* Every tab gets the SAME window object. They used to be handed a bare
+          period name, so any tab that resolved its own dates could — and one
+          did — report a different week than the header claimed. */}
+      {tab === "margins" ? <MarginsTab range={asked} /> : tab === "valuation" ? <ValuationTab /> : tab === "dead-stock" ? <DeadStockTab /> : tab === "purchases" ? <PurchasesTab range={asked} /> : tab === "staff" ? <StaffTab range={asked} /> : tab === "tax" ? <TaxTab range={asked} /> : tab === "receipts" ? <ReprintReportTab range={asked} /> : (
       <>
       {/* Totals. A shop that sells nothing is shown what it actually has —
           money in, money out, and what that leaves — not four cards of Rs 0
@@ -246,8 +296,8 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function PurchasesTab({ period }: { period: string }) {
-  const q = usePurchasesReport(period, true);
+function PurchasesTab({ range }: { range: ReportRange }) {
+  const q = usePurchasesReport(range, true);
   const d = q.data;
   if (q.isLoading || !d) return <div className="h-40 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;
   return (
@@ -278,8 +328,8 @@ function PurchasesTab({ period }: { period: string }) {
   );
 }
 
-function StaffTab({ period }: { period: string }) {
-  const q = useStaffReport(period, true);
+function StaffTab({ range }: { range: ReportRange }) {
+  const q = useStaffReport(range, true);
   const d = q.data;
   if (q.isLoading || !d) return <div className="h-40 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;
   return (
@@ -301,8 +351,8 @@ function StaffTab({ period }: { period: string }) {
   );
 }
 
-function TaxTab({ period }: { period: string }) {
-  const q = useTaxReport(period, true);
+function TaxTab({ range }: { range: ReportRange }) {
+  const q = useTaxReport(range, true);
   const d = q.data;
   if (q.isLoading || !d) return <div className="h-40 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;
   return (

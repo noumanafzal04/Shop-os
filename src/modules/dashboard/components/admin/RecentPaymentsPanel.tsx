@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import Badge from "../../../../components/ui/badge/Badge";
+import { DollarLineIcon } from "../../../../icons";
 import type { AdminDashboard } from "../../types";
 import { Panel, PanelEmpty } from "./Panel";
 import { dateTime, humanize, money } from "./format";
@@ -13,15 +14,21 @@ const HEADERS = ["Tenant", "Plan", "Paid", "Method", "Status", "Amount"];
 
 export function RecentPaymentsPanel({ payments, loading = false }: Props) {
   return (
-    <Panel title="Recent Payments" action={{ label: "View All", to: "/admin/payments" }} flush>
+    <Panel
+      title="Recent Payments"
+      subtitle="Subscription money in, latest first"
+      icon={<DollarLineIcon className="size-5" />}
+      action={{ label: "View All", to: "/admin/payments" }}
+      flush
+    >
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-y border-gray-200 text-theme-xs uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            <tr className="border-y border-gray-200 bg-gray-50/70 text-theme-xs uppercase tracking-wider text-gray-500 dark:border-gray-800 dark:bg-white/[0.02] dark:text-gray-400">
               {HEADERS.map((h) => (
                 <th
                   key={h}
-                  className={`whitespace-nowrap px-5 py-3 font-medium md:px-6 ${
+                  className={`whitespace-nowrap px-5 py-3 font-semibold md:px-6 ${
                     h === "Amount" ? "text-right" : ""
                   }`}
                 >
@@ -41,18 +48,21 @@ export function RecentPaymentsPanel({ payments, loading = false }: Props) {
               ))
             ) : payments.length === 0 ? (
               <tr>
-                <td colSpan={HEADERS.length}>
+                <td colSpan={HEADERS.length} className="px-5 py-5 md:px-6">
                   <PanelEmpty>No subscription payments recorded yet.</PanelEmpty>
                 </td>
               </tr>
             ) : (
               payments.map((p) => (
-                <tr key={p.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
+                <tr
+                  key={p.id}
+                  className="text-theme-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/[0.03]"
+                >
                   <td className="px-5 py-4 md:px-6">
                     {p.tenant_id && p.tenant ? (
                       <Link
                         to={`/admin/tenants/${p.tenant_id}`}
-                        className="font-medium text-gray-800 hover:text-brand-500 dark:text-white/90 dark:hover:text-brand-400"
+                        className="font-medium text-gray-800 transition-colors hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400"
                       >
                         {p.tenant}
                       </Link>
@@ -80,7 +90,7 @@ export function RecentPaymentsPanel({ payments, loading = false }: Props) {
                       {humanize(p.status)}
                     </Badge>
                   </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-right font-medium tabular-nums text-gray-800 dark:text-white/90 md:px-6">
+                  <td className="whitespace-nowrap px-5 py-4 text-right font-semibold tabular-nums text-gray-800 dark:text-white/90 md:px-6">
                     {money(p.amount, p.currency)}
                   </td>
                 </tr>

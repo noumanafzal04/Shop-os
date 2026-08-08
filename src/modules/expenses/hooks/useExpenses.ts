@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { expensesService, type CategoryInput, type ExpenseInput, type RecurringInput } from "../services/expensesService";
+import type { ReportRange } from "../reportPeriod";
 import type { MoneyFilters } from "../services/moneyFilters";
 
 export function useExpenseCategories() {
@@ -30,10 +31,10 @@ export function useExpenseCategoryMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+    // Prefix match: this also covers ["expenses", "budgets", month] — a
+    // retired category changes what the budget screen can even offer.
     queryClient.invalidateQueries({ queryKey: ["expenses"] });
     queryClient.invalidateQueries({ queryKey: ["ledger"] });
-    // A retired category changes what the budget screen can even offer.
-    queryClient.invalidateQueries({ queryKey: ["budgets"] });
   };
 
   return {
@@ -58,6 +59,10 @@ export function useExpenseMutations() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["expenses"] });
     queryClient.invalidateQueries({ queryKey: ["ledger"] });
+    // An expense is half of the cashbook's money-out. Everything else this
+    // entry touches was refreshed and the day summary was not, so filing a
+    // bill and opening the Cashbook showed yesterday's figure.
+    queryClient.invalidateQueries({ queryKey: ["cashbook"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     queryClient.invalidateQueries({ queryKey: ["reports"] });
     // A cash expense moves the drawer, so the till's own view of expected
@@ -118,9 +123,16 @@ export function useRecurringExpenses(due = false) {
 
 export function useExpenseAdminMutations() {
   const queryClient = useQueryClient();
+  // Posting a recurring bill files a REAL expense — one that can move the
+  // drawer. Refreshing only the expense list and the reports left the ledger,
+  // the cashbook and the till showing a figure that had already changed.
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    queryClient.invalidateQueries({ queryKey: ["ledger"] });
+    queryClient.invalidateQueries({ queryKey: ["cashbook"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     queryClient.invalidateQueries({ queryKey: ["reports"] });
+    queryClient.invalidateQueries({ queryKey: ["pos"] });
   };
 
   return {
@@ -152,45 +164,50 @@ export function useExpenseAdminMutations() {
   };
 }
 
-export function useReport(params: { period: string; from?: string; to?: string }) {
+/**
+ * Every report is keyed by the WHOLE window, not by the period name. Two
+ * custom ranges are two different reports, and a key of "custom" would serve
+ * the second one the first one's answer.
+ */
+export function useReport(range: ReportRange) {
   return useQuery({
-    queryKey: ["reports", params],
-    queryFn: async () => (await expensesService.report(params)).data,
+    queryKey: ["reports", "summary", range],
+    queryFn: async () => (await expensesService.report(range)).data,
     placeholderData: keepPreviousData,
   });
 }
 
-export function usePurchasesReport(period: string, enabled: boolean) {
+export function usePurchasesReport(range: ReportRange, enabled: boolean) {
   return useQuery({
-    queryKey: ["reports", "purchases", period],
-    queryFn: async () => (await expensesService.purchasesReport({ period })).data,
+    queryKey: ["reports", "purchases", range],
+    queryFn: async () => (await expensesService.purchasesReport(range)).data,
     enabled,
     placeholderData: keepPreviousData,
   });
 }
 
-export function useStaffReport(period: string, enabled: boolean) {
+export function useStaffReport(range: ReportRange, enabled: boolean) {
   return useQuery({
-    queryKey: ["reports", "staff", period],
-    queryFn: async () => (await expensesService.staffReport({ period })).data,
+    queryKey: ["reports", "staff", range],
+    queryFn: async () => (await expensesService.staffReport(range)).data,
     enabled,
     placeholderData: keepPreviousData,
   });
 }
 
-export function useTaxReport(period: string, enabled: boolean) {
+export function useTaxReport(range: ReportRange, enabled: boolean) {
   return useQuery({
-    queryKey: ["reports", "tax", period],
-    queryFn: async () => (await expensesService.taxReport({ period })).data,
+    queryKey: ["reports", "tax", range],
+    queryFn: async () => (await expensesService.taxReport(range)).data,
     enabled,
     placeholderData: keepPreviousData,
   });
 }
 
-export function useMarginsReport(period: string, enabled: boolean) {
+export function useMarginsReport(range: ReportRange, enabled: boolean) {
   return useQuery({
-    queryKey: ["reports", "margins", period],
-    queryFn: async () => (await expensesService.marginsReport({ period })).data,
+    queryKey: ["reports", "margins", range],
+    queryFn: async () => (await expensesService.marginsReport(range)).data,
     enabled,
     placeholderData: keepPreviousData,
   });

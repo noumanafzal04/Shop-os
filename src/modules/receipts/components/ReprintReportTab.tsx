@@ -1,20 +1,6 @@
 import Alert from "../../../components/ui/alert/Alert";
 import { useFailedReceipts, useReprintReport } from "../hooks/useReceipts";
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-
-/** The same period buttons the rest of Reports uses, turned into a date range. */
-function rangeFor(period: string): { from: string; to: string } {
-  const now = new Date();
-  const to = iso(now);
-  const start = new Date(now);
-  if (period === "daily") { /* today */ }
-  else if (period === "weekly") start.setDate(now.getDate() - now.getDay());
-  else if (period === "yearly") start.setMonth(0, 1);
-  else start.setDate(1); // monthly
-  return { from: iso(start), to };
-}
-
 /**
  * Copies per cashier.
  *
@@ -22,9 +8,13 @@ function rangeFor(period: string): { from: string; to: string } {
  * cheapest way to support a fake return, so the number that matters is not the
  * total but the OUTLIER: one cashier running copies at ten times the rate of
  * everyone else on the same counter.
+ *
+ * The window arrives already resolved. This tab used to turn the period name
+ * into dates itself and started its week on SUNDAY, while every other report on
+ * the screen took its week from the server, which starts on Monday — one tab a
+ * day out of step with its neighbours, and nothing saying so.
  */
-export function ReprintReportTab({ period }: { period: string }) {
-  const range = rangeFor(period);
+export function ReprintReportTab({ range }: { range: { from: string; to: string } }) {
   const report = useReprintReport(range);
   const failed = useFailedReceipts();
 

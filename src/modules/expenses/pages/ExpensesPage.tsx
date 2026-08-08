@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
@@ -6,6 +6,7 @@ import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
+import TextArea from "../../../components/form/input/TextArea";
 import Alert from "../../../components/ui/alert/Alert";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
@@ -42,6 +43,13 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
+/** The orders the server can honour on this list (MoneyEntryFilters::SORTS). */
+const SORTS: Array<{ value: NonNullable<MoneyFilters["sort"]>; label: string }> = [
+  { value: "date", label: "Date" },
+  { value: "amount", label: "Amount" },
+  { value: "created", label: "Recently added" },
+];
+
 /**
  * The Expense Manager.
  *
@@ -49,6 +57,10 @@ type TabKey = (typeof TABS)[number]["key"];
  * keeping the bills that come round again, and watching a category against its
  * ceiling. Tabbed rather than stacked, because a shopkeeper opens this page to
  * do exactly one of them.
+ *
+ * Every tab carries the same three controls in the same order — find, narrow,
+ * act — because for a books-only business this page IS the product, and a
+ * screen whose four halves each filter differently is four screens.
  */
 export default function ExpensesPage() {
   const money = useMoney();
@@ -97,6 +109,67 @@ export default function ExpensesPage() {
 type Money = (n: string | number) => string;
 type Toast = ReturnType<typeof useToast>;
 
+/**
+ * The one toolbar shape the smaller tabs share: find, then narrow. The big
+ * list has MoneyFilterBar; these two have lists of tens rather than thousands,
+ * so they narrow in the browser and never round-trip.
+ */
+function MiniFilterBar({
+  search,
+  onSearch,
+  placeholder,
+  segments,
+  value,
+  onSegment,
+  summary,
+  action,
+}: {
+  search: string;
+  onSearch: (v: string) => void;
+  placeholder: string;
+  segments: Array<[string, string, number]>;
+  value: string;
+  onSegment: (v: string) => void;
+  summary?: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-52 flex-1">
+          <Input placeholder={placeholder} value={search} onChange={(e) => onSearch(e.target.value)} />
+        </div>
+
+        <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800/60">
+          {segments.map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={value === key}
+              onClick={() => onSegment(key)}
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-theme-xs font-medium transition ${
+                value === key
+                  ? "bg-brand-500 text-white shadow-theme-xs"
+                  : "text-gray-500 hover:bg-white/70 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5"
+              }`}
+            >
+              {label} <span className="tabular-nums opacity-70">{count}</span>
+            </button>
+          ))}
+        </div>
+
+        {action}
+      </div>
+
+      {summary && (
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-gray-100 pt-3 dark:border-gray-800">
+          {summary}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Expenses ──────────────────────────────────────────────────────────
 
 function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
@@ -134,6 +207,19 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
 
   const rows = expenses.data?.data ?? [];
   const pagination = expenses.data?.meta.pagination;
+
+  // The server sorts (MoneyEntryFilters::sort). Nothing here ever asked it to,
+  // so a merchant hunting the biggest bill of the quarter read four pages by
+  // eye. The headers ask now.
+  const sort = filters.sort ?? "date";
+  const dir = filters.dir ?? "desc";
+  const sortBy = (key: MoneyFilters["sort"]) =>
+    setFilters((f) => ({
+      ...f,
+      sort: key,
+      dir: (f.sort ?? "date") === key && (f.dir ?? "desc") === "desc" ? "asc" : "desc",
+      page: 1,
+    }));
 
   // Whichever mutation this modal is driving — the form, its errors and its
   // pending state all read from one place so the two paths can't drift.
@@ -204,6 +290,22 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
     setAttachTo(null);
   };
 
+  const SortHeader = ({ label, column, align = "left" }: { label: string; column: MoneyFilters["sort"]; align?: "left" | "right" }) => (
+    <th className={`px-5 py-3 font-medium ${align === "right" ? "text-right" : ""}`}>
+      <button
+        type="button"
+        onClick={() => sortBy(column)}
+        aria-label={`Sort by ${label}`}
+        className={`inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-gray-600 dark:hover:text-gray-300 ${
+          sort === column ? "text-brand-600 dark:text-brand-400" : ""
+        }`}
+      >
+        {label}
+        <span aria-hidden className={sort === column ? "" : "opacity-0"}>{dir === "desc" ? "↓" : "↑"}</span>
+      </button>
+    </th>
+  );
+
   return (
     <>
       <input
@@ -224,6 +326,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
         methods={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
         totals={totals}
         money={money}
+        sorts={SORTS}
         action={
           <div className="flex items-center gap-2">
             <button
@@ -243,11 +346,11 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
           <table className="w-full min-w-[46rem] text-left">
             <thead>
               <tr className="border-b border-gray-200 text-theme-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
-                <th className="px-5 py-3 font-medium">Date</th>
+                <SortHeader label="Date" column="date" />
                 <th className="px-5 py-3 font-medium">Description</th>
                 <th className="px-5 py-3 font-medium">Category</th>
                 <th className="px-5 py-3 font-medium">Paid</th>
-                <th className="px-5 py-3 text-right font-medium">Amount</th>
+                <SortHeader label="Amount" column="amount" align="right" />
                 <th className="px-5 py-3 text-right font-medium">Receipt</th>
                 <th className="px-5 py-3 text-right font-medium"></th>
               </tr>
@@ -270,6 +373,11 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                     <td className="px-5 py-3.5 font-medium text-gray-800 dark:text-white/90">
                       {e.description}
                       {e.reference && <span className="ml-2 text-theme-xs font-normal text-gray-400">{e.reference}</span>}
+                      {/* Who was paid, when the shop said so. It has always
+                          been on the row and on the CSV, and never on screen. */}
+                      {e.supplier?.name && (
+                        <span className="ml-2 text-theme-xs font-normal text-gray-400">· {e.supplier.name}</span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5">{e.category?.name ?? "—"}</td>
                     <td className="px-5 py-3.5">
@@ -404,6 +512,18 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                 <Input value={form.reference} onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))} />
               </div>
             </div>
+            {/* The note has always been stored, exported and SEARCHED — the
+                filter bar reaches into it — and there was no box to type it
+                in, so it was empty on every row ever filed. */}
+            <div>
+              <Label>Note</Label>
+              <TextArea
+                rows={2}
+                value={form.notes}
+                onChange={(v) => setForm((f) => ({ ...f, notes: v }))}
+                placeholder="Anything you'll want to remember when you read this back"
+              />
+            </div>
             {form.method === "cash" && (
               <p className="text-theme-xs text-gray-400">
                 Cash comes out of your open drawer, so the shift's expected cash drops by this amount.
@@ -427,17 +547,35 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
 
   const [editing, setEditing] = useState<RecurringExpense | null>(null);
   const [form, setForm] = useState({
-    category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: today(),
+    category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: today(), notes: "",
   });
   const [posting, setPosting] = useState<RecurringExpense | null>(null);
   const [postAmount, setPostAmount] = useState("");
 
-  const rows = list.data?.rows ?? [];
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+
+  const rows = useMemo(() => list.data?.rows ?? [], [list.data]);
   const due = rows.filter((r) => r.is_due);
   const active = editing ? updateRecurring : createRecurring;
 
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return rows.filter((r) => {
+      if (q && !r.description.toLowerCase().includes(q) && !(r.category?.name ?? "").toLowerCase().includes(q)) {
+        return false;
+      }
+      if (status === "due") return r.is_due;
+      if (status === "paused") return !r.is_active;
+      if (status === "active") return r.is_active;
+
+      return true;
+    });
+  }, [rows, search, status]);
+
   const blank = () => ({
-    category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: today(),
+    category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: today(), notes: "",
   });
 
   const openAdd = () => {
@@ -455,6 +593,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
       method: r.payment_method,
       frequency: r.frequency,
       next_due_on: r.next_due_on.slice(0, 10),
+      notes: r.notes ?? "",
     });
     modal.openModal();
   };
@@ -468,6 +607,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
       payment_method: form.method,
       frequency: form.frequency,
       next_due_on: form.next_due_on,
+      notes: form.notes.trim() || undefined,
     };
     const onSuccess = () => {
       toast.success(editing ? "Recurring expense updated" : "Recurring expense added");
@@ -481,6 +621,31 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
     else createRecurring.mutate(payload, { onSuccess, onError });
   };
 
+  /**
+   * Pause and resume. `is_active` has been on the row, in the API and in this
+   * table's own "paused" label since the feature shipped — and there was no
+   * control anywhere that could set it, so the only way to stop a template
+   * that had outlived its bill was to delete it and lose the schedule.
+   */
+  const togglePaused = async (r: RecurringExpense) => {
+    if (r.is_active) {
+      const ok = await confirm({
+        title: `Pause "${r.description}"?`,
+        message: "It stops falling due. Nothing already posted changes, and you can start it again any time.",
+        confirmLabel: "Pause",
+      });
+      if (!ok) return;
+    }
+
+    updateRecurring.mutate(
+      { id: r.id, is_active: !r.is_active },
+      {
+        onSuccess: () => toast.success(r.is_active ? "Paused" : "Running again"),
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not update"),
+      },
+    );
+  };
+
   const post = () => {
     if (!posting) return;
     postRecurring.mutate(
@@ -492,16 +657,54 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
     );
   };
 
+  const openPost = (r: RecurringExpense) => {
+    setPosting(r);
+    setPostAmount(String(Number(r.amount)));
+  };
+
+  const monthly = rows
+    .filter((r) => r.is_active && r.frequency === "monthly")
+    .reduce((sum, r) => sum + Number(r.amount), 0);
+
   return (
     <>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
           Rent, salaries, the internet bill. Nothing posts on its own — you confirm the real figure.
         </p>
         <Button size="sm" onClick={openAdd}>Add recurring</Button>
       </div>
 
-      {due.length > 0 && (
+      {rows.length > 0 && (
+        <MiniFilterBar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Find a bill by name or category…"
+          segments={[
+            ["all", "All", rows.length],
+            ["due", "Due now", due.length],
+            ["active", "Running", rows.filter((r) => r.is_active && !r.is_due).length],
+            ["paused", "Paused", rows.filter((r) => !r.is_active).length],
+          ]}
+          value={status}
+          onSegment={setStatus}
+          summary={
+            <>
+              <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+                {shown.length} of {rows.length} shown
+              </p>
+              {/* What the shop is committed to before it sells anything — the
+                  one figure a standing-costs list exists to produce. */}
+              <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+                Monthly commitments{" "}
+                <span className="font-semibold tabular-nums text-gray-800 dark:text-white/90">{money(monthly)}</span>
+              </p>
+            </>
+          }
+        />
+      )}
+
+      {due.length > 0 && status !== "paused" && (
         <div className="mb-5 rounded-2xl border border-warning-200 bg-warning-50 p-4 dark:border-warning-500/30 dark:bg-warning-500/10">
           <p className="mb-3 text-sm font-medium text-warning-700 dark:text-warning-400">
             {due.length} due now
@@ -517,7 +720,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm tabular-nums text-gray-600 dark:text-gray-300">{money(r.amount)}</span>
-                  <Button size="sm" onClick={() => { setPosting(r); setPostAmount(String(Number(r.amount))); }}>Post</Button>
+                  <Button size="sm" onClick={() => openPost(r)}>Post</Button>
                 </div>
               </div>
             ))}
@@ -527,7 +730,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[40rem] text-left">
+          <table className="w-full min-w-[44rem] text-left">
             <thead>
               <tr className="border-b border-gray-200 text-theme-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
                 <th className="px-5 py-3 font-medium">Description</th>
@@ -541,34 +744,70 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {rows.length === 0 ? (
                 <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">Nothing recurring yet.</td></tr>
+              ) : shown.length === 0 ? (
+                <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">Nothing matches these filters.</td></tr>
               ) : (
-                rows.map((r) => (
+                shown.map((r) => (
                   <tr key={r.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
                     <td className="px-5 py-3.5 font-medium text-gray-800 dark:text-white/90">
                       {r.description}
-                      {!r.is_active && <span className="ml-2 text-theme-xs font-normal text-gray-400">paused</span>}
+                      {r.last_posted_on && (
+                        <span className="ml-2 text-theme-xs font-normal text-gray-400">
+                          last posted {r.last_posted_on.slice(0, 10)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5">{r.category?.name ?? "—"}</td>
                     <td className="px-5 py-3.5 capitalize">{r.frequency}</td>
-                    <td className="px-5 py-3.5 tabular-nums">{r.next_due_on.slice(0, 10)}</td>
+                    <td className="px-5 py-3.5 tabular-nums">
+                      {r.is_active ? (
+                        <span className={r.is_due ? "font-medium text-warning-600 dark:text-warning-400" : ""}>
+                          {r.next_due_on.slice(0, 10)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-5 py-3.5 text-right tabular-nums">{money(r.amount)}</td>
-                    <td className="px-5 py-3.5 text-right">
-                      <button
-                        className="mr-3 text-theme-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
-                        onClick={() => openEdit(r)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="text-theme-xs text-gray-400 hover:text-error-500"
-                        onClick={async () => {
-                          if (await confirm({ title: `Remove "${r.description}"?`, tone: "danger" })) {
-                            removeRecurring.mutate(r.id, { onSuccess: () => toast.success("Removed") });
-                          }
-                        }}
-                      >
-                        Remove
-                      </button>
+                    <td className="px-5 py-3.5">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {r.is_due && (
+                          <Button size="sm" onClick={() => openPost(r)}>Post</Button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openEdit(r)}
+                          className="rounded-lg border border-gray-300 px-3 py-1.5 text-theme-xs font-medium text-gray-700 transition-colors hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:text-gray-200"
+                        >
+                          Edit
+                        </button>
+                        {/* State, not command — the same treatment a category
+                            gets, because it is the same idea. */}
+                        <button
+                          type="button"
+                          onClick={() => togglePaused(r)}
+                          aria-pressed={r.is_active}
+                          title={r.is_active ? "Running — it will fall due" : "Paused — it never falls due"}
+                          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-theme-xs font-medium transition-colors ${
+                            r.is_active
+                              ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400"
+                              : "border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-400"
+                          }`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${r.is_active ? "bg-success-500" : "bg-gray-400"}`} />
+                          {r.is_active ? "Running" : "Paused"}
+                        </button>
+                        <button
+                          className="rounded-lg border border-transparent px-3 py-1.5 text-theme-xs text-gray-400 transition-colors hover:border-error-200 hover:bg-error-50 hover:text-error-600 dark:hover:border-error-500/30 dark:hover:bg-error-500/10"
+                          onClick={async () => {
+                            if (await confirm({ title: `Remove "${r.description}"?`, tone: "danger" })) {
+                              removeRecurring.mutate(r.id, { onSuccess: () => toast.success("Removed") });
+                            }
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -638,6 +877,15 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
                 />
               </div>
             </div>
+            <div>
+              <Label>Note</Label>
+              <TextArea
+                rows={2}
+                value={form.notes}
+                onChange={(v) => setForm((f) => ({ ...f, notes: v }))}
+                placeholder="Copied onto every expense this posts"
+              />
+            </div>
             <p className="text-theme-xs text-gray-400">
               The amount is a starting point — you can correct it each time you post.
             </p>
@@ -664,10 +912,56 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
 
 // ── Budgets ───────────────────────────────────────────────────────────
 
+/** The first of a month, as the API wants it. */
+const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+const monthLabel = (key: string) =>
+  new Date(`${key}-01T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+const shortMonth = (key: string) =>
+  new Date(`${key}-01T00:00:00`).toLocaleDateString(undefined, { month: "short" });
+const shiftMonth = (key: string, by: number) => {
+  const [y, m] = key.split("-").map(Number);
+
+  return monthKey(new Date(y, m - 1 + by, 1));
+};
+
 function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
-  const budgets = useBudgets();
+  // The month is the axis this screen turns on and there was no way to move
+  // it: the API has taken a `month` since budgets shipped, the model keeps a
+  // standing ceiling and per-month overrides, and the panel only ever asked
+  // for "now" — so last month could not be reviewed and next month could not
+  // be planned.
+  const thisMonth = monthKey(new Date());
+  const [month, setMonth] = useState(thisMonth);
+  const budgets = useBudgets(`${month}-01`);
   const { setBudget } = useExpenseAdminMutations();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [scopes, setScopes] = useState<Record<string, "standing" | "month">>({});
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+
+  const all = useMemo(() => budgets.data ?? [], [budgets.data]);
+
+  const scopeOf = (row: BudgetRow): "standing" | "month" =>
+    scopes[row.expense_category_id] ?? (row.is_override ? "month" : "standing");
+
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return all.filter((row) => {
+      if (q && !row.category.toLowerCase().includes(q)) return false;
+      if (status === "over") return row.over;
+      if (status === "budgeted") return row.budget !== null;
+      if (status === "unbudgeted") return row.budget === null;
+
+      return true;
+    });
+  }, [all, search, status]);
+
+  const totals = useMemo(() => ({
+    budget: all.reduce((s, r) => s + (r.budget ?? 0), 0),
+    spent: all.reduce((s, r) => s + r.spent, 0),
+    over: all.filter((r) => r.over).length,
+  }), [all]);
 
   const save = (row: BudgetRow) => {
     const raw = drafts[row.expense_category_id];
@@ -677,12 +971,24 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
     ));
     if (raw === undefined) return;
 
+    const scope = scopeOf(row);
+
     // An empty box removes the ceiling. That is not the same as zero — zero
     // means "spend nothing here", and the two read very differently.
     setBudget.mutate(
-      { expense_category_id: row.expense_category_id, amount: raw.trim() === "" ? null : Number(raw) },
       {
-        onSuccess: () => toast.success(raw.trim() === "" ? "Budget removed" : "Budget saved"),
+        expense_category_id: row.expense_category_id,
+        amount: raw.trim() === "" ? null : Number(raw),
+        // Omitted = the standing ceiling, every month. Given = this month
+        // alone, which is how a shop budgets the month its licence renews.
+        month: scope === "month" ? `${month}-01` : undefined,
+      },
+      {
+        onSuccess: () => toast.success(
+          raw.trim() === ""
+            ? "Budget removed"
+            : scope === "month" ? `${monthLabel(month)} budget saved` : "Monthly budget saved",
+        ),
         onError: (e) => toast.error(e instanceof Error ? e.message : "Could not save"),
       },
     );
@@ -690,18 +996,91 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
 
   return (
     <>
-      <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-        A monthly ceiling per category. It never blocks an entry — the bill arrived either way — it just
-        tells you at the moment you file one.
-      </p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+          A monthly ceiling per category. It never blocks an entry — the bill arrived either way — it just
+          tells you at the moment you file one.
+        </p>
+
+        {/* Move the month, and the whole screen answers for that month. */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMonth((m) => shiftMonth(m, -1))}
+            aria-label="Previous month"
+            className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-theme-sm text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            ‹
+          </button>
+          <span className="min-w-36 text-center text-theme-sm font-medium text-gray-800 dark:text-white/90">
+            {monthLabel(month)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setMonth((m) => shiftMonth(m, 1))}
+            aria-label="Next month"
+            className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-theme-sm text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            ›
+          </button>
+          {month !== thisMonth && (
+            <button
+              type="button"
+              onClick={() => setMonth(thisMonth)}
+              className="text-theme-xs text-gray-500 underline-offset-2 hover:underline dark:text-gray-400"
+            >
+              This month
+            </button>
+          )}
+        </div>
+      </div>
+
+      {all.length > 0 && (
+        <MiniFilterBar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Find a category…"
+          segments={[
+            ["all", "All", all.length],
+            ["budgeted", "Budgeted", all.filter((r) => r.budget !== null).length],
+            ["over", "Over", totals.over],
+            ["unbudgeted", "No ceiling", all.filter((r) => r.budget === null).length],
+          ]}
+          value={status}
+          onSegment={setStatus}
+          summary={
+            <>
+              <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+                Budgeted{" "}
+                <span className="font-semibold tabular-nums text-gray-800 dark:text-white/90">{money(totals.budget)}</span>
+              </p>
+              <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+                Spent{" "}
+                <span className={`font-semibold tabular-nums ${
+                  totals.spent > totals.budget && totals.budget > 0
+                    ? "text-error-600 dark:text-error-400"
+                    : "text-gray-800 dark:text-white/90"
+                }`}>
+                  {money(totals.spent)}
+                </span>
+              </p>
+              {totals.over > 0 && (
+                <p className="text-theme-sm text-error-600 dark:text-error-400">
+                  {totals.over} over budget
+                </p>
+              )}
+            </>
+          }
+        />
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[38rem] text-left">
+          <table className="w-full min-w-[44rem] text-left">
             <thead>
               <tr className="border-b border-gray-200 text-theme-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
                 <th className="px-5 py-3 font-medium">Category</th>
-                <th className="px-5 py-3 font-medium">This month</th>
+                <th className="px-5 py-3 font-medium">{monthLabel(month)}</th>
                 <th className="px-5 py-3 text-right font-medium">Spent</th>
                 <th className="px-5 py-3 text-right font-medium">Budget</th>
               </tr>
@@ -711,12 +1090,29 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}><td colSpan={4} className="px-5 py-4"><div className="h-6 animate-pulse rounded bg-gray-100 dark:bg-gray-800" /></td></tr>
                 ))
+              ) : shown.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-5 py-12 text-center text-sm text-gray-400">
+                    {all.length === 0 ? "No categories to budget yet." : "Nothing matches these filters."}
+                  </td>
+                </tr>
               ) : (
-                (budgets.data ?? []).map((row) => {
+                shown.map((row) => {
                   const pct = row.budget && row.budget > 0 ? Math.min(100, (row.spent / row.budget) * 100) : 0;
+                  const scope = scopeOf(row);
+                  const shownValue = scope === "standing" ? row.standing : row.budget;
+
                   return (
                     <tr key={row.expense_category_id} className="text-theme-sm text-gray-700 dark:text-gray-300">
-                      <td className="px-5 py-3.5 font-medium text-gray-800 dark:text-white/90">{row.category}</td>
+                      <td className="px-5 py-3.5">
+                        <span className="font-medium text-gray-800 dark:text-white/90">{row.category}</span>
+                        {row.is_override && (
+                          <p className="mt-0.5 text-theme-xs text-gray-400">
+                            {shortMonth(month)} only
+                            {row.standing !== null && ` · every month ${money(row.standing)}`}
+                          </p>
+                        )}
+                      </td>
                       <td className="px-5 py-3.5">
                         {row.budget === null ? (
                           <span className="text-theme-xs text-gray-400">No budget set</span>
@@ -737,16 +1133,35 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-right tabular-nums">{money(row.spent)}</td>
-                      <td className="px-5 py-3.5 text-right">
-                        <input
-                          className="h-9 w-28 rounded-lg border border-gray-200 bg-white px-2 text-right text-sm tabular-nums text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                          placeholder="—"
-                          inputMode="decimal"
-                          value={drafts[row.expense_category_id] ?? (row.budget === null ? "" : String(row.budget))}
-                          onChange={(e) => setDrafts((d) => ({ ...d, [row.expense_category_id]: e.target.value.replace(/[^\d.]/g, "") }))}
-                          onBlur={() => save(row)}
-                          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                        />
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-2">
+                          <input
+                            className="h-9 w-28 rounded-lg border border-gray-200 bg-white px-2 text-right text-sm tabular-nums text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                            placeholder="—"
+                            inputMode="decimal"
+                            aria-label={`Budget for ${row.category}`}
+                            value={drafts[row.expense_category_id] ?? (shownValue === null ? "" : String(shownValue))}
+                            onChange={(e) => setDrafts((d) => ({ ...d, [row.expense_category_id]: e.target.value.replace(/[^\d.]/g, "") }))}
+                            onBlur={() => save(row)}
+                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                          />
+                          {/* Which of the two ceilings the box is editing.
+                              Without it the screen can show an effective
+                              figure it has no honest way to change. */}
+                          <button
+                            type="button"
+                            onClick={() => setScopes((s) => ({
+                              ...s,
+                              [row.expense_category_id]: scope === "standing" ? "month" : "standing",
+                            }))}
+                            title={scope === "standing"
+                              ? "This box sets the ceiling for every month"
+                              : `This box sets the ceiling for ${monthLabel(month)} alone`}
+                            className="w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1.5 text-theme-xs font-medium text-gray-600 transition-colors hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
+                          >
+                            {scope === "standing" ? "Every month" : `${shortMonth(month)} only`}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -16,7 +16,12 @@ export interface Income {
   id: string;
   income_category_id: string | null;
   description: string;
+  reference: string | null;
   amount: string;
+  /** How it arrived. Only `cash` puts money in a drawer. */
+  payment_method: string;
+  /** Set when this income landed in an open drawer. */
+  cash_movement_id: string | null;
   income_date: string;
   notes: string | null;
   category?: { id: string; name: string } | null;
@@ -26,7 +31,9 @@ export interface Income {
 export interface IncomeInput {
   income_category_id: string;
   description: string;
+  reference?: string;
   amount: number;
+  payment_method?: string;
   income_date: string;
   notes?: string;
 }

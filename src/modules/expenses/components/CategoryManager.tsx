@@ -4,6 +4,7 @@ import type { UseMutationResult } from "@tanstack/react-query";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
+import Select from "../../../components/form/Select";
 import { Modal } from "../../../components/ui/modal";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useModal } from "../../../hooks/useModal";
@@ -36,6 +37,25 @@ interface Props {
   };
 }
 
+type Status = "all" | "live" | "off";
+type Sort = "name" | "used" | "spend";
+
+/**
+ * Below this the list IS the control: seven rows are read faster than a search
+ * box is typed into, and a toolbar over them is furniture. Above it, scanning
+ * stops working and the tools have to be there.
+ */
+const TOOLBAR_FROM = 7;
+
+/** How many rows are drawn before the reader asks for more. */
+const PAGE = 24;
+
+const SORTS: Array<{ value: Sort; label: string }> = [
+  { value: "name", label: "A–Z" },
+  { value: "used", label: "Most used" },
+  { value: "spend", label: "Highest total" },
+];
+
 /**
  * The categories a business sorts its money into.
  *
@@ -59,6 +79,17 @@ interface Props {
  * Live and retired are separated, because they answer different questions:
  * the live list is "where can today's bill go", the retired one is "what did
  * we used to call things". Interleaved, neither reads.
+ *
+ * SCALE. A books-only business is the whole reason this screen exists, and
+ * theirs is the longest list — a Finance Manager tenant is seeded with twenty
+ * and an accountant will happily keep a hundred and fifty. Drawing all of them
+ * flat, with a search box that only appeared past eight rows and nothing else,
+ * turned the one screen they live in into a page you scroll for ten seconds to
+ * find "Bank Charges". So the toolbar carries the three questions actually
+ * asked of a long list — WHICH one ("Find a category"), WHICH KIND (in use vs
+ * switched off) and WHAT MATTERS MOST (biggest spender first) — and the rows
+ * are drawn a page at a time, because rendering three hundred list items to
+ * show twenty-four of them costs the reader nothing and the browser plenty.
  */
 export function CategoryManager({ title, hint, categories, loading, money, noun, mutations }: Props) {
   const toast = useToast();
@@ -67,18 +98,47 @@ export function CategoryManager({ title, hint, categories, loading, money, noun,
   const [editing, setEditing] = useState<Category | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<Status>("all");
+  const [sort, setSort] = useState<Sort>("name");
+  const [limit, setLimit] = useState(PAGE);
+
+  const liveCount = categories.filter((c) => c.is_active).length;
+  const retiredCount = categories.length - liveCount;
+  // Past this many, scanning stops being a strategy.
+  const roomy = categories.length >= TOOLBAR_FROM;
 
   const { live, retired, matched } = useMemo(() => {
     const q = search.trim().toLowerCase();
     const hits = q ? categories.filter((c) => c.name.toLowerCase().includes(q)) : categories;
 
+    // Ordered once, here, so the two sections cannot end up sorted differently.
+    const ordered = [...hits].sort((a, b) => {
+      if (sort === "used") return (b.entries_count ?? 0) - (a.entries_count ?? 0) || a.name.localeCompare(b.name);
+      if (sort === "spend") return (b.entries_total ?? 0) - (a.entries_total ?? 0) || a.name.localeCompare(b.name);
+
+      return a.name.localeCompare(b.name);
+    });
+
     return {
-      live: hits.filter((c) => c.is_active),
-      retired: hits.filter((c) => !c.is_active),
-      matched: hits.length,
+      live: status === "off" ? [] : ordered.filter((c) => c.is_active),
+      retired: status === "live" ? [] : ordered.filter((c) => !c.is_active),
+      matched: ordered.filter((c) => (status === "live" ? c.is_active : status === "off" ? !c.is_active : true)).length,
     };
-  }, [categories, search]);
+  }, [categories, search, status, sort]);
+
+  // Each section pages independently, or a shop with two hundred live
+  // categories could never reach the retired ones at all.
+  const liveShown = live.slice(0, limit);
+  const retiredShown = retired.slice(0, limit);
+  const hidden = live.length - liveShown.length + (retired.length - retiredShown.length);
+
+  /** Any change to what is being asked returns the list to its first page. */
+  const narrow = (fn: () => void) => {
+    fn();
+    setLimit(PAGE);
+  };
 
   const openNew = () => {
     setEditing(null);
@@ -155,9 +215,6 @@ export function CategoryManager({ title, hint, categories, loading, money, noun,
   };
 
   const busy = mutations.create.isPending || mutations.update.isPending;
-  const liveCount = categories.filter((c) => c.is_active).length;
-  const retiredCount = categories.length - liveCount;
-  const searchable = categories.length > 8;
 
   const row = (category: Category) => (
     <CategoryRow
@@ -177,23 +234,71 @@ export function CategoryManager({ title, hint, categories, loading, money, noun,
         <div className="min-w-0">
           <h3 className="font-semibold text-gray-800 dark:text-white/90">{title}</h3>
           <p className="mt-0.5 text-theme-sm text-gray-500 dark:text-gray-400">{hint}</p>
-          {!loading && categories.length > 0 && (
-            <p className="mt-1 text-theme-xs text-gray-400">
-              {liveCount} in use
-              {retiredCount > 0 && ` · ${retiredCount} switched off`}
-            </p>
-          )}
         </div>
         <Button size="sm" onClick={openNew} className="shrink-0">+ Add category</Button>
       </div>
 
-      {searchable && (
-        <div className="mb-4">
-          <Input
-            placeholder="Find a category…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      {roomy && (
+        <div className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-56 flex-1">
+              <Input
+                placeholder="Find a category…"
+                value={search}
+                onChange={(e) => narrow(() => setSearch(e.target.value))}
+              />
+            </div>
+
+            {/* Two questions, not three: "everything", "where today's bill can
+                go", "what we used to call things". */}
+            <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800/60">
+              {([
+                ["all", "All", categories.length],
+                ["live", "In use", liveCount],
+                ["off", "Switched off", retiredCount],
+              ] as Array<[Status, string, number]>).map(([value, label, count]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={status === value}
+                  onClick={() => narrow(() => setStatus(value))}
+                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-theme-xs font-medium transition ${
+                    status === value
+                      ? "bg-brand-500 text-white shadow-theme-xs"
+                      : "text-gray-500 hover:bg-white/70 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5"
+                  }`}
+                >
+                  {label} <span className="tabular-nums opacity-70">{count}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="w-40">
+              <Select
+                options={SORTS}
+                value={sort}
+                onChange={(v) => narrow(() => setSort(v as Sort))}
+              />
+            </div>
+          </div>
+
+          {/* What you are looking at, out of what there is. Without it a paged
+              list looks like a short one. */}
+          <p className="mt-3 border-t border-gray-100 pt-3 text-theme-xs text-gray-400 dark:border-gray-800">
+            {matched === categories.length
+              ? `${categories.length} categories`
+              : `${matched} of ${categories.length} categories`}
+            {hidden > 0 && ` · showing ${matched - hidden}`}
+            {(search.trim() !== "" || status !== "all") && (
+              <button
+                type="button"
+                onClick={() => narrow(() => { setSearch(""); setStatus("all"); })}
+                className="ml-2 text-gray-500 underline-offset-2 hover:underline dark:text-gray-400"
+              >
+                Clear
+              </button>
+            )}
+          </p>
         </div>
       )}
 
@@ -214,17 +319,21 @@ export function CategoryManager({ title, hint, categories, loading, money, noun,
         </div>
       ) : matched === 0 ? (
         <p className="rounded-xl bg-gray-50 px-4 py-8 text-center text-theme-sm text-gray-500 dark:bg-white/[0.02] dark:text-gray-400">
-          Nothing matches “{search}”.
+          {search.trim() !== ""
+            ? `Nothing matches “${search}”.`
+            : status === "off"
+              ? "Nothing is switched off."
+              : "Nothing is in use."}
         </p>
       ) : (
         <div className="space-y-6">
-          {live.length > 0 && (
+          {liveShown.length > 0 && (
             <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-              {live.map(row)}
+              {liveShown.map(row)}
             </ul>
           )}
 
-          {retired.length > 0 && (
+          {retiredShown.length > 0 && (
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <h4 className="text-theme-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -235,8 +344,16 @@ export function CategoryManager({ title, hint, categories, loading, money, noun,
                 </span>
               </div>
               <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 dark:divide-gray-800 dark:border-gray-700 dark:bg-white/[0.02]">
-                {retired.map(row)}
+                {retiredShown.map(row)}
               </ul>
+            </div>
+          )}
+
+          {hidden > 0 && (
+            <div className="flex justify-center">
+              <Button size="sm" variant="outline" onClick={() => setLimit((n) => n + PAGE)}>
+                Show {Math.min(hidden, PAGE)} more
+              </Button>
             </div>
           )}
         </div>

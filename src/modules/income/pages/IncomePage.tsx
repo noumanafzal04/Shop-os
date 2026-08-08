@@ -25,7 +25,17 @@ import type { Income } from "../services/incomeService";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** How money arrived. No `credit` — a promise to pay is not money in. */
+/**
+ * How money arrived. No `credit` — a promise to pay is not money in.
+ *
+ * This list drove the FILTER from the day it was written and never the form,
+ * and the server defaults a missing method to `cash`. So every income entry
+ * ever filed from this screen was recorded as cash — and a cash one puts money
+ * in whatever drawer the person happens to have open. An owner logging a bank
+ * transfer while a till was running gave that cashier a phantom overage they
+ * had no way to explain, and an overage is the variance a shop is least likely
+ * to investigate. The picker is the missing half.
+ */
 const INCOME_METHODS = [
   { value: "cash", label: "Cash (to till)" },
   { value: "bank_transfer", label: "Bank transfer" },
@@ -59,6 +69,8 @@ export default function IncomePage() {
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today());
   const [formCategory, setFormCategory] = useState("");
+  const [method, setMethod] = useState("cash");
+  const [reference, setReference] = useState("");
 
   const rows = incomes.data?.data ?? [];
   const pagination = incomes.data?.meta.pagination;
@@ -73,6 +85,8 @@ export default function IncomePage() {
     setAmount("");
     setDate(today());
     setFormCategory("");
+    setMethod("cash");
+    setReference("");
     create.reset();
     update.reset();
     modal.openModal();
@@ -84,6 +98,8 @@ export default function IncomePage() {
     setAmount(String(income.amount));
     setDate(income.income_date.slice(0, 10));
     setFormCategory(income.income_category_id ?? "");
+    setMethod(income.payment_method ?? "cash");
+    setReference(income.reference ?? "");
     create.reset();
     update.reset();
     modal.openModal();
@@ -95,6 +111,8 @@ export default function IncomePage() {
       income_category_id: formCategory,
       description: description.trim(),
       amount: Number(amount),
+      payment_method: method,
+      reference: reference.trim() || undefined,
       income_date: date,
     };
     const done = (verb: string, meta?: unknown) => {
@@ -175,6 +193,11 @@ export default function IncomePage() {
         methods={INCOME_METHODS}
         totals={totals}
         money={money}
+        sorts={[
+          { value: "date", label: "Date" },
+          { value: "amount", label: "Amount" },
+          { value: "created", label: "Recently added" },
+        ]}
         action={
           <button
             type="button"
@@ -194,6 +217,7 @@ export default function IncomePage() {
                 <th className="px-6 py-3 font-medium">Date</th>
                 <th className="px-6 py-3 font-medium">Description</th>
                 <th className="px-6 py-3 font-medium">Category</th>
+                <th className="px-6 py-3 font-medium">Received</th>
                 <th className="px-6 py-3 font-medium text-right">Amount</th>
                 <th className="px-6 py-3 font-medium text-right">Actions</th>
               </tr>
@@ -202,14 +226,14 @@ export default function IncomePage() {
               {incomes.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={5} className="px-6 py-4">
+                    <td colSpan={6} className="px-6 py-4">
                       <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
                     </td>
                   </tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {activeFilterCount(filters) > 0 ? "No income matches these filters." : "No income recorded yet."}
                   </td>
                 </tr>
@@ -219,6 +243,19 @@ export default function IncomePage() {
                     <td className="px-6 py-4">{e.income_date.slice(0, 10)}</td>
                     <td className="px-6 py-4 font-medium text-gray-800 dark:text-white/90">{e.description}</td>
                     <td className="px-6 py-4">{e.category?.name ?? "—"}</td>
+                    <td className="px-6 py-4">
+                      <span className="text-theme-xs capitalize text-gray-500">
+                        {(e.payment_method ?? "cash").replace("_", " ")}
+                      </span>
+                      {/* This income really did land in a drawer, and the
+                          shift knows about it — the mirror of the expense
+                          side's till badge. */}
+                      {e.cash_movement_id && (
+                        <span className="ml-1.5 rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+                          till
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right text-success-600 dark:text-success-500">{money(e.amount)}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-3">
@@ -292,6 +329,24 @@ export default function IncomePage() {
               {errorFor("income_date") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("income_date")}</p>}
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Received by</Label>
+              <Select options={INCOME_METHODS} value={method} onChange={setMethod} />
+              {errorFor("payment_method") && (
+                <p className="mt-1 text-theme-xs text-error-500">{errorFor("payment_method")}</p>
+              )}
+            </div>
+            <div>
+              <Label>Reference</Label>
+              <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Slip or invoice no." />
+            </div>
+          </div>
+          {method === "cash" && (
+            <p className="text-theme-xs text-gray-400">
+              Cash goes into your open drawer, so the shift's expected cash rises by this amount.
+            </p>
+          )}
         </div>
 
         <div className="mt-6 flex justify-end gap-3">

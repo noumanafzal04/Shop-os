@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Label from "../../../components/form/Label";
@@ -52,6 +52,28 @@ function normalize(modules: Record<string, boolean>, catalog: ModuleInfo[]): Rec
  * silently revoke a module an admin had granted. Now a plan decides only price
  * and catalog ceiling, and everything a shop can DO is decided right here.
  */
+/**
+ * One topic of the form.
+ *
+ * The page was a single 3xl column down the middle of an admin's widescreen,
+ * which is five sections of scrolling to create one business — with the tall
+ * one (Modules, which grows with the trade) in the middle of the run, pushing
+ * the owner's account off the bottom.
+ */
+function FormCard({ title, description, children, className = "" }: {
+  title: string; description?: string; children: ReactNode; className?: string;
+}) {
+  return (
+    <section className={`rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6 ${className}`}>
+      <header className="mb-5">
+        <h3 className="font-semibold text-gray-800 dark:text-white/90">{title}</h3>
+        {description && <p className="mt-0.5 text-theme-sm text-gray-500 dark:text-gray-400">{description}</p>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
 export default function AdminTenantCreatePage() {
   const navigate = useNavigate();
   const cities = useAdminCities();
@@ -140,13 +162,18 @@ export default function AdminTenantCreatePage() {
     );
   };
 
-  const ready =
-    form.business_name.trim() !== "" &&
-    form.business_type !== "" &&
-    form.plan_id !== "" &&
-    form.owner_name.trim() !== "" &&
-    form.owner_email.trim() !== "" &&
-    form.owner_password !== "";
+  // Naming what is still missing rather than only greying the button out. A
+  // disabled Create on a form five sections long is a dead end: the one empty
+  // field is usually off screen, and there is nothing to tell you which.
+  const missing = [
+    form.business_name.trim() === "" && "business name",
+    form.business_type === "" && "business type",
+    form.plan_id === "" && "plan",
+    form.owner_name.trim() === "" && "owner name",
+    form.owner_email.trim() === "" && "owner email",
+    form.owner_password === "" && "temp password",
+  ].filter(Boolean) as string[];
+  const ready = missing.length === 0;
 
   return (
     <>
@@ -159,15 +186,18 @@ export default function AdminTenantCreatePage() {
       </div>
 
       {generalError && (
-        <div className="mb-5 max-w-3xl">
+        <div className="mb-5">
           <Alert variant="error" title="Couldn't create" message={generalError} />
         </div>
       )}
 
-      <form onSubmit={submit} className="max-w-3xl space-y-6">
-        {/* ① Who it is ───────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-          <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">Business</h3>
+      {/* Two columns: the shop's own details down the left, and the module
+          picker — the one section whose height depends on the trade — kept
+          beside them rather than wedged between them. */}
+      <form onSubmit={submit}>
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+        <div className="flex flex-col gap-5">
+        <FormCard title="Business" description="Who this shop is, and how the platform reaches them.">
           <div className="space-y-4">
             <div>
               <Label>Business name <span className="text-error-500">*</span></Label>
@@ -220,19 +250,88 @@ export default function AdminTenantCreatePage() {
               </div>
             </div>
           </div>
-        </section>
+        </FormCard>
 
-        {/* ② What it can do ──────────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-          <div className="mb-4">
-            <h3 className="font-semibold text-gray-800 dark:text-white/90">Modules</h3>
-            <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-              {form.business_type
-                ? `Proposed for a ${selectedType?.label.toLowerCase()} — adjust anything. Nothing on a plan can change these later.`
-                : "Pick a business type and its usual modules appear here."}
-            </p>
+        <FormCard title="Size of the business" description="Assigned to this business, not bought with a plan — so a second branch is a number you raise here, any time.">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <Label>Branches</Label>
+              <Input type="number" min="1" value={form.branches} onChange={(e) => set("branches", e.target.value)} />
+              <p className="mt-1 text-theme-xs text-gray-400">The Main branch counts as one.</p>
+            </div>
+            <div>
+              <Label>Staff accounts</Label>
+              <Input type="number" min="1" value={form.staff} onChange={(e) => set("staff", e.target.value)} />
+              <p className="mt-1 text-theme-xs text-gray-400">The owner isn't counted.</p>
+            </div>
+            <div>
+              <Label>Checkout lanes</Label>
+              <Input type="number" min="1" value={form.registers} onChange={(e) => set("registers", e.target.value)} />
+              <p className="mt-1 text-theme-xs text-gray-400">A single-counter shop needs none.</p>
+            </div>
           </div>
+        </FormCard>
 
+        <FormCard title="Plan" description="Price, billing period and the catalog ceiling. It grants no modules.">
+          <div className="space-y-4">
+            <div>
+              <Label>Plan <span className="text-error-500">*</span></Label>
+              <Select
+                value={form.plan_id}
+                options={(plans.data ?? [])
+                  .filter((p) => p.is_active !== false)
+                  .map((p) => ({ value: p.id, label: `${p.name} — ${money(p.price)}` }))}
+                placeholder={plans.isLoading ? "Loading…" : "Choose a plan"}
+                onChange={(v) => set("plan_id", v)}
+              />
+              {errorFor("plan_id") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("plan_id")}</p>}
+            </div>
+            {selectedPlan && (
+              <div className="rounded-lg bg-gray-50 p-3 text-theme-xs dark:bg-white/[0.04]">
+                <p className="mb-1 font-medium text-gray-700 dark:text-gray-200">{selectedPlan.name}</p>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {money(selectedPlan.price)} every {selectedPlan.billing_period_months ?? 1} month(s) ·{" "}
+                  {selectedPlan.limits?.products == null
+                    ? "unlimited products"
+                    : `${selectedPlan.limits.products.toLocaleString()} products`}{" "}
+                  · {selectedPlan.grace_period_days ?? 7}-day grace
+                </p>
+              </div>
+            )}
+          </div>
+        </FormCard>
+
+        <FormCard title="Owner account" description="The first login. They set their own password afterwards.">
+          <div className="space-y-4">
+            <div>
+              <Label>Owner name <span className="text-error-500">*</span></Label>
+              <Input value={form.owner_name} onChange={(e) => set("owner_name", e.target.value)} />
+              {errorFor("owner.name") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("owner.name")}</p>}
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label>Owner email <span className="text-error-500">*</span></Label>
+                <Input type="email" value={form.owner_email} onChange={(e) => set("owner_email", e.target.value)} />
+                {errorFor("owner.email") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("owner.email")}</p>}
+              </div>
+              <div>
+                <Label>Temp password <span className="text-error-500">*</span></Label>
+                <Input type="text" value={form.owner_password} onChange={(e) => set("owner_password", e.target.value)} placeholder="Min. 8 chars" />
+                {errorFor("owner.password") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("owner.password")}</p>}
+              </div>
+            </div>
+          </div>
+        </FormCard>
+        </div>
+
+        {/* Right column — the module picker on its own, because its height is
+            the one thing on this form the admin cannot predict. */}
+        <FormCard
+          title="Modules"
+          description={form.business_type
+            ? `Proposed for a ${selectedType?.label.toLowerCase()} — adjust anything. Nothing on a plan can change these later.`
+            : "Pick a business type and its usual modules appear here."}
+        >
           {!form.business_type ? (
             <p className="py-6 text-center text-theme-sm text-gray-400">Choose a business type first.</p>
           ) : (
@@ -276,101 +375,24 @@ export default function AdminTenantCreatePage() {
               ))}
             </div>
           )}
-        </section>
+        </FormCard>
+        </div>
 
-        {/* ③ How big it is ───────────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-          <div className="mb-4">
-            <h3 className="font-semibold text-gray-800 dark:text-white/90">Size of the business</h3>
-            <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-              Assigned to this business, not bought with a plan — so a second branch is a number you raise here,
-              any time.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <Label>Branches</Label>
-              <Input type="number" min="1" value={form.branches} onChange={(e) => set("branches", e.target.value)} />
-              <p className="mt-1 text-theme-xs text-gray-400">The Main branch counts as one.</p>
-            </div>
-            <div>
-              <Label>Staff accounts</Label>
-              <Input type="number" min="1" value={form.staff} onChange={(e) => set("staff", e.target.value)} />
-              <p className="mt-1 text-theme-xs text-gray-400">The owner isn't counted.</p>
-            </div>
-            <div>
-              <Label>Checkout lanes</Label>
-              <Input type="number" min="1" value={form.registers} onChange={(e) => set("registers", e.target.value)} />
-              <p className="mt-1 text-theme-xs text-gray-400">A single-counter shop needs none.</p>
+        {/* The button follows you down a form this long, and says what is still
+            missing — a disabled Create with the empty field off screen is a
+            dead end. */}
+        <div className="sticky bottom-0 z-30 -mx-4 mt-5 border-t border-gray-200 bg-white/90 px-4 py-3 backdrop-blur-md dark:border-gray-800 dark:bg-gray-900/90 md:-mx-6 md:px-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={`text-theme-xs ${ready ? "text-success-600 dark:text-success-500" : "text-gray-500 dark:text-gray-400"}`}>
+              {ready ? "Ready to create." : `Still needed: ${missing.join(", ")}.`}
+            </span>
+            <div className="ml-auto flex gap-3">
+              <Link to="/admin/tenants"><Button type="button" size="sm" variant="outline">Cancel</Button></Link>
+              <Button size="sm" disabled={create.isPending || !ready}>
+                {create.isPending ? "Creating…" : "Create business"}
+              </Button>
             </div>
           </div>
-        </section>
-
-        {/* ④ What it pays ────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-          <div className="mb-4">
-            <h3 className="font-semibold text-gray-800 dark:text-white/90">Plan</h3>
-            <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-              Price, billing period and the catalog ceiling. It grants no modules.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <Label>Plan <span className="text-error-500">*</span></Label>
-              <Select
-                value={form.plan_id}
-                options={(plans.data ?? [])
-                  .filter((p) => p.is_active !== false)
-                  .map((p) => ({ value: p.id, label: `${p.name} — ${money(p.price)}` }))}
-                placeholder={plans.isLoading ? "Loading…" : "Choose a plan"}
-                onChange={(v) => set("plan_id", v)}
-              />
-              {errorFor("plan_id") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("plan_id")}</p>}
-            </div>
-            {selectedPlan && (
-              <div className="rounded-lg bg-gray-50 p-3 text-theme-xs dark:bg-white/[0.04]">
-                <p className="mb-1 font-medium text-gray-700 dark:text-gray-200">{selectedPlan.name}</p>
-                <p className="text-gray-500 dark:text-gray-400">
-                  {money(selectedPlan.price)} every {selectedPlan.billing_period_months ?? 1} month(s) ·{" "}
-                  {selectedPlan.limits?.products == null
-                    ? "unlimited products"
-                    : `${selectedPlan.limits.products.toLocaleString()} products`}{" "}
-                  · {selectedPlan.grace_period_days ?? 7}-day grace
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Owner ─────────────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-          <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">Owner account</h3>
-          <div className="space-y-4">
-            <div>
-              <Label>Owner name <span className="text-error-500">*</span></Label>
-              <Input value={form.owner_name} onChange={(e) => set("owner_name", e.target.value)} />
-              {errorFor("owner.name") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("owner.name")}</p>}
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <Label>Owner email <span className="text-error-500">*</span></Label>
-                <Input type="email" value={form.owner_email} onChange={(e) => set("owner_email", e.target.value)} />
-                {errorFor("owner.email") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("owner.email")}</p>}
-              </div>
-              <div>
-                <Label>Temp password <span className="text-error-500">*</span></Label>
-                <Input type="text" value={form.owner_password} onChange={(e) => set("owner_password", e.target.value)} placeholder="Min. 8 chars" />
-                {errorFor("owner.password") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("owner.password")}</p>}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div className="flex gap-3">
-          <Button size="sm" disabled={create.isPending || !ready}>
-            {create.isPending ? "Creating…" : "Create business"}
-          </Button>
-          <Link to="/admin/tenants"><Button size="sm" variant="outline">Cancel</Button></Link>
         </div>
       </form>
     </>

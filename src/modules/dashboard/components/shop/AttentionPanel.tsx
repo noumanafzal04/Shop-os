@@ -19,10 +19,16 @@ import { SectionCard } from "./SectionCard";
 
 type Severity = "critical" | "warning" | "info";
 
+/**
+ * Ground, ring and a left rule per severity. The rule is what lets the eye sort
+ * the list without reading it — three critical rows in a stack are a shape.
+ */
 const ROW: Record<Severity, string> = {
-  critical: "bg-error-50 hover:bg-error-100 dark:bg-error-500/10 dark:hover:bg-error-500/15",
-  warning: "bg-warning-50 hover:bg-warning-100 dark:bg-warning-500/10 dark:hover:bg-warning-500/15",
-  info: "bg-brand-50 hover:bg-brand-100 dark:bg-brand-500/10 dark:hover:bg-brand-500/15",
+  critical:
+    "bg-error-50 ring-error-100 border-l-error-500 hover:bg-error-100 dark:bg-error-500/10 dark:ring-error-500/20 dark:hover:bg-error-500/15",
+  warning:
+    "bg-warning-50 ring-warning-100 border-l-warning-500 hover:bg-warning-100 dark:bg-warning-500/10 dark:ring-warning-500/20 dark:hover:bg-warning-500/15",
+  info: "bg-brand-50 ring-brand-100 border-l-brand-500 hover:bg-brand-100 dark:bg-brand-500/10 dark:ring-brand-500/20 dark:hover:bg-brand-500/15",
 };
 
 const ICON: Record<Severity, string> = {
@@ -30,6 +36,8 @@ const ICON: Record<Severity, string> = {
   warning: "bg-warning-100 text-warning-600 dark:bg-warning-500/20 dark:text-warning-500",
   info: "bg-brand-100 text-brand-600 dark:bg-brand-500/20 dark:text-brand-400",
 };
+
+const SHELL = "group/row flex items-start gap-3 rounded-xl border-l-4 p-4 ring-1 transition-colors";
 
 interface Item {
   key: string;
@@ -217,15 +225,24 @@ export function AttentionPanel({ data, caps }: Props) {
   const items = rows.filter((row) => row.to === undefined || caps.visit(row.to));
 
   return (
-    <SectionCard title="Attention needed">
+    <SectionCard
+      title="Attention needed"
+      subtitle={items.length > 0 ? `${items.length} to look at` : undefined}
+      icon={<AlertIcon className="size-5" />}
+    >
       {items.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-xl bg-success-50 px-4 py-4 dark:bg-success-500/10">
+        <div className="flex items-center gap-3 rounded-xl border-l-4 border-l-success-500 bg-success-50 px-4 py-4 ring-1 ring-success-100 dark:bg-success-500/10 dark:ring-success-500/20">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success-100 text-success-600 dark:bg-success-500/20 dark:text-success-500">
             <CheckCircleIcon className="size-5" />
           </span>
-          <p className="text-theme-sm text-gray-700 dark:text-gray-300">
-            Nothing needs your attention right now.
-          </p>
+          <div>
+            <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+              Nothing needs your attention right now.
+            </p>
+            <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              Stock, orders and the day are all where they should be.
+            </p>
+          </div>
         </div>
       ) : (
         <ul className="space-y-3">
@@ -246,7 +263,7 @@ export function AttentionPanel({ data, caps }: Props) {
                   </span>
                 </span>
                 {item.to && (
-                  <AngleRightIcon className="mt-1 size-4 shrink-0 text-gray-400 dark:text-gray-500" />
+                  <AngleRightIcon className="mt-1 size-4 shrink-0 text-gray-500 transition-transform duration-200 group-hover/row:translate-x-0.5 dark:text-gray-400" />
                 )}
               </>
             );
@@ -254,14 +271,11 @@ export function AttentionPanel({ data, caps }: Props) {
             return (
               <li key={item.key}>
                 {item.to ? (
-                  <Link
-                    to={item.to}
-                    className={`flex items-start gap-3 rounded-xl p-4 transition-colors ${ROW[item.severity]}`}
-                  >
+                  <Link to={item.to} className={`${SHELL} ${ROW[item.severity]}`}>
                     {body}
                   </Link>
                 ) : (
-                  <div className={`flex items-start gap-3 rounded-xl p-4 ${ROW[item.severity]}`}>{body}</div>
+                  <div className={`${SHELL} ${ROW[item.severity]}`}>{body}</div>
                 )}
               </li>
             );

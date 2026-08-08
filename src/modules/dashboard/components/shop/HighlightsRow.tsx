@@ -4,6 +4,7 @@ import { BoxIconLine, GroupIcon, ShootingStarIcon, UserCircleIcon } from "../../
 import type { TenantDashboard } from "../../types";
 import type { Capabilities } from "./capabilities";
 import { SectionCard } from "./SectionCard";
+import { tileGrid } from "./tone";
 
 interface Props {
   highlights: TenantDashboard["highlights"];
@@ -68,24 +69,23 @@ export function HighlightsRow({ highlights, caps, money }: Props) {
   if (cards.length === 0) return null;
 
   return (
-    <SectionCard title="This month's leaders">
-      <div
-        className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${
-          cards.length >= 4 ? "xl:grid-cols-4" : cards.length === 3 ? "xl:grid-cols-3" : ""
-        }`}
-      >
+    <SectionCard title="This month's leaders" icon={<ShootingStarIcon className="size-5" />}>
+      <div className={tileGrid(cards.length)}>
         {cards.map((card) => (
-          <div key={card.key} className="rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03]">
+          <div
+            key={card.key}
+            className="rounded-xl bg-gray-50 p-4 ring-1 ring-gray-200 transition-colors hover:bg-gray-100 dark:bg-white/[0.03] dark:ring-gray-800 dark:hover:bg-white/[0.06]"
+          >
             <div className="flex items-center gap-2">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:ring-brand-500/25">
                 {card.icon}
               </span>
-              <span className="truncate text-theme-xs uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              <span className="truncate text-theme-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 {card.label}
               </span>
             </div>
             <p
-              className="mt-3 truncate font-semibold text-gray-800 dark:text-white/90"
+              className="mt-3 truncate font-semibold tracking-tight text-gray-800 dark:text-white/90"
               title={card.name}
             >
               {card.name}

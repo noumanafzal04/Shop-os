@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
+import { rangeParams, type ReportRange } from "../reportPeriod";
 import { toParams, type MoneyFilters } from "./moneyFilters";
 
 export interface ExpenseCategory {
@@ -69,6 +70,14 @@ export interface BudgetRow {
   category: string;
   /** null = unbudgeted, which is not the same as a budget of zero. */
   budget: number | null;
+  /**
+   * The every-month ceiling behind the effective one. A screen that only knew
+   * the effective figure could not offer a box to edit it — whichever of the
+   * two rows it wrote would be wrong half the time.
+   */
+  standing: number | null;
+  /** True when a month-specific row is overriding the standing one. */
+  is_override: boolean;
   spent: number;
   remaining: number | null;
   over: boolean;
@@ -164,19 +173,22 @@ export const expensesService = {
   postRecurring: (id: string, payload: { amount?: number; payment_method?: string; reference?: string }) =>
     apiPost<Expense>(`/expenses/recurring/${id}/post`, payload),
 
-  report: (params: { period: string; from?: string; to?: string }) =>
-    apiGet<ReportSummary>("/reports/summary", { params }),
+  // Every report takes the SAME window object. They used to take a bare
+  // period string, which is why a custom range — validated by the server since
+  // the day these were written — could not be asked for from any screen.
+  report: (range: ReportRange) =>
+    apiGet<ReportSummary>("/reports/summary", { params: rangeParams(range) }),
 
-  purchasesReport: (params: { period: string }) =>
-    apiGet<PurchasesReport>("/reports/purchases", { params }),
-  staffReport: (params: { period: string }) =>
-    apiGet<StaffReport>("/reports/staff", { params }),
-  taxReport: (params: { period: string }) =>
-    apiGet<TaxReport>("/reports/tax", { params }),
+  purchasesReport: (range: ReportRange) =>
+    apiGet<PurchasesReport>("/reports/purchases", { params: rangeParams(range) }),
+  staffReport: (range: ReportRange) =>
+    apiGet<StaffReport>("/reports/staff", { params: rangeParams(range) }),
+  taxReport: (range: ReportRange) =>
+    apiGet<TaxReport>("/reports/tax", { params: rangeParams(range) }),
 
   /** What each item actually earned — revenue crowns the expensive, margin crowns what pays. */
-  marginsReport: (params: { period: string }) =>
-    apiGet<MarginsReport>("/reports/margins", { params }),
+  marginsReport: (range: ReportRange) =>
+    apiGet<MarginsReport>("/reports/margins", { params: rangeParams(range) }),
   /** What the shelves are worth. Branch-scoped by the active branch header. */
   valuationReport: () => apiGet<ValuationReport>("/reports/valuation"),
   /** Stock nobody has bought inside the window. */

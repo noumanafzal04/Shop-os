@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import Badge from "../../../../components/ui/badge/Badge";
+import { GroupIcon } from "../../../../icons";
 import type { AdminDashboard } from "../../types";
 import { Panel, PanelEmpty } from "./Panel";
 import { date, humanize } from "./format";
@@ -15,15 +16,17 @@ export function RecentTenantsPanel({ tenants, loading = false }: Props) {
   return (
     <Panel
       title="Recent Tenants"
+      subtitle="Newest sign-ups first"
+      icon={<GroupIcon className="size-5" />}
       action={{ label: "View All", to: "/admin/tenants" }}
       flush
     >
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-y border-gray-200 text-theme-xs uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            <tr className="border-y border-gray-200 bg-gray-50/70 text-theme-xs uppercase tracking-wider text-gray-500 dark:border-gray-800 dark:bg-white/[0.02] dark:text-gray-400">
               {HEADERS.map((h) => (
-                <th key={h} className="whitespace-nowrap px-5 py-3 font-medium md:px-6">
+                <th key={h} className="whitespace-nowrap px-5 py-3 font-semibold md:px-6">
                   {h}
                 </th>
               ))}
@@ -40,22 +43,25 @@ export function RecentTenantsPanel({ tenants, loading = false }: Props) {
               ))
             ) : tenants.length === 0 ? (
               <tr>
-                <td colSpan={HEADERS.length}>
+                <td colSpan={HEADERS.length} className="px-5 py-5 md:px-6">
                   <PanelEmpty>No tenants yet — create the first one from Tenants.</PanelEmpty>
                 </td>
               </tr>
             ) : (
               tenants.map((t) => (
-                <tr key={t.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
+                <tr
+                  key={t.id}
+                  className="text-theme-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/[0.03]"
+                >
                   <td className="px-5 py-4 md:px-6">
                     <Link
                       to={`/admin/tenants/${t.id}`}
-                      className="font-medium text-gray-800 hover:text-brand-500 dark:text-white/90 dark:hover:text-brand-400"
+                      className="font-medium text-gray-800 transition-colors hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400"
                     >
                       {t.business_name}
                     </Link>
                     {t.online_shop_enabled && (
-                      <span className="mt-1 block text-theme-xs text-brand-500 dark:text-brand-400">
+                      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-theme-xs font-medium text-brand-600 ring-1 ring-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:ring-brand-500/25">
                         Online shop
                       </span>
                     )}

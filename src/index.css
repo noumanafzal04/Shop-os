@@ -813,3 +813,35 @@ span.flatpickr-weekday,
 .simplebar-scrollbar.simplebar-visible:before {
   @apply opacity-100;
 }
+
+/**
+ * Date, time and month fields.
+ *
+ * The shared Input carried `appearance-none`, which strips the browser's own
+ * calendar/clock affordance — so every date field in the product rendered as a
+ * plain text box with nothing to click and no sign it was a date at all. These
+ * keep the native picker instead.
+ *
+ * The indicator itself is a black glyph, which disappears on a dark ground, so
+ * `color-scheme` hands the whole native widget (indicator AND the dropdown
+ * calendar) to the current theme rather than filtering the icon and leaving a
+ * white calendar panel behind it.
+ */
+.date-field {
+  color-scheme: light;
+}
+
+.dark .date-field {
+  color-scheme: dark;
+}
+
+.date-field::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.date-field:hover::-webkit-calendar-picker-indicator,
+.date-field:focus::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}

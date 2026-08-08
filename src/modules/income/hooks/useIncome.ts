@@ -69,6 +69,9 @@ export function useIncomeMutations() {
     queryClient.invalidateQueries({ queryKey: ["cashbook"] });
     queryClient.invalidateQueries({ queryKey: ["ledger"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    // Cash income lands in the open drawer, so the till's expected cash is
+    // stale the moment one is filed — the expense half already did this.
+    queryClient.invalidateQueries({ queryKey: ["pos"] });
   };
 
   const create = useMutation({

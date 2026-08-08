@@ -16,15 +16,17 @@ import {
 import type { TenantDashboard } from "../../types";
 import type { Capabilities } from "./capabilities";
 import { formatDelta } from "./format";
+import { Sparkline } from "../Sparkline";
+import { TONE_TEXT, type Tone } from "./tone";
 import { tradeProfile, type FocusKey } from "./trade";
 
-type Tone = "brand" | "success" | "warning" | "error";
-
+/** Icon chip per tone — tinted ground, matching ring, matching glyph. */
 const CHIP: Record<Tone, string> = {
-  brand: "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400",
-  success: "bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-500",
-  warning: "bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-500",
-  error: "bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-500",
+  brand: "bg-brand-50 text-brand-600 ring-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:ring-brand-500/25",
+  success: "bg-success-50 text-success-600 ring-success-100 dark:bg-success-500/15 dark:text-success-500 dark:ring-success-500/25",
+  warning: "bg-warning-50 text-warning-600 ring-warning-100 dark:bg-warning-500/15 dark:text-warning-500 dark:ring-warning-500/25",
+  error: "bg-error-50 text-error-600 ring-error-100 dark:bg-error-500/15 dark:text-error-500 dark:ring-error-500/25",
+  gray: "bg-gray-50 text-gray-600 ring-gray-200 dark:bg-white/[0.04] dark:text-gray-300 dark:ring-gray-700",
 };
 
 interface TileProps {
@@ -38,6 +40,8 @@ interface TileProps {
   invertDelta?: boolean;
   emphasis?: boolean;
   caption?: string;
+  /** Last 7 days of this same figure, straight from `sales_series`. */
+  spark?: number[];
 }
 
 type TileSpec = TileProps & { key: string };
@@ -51,15 +55,15 @@ function DeltaPill({ delta, invert }: { delta: number | null | undefined; invert
   // A flat day is real information, but it is neither good nor bad news.
   const tone =
     delta === 0
-      ? "bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300"
+      ? "bg-gray-100 text-gray-600 ring-gray-200 dark:bg-white/5 dark:text-gray-300 dark:ring-gray-700"
       : good
-        ? "bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-500"
-        : "bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-500";
+        ? "bg-success-50 text-success-600 ring-success-100 dark:bg-success-500/15 dark:text-success-500 dark:ring-success-500/25"
+        : "bg-error-50 text-error-600 ring-error-100 dark:bg-error-500/15 dark:text-error-500 dark:ring-error-500/25";
 
   return (
     <span
       title="Compared with yesterday"
-      className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-theme-xs font-medium tabular-nums ${tone}`}
+      className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-theme-xs font-semibold tabular-nums ring-1 ${tone}`}
     >
       {delta !== 0 &&
         (up ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />)}
@@ -68,39 +72,58 @@ function DeltaPill({ delta, invert }: { delta: number | null | undefined; invert
   );
 }
 
-function KpiTile({ label, value, icon, tone, delta, invertDelta, emphasis, caption }: TileProps) {
+function KpiTile({ label, value, icon, tone, delta, invertDelta, emphasis, caption, spark }: TileProps) {
   return (
     <div
       // The one figure the strip exists for gets a ground of its own, not just a
-      // heavier border — a border alone is invisible in a row of six cards.
-      className={`rounded-2xl border p-4 shadow-theme-xs transition-colors sm:p-5 ${
+      // heavier border — a border alone is invisible in a row of six cards. The
+      // rest get a whisper of the same treatment so the strip reads as one set.
+      className={`relative overflow-hidden rounded-2xl border p-4 shadow-theme-xs transition-all duration-200 hover:shadow-theme-md sm:p-5 ${
+        spark ? "pb-9 sm:pb-10" : ""
+      } ${
         emphasis
-          ? "border-brand-200 bg-gradient-to-b from-brand-50 to-white dark:border-brand-500/40 dark:from-brand-500/10 dark:to-white/[0.03]"
-          : "border-gray-200 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700"
+          ? "border-brand-200 bg-gradient-to-br from-brand-50 via-white to-brand-50/40 hover:border-brand-300 dark:border-brand-500/40 dark:from-brand-500/15 dark:via-white/[0.03] dark:to-brand-500/5 dark:hover:border-brand-500/60"
+          : "border-gray-200 bg-gradient-to-b from-white to-gray-50/70 hover:border-gray-300 dark:border-gray-800 dark:from-white/[0.045] dark:to-white/[0.02] dark:hover:border-gray-700"
       }`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span
-          className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${CHIP[tone]}`}
-        >
-          {icon}
+      {spark && (
+        <span aria-hidden className={`pointer-events-none ${TONE_TEXT[tone]}`}>
+          <Sparkline points={spark} />
         </span>
-        <DeltaPill delta={delta} invert={invertDelta} />
-      </div>
-      <p
-        className={`mt-4 truncate text-xl font-bold tabular-nums sm:text-2xl ${
-          emphasis ? "text-brand-600 dark:text-brand-400" : "text-gray-800 dark:text-white/90"
-        }`}
-        title={value}
-      >
-        {value}
-      </p>
-      <p className={`mt-1 truncate text-theme-sm ${emphasis ? "font-medium text-brand-600/80 dark:text-brand-400/80" : "text-gray-500 dark:text-gray-400"}`}>{label}</p>
-      {caption && (
-        <p className="mt-0.5 truncate text-theme-xs text-gray-400 dark:text-gray-500" title={caption}>
-          {caption}
-        </p>
       )}
+
+      <div className="relative">
+        <div className="flex items-start justify-between gap-2">
+          <span
+            className={`flex size-10 shrink-0 items-center justify-center rounded-xl ring-1 ${CHIP[tone]}`}
+          >
+            {icon}
+          </span>
+          <DeltaPill delta={delta} invert={invertDelta} />
+        </div>
+        <p
+          className={`mt-4 truncate font-bold tabular-nums tracking-tight ${
+            emphasis
+              ? "text-2xl text-brand-600 dark:text-brand-400 sm:text-3xl"
+              : "text-xl text-gray-800 dark:text-white/90 sm:text-2xl"
+          }`}
+          title={value}
+        >
+          {value}
+        </p>
+        <p
+          className={`mt-1 truncate text-theme-sm ${
+            emphasis ? "font-semibold text-brand-700 dark:text-brand-300" : "font-medium text-gray-600 dark:text-gray-300"
+          }`}
+        >
+          {label}
+        </p>
+        {caption && (
+          <p className="mt-0.5 truncate text-theme-xs text-gray-500 dark:text-gray-400" title={caption}>
+            {caption}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -131,7 +154,13 @@ interface Props {
 export function KpiRow({ data, caps, money, compact }: Props) {
   const today = data.today;
   const trade = tradeProfile(caps.businessType);
+  const series = data.sales_series;
   const tiles: TileSpec[] = [];
+
+  // A shop on its first day has one point and no direction to draw; the tile
+  // then keeps its plain shape rather than reserving room for nothing.
+  const spark = (pick: (day: (typeof series)[number]) => number) =>
+    series.length > 1 ? series.map(pick) : undefined;
 
   if (caps.sells) {
     tiles.push({
@@ -141,6 +170,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       delta: today.deltas.revenue,
       icon: <DollarLineIcon className="size-5" />,
       tone: "success",
+      spark: spark((d) => d.revenue),
     });
   }
 
@@ -153,6 +183,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       invertDelta: true,
       icon: <FileIcon className="size-5" />,
       tone: "warning",
+      spark: spark((d) => d.expenses),
     });
   }
 
@@ -166,6 +197,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       tone: "brand",
       emphasis: true,
       caption: "Sales − cost of goods − expenses",
+      spark: spark((d) => d.profit),
     });
 
     if (!compact) {
@@ -238,8 +270,8 @@ export function KpiRow({ data, caps, money, compact }: Props) {
     // and what that leaves — in that order, because it is the order the
     // question is asked in.
     const monthTotal = data.expense_breakdown.reduce((sum, slice) => sum + slice.total, 0);
-    const weekOut = data.sales_series.reduce((sum, day) => sum + day.expenses, 0);
-    const weekIn = data.sales_series.reduce((sum, day) => sum + day.other_income, 0);
+    const weekOut = series.reduce((sum, day) => sum + day.expenses, 0);
+    const weekIn = series.reduce((sum, day) => sum + day.other_income, 0);
     const biggest = data.expense_breakdown[0];
 
     tiles.push({
@@ -248,6 +280,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       value: money(today.other_income),
       icon: <DollarLineIcon className="size-5" />,
       tone: "success",
+      spark: spark((d) => d.other_income),
     });
 
     tiles.push({
@@ -272,6 +305,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       tone: today.profit < 0 ? "error" : "brand",
       emphasis: true,
       caption: "Money in − money out",
+      spark: spark((d) => d.profit),
     });
 
     if (!compact) {
@@ -320,7 +354,9 @@ export function KpiRowSkeleton({ count = 6 }: { count?: number }) {
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:p-5"
+          // Same padding, same ground, same corner as the loaded tile — including
+          // the sparkline's bottom allowance, or the strip resizes on arrival.
+          className="rounded-2xl border border-gray-200 bg-white p-4 pb-9 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:p-5 sm:pb-10"
         >
           <div className="flex items-start justify-between">
             <div className="size-10 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />

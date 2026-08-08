@@ -1,5 +1,6 @@
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
+import { PieChartIcon } from "../../../../icons";
 import type { AdminDashboard } from "../../types";
 import { useChartTokens } from "./chartTokens";
 import { Panel, PanelEmpty, Pulse } from "./Panel";
@@ -80,6 +81,7 @@ export function BusinessTypesPanel({ types, loading = false }: Props) {
       className="h-full"
       title="Business Types"
       subtitle="How the platform's tenants split"
+      icon={<PieChartIcon className="size-5" />}
     >
       {loading || !types ? (
         <div className="flex flex-col items-center gap-4">
@@ -101,20 +103,21 @@ export function BusinessTypesPanel({ types, loading = false }: Props) {
             height={HEIGHT}
           />
 
-          {/* Wrapped dot legend: identity is never colour alone — every slice
-              is named and counted here. */}
-          <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+          {/* A ruled list, not a wrapped dot cloud: identity is never colour
+              alone, and a share column is the sentence an operator says out
+              loud ("mart is 40% of the book"). */}
+          <ul className="mt-4 space-y-2 border-t border-gray-100 pt-4 dark:border-gray-800">
             {slices.map((s) => (
-              <li key={s.label} className="flex items-center gap-2">
+              <li key={s.label} className="flex min-w-0 items-center gap-2 text-theme-xs">
                 <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  className="size-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: s.color }}
                 />
-                <span className="text-theme-xs text-gray-600 dark:text-gray-300">{s.label}</span>
-                <span className="text-theme-xs font-medium tabular-nums text-gray-800 dark:text-white/90">
+                <span className="truncate text-gray-700 dark:text-gray-300">{s.label}</span>
+                <span className="ml-auto shrink-0 font-medium tabular-nums text-gray-800 dark:text-white/90">
                   {count(s.count)}
                 </span>
-                <span className="text-theme-xs tabular-nums text-gray-400 dark:text-gray-500">
+                <span className="w-10 shrink-0 text-right tabular-nums text-gray-500 dark:text-gray-400">
                   {Math.round((s.count / total) * 100)}%
                 </span>
               </li>

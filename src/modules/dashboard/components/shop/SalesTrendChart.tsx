@@ -45,7 +45,7 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
 
   const allZero = chartSeries.every((s) => s.data.every((v) => v === 0));
   // One data point is a dot on a line chart; bars read as a figure.
-  const type = days.length === 1 ? "bar" : "line";
+  const type = days.length === 1 ? "bar" : "area";
 
   const options: ApexOptions = {
     chart: {
@@ -56,9 +56,23 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
       animations: { enabled: false },
     },
     colors: chartSeries.map((s) => s.color),
-    stroke: { curve: "smooth", width: type === "line" ? 2 : 0 },
+    stroke: { curve: "smooth", width: type === "area" ? 2.5 : 0 },
+    // A washed fill under each line reads as volume rather than a wire diagram;
+    // it fades to nothing so three overlapping series never turn to mud.
+    fill:
+      type === "area"
+        ? {
+            type: "gradient",
+            gradient: {
+              shadeIntensity: 1,
+              opacityFrom: dark ? 0.3 : 0.28,
+              opacityTo: 0,
+              stops: [0, 92, 100],
+            },
+          }
+        : { type: "solid", opacity: 1 },
     plotOptions: { bar: { columnWidth: "35%", borderRadius: 4, borderRadiusApplication: "end" } },
-    markers: { size: 0, hover: { size: 5 } },
+    markers: { size: 0, strokeWidth: 2, hover: { size: 6 } },
     dataLabels: { enabled: false },
     legend: { show: false },
     grid: {
@@ -75,6 +89,7 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
       axisTicks: { show: false },
       labels: { style: { colors: dark ? colors["gray-400"] : colors["gray-500"], fontSize: "12px" } },
       tooltip: { enabled: false },
+      crosshairs: { stroke: { color: dark ? colors["gray-500"] : colors["gray-300"], dashArray: 4 } },
     },
     yaxis: {
       labels: {
@@ -84,6 +99,8 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
     },
     tooltip: {
       theme: dark ? "dark" : "light",
+      shared: true,
+      intersect: false,
       y: { formatter: (value: number) => money(value) },
     },
   };
@@ -92,10 +109,10 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
   const last = days[days.length - 1];
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white px-5 pb-5 pt-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:pt-6">
+    <section className="rounded-2xl border border-gray-200 bg-white px-5 pb-5 pt-5 shadow-theme-xs transition-colors hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700 sm:px-6 sm:pt-6">
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h3 className="font-semibold text-gray-800 dark:text-white/90">
+          <h3 className="font-semibold tracking-tight text-gray-800 dark:text-white/90">
             {showRevenue ? "Sales & Spending" : "Spending"}
           </h3>
           <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
@@ -106,16 +123,17 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
               : "No data yet"}
           </p>
         </div>
-        <div className="flex shrink-0 rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800">
+        <div className="flex shrink-0 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
           {WINDOWS.map((w) => (
             <button
               key={w.key}
               type="button"
               onClick={() => setWindow(w.key)}
+              aria-pressed={window === w.key}
               className={`rounded-md px-3 py-1.5 text-theme-xs font-medium transition-colors ${
                 window === w.key
                   ? "bg-white text-gray-800 shadow-theme-xs dark:bg-gray-900 dark:text-white/90"
-                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white/90"
               }`}
             >
               {w.label}
@@ -124,15 +142,21 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
         </div>
       </div>
 
+      {/* The legend carries each series' total for the window on screen, so the
+          key earns its space instead of only naming colours. */}
       {chartSeries.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           {chartSeries.map((s) => (
             <span
               key={s.name}
-              className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400"
+              title={`${s.name} — total for the selected period`}
+              className="flex items-center gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-theme-xs text-gray-600 ring-1 ring-gray-200 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-800"
             >
               <span className="size-2.5 rounded-full" style={{ backgroundColor: s.color }} />
               {s.name}
+              <span className="font-semibold tabular-nums text-gray-800 dark:text-white/90">
+                {money(s.data.reduce((sum, v) => sum + v, 0))}
+              </span>
             </span>
           ))}
         </div>
@@ -145,6 +169,7 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
               ? "No sales or expenses recorded in this period."
               : "No expenses recorded in this period."
           }
+          hint="Figures appear here the moment the first one is recorded."
         />
       ) : (
         <div className="custom-scrollbar max-w-full overflow-x-auto">
@@ -160,11 +185,20 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
 export function ChartSkeleton({ height = "h-[310px]" }: { height?: string }) {
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
-      <div className="flex items-center justify-between">
-        <SkeletonBar className="h-4 w-32" />
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <SkeletonBar className="h-4 w-32" />
+          <SkeletonBar className="h-3 w-40" />
+        </div>
         <SkeletonBar className="h-8 w-40 rounded-lg" />
       </div>
-      <SkeletonBar className={`mt-6 w-full rounded-xl ${height}`} />
+      {/* The legend row is part of the loaded card's height; without it here the
+          chart below shifts up the moment the payload lands. */}
+      <div className="mt-5 flex gap-2">
+        <SkeletonBar className="h-7 w-28 rounded-lg" />
+        <SkeletonBar className="h-7 w-28 rounded-lg" />
+      </div>
+      <SkeletonBar className={`mt-4 w-full rounded-xl ${height}`} />
     </section>
   );
 }

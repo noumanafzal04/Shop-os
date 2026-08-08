@@ -1,3 +1,5 @@
+import { iso } from "../reportPeriod";
+
 /**
  * The questions a merchant asks their own books.
  *
@@ -92,8 +94,64 @@ export function activeFilterCount(filters: MoneyFilters): number {
 export function monthRange(date = new Date()): { from: string; to: string } {
   const y = date.getFullYear();
   const m = date.getMonth();
-  const iso = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   return { from: iso(new Date(y, m, 1)), to: iso(new Date(y, m + 1, 0)) };
+}
+
+export type RangePreset = "today" | "week" | "month" | "last_month" | "quarter" | "year";
+
+/**
+ * The ranges people actually ask for.
+ *
+ * Two date boxes can express any window, and typing both of them is still the
+ * wrong way to ask for "last month" — the question every set of books is
+ * closed against. The boxes stay; these are the shortcuts to the six windows
+ * that account for most of the asking.
+ */
+export const DATE_PRESETS: Array<[RangePreset, string]> = [
+  ["today", "Today"],
+  ["week", "This week"],
+  ["month", "This month"],
+  ["last_month", "Last month"],
+  ["quarter", "This quarter"],
+  ["year", "This year"],
+];
+
+/** Weeks start MONDAY, matching the server's Carbon and the reports screen. */
+export function presetRange(key: RangePreset, today = new Date()): { from: string; to: string } {
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const d = today.getDate();
+
+  switch (key) {
+    case "today":
+      return { from: iso(today), to: iso(today) };
+    case "week": {
+      const offset = (today.getDay() + 6) % 7;
+
+      return { from: iso(new Date(y, m, d - offset)), to: iso(new Date(y, m, d - offset + 6)) };
+    }
+    case "last_month":
+      return { from: iso(new Date(y, m - 1, 1)), to: iso(new Date(y, m, 0)) };
+    case "quarter": {
+      const q = Math.floor(m / 3) * 3;
+
+      return { from: iso(new Date(y, q, 1)), to: iso(new Date(y, q + 3, 0)) };
+    }
+    case "year":
+      return { from: iso(new Date(y, 0, 1)), to: iso(new Date(y, 11, 31)) };
+    default:
+      return monthRange(today);
+  }
+}
+
+/** Which preset a from/to pair IS, so the chosen one can read as chosen. */
+export function matchingPreset(filters: MoneyFilters, today = new Date()): RangePreset | null {
+  if (!filters.from || !filters.to) return null;
+
+  return DATE_PRESETS.map(([key]) => key).find((key) => {
+    const r = presetRange(key, today);
+
+    return r.from === filters.from && r.to === filters.to;
+  }) ?? null;
 }

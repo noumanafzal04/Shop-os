@@ -1,10 +1,13 @@
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
+
+import { GroupIcon } from "../../../../icons";
 import type { AdminDashboard } from "../../types";
 import { useChartTokens } from "./chartTokens";
-import { ChartPulse, Panel, PanelEmpty } from "./Panel";
+import { ChartPulse, LegendChip, Panel, PanelEmpty, PanelStat } from "./Panel";
+import { count } from "./format";
 
-const HEIGHT = 300;
+const HEIGHT = 260;
 
 interface Props {
   growth?: AdminDashboard["tenant_growth"];
@@ -20,6 +23,10 @@ export function TenantGrowthPanel({ growth, loading = false }: Props) {
   const rows = growth ?? [];
   const hasSignups = rows.some((m) => m.total > 0);
 
+  const signups = rows.reduce((sum, m) => sum + m.total, 0);
+  const active = rows.reduce((sum, m) => sum + m.active, 0);
+  const suspended = rows.reduce((sum, m) => sum + m.suspended, 0);
+
   const options: ApexOptions = {
     colors: [t.active, t.suspended],
     chart: {
@@ -33,7 +40,7 @@ export function TenantGrowthPanel({ growth, loading = false }: Props) {
     plotOptions: {
       bar: {
         columnWidth: "45%",
-        borderRadius: 4,
+        borderRadius: 5,
         borderRadiusApplication: "end",
         borderRadiusWhenStacked: "last",
       },
@@ -46,6 +53,7 @@ export function TenantGrowthPanel({ growth, loading = false }: Props) {
       strokeDashArray: 3,
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },
+      padding: { left: 8, right: 8 },
     },
     xaxis: {
       categories: rows.map((m) => m.month),
@@ -59,14 +67,9 @@ export function TenantGrowthPanel({ growth, loading = false }: Props) {
         formatter: (v: number) => String(Math.round(v)),
       },
     },
-    legend: {
-      show: true,
-      position: "top",
-      horizontalAlign: "left",
-      fontFamily: t.fontFamily,
-      markers: { size: 6 },
-      labels: { colors: t.muted },
-    },
+    // The key is drawn as chips below, where each series can carry its own
+    // total; apex's built-in legend can only name a colour.
+    legend: { show: false },
     fill: { opacity: 1 },
     tooltip: { theme: t.tooltip, y: { formatter: (v: number) => `${v} tenants` } },
   };
@@ -76,25 +79,48 @@ export function TenantGrowthPanel({ growth, loading = false }: Props) {
       className="h-full"
       title="Tenant Growth"
       subtitle="Sign-ups per month, by status today"
+      icon={<GroupIcon className="size-5" />}
     >
       {loading || !growth ? (
         <ChartPulse height={HEIGHT} />
       ) : !hasSignups ? (
         <PanelEmpty>No sign-ups in the last six months.</PanelEmpty>
       ) : (
-        <div className="max-w-full overflow-x-auto custom-scrollbar">
-          <div className="min-w-[360px]">
-            <Chart
-              options={options}
-              series={[
-                { name: "Active", data: rows.map((m) => m.active) },
-                { name: "Suspended", data: rows.map((m) => m.suspended) },
-              ]}
-              type="bar"
-              height={HEIGHT}
+        <>
+          <PanelStat
+            value={count(signups)}
+            caption={`signed up over the last ${rows.length} ${
+              rows.length === 1 ? "month" : "months"
+            }`}
+          />
+          <div className="mb-4 flex flex-wrap gap-2">
+            <LegendChip
+              color={t.active}
+              label="Active"
+              value={count(active)}
+              title="Of those sign-ups, still trading today"
+            />
+            <LegendChip
+              color={t.suspended}
+              label="Suspended"
+              value={count(suspended)}
+              title="Of those sign-ups, suspended today"
             />
           </div>
-        </div>
+          <div className="max-w-full overflow-x-auto custom-scrollbar">
+            <div className="min-w-[360px]">
+              <Chart
+                options={options}
+                series={[
+                  { name: "Active", data: rows.map((m) => m.active) },
+                  { name: "Suspended", data: rows.map((m) => m.suspended) },
+                ]}
+                type="bar"
+                height={HEIGHT}
+              />
+            </div>
+          </div>
+        </>
       )}
     </Panel>
   );
