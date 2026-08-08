@@ -490,6 +490,19 @@ bug.
   staff member holding `sales.manage` got a 403 from `GET /products`. That staff
   member is a cashier; the test guarded the bug for as long as it existed. When
   a test asserts a refusal, check whose job it refuses.
+- **A write permission must never gate a read**, and **a setting that saves must
+  be read by something.** Both are the same failure: a control that looks like it
+  works. Settings was audited key by key on `2026-08-08` — 48 keys, all validated,
+  three of them inert and now wired.
+- **`items-center` + `overflow-y-auto` on one element hides the top of tall
+  content.** Centre on an inner `min-h-full` wrapper instead. See
+  `docs/decisions/shopos-panel-shared-shells.md`.
+- **For any column a feature READS, find who writes it.** Three columns
+  (`drug_schedule`, `tax_group_id`, `kitchen_station`) were validated, sent by
+  the form and never written, because `CreateProductAction` names its insert
+  columns one by one and `UpdateProductAction` fills wholesale — so they saved on
+  the *second* press of Save. `2026-08-09`, see
+  `docs/decisions/shopos-import-and-dropped-columns.md`.
 - Commit and push only when asked.
 
 ### Gates, run from each app's directory
