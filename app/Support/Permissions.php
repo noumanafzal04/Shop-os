@@ -93,6 +93,66 @@ class Permissions
 
     public const SETTINGS_MANAGE = 'settings.manage';
 
+    // ── Read sets ───────────────────────────────────────────────────
+    //
+    // Every permission above answers "who may CHANGE this?". That is the wrong
+    // question for a read, and asking it anyway is a bug we shipped: GET
+    // /products was gated on PRODUCTS_MANAGE, so a real cashier signed in and
+    // the till showed an empty product grid. The API said 403; the panel drew
+    // nothing; it read as "this shop has no products".
+    //
+    // A read is justified by ANY of the jobs that need to look. These constants
+    // name those groupings so a route says why, and so widening one place
+    // widens every route that shares the reason. Feed them to the permission
+    // middleware, which reads a comma-joined list as ANY-of:
+    //
+    //     ->middleware('permission:'.Permissions::READS_CATALOG)
+    //
+    // Rule of thumb: reads get a set, writes keep a single permission.
+
+    /** What the shop sells. Read by anyone who sells, stocks, buys or fulfils. */
+    public const READS_CATALOG = self::PRODUCTS_MANAGE.','.self::SALES_MANAGE.','
+        .self::INVENTORY_MANAGE.','.self::PURCHASES_MANAGE.','.self::ORDERS_MANAGE;
+
+    /**
+     * The shop's own branch names. Not configuration — a name lookup that the
+     * branch switcher, a stock transfer and a per-branch expense all need.
+     * Creating or deleting a branch stays on SETTINGS_MANAGE.
+     */
+    public const READS_BRANCHES = self::SETTINGS_MANAGE.','.self::SALES_MANAGE.','
+        .self::INVENTORY_MANAGE.','.self::PURCHASES_MANAGE.','.self::ORDERS_MANAGE.','
+        .self::EXPENSES_MANAGE.','.self::REPORTS_VIEW;
+
+    /** Who we buy from. Narrower than the catalog: cost prices live here. */
+    public const READS_SUPPLIERS = self::SUPPLIERS_MANAGE.','.self::PURCHASES_MANAGE.','
+        .self::INVENTORY_MANAGE;
+
+    /**
+     * Purchase orders. Receiving a delivery is stockroom work against a
+     * document the buyer raised, so INVENTORY_MANAGE reads and receives while
+     * raising, placing and cancelling stay with PURCHASES_MANAGE.
+     */
+    public const READS_PURCHASE_ORDERS = self::PURCHASES_MANAGE.','.self::INVENTORY_MANAGE;
+
+    /**
+     * Standing over the tills rather than working one: which lanes exist, how
+     * the drawers counted out, signing off the trading day, and seeing the
+     * expected figure a blind close hides from the person being counted.
+     *
+     * Deliberately NOT settings.manage alone. Half this codebase said "a
+     * manager does X" in a comment and then asked for the owner's own
+     * permission in the line below it — so the Manager preset, holding 16 of
+     * 18 permissions, could not open the shift history it was written to run.
+     * reports.view is the honest marker: a supervisor and a manager hold it, a
+     * cashier never does, and it already means "you may look at how the shop
+     * performed" rather than "you may reconfigure the shop".
+     */
+    public const SUPERVISES_TILLS = self::SETTINGS_MANAGE.','.self::REPORTS_VIEW;
+
+    /** The forecourt plant. Tank and pump names are read when receiving fuel or repricing it. */
+    public const READS_FORECOURT = self::SETTINGS_MANAGE.','.self::PURCHASES_MANAGE.','
+        .self::PRODUCTS_MANAGE.','.self::INVENTORY_MANAGE;
+
     /**
      * @return string[]
      */

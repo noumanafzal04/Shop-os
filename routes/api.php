@@ -77,6 +77,7 @@ use App\Http\Controllers\Api\V1\Tenant\TransferController;
 use App\Http\Controllers\Api\V1\Tenant\VehicleController;
 use App\Http\Controllers\Api\V1\Tenant\WarrantyController;
 use App\Support\ApiResponse;
+use App\Support\Permissions;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -172,8 +173,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // Branches — physical locations under the tenant (multi-branch).
             // Every tenant has a default Main branch; adding more is gated by
             // the branches assigned to this shop.
+            //
+            // READING the list is a name lookup, not configuration. The branch
+            // switcher in the header, a stock transfer's From/To pickers and a
+            // per-branch expense all need it, and none of those people may
+            // create or delete a branch. Gating the read on settings.manage
+            // left every staff member — manager included — with an empty
+            // branch dropdown and a permanently disabled "New transfer".
+            Route::get('branches', [BranchController::class, 'index'])
+                ->middleware('permission:'.Permissions::READS_BRANCHES);
             Route::middleware('permission:settings.manage')->group(function (): void {
-                Route::get('branches', [BranchController::class, 'index']);
                 Route::post('branches', [BranchController::class, 'store']);
                 Route::put('branches/{branch}', [BranchController::class, 'update']);
                 Route::delete('branches/{branch}', [BranchController::class, 'destroy']);
@@ -203,23 +212,55 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // stopped only by the item-type registry handing it no creatable
             // type, which reached the same place through a different door and
             // left the catalog as the one screen guarded unlike every other.
+            //
+            // READS come first, and they carry a wider gate than the writes.
+            // One list of what the shop sells is read by the cashier ringing a
+            // sale, the waiter building a tab, the stock keeper counting a
+            // shelf and the buyer raising an order — four jobs, none of which
+            // may touch a price. Gating the read on products.manage is what put
+            // an empty product grid in front of a real cashier: 403 from the
+            // API, an empty list in the panel, indistinguishable from a shop
+            // with no stock. Declared before the apiResource lines so route
+            // order cannot recapture them, and the resources below are narrowed
+            // with ->except(['index', 'show']) so there is exactly one gate per
+            // verb.
+            // Literal product paths first, or /products/{product} below would
+            // swallow them and try to look up a product called "export". The
+            // read group has to sit above the write group, which is where these
+            // used to be protected by ordering alone.
+            Route::middleware(['feature:products,services', 'permission:products.manage'])
+                ->group(function (): void {
+                    Route::get('products/import/template', [ProductController::class, 'importTemplate']);
+                    Route::get('products/export', [ProductController::class, 'export']);
+                    Route::post('products/import', [ProductController::class, 'import']);
+                });
+
+            Route::middleware(['feature:products,services', 'permission:'.Permissions::READS_CATALOG])
+                ->group(function (): void {
+                    Route::get('categories', [CategoryController::class, 'index']);
+                    Route::get('categories/{category}', [CategoryController::class, 'show']);
+                    Route::get('products', [ProductController::class, 'index']);
+                    Route::get('products/{product}', [ProductController::class, 'show']);
+                    // The POS serial picker: selling a phone means choosing
+                    // which IMEI leaves the shop.
+                    Route::get('products/{product}/serials', [ProductController::class, 'serials']);
+                    // "Check other branches" — asked at the counter, not in the
+                    // catalog screen.
+                    Route::get('products/{product}/branch-stock', [ProductController::class, 'branchStock']);
+                });
+
             Route::middleware(['feature:products,services', 'permission:products.manage'])->group(function (): void {
                 Route::post('categories/reorder', [CategoryController::class, 'reorder']);
-                Route::apiResource('categories', CategoryController::class);
-                // Bulk CSV import (before the resource so /products/import isn't
-                // captured by /products/{product}).
-                Route::get('products/import/template', [ProductController::class, 'importTemplate']);
-                Route::get('products/export', [ProductController::class, 'export']);
-                Route::post('products/import', [ProductController::class, 'import']);
-                Route::apiResource('products', ProductController::class);
+                Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
+                // import / export / import-template are registered above the
+                // read group, for route ordering.
+                Route::apiResource('products', ProductController::class)->except(['index', 'show']);
                 // Product images — multipart upload / delete
                 Route::post('products/{product}/images', [ProductImageController::class, 'store']);
                 Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy']);
                 Route::post('products/{product}/barcode', [ProductController::class, 'generateBarcode']);
-                // Cross-branch availability ("check other branches").
-                Route::get('products/{product}/branch-stock', [ProductController::class, 'branchStock']);
-                // Serial units on record (POS serial picker: in-stock by default).
-                Route::get('products/{product}/serials', [ProductController::class, 'serials']);
+                // branch-stock and serials are reads — they live in the read
+                // group above, because the counter asks both questions.
                 // Per-branch price overrides (effective = override ?? base).
                 Route::get('products/{product}/branch-prices', [ProductController::class, 'branchPrices']);
                 Route::put('products/{product}/branch-prices', [ProductController::class, 'setBranchPrices']);
@@ -262,9 +303,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('vehicles-quick', [VehicleController::class, 'store']);
             });
 
-            // Coupons — discount codes for POS + checkout
+            // Coupons — discount codes for POS + checkout.
+            //
+            // Checking the code a customer just handed over is a till read, not
+            // marketing: the cashier has the coupon in their hand and needs to
+            // know if it is good. Requiring coupons.manage meant the only
+            // people who could accept a coupon were the people allowed to
+            // invent one. Same split, and the same reason, as the promotions
+            // preview immediately below.
+            Route::post('coupons/validate', [CouponController::class, 'validateCode'])
+                ->middleware('permission:sales.manage');
             Route::middleware('permission:coupons.manage')->group(function (): void {
-                Route::post('coupons/validate', [CouponController::class, 'validateCode']);
                 Route::apiResource('coupons', CouponController::class);
             });
 
@@ -279,18 +328,37 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             // Suppliers — vendor directory + payables. Part of the stock chain,
             // so it rides the inventory module.
-            Route::middleware(['feature:inventory', 'permission:suppliers.manage'])->group(function (): void {
-                Route::apiResource('suppliers', SupplierController::class);
+            Route::middleware('feature:inventory')->group(function (): void {
+                // Naming who a delivery came from is stockroom work; editing the
+                // vendor directory and its payables is not.
+                Route::get('suppliers', [SupplierController::class, 'index'])
+                    ->middleware('permission:'.Permissions::READS_SUPPLIERS);
+                Route::get('suppliers/{supplier}', [SupplierController::class, 'show'])
+                    ->middleware('permission:'.Permissions::READS_SUPPLIERS);
+                Route::middleware('permission:suppliers.manage')->group(function (): void {
+                    Route::apiResource('suppliers', SupplierController::class)->except(['index', 'show']);
+                });
             });
 
             // Purchases: Supplier → PO → Receive → Inventory
-            Route::middleware(['feature:inventory', 'permission:purchases.manage'])->group(function (): void {
-                Route::apiResource('purchase-orders', PurchaseOrderController::class)
-                    ->only(['index', 'store', 'show']);
-                Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
-                Route::post('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive']);
-                Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
-                Route::post('suppliers/{supplier}/payments', [SupplierPaymentController::class, 'store']);
+            //
+            // Raising, placing and cancelling an order is buying. RECEIVING one
+            // is stockroom work — the goods are on the loading bay and the
+            // person checking them off is the stock keeper, who is deliberately
+            // not a buyer. Reading the order they are receiving against comes
+            // with it, or the job is impossible.
+            Route::middleware('feature:inventory')->group(function (): void {
+                Route::middleware('permission:'.Permissions::READS_PURCHASE_ORDERS)->group(function (): void {
+                    Route::get('purchase-orders', [PurchaseOrderController::class, 'index']);
+                    Route::get('purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'show']);
+                    Route::post('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive']);
+                });
+                Route::middleware('permission:purchases.manage')->group(function (): void {
+                    Route::post('purchase-orders', [PurchaseOrderController::class, 'store']);
+                    Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
+                    Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
+                    Route::post('suppliers/{supplier}/payments', [SupplierPaymentController::class, 'store']);
+                });
             });
 
             // POS terminal: scan, shifts, held sales (checkout goes through /sales).
@@ -350,8 +418,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/deposits', [BusinessDayController::class, 'deposits']);
                 Route::post('/deposits', [BusinessDayController::class, 'storeDeposit']);
 
+                // Reading how the drawers counted out is supervision, not
+                // configuration — a manager holds 16 of 18 permissions and
+                // still could not open the shift history. Force-closing
+                // somebody else's drawer stays with the owner.
+                Route::get('/sessions', [PosController::class, 'sessions'])
+                    ->middleware('permission:'.Permissions::SUPERVISES_TILLS);
                 Route::middleware('permission:settings.manage')->group(function (): void {
-                    Route::get('/sessions', [PosController::class, 'sessions']);
                     Route::post('/registers/{register}/close', [PosController::class, 'forceCloseSession']);
                 });
             });
@@ -359,8 +432,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // Registers (checkout lanes / tills) — configuration, so the same
             // permission as branches and hardware. Gated by the POS module: an
             // online-only shop has no lanes.
+            Route::middleware('feature:pos')->group(function (): void {
+                // Which lanes exist is a supervisory read — it is the header of
+                // every shift report. Creating and retiring them is setup.
+                Route::get('registers', [PosRegisterController::class, 'index'])
+                    ->middleware('permission:'.Permissions::SUPERVISES_TILLS);
+            });
             Route::middleware(['feature:pos', 'permission:settings.manage'])->group(function (): void {
-                Route::get('registers', [PosRegisterController::class, 'index']);
                 Route::post('registers', [PosRegisterController::class, 'store']);
                 Route::put('registers/{register}', [PosRegisterController::class, 'update']);
                 Route::delete('registers/{register}', [PosRegisterController::class, 'destroy']);
@@ -438,9 +516,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // At the counter: the brand is out, what else has the same salt?
                 Route::get('alternatives', [PharmacyController::class, 'alternatives'])
                     ->middleware('permission:sales.manage');
-                // The register a regulator asks to see.
+                // The register a regulator asks to see. reports.view is the
+                // whole reporting surface — takings, margins, staff. A
+                // dispenser needs their own paperwork, not the shop's P&L, so
+                // the permission that already covers batches and stock reads it
+                // too.
                 Route::get('dispensing', [PharmacyController::class, 'dispensing'])
-                    ->middleware('permission:reports.view');
+                    ->middleware('permission:reports.view,inventory.manage');
                 // A withdrawal notice names a lot; this finds who took it home.
                 Route::get('recall', [PharmacyController::class, 'recall'])
                     ->middleware('permission:inventory.manage');
@@ -656,15 +738,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // meter and dips every tank, and the tankers that fill them.
             // Gated by the `fuel` module (defaults on for petroleum only).
             Route::prefix('fuel')->middleware('feature:fuel')->group(function (): void {
-                // The plant. Set up once, so it sits with the other
-                // configuration behind settings.manage.
-                Route::middleware('permission:settings.manage')->group(function (): void {
+                // The plant. Building it is configuration; reading WHICH tanks
+                // and pumps exist is not — receiving a tanker names a tank, and
+                // repricing names a nozzle. The buyer who books the delivery
+                // may not create tanks, and should not have to.
+                Route::middleware('permission:'.Permissions::READS_FORECOURT)->group(function (): void {
                     Route::get('tanks', [FuelSetupController::class, 'tanks']);
+                    Route::get('pumps', [FuelSetupController::class, 'pumps']);
+                });
+                Route::middleware('permission:settings.manage')->group(function (): void {
                     Route::post('tanks', [FuelSetupController::class, 'storeTank']);
                     Route::put('tanks/{tank}', [FuelSetupController::class, 'updateTank']);
                     Route::delete('tanks/{tank}', [FuelSetupController::class, 'destroyTank']);
 
-                    Route::get('pumps', [FuelSetupController::class, 'pumps']);
                     Route::post('pumps', [FuelSetupController::class, 'storePump']);
                     Route::put('pumps/{pump}', [FuelSetupController::class, 'updatePump']);
                     Route::delete('pumps/{pump}', [FuelSetupController::class, 'destroyPump']);

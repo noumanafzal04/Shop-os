@@ -109,6 +109,30 @@ class User extends Authenticatable
         };
     }
 
+    /**
+     * Holds ANY one of these — the shape a READ needs.
+     *
+     * One list of products is read by the cashier ringing a sale, the waiter
+     * building a tab, the stock keeper counting a shelf and the buyer raising
+     * an order. Asking "may you edit the catalog?" to answer "may you look at
+     * it?" is what put an empty grid in front of a real cashier. See
+     * Permissions::READS_* for the named sets.
+     */
+    public function hasAnyPermission(string ...$permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            // A set constant arrives as one comma-joined argument when it is
+            // interpolated into a route's middleware string.
+            foreach (explode(',', $permission) as $one) {
+                if ($this->hasPermission(trim($one))) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     // ── Till PIN ────────────────────────────────────────────────────
     // A counter credential, not a login. See the add_till_pins migration for
     // why a four-digit secret is safe in this one place and nowhere else.

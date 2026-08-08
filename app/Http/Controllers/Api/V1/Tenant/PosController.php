@@ -276,7 +276,7 @@ class PosController extends Controller
         }
 
         if ($cover === null && $request->filled('session_id')) {
-            abort_unless($user->hasPermission(Permissions::SETTINGS_MANAGE), 403);
+            abort_unless($user->hasAnyPermission(Permissions::SUPERVISES_TILLS), 403);
             $cover = CashSession::query()->findOrFail($request->input('session_id'))->activeCover();
         }
 
@@ -496,7 +496,7 @@ class PosController extends Controller
         // one number they are about to be measured against. Take that away
         // too and the X-read stops being useful for its real job: tracing a
         // variance back to the transaction that caused it.
-        if ($blind && ! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if ($blind && ! $request->user()->hasAnyPermission(Permissions::SUPERVISES_TILLS)) {
             unset($drawer['expected_cash'], $drawer['cash_sales']);
         }
 
@@ -766,7 +766,7 @@ class PosController extends Controller
     {
         $blind = (bool) $this->context->get()?->setting('pos_blind_close', false);
 
-        if (! $blind || $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $blind || $request->user()->hasAnyPermission(Permissions::SUPERVISES_TILLS)) {
             return $session;
         }
 

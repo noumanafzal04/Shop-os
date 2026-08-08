@@ -309,14 +309,32 @@ class CatalogTest extends TestCase
         $this->assertSoftDeleted('products', ['id' => $product->id]);
     }
 
-    public function test_staff_without_products_permission_blocked(): void
+    /**
+     * This test used to assert that a staff member holding sales.manage got a
+     * 403 from GET /products — which is to say it wrote the bug down and
+     * guarded it. That staff member is a cashier, and the shop found out the
+     * hard way: signed in at the till, empty product grid, no error.
+     *
+     * Reading the catalog is now open to anyone who sells, stocks, buys or
+     * fulfils. Changing it is still products.manage, which is the half of this
+     * test that was always right.
+     */
+    public function test_staff_who_sell_may_read_the_catalog_but_never_change_it(): void
     {
         $staff = User::factory()->tenantStaff($this->tenant, [Permissions::SALES_MANAGE])->create();
 
-        $this->actingAsUser($staff)->getJson('/api/v1/products')->assertStatus(403);
+        $this->actingAsUser($staff)->getJson('/api/v1/products')->assertOk();
         $this->actingAsUser($staff)->postJson('/api/v1/products', [
             'type' => 'product', 'name' => 'X', 'price' => 1,
         ])->assertStatus(403);
+    }
+
+    /** Someone with no operational permission at all still reads nothing. */
+    public function test_staff_with_no_operational_permission_cannot_read_the_catalog(): void
+    {
+        $staff = User::factory()->tenantStaff($this->tenant, [Permissions::EXPENSES_MANAGE])->create();
+
+        $this->actingAsUser($staff)->getJson('/api/v1/products')->assertStatus(403);
     }
 
     public function test_low_stock_filter(): void

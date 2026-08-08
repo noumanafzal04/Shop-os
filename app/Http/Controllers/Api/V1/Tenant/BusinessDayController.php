@@ -139,7 +139,11 @@ class BusinessDayController extends Controller
      */
     public function close(Request $request, string $id, CloseBusinessDayAction $action): JsonResponse
     {
-        abort_unless($request->user()->hasPermission(Permissions::SETTINGS_MANAGE), 403);
+        // The docblock above says manager-only and this line said owner-only:
+        // SETTINGS_MANAGE is the permission to reconfigure the shop, and the
+        // Manager preset deliberately withholds it. So the person hired to
+        // close the shop could not close the day.
+        abort_unless($request->user()->hasAnyPermission(Permissions::SUPERVISES_TILLS), 403);
 
         $data = $request->validate(['notes' => ['nullable', 'string', 'max:1000']]);
 
@@ -176,7 +180,10 @@ class BusinessDayController extends Controller
      */
     public function storeDeposit(Request $request): JsonResponse
     {
-        abort_unless($request->user()->hasPermission(Permissions::SETTINGS_MANAGE), 403);
+        // Walking the takings to the bank is money handling, which the shop
+        // already has a permission for. A till operator still cannot invent a
+        // deposit: no selling preset holds expenses.manage.
+        abort_unless($request->user()->hasPermission(Permissions::EXPENSES_MANAGE), 403);
 
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0', 'max:99999999'],

@@ -39,7 +39,11 @@ class GlobalSearchService
 
         $groups = [];
 
-        if ($user->hasPermission(Permissions::PRODUCTS_MANAGE)) {
+        // Each group asks whether this person may READ that thing, not whether
+        // they may edit it. Asking the write question here quietly deleted the
+        // Products section from the search box for every cashier and waiter in
+        // the shop — the search still worked, it just never found a product.
+        if ($user->hasAnyPermission(Permissions::READS_CATALOG)) {
             $groups[] = $this->group('product', 'Products', $this->products($q));
         }
 
@@ -56,7 +60,7 @@ class GlobalSearchService
             $groups[] = $this->group('order', 'Orders', $this->orders($q));
         }
 
-        if ($user->hasPermission(Permissions::SUPPLIERS_MANAGE)) {
+        if ($user->hasAnyPermission(Permissions::READS_SUPPLIERS)) {
             $groups[] = $this->group('supplier', 'Suppliers', $this->suppliers($q));
         }
 
