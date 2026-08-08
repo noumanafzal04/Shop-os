@@ -100,7 +100,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1329 tests / 5645 assertions green. Panel 121 tests green.** Gates all
+**Backend 1356 tests / 5712 assertions green. Panel 122 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint`.
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
@@ -124,6 +124,14 @@ source of bugs here:
 A business type *proposes* modules; the admin *assigns* them. Anything that
 reads the type where it should read the module map will lock a tenant out of a
 module they were granted.
+
+On the PERSON axis there is a second rule, paid for on 2026-08-08 when a real
+cashier found an empty product grid at the till: **a `*.manage` permission
+answers "may you change this?", which is the wrong question to ask about a
+read.** Reads take a set (`Permissions::READS_*`, ANY-of); writes keep a single
+permission. See `docs/decisions/shopos-read-vs-manage.md` — and note the bug
+class hides in three places, only one of which a route-map audit can see: route
+middleware, controller `abort_unless`, and service-layer filtering.
 
 ---
 
@@ -474,6 +482,14 @@ bug.
 - **`resolution === null` is the open state** for warranty claims, and
   `ended_at === null` for covers — no status column that can disagree with the
   field beside it.
+- **Reads take a permission set, writes take one permission.** A read is
+  justified by any of the jobs that need to look; a write has one answer. The
+  panel must say "you do not have access" rather than render an empty list —
+  `deniedReason()` + `<NoAccess>`. `2026-08-08`.
+- **A test may not encode a bug as an assertion.** `CatalogTest` asserted that a
+  staff member holding `sales.manage` got a 403 from `GET /products`. That staff
+  member is a cashier; the test guarded the bug for as long as it existed. When
+  a test asserts a refusal, check whose job it refuses.
 - Commit and push only when asked.
 
 ### Gates, run from each app's directory

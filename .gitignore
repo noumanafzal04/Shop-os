@@ -4,6 +4,9 @@
 /shopos-admin-and-user-panel/
 /shopos-mobile/
 
+# A stray npm install at the repo root leaves this behind; main carries docs only.
+node_modules/
+
 # OS / editor / tooling junk
 .DS_Store
 .idea/
