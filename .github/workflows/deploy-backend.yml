@@ -1,27 +1,82 @@
-name: Deploy Backend
+name: Backend — gate, then deploy
+
+# The deploy steps below are unchanged from what is being run by hand on the
+# server; what was missing is everything above them. A push to `backend` ran
+# `migrate --force` against the droplet's database with nothing having run the
+# test suite first — and a migration is the one step no rollback undoes.
 
 on:
   push:
-    branches:
-      - backend
+    branches: [backend]
+  workflow_dispatch:
+
+concurrency:
+  group: backend-deploy
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  gate:
+    name: Test suite
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to droplet
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4' # matches the droplet
+          extensions: mbstring, pdo_sqlite, sqlite3, bcmath, intl, gd, zip
+          coverage: none
+
+      - name: Cache composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: App key
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Tests
+        # phpunit.xml pins sqlite :memory:, so no database service is needed.
+        run: php artisan test
+
+  deploy:
+    name: Deploy to droplet
+    needs: gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull, migrate, cache, restart
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stops: true
           script: |
+            set -euo pipefail
+
             cd /var/www/shopos-api
-            git pull origin backend
-            composer install --no-dev --optimize-autoloader
+
+            # Same untracked-workflow collision as the panel: the server has a
+            # hand-written copy at the path the repo tracks, which aborts `git
+            # pull`. The reset restores the tracked version. `.env` is untracked
+            # and survives.
+            rm -rf .github
+
+            git fetch origin backend
+            git reset --hard origin/backend
+
+            composer install --no-dev --optimize-autoloader --no-interaction
+
             php artisan migrate --force
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
+
             chown -R www-data:www-data storage bootstrap/cache
             supervisorctl restart shopos-worker
