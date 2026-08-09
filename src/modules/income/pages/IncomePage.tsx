@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -61,7 +61,11 @@ export default function IncomePage() {
   const totals = (incomes.data?.meta as { totals?: MoneyTotals } | undefined)?.totals;
   const categoryMutations = useIncomeCategoryMutations();
   const categories = useIncomeCategories();
-  const { create, update, remove } = useIncomeMutations();
+  const { create, update, remove, attach, detach } = useIncomeMutations();
+
+  // One hidden input for the whole table — `attachTo` remembers which row asked.
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [attachTo, setAttachTo] = useState<string | null>(null);
 
   const modal = useModal();
   const [editing, setEditing] = useState<Income | null>(null);
@@ -148,9 +152,29 @@ export default function IncomePage() {
     });
   };
 
+  const onFilePicked = (file: File | undefined) => {
+    if (!file || !attachTo) return;
+    attach.mutate(
+      { id: attachTo, file },
+      {
+        onSuccess: () => toast.success("Receipt attached"),
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Upload failed"),
+      },
+    );
+    setAttachTo(null);
+  };
+
   return (
     <>
       <PageMeta title="Income | ShopOS" description="Other income (non-sales)" />
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={(e) => { onFilePicked(e.target.files?.[0]); e.currentTarget.value = ""; }}
+      />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -219,6 +243,7 @@ export default function IncomePage() {
                 <th className="px-6 py-3 font-medium">Category</th>
                 <th className="px-6 py-3 font-medium">Received</th>
                 <th className="px-6 py-3 font-medium text-right">Amount</th>
+                <th className="px-6 py-3 font-medium text-right">Receipt</th>
                 <th className="px-6 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -226,14 +251,14 @@ export default function IncomePage() {
               {incomes.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={6} className="px-6 py-4">
+                    <td colSpan={7} className="px-6 py-4">
                       <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
                     </td>
                   </tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {activeFilterCount(filters) > 0 ? "No income matches these filters." : "No income recorded yet."}
                   </td>
                 </tr>
@@ -257,6 +282,35 @@ export default function IncomePage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right text-success-600 dark:text-success-500">{money(e.amount)}</td>
+                    <td className="px-6 py-4 text-right">
+                      {e.attachment_url ? (
+                        <span className="inline-flex items-center gap-2">
+                          <a
+                            href={e.attachment_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-theme-xs text-brand-600 hover:underline dark:text-brand-400"
+                          >
+                            View
+                          </a>
+                          <button
+                            className="text-theme-xs text-gray-400 hover:text-error-500"
+                            aria-label={`Remove the receipt on ${e.description}`}
+                            onClick={() => detach.mutate(e.id)}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          className="text-theme-xs text-gray-400 hover:text-brand-600"
+                          aria-label={`Attach a receipt to ${e.description}`}
+                          onClick={() => { setAttachTo(e.id); fileRef.current?.click(); }}
+                        >
+                          Attach
+                        </button>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-3">
                         <button className="text-brand-500 hover:text-brand-600" onClick={() => openEdit(e)}>Edit</button>

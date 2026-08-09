@@ -24,6 +24,16 @@ export interface Income {
   cash_movement_id: string | null;
   income_date: string;
   notes: string | null;
+  attachment_path: string | null;
+  /**
+   * Ready-to-open URL for the proof this money came in, resolved server-side.
+   *
+   * Expenses have carried a receipt since the module shipped; income had the
+   * column and nothing that wrote it. The side of the book an owner is most
+   * likely to challenge — "what was this Rs 80,000?" — was the side with no
+   * paper behind it.
+   */
+  attachment_url: string | null;
   category?: { id: string; name: string } | null;
   created_at: string;
 }
@@ -81,6 +91,15 @@ export const incomeService = {
   create: (payload: IncomeInput) => apiPost<Income>("/incomes", payload),
   update: (id: string, payload: IncomeInput) => apiPut<Income>(`/incomes/${id}`, payload),
   remove: (id: string) => apiDelete<null>(`/incomes/${id}`),
+
+  attach: (id: string, file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return apiPost<Income>(`/incomes/${id}/attachment`, body, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+  detach: (id: string) => apiDelete<Income>(`/incomes/${id}/attachment`),
 
   cashbook: (params: { period: string; from?: string; to?: string }) =>
     apiGet<Cashbook>("/cashbook", { params }),

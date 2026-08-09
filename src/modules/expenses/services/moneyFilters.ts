@@ -21,6 +21,12 @@ export interface MoneyFilters {
   dir?: "asc" | "desc";
   page?: number;
   per_page?: number;
+  /**
+   * Expenses only. A month of books is far easier to check when the standing
+   * costs can be set aside from the ones somebody actually decided on. Income
+   * has no schedules, so its screen never offers this and the server ignores it.
+   */
+  source?: "recurring" | "manual";
 }
 
 /** What a filtered set comes to — the answer, when the filter WAS the question. */
@@ -73,6 +79,7 @@ export function toParams(filters: MoneyFilters): Record<string, string | number>
   if (filters.dir) params.dir = filters.dir;
   if (filters.page) params.page = filters.page;
   if (filters.per_page) params.per_page = filters.per_page;
+  if (filters.source) params.source = filters.source;
 
   return params;
 }
@@ -87,6 +94,7 @@ export function activeFilterCount(filters: MoneyFilters): number {
     filters.to,
     filters.min_amount?.trim(),
     filters.max_amount?.trim(),
+    filters.source,
   ].filter(Boolean).length;
 }
 

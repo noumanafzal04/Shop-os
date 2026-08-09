@@ -42,6 +42,12 @@ interface Props {
    * no control rather than a control that quietly does nothing.
    */
   sorts?: Array<{ value: SortKey; label: string }>;
+  /**
+   * Same rule as `sorts`: offered only where the server can honour it. Expenses
+   * can be told apart by whether a schedule posted them; income has no
+   * schedules, so its bar passes nothing and shows no control.
+   */
+  showSource?: boolean;
 }
 
 /**
@@ -79,6 +85,7 @@ export function MoneyFilterBar({
   action,
   searchPlaceholder = "Search description, bill number or note…",
   sorts,
+  showSource = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const active = activeFilterCount(filters);
@@ -137,6 +144,13 @@ export function MoneyFilterBar({
   }
   if (filters.max_amount?.trim()) {
     chips.push({ key: "max", label: `≤ ${money(filters.max_amount)}`, clear: () => set({ max_amount: "" }) });
+  }
+  if (filters.source) {
+    chips.push({
+      key: "source",
+      label: filters.source === "recurring" ? "From a schedule" : "Entered by hand",
+      clear: () => set({ source: undefined }),
+    });
   }
 
   return (
@@ -385,6 +399,42 @@ export function MoneyFilterBar({
               “Anything big” is the question behind most reviews of a cash book.
             </p>
           </div>
+
+          {showSource && (
+            <div>
+              <Label>Where it came from</Label>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ["recurring", "From a schedule"],
+                  ["manual", "Entered by hand"],
+                ] as const).map(([value, label]) => {
+                  const on = filters.source === value;
+
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={on}
+                      // Pressing the one already on clears it — the third state
+                      // is "both", and it needs no button of its own.
+                      onClick={() => set({ source: on ? undefined : value })}
+                      className={`rounded-full border px-3 py-1.5 text-theme-xs font-medium transition-colors ${
+                        on
+                          ? "border-brand-500 bg-brand-500 text-white"
+                          : "border-gray-300 text-gray-600 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-theme-xs text-gray-400">
+                Rent and salaries post themselves from a schedule. Setting them aside leaves the
+                spending someone actually decided on.
+              </p>
+            </div>
+          )}
 
           {sorts && sorts.length > 0 && (
             <div>

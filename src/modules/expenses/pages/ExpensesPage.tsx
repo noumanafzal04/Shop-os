@@ -27,7 +27,9 @@ import { PAYMENT_METHODS, type BudgetRow, type Expense, type RecurringExpense } 
 import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../services/moneyFilters";
 import { MoneyFilterBar } from "../components/MoneyFilterBar";
 import { CategoryManager } from "../components/CategoryManager";
-import { downloadFile } from "../../../common/api/download";
+import { downloadCsv, downloadFile } from "../../../common/api/download";
+import { useAuthStore } from "../../../stores/authStore";
+import { useSuppliers } from "../../purchases/hooks/usePurchases";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -196,9 +198,24 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
   const [editing, setEditing] = useState<Expense | null>(null);
   const [form, setForm] = useState({
     category: "", description: "", reference: "", amount: "",
-    method: "cash", date: today(), notes: "",
+    method: "cash", date: today(), notes: "", supplier: "",
   });
   const [warnings, setWarnings] = useState<string[]>([]);
+
+  // Who was paid. Two gates, not one: a shop without the inventory module has
+  // no supplier directory at all, and reading one is narrower than filing a
+  // bill because cost prices live there. A plain dropdown would 403 for a
+  // book-keeper who can record expenses all day and must not see what the shop
+  // pays its vendors.
+  const canSeeSuppliers = useAuthStore((s) =>
+    ["suppliers.manage", "purchases.manage", "inventory.manage"].some((p) => s.hasPermission(p)),
+  );
+  const stocksGoods = !!useAuthStore((s) => s.user?.tenant?.features?.inventory);
+  const suppliersOffered = stocksGoods && canSeeSuppliers;
+  const suppliers = useSuppliers({ is_active: true }, { enabled: suppliersOffered });
+  const supplierOptions = suppliersOffered
+    ? [{ value: "", label: "Nobody in particular" }, ...(suppliers.data?.data ?? []).map((s) => ({ value: s.id, label: s.name }))]
+    : [];
 
   // One hidden picker, retargeted per row — a file input per expense would put
   // dozens of them in the DOM for no gain.
@@ -230,7 +247,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ category: "", description: "", reference: "", amount: "", method: "cash", date: today(), notes: "" });
+    setForm({ category: "", description: "", reference: "", amount: "", method: "cash", date: today(), notes: "", supplier: "" });
     setWarnings([]);
     create.reset();
     update.reset();
@@ -247,6 +264,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
       method: expense.payment_method,
       date: expense.expense_date.slice(0, 10),
       notes: expense.notes ?? "",
+      supplier: expense.supplier_id ?? "",
     });
     setWarnings([]);
     create.reset();
@@ -264,6 +282,9 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
       payment_method: form.method,
       expense_date: form.date,
       notes: form.notes.trim() || undefined,
+      // Null, not undefined, so clearing the picker actually unsets it — an
+      // omitted key leaves the old supplier in place on an update.
+      ...(suppliersOffered ? { supplier_id: form.supplier || null } : {}),
     };
     const onSuccess = (response: { meta?: unknown }) => {
       const w = (response.meta as { warnings?: string[] } | undefined)?.warnings ?? [];
@@ -327,6 +348,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
         totals={totals}
         money={money}
         sorts={SORTS}
+        showSource
         action={
           <div className="flex items-center gap-2">
             <button
@@ -377,6 +399,17 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                           been on the row and on the CSV, and never on screen. */}
                       {e.supplier?.name && (
                         <span className="ml-2 text-theme-xs font-normal text-gray-400">· {e.supplier.name}</span>
+                      )}
+                      {/* Posted from a schedule rather than decided on. Without
+                          it, two rent rows in one month look like a mistake
+                          somebody has to go and investigate. */}
+                      {e.recurring_expense && (
+                        <span
+                          title={`Posted from the ${e.recurring_expense.frequency} “${e.recurring_expense.description}” schedule`}
+                          className="ml-2 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-white/10 dark:text-gray-400"
+                        >
+                          scheduled
+                        </span>
                       )}
                     </td>
                     <td className="px-5 py-3.5">{e.category?.name ?? "—"}</td>
@@ -512,6 +545,27 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                 <Input value={form.reference} onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))} />
               </div>
             </div>
+            {/* Only for shops that keep a vendor directory, and only for people
+                allowed to read it. Absent rather than disabled: a control you
+                cannot use is a question about your own permissions. */}
+            {suppliersOffered && (
+              <div>
+                <Label>Paid to</Label>
+                <Select
+                  options={supplierOptions}
+                  value={form.supplier}
+                  onChange={(v) => setForm((f) => ({ ...f, supplier: v }))}
+                />
+                <p className="mt-1 text-theme-xs text-gray-400">
+                  {suppliers.data?.data?.length
+                    ? "Links this bill to a supplier, so what you've paid them adds up."
+                    : "No suppliers on file yet — add one under Suppliers."}
+                </p>
+                {errorFor("supplier_id") && (
+                  <p className="mt-1 text-theme-xs text-error-500">{errorFor("supplier_id")}</p>
+                )}
+              </div>
+            )}
             {/* The note has always been stored, exported and SEARCHED — the
                 filter bar reaches into it — and there was no box to type it
                 in, so it was empty on every row ever filed. */}
@@ -1006,6 +1060,27 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            disabled={shown.length === 0}
+            onClick={() => downloadCsv(
+              `budgets-${month}.csv`,
+              ["Category", "Status", "Budget", "Spent", "Remaining", "Over"],
+              // What is on screen, filters and all — an export that quietly
+              // widens the view is a different report with the same name.
+              shown.map((r) => [
+                r.category,
+                r.is_retired ? "Closed" : r.is_override ? `${shortMonth(month)} only` : "Every month",
+                r.budget ?? "",
+                r.spent,
+                r.remaining ?? "",
+                r.over ? "yes" : "no",
+              ]),
+            )}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-theme-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            Export
+          </button>
+          <button
+            type="button"
             onClick={() => setMonth((m) => shiftMonth(m, -1))}
             aria-label="Previous month"
             className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-theme-sm text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
@@ -1106,6 +1181,14 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
                     <tr key={row.expense_category_id} className="text-theme-sm text-gray-700 dark:text-gray-300">
                       <td className="px-5 py-3.5">
                         <span className="font-medium text-gray-800 dark:text-white/90">{row.category}</span>
+                        {row.is_retired && (
+                          <span
+                            title="This category is switched off. It still shows because money was filed under it."
+                            className="ml-2 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-white/10 dark:text-gray-400"
+                          >
+                            closed
+                          </span>
+                        )}
                         {row.is_override && (
                           <p className="mt-0.5 text-theme-xs text-gray-400">
                             {shortMonth(month)} only
@@ -1134,6 +1217,15 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
                       </td>
                       <td className="px-5 py-3.5 text-right tabular-nums">{money(row.spent)}</td>
                       <td className="px-5 py-3.5">
+                        {row.is_retired ? (
+                          // No box: setting next month's ceiling on a category
+                          // nothing can be filed under is a promise the shop
+                          // cannot keep. The row is here to account for money
+                          // already spent, not to plan more.
+                          <p className="text-right text-theme-xs text-gray-400">
+                            Closed — turn it back on to budget it
+                          </p>
+                        ) : (
                         <div className="flex items-center justify-end gap-2">
                           <input
                             className="h-9 w-28 rounded-lg border border-gray-200 bg-white px-2 text-right text-sm tabular-nums text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
@@ -1162,6 +1254,7 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
                             {scope === "standing" ? "Every month" : `${shortMonth(month)} only`}
                           </button>
                         </div>
+                        )}
                       </td>
                     </tr>
                   );

@@ -50,6 +50,13 @@ export interface Expense {
   recurring_expense_id: string | null;
   category?: { id: string; name: string } | null;
   supplier?: { id: string; name: string } | null;
+  /**
+   * The schedule that posted this, when it wasn't typed by hand. The id has
+   * been on the row since recurring expenses shipped and nothing read it, so
+   * "is this second rent entry a duplicate or the standing one?" was a question
+   * the books could not answer about their own rows.
+   */
+  recurring_expense?: { id: string; description: string; frequency: string } | null;
   created_at: string;
 }
 
@@ -78,6 +85,16 @@ export interface BudgetRow {
   standing: number | null;
   /** True when a month-specific row is overriding the standing one. */
   is_override: boolean;
+  /**
+   * Closed, but still carrying money this month.
+   *
+   * Retiring a category does not unspend what went through it. The page used to
+   * list live categories while summing spend across all of them, so closing one
+   * mid-month made real expenditure vanish — no row, no total, nothing to click.
+   * It keeps its row for as long as it has money against it, marked rather than
+   * offered as somewhere to budget.
+   */
+  is_retired: boolean;
   spent: number;
   remaining: number | null;
   over: boolean;

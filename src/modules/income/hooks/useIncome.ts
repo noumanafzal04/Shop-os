@@ -90,7 +90,20 @@ export function useIncomeMutations() {
     onSuccess: invalidate,
   });
 
-  return { create, update, remove };
+  // Attaching paper moves no money, so this deliberately refreshes the same
+  // keys as the rest: the row has to redraw with its new link, and nothing
+  // else about the books has changed.
+  const attach = useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => incomeService.attach(id, file),
+    onSuccess: invalidate,
+  });
+
+  const detach = useMutation({
+    mutationFn: (id: string) => incomeService.detach(id),
+    onSuccess: invalidate,
+  });
+
+  return { create, update, remove, attach, detach };
 }
 
 export function useCashbook(params: { period: string; from?: string; to?: string }) {

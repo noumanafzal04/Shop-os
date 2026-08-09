@@ -4,11 +4,25 @@ import type { PaymentInput, PurchaseOrderInput, SupplierInput } from "../types";
 
 // ── Suppliers ───────────────────────────────────────────────────
 
-export function useSuppliers(params?: { search?: string; is_active?: boolean; page?: number }) {
+/**
+ * The vendor directory.
+ *
+ * `enabled` exists because this list is now offered from screens that are NOT
+ * about buying — the expense form asks who was paid. Reading suppliers needs
+ * the inventory module and one of three permissions, so a book-keeper who can
+ * file bills all day would otherwise fire a 403 every time that page opened.
+ * Callers on the purchasing screens are already behind the same gate and can
+ * leave it alone.
+ */
+export function useSuppliers(
+  params?: { search?: string; is_active?: boolean; page?: number },
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ["suppliers", params],
     queryFn: () => purchasesService.suppliers(params),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   });
 }
 

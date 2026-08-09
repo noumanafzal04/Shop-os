@@ -17,7 +17,37 @@ export async function downloadFile(
   const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^;"']+)/i);
   const filename = match ? decodeURIComponent(match[1].trim()) : fallbackName;
 
-  const blobUrl = URL.createObjectURL(res.data as Blob);
+  saveBlob(res.data as Blob, filename);
+}
+
+/**
+ * A CSV built from rows the browser already has.
+ *
+ * Most exports here stream from the server, because the screen only holds one
+ * page and an export of page one is not an export. Where the endpoint returns
+ * the WHOLE set in one response — budgets do — the rows on screen are the rows
+ * in the file, and a round trip would only risk the two disagreeing.
+ */
+export function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number | null>>): void {
+  // Anything carrying a comma, a quote or a newline has to be quoted, and a
+  // quote inside is doubled. A field starting =, +, - or @ is prefixed with a
+  // quote so a spreadsheet reads it as text rather than a formula.
+  const cell = (value: string | number | null): string => {
+    const text = value === null ? "" : String(value);
+    const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+
+    return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  };
+
+  const csv = [headers, ...rows].map((row) => row.map(cell).join(",")).join("\r\n");
+
+  // The BOM is what makes Excel read UTF-8 — without it an Urdu category name
+  // arrives as mojibake in the one program most of these files are opened in.
+  saveBlob(new Blob(["﻿", csv], { type: "text/csv;charset=utf-8" }), filename);
+}
+
+function saveBlob(blob: Blob, filename: string): void {
+  const blobUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = blobUrl;
   a.download = filename;
