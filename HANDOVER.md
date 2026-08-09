@@ -510,6 +510,28 @@ bug.
 - **Filters: always-visible bar + right-side canvas + removable chips above the
   table.** The chips are not decoration; a canvas that hides what is applied is
   how a merchant concludes the numbers are wrong. Bottom sheet only below `sm`.
+- **A money read that takes no branch is a bug, not a default.** The Cashbook was
+  tenant-wide while the Ledger scoped by `BranchContext`, so the two screens
+  reported different money for the same period. Anything summing money takes
+  `?string $branchId` and the controller passes `BranchContext::scopeId()` — null
+  means the owner's all-branches roll-up, and it must be *chosen*. Watch the
+  **opening balance** hardest: money before the window is never drawn as a row,
+  so an unscoped figure cannot be seen, it just shifts every balance down the
+  page. `2026-08-09`, see
+  `docs/decisions/shopos-branch-scope-and-the-unread-columns.md`.
+- **`RefreshDatabase` cannot test a data backfill** — it migrates an empty
+  database, so the `update()` runs over nothing and passes. Exercise the real
+  statement against the MySQL dev DB inside a transaction and roll it back.
+- **Prove a new test fails without its fix.** Revert the fix, watch the test go
+  red, restore. Four of the six branch-scope tests written this session would
+  have passed against the live bug; only reverting showed which two were load
+  bearing.
+- **A backend endpoint is not shipped until something calls it.** Finish the
+  panel half in the same pass, or the fix for "built but unreachable" becomes
+  five more of it. A CSV built in the browser must quote commas/quotes/newlines,
+  lead with a BOM, and prefix `= + - @` — a spreadsheet runs those as formulas.
+  Use `downloadCsv` in `src/common/api/download.ts`; server-streamed exports stay
+  server-side, because an export of page one is not an export.
 - Commit and push only when asked.
 
 ### Gates, run from each app's directory
