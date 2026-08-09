@@ -1,29 +1,84 @@
-name: Deploy Frontend
+name: Panel — gate, then deploy
+
+# Two halves that were missing from each other. There was no CI: a push went
+# straight to the droplet with nothing having run the tests. And the deploy
+# itself could only ever work once — it `find -delete`d /var/www/shopos-panel,
+# which is the git checkout, so the next run pulled into a directory with no
+# package.json. The commands below are the ones actually being run by hand on
+# the server, which already keep the checkout and the web root apart.
 
 on:
   push:
-    branches:
-      - admin-panel
+    branches: [admin-panel]
+  workflow_dispatch:
+
+# One at a time. Two overlapping runs would have the droplet building one commit
+# while the other resets the checkout underneath it.
+concurrency:
+  group: panel-deploy
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  gate:
+    name: Typecheck, lint, test, build
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to droplet
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20' # matches the droplet
+          cache: npm
+
+      - run: npm ci
+
+      - name: Types
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Lint
+        # Errors block; the 16 react-hooks advisories are warnings and do not.
+        run: npx eslint src
+
+      - name: Tests
+        run: npx vitest run
+
+      - name: Build
+        # Built here as well as on the droplet, deliberately. A build that fails
+        # would otherwise fail on a 1 GB box AFTER the checkout had already been
+        # reset to the new commit, leaving the server mid-deploy.
+        run: npm run build
+
+  deploy:
+    name: Deploy to droplet
+    needs: gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build on the droplet and publish
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stops: true
           script: |
+            set -euo pipefail
+
             cd /var/www/shopos-panel
-            git pull origin admin-panel
+
+            # The droplet was set up with a hand-written copy of this file at the
+            # path the repo now tracks, so `git pull` aborts every time with
+            # "untracked working tree files would be overwritten". Removing it
+            # first makes the fetch deterministic; the reset puts the tracked
+            # version back. `.env.production` is untracked and reset leaves it.
+            rm -rf .github
+
+            git fetch origin admin-panel
+            git reset --hard origin/admin-panel
+
             npm install
             npm run build
-            rm -rf /tmp/panel-build
-            cp -r dist /tmp/panel-build
-            find /var/www/shopos-panel -mindepth 1 \
-              -not -name '.env.production' \
-              -not -path '*/.git*' \
-              -delete
-            cp -r /tmp/panel-build/* /var/www/shopos-panel/
+
+            # Never publish a half-built directory.
+            test -s dist/index.html
+
+            cp -r dist/. /var/www/shopos-panel-live/
