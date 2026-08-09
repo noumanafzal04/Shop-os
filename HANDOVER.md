@@ -147,10 +147,28 @@ Nothing. `wip/relief-cover` shipped on 2026-08-07 and is merged into `backend`.
 known gap is closed: the settings sweep, waiter table scoping, and training
 mode were the last three.
 
-**Deployment / CI-CD is now the only thing standing between this and a live
-shop.** It is ops rather than product, and it is parked by choice. Staging is a
-$6 DigitalOcean droplet, `shopos-dev` at `159.223.78.102` — backend health at
+**Deployment is what stands between this and a live shop.** Staging is a $6
+DigitalOcean droplet, `shopos-dev` at `159.223.78.102` — backend health at
 `/api/v1/health`, panel on `:8080`. It reflects none of the last five sessions.
+
+**CI-CD was rewritten 2026-08-09** and is no longer parked. Both workflows now
+gate on tests before they touch the server: the backend runs `php artisan test`
+and the panel runs tsc / eslint / vitest / build, and `deploy` has `needs: gate`,
+so a red suite cannot reach the droplet. Before this, a push to `backend` ran
+`migrate --force` against staging with nothing having run the tests — and a
+migration is the one step no rollback undoes.
+
+The frontend deploy was worse than untested: it `find -delete`d
+`/var/www/shopos-panel`, which is the **git checkout**, so it could only ever
+work once. Both scripts now `rm -rf .github` and `git reset --hard`, which also
+retires the standing "first pull always aborts" gotcha. Full detail and the
+server's checkout-vs-`-live` split are in `docs/decisions/shopos-deployment.md`.
+
+**The rewritten workflows have not run yet.** The originals did — that is how
+both gotchas above were found — but recent pushes carry `[skip ci]` to keep the
+old frontend deploy away from the droplet. Dropping `[skip ci]` is what proves
+these, and the frontend is the one to watch: the gate is verified locally, the
+SSH half has only ever been run by hand.
 
 Two things worth knowing when a supermarket signs:
 
