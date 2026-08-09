@@ -29,7 +29,24 @@ export const API_BASE_URL = DEVICE_TEST_URL
  * Maps / geocoding provider. Geoapify for now (address autocomplete +
  * reverse geocoding); swap MAPS_PROVIDER to 'google' once a Google key
  * is added — geoService picks the provider automatically.
+ *
+ * The key is intentionally EMPTY in source. A working one used to sit here as
+ * a literal, which put it in a public repo and in git history, and meant
+ * rotating it was a code change. Geocoding fails soft (geo.ts returns
+ * null/[]), so an empty key degrades address autocomplete rather than
+ * breaking the app.
+ *
+ * TODO before the mobile app ships: this needs a real mechanism — no env
+ * library is installed here yet (no react-native-config, no .env). Until one
+ * is added, set the key locally and do not commit it.
  */
 export const MAPS_PROVIDER: "geoapify" | "google" = "geoapify";
-export const GEOAPIFY_API_KEY = "b6b195b0c6d946d282733dbc9b2c841e";
+export const GEOAPIFY_API_KEY = "";
 export const GOOGLE_MAPS_API_KEY = "";
+
+if (__DEV__ && MAPS_PROVIDER === "geoapify" && !GEOAPIFY_API_KEY) {
+  console.warn(
+    "[maps] GEOAPIFY_API_KEY is empty — address search and reverse geocoding " +
+      "will return nothing. Set it locally in src/common/config.ts; do not commit it.",
+  );
+}
