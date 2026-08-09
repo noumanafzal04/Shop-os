@@ -23,7 +23,14 @@ class ExpenseController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = $this->filtered($request)->with(['category:id,name', 'supplier:id,name']);
+        // `recurringExpense` is what tells a row apart from one somebody typed:
+        // without it a merchant looking at two rent entries cannot see that one
+        // of them came from the schedule.
+        $query = $this->filtered($request)->with([
+            'category:id,name',
+            'supplier:id,name',
+            'recurringExpense:id,description,frequency',
+        ]);
 
         // What the filtered set adds up to, alongside the page of rows. A
         // merchant who narrows to "rent, this quarter" is asking a question
@@ -75,8 +82,33 @@ class ExpenseController extends Controller
     {
         $branchScope = $this->branch->scopeId();
 
+        $query = Expense::query()
+            ->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b))
+            // Everything this schedule has ever posted — the history a template
+            // could not show, because the link only ever pointed one way.
+            ->when(
+                $request->query('recurring_expense_id'),
+                fn ($q, $id) => $q->where('recurring_expense_id', $id),
+            )
+            // "Which of these did the shop actually decide on?" A month of books
+            // is easier to check when the standing costs can be set aside.
+            ->when($request->query('source'), function ($q, $source) {
+                if ($source === 'recurring') {
+                    $q->whereNotNull('recurring_expense_id');
+                } elseif ($source === 'manual') {
+                    $q->whereNull('recurring_expense_id');
+                }
+            })
+            // Everything paid to one vendor. The column was writable and
+            // readable but not ASKABLE, which is the form the question actually
+            // takes — "what have we paid Rafiq Traders this year?"
+            ->when(
+                $request->query('supplier_id'),
+                fn ($q, $id) => $q->where('supplier_id', $id),
+            );
+
         return MoneyEntryFilters::apply(
-            Expense::query()->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b)),
+            $query,
             $request,
             'expense_date',
             'expense_category_id',

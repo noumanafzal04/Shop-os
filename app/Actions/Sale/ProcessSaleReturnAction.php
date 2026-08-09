@@ -213,6 +213,10 @@ class ProcessSaleReturnAction
                 /** @var SaleReturn $return */
                 $return = SaleReturn::query()->create([
                     'tenant_id' => $tenantId,
+                    // From the SALE, not from the active branch context: a refund
+                    // belongs to the trade it reverses. Handing the cash back at
+                    // another branch must not move the takings between them.
+                    'branch_id' => $sale->branch_id,
                     'sale_id' => $sale->id,
                     'cash_session_id' => $data['cash_session_id'] ?? null,
                     'return_number' => $returnNumber,

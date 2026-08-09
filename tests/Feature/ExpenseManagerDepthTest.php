@@ -10,6 +10,7 @@ use App\Models\ExpenseCategory;
 use App\Models\Income;
 use App\Models\IncomeCategory;
 use App\Models\RecurringExpense;
+use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -399,6 +400,52 @@ class ExpenseManagerDepthTest extends TestCase
         $this->assertFalse($row['over']);
     }
 
+    public function test_retiring_a_category_does_not_unspend_its_money(): void
+    {
+        // The page listed active categories and summed spend across ALL of
+        // them, so closing a category mid-month made real expenditure vanish
+        // from the screen — no row, no total, nothing to click. A shop
+        // reconciling August against its bank would be short and have no way
+        // to see where.
+        $promo = $this->expenseCategory('Ramzan Promo');
+        $this->recordExpense(['expense_category_id' => $promo->id, 'amount' => 12000, 'description' => 'Banners']);
+
+        $promo->forceFill(['is_active' => false])->save();
+
+        $row = collect($this->actingAsUser($this->owner)->getJson('/api/v1/expenses/budgets')->json('data'))
+            ->firstWhere('category', 'Ramzan Promo');
+
+        $this->assertNotNull($row, 'money spent must stay visible somewhere');
+        $this->assertEquals(12000, $row['spent']);
+        $this->assertTrue($row['is_retired'], 'and be marked as closed, not offered as somewhere to budget');
+    }
+
+    public function test_a_retired_category_nobody_spent_against_stays_off_the_page(): void
+    {
+        // The other half: retirement still means something. Without this the
+        // fix above would grow the list forever with dead rows.
+        $this->expenseCategory('Old Thing')->forceFill(['is_active' => false])->save();
+
+        $rows = $this->actingAsUser($this->owner)->getJson('/api/v1/expenses/budgets')->json('data');
+
+        $this->assertNull(collect($rows)->firstWhere('category', 'Old Thing'));
+    }
+
+    public function test_a_deleted_categorys_spend_is_still_accounted_for(): void
+    {
+        $gone = $this->expenseCategory('Deleted Later');
+        $this->recordExpense(['expense_category_id' => $gone->id, 'amount' => 7000, 'description' => 'Signage']);
+
+        $gone->delete();
+
+        $row = collect($this->actingAsUser($this->owner)->getJson('/api/v1/expenses/budgets')->json('data'))
+            ->firstWhere('category', 'Deleted Later');
+
+        $this->assertNotNull($row);
+        $this->assertEquals(7000, $row['spent']);
+        $this->assertTrue($row['is_retired']);
+    }
+
     // ── Recurring ───────────────────────────────────────────────────
 
     public function test_a_recurring_expense_falls_due_and_is_posted_by_a_person(): void
@@ -420,6 +467,152 @@ class ExpenseManagerDepthTest extends TestCase
             ->assertCreated();
 
         $this->assertSame(1, Expense::withoutTenancy()->count());
+    }
+
+    // ── The category list at scale ──────────────────────────────────
+
+    public function test_the_category_list_still_answers_with_a_plain_array(): void
+    {
+        // The expense form's picker has always received a flat array. The
+        // aggregates behind it changed shape; the contract must not.
+        $this->recordExpense(['amount' => 1500, 'description' => 'Bill']);
+
+        $rows = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/expense-categories')->assertOk()->json('data');
+
+        $utilities = collect($rows)->firstWhere('name', 'Utilities');
+        $rent = collect($rows)->firstWhere('name', 'Rent');
+
+        $this->assertSame(1, $utilities['entries_count']);
+        $this->assertEquals(1500, $utilities['entries_total']);
+        // A category with nothing filed reports zero, not null and not absent.
+        $this->assertSame(0, $rent['entries_count']);
+        $this->assertEquals(0, $rent['entries_total']);
+    }
+
+    public function test_a_long_category_list_can_be_searched_and_paged(): void
+    {
+        // 150 categories is the shape this endpoint was reported failing at.
+        foreach (range(1, 40) as $i) {
+            $this->expenseCategory("Vendor {$i}");
+        }
+
+        $found = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/expense-categories?search=Vendor%201')->assertOk()->json('data');
+        $this->assertNotEmpty($found);
+        foreach ($found as $row) {
+            $this->assertStringContainsString('Vendor 1', $row['name']);
+        }
+
+        $paged = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/expense-categories?per_page=10')->assertOk();
+        $this->assertCount(10, $paged->json('data'));
+        $this->assertSame(42, $paged->json('meta.pagination.total'));
+    }
+
+    // ── Who was paid ────────────────────────────────────────────────
+
+    public function test_an_expense_records_and_reports_who_was_paid(): void
+    {
+        // supplier_id validated on the way in and loaded on the way out, with
+        // nothing in between ever asserting it — so a column that looked wired
+        // had no proof it was.
+        $rafiq = Supplier::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id, 'name' => 'Rafiq Traders', 'is_active' => true,
+        ]);
+
+        $this->recordExpense([
+            'description' => 'Carton of packing tape',
+            'amount' => 3200,
+            'supplier_id' => $rafiq->id,
+        ]);
+
+        $row = $this->actingAsUser($this->owner)->getJson('/api/v1/expenses')->assertOk()->json('data.0');
+
+        $this->assertSame($rafiq->id, $row['supplier_id']);
+        $this->assertSame('Rafiq Traders', $row['supplier']['name']);
+    }
+
+    public function test_everything_paid_to_one_vendor_can_be_asked_for(): void
+    {
+        $rafiq = Supplier::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id, 'name' => 'Rafiq Traders', 'is_active' => true,
+        ]);
+        $other = Supplier::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id, 'name' => 'Bilal & Sons', 'is_active' => true,
+        ]);
+
+        $this->recordExpense(['description' => 'Tape', 'amount' => 3200, 'supplier_id' => $rafiq->id]);
+        $this->recordExpense(['description' => 'Bags', 'amount' => 1800, 'supplier_id' => $rafiq->id]);
+        $this->recordExpense(['description' => 'Boxes', 'amount' => 900, 'supplier_id' => $other->id]);
+        $this->recordExpense(['description' => 'Tea', 'amount' => 300]);
+
+        $body = $this->actingAsUser($this->owner)
+            ->getJson("/api/v1/expenses?supplier_id={$rafiq->id}")->assertOk()->json();
+
+        $this->assertCount(2, $body['data']);
+        $this->assertEquals(5000, $body['meta']['totals']['total']);
+    }
+
+    public function test_another_shops_supplier_cannot_be_named_on_an_expense(): void
+    {
+        $stranger = Tenant::factory()->provisioned()->create();
+        $theirs = Supplier::withoutTenancy()->create([
+            'tenant_id' => $stranger->id, 'name' => 'Someone Else Ltd', 'is_active' => true,
+        ]);
+
+        $this->postExpense([
+            'description' => 'Tape', 'amount' => 3200, 'supplier_id' => $theirs->id,
+        ])->assertStatus(422);
+    }
+
+    public function test_a_posted_expense_says_which_schedule_it_came_from(): void
+    {
+        // The link was written from the day recurring expenses shipped and read
+        // by nothing, so the books could not answer a question about their own
+        // rows: is this second rent entry a duplicate, or the standing one?
+        $template = $this->recurring(['next_due_on' => now()->toDateString()]);
+
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/expenses/recurring/{$template->id}/post", [])->assertCreated();
+
+        $row = $this->actingAsUser($this->owner)->getJson('/api/v1/expenses')->assertOk()->json('data.0');
+
+        $this->assertSame($template->id, $row['recurring_expense']['id']);
+        $this->assertSame('Shop rent', $row['recurring_expense']['description']);
+        $this->assertSame('monthly', $row['recurring_expense']['frequency']);
+    }
+
+    public function test_an_expense_somebody_typed_carries_no_schedule(): void
+    {
+        // Null is the answer just as often, and it has to be a clean null —
+        // not a missing key the panel has to guess at.
+        $this->recordExpense(['description' => 'Tea for the shop', 'amount' => 300]);
+
+        $row = $this->actingAsUser($this->owner)->getJson('/api/v1/expenses')->assertOk()->json('data.0');
+
+        $this->assertNull($row['recurring_expense']);
+    }
+
+    public function test_the_standing_costs_can_be_set_apart_from_the_decided_ones(): void
+    {
+        $template = $this->recurring(['next_due_on' => now()->toDateString()]);
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/expenses/recurring/{$template->id}/post", [])->assertCreated();
+        $this->recordExpense(['description' => 'New kettle', 'amount' => 4500]);
+
+        $recurring = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/expenses?source=recurring')->assertOk()->json('data');
+        $manual = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/expenses?source=manual')->assertOk()->json('data');
+        $fromThisTemplate = $this->actingAsUser($this->owner)
+            ->getJson("/api/v1/expenses?recurring_expense_id={$template->id}")->assertOk()->json('data');
+
+        $this->assertCount(1, $recurring);
+        $this->assertSame('Shop rent', $recurring[0]['description']);
+        $this->assertCount(1, $manual);
+        $this->assertSame('New kettle', $manual[0]['description']);
+        $this->assertCount(1, $fromThisTemplate);
     }
 
     public function test_the_amount_can_be_corrected_at_the_moment_of_posting(): void

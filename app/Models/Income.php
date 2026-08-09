@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class Income extends BaseModel
 {
@@ -12,12 +14,30 @@ class Income extends BaseModel
     /** How the money arrived. Only `cash` touches a drawer. */
     public const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'other'];
 
+    protected $appends = ['attachment_url'];
+
     protected function casts(): array
     {
         return [
             'amount' => 'decimal:2',
             'income_date' => 'date',
         ];
+    }
+
+    /**
+     * The proof this money came in. Same rule as Expense, opposite direction —
+     * the column was added alongside the expense one and then never wired to
+     * anything, so income was the only side of the book that could not be
+     * evidenced. An owner questioning a Rs 80,000 "owner investment" had
+     * nothing to open.
+     */
+    protected function attachmentUrl(): Attribute
+    {
+        return Attribute::get(
+            fn (): ?string => $this->attachment_path
+                ? Storage::disk('public')->url($this->attachment_path)
+                : null,
+        );
     }
 
     public function category(): BelongsTo

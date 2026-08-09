@@ -34,6 +34,19 @@ class Expense extends BaseModel
         return $this->belongsTo(Supplier::class)->withTrashed();
     }
 
+    /**
+     * The schedule this was posted from, when it wasn't typed by hand.
+     *
+     * PostRecurringExpenseAction has always stamped the id and nothing ever
+     * read it back, so "why is there a second rent entry this month?" was a
+     * question the books could not answer about their own rows. Null means
+     * somebody entered it themselves, which is the answer just as often.
+     */
+    public function recurringExpense(): BelongsTo
+    {
+        return $this->belongsTo(RecurringExpense::class);
+    }
+
     /** The receipt photo, ready to open. Null when none was attached. */
     protected function attachmentUrl(): Attribute
     {

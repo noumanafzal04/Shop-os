@@ -21,7 +21,7 @@ class ReportController extends Controller
      * Period summary: totals + chart series + top products + expense
      * breakdown. period=daily|weekly|monthly|yearly|custom (with from/to).
      */
-    public function summary(Request $request, ReportService $reports, TenantContext $context): JsonResponse
+    public function summary(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
     {
         $data = $request->validate([
             'period' => ['sometimes', Rule::in(['daily', 'weekly', 'monthly', 'yearly', 'custom'])],
@@ -37,6 +37,7 @@ class ReportController extends Controller
 
         return ApiResponse::ok($reports->summary(
             $context->id(),
+            $branch->scopeId(),
             $period['from'],
             $period['to'],
             $period['granularity'],
@@ -50,18 +51,18 @@ class ReportController extends Controller
         return ApiResponse::ok($reports->purchases($context->id(), $p['from'], $p['to']));
     }
 
-    public function staff(Request $request, ReportService $reports, TenantContext $context): JsonResponse
+    public function staff(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
     {
         $p = $this->period($request, $reports);
 
-        return ApiResponse::ok($reports->staffPerformance($context->id(), $p['from'], $p['to']));
+        return ApiResponse::ok($reports->staffPerformance($context->id(), $branch->scopeId(), $p['from'], $p['to']));
     }
 
-    public function tax(Request $request, ReportService $reports, TenantContext $context): JsonResponse
+    public function tax(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
     {
         $p = $this->period($request, $reports);
 
-        return ApiResponse::ok($reports->tax($context->id(), $p['from'], $p['to']));
+        return ApiResponse::ok($reports->tax($context->id(), $branch->scopeId(), $p['from'], $p['to']));
     }
 
     /**
@@ -69,12 +70,12 @@ class ReportController extends Controller
      * expenses + refunds) with a running balance. Part of the Expense & Income
      * module (feature:expenses + permission:expenses.manage).
      */
-    public function cashbook(Request $request, ReportService $reports, TenantContext $context): JsonResponse
+    public function cashbook(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
     {
         $p = $this->period($request, $reports);
 
         return ApiResponse::ok(
-            $reports->cashbook($context->id(), $p['from'], $p['to'], $p['granularity']),
+            $reports->cashbook($context->id(), $branch->scopeId(), $p['from'], $p['to'], $p['granularity']),
         );
     }
 
@@ -126,11 +127,11 @@ class ReportController extends Controller
      * What each item actually earned. Revenue alone crowns whatever is
      * expensive; margin crowns what pays — and they are rarely the same line.
      */
-    public function margins(Request $request, ReportService $reports, TenantContext $context): JsonResponse
+    public function margins(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
     {
         $p = $this->period($request, $reports);
 
-        return ApiResponse::ok($reports->margins($context->id(), $p['from'], $p['to']));
+        return ApiResponse::ok($reports->margins($context->id(), $branch->scopeId(), $p['from'], $p['to']));
     }
 
     /** What the shelves are worth — the figure a bank meeting asks for. */
@@ -159,10 +160,12 @@ class ReportController extends Controller
     // ── Exports ─────────────────────────────────────────────────────
     // A report you cannot take to an accountant is half a report.
 
-    public function exportMargins(Request $request, ReportService $reports, TenantContext $context): StreamedResponse
+    public function exportMargins(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): StreamedResponse
     {
         $p = $this->period($request, $reports);
-        $report = $reports->margins($context->id(), $p['from'], $p['to'], limit: 100000);
+        // The export is the same report on paper — it must not widen the scope
+        // the merchant was looking at when they pressed the button.
+        $report = $reports->margins($context->id(), $branch->scopeId(), $p['from'], $p['to'], limit: 100000);
 
         return CsvExport::stream(
             "margins-{$p['from']}-to-{$p['to']}.csv",

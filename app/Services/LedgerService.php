@@ -168,7 +168,7 @@ class LedgerService
         $union = $this->expenses($tenantId, $branchId, $from, $to)
             ->unionAll($this->incomes($tenantId, $branchId, $from, $to))
             ->unionAll($this->sales($tenantId, $branchId, $from, $to))
-            ->unionAll($this->refunds($tenantId, $from, $to));
+            ->unionAll($this->refunds($tenantId, $branchId, $from, $to));
 
         $query = DB::query()->fromSub($union, 'ledger');
 
@@ -291,7 +291,7 @@ class LedgerService
             $this->expenses($tenantId, $branchId, null, null, $from)
                 ->unionAll($this->incomes($tenantId, $branchId, null, null, $from))
                 ->unionAll($this->sales($tenantId, $branchId, null, null, $from))
-                ->unionAll($this->refunds($tenantId, null, null, $from)),
+                ->unionAll($this->refunds($tenantId, $branchId, null, null, $from)),
             'opening',
         )->selectRaw('COALESCE(SUM(amount_in), 0) as i, COALESCE(SUM(amount_out), 0) as o')->first();
 
@@ -365,10 +365,11 @@ class LedgerService
         return $this->window($q, 'sales.sold_at', $from, $to, $strictlyBefore, true);
     }
 
-    private function refunds(string $tenantId, ?string $from, ?string $to, ?string $strictlyBefore = null): Builder
+    private function refunds(string $tenantId, ?string $branchId, ?string $from, ?string $to, ?string $strictlyBefore = null): Builder
     {
         $q = DB::table('sale_returns')
             ->where('sale_returns.tenant_id', $tenantId)
+            ->when($branchId, fn ($q) => $q->where('sale_returns.branch_id', $branchId))
             ->selectRaw(
                 "sale_returns.id as id, 'refund' as type, DATE(sale_returns.returned_at) as entry_date,"
                 .' sale_returns.returned_at as sort_at, sale_returns.return_number as reference,'

@@ -17,6 +17,7 @@ use App\Support\MoneyEntryFilters;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -153,6 +154,49 @@ class IncomeController extends Controller
         $income->delete();
 
         return ApiResponse::noContent('Income deleted');
+    }
+
+    /**
+     * The proof the money came in.
+     *
+     * Expenses have had this since the module shipped; income had the column
+     * and nothing else, so the one side of the book an owner is most likely to
+     * question — "what was this Rs 80,000?" — was the side with no evidence.
+     * Deliberately NOT blocked by assertAmendable(): attaching a receipt to a
+     * settled entry changes no money, and refusing it would leave a closed
+     * shift permanently unevidenced.
+     */
+    public function attach(Request $request, string $id): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+        ]);
+
+        /** @var Income $income */
+        $income = Income::query()->findOrFail($id);
+
+        // Replacing an attachment removes the old file rather than orphaning it.
+        if ($income->attachment_path) {
+            Storage::disk('public')->delete($income->attachment_path);
+        }
+
+        $path = $request->file('file')->store("receipts/{$income->tenant_id}", 'public');
+        $income->forceFill(['attachment_path' => $path])->save();
+
+        return ApiResponse::ok($income->fresh(['category:id,name']), 'Receipt attached');
+    }
+
+    public function detach(string $id): JsonResponse
+    {
+        /** @var Income $income */
+        $income = Income::query()->findOrFail($id);
+
+        if ($income->attachment_path) {
+            Storage::disk('public')->delete($income->attachment_path);
+            $income->forceFill(['attachment_path' => null])->save();
+        }
+
+        return ApiResponse::ok($income->fresh(), 'Receipt removed');
     }
 
     /**

@@ -44,7 +44,7 @@ class ReportService
         };
     }
 
-    public function summary(string $tenantId, string $from, string $to, string $granularity = 'day'): array
+    public function summary(string $tenantId, ?string $branchId, string $from, string $to, string $granularity = 'day'): array
     {
         $fromStart = CarbonImmutable::parse($from)->startOfDay();
         $toEnd = CarbonImmutable::parse($to)->endOfDay();
@@ -52,22 +52,26 @@ class ReportService
         $completedSales = Sale::query()
             ->where('tenant_id', $tenantId)
             ->where('status', SaleStatus::Completed)
-            ->whereBetween('sold_at', [$fromStart, $toEnd]);
+            ->whereBetween('sold_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
         $salesCount = (clone $completedSales)->count();
         $revenue = (float) (clone $completedSales)->sum('total');
 
+        // A line has no branch of its own; it inherits the sale's.
         $cogs = (float) SaleItem::query()
             ->where('sale_items.tenant_id', $tenantId)
             ->whereHas('sale', fn ($q) => $q
                 ->where('status', SaleStatus::Completed)
-                ->whereBetween('sold_at', [$fromStart, $toEnd]))
+                ->whereBetween('sold_at', [$fromStart, $toEnd])
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId)))
             ->selectRaw('COALESCE(SUM(unit_cost * quantity), 0) as cogs')
             ->value('cogs');
 
         $expensesTotal = (float) Expense::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->whereBetween('expense_date', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->sum('amount');
 
         // Money the business took in that wasn't a sale — a retainer, an owner's
@@ -80,6 +84,7 @@ class ReportService
         $otherIncome = (float) Income::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->whereBetween('income_date', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->sum('amount');
 
         return [
@@ -93,16 +98,16 @@ class ReportService
                 'expenses' => round($expensesTotal, 2),
                 'net_profit' => round($revenue + $otherIncome - $cogs - $expensesTotal, 2),
             ],
-            'series' => $this->series($tenantId, $fromStart, $toEnd, $granularity),
-            'top_products' => $this->topProducts($tenantId, $fromStart, $toEnd),
-            'expenses_by_category' => $this->expensesByCategory($tenantId, $from, $to),
+            'series' => $this->series($tenantId, $branchId, $fromStart, $toEnd, $granularity),
+            'top_products' => $this->topProducts($tenantId, $branchId, $fromStart, $toEnd),
+            'expenses_by_category' => $this->expensesByCategory($tenantId, $branchId, $from, $to),
         ];
     }
 
     /**
      * Zero-filled buckets — charts never have holes.
      */
-    private function series(string $tenantId, CarbonImmutable $from, CarbonImmutable $to, string $granularity): array
+    private function series(string $tenantId, ?string $branchId, CarbonImmutable $from, CarbonImmutable $to, string $granularity): array
     {
         $format = $granularity === 'month' ? 'Y-m' : 'Y-m-d';
 
@@ -110,6 +115,7 @@ class ReportService
             ->where('tenant_id', $tenantId)
             ->where('status', SaleStatus::Completed)
             ->whereBetween('sold_at', [$from, $to])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['sold_at', 'total'])
             ->groupBy(fn (Sale $s) => $s->sold_at->format($format))
             ->map(fn (Collection $sales) => round((float) $sales->sum('total'), 2));
@@ -117,6 +123,7 @@ class ReportService
         $expensesByBucket = Expense::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->whereBetween('expense_date', [$from->toDateString().' 00:00:00', $to->toDateString().' 23:59:59'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['expense_date', 'amount'])
             ->groupBy(fn (Expense $e) => $e->expense_date->format($format))
             ->map(fn (Collection $items) => round((float) $items->sum('amount'), 2));
@@ -127,6 +134,7 @@ class ReportService
         $incomeByBucket = Income::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->whereBetween('income_date', [$from->toDateString().' 00:00:00', $to->toDateString().' 23:59:59'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['income_date', 'amount'])
             ->groupBy(fn (Income $i) => $i->income_date->format($format))
             ->map(fn (Collection $items) => round((float) $items->sum('amount'), 2));
@@ -155,13 +163,14 @@ class ReportService
         return $buckets;
     }
 
-    private function topProducts(string $tenantId, CarbonImmutable $from, CarbonImmutable $to): array
+    private function topProducts(string $tenantId, ?string $branchId, CarbonImmutable $from, CarbonImmutable $to): array
     {
         return SaleItem::query()
             ->where('sale_items.tenant_id', $tenantId)
             ->whereHas('sale', fn ($q) => $q
                 ->where('status', SaleStatus::Completed)
-                ->whereBetween('sold_at', [$from, $to]))
+                ->whereBetween('sold_at', [$from, $to])
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId)))
             ->selectRaw('product_name, COALESCE(variant_name, "") as variant_name, SUM(quantity) as units, SUM(line_total) as revenue')
             ->groupBy('product_name', 'variant_name')
             ->orderByDesc('revenue')
@@ -187,7 +196,7 @@ class ReportService
      *
      * @return array<string, mixed>
      */
-    public function margins(string $tenantId, string $from, string $to, int $limit = 50): array
+    public function margins(string $tenantId, ?string $branchId, string $from, string $to, int $limit = 50): array
     {
         $fromStart = CarbonImmutable::parse($from)->startOfDay();
         $toEnd = CarbonImmutable::parse($to)->endOfDay();
@@ -200,6 +209,7 @@ class ReportService
             ->whereNull('sales.deleted_at')
             ->where('sales.status', SaleStatus::Completed)
             ->whereBetween('sales.sold_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
             ->groupBy('sale_items.product_name', 'sale_items.variant_name', 'category_name')
             ->selectRaw(implode(', ', [
                 'sale_items.product_name as product_name',
@@ -278,6 +288,14 @@ class ReportService
     /**
      * Purchases report: what was ordered/received/paid and what's outstanding,
      * plus a per-supplier breakdown. Cancelled POs excluded.
+     *
+     * Deliberately tenant-wide, unlike every other report here. `purchase_orders`
+     * has no branch column — an order is raised against a SUPPLIER, and the
+     * goods can be received anywhere. Inventing a branch for it (from the
+     * receiving line, say) would answer a question nobody asked and would make
+     * per-branch purchase totals disagree with the supplier's own statement.
+     * If per-branch buying is ever wanted it needs a column and a decision,
+     * not a filter bolted on here.
      */
     public function purchases(string $tenantId, string $from, string $to): array
     {
@@ -325,7 +343,7 @@ class ReportService
     /**
      * Staff performance: completed sales grouped by the staff who rang them up.
      */
-    public function staffPerformance(string $tenantId, string $from, string $to): array
+    public function staffPerformance(string $tenantId, ?string $branchId, string $from, string $to): array
     {
         $fromStart = CarbonImmutable::parse($from)->startOfDay();
         $toEnd = CarbonImmutable::parse($to)->endOfDay();
@@ -334,6 +352,7 @@ class ReportService
             ->where('sales.tenant_id', $tenantId)
             ->where('status', SaleStatus::Completed)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
             ->whereNotNull('created_by')
             ->selectRaw('created_by, COUNT(*) as sales_count, SUM(total) as revenue')
             ->groupBy('created_by')
@@ -356,7 +375,7 @@ class ReportService
     /**
      * Tax collected on completed sales in the period.
      */
-    public function tax(string $tenantId, string $from, string $to): array
+    public function tax(string $tenantId, ?string $branchId, string $from, string $to): array
     {
         $fromStart = CarbonImmutable::parse($from)->startOfDay();
         $toEnd = CarbonImmutable::parse($to)->endOfDay();
@@ -364,7 +383,8 @@ class ReportService
         $sales = Sale::query()
             ->where('tenant_id', $tenantId)
             ->where('status', SaleStatus::Completed)
-            ->whereBetween('sold_at', [$fromStart, $toEnd]);
+            ->whereBetween('sold_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
         return [
             'period' => ['from' => $from, 'to' => $to],
@@ -389,7 +409,7 @@ class ReportService
      * so the money movement reconciles. Opening balance is the net position
      * accumulated before the period, so the running balance reads like a book.
      */
-    public function cashbook(string $tenantId, string $from, string $to, string $granularity = 'day'): array
+    public function cashbook(string $tenantId, ?string $branchId, string $from, string $to, string $granularity = 'day'): array
     {
         $fromStart = CarbonImmutable::parse($from)->startOfDay();
         $toEnd = CarbonImmutable::parse($to)->endOfDay();
@@ -403,6 +423,7 @@ class ReportService
             ->where('tenant_id', $tenantId)
             ->whereIn('status', $liveSales)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['sold_at', 'total'])
             ->groupBy(fn (Sale $s) => $s->sold_at->format($format))
             ->map(fn (Collection $r) => round((float) $r->sum('total'), 2));
@@ -410,6 +431,7 @@ class ReportService
         $incomeByBucket = Income::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->whereBetween('income_date', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['income_date', 'amount'])
             ->groupBy(fn (Income $i) => $i->income_date->format($format))
             ->map(fn (Collection $r) => round((float) $r->sum('amount'), 2));
@@ -417,6 +439,7 @@ class ReportService
         $expenseByBucket = Expense::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->whereBetween('expense_date', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['expense_date', 'amount'])
             ->groupBy(fn (Expense $e) => $e->expense_date->format($format))
             ->map(fn (Collection $r) => round((float) $r->sum('amount'), 2));
@@ -424,20 +447,26 @@ class ReportService
         $refundByBucket = SaleReturn::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->whereBetween('returned_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['returned_at', 'refund_total'])
             ->groupBy(fn (SaleReturn $r) => $r->returned_at->format($format))
             ->map(fn (Collection $r) => round((float) $r->sum('refund_total'), 2));
 
-        // Opening balance = everything that moved BEFORE the period.
+        // Opening balance = everything that moved BEFORE the period. The branch
+        // filter matters MORE here than in the buckets: money before the window
+        // is never drawn as a row, so an unscoped figure cannot be seen and
+        // spotted — it just shifts every balance down the page.
+        $scope = fn ($q) => $q->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
+
         $opening = round(
-            (float) Sale::query()->where('tenant_id', $tenantId)
-                ->whereIn('status', $liveSales)->where('sold_at', '<', $fromStart)->sum('total')
-            + (float) Income::withoutTenancy()->where('tenant_id', $tenantId)
-                ->where('income_date', '<', $from)->sum('amount')
-            - (float) Expense::withoutTenancy()->where('tenant_id', $tenantId)
-                ->where('expense_date', '<', $from)->sum('amount')
-            - (float) SaleReturn::withoutTenancy()->where('tenant_id', $tenantId)
-                ->where('returned_at', '<', $fromStart)->sum('refund_total'),
+            (float) $scope(Sale::query()->where('tenant_id', $tenantId)
+                ->whereIn('status', $liveSales)->where('sold_at', '<', $fromStart))->sum('total')
+            + (float) $scope(Income::withoutTenancy()->where('tenant_id', $tenantId)
+                ->where('income_date', '<', $from))->sum('amount')
+            - (float) $scope(Expense::withoutTenancy()->where('tenant_id', $tenantId)
+                ->where('expense_date', '<', $from))->sum('amount')
+            - (float) $scope(SaleReturn::withoutTenancy()->where('tenant_id', $tenantId)
+                ->where('returned_at', '<', $fromStart))->sum('refund_total'),
             2,
         );
 
@@ -497,11 +526,12 @@ class ReportService
         ];
     }
 
-    private function expensesByCategory(string $tenantId, string $from, string $to): array
+    private function expensesByCategory(string $tenantId, ?string $branchId, string $from, string $to): array
     {
         return Expense::withoutTenancy()
             ->where('expenses.tenant_id', $tenantId)
             ->whereBetween('expense_date', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->when($branchId, fn ($q) => $q->where('expenses.branch_id', $branchId))
             ->leftJoin('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
             ->selectRaw('COALESCE(expense_categories.name, "Uncategorized") as category, SUM(expenses.amount) as total')
             ->groupBy('category')

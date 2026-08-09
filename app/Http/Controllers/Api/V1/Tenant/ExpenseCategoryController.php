@@ -9,6 +9,7 @@ use App\Models\ExpenseCategory;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
 /**
@@ -26,19 +27,55 @@ class ExpenseCategoryController extends Controller
      * the whole point, and the running total is what makes the list worth
      * reading rather than merely maintaining.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return ApiResponse::ok(
-            ExpenseCategory::query()
-                ->withCount('expenses')
-                ->withSum('expenses', 'amount')
-                ->orderBy('name')
-                ->get()
-                ->map(fn (ExpenseCategory $c): array => array_merge($c->toArray(), [
-                    'entries_count' => (int) $c->expenses_count,
-                    'entries_total' => round((float) ($c->expenses_sum_amount ?? 0), 2),
-                ])),
-        );
+        $query = ExpenseCategory::query()
+            // A list long enough to need searching is exactly the list you
+            // cannot afford to filter in the browser.
+            ->when(
+                trim((string) $request->query('search')) !== '',
+                fn ($q) => $q->where('name', 'like', '%'.trim((string) $request->query('search')).'%'),
+            )
+            ->orderBy('name');
+
+        // Opt-in, so the picker that has always received a flat array still
+        // does. `per_page` is what a management screen sends once it grows past
+        // one screenful.
+        if ($request->filled('per_page')) {
+            $page = $query->paginate(min((int) $request->query('per_page'), 100));
+            $page->setCollection($this->withTotals($page->getCollection()));
+
+            return ApiResponse::paginated($page);
+        }
+
+        return ApiResponse::ok($this->withTotals($query->get()));
+    }
+
+    /**
+     * Attach "what is filed here" to each row.
+     *
+     * These used to be `withCount` + `withSum`, which is two correlated
+     * subqueries per category — the cost grows with the catalogue AND with the
+     * expense history behind it, on an endpoint the expense form loads every
+     * time it opens. One grouped pass over the expenses answers both, and the
+     * response is byte-for-byte what it was.
+     *
+     * @param  Collection<int, ExpenseCategory>  $categories
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function withTotals(Collection $categories): Collection
+    {
+        $filed = Expense::query()
+            ->whereIn('expense_category_id', $categories->pluck('id'))
+            ->selectRaw('expense_category_id, COUNT(*) as entries, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('expense_category_id')
+            ->get()
+            ->keyBy('expense_category_id');
+
+        return $categories->map(fn (ExpenseCategory $c): array => array_merge($c->toArray(), [
+            'entries_count' => (int) ($filed[$c->id]->entries ?? 0),
+            'entries_total' => round((float) ($filed[$c->id]->total ?? 0), 2),
+        ]));
     }
 
     public function store(Request $request): JsonResponse

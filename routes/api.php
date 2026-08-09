@@ -600,6 +600,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     ->except(['show']);
                 Route::get('incomes/export', [IncomeController::class, 'export']);
                 Route::apiResource('incomes', IncomeController::class)->except(['show']);
+                // The proof the money came in — same pair as the expense side.
+                Route::post('incomes/{income}/attachment', [IncomeController::class, 'attach']);
+                Route::delete('incomes/{income}/attachment', [IncomeController::class, 'detach']);
 
                 // Cashbook: unified money-in / money-out ledger. DERIVES sales
                 // revenue + refunds + expenses (never duplicates them) and adds

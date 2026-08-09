@@ -45,8 +45,19 @@ class ExpenseBudgetController extends Controller
             ->groupBy('expense_category_id')
             ->pluck('spent', 'expense_category_id');
 
-        $rows = ExpenseCategory::query()
-            ->where('is_active', true)
+        // Categories that were spent against this month, whatever became of
+        // them since.
+        $spentAgainst = array_values(array_filter($spend->keys()->all()));
+
+        // Retiring a category does not unspend its money. Filtering the rows to
+        // active categories while the spend map still counted the retired ones
+        // meant the page silently dropped real expenditure: a shop that closed
+        // "Ramzan Promo" in May was shown an August total lower than what it
+        // actually spent, with nothing to click and no hint anything was
+        // missing. A retired category earns its row for exactly as long as it
+        // has money against it — soft-deleted ones too, for the same reason.
+        $rows = ExpenseCategory::withTrashed()
+            ->where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', $spentAgainst))
             ->orderBy('name')
             ->get()
             ->map(function (ExpenseCategory $c) use ($month, $branchScope, $spend): array {
@@ -57,6 +68,9 @@ class ExpenseBudgetController extends Controller
                 return [
                     'expense_category_id' => $c->id,
                     'category' => $c->name,
+                    // So the screen can mark the row rather than presenting a
+                    // closed category as somewhere the shop can still budget.
+                    'is_retired' => ! $c->is_active || $c->trashed(),
                     'budget' => $ceiling,
                     // Which row set it, so the screen can offer a box that
                     // edits the one the merchant meant. Without these two the
