@@ -21,7 +21,14 @@ export function useLanes(enabled = true) {
     queryFn: async () => (await registerService.lanes()).data,
     enabled,
     // Another lane can be claimed at any moment; keep the picker honest.
-    staleTime: 10_000,
+    //
+    // staleTime alone did not do that — it only says a cached answer may be
+    // reused, and with nothing triggering a refetch the picker sat on a lane
+    // map from whenever the screen opened. A cashier then picked a lane that
+    // was already taken and met REGISTER_BUSY, which reads as a bug rather
+    // than as somebody else being on it.
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 }
 

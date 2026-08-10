@@ -130,6 +130,13 @@ export function useHeldSales() {
   return useQuery({
     queryKey: ["pos", "held"],
     queryFn: async () => (await posService.heldList()).data,
+    // Held tickets are shared across the shop's lanes: a customer parked at
+    // lane 1 walks to lane 3 and is picked up there. Without a poll, lane 1
+    // keeps offering a ticket lane 3 already claimed, and the cashier who taps
+    // it gets an error instead of a sale. Same seam as the kitchen and the
+    // floor — two people, two browsers, neither able to invalidate the other.
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 }
 
