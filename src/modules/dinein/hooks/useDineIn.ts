@@ -5,12 +5,24 @@ import {
   type SettlePayload,
 } from "../services/dineInService";
 
+/**
+ * How often the floor asks the server what changed.
+ *
+ * The floor and the pass are two screens in two different hands, and neither
+ * can invalidate the other's cache — a waiter's browser knows nothing about the
+ * cook tapping "ready". Until there is a socket, polling IS the link between
+ * them, so it has to be at least as quick as the kitchen's own 8s or the pass
+ * moves and the floor does not.
+ */
+const FLOOR_POLL_MS = 8_000;
+
 export function useTables() {
   return useQuery({
     queryKey: ["dine-in", "tables"],
     queryFn: async () => (await dineInService.tables()).data,
-    // The floor is live — refresh occupancy every 15s.
-    refetchInterval: 15_000,
+    // The floor is live — occupancy changes when anyone seats or settles.
+    refetchInterval: FLOOR_POLL_MS,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -20,6 +32,8 @@ export function useOpenTickets(enabled = true) {
     queryKey: ["dine-in", "open-tickets"],
     queryFn: async () => (await dineInService.openTickets()).data,
     enabled,
+    // A tab someone else settled must stop being offered as a merge target.
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -28,6 +42,14 @@ export function useTicket(id: string | undefined) {
     queryKey: ["dine-in", "ticket", id],
     queryFn: async () => (await dineInService.ticket(id as string)).data,
     enabled: !!id,
+    // The open tab carries kot_status per line — "with the kitchen", "ready to
+    // run", "served". That status is written by the KITCHEN, in a different
+    // browser, so nothing on this screen invalidates it: without a poll the
+    // waiter watched a tab that said "with the kitchen" while the food sat
+    // under the lamp going cold, and only a manual refresh moved it. Firing
+    // looked live purely because the waiter's own mutation invalidated it.
+    refetchInterval: FLOOR_POLL_MS,
+    refetchOnWindowFocus: true,
   });
 }
 

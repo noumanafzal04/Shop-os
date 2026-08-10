@@ -60,6 +60,13 @@ export function useBumpKot(queryKey: readonly unknown[]) {
       if (ctx?.previous) qc.setQueryData(queryKey, ctx.previous);
     },
 
-    onSettled: () => qc.invalidateQueries({ queryKey: ["kitchen", "board"] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["kitchen", "board"] });
+      // The floor shows the same status per line. In a small shop one person
+      // works both screens on one device, and there the poll is a wait for
+      // nothing — the answer is already known the moment the bump returns.
+      // Across devices the floor's own poll still carries it.
+      qc.invalidateQueries({ queryKey: ["dine-in"] });
+    },
   });
 }
