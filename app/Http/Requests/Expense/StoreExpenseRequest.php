@@ -33,6 +33,13 @@ class StoreExpenseRequest extends FormRequest
                 'nullable', 'uuid',
                 Rule::exists('suppliers', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
             ],
+            // Who was paid, written down rather than looked up. A supplier is
+            // a stock-chain party with payables and a running balance; a
+            // landlord, WAPDA and the man who fixed the shutter are none of
+            // those. A books-only shop has no supplier directory at all — that
+            // rides the inventory module — so without this it could not record
+            // who it paid, which is most of what a book IS.
+            'payee' => ['nullable', 'string', 'max:120'],
             'description' => ['required', 'string', 'max:255'],
             'reference' => ['nullable', 'string', 'max:64'],
             // Edge case: negative or zero amounts blocked.

@@ -113,6 +113,59 @@ class BooksOnlyTenantWalkthroughTest extends TestCase
         $this->as($this->owner)->getJson('/api/v1/ledger?period=monthly')->assertOk();
     }
 
+    // ── who was paid ────────────────────────────────────────────────
+
+    public function test_a_books_only_shop_can_name_who_it_paid_and_who_paid_it(): void
+    {
+        // The gap this closes: expenses.supplier_id is validated and the list
+        // renders a "Paid to" column from it, but every /suppliers route rides
+        // the INVENTORY module — which a books-only shop does not have. So the
+        // one tenant whose entire product is the expense list was the only one
+        // that could not record who it paid.
+        //
+        // Fixed with a payee rather than by widening the supplier gate. Those
+        // are two different things: a supplier is a stock-chain party with
+        // payables and a running balance; a landlord is not one, and neither is
+        // WAPDA. Widening the gate was tried and reverted — most trades carry
+        // `expenses`, so it opened the vendor directory to everyone and broke
+        // six module-isolation tests that exist on purpose.
+        $category = $this->category('Rent');
+
+        // The directory itself is still shut, which is the point.
+        $this->as($this->owner)->getJson('/api/v1/suppliers')->assertForbidden();
+
+        $expense = $this->as($this->owner)->postJson('/api/v1/expenses', [
+            'expense_category_id' => $category,
+            'payee' => 'Malik Property Management',
+            'description' => 'Shop rent — August',
+            'amount' => 45000,
+            'expense_date' => now()->toDateString(),
+            'payment_method' => 'bank_transfer',
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('Malik Property Management', $expense['payee'], 'The payee was accepted and not stored.');
+
+        // And it survives the round trip to the screen a book-keeper reads.
+        $listed = collect($this->as($this->owner)->getJson('/api/v1/expenses')->assertOk()->json('data'))
+            ->firstWhere('id', $expense['id']);
+
+        $this->assertSame('Malik Property Management', $listed['payee']);
+
+        // The other side of the same gap.
+        $income = $this->as($this->owner)->postJson('/api/v1/incomes', [
+            'income_category_id' => $this->as($this->owner)
+                ->postJson('/api/v1/income-categories', ['name' => 'Client fees'])
+                ->assertCreated()->json('data.id'),
+            'payer' => 'Sohail Traders',
+            'description' => 'Invoice 4471 settled',
+            'amount' => 62000,
+            'income_date' => now()->toDateString(),
+            'payment_method' => 'bank_transfer',
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('Sohail Traders', $income['payer'], 'Income still cannot say who paid it.');
+    }
+
     // ── category → books ────────────────────────────────────────────
 
     public function test_a_category_is_renamed_then_retired_and_its_spend_survives_both(): void

@@ -31,6 +31,9 @@ class StoreIncomeRequest extends FormRequest
                     ->where('tenant_id', $tenantId)
                     ->whereNull('deleted_at'),
             ],
+            // Who it came from. "Who paid this?" is the first question asked
+            // of any receipt, and the books had nowhere to write the answer.
+            'payer' => ['nullable', 'string', 'max:120'],
             'description' => ['required', 'string', 'max:255'],
             'reference' => ['nullable', 'string', 'max:64'],
             // Edge case: negative or zero amounts blocked.
