@@ -34,7 +34,10 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   // and enforced on the server, not by hiding the screen.
   "/tenant/pos": "sales.manage",
   "/tenant/dine-in": "sales.manage",
-  "/tenant/kitchen": "sales.manage",
+  // The pass takes EITHER key. A kitchen hand holds kitchen.manage alone, so
+  // the board is all they are offered; in a small kitchen the same person cooks
+  // and rings up and already holds sales.manage.
+  "/tenant/kitchen": ["sales.manage", "kitchen.manage"],
   "/tenant/sales": "sales.manage",
   "/tenant/sales/new": "sales.manage",
   "/tenant/day": "sales.manage",
