@@ -9,6 +9,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
+use App\Models\SupplierPayment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -452,6 +453,18 @@ class ReportService
             ->groupBy(fn (SaleReturn $r) => $r->returned_at->format($format))
             ->map(fn (Collection $r) => round((float) $r->sum('refund_total'), 2));
 
+        // Paying the wholesaler. Counted as its own source rather than as an
+        // Expense: fabricating one would double-count the day a shop also files
+        // the supplier's bill, and refunds already set the precedent that a
+        // distinct kind of movement gets its own column.
+        $supplierPaidByBucket = SupplierPayment::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->whereBetween('paid_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->get(['paid_at', 'amount'])
+            ->groupBy(fn (SupplierPayment $p) => $p->paid_at->format($format))
+            ->map(fn (Collection $r) => round((float) $r->sum('amount'), 2));
+
         // Opening balance = everything that moved BEFORE the period. The branch
         // filter matters MORE here than in the buckets: money before the window
         // is never drawn as a row, so an unscoped figure cannot be seen and
@@ -466,14 +479,16 @@ class ReportService
             - (float) $scope(Expense::withoutTenancy()->where('tenant_id', $tenantId)
                 ->where('expense_date', '<', $from))->sum('amount')
             - (float) $scope(SaleReturn::withoutTenancy()->where('tenant_id', $tenantId)
-                ->where('returned_at', '<', $fromStart))->sum('refund_total'),
+                ->where('returned_at', '<', $fromStart))->sum('refund_total')
+            - (float) $scope(SupplierPayment::withoutTenancy()->where('tenant_id', $tenantId)
+                ->where('paid_at', '<', $fromStart))->sum('amount'),
             2,
         );
 
         $days = [];
         $cursor = $fromStart;
         $running = $opening;
-        $tSales = $tIncome = $tExpenses = $tRefunds = 0.0;
+        $tSales = $tIncome = $tExpenses = $tRefunds = $tSupplier = 0.0;
 
         while ($cursor <= $toEnd) {
             $key = $cursor->format($format);
@@ -481,8 +496,9 @@ class ReportService
             $income = $incomeByBucket[$key] ?? 0.0;
             $expenses = $expenseByBucket[$key] ?? 0.0;
             $refunds = $refundByBucket[$key] ?? 0.0;
+            $supplierPaid = $supplierPaidByBucket[$key] ?? 0.0;
             $moneyIn = round($sales + $income, 2);
-            $moneyOut = round($expenses + $refunds, 2);
+            $moneyOut = round($expenses + $refunds + $supplierPaid, 2);
             $net = round($moneyIn - $moneyOut, 2);
             $running = round($running + $net, 2);
 
@@ -490,6 +506,7 @@ class ReportService
             $tIncome += $income;
             $tExpenses += $expenses;
             $tRefunds += $refunds;
+            $tSupplier += $supplierPaid;
 
             $days[] = [
                 'date' => $key,
@@ -498,6 +515,7 @@ class ReportService
                 'money_in' => $moneyIn,
                 'expenses' => $expenses,
                 'refunds' => $refunds,
+                'supplier_payments' => $supplierPaid,
                 'money_out' => $moneyOut,
                 'net' => $net,
                 'balance' => $running,
@@ -507,7 +525,7 @@ class ReportService
         }
 
         $totalIn = round($tSales + $tIncome, 2);
-        $totalOut = round($tExpenses + $tRefunds, 2);
+        $totalOut = round($tExpenses + $tRefunds + $tSupplier, 2);
 
         return [
             'period' => ['from' => $from, 'to' => $to, 'granularity' => $granularity],

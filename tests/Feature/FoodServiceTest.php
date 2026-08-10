@@ -211,10 +211,38 @@ class FoodServiceTest extends TestCase
 
         // A cook decides nothing from a price, and a total on the kitchen wall
         // is a bill left on the wrong side of the shop.
-        $json = json_encode($board);
-        $this->assertStringNotContainsString('unit_price', $json);
-        $this->assertStringNotContainsString('line_total', $json);
-        $this->assertStringNotContainsString('800', $json);
+        //
+        // Asserted on the SHAPE rather than by searching the payload for the
+        // price. `assertStringNotContainsString('800', $json)` was the previous
+        // spelling and it failed at random: the board carries `server_time` and
+        // hex UUIDs, and `…58.080026Z` contains "800". Now that deploys gate on
+        // this suite, a flake of that kind blocks a release for no reason.
+        $this->assertSame(['name', 'quantity', 'modifiers', 'note'], array_keys($row['items'][0]));
+        $this->assertNoMoneyKeys($board);
+    }
+
+    /**
+     * No key anywhere in the payload is a money field. Catches a price arriving
+     * under a name this test never thought to look for, which a fixed list of
+     * forbidden keys cannot.
+     */
+    private function assertNoMoneyKeys(mixed $node, string $path = 'board'): void
+    {
+        if (! is_array($node)) {
+            return;
+        }
+
+        foreach ($node as $key => $value) {
+            if (is_string($key)) {
+                $this->assertDoesNotMatchRegularExpression(
+                    '/price|total|amount|cost|discount|tax/i',
+                    $key,
+                    "The kitchen board exposes money at {$path}.{$key}.",
+                );
+            }
+
+            $this->assertNoMoneyKeys($value, $path.'.'.$key);
+        }
     }
 
     public function test_a_board_can_be_filtered_to_one_station(): void

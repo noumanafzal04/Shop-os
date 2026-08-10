@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -101,7 +102,7 @@ class ReceiptTest extends TestCase
         return Sale::withoutTenancy()->findOrFail($data['id']);
     }
 
-    private function fetchReceipt(Sale $sale, array $query = [], ?User $user = null): \Illuminate\Testing\TestResponse
+    private function fetchReceipt(Sale $sale, array $query = [], ?User $user = null): TestResponse
     {
         return $this->actingAsUser($user ?? $this->cashier)
             ->withHeader('X-Register-Id', $this->lane1->id)

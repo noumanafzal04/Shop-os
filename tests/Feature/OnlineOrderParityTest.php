@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\City;
+use App\Models\Order;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -159,8 +161,8 @@ class OnlineOrderParityTest extends TestCase
         // captured snapshot instead of re-resolving an empty selection.
         $this->complete($order['id']);
 
-        $sale = \App\Models\Sale::withoutTenancy()->where('channel', 'online')->firstOrFail();
-        $this->assertSame('completed', \App\Models\Order::withoutTenancy()->find($order['id'])->status->value);
+        $sale = Sale::withoutTenancy()->where('channel', 'online')->firstOrFail();
+        $this->assertSame('completed', Order::withoutTenancy()->find($order['id'])->status->value);
         // Priced once (no double-count) and the snapshot survives onto the sale.
         $this->assertSame('1200.00', $sale->items->first()->unit_price);
         $this->assertCount(1, $sale->items->first()->modifiers);

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
@@ -31,7 +32,7 @@ class SalePriceTest extends TestCase
             'online_shop_enabled' => true,
             'setup_completed' => true,
             'business_type' => 'retail',
-            'features' => \App\Support\BusinessTypes::defaultFeatures('retail'),
+            'features' => BusinessTypes::defaultFeatures('retail'),
             'slug' => 'deal-mart',
         ]);
         $this->owner = User::factory()->shopOwner($this->tenant)->create();

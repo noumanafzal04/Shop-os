@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ItemType;
 use App\Models\Concerns\BelongsToTenant;
 use App\Support\ItemTypes;
+use App\Support\Permissions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,6 +18,32 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Product extends BaseModel
 {
+    /**
+     * What the shop PAID is stripped for anyone who may not see it.
+     *
+     * Guarded here rather than in a controller because a product is serialised
+     * from a dozen places — the catalog grid, POS lookup, global search, a sale
+     * line's eager-loaded relation — and a rule enforced at one of them is a
+     * rule that leaks from the other eleven. The margin REPORT was already shut
+     * to a cashier; this is the same figure arriving by the back door.
+     *
+     * Attribute access (`$product->cost`) is untouched, so every internal
+     * caller — costing a sale line, valuing a shelf, the CSV export behind its
+     * own permission — keeps working. Only the serialised payload changes.
+     */
+    public function toArray(): array
+    {
+        $data = parent::toArray();
+
+        $user = auth()->user();
+
+        if ($user instanceof User && ! $user->hasAnyPermission(Permissions::READS_COST)) {
+            unset($data['cost'], $data['wholesale_price']);
+        }
+
+        return $data;
+    }
+
     use BelongsToTenant;
 
     protected function casts(): array

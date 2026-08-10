@@ -7,6 +7,8 @@ use App\Exceptions\DomainException;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Support\BranchContext;
+use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -17,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 class RecordSupplierPaymentAction
 {
     /**
-     * @param array{amount: float, method?: string, reference?: ?string, paid_at?: ?string, notes?: ?string, purchase_order_id?: ?string} $data
+     * @param  array{amount: float, method?: string, reference?: ?string, paid_at?: ?string, notes?: ?string, purchase_order_id?: ?string}  $data
      */
     public function execute(Supplier $supplier, array $data): SupplierPayment
     {
@@ -32,7 +34,7 @@ class RecordSupplierPaymentAction
 
                 $due = round((float) $po->total - (float) $po->amount_paid, 2);
                 if ((float) $data['amount'] - 0.001 > $due) {
-                    $sym = app(\App\Support\TenantContext::class)->get()?->currencySymbol() ?? 'Rs';
+                    $sym = app(TenantContext::class)->get()?->currencySymbol() ?? 'Rs';
                     throw DomainException::unprocessable(
                         "Payment exceeds the amount due on this purchase order ({$sym} ".number_format($due, 2).').',
                         'PAYMENT_EXCEEDS_DUE',
@@ -43,6 +45,11 @@ class RecordSupplierPaymentAction
             /** @var SupplierPayment $payment */
             $payment = SupplierPayment::query()->create([
                 'tenant_id' => $supplier->tenant_id,
+                // Which till the money left. A payment is money OUT and the
+                // books scope by branch, so it needs the OPERATING branch —
+                // null on headless paths, which reads as "unattributed" rather
+                // than being guessed onto Main.
+                'branch_id' => app(BranchContext::class)->id(),
                 'supplier_id' => $supplier->id,
                 'purchase_order_id' => $po?->id,
                 'amount' => round((float) $data['amount'], 2),

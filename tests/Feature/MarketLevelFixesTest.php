@@ -288,7 +288,7 @@ class MarketLevelFixesTest extends TestCase
 
     public function test_prescription_items_cannot_be_ordered_online(): void
     {
-        [$tenant, ] = $this->shop('retail', ['online_shop_enabled' => true]);
+        [$tenant] = $this->shop('retail', ['online_shop_enabled' => true]);
         $rx = Product::withoutTenancy()->create([
             'tenant_id' => $tenant->id, 'type' => 'product',
             'name' => 'Antibiotic', 'price' => 300, 'stock_quantity' => 10,

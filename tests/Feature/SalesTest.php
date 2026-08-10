@@ -273,8 +273,10 @@ class SalesTest extends TestCase
             ->json('meta.pagination.total');
         $this->assertSame(1, $found);
 
-        // Other tenant sees nothing.
-        $otherOwner = User::factory()->shopOwner()->create();
+        // Other tenant sees nothing. Provisioned like a real shop — sale READS
+        // now carry a module gate, so a bare factory tenant would 403 here and
+        // the isolation this asserts would go untested behind the refusal.
+        $otherOwner = User::factory()->shopOwner(Tenant::factory()->provisioned()->create())->create();
         $this->assertSame(0, $this->actingAsUser($otherOwner)
             ->getJson('/api/v1/sales')
             ->json('meta.pagination.total'));

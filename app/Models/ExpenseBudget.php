@@ -65,7 +65,18 @@ class ExpenseBudget extends Model
     {
         $rows = self::query()
             ->where('expense_category_id', $categoryId)
-            ->when($branchId !== null, fn ($q) => $q->where(fn ($w) => $w->where('branch_id', $branchId)->orWhereNull('branch_id')))
+            ->when(
+                $branchId !== null,
+                // Standing at a branch: its own ceiling, falling back to the
+                // company-wide one when it has not set its own.
+                fn ($q) => $q->where(fn ($w) => $w->where('branch_id', $branchId)->orWhereNull('branch_id')),
+                // The all-branches view: ONLY a company-wide ceiling counts. A
+                // limit one shop set for itself is not the company's limit, and
+                // reporting it as one told an owner "Rent is 30,000 over budget"
+                // against a number the company never set — for spending that
+                // happened at a branch with no budget at all.
+                fn ($q) => $q->whereNull('branch_id'),
+            )
             ->where(fn ($q) => $q->whereNull('month')->orWhereDate('month', $month->copy()->startOfMonth()))
             // A dated row sorts after a NULL one, so the override wins.
             ->orderByRaw('month is null desc')

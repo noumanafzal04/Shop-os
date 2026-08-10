@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class OrdersTest extends TestCase
@@ -153,7 +154,7 @@ class OrdersTest extends TestCase
 
     // ── Lifecycle ───────────────────────────────────────────────────
 
-    private function advance(string $orderId, string $status): \Illuminate\Testing\TestResponse
+    private function advance(string $orderId, string $status): TestResponse
     {
         return $this->actingAsUser($this->owner)
             ->postJson("/api/v1/orders/{$orderId}/advance", ['status' => $status]);

@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Services\InventoryService;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
 use App\Support\DotCode;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -49,7 +50,7 @@ class BatchController extends Controller
         ];
     }
 
-    public function store(Request $request, string $productId, InventoryService $inventory): JsonResponse
+    public function store(Request $request, string $productId, InventoryService $inventory, BranchContext $branch): JsonResponse
     {
         $product = Product::query()->findOrFail($productId);
 
@@ -84,7 +85,12 @@ class BatchController extends Controller
         $manufacturedOn = DotCode::toDate($data['dot_code'] ?? null)?->toDateString()
             ?? ($data['manufactured_on'] ?? null);
 
-        $mainBranchId = Branch::withoutTenancy()
+        // The branch the lot is physically being booked into. Receiving is a
+        // WRITE, so it takes the OPERATING branch — `scopeId()` would be null in
+        // an owner's all-branches view and a delivery has to land somewhere
+        // concrete. Main remains the fallback for headless and single-branch
+        // shops, so nothing changes for them.
+        $mainBranchId = $branch->id() ?? Branch::withoutTenancy()
             ->where('tenant_id', $product->tenant_id)->where('is_default', true)->value('id');
 
         $batch = DB::transaction(function () use ($product, $data, $inventory, $mainBranchId, $manufacturedOn): ProductBatch {
@@ -190,12 +196,19 @@ class BatchController extends Controller
     /**
      * Batches expiring within N days (default 30) + already-expired stock.
      */
-    public function expiring(Request $request): JsonResponse
+    public function expiring(Request $request, BranchContext $branch): JsonResponse
     {
         $days = min((int) $request->query('days', 30), 365);
 
+        // Scoped to the branch being looked at, because the dashboard tile that
+        // links here already is. The two disagreeing is worse than either being
+        // wrong alone: the tile says "0 expiring soon", the screen it opens
+        // lists lots about to die, and a pharmacist cannot tell which to act on.
+        // `scopeId()` (not `id()`) — this is a READ, and null correctly means an
+        // owner's all-branches view.
         $batches = ProductBatch::query()
             ->expiringWithin($days)
+            ->when($branch->scopeId(), fn ($q, $branchId) => $q->where('branch_id', $branchId))
             ->with('product:id,name,sku')
             ->orderBy('expiry_date')
             ->get()

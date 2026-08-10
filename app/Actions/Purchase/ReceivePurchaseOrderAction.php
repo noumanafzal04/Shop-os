@@ -4,6 +4,7 @@ namespace App\Actions\Purchase;
 
 use App\Enums\PurchaseStatus;
 use App\Exceptions\DomainException;
+use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductSerial;
@@ -11,6 +12,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
+use App\Support\BranchContext;
 use App\Support\ItemTypes;
 use Illuminate\Support\Facades\DB;
 
@@ -32,11 +34,34 @@ use Illuminate\Support\Facades\DB;
  */
 class ReceivePurchaseOrderAction
 {
-    public function __construct(private readonly InventoryService $inventory) {}
+    public function __construct(
+        private readonly InventoryService $inventory,
+        private readonly BranchContext $branch,
+    ) {}
 
     /**
-     * @param array<string, array{quantity: float, batch_number: ?string, expiry_date: ?string}> $receiveMap
-     *        poItemId => receipt line. Empty → receive all outstanding.
+     * The branch the goods are physically being booked into.
+     *
+     * Receiving is a WRITE, so it takes the OPERATING branch (`id()`), never
+     * `scopeId()` — the latter is null in an owner's all-branches view, and a
+     * delivery has to land somewhere concrete. Falling back to Main keeps every
+     * headless path (seeders, jobs, single-branch shops) behaving as before.
+     *
+     * Resolved ONCE per receipt and reused for the movement, the lot and the
+     * serials: three writes that describe the same physical delivery, and the
+     * bug this replaces was them disagreeing.
+     */
+    private function receivingBranchId(string $tenantId): ?string
+    {
+        return $this->branch->id() ?? Branch::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->where('is_default', true)
+            ->value('id');
+    }
+
+    /**
+     * @param  array<string, array{quantity: float, batch_number: ?string, expiry_date: ?string}>  $receiveMap
+     *                                                                                                          poItemId => receipt line. Empty → receive all outstanding.
      */
     public function execute(PurchaseOrder $po, array $receiveMap = [], ?string $idempotencyKey = null): PurchaseOrder
     {
@@ -116,6 +141,7 @@ class ReceivePurchaseOrderAction
                     $this->inventory->adjust([
                         'product_id' => $item->product_id,
                         'variant_id' => $item->variant_id,
+                        'branch_id' => $this->receivingBranchId($product->tenant_id),
                         'type' => 'in',
                         'quantity' => $baseQty,
                         'reason' => "Received PO {$po->po_number}",
@@ -136,10 +162,9 @@ class ReceivePurchaseOrderAction
                     if ($wantsBatch || $isBatchTracked) {
                         ProductBatch::query()->create([
                             'tenant_id' => $product->tenant_id,
-                            // Same branch the adjust() above credited (default
-                            // Main) — lots and on-hand must not drift apart.
-                            'branch_id' => \App\Models\Branch::withoutTenancy()
-                                ->where('tenant_id', $product->tenant_id)->where('is_default', true)->value('id'),
+                            // The same branch the adjust() above credited —
+                            // lots and on-hand must not drift apart.
+                            'branch_id' => $this->receivingBranchId($product->tenant_id),
                             'product_id' => $product->id,
                             'variant_id' => $item->variant_id,
                             'batch_number' => $row['batch_number'] ?? $po->po_number,
@@ -205,8 +230,7 @@ class ReceivePurchaseOrderAction
             );
         }
 
-        $branchId = \App\Models\Branch::withoutTenancy()
-            ->where('tenant_id', $product->tenant_id)->where('is_default', true)->value('id');
+        $branchId = $this->receivingBranchId($product->tenant_id);
 
         foreach ($serials as $serial) {
             $exists = ProductSerial::withoutTenancy()

@@ -3,10 +3,11 @@
 namespace Tests\Feature;
 
 use App\Enums\OtpPurpose;
-use App\Models\AppNotification;
 use App\Jobs\SendChannelNotification;
+use App\Models\AppNotification;
 use App\Models\User;
 use App\Services\EmailSender;
+use App\Services\FcmSender;
 use App\Services\OtpService;
 use App\Services\SmsSender;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -68,7 +69,7 @@ class OtpDeliveryTest extends TestCase
         });
 
         (new SendChannelNotification($n->id, 'email'))->handle(
-            app(\App\Services\FcmSender::class), app(SmsSender::class), app(EmailSender::class),
+            app(FcmSender::class), app(SmsSender::class), app(EmailSender::class),
         );
     }
 }

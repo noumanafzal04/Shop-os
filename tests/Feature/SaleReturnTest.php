@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\City;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\StockMovement;
 use App\Models\Tenant;
 use App\Models\User;
@@ -231,7 +232,7 @@ class SaleReturnTest extends TestCase
         // Same return replayed — not a second refund.
         $this->assertSame($first['id'], $second['id']);
         $this->assertSame($first['return_number'], $second['return_number']);
-        $this->assertSame(1, \App\Models\SaleReturn::withoutTenancy()->where('sale_id', $sale['id'])->count());
+        $this->assertSame(1, SaleReturn::withoutTenancy()->where('sale_id', $sale['id'])->count());
         // Stock restocked ONCE (18, not 19).
         $this->assertEquals(18, $this->product->fresh()->stock_quantity);
         // Sale stays partially refunded, not double-counted.
@@ -250,7 +251,7 @@ class SaleReturnTest extends TestCase
             ])->assertCreated();
         }
 
-        $this->assertSame(2, \App\Models\SaleReturn::withoutTenancy()->where('sale_id', $sale['id'])->count());
+        $this->assertSame(2, SaleReturn::withoutTenancy()->where('sale_id', $sale['id'])->count());
         $this->assertEquals(19, $this->product->fresh()->stock_quantity);
     }
 

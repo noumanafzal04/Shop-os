@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Models\City;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\PlanLimits;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -270,7 +272,7 @@ class TenantManagementTest extends TestCase
             $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", ['plan_id' => $plan->id])
                 ->assertOk();
 
-            $this->assertSame($expected, \App\Support\PlanLimits::limit($tenant->fresh(), 'products'));
+            $this->assertSame($expected, PlanLimits::limit($tenant->fresh(), 'products'));
         }
     }
 
@@ -363,8 +365,8 @@ class TenantManagementTest extends TestCase
 
     public function test_public_cities_endpoint(): void
     {
-        \App\Models\City::query()->create(['name' => 'Karachi', 'is_active' => true]);
-        \App\Models\City::query()->create(['name' => 'Hidden City', 'is_active' => false]);
+        City::query()->create(['name' => 'Karachi', 'is_active' => true]);
+        City::query()->create(['name' => 'Hidden City', 'is_active' => false]);
 
         $response = $this->getJson('/api/v1/cities');
 

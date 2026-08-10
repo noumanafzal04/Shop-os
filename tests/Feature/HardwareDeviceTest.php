@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -46,7 +47,7 @@ class HardwareDeviceTest extends TestCase
         return $this->withToken($token);
     }
 
-    private function add(array $overrides = []): \Illuminate\Testing\TestResponse
+    private function add(array $overrides = []): TestResponse
     {
         return $this->actingAsUser($this->owner)->postJson('/api/v1/hardware-devices', array_merge([
             'type' => 'receipt_printer',

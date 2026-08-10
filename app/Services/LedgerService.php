@@ -20,25 +20,31 @@ use Illuminate\Support\Facades\DB;
  * category. Handing them a day that says "Rs 41,200 out" and no way to open it
  * is handing them an answer they cannot check, and checking is the entire job.
  *
- * Four sources, one shape:
+ * Five sources, one shape:
  *
  *   sale     money in   a completed sale (refunded ones still brought money in
  *                       — only a CANCELLED sale never happened)
  *   income   money in   a manual non-sales entry (rent, owner investment…)
  *   expense  money out  a bill
  *   refund   money out  money handed back
+ *   supplier_payment  money out  paying the wholesaler
+ *
+ * A supplier payment is its own source rather than an Expense written on its
+ * behalf: fabricating one double-counts the day a shop also files the
+ * supplier's bill. For a mart the supplier run is usually the biggest single
+ * outflow of the week, so its absence was loud.
  *
  * Sales revenue is DERIVED here exactly as the Cashbook derives it, never
  * re-entered as income, so the two screens cannot disagree.
  *
- * Assembled as a database UNION rather than four collections merged in PHP:
+ * Assembled as a database UNION rather than five collections merged in PHP:
  * a mart's year is six figures of sales rows, and the page the merchant asked
  * for should cost one query, not a hydration of everything before it.
  */
 class LedgerService
 {
-    /** The four kinds of movement, and which way each one points. */
-    public const TYPES = ['sale', 'income', 'expense', 'refund'];
+    /** The five kinds of movement, and which way each one points. */
+    public const TYPES = ['sale', 'income', 'expense', 'refund', 'supplier_payment'];
 
     /**
      * A page of the ledger, plus what it opened at and what the filtered set
@@ -168,7 +174,8 @@ class LedgerService
         $union = $this->expenses($tenantId, $branchId, $from, $to)
             ->unionAll($this->incomes($tenantId, $branchId, $from, $to))
             ->unionAll($this->sales($tenantId, $branchId, $from, $to))
-            ->unionAll($this->refunds($tenantId, $branchId, $from, $to));
+            ->unionAll($this->refunds($tenantId, $branchId, $from, $to))
+            ->unionAll($this->supplierPayments($tenantId, $branchId, $from, $to));
 
         $query = DB::query()->fromSub($union, 'ledger');
 
@@ -291,14 +298,15 @@ class LedgerService
             $this->expenses($tenantId, $branchId, null, null, $from)
                 ->unionAll($this->incomes($tenantId, $branchId, null, null, $from))
                 ->unionAll($this->sales($tenantId, $branchId, null, null, $from))
-                ->unionAll($this->refunds($tenantId, $branchId, null, null, $from)),
+                ->unionAll($this->refunds($tenantId, $branchId, null, null, $from))
+                ->unionAll($this->supplierPayments($tenantId, $branchId, null, null, $from)),
             'opening',
         )->selectRaw('COALESCE(SUM(amount_in), 0) as i, COALESCE(SUM(amount_out), 0) as o')->first();
 
         return round((float) ($before->i ?? 0) - (float) ($before->o ?? 0), 2);
     }
 
-    // ── The four sources ────────────────────────────────────────────
+    // ── The five sources ────────────────────────────────────────────
     //
     // Each selects the same nine columns so the union lines up. `$strictlyBefore`
     // replaces the window when computing an opening balance.
@@ -379,6 +387,33 @@ class LedgerService
             );
 
         return $this->window($q, 'sale_returns.returned_at', $from, $to, $strictlyBefore, true);
+    }
+
+    /**
+     * Paying the wholesaler.
+     *
+     * Joined to suppliers only for the NAME — a row reading "Payment" tells a
+     * book-keeper nothing, and "Chishtia Wholesale" is the whole point of
+     * opening the page. Historic rows carry no branch (nothing recorded which
+     * till the cash left), so they surface only in the all-branches view rather
+     * than being guessed onto Main.
+     */
+    private function supplierPayments(string $tenantId, ?string $branchId, ?string $from, ?string $to, ?string $strictlyBefore = null): Builder
+    {
+        $q = DB::table('supplier_payments')
+            ->leftJoin('suppliers', 'suppliers.id', '=', 'supplier_payments.supplier_id')
+            ->where('supplier_payments.tenant_id', $tenantId)
+            ->when($branchId, fn ($q) => $q->where('supplier_payments.branch_id', $branchId))
+            ->selectRaw(
+                "supplier_payments.id as id, 'supplier_payment' as type,"
+                .' DATE(supplier_payments.paid_at) as entry_date,'
+                .' supplier_payments.paid_at as sort_at, supplier_payments.reference as reference,'
+                ." COALESCE(CONCAT('Paid ', suppliers.name), 'Supplier payment') as description,"
+                ." 'Suppliers' as category, NULL as category_id, supplier_payments.method as method,"
+                .' 0 as amount_in, supplier_payments.amount as amount_out',
+            );
+
+        return $this->window($q, 'supplier_payments.paid_at', $from, $to, $strictlyBefore, true);
     }
 
     /**

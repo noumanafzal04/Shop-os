@@ -445,32 +445,42 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             });
 
             // Sales: workflow → payment → invoice → stock decrement
-            Route::prefix('sales')->middleware('permission:sales.manage')->group(function (): void {
-                Route::get('/', [SaleController::class, 'index']);
-                // Export before /{sale} so it isn't captured as an id.
-                Route::get('/export', [SaleController::class, 'export']);
-                // Ringing up a counter sale needs the POS module; viewing and
-                // refunding sales stays open (online sales appear here too).
-                Route::post('/', [SaleController::class, 'store'])->middleware('feature:pos');
-                Route::get('/{sale}', [SaleController::class, 'show']);
-                // Voiding and refunding are separated from ringing sales: they
-                // restore stock and reverse money, so a cashier holding only
-                // sales.manage can no longer erase a completed sale or hand
-                // cash back. Owners hold every tenant permission implicitly.
-                Route::post('/{sale}/cancel', [SaleController::class, 'cancel'])
-                    ->middleware('permission:sales.void');
-                Route::post('/{sale}/returns', [SaleController::class, 'processReturn'])
-                    ->middleware('permission:sales.refund');
-                // Exchange rings a replacement sale, so it needs the POS module.
-                // It also returns goods, hence the refund permission.
-                Route::post('/{sale}/exchange', [SaleController::class, 'exchange'])
-                    ->middleware(['feature:pos', 'permission:sales.refund']);
-                // Receipts. Rendering one is a counter action, not a report:
-                // the render itself is what gets logged, and the log is what
-                // decides whether the paper says ORIGINAL or REPRINT.
-                Route::get('/{sale}/invoice', [ReceiptController::class, 'show']);
-                Route::get('/{sale}/receipt-prints', [ReceiptController::class, 'trail']);
-            });
+            //
+            // The READS carry a module gate as well as the permission. Ringing
+            // one up already required the POS module; viewing them required
+            // nothing, so a books-only shop — which can never make a sale — was
+            // handed a working Sales History screen answering "you have no
+            // sales". That is the wrong answer in the same way an empty catalog
+            // is: it describes a shop with no trade rather than a shop with no
+            // such feature. ANY-of, so anything that can sell keeps its history.
+            Route::prefix('sales')
+                ->middleware(['feature:pos,marketplace,products,services', 'permission:sales.manage'])
+                ->group(function (): void {
+                    Route::get('/', [SaleController::class, 'index']);
+                    // Export before /{sale} so it isn't captured as an id.
+                    Route::get('/export', [SaleController::class, 'export']);
+                    // Ringing up a counter sale needs the POS module; viewing and
+                    // refunding sales stays open (online sales appear here too).
+                    Route::post('/', [SaleController::class, 'store'])->middleware('feature:pos');
+                    Route::get('/{sale}', [SaleController::class, 'show']);
+                    // Voiding and refunding are separated from ringing sales: they
+                    // restore stock and reverse money, so a cashier holding only
+                    // sales.manage can no longer erase a completed sale or hand
+                    // cash back. Owners hold every tenant permission implicitly.
+                    Route::post('/{sale}/cancel', [SaleController::class, 'cancel'])
+                        ->middleware('permission:sales.void');
+                    Route::post('/{sale}/returns', [SaleController::class, 'processReturn'])
+                        ->middleware('permission:sales.refund');
+                    // Exchange rings a replacement sale, so it needs the POS module.
+                    // It also returns goods, hence the refund permission.
+                    Route::post('/{sale}/exchange', [SaleController::class, 'exchange'])
+                        ->middleware(['feature:pos', 'permission:sales.refund']);
+                    // Receipts. Rendering one is a counter action, not a report:
+                    // the render itself is what gets logged, and the log is what
+                    // decides whether the paper says ORIGINAL or REPRINT.
+                    Route::get('/{sale}/invoice', [ReceiptController::class, 'show']);
+                    Route::get('/{sale}/receipt-prints', [ReceiptController::class, 'trail']);
+                });
 
             // What the receipt will look like — rendered from the settings
             // being edited, against a sample sale. Nothing is written. It sits

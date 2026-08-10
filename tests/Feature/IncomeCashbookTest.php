@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Shop\ApplyBusinessTypeDefaultsAction;
+use App\Models\ExpenseCategory;
 use App\Models\Income;
 use App\Models\IncomeCategory;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Permissions;
@@ -164,7 +167,7 @@ class IncomeCashbookTest extends TestCase
     {
         // Business-type setup seeds a generic income-category template.
         $fresh = Tenant::factory()->create();
-        app(\App\Actions\Shop\ApplyBusinessTypeDefaultsAction::class)->execute($fresh, 'mart');
+        app(ApplyBusinessTypeDefaultsAction::class)->execute($fresh, 'mart');
 
         $names = IncomeCategory::withoutTenancy()->where('tenant_id', $fresh->id)->pluck('name');
         $this->assertTrue($names->contains('Other Income'));
@@ -189,7 +192,7 @@ class IncomeCashbookTest extends TestCase
         $this->actingAsUser($this->owner)->postJson('/api/v1/incomes', $this->incomePayload(['amount' => 500]));
 
         // Expense: 50 out.
-        $rent = \App\Models\ExpenseCategory::withoutTenancy()->create([
+        $rent = ExpenseCategory::withoutTenancy()->create([
             'tenant_id' => $this->tenant->id, 'name' => 'Rent',
         ]);
         $this->actingAsUser($this->owner)->postJson('/api/v1/expenses', [
@@ -231,7 +234,7 @@ class IncomeCashbookTest extends TestCase
             'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 100,
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
         ])->json('data');
-        \App\Models\Sale::withoutTenancy()->whereKey($old['id'])->update(['sold_at' => now()->subDay()]);
+        Sale::withoutTenancy()->whereKey($old['id'])->update(['sold_at' => now()->subDay()]);
 
         // A CANCELLED sale today must never appear on either side.
         $cancelled = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', [

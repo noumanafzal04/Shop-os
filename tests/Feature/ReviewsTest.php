@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class ReviewsTest extends TestCase
@@ -47,7 +48,7 @@ class ReviewsTest extends TestCase
         return $this->withToken($token);
     }
 
-    private function review(int $rating = 5, string $comment = 'Great shop!'): \Illuminate\Testing\TestResponse
+    private function review(int $rating = 5, string $comment = 'Great shop!'): TestResponse
     {
         return $this->actingAsUser($this->customer)->postJson('/api/v1/customer/reviews', [
             'shop_slug' => $this->shop->slug,

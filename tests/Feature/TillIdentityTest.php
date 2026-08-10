@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -216,7 +217,7 @@ class TillIdentityTest extends TestCase
         $this->ayesha->setPin('4820');
 
         $unknown = $this->actingAsUser($this->ayesha)
-            ->postJson('/api/v1/pos/unlock', ['user_id' => \Illuminate\Support\Str::uuid()->toString(), 'pin' => '4820'])
+            ->postJson('/api/v1/pos/unlock', ['user_id' => Str::uuid()->toString(), 'pin' => '4820'])
             ->assertUnauthorized();
 
         $wrong = $this->actingAsUser($this->ayesha)

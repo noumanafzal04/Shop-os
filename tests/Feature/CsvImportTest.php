@@ -51,7 +51,7 @@ class CsvImportTest extends TestCase
 
     public function test_valid_rows_create_products_and_bad_rows_are_reported(): void
     {
-        $csv = <<<CSV
+        $csv = <<<'CSV'
         name,item_type,sku,price,category,stock_quantity,barcodes
         Widget A,physical_product,W-A,100,General,10,
         Widget B,physical_product,W-B,200,General,5,111|222

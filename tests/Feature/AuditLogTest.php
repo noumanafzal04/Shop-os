@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\AuditLog;
+use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Permissions;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -33,7 +35,7 @@ class AuditLogTest extends TestCase
     public function test_tenant_lifecycle_actions_are_audited_with_actor(): void
     {
         $admin = User::factory()->superAdmin()->create();
-        $plan = \App\Models\Plan::query()->where('code', 'basic')->first();
+        $plan = Plan::query()->where('code', 'basic')->first();
 
         $tenant = $this->actingAsUser($admin)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Audited Mart',
@@ -63,7 +65,7 @@ class AuditLogTest extends TestCase
     public function test_secrets_are_never_written_to_the_audit_log(): void
     {
         $admin = User::factory()->superAdmin()->create();
-        $plan = \App\Models\Plan::query()->where('code', 'basic')->first();
+        $plan = Plan::query()->where('code', 'basic')->first();
 
         $this->actingAsUser($admin)->postJson('/api/v1/admin/tenants', [
             'business_name' => 'Secret Mart',
@@ -95,7 +97,7 @@ class AuditLogTest extends TestCase
 
     public function test_platform_staff_cannot_read_audit_trail(): void
     {
-        $staff = User::factory()->adminStaff([\App\Support\Permissions::TENANTS_VIEW])->create();
+        $staff = User::factory()->adminStaff([Permissions::TENANTS_VIEW])->create();
 
         $this->actingAsUser($staff)->getJson('/api/v1/admin/audit-logs')->assertStatus(403);
     }

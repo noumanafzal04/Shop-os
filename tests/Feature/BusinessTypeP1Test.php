@@ -6,12 +6,15 @@ use App\Models\City;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\ProductBatch;
+use App\Models\ProductUnit;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -151,7 +154,7 @@ class BusinessTypeP1Test extends TestCase
 
     public function test_product_images_gated_by_module_but_forced_on_when_online(): void
     {
-        \Illuminate\Support\Facades\Storage::fake('public');
+        Storage::fake('public');
 
         // Walk-in pharmacy: marketplace off → images off → upload blocked.
         $walkIn = Tenant::factory()->create([
@@ -164,7 +167,7 @@ class BusinessTypeP1Test extends TestCase
             'name' => 'Tablet', 'price' => 50,
         ]);
         $this->actingAsUser($owner)->postJson("/api/v1/products/{$med->id}/images", [
-            'images' => [\Illuminate\Http\UploadedFile::fake()->image('x.jpg')],
+            'images' => [UploadedFile::fake()->image('x.jpg')],
         ])->assertStatus(403)->assertJsonPath('meta.error_code', 'IMAGES_DISABLED');
 
         // Same type but selling online → images compulsory → upload allowed.
@@ -178,7 +181,7 @@ class BusinessTypeP1Test extends TestCase
             'item_type' => 'medicine', 'name' => 'Syrup', 'price' => 80,
         ])->assertCreated()->json('data.id');
         $this->actingAsUser($onlineOwner)->postJson("/api/v1/products/{$pid}/images", [
-            'images' => [\Illuminate\Http\UploadedFile::fake()->image('y.jpg')],
+            'images' => [UploadedFile::fake()->image('y.jpg')],
         ])->assertOk();
     }
 
@@ -246,7 +249,7 @@ class BusinessTypeP1Test extends TestCase
     public function test_alternate_barcode_cannot_shadow_a_pack_barcode(): void
     {
         $water = $this->makeProduct(['name' => 'Water', 'sku' => 'WATER-1', 'stock_quantity' => 0]);
-        \App\Models\ProductUnit::withoutTenancy()->create([
+        ProductUnit::withoutTenancy()->create([
             'tenant_id' => $this->shop->id, 'product_id' => $water->id,
             'name' => 'Carton', 'factor' => 12, 'barcode' => 'CARTON-9',
         ]);

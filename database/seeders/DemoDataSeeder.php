@@ -2,10 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Actions\Pos\CloseCashSessionAction;
+use App\Actions\Pos\OpenCashSessionAction;
 use App\Actions\Purchase\CreatePurchaseOrderAction;
 use App\Actions\Purchase\ReceivePurchaseOrderAction;
 use App\Actions\Purchase\RecordSupplierPaymentAction;
 use App\Actions\Sale\CreateSaleAction;
+use App\Actions\Sale\ProcessSaleReturnAction;
 use App\Actions\Shop\ApplyBusinessTypeDefaultsAction;
 use App\Enums\ReservationStatus;
 use App\Enums\UserRole;
@@ -17,11 +20,16 @@ use App\Models\City;
 use App\Models\Collection;
 use App\Models\CustomerGroup;
 use App\Models\Expense;
+use App\Models\ExpenseBudget;
 use App\Models\ExpenseCategory;
+use App\Models\Income;
+use App\Models\IncomeCategory;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\Promotion;
+use App\Models\RecurringExpense;
 use App\Models\Reservation;
+use App\Models\Sale;
 use App\Models\SubscriptionPayment;
 use App\Models\Supplier;
 use App\Models\TaxGroup;
@@ -31,6 +39,7 @@ use App\Support\ItemTypes;
 use App\Support\TenantContext;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -159,16 +168,28 @@ class DemoDataSeeder extends Seeder
         $seeded = Product::withoutTenancy()->where('tenant_id', $tenant->id)->exists()
             || Expense::withoutTenancy()->where('tenant_id', $tenant->id)->exists();
 
+        // Branches are structure, not content — a shop that gained a second
+        // branch after its first seed should still get it.
+        $this->seedExtraBranches($tenant, $blueprint['branches'] ?? []);
+
         if (! $seeded) {
             $this->seedProducts($tenant, $blueprint['items'], $blueprint['type']);
             $this->seedMarketingExtras($tenant);
             $this->seedCollections($tenant);
             $this->seedSales($tenant);
-            $this->seedExpenses($tenant);
-            $this->seedSubscriptionPayments($tenant, $plan, $index);
+            // Moved ahead of the money block: this is what creates the shop's
+            // supplier, and an expense that names no supplier cannot show the
+            // supplier picker the expense form now has.
             if ($tenant->featureEnabled('inventory')) {
                 $this->seedPurchases($tenant);
             }
+            $this->seedRecurringExpenses($tenant);
+            $this->seedExpenses($tenant);
+            $this->seedIncome($tenant);
+            $this->seedBudgets($tenant);
+            $this->seedReturns($tenant);
+            $this->seedShift($tenant);
+            $this->seedSubscriptionPayments($tenant, $plan, $index);
         }
 
         $on = collect($tenant->refresh()->features ?? [])->filter()->keys()->implode(', ');
@@ -449,6 +470,67 @@ class DemoDataSeeder extends Seeder
         app(TenantContext::class)->clear();
     }
 
+    // ── The money block ──────────────────────────────────────────────
+    //
+    // The demo world used to stop after the catalog and a few sales: no
+    // refund, no income, no budget, no schedule, no closed shift. Five
+    // features had shipped against columns nothing in the demo ever filled,
+    // so the only way to see any of them was to type the data in by hand —
+    // and the branch-scope work could not be shown at all, because a refund
+    // never existed.
+
+    /**
+     * Two schedules, so the list has both states. The active one is what puts
+     * a "scheduled" badge on an expense below: two rent rows inside one month
+     * read as a double entry until something says one of them was posted by a
+     * standing order.
+     */
+    private function seedRecurringExpenses(Tenant $tenant): void
+    {
+        $rent = $this->expenseCategoryNamed($tenant, ['Rent', 'Shop Rent', 'Rent & Utilities']);
+        $other = $this->expenseCategoryNamed($tenant, ['Utilities', 'Electricity', 'Bills', 'Internet']);
+
+        if ($rent === null) {
+            return;
+        }
+
+        $branchId = $this->mainBranchId($tenant);
+        $supplierId = Supplier::withoutTenancy()->where('tenant_id', $tenant->id)->value('id');
+
+        RecurringExpense::withoutTenancy()->create([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branchId,
+            'expense_category_id' => $rent->id,
+            'supplier_id' => $supplierId,
+            'description' => 'Monthly shop rent',
+            'amount' => 45000,
+            'payment_method' => 'bank_transfer',
+            'frequency' => 'monthly',
+            'next_due_on' => now()->startOfMonth()->addMonth()->toDateString(),
+            'last_posted_on' => now()->startOfMonth()->toDateString(),
+            'is_active' => true,
+            'notes' => 'Standing order, paid on the 1st.',
+        ]);
+
+        if ($other !== null) {
+            // Paused rather than deleted: a schedule the shop stopped for the
+            // summer is a state the list has to render, and "active" looks like
+            // the only one when every row is.
+            RecurringExpense::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'branch_id' => $branchId,
+                'expense_category_id' => $other->id,
+                'description' => 'Generator diesel top-up',
+                'amount' => 12000,
+                'payment_method' => 'cash',
+                'frequency' => 'weekly',
+                'next_due_on' => now()->addWeek()->toDateString(),
+                'is_active' => false,
+                'notes' => 'Paused — mains supply stabilised.',
+            ]);
+        }
+    }
+
     private function seedExpenses(Tenant $tenant): void
     {
         $categories = ExpenseCategory::withoutTenancy()
@@ -456,14 +538,301 @@ class DemoDataSeeder extends Seeder
             ->take(4)
             ->get();
 
+        if ($categories->isEmpty()) {
+            return;
+        }
+
+        $branches = $this->branchIds($tenant);
+        $supplierId = Supplier::withoutTenancy()->where('tenant_id', $tenant->id)->value('id');
+        $ownerId = $this->ownerOf($tenant)?->id;
+        $schedule = RecurringExpense::withoutTenancy()
+            ->where('tenant_id', $tenant->id)->where('is_active', true)->first();
+
         foreach ($categories as $i => $category) {
             Expense::withoutTenancy()->create([
                 'tenant_id' => $tenant->id,
+                // Round-robin so a two-branch shop has spend on both sides. A
+                // branch filter that silently returns everything is invisible
+                // when every row belongs to the only branch there is.
+                'branch_id' => $branches[$i % count($branches)] ?? null,
                 'expense_category_id' => $category->id,
+                // Only some expenses have a supplier — a utility bill has none,
+                // and a picker that is filled on every row never shows its empty
+                // state.
+                'supplier_id' => $i === 0 ? $supplierId : null,
                 'description' => "{$category->name} — ".now()->subDays($i * 2)->format('M j'),
                 'amount' => [1500, 800, 2500, 400][$i % 4],
+                'payment_method' => ['cash', 'bank_transfer', 'cash', 'card'][$i % 4],
                 'expense_date' => now()->subDays($i * 2)->toDateString(),
+                'notes' => $i === 1 ? 'Paid against invoice #4471.' : null,
+                'created_by' => $ownerId,
             ]);
+        }
+
+        // The posted instance of the standing order, which is the row that
+        // carries the badge.
+        if ($schedule !== null) {
+            Expense::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'branch_id' => $schedule->branch_id,
+                'expense_category_id' => $schedule->expense_category_id,
+                'supplier_id' => $schedule->supplier_id,
+                'recurring_expense_id' => $schedule->id,
+                'description' => $schedule->description,
+                'amount' => $schedule->amount,
+                'payment_method' => $schedule->payment_method,
+                'expense_date' => now()->startOfMonth()->toDateString(),
+                'created_by' => $ownerId,
+            ]);
+        }
+    }
+
+    /**
+     * The other side of the book. Income had a receipt column and no way to
+     * fill it, so the side an owner is most likely to be challenged on was the
+     * side with no evidence attached — one row here carries a real file so the
+     * link actually opens.
+     */
+    private function seedIncome(Tenant $tenant): void
+    {
+        $categories = IncomeCategory::withoutTenancy()
+            ->where('tenant_id', $tenant->id)->take(3)->get();
+
+        if ($categories->isEmpty()) {
+            return;
+        }
+
+        $branches = $this->branchIds($tenant);
+        $ownerId = $this->ownerOf($tenant)?->id;
+
+        $rows = [
+            ['Owner investment', 80000, 'bank_transfer', $this->demoReceiptPath()],
+            ['Scrap and packaging sold', 4200, 'cash', null],
+            ['Refund from supplier', 15500, 'bank_transfer', null],
+        ];
+
+        foreach ($rows as $i => [$description, $amount, $method, $attachment]) {
+            Income::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'branch_id' => $branches[$i % count($branches)] ?? null,
+                'income_category_id' => $categories[$i % $categories->count()]->id,
+                'description' => $description,
+                'amount' => $amount,
+                'payment_method' => $method,
+                'income_date' => now()->subDays($i * 3 + 1)->toDateString(),
+                'attachment_path' => $attachment,
+                'created_by' => $ownerId,
+            ]);
+        }
+    }
+
+    /**
+     * Both shapes a budget takes — a standing ceiling that applies every month,
+     * and a dated row that overrides it for one. Then one category is retired
+     * while still holding spend, which is the case the Budgets tab used to drop:
+     * close a category mid-month and real money vanished off the screen.
+     */
+    private function seedBudgets(Tenant $tenant): void
+    {
+        $categories = ExpenseCategory::withoutTenancy()
+            ->where('tenant_id', $tenant->id)->take(4)->get();
+
+        if ($categories->count() < 2) {
+            return;
+        }
+
+        $branchId = $this->mainBranchId($tenant);
+        $ownerId = $this->ownerOf($tenant)?->id;
+
+        // Standing ceiling: no month.
+        ExpenseBudget::withoutTenancy()->create([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branchId,
+            'expense_category_id' => $categories[0]->id,
+            'amount' => 60000,
+            'month' => null,
+            'created_by' => $ownerId,
+        ]);
+
+        // This month only — the annual-licence shape.
+        ExpenseBudget::withoutTenancy()->create([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branchId,
+            'expense_category_id' => $categories[1]->id,
+            'amount' => 25000,
+            'month' => now()->startOfMonth()->toDateString(),
+            'created_by' => $ownerId,
+        ]);
+
+        // A retired category that still has spend against it this month. The
+        // budget row survives it deliberately: accounting for money already
+        // spent is not the same as inviting more to be planned against it.
+        if ($categories->count() >= 3) {
+            $retired = $categories[2];
+
+            ExpenseBudget::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'branch_id' => $branchId,
+                'expense_category_id' => $retired->id,
+                'amount' => 10000,
+                'month' => now()->startOfMonth()->toDateString(),
+                'created_by' => $ownerId,
+            ]);
+
+            $retired->forceFill(['is_active' => false])->save();
+        }
+    }
+
+    /**
+     * One partial refund, through the real action so stock goes back and the
+     * ledger sees a credit — a hand-written row would restock nothing and prove
+     * nothing. Runs as the owner because the action stamps `created_by` from
+     * the authenticated user.
+     */
+    private function seedReturns(Tenant $tenant): void
+    {
+        $owner = $this->ownerOf($tenant);
+        if ($owner === null) {
+            return;
+        }
+
+        $sale = Sale::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->with('items')
+            ->latest('sold_at')
+            ->first();
+
+        $line = $sale?->items->first();
+        if ($sale === null || $line === null) {
+            return;
+        }
+
+        app(TenantContext::class)->set($tenant);
+        auth()->setUser($owner);
+
+        try {
+            app(ProcessSaleReturnAction::class)->execute($sale, [
+                // Partial, not whole: a full refund and a part refund take
+                // different paths through the over-return guard, and the part
+                // one is the path with arithmetic in it.
+                'items' => [['sale_item_id' => $line->id, 'quantity' => 1]],
+                'reason' => 'Customer changed their mind',
+                'refund_method' => 'cash',
+            ]);
+        } catch (\Throwable) {
+            // Stock or over-return edge — demo data only.
+        }
+
+        app('auth')->forgetGuards();
+        app(TenantContext::class)->clear();
+    }
+
+    /**
+     * A shift that was opened and counted out, so `Day & banking → Shifts` has
+     * something in it. Closed short by 250 on purpose: a drawer that balances
+     * exactly every time never shows what the variance column is for.
+     */
+    private function seedShift(Tenant $tenant): void
+    {
+        $owner = $this->ownerOf($tenant);
+        if ($owner === null || ! $tenant->featureEnabled('pos')) {
+            return;
+        }
+
+        app(TenantContext::class)->set($tenant);
+        auth()->setUser($owner);
+
+        try {
+            $session = app(OpenCashSessionAction::class)->execute($owner, 5000.0);
+
+            app(CloseCashSessionAction::class)->execute(
+                $session->refresh(),
+                max(0.0, round((float) $session->refresh()->expected_cash - 250, 2)),
+                'Counted at close — 250 short, till roll checked.',
+                $owner->id,
+            );
+        } catch (\Throwable) {
+            // A shop with no register configured, or a day already closed.
+        }
+
+        app('auth')->forgetGuards();
+        app(TenantContext::class)->clear();
+    }
+
+    // ── Money-block helpers ──────────────────────────────────────────
+
+    private function ownerOf(Tenant $tenant): ?User
+    {
+        return User::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('role', UserRole::ShopOwner)
+            ->first();
+    }
+
+    private function mainBranchId(Tenant $tenant): ?string
+    {
+        return Branch::withoutTenancy()
+            ->where('tenant_id', $tenant->id)->where('is_default', true)->value('id');
+    }
+
+    /** @return list<string> */
+    private function branchIds(Tenant $tenant): array
+    {
+        return Branch::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->orderByDesc('is_default')
+            ->pluck('id')
+            ->all();
+    }
+
+    private function expenseCategoryNamed(Tenant $tenant, array $names): ?ExpenseCategory
+    {
+        return ExpenseCategory::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('name', $names)
+            ->first()
+            ?? ExpenseCategory::withoutTenancy()->where('tenant_id', $tenant->id)->first();
+    }
+
+    /**
+     * A real file on the public disk, written once and shared by every demo
+     * tenant. A path pointing at nothing would render a broken link, which
+     * demonstrates the opposite of what the receipt feature does.
+     */
+    private function demoReceiptPath(): string
+    {
+        $path = 'demo/receipt.svg';
+
+        if (! Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->put($path, <<<'SVG'
+            <svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200">
+              <rect width="320" height="200" fill="#ffffff"/>
+              <rect x="0.5" y="0.5" width="319" height="199" fill="none" stroke="#d4d4d8"/>
+              <text x="24" y="52" font-family="monospace" font-size="17" fill="#18181b">DEMO RECEIPT</text>
+              <line x1="24" y1="68" x2="296" y2="68" stroke="#d4d4d8"/>
+              <text x="24" y="98" font-family="monospace" font-size="13" fill="#3f3f46">Owner investment</text>
+              <text x="24" y="122" font-family="monospace" font-size="13" fill="#3f3f46">Bank transfer</text>
+              <text x="24" y="158" font-family="monospace" font-size="19" fill="#18181b">PKR 80,000</text>
+            </svg>
+            SVG);
+        }
+
+        return $path;
+    }
+
+    private function seedExtraBranches(Tenant $tenant, array $names): void
+    {
+        foreach ($names as $i => $name) {
+            Branch::withoutTenancy()->updateOrCreate(
+                ['tenant_id' => $tenant->id, 'name' => $name],
+                [
+                    'code' => 'BR'.str_pad((string) ($i + 2), 2, '0', STR_PAD_LEFT),
+                    'is_default' => false,
+                    'is_active' => true,
+                    'address' => "{$name}, {$tenant->business_name}",
+                    'city_id' => $tenant->city_id,
+                ],
+            );
         }
     }
 
@@ -633,9 +1002,14 @@ class DemoDataSeeder extends Seeder
                 'modules' => [],
                 'limits' => ['branches' => 1, 'staff' => 4]],
 
+            // The only multi-branch shop in the demo world, and the reason it
+            // exists: every money screen scopes by branch, and with one branch
+            // per tenant a scoping bug looks exactly like a working one. Its
+            // sales, expenses and refunds are spread across both.
             ['name' => 'Metro Chain Superstore', 'type' => 'mart', 'category' => 'supermarket',
                 'plan' => 'enterprise', 'items' => $this->catalogFor('mart'),
                 'modules' => ['marketplace' => true, 'delivery' => true],
+                'branches' => ['Gulshan Branch', 'Korangi Branch'],
                 'limits' => ['branches' => 12, 'staff' => 120, 'registers' => 24]],
         ];
     }

@@ -2,14 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Models\Banner;
 use App\Models\Category;
 use App\Models\City;
 use App\Models\Product;
+use App\Models\Review;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -32,7 +35,7 @@ class MobileApiTest extends TestCase
     {
         return Tenant::factory()->create(array_merge([
             'business_name' => $name,
-            'slug' => \Illuminate\Support\Str::slug($name),
+            'slug' => Str::slug($name),
             'online_shop_enabled' => true,
             'setup_completed' => true,
             'city_id' => $this->city->id,
@@ -104,11 +107,11 @@ class MobileApiTest extends TestCase
 
         // A published review makes it top-rated.
         $customer = User::factory()->create();
-        \App\Models\Review::withoutTenancy()->create([
+        Review::withoutTenancy()->create([
             'tenant_id' => $near->id, 'customer_id' => $customer->id, 'rating' => 5, 'is_published' => true,
         ]);
 
-        \App\Models\Banner::query()->create([
+        Banner::query()->create([
             'tenant_id' => $near->id, 'image_path' => 'banners/x.jpg',
             'target_type' => 'shop', 'placement' => 'home', 'is_active' => true,
         ]);

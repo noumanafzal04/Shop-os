@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\City;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\SaleItem;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -276,7 +277,7 @@ class PharmacyEdgeCasesTest extends TestCase
             'item_type' => 'medicine', 'name' => 'Ciprofloxacin', 'price' => 300, 'stock_quantity' => 25,
             'expiry_date' => now()->addYear()->toDateString(),
         ])->assertCreated()->json('data');
-        $this->assertNotNull(\App\Models\ProductBatch::withoutTenancy()->where('product_id', $created['id'])->value('expiry_date'));
+        $this->assertNotNull(ProductBatch::withoutTenancy()->where('product_id', $created['id'])->value('expiry_date'));
 
         // No opening stock → expiry optional (lots added later on the Batches screen).
         $this->actingAsUser($owner)->postJson('/api/v1/products', [
@@ -382,7 +383,7 @@ class PharmacyEdgeCasesTest extends TestCase
     {
         // Pharmacy that DOES sell online (admin enabled marketplace): OTC
         // ships, but prescription items stay in-person only.
-        [$tenant, ] = $this->shop([
+        [$tenant] = $this->shop([
             'online_shop_enabled' => true,
             'features' => array_merge(BusinessTypes::defaultFeatures('pharmacy'), ['marketplace' => true]),
         ]);
@@ -462,7 +463,7 @@ class PharmacyEdgeCasesTest extends TestCase
 
         $med->forceFill(['name' => 'Brufen 400 (renamed)'])->save();
 
-        $item = \App\Models\SaleItem::query()->where('sale_id', $saleId)->firstOrFail();
+        $item = SaleItem::query()->where('sale_id', $saleId)->firstOrFail();
         $this->assertSame('One at night', $item->directions);
         $this->assertSame('Brufen', $item->product_name);
     }

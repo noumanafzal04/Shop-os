@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -59,7 +60,7 @@ class SerialWarrantyTest extends TestCase
     }
 
     /** @param array<int,string> $serials */
-    private function sell(Product $p, float $qty, array $serials, array $extra = []): \Illuminate\Testing\TestResponse
+    private function sell(Product $p, float $qty, array $serials, array $extra = []): TestResponse
     {
         return $this->actingAsUser($this->owner)->postJson('/api/v1/sales', [
             'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => $qty * (float) $p->price,

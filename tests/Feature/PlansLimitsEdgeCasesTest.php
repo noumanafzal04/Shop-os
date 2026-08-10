@@ -10,6 +10,7 @@ use App\Support\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -80,14 +81,14 @@ class PlansLimitsEdgeCasesTest extends TestCase
         return [$tenant, $owner];
     }
 
-    private function createProduct(User $owner, string $name): \Illuminate\Testing\TestResponse
+    private function createProduct(User $owner, string $name): TestResponse
     {
         return $this->login($owner)->postJson('/api/v1/products', [
             'type' => 'product', 'name' => $name, 'price' => 10,
         ]);
     }
 
-    private function createStaff(User $owner, string $name): \Illuminate\Testing\TestResponse
+    private function createStaff(User $owner, string $name): TestResponse
     {
         return $this->login($owner)->postJson('/api/v1/staff', [
             'name' => $name,
@@ -188,7 +189,7 @@ class PlansLimitsEdgeCasesTest extends TestCase
             ."Sugar,SUG-1,100\n"
             ."Salt,SAL-1,50\n"
             ."Flour,FLR-1,80\n"
-            ."Keeper,KEEP-1,150";
+            .'Keeper,KEEP-1,150';
 
         $res = $this->login($owner)->postJson('/api/v1/products/import', [
             'file' => UploadedFile::fake()->createWithContent('products.csv', $csv),

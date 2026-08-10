@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\City;
-use App\Models\Order;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
@@ -78,6 +77,7 @@ class FoodMenuTest extends TestCase
     private function optionId(array $groups, string $groupName, string $optionName): string
     {
         $g = collect($groups)->firstWhere('name', $groupName);
+
         return collect($g['options'])->firstWhere('name', $optionName)['id'];
     }
 

@@ -149,6 +149,24 @@ class Permissions
      */
     public const SUPERVISES_TILLS = self::SETTINGS_MANAGE.','.self::REPORTS_VIEW;
 
+    /**
+     * Who may see what the shop PAID for a thing.
+     *
+     * The margin report is correctly shut to a cashier, and then the same
+     * figure walked out on the product grid the till loads anyway: every read
+     * of a product serialised the model whole, so `cost` and `wholesale_price`
+     * went to anyone rostered on the counter. A buying price is the one number
+     * a shop cannot let walk — it is what a competitor, or a leaving member of
+     * staff, would most like to have.
+     *
+     * Same reasoning as SUPERVISES_TILLS: reports.view is the honest marker for
+     * "you may look at how the shop performs". Added to it are the three roles
+     * that cannot do their job without a cost — the buyer, the stock keeper,
+     * and whoever prices the catalog.
+     */
+    public const READS_COST = self::PRODUCTS_MANAGE.','.self::PURCHASES_MANAGE.','
+        .self::INVENTORY_MANAGE.','.self::REPORTS_VIEW;
+
     /** The forecourt plant. Tank and pump names are read when receiving fuel or repricing it. */
     public const READS_FORECOURT = self::SETTINGS_MANAGE.','.self::PURCHASES_MANAGE.','
         .self::PRODUCTS_MANAGE.','.self::INVENTORY_MANAGE;

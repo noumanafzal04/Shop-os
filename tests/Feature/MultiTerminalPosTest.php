@@ -13,8 +13,10 @@ use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -99,7 +101,7 @@ class MultiTerminalPosTest extends TestCase
     }
 
     /** Opens a shift for a cashier at a lane (the normal POS call). */
-    private function openShift(User $user, ?Register $register, float $float = 1000): \Illuminate\Testing\TestResponse
+    private function openShift(User $user, ?Register $register, float $float = 1000): TestResponse
     {
         return $this->actingAsUser($user)->postJson('/api/v1/pos/session/open', array_filter([
             'opening_float' => $float,
@@ -578,7 +580,7 @@ class MultiTerminalPosTest extends TestCase
             'connection_type' => 'browser', 'is_default' => true, 'is_active' => true,
         ]);
 
-        app(\App\Support\TenantContext::class)->set($this->tenant);
+        app(TenantContext::class)->set($this->tenant);
 
         $atLane1 = HardwareDevice::resolveForRegister($this->lane1->id);
         $this->assertSame($laneOwn->id, $atLane1['receipt_printer']->id);
@@ -601,7 +603,7 @@ class MultiTerminalPosTest extends TestCase
             'connection_type' => 'browser', 'is_default' => true, 'is_active' => false,
         ]);
 
-        app(\App\Support\TenantContext::class)->set($this->tenant);
+        app(TenantContext::class)->set($this->tenant);
 
         $this->assertSame($shared->id, HardwareDevice::resolveForRegister($this->lane1->id)['receipt_printer']->id);
     }

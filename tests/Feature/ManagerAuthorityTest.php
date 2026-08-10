@@ -8,8 +8,10 @@ use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -86,7 +88,7 @@ class ManagerAuthorityTest extends TestCase
     }
 
     /** @param  array<string, mixed>  $extra */
-    private function ring(User $user, array $extra = [], int $qty = 1): \Illuminate\Testing\TestResponse
+    private function ring(User $user, array $extra = [], int $qty = 1): TestResponse
     {
         return $this->actingAsUser($user)->postJson('/api/v1/sales', array_merge([
             'channel' => 'pos',
@@ -316,7 +318,7 @@ class ManagerAuthorityTest extends TestCase
     /** The new permissions are grantable — they must appear in the registry. */
     public function test_the_new_permissions_are_in_the_tenant_registry(): void
     {
-        $registry = \App\Support\Permissions::tenant();
+        $registry = Permissions::tenant();
 
         foreach (['sales.void', 'sales.refund', 'discounts.override'] as $p) {
             $this->assertContains($p, $registry, "{$p} must be grantable to staff.");
