@@ -47,6 +47,25 @@ class Permissions
 
     public const SALES_MANAGE = 'sales.manage';
 
+    /**
+     * Working the pass.
+     *
+     * Split out from sales.manage on 2026-08-10. The kitchen board shared the
+     * floor's permission "because a separate one would just go ungranted" —
+     * true before job presets existed, and the reason a kitchen hand holding
+     * nothing but sales.manage was offered the sales ledger, the day's banking
+     * and the quotes screen. Marking a curry ready is not the same authority as
+     * reading what the shop took.
+     */
+    public const KITCHEN_MANAGE = 'kitchen.manage';
+
+    /**
+     * The pass, read by whoever is standing at it. ANY-of, because in a small
+     * kitchen the same person cooks and rings up and holds sales.manage
+     * already — nobody has to be re-granted anything.
+     */
+    public const READS_KITCHEN = self::SALES_MANAGE.','.self::KITCHEN_MANAGE;
+
     public const DISCOUNTS_APPLY = 'discounts.apply';
 
     /**
@@ -110,9 +129,15 @@ class Permissions
     //
     // Rule of thumb: reads get a set, writes keep a single permission.
 
-    /** What the shop sells. Read by anyone who sells, stocks, buys or fulfils. */
+    /**
+     * What the shop sells. Read by anyone who sells, stocks, buys or fulfils —
+     * and by the kitchen, which reads a dish to know what it is making. That
+     * last one arrived when the pass got its own permission: before, a kitchen
+     * hand carried sales.manage and reached the catalog through it.
+     */
     public const READS_CATALOG = self::PRODUCTS_MANAGE.','.self::SALES_MANAGE.','
-        .self::INVENTORY_MANAGE.','.self::PURCHASES_MANAGE.','.self::ORDERS_MANAGE;
+        .self::INVENTORY_MANAGE.','.self::PURCHASES_MANAGE.','.self::ORDERS_MANAGE.','
+        .self::KITCHEN_MANAGE;
 
     /**
      * The shop's own branch names. Not configuration — a name lookup that the
@@ -201,6 +226,7 @@ class Permissions
             self::SUPPLIERS_MANAGE,
             self::PURCHASES_MANAGE,
             self::SALES_MANAGE,
+            self::KITCHEN_MANAGE,
             self::DISCOUNTS_APPLY,
             self::DISCOUNTS_OVERRIDE,
             self::SALES_VOID,

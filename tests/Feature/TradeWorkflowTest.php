@@ -9,6 +9,7 @@ use App\Models\StockMovement;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\StaffPresets;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
@@ -273,6 +274,41 @@ class TradeWorkflowTest extends TestCase
 
         // And the module that WAS switched off is properly shut.
         $this->as($owner)->getJson('/api/v1/purchase-orders')->assertForbidden();
+    }
+
+    // ── The person axis, checked the other way round ────────────────
+
+    public function test_a_kitchen_hand_can_work_the_pass_and_reach_no_money(): void
+    {
+        // `PresetCanDoItsJobTest` proves a preset CAN do its job. Nothing proved
+        // it cannot do the rest, and that is the half that leaks: the kitchen
+        // board used to be gated on sales.manage, so a kitchen hire had to be
+        // handed the key that also opens the sales ledger, the day's banking and
+        // the quotes screen. They were shown the shop's takings in order to be
+        // allowed to mark a curry ready.
+        [$shop, $owner] = $this->shop('restaurant');
+        // Hired through the real screen, off the real preset — a hand-built
+        // permission array would prove the gate and not the preset, and the
+        // preset is the thing that was wrong.
+        $cookId = $this->as($owner)->postJson('/api/v1/staff', [
+            'name' => 'Bilal',
+            'email' => 'bilal@shop.test',
+            'password' => 'secret-password',
+            'permissions' => StaffPresets::permissionsFor('kitchen'),
+        ])->assertCreated()->json('data.id');
+
+        $cook = User::query()->findOrFail($cookId);
+
+        // The job itself.
+        $this->as($cook)->getJson('/api/v1/restaurant/kitchen')->assertOk();
+
+        // And nothing beyond it. Each of these is a screen of trading figures.
+        foreach (['/api/v1/sales', '/api/v1/pos/day', '/api/v1/reports/summary', '/api/v1/expenses'] as $screen) {
+            $this->as($cook)->getJson($screen)->assertForbidden();
+        }
+
+        // The owner is unaffected — this is about the preset, not the screen.
+        $this->as($owner)->getJson('/api/v1/sales')->assertOk();
     }
 
     // ── Helpers ─────────────────────────────────────────────────────

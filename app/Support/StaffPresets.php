@@ -96,13 +96,14 @@ class StaffPresets
             [
                 'code' => 'kitchen',
                 'label' => 'Kitchen',
-                // Said plainly rather than hidden: the kitchen screen shares the
-                // floor's permission on purpose (in a small kitchen the same
-                // person cooks and rings up), so this preset does let them work
-                // the floor. An owner choosing it should know that.
-                'description' => 'Sees the kitchen board and marks food ready. Shares the floor’s permission, so they can also take orders.',
+                // The pass and nothing else. This preset used to carry
+                // sales.manage, because the kitchen board was gated on it — and
+                // that key also opens the sales ledger, the day's banking and
+                // the quotes screen, so a kitchen hand was being shown the
+                // shop's takings to be allowed to mark a curry ready.
+                'description' => 'Sees the kitchen board and marks food ready. Nothing else — not the till, not the takings.',
                 'permissions' => [
-                    Permissions::SALES_MANAGE,
+                    Permissions::KITCHEN_MANAGE,
                 ],
                 'modules' => ['dine_in'],
                 'trades' => [],

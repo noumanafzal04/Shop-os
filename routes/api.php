@@ -732,10 +732,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('tickets/{ticket}/move', [RestaurantTicketController::class, 'move']);
                     Route::post('tickets/{ticket}/merge', [RestaurantTicketController::class, 'merge']);
                     Route::post('tickets/{ticket}/waiter', [RestaurantTicketController::class, 'assignWaiter']);
+                });
 
-                    // The kitchen screen. Same permission as the floor: in a
-                    // small kitchen the same person cooks and rings up, and a
-                    // separate permission would just go ungranted.
+                // The pass. OUTSIDE the floor's group deliberately: nested
+                // inside it, an ANY-of gate cannot loosen the sales.manage
+                // wrapper above and a kitchen hand is refused before their own
+                // permission is ever considered.
+                //
+                // It takes EITHER key. Marking a curry ready used to require the
+                // floor's, which also opens the sales ledger and the day's
+                // banking — so a kitchen hire was shown the shop's takings in
+                // order to be allowed to work the pass.
+                Route::middleware('permission:'.Permissions::READS_KITCHEN)->group(function (): void {
                     Route::get('kitchen', [KitchenController::class, 'board']);
                     Route::post('kitchen/kot/{kot}/bump', [KitchenController::class, 'bump']);
                 });
