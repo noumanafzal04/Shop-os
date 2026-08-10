@@ -6,8 +6,11 @@ use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Restaurant\StoreDiningTableRequest;
 use App\Http\Requests\Restaurant\UpdateDiningTableRequest;
+use App\Models\Branch;
 use App\Models\DiningTable;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
+use App\Support\TenantContext;
 use Illuminate\Http\Request;
 
 /**
@@ -24,7 +27,13 @@ class DiningTableController extends Controller
 
     public function index(Request $request)
     {
+        // The floor of the site being worked. Read scope, so scopeId() — null
+        // in an owner's all-branches view, which then sees every site's floor
+        // on purpose.
+        $branchId = app(BranchContext::class)->scopeId();
+
         $tables = DiningTable::query()
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->when($request->boolean('active_only'), fn ($q) => $q->where('is_active', true))
             ->with(self::OPEN_TICKET)
             ->orderBy('sort_order')
@@ -36,7 +45,15 @@ class DiningTableController extends Controller
 
     public function store(StoreDiningTableRequest $request)
     {
-        $table = DiningTable::query()->create($request->validated());
+        // A table stands somewhere. Laying one out is a WRITE, so it takes the
+        // operating branch — an owner adding tables from the HQ view falls back
+        // to Main rather than creating a table that belongs to no site.
+        $branch = app(BranchContext::class);
+        $table = DiningTable::query()->create($request->validated() + [
+            'branch_id' => $branch->id() ?? Branch::withoutTenancy()
+                ->where('tenant_id', app(TenantContext::class)->id())
+                ->where('is_default', true)->value('id'),
+        ]);
 
         return ApiResponse::created($table, 'Table added.');
     }

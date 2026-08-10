@@ -565,7 +565,7 @@ class FoodTenantWalkthroughTest extends TestCase
      * branch they belong to and both screens filtered by the operating branch.
      * When that lands, this test is the one that fails and says so.
      */
-    public function test_a_second_branch_shares_the_same_floor_and_the_same_kitchen_queue(): void
+    public function test_a_second_branch_keeps_its_own_floor_and_its_own_kitchen_queue(): void
     {
         $gulberg = Branch::withoutTenancy()->create([
             'tenant_id' => $this->shop->id, 'name' => 'Gulberg', 'is_default' => false, 'is_active' => true,
@@ -580,15 +580,29 @@ class FoodTenantWalkthroughTest extends TestCase
         $this->addItems($this->owner, $tab['id'], [['product_id' => $karahi['id'], 'quantity' => 1]]);
         $this->as($this->owner)->postJson("/api/v1/restaurant/tickets/{$tab['id']}/fire")->assertCreated();
 
-        // Read from the OTHER branch. Both of these should be empty and are not.
+        // Read from the OTHER branch. Both are empty — fixed 2026-08-10, when
+        // the three floor tables gained a branch_id. Before that the Gulberg
+        // pass showed DHA's fired tickets, cooks worked another kitchen's
+        // orders, and two waiters at different addresses fought over "T1".
         $kots = $this->atBranch($this->owner, $gulberg)
             ->getJson('/api/v1/restaurant/kitchen')->assertOk()->json('data.kots');
         $floor = $this->atBranch($this->owner, $gulberg)
             ->getJson('/api/v1/restaurant/tables')->assertOk()->json('data');
 
-        $this->assertCount(1, $kots, 'Today the board is tenant-wide; if this is now 0 the KOT gained a branch and the comment above is stale.');
-        $this->assertSame('Chicken Karahi', $kots[0]['items'][0]['name']);
-        $this->assertSame(['T9'], array_column($floor, 'name'));
+        $this->assertSame([], $kots, "Another site's food is on this kitchen's pass.");
+        $this->assertSame([], array_column($floor, 'name'), "Another site's tables are on this floor.");
+
+        // And the site that owns them still has both — a scope that hides
+        // everything from everyone would pass the two assertions above.
+        $ownKots = $this->as($this->owner)
+            ->getJson('/api/v1/restaurant/kitchen')->assertOk()->json('data.kots');
+
+        $this->assertCount(1, $ownKots, 'The branch that fired the course cannot see it.');
+        $this->assertSame('Chicken Karahi', $ownKots[0]['items'][0]['name']);
+        $this->assertSame(['T9'], array_column(
+            $this->as($this->owner)->getJson('/api/v1/restaurant/tables')->assertOk()->json('data'),
+            'name',
+        ));
 
         // The money side already knows better, which is the whole contrast:
         // settle on Main and Gulberg's cashbook stays empty.

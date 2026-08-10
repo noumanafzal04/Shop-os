@@ -8,6 +8,7 @@ use App\Http\Requests\Restaurant\BumpKitchenTicketRequest;
 use App\Models\KitchenTicket;
 use App\Models\RestaurantTicketItem;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -129,13 +130,21 @@ class KitchenController extends Controller
      */
     private function boardQuery(bool $includeServed): Builder
     {
-        return KitchenTicket::query()->where(function (Builder $q) use ($includeServed): void {
-            $q->whereIn('status', self::ACTIVE_STATUSES);
+        // The pass of the site being worked. Without this a two-site restaurant
+        // ran one shared queue: the Gulberg pass showed DHA's fired tickets and
+        // cooks worked another kitchen's orders. Read scope, so an owner's
+        // all-branches view still sees every pass at once.
+        $branchId = app(BranchContext::class)->scopeId();
 
-            if ($includeServed) {
-                $q->orWhere(fn (Builder $s) => $s->where('status', 'served')->whereDate('served_at', today()));
-            }
-        });
+        return KitchenTicket::query()
+            ->when($branchId, fn (Builder $q) => $q->where('branch_id', $branchId))
+            ->where(function (Builder $q) use ($includeServed): void {
+                $q->whereIn('status', self::ACTIVE_STATUSES);
+
+                if ($includeServed) {
+                    $q->orWhere(fn (Builder $s) => $s->where('status', 'served')->whereDate('served_at', today()));
+                }
+            });
     }
 
     /**

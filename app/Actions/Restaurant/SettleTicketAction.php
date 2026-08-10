@@ -27,9 +27,7 @@ use Illuminate\Support\Facades\DB;
  */
 class SettleTicketAction
 {
-    public function __construct(private readonly CreateSaleAction $createSale)
-    {
-    }
+    public function __construct(private readonly CreateSaleAction $createSale) {}
 
     /**
      * @return array{sale: Sale, ticket: RestaurantTicket}

@@ -196,7 +196,7 @@ class DashboardService
             // What THIS trade needs and nobody else does. Null when the shop
             // is not that trade, so the panel is absent rather than empty —
             // the same rule every other block on this dashboard follows.
-            'floor' => $tenant->featureEnabled('dine_in') ? $this->diningFloor($tenant) : null,
+            'floor' => $tenant->featureEnabled('dine_in') ? $this->diningFloor($tenant, $branchId) : null,
             // A tenant an admin has not typed yet carries a NULL business_type,
             // and `primary()` takes a string — so the null is answered here
             // rather than by widening a signature every caller relies on.
@@ -790,22 +790,24 @@ class DashboardService
      * — the same rule DiningTable::isOccupied follows, so the dashboard and the
      * floor plan can never disagree about whether table 4 is free.
      *
-     * NOT branch-scoped, and deliberately so: `dining_tables`,
-     * `restaurant_tickets` and `kitchen_tickets` carry no `branch_id` at all
-     * (see 2026_07_23_000001 and 2026_08_05_000008). A restaurant's floor is
-     * the floor it is standing on. Filtering these by branch would not narrow
-     * the answer — it would throw.
+     * Branch-scoped since 2026-08-10. It could not be before: the three floor
+     * tables carried no `branch_id` at all, so a two-site restaurant ran one
+     * shared floor and one shared kitchen queue while its takings report was
+     * correctly split — which made the floor look like a display glitch rather
+     * than a missing dimension.
      *
      * @return array{tables: int, occupied: int, open_tabs: int, kot_waiting: int, kot_ready: int}
      */
-    private function diningFloor(Tenant $tenant): array
+    private function diningFloor(Tenant $tenant, ?string $branchId): array
     {
         $tables = DiningTable::query()
             ->where('tenant_id', $tenant->id)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('is_active', true);
 
         $openTabs = RestaurantTicket::query()
             ->where('tenant_id', $tenant->id)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', RestaurantTicketStatus::Open->value);
 
         // Fired and not yet served. `ready_at` splits the two states a kitchen
@@ -813,6 +815,7 @@ class DashboardService
         // waiting for someone to run it — the second is the one that gets cold.
         $kots = KitchenTicket::query()
             ->where('tenant_id', $tenant->id)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereNull('served_at');
 
         return [

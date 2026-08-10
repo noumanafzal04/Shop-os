@@ -16,6 +16,31 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class KitchenTicket extends Model
 {
+    /**
+     * A floor row always belongs to a site.
+     *
+     * Defaulted here rather than at each call site because the floor is written
+     * from several — the tables controller, OpenTicketAction, FireKitchenTicket,
+     * a seeder, a test fixture — and a row that slips through with no branch is
+     * invisible on every branch-scoped screen, which is a worse failure than
+     * being on the wrong one. Anything that DOES know its branch (a tab takes
+     * its table's, a KOT takes its tab's) sets it before this runs and is left
+     * alone.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $row): void {
+            if ($row->branch_id !== null || $row->tenant_id === null) {
+                return;
+            }
+
+            $row->branch_id = Branch::withoutTenancy()
+                ->where('tenant_id', $row->tenant_id)
+                ->where('is_default', true)
+                ->value('id');
+        });
+    }
+
     use BelongsToTenant, HasUuids;
 
     protected $guarded = ['id'];

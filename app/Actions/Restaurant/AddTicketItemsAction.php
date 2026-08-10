@@ -21,9 +21,7 @@ use Illuminate\Support\Facades\DB;
  */
 class AddTicketItemsAction
 {
-    public function __construct(private readonly TenantContext $context)
-    {
-    }
+    public function __construct(private readonly TenantContext $context) {}
 
     public function execute(RestaurantTicket $ticket, array $data): RestaurantTicket
     {

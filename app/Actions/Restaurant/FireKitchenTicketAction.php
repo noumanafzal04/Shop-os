@@ -23,9 +23,7 @@ use Illuminate\Support\Facades\DB;
  */
 class FireKitchenTicketAction
 {
-    public function __construct(private readonly TenantContext $context)
-    {
-    }
+    public function __construct(private readonly TenantContext $context) {}
 
     /**
      * @return Collection<int, KitchenTicket> the KOTs created by this fire, one per station
@@ -68,6 +66,10 @@ class FireKitchenTicketAction
                 /** @var KitchenTicket $kot */
                 $kot = KitchenTicket::query()->create([
                     'tenant_id' => $tenantId,
+                    // From the tab, not from whoever fired it — the same rule a
+                    // refund follows. A manager firing a course from the office
+                    // must not move that food to another kitchen.
+                    'branch_id' => $ticket->branch_id,
                     'ticket_id' => $ticket->id,
                     'kot_number' => ++$kotNumber,
                     'station' => $group['station'],
