@@ -197,6 +197,51 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-08-10 (later) — the pass, the floor, and who can hear whom
+
+Three things the user found by using the real app, which no test covered.
+
+**A kitchen hire was shown the shop's takings** to be allowed to mark a curry
+ready. Not a missing gate — the rail filters by module and then by permission,
+and the permission the kitchen board asked for was `sales.manage`, which is also
+the key to the sales ledger, the day's banking and the quotes screen.
+`kitchen.manage` is now its own permission; the board takes either, so a small
+kitchen where one person cooks and rings up needs no second grant. The routes had
+to MOVE, not just change — nested inside the floor's `sales.manage` group, an
+inner ANY-of gate cannot loosen the wrapper above it.
+
+Guards now exist in both directions. `PresetCanDoItsJobTest` proves a preset CAN
+do its job; `presetSees` (panel) pins what all five presets are OFFERED across
+six trades, and a backend test refuses a cook `/sales`, `/pos/day`,
+`/reports/summary` and `/expenses`.
+
+**The floor never heard back from the kitchen.** Firing looked live and marking
+ready did not, and that difference was the bug: firing is the waiter's own
+mutation so their cache invalidates locally, while the cook bumps in a different
+browser that can invalidate nothing. `useTicket` — the query carrying kot_status
+per line — had no `refetchInterval` at all. A sweep found only 7 of 33 modules
+polling; held tickets and the lane picker had the same hole.
+
+**Polling, not sockets, deliberately.** There is no realtime transport in this
+product. Worth revisiting when the offline PWA lands, which needs one anyway.
+
+**The floor gained a branch.** `dining_tables`, `restaurant_tickets` and
+`kitchen_tickets` had none, so a two-site restaurant shared one floor and one
+kitchen queue while its takings split correctly. Each row inherits — a tab from
+its table, a KOT from its tab — and the models default the branch on create,
+because a floor row with no branch is invisible on every branch-scoped screen,
+which is worse than being on the wrong one.
+
+STILL OPEN, both product decisions rather than bugs:
+- A waiter sees the sales ledger and the day's banking, because they settle bills
+  and hold `sales.manage` honestly. Recommendation: filter the ledger to TODAY
+  for counter staff rather than raising the permission, which would take a
+  working screen off cashiers.
+- A books-only tenant still cannot name who it paid. `/suppliers` rides the
+  inventory module and widening that gate broke six module-isolation tests.
+
+1488 backend / 158 panel.
+
 ### 2026-08-10 — the branch that was added to money but not to stock
 
 A four-tenant QA walkthrough (food, pharmacy, mart, books-only — 39 tests, every
