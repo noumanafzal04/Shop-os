@@ -197,6 +197,37 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-08-11 — the checklist runs, and one rule was tried and rejected
+
+`php artisan shopos:readiness` is the launch checklist as a command. It lived in
+prose here and in the deployment doc since July, and prose is not checked — the
+seeded super-admin password has been "still TODO" in writing for two weeks and
+is still `password`. It exits non-zero when the install is not fit to take
+money, which is the part a deploy can act on; the tests are about the exit code
+for that reason. Run against the dev box it failed immediately on that password.
+
+A books-only shop can finally name who it paid. `expenses.supplier_id` was
+validated and rendered, but `/suppliers` rides the inventory module, so the one
+tenant whose whole product is the expense list could not use it. Fixed with a
+`payee` (and `payer` on income) rather than by widening the gate — which was
+tried and reverted, because most trades carry `expenses` and it opened the
+vendor directory to everyone. A supplier is a stock-chain party with payables; a
+landlord is not one.
+
+**Tried and rejected: scoping the sales list to who rang each sale.** It looked
+right — a cashier reprints their own receipt, a waiter cannot read the takings,
+no date cliff. `BranchScopedReadsTest` then failed, and the reason is RELIEF
+COVER: a cashier steps away, someone else works the same lane, and the reliever
+would be unable to find the sale they need. The existing branch scope is the
+honest limit for this screen. Recorded here because the idea will look good
+again to whoever reads the leak report next.
+
+STILL OPEN: a waiter on a single-branch shop therefore still sees that shop's
+sales history. Narrowing it needs a rule that survives relief cover, and none of
+the obvious ones do.
+
+1493 tests, 6958 assertions.
+
 ### 2026-08-10 (later) — the pass, the floor, and who can hear whom
 
 Three things the user found by using the real app, which no test covered.
