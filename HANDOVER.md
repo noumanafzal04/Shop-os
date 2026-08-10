@@ -197,6 +197,84 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-08-10 — the branch that was added to money but not to stock
+
+A four-tenant QA walkthrough (food, pharmacy, mart, books-only — 39 tests, every
+one mutation-verified) found 11 defects. Six of them were one root cause: branch
+was threaded through the MONEY last week and never through stock or the floor.
+
+Eight are fixed here. The shape of each fix matters more than the count:
+
+- **Receiving** honours the operating branch, resolved ONCE and reused for the
+  movement, the lot and the serials — the bug was those three disagreeing, and
+  fixing them separately would have left the same class of drift.
+- **Supplier payments** are a fifth money source in the cashbook and ledger, NOT
+  a fabricated Expense: inventing one double-counts the day a shop also files
+  the wholesaler's bill. Refunds set that precedent already.
+- **The reorder list** reads the branch's own shelf with a correlated subquery,
+  because a product with no row on that shelf holds none of it — the most urgent
+  case of all, and a join drops it.
+- **Budgets** in the all-branches view count only company-wide ceilings. One
+  shop's limit is not the company's, and unbudgeted is not a budget of zero.
+- **Cost prices** are masked in `Product::toArray()` rather than in a
+  controller, because a product is serialised from a dozen places and a rule
+  enforced at one leaks from the other eleven. New `Permissions::READS_COST`.
+- **Sale reads** now carry a module gate: a books-only shop gets 403, not an
+  empty list. An empty list describes a shop with no trade rather than a shop
+  without the feature.
+
+Also: a flaky test that would have randomly reddened the new CI gate —
+`assertStringNotContainsString('800', $json)` over a payload carrying timestamps
+and hex UUIDs, where `…58.080026Z` contains "800". Replaced with a structural
+assertion plus a recursive money-key scan.
+
+TWO NOT FIXED, deliberately:
+- **Books-only tenants still cannot name who they paid.** Gating `/suppliers` on
+  `inventory OR expenses` broke six module-isolation tests, because most trades
+  carry `expenses`. Needs a product decision: free-text payee, a separate payee
+  list, or simply granting those tenants the inventory module.
+- **The dine-in floor has no branch dimension at all** — `dining_tables`,
+  `restaurant_tickets` and `kitchen_tickets` carry no `branch_id`, so a
+  multi-site restaurant shares one floor and one kitchen queue.
+
+OPEN, found by the user testing the real app after this work:
+- Staff on the waiter/kitchen presets **see more than their permissions allow**,
+  in the sidebar and the module list. `PresetCanDoItsJobTest` proves a preset CAN
+  do its job; nothing proves it cannot do the rest.
+- **Kitchen → floor is not live.** Firing pushes to the kitchen board without a
+  reload; marking ready/served does not come back to dine-in without a refresh.
+
+1487 tests, 6933 assertions. Pint clean.
+
+### 2026-08-09 — a demo world that contains the product, and the seams tested
+
+The demo seeder had stopped covering the product. Zero rows anywhere for
+refunds, income, budgets, schedules and closed shifts — five features built,
+tested, and then invisible to anyone clicking around, so the only way to see
+them was to type the data in by hand. The branch-scope work could not be shown
+at all, because no demo tenant had ever had a refund.
+
+Metro Chain Superstore now has two branches, and it is the only tenant that
+does. That is the point: every money screen scopes by branch, and with one
+branch per tenant a scoping bug looks exactly like a working one.
+
+Refunds and shifts go through the real actions rather than being written
+straight to the table — a hand-written refund row restocks nothing and proves
+nothing. The receipt on the income row is a real file on the public disk, since
+a path pointing at nothing renders a broken link, which demonstrates the
+opposite of what the receipt feature does.
+
+`TradeWorkflowTest` is the QA pass: one daily loop per trade shape, asserting
+on the FAR end of each chain. Both of its assertions were vacuous when first
+written — `GET /restaurant/kitchen` returns a `{kots, stations, server_time}`
+wrapper and `GET /cashbook` emits a row per day whether or not the shop opened,
+so "not empty" passed in both cases. Found by mutation, which is now the
+standing rule for a workflow test: **delete a step and watch it fail, or it is
+not testing the chain.** The dependency graph and the traps are written up in
+`docs/decisions/shopos-module-dependencies.md`.
+
+1448 tests, 6250 assertions.
+
 ### 2026-08-07 — shift history
 
 `/pos/sessions` has returned every shift in a date range, with per-lane totals,
