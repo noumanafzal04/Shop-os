@@ -223,6 +223,111 @@ class Permissions
     /**
      * @return string[]
      */
+    /**
+     * What each permission is CALLED, and where a label alone leaves the owner
+     * guessing, what it means.
+     *
+     * This lives beside the permissions rather than in the panel because the
+     * two drifted once and it shipped: `tenants.reset_password` and
+     * `billing.view` were added here, the panel had no copy for them, and its
+     * humanising fallback rendered them as "Tenants Reset Password" and
+     * "Billing View". Nothing looked broken. The most dangerous checkbox on
+     * the platform — the one that lets its holder sign in as any business —
+     * was offered to an admin with no explanation at all.
+     *
+     * Adding a permission without adding it here now fails
+     * PermissionCatalogTest, which is the only arrangement where "I forgot"
+     * cannot reach a screen where the wrong box gets ticked.
+     *
+     * Most keys carry no hint on purpose. A hint on every row is noise, and
+     * noise on a permission screen is how the wrong box gets ticked.
+     *
+     * @var array<string, array{label: string, hint?: string}>
+     */
+    public const LABELS = [
+        // Platform scope
+        self::TENANTS_VIEW => ['label' => 'View tenants'],
+        self::TENANTS_CREATE => ['label' => 'Create tenants'],
+        self::TENANTS_UPDATE => ['label' => 'Edit tenants'],
+        self::TENANTS_DELETE => ['label' => 'Delete tenants'],
+        self::TENANTS_SUSPEND => ['label' => 'Suspend / activate tenants'],
+        self::TENANTS_ASSIGN_PLAN => ['label' => 'Assign plans & record payments'],
+        self::TENANTS_RESET_PASSWORD => [
+            'label' => "Reset a shop owner's password",
+            'hint' => "Lets them set any owner's password and sign in as that business. Grant sparingly.",
+        ],
+        self::BILLING_VIEW => [
+            'label' => 'View revenue & payments',
+            'hint' => "The platform's own takings — the billing ledger and the revenue figures on the dashboard.",
+        ],
+        self::PLATFORM_STAFF_MANAGE => ['label' => 'Manage platform staff'],
+        self::BANNERS_MANAGE => ['label' => 'Promo banners & ads'],
+        self::ANNOUNCEMENTS_MANAGE => [
+            'label' => 'Announcements',
+            'hint' => 'Broadcasts a push notification to every shop or every customer. There is no unsend.',
+        ],
+
+        // Tenant scope
+        self::STAFF_MANAGE => ['label' => 'Manage staff'],
+        self::PRODUCTS_MANAGE => ['label' => 'Products & categories'],
+        self::INVENTORY_MANAGE => ['label' => 'Inventory adjustments'],
+        self::SUPPLIERS_MANAGE => ['label' => 'Suppliers'],
+        self::PURCHASES_MANAGE => ['label' => 'Purchase orders & payables'],
+        self::SALES_MANAGE => ['label' => 'Sales & invoices'],
+        self::KITCHEN_MANAGE => [
+            'label' => 'Kitchen board',
+            'hint' => 'See fired orders and mark them ready. Nothing about the till or the takings.',
+        ],
+        self::DISCOUNTS_APPLY => [
+            'label' => 'Give a discount',
+            'hint' => 'Up to the ceiling set in Shop settings.',
+        ],
+        self::DISCOUNTS_OVERRIDE => [
+            'label' => 'Discount past the ceiling',
+            'hint' => "Exceed the shop's discount limit.",
+        ],
+        self::SALES_VOID => [
+            'label' => 'Void a completed sale',
+            'hint' => 'Restores stock and reverses the money.',
+        ],
+        self::SALES_REFUND => ['label' => 'Refund a sale', 'hint' => 'Hand money back.'],
+        self::TABLES_SERVE_ANY => [
+            'label' => 'Serve any table',
+            'hint' => "Work and settle other waiters' tabs. Without it, their own tables only.",
+        ],
+        self::CUSTOMERS_MANAGE => ['label' => 'Customers'],
+        self::COUPONS_MANAGE => ['label' => 'Coupons & promotions'],
+        self::EXPENSES_MANAGE => ['label' => 'Expenses'],
+        self::REPORTS_VIEW => [
+            'label' => 'View reports',
+            'hint' => 'Takings, margins and staff performance — including what each item cost the shop.',
+        ],
+        self::RESERVATIONS_MANAGE => ['label' => 'Reservations'],
+        self::ORDERS_MANAGE => ['label' => 'Online orders'],
+        self::SETTINGS_MANAGE => ['label' => 'Shop settings'],
+    ];
+
+    /**
+     * A permission list dressed for a screen: key, label and any hint.
+     *
+     * @param  string[]  $keys
+     * @return list<array{key: string, label: string, hint: string|null}>
+     */
+    public static function describe(array $keys): array
+    {
+        return array_values(array_map(fn (string $key): array => [
+            'key' => $key,
+            // Falls back to a humanised slug rather than an empty row: an
+            // unlabelled permission must still be tickable, it just should not
+            // be able to reach production. The test is what stops that.
+            'label' => self::LABELS[$key]['label'] ?? ucwords(str_replace(['.', '_'], ' ', $key)),
+            'hint' => self::LABELS[$key]['hint'] ?? null,
+        ], $keys));
+    }
+
+    /**
+     * @return string[]
+     */
     public static function platform(): array
     {
         return [

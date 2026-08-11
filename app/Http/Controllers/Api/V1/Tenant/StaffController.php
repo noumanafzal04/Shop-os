@@ -79,7 +79,10 @@ class StaffController extends Controller
 
     public function permissions(): JsonResponse
     {
-        return ApiResponse::ok(Permissions::tenant());
+        // Dressed for the screen — key, label and any hint. The label travels
+        // with the permission so a new one cannot reach the staff form with
+        // nothing but a humanised slug to explain it.
+        return ApiResponse::ok(Permissions::describe(Permissions::tenant()));
     }
 
     /**

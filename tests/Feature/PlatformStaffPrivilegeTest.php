@@ -162,10 +162,25 @@ class PlatformStaffPrivilegeTest extends TestCase
     {
         // A permission the staff screen cannot offer is a permission nobody
         // holds — the shape of half the defects in this codebase.
-        $this->asUser($this->superAdmin)
+        $response = $this->asUser($this->superAdmin)
             ->getJson('/api/v1/admin/staff/permissions')
-            ->assertOk()
-            ->assertJsonFragment([Permissions::BILLING_VIEW])
-            ->assertJsonFragment([Permissions::TENANTS_RESET_PASSWORD]);
+            ->assertOk();
+
+        $offered = collect($response->json('data'))->keyBy('key');
+
+        $this->assertTrue($offered->has(Permissions::BILLING_VIEW));
+        $this->assertTrue($offered->has(Permissions::TENANTS_RESET_PASSWORD));
+
+        // And offered EXPLAINED. Both of these once arrived as bare slugs the
+        // panel humanised into "Billing View" and "Tenants Reset Password",
+        // the second of which hands over every business on the platform.
+        $this->assertSame(
+            "Reset a shop owner's password",
+            $offered[Permissions::TENANTS_RESET_PASSWORD]['label'],
+        );
+        $this->assertStringContainsString(
+            'sign in as that business',
+            (string) $offered[Permissions::TENANTS_RESET_PASSWORD]['hint'],
+        );
     }
 }

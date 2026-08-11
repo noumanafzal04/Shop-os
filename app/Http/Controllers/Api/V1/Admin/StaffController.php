@@ -67,7 +67,9 @@ class StaffController extends Controller
 
     public function permissions(): JsonResponse
     {
-        return ApiResponse::ok(Permissions::platform());
+        // Key + label + hint, so the most dangerous box on the platform cannot
+        // be offered to an admin with nothing but its slug for an explanation.
+        return ApiResponse::ok(Permissions::describe(Permissions::platform()));
     }
 
     private function findStaff(string $id): User

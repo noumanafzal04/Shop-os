@@ -249,11 +249,16 @@ class StaffManagementTest extends TestCase
         $admin = User::factory()->superAdmin()->create();
         $owner = User::factory()->shopOwner()->create();
 
+        // Each console offers its own scope, and offers it labelled — a bare
+        // key match would pass on the slug alone and say nothing about whether
+        // the form can explain the box it is drawing.
         $this->actingAsUser($admin)->getJson('/api/v1/admin/staff/permissions')
-            ->assertOk()->assertJsonFragment([Permissions::TENANTS_VIEW]);
+            ->assertOk()
+            ->assertJsonFragment(['key' => Permissions::TENANTS_VIEW, 'label' => 'View tenants', 'hint' => null]);
 
         $this->actingAsUser($owner)->getJson('/api/v1/staff/permissions')
-            ->assertOk()->assertJsonFragment([Permissions::SALES_MANAGE]);
+            ->assertOk()
+            ->assertJsonFragment(['key' => Permissions::SALES_MANAGE, 'label' => 'Sales & invoices', 'hint' => null]);
     }
 
     public function withToken(string $token, string $type = 'Bearer'): static
