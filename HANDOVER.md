@@ -102,7 +102,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1563 tests / 7177 assertions green. Panel 224 tests green.** Gates all
+**Backend 1569 tests / 7193 assertions green. Panel 225 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint`.
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
@@ -199,7 +199,60 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-11 (latest) — the buying price stops walking out on the grid
+### 2026-08-11 (latest) — the reorder list nobody could open
+
+A flow audit that mostly disproved itself. I diffed all 331 tenant endpoints
+against what the panel calls and claimed three findings; **two were wrong**, and
+the corrections are the useful part of this entry.
+
+**WRONG — "the permission registry has three copies."** Both consoles share one
+`StaffPage` and both FETCH the list from the server (`useStaff.ts`, via a
+templated `basePath` my grep normalised away). Which permissions exist has had
+one source all along.
+
+**WRONG — "expired stock cannot be written off."** `DELETE
+/inventory/batches/{batch}` zeroes the lot, posts a stock movement OUT
+referencing the batch, and the panel has reached it from the batch manager for
+months.
+
+**RIGHT, and the reason to do this at all — the reorder list.**
+`GET /inventory/low-stock` existed, was branch-scope-FIXED on 2026-08-10 (so
+somebody believed it was live), and `useLowStock()` existed in the panel. **No
+screen called it.** The dashboard said "12 items are running low" and sent the
+shopkeeper to the unfiltered inventory list to hunt a 500-row table for orange
+badges. Now: `Needs reordering` on Inventory, driven by `?filter=low` so the
+dashboard row deep-links to exactly the items it counted, and `Order these N
+items` hands the whole shortfall to a draft purchase order — every low item a
+line at its last known cost, supplier and quantities left to fill in. Retyping a
+dozen products by hand was the step that made the list not worth opening.
+
+Note the out-of-stock and expiring rows deliberately do NOT carry the filter:
+the reorder list requires a reorder level, so an item at zero without one would
+be missing from the very screen sent to fix it.
+
+The two smaller gaps behind the wrong findings, both real:
+
+- **Write off** now sits on each row of the expiry banner, where the shop is
+  TOLD about it, instead of three steps away in the batch manager.
+- **Permission labels moved to `Permissions::LABELS`**, beside the permissions.
+  The server now ships `{key, label, hint}`. This is the guard that was missing
+  when `tenants.reset_password` and `billing.view` shipped as bare slugs the
+  panel humanised into "Tenants Reset Password" — the most dangerous checkbox
+  on the platform, offered with no warning. `PermissionCatalogTest` fails on
+  the same commit now; mutation-checked by adding a permission with no label.
+  The panel keeps its map as a fallback for permissions a person holds that the
+  catalog no longer offers.
+
+Two walkthrough assertions were strengthened: `assertJsonFragment([KEY])` still
+passed against the new shape by matching a substring, which is not what it was
+written to check.
+
+Help Centre updated for both screens, per the standing rule. The Inventory
+article had been *promising* a reorder list that did not exist.
+
+1569 tests, 7193 assertions · panel 225 tests.
+
+### 2026-08-11 — the buying price stops walking out on the grid
 
 The last open finding from the 2026-08-09 sweep, and the whole sweep is now
 closed. The margin report was correctly shut to a cashier; the same figure then
