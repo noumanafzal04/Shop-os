@@ -37,3 +37,9 @@
 - [Web Completion](shopos-web-completion.md) — WEB SIDE FEATURE-COMPLETE 2026-08-07 (excl. offline); only deployment/CI-CD left
 - [Training Mode](shopos-training-mode.md) — practice till: the SHIFT is the unit; Sale global scope + null business_day_id fence it
 - [Table Ownership](shopos-table-ownership.md) — a dine-in tab belongs to its waiter; tables.serve_any lifts it; reads stay open
+- [Read vs Manage](shopos-read-vs-manage.md) — the `*.manage` bug class: a write permission gating a read; ANY-of gate + READS_* sets + PresetCanDoItsJobTest
+- [QA Sweep Aug-09](shopos-qa-sweep-aug09.md) — 4-tenant walkthrough: 9 bugs (4 P1) + 20 gaps, NONE fixed; branch-receiving found twice; 2 audits still owed
+- [CI/CD & Mobile](shopos-cicd-and-mobile.md) — CI gates green, deploy BLOCKED on bad DEPLOY_SSH_KEY; `claude --remote-control` for phone
+- [Workflow Test Rule](shopos-workflow-test-rule.md) — STANDING: delete a step and it must fail; never assert "not empty" on an envelope
+- [Admin Side Backlog](shopos-admin-side-backlog.md) — 2026-08-11 REQUESTED, not built: tenant/own password reset, billing dates + paid/unpaid/grace/suspended filters, admin depth, security pass both sides
+- [Help Centre](shopos-help-centre.md) — in-app, full-screen, filtered per tenant by module/trade/permission; STANDING: update it whenever a screen changes

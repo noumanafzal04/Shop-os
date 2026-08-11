@@ -92,7 +92,9 @@ directory or checkout path differs, adjust it to match.
 |---|---|
 | `README.md` | product overview, architecture decisions, branch map |
 | `AUDIT-2026-08-06.md` | the 4-way audit: proven P0s, P1/P2 lists, and a record of every fix |
-| `BUSINESS-TYPE-WORKFLOWS.md` | how each trade actually operates through the system |
+| `BUSINESS-TYPE-WORKFLOWS.md` | how each trade actually operates through the system — the developer contract: modules, gating, edge cases, tests |
+| **`BUSINESS-FLOWS.md`** | **who gets which screen**, per trade — the staffing answer ("kitchen ki screen kisko deni?"), the preset→permission→screen chain, and the daily loop with the person named at each step |
+| **`MODULE-GUIDE.md`** | **how every module works**, screen by screen — POS and its hotkeys, adding a product, category vs collection vs brand, Expense Manager, what the Ledger is, and where each trade differs |
 | `POS-WORKFLOW-GAPS.md` | POS gap analysis |
 | `IMPLEMENTATION_PLAN.md` · `ROADMAP.md` | phased plan and sequence |
 
@@ -100,7 +102,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1356 tests / 5712 assertions green. Panel 122 tests green.** Gates all
+**Backend 1563 tests / 7177 assertions green. Panel 224 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint`.
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
@@ -196,6 +198,154 @@ session log).
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-08-11 (latest) — the buying price stops walking out on the grid
+
+The last open finding from the 2026-08-09 sweep, and the whole sweep is now
+closed. The margin report was correctly shut to a cashier; the same figure then
+walked out on the product grid the till loads every shift. Product reads are
+gated on `READS_CATALOG` — which includes `sales.manage`, `kitchen.manage` and
+`orders.manage` — and the model was serialised whole, so a cashier, a waiter
+and the kitchen could all read what every item cost the shop.
+
+`Permissions::READS_COST` (products / purchases / inventory `.manage`, plus
+`reports.view`) and a `HidesCostPrice` concern used by **both** `Product` and
+`ProductVariant`. The variant matters: it carries its own `cost` and is
+serialised inside the product it belongs to, so guarding the parent alone moves
+the leak one level down rather than closing it.
+
+Guarded at `toArray()` rather than `$hidden` or a narrowed select, because
+attribute access has to keep working — costing a sale line, valuing a shelf,
+the CSV export behind its own permission. Only the serialised payload changes.
+
+**`wholesale_price` is deliberately NOT hidden.** A partial version of this fix
+stripped it alongside `cost` and a walkthrough test had been updated to pin
+that. It is wrong: `wholesale_price` is a SELLING price, and the POS reads it
+to offer the wholesale level (`levelBase` in `PosPage`). Hiding it from a
+cashier protects nothing and silently removes wholesale selling from the till.
+The assertion in `MartTenantWalkthroughTest` was corrected to require it.
+
+`reports.view` is in `READS_COST` but not in `READS_CATALOG`, so it 403s on
+`/products` — it earns its place for report payloads, not the catalog grid.
+Written down in the test's provider so it is not "fixed" later by mistake.
+
+`CostPriceVisibilityTest` — 10 tests. Three mutations checked: guard removed
+(4 fail), variant guard removed (1 fail), and the over-broad version that also
+strips `wholesale_price` (1 fail).
+
+1563 tests, 7177 assertions.
+
+### 2026-08-11 — the software explains itself
+
+The question that started it was not a bug report: *"kitchen ki screen kisko
+deni? table se order lene ki screen kisko?"* — an owner holding a finished
+product and unable to work out who to hand which screen to. That is a defect in
+the product, not in the owner. Full reasoning in
+`docs/decisions/shopos-help-centre.md`.
+
+I answered it first with `BUSINESS-FLOWS.md` and `MODULE-GUIDE.md`, and was
+told plainly that was the wrong shape: *"not in md file make a help center type
+screen."* Correct. A shopkeeper does not read the repo. Both docs were kept —
+they serve a developer at handover — and the answer moved in-app.
+
+**`/tenant/help` and `/admin/help`.** Full screen, outside `AppLayout` like the
+POS, with its own header and a **Back to portal** button. Left rail: search plus
+grouped, numbered topics that expand. Centre: the article. Right: "On this
+page", built from the `h` blocks and tracked with an IntersectionObserver.
+Anchors are handled by hand — the *pane* scrolls, not the window, so the
+browser's own `#hash` handling never fires and `?topic=pos#taking-payment`
+would otherwise land at the top.
+
+**Filtered on the same three axes as the sidebar: module → trade → person.** A
+restaurant is never shown how to count stock; a kitchen hand is never shown the
+till. This was requested twice, the second time reversing the first — the route
+was briefly public, then *"no public… each shop owner see content according to
+his business type."* The reversal is right: help describing a screen you do not
+have does not read as a stale document, it reads as a fault in the software.
+
+**48 articles cover 43 of 44 tenant screens** — the 44th is the Help Centre
+itself. 12 nest under a parent (Stock count and Transfers under Inventory,
+Suppliers under Purchases). When asked whether it was complete I checked
+instead of claiming, found **21 of 44**, and said so; the gap was then closed.
+
+That check is now a test rather than a promise. `covers every screen the shop
+has` diffs the articles against `TENANT_ROUTES` and **fails the build** when a
+screen ships undocumented, with a written `NEEDS_NO_ARTICLE` list so "I forgot"
+cannot look like "needs none". A second test proves a child is never shown when
+its parent was filtered out — that would leave it in the rail with nothing to
+hang under. Mutation-checked: deleting the module filter fails 4 of the 20.
+
+Adding the route broke two existing tests, both correctly: `shopNavReach` (new
+route absent from `src/test/routes.ts`) and `screenPermissions` (which pins
+*exactly* which screens are ungated — was 3, now 5). Those firing is the guard
+working.
+
+**Standing rule, in the user's words: "whenever any change/update in code we
+will also update help center screen."** Recorded in §8.
+
+1553 tests, 7154 assertions · panel 224 tests.
+
+### 2026-08-11 (later) — the admin side grows up, and a receipt stops being public
+
+Six things asked for in one message; four were not what they looked like. Full
+reasoning in `docs/decisions/shopos-admin-side-and-the-public-receipts.md`.
+
+**Nobody could change their own password.** Not the owner, not a cashier, not
+the super admin whose seeded password is printed in a public repo. The endpoint
+and the panel's service method had both existed for months — no screen ever
+called either. One `SecurityPage`, mounted at `/admin/security` and
+`/tenant/security`, reachable from the avatar menu, which until now offered
+platform users nothing but Sign out.
+
+**A locked-out owner had no way back in** — the OTP reset needs the phone or
+email they have lost, so recovery meant a MySQL console. `POST
+/admin/tenants/{tenant}/owner-password` now exists behind its OWN permission
+(`tenants.reset_password`, deliberately not part of `tenants.update`: editing a
+phone number and taking over an account are different acts). Kills every session
+the owner had, writes its own audit row naming both parties, never echoes the
+password. Refuses to guess between two partners.
+
+**Billing dates at creation** — `period.starts_at/ends_at` and a backdatable
+`payment.paid_at`. Creation is the only moment the renewal anchor can be set
+correctly, because every later period stacks onto it; a shop that joined
+mid-cycle had the wrong renewal date forever.
+
+**paid / grace / unpaid / suspended** — `Tenant::scopePaymentStatus`. Grace is
+per PLAN (7/14/30 days), so a fixed grace puts enterprise shops in the wrong
+bucket for three weeks; there is a test that fails if that regresses. The date
+arithmetic is rearranged into PHP (`ends_at > now - graceDays`) because SQL
+date maths differs per driver and this runs MySQL live, SQLite in tests. Buckets
+are mutually exclusive by construction; deleted tenants belong to none.
+
+**Security pass — five findings, all fixed.** The worst: expense and income
+**receipts were on the `public` disk**, so a business's bills were served by the
+web server with no token and no tenant check — the random filename was the whole
+access-control model. Now private, behind an endpoint carrying the same scope
+and permission as the row. Legacy files still read from `public`. Also: billing
+was gated on role alone (every platform staffer could read the platform's
+revenue) — gating the endpoint alone would have missed the dashboard printing it
+anyway, and a test caught per-plan takings still riding along underneath. The
+admin rail had **no** permission filter at all; the rule now lives in one file
+read by the sidebar, the Quick Actions and a route guard. Plus CORS `*` and an
+unrestricted CSV upload.
+
+What the pass **cleared**, so it is not re-audited: `throttle:api` IS applied
+globally (I suspected defined-but-unapplied; it is not), raw SQL is
+parameterised, login does not leak account existence, refresh tokens rotate
+single-use.
+
+**Two manuals written** — `BUSINESS-FLOWS.md` (who gets which screen per trade)
+and `MODULE-GUIDE.md` (how every module works). Writing them surfaced two more
+"built but unreachable" defects: five permissions had no labels on the staff
+form (including the most dangerous one on the platform, offered with no warning
+at all), and `supplier_payment` — a fifth ledger row type added on the server —
+was unknown to the panel, so those rows appeared unlabelled and unfilterable.
+
+`Forecourt attendant` preset added: a station's counter job needs
+`inventory.manage` because closing a forecourt shift sets stock to the dip, and
+"Cashier" was the only thing on offer.
+
+1553 tests, 7154 assertions · panel 204 tests.
 
 ### 2026-08-11 — the checklist runs, and one rule was tried and rejected
 
@@ -704,6 +854,14 @@ bug.
   lead with a BOM, and prefix `= + - @` — a spreadsheet runs those as formulas.
   Use `downloadCsv` in `src/common/api/download.ts`; server-streamed exports stay
   server-side, because an export of page one is not an export.
+- **A change to a screen is a change to the Help Centre.** `src/modules/help/
+  content.ts` is what a shopkeeper reads to work out how their shop runs, and
+  help that describes last month's screen is worse than none — it reads as a
+  fault in the software rather than a stale document. When you add, move,
+  rename or gate a screen, update the article in the same pass, and give the
+  article the same `modules` / `trades` / `permission` the screen itself
+  carries so each tenant keeps seeing only what they actually have.
+  `src/modules/help/content.test.ts` pins the per-trade filtering.
 - Commit and push only when asked.
 
 ### Gates, run from each app's directory
