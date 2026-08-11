@@ -4,13 +4,49 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { adminService, type PlanInput, type TenantInput } from "../services/adminService";
+import {
+  adminService,
+  type BillingPeriodInput,
+  type PlanInput,
+  type SubscriptionPaymentInput,
+  type TenantInput,
+} from "../services/adminService";
+import type { PaymentStatus } from "../../auth/types";
 
-export function useAdminTenants(params: { search?: string; status?: string; page?: number }) {
+export function useAdminTenants(params: {
+  search?: string;
+  status?: string;
+  payment_status?: PaymentStatus | "";
+  page?: number;
+}) {
   return useQuery({
     queryKey: ["admin", "tenants", params],
     queryFn: () => adminService.tenants(params),
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Set a shop owner's password, on their behalf, because they cannot.
+ *
+ * Invalidates the tenant queries because the server revoked every session the
+ * owner had, and the detail screen shows their status.
+ */
+export function useResetOwnerPassword() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: string;
+      password: string;
+      password_confirmation: string;
+      user_id?: string;
+    }) => adminService.resetOwnerPassword(id, payload),
+    onSuccess: (_res, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "tenant", id] });
+    },
   });
 }
 
@@ -151,8 +187,15 @@ export function useTenantMutations() {
   const restore = useMutation({ mutationFn: (id: string) => adminService.restoreTenant(id), onSuccess: invalidate });
 
   const assignPlan = useMutation({
-    mutationFn: ({ id, ...payload }: { id: string; plan_id: string; payment?: { amount?: number; method?: string; reference?: string } }) =>
-      adminService.assignPlan(id, payload),
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: string;
+      plan_id: string;
+      payment?: SubscriptionPaymentInput;
+      period?: BillingPeriodInput;
+    }) => adminService.assignPlan(id, payload),
     onSuccess: invalidate,
   });
 

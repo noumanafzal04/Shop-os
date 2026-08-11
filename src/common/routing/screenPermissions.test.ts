@@ -42,7 +42,7 @@ const TENANT_PERMISSIONS = new Set([
 ]);
 
 /**
- * The three screens anyone signed in to the shop may open, and WHY — because
+ * The screens anyone signed in to the shop may open, and WHY — because
  * "I forgot to add it to the map" looks exactly like "it is open on purpose"
  * unless the list is written down.
  *
@@ -50,8 +50,19 @@ const TENANT_PERMISSIONS = new Set([
  *                        refused gate sends you; gating it is a redirect loop
  *   /tenant/setup        an unfinished shop must be finishable
  *   /tenant/subscription the server asks for no permission to read it
+ *   /tenant/security     your own password — everyone signed in has one
+ *   /tenant/help         anyone can get stuck. What the Help Centre SHOWS is
+ *                        filtered by the shop's modules and by what the reader
+ *                        can open, so an open door here reveals nothing a
+ *                        permission would have hidden
  */
-const DELIBERATELY_OPEN = ["/tenant", "/tenant/setup", "/tenant/subscription"];
+const DELIBERATELY_OPEN = [
+  "/tenant",
+  "/tenant/help",
+  "/tenant/security",
+  "/tenant/setup",
+  "/tenant/subscription",
+];
 
 describe("the map describes screens that exist", () => {
   it("guards no screen the app does not have", () => {
@@ -74,7 +85,7 @@ describe("the map describes screens that exist", () => {
 });
 
 describe("nothing falls through the map by accident", () => {
-  it("leaves exactly three screens open, and they are the three we chose", () => {
+  it("leaves exactly these screens open, and they are the ones we chose", () => {
     // This is the test that catches the real mistake: adding a screen and
     // forgetting to say who may open it. An unmapped screen is open to every
     // cashier in the shop, and nothing else would ever mention it.

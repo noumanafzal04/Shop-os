@@ -128,17 +128,22 @@ export default function AdminDashboard() {
                 kpi={k.active_subscriptions}
                 icon={<CheckCircleIcon className={ICON} />}
               />
-              <KpiTile
-                label="Revenue this month"
-                value={money(k.revenue_this_month.value)}
-                format={money}
-                basis="last month"
-                kpi={k.revenue_this_month}
-                icon={<PieChartIcon className={ICON} />}
-                emphasis
-                // revenue_series IS this figure, month by month.
-                spark={data?.revenue_series.map((m) => m.total)}
-              />
+              {/* Platform staff without `billing.view` do not get the money.
+                  The server omits the key rather than sending a zero, so the
+                  tile disappears instead of reporting a takings of nought. */}
+              {k.revenue_this_month && (
+                <KpiTile
+                  label="Revenue this month"
+                  value={money(k.revenue_this_month.value)}
+                  format={money}
+                  basis="last month"
+                  kpi={k.revenue_this_month}
+                  icon={<PieChartIcon className={ICON} />}
+                  emphasis
+                  // revenue_series IS this figure, month by month.
+                  spark={data?.revenue_series?.map((m) => m.total)}
+                />
+              )}
               <KpiTile
                 label="Online orders today"
                 value={count(k.online_orders_today.value)}
@@ -169,12 +174,19 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <div className="xl:col-span-2">
-            <RevenueTrendPanel series={data?.revenue_series} loading={isLoading} />
+        {/* Same rule: no revenue series means this person may not see the
+            money, so the chart goes and growth takes the full width rather
+            than sitting next to an empty panel. */}
+        {isLoading || data?.revenue_series ? (
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <div className="xl:col-span-2">
+              <RevenueTrendPanel series={data?.revenue_series} loading={isLoading} />
+            </div>
+            <TenantGrowthPanel growth={data?.tenant_growth} loading={isLoading} />
           </div>
+        ) : (
           <TenantGrowthPanel growth={data?.tenant_growth} loading={isLoading} />
-        </div>
+        )}
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <BusinessTypesPanel types={data?.business_types} loading={isLoading} />
@@ -191,7 +203,9 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-3">
           <div className="space-y-6 xl:col-span-2">
             <RecentTenantsPanel tenants={data?.recent_tenants} loading={isLoading} />
-            <RecentPaymentsPanel payments={data?.recent_payments} loading={isLoading} />
+            {(isLoading || data?.recent_payments) && (
+              <RecentPaymentsPanel payments={data?.recent_payments} loading={isLoading} />
+            )}
           </div>
           <ActivityPanel activity={data?.activity} loading={isLoading} />
         </div>

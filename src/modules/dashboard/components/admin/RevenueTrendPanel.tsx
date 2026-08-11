@@ -36,7 +36,7 @@ export function RevenueTrendPanel({ series, loading = false }: Props) {
 
   // The best month in the window, and the average across it. Both are sums of
   // the months the payload sent — no month exists here that the API didn't.
-  const best = window.reduce<AdminDashboard["revenue_series"][number] | null>(
+  const best = window.reduce<NonNullable<AdminDashboard["revenue_series"]>[number] | null>(
     (top, m) => (top === null || m.total > top.total ? m : top),
     null,
   );

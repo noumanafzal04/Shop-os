@@ -11,7 +11,24 @@ export const PERMISSION_LABELS: Record<string, { label: string; hint?: string }>
   "tenants.delete": { label: "Delete tenants" },
   "tenants.suspend": { label: "Suspend / activate tenants" },
   "tenants.assign_plan": { label: "Assign plans & record payments" },
+  "tenants.reset_password": {
+    label: "Reset a shop owner's password",
+    // The most dangerous box on this screen. Whoever holds it can sign in as
+    // any business on the platform and read every rupee it has ever taken —
+    // which is why it is not part of "Edit tenants", and why it does not go
+    // out without saying so.
+    hint: "Lets them set any owner's password and sign in as that business. Grant sparingly.",
+  },
+  "billing.view": {
+    label: "View revenue & payments",
+    hint: "The platform's own takings — the billing ledger and the revenue figures on the dashboard.",
+  },
   "platform_staff.manage": { label: "Manage platform staff" },
+  "banners.manage": { label: "Promo banners & ads" },
+  "announcements.manage": {
+    label: "Announcements",
+    hint: "Broadcasts a push notification to every shop or every customer. There is no unsend.",
+  },
   // Tenant scope
   "staff.manage": { label: "Manage staff" },
   "products.manage": { label: "Products & categories" },
@@ -19,6 +36,10 @@ export const PERMISSION_LABELS: Record<string, { label: string; hint?: string }>
   "suppliers.manage": { label: "Suppliers" },
   "purchases.manage": { label: "Purchase orders & payables" },
   "sales.manage": { label: "Sales & invoices" },
+  "kitchen.manage": {
+    label: "Kitchen board",
+    hint: "See fired orders and mark them ready. Nothing about the till or the takings.",
+  },
   "discounts.apply": { label: "Give a discount", hint: "Up to the ceiling set in Shop settings." },
   "discounts.override": { label: "Discount past the ceiling", hint: "Exceed the shop's discount limit." },
   "sales.void": { label: "Void a completed sale", hint: "Restores stock and reverses the money." },

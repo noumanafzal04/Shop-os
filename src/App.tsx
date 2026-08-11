@@ -6,6 +6,7 @@ import {
   RedirectIfAuthenticated,
   RequireAuth,
   RequireFeature,
+  RequireAdminScreen,
   RequirePermission,
   RequireRole,
   RequireSetupComplete,
@@ -35,6 +36,13 @@ const TenantStaffPage = lazy(() => import("./modules/staff/pages/TenantStaffPage
 const AdminAuditPage = lazy(() => import("./modules/admin/pages/AdminAuditPage"));
 const AdminBannersPage = lazy(() => import("./modules/admin/pages/AdminBannersPage"));
 const AdminAnnouncementsPage = lazy(() => import("./modules/admin/pages/AdminAnnouncementsPage"));
+// One screen, mounted on both consoles. Changing your own password has nothing
+// role-specific about it, and a second copy is a second copy to forget.
+const SecurityPage = lazy(() => import("./modules/auth/pages/SecurityPage"));
+// The Help Centre runs FULL-SCREEN, outside the dashboard shell, for the same
+// reason the POS does: somebody opens it when they are stuck, and wrapping it
+// in the navigation they could not work out is not help.
+const HelpCenterPage = lazy(() => import("./modules/help/pages/HelpCenterPage"));
 const ShopSettingsPage = lazy(() => import("./modules/shop/pages/ShopSettingsPage"));
 const BranchesPage = lazy(() => import("./modules/branches/pages/BranchesPage"));
 const TransfersPage = lazy(() => import("./modules/transfers/pages/TransfersPage"));
@@ -113,19 +121,46 @@ export default function App() {
           {/* ── Admin console: /admin ─────────────────────────────── */}
           <Route element={<RequireAuth />}>
             <Route element={<RequireRole roles={["super_admin", "admin_staff"]} />}>
+              {/* Every screen but the dashboard and your own password is gated
+                  on the SAME map the rail and the quick actions read. Hiding a
+                  link is a courtesy, not a lock: a banner scheduler who typed
+                  /admin/payments used to get the whole billing page and watch
+                  it fill with 403s. */}
               <Route path="/admin" element={<AppLayout />}>
                 <Route index element={<AdminDashboard />} />
-                <Route path="tenants" element={<AdminTenantsPage />} />
-                <Route path="tenants/new" element={<AdminTenantCreatePage />} />
-                <Route path="tenants/:id" element={<AdminTenantDetailPage />} />
-                <Route path="payments" element={<AdminPaymentsPage />} />
-                <Route path="plans" element={<AdminPlansPage />} />
-                <Route path="config" element={<AdminConfigPage />} />
-                <Route path="staff" element={<AdminStaffPage />} />
-                <Route path="audit-logs" element={<AdminAuditPage />} />
-                <Route path="banners" element={<AdminBannersPage />} />
-                <Route path="announcements" element={<AdminAnnouncementsPage />} />
+                <Route element={<RequireAdminScreen path="/admin/tenants" />}>
+                  <Route path="tenants" element={<AdminTenantsPage />} />
+                  <Route path="tenants/:id" element={<AdminTenantDetailPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/tenants/new" />}>
+                  <Route path="tenants/new" element={<AdminTenantCreatePage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/payments" />}>
+                  <Route path="payments" element={<AdminPaymentsPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/plans" />}>
+                  <Route path="plans" element={<AdminPlansPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/config" />}>
+                  <Route path="config" element={<AdminConfigPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/staff" />}>
+                  <Route path="staff" element={<AdminStaffPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/audit-logs" />}>
+                  <Route path="audit-logs" element={<AdminAuditPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/banners" />}>
+                  <Route path="banners" element={<AdminBannersPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/announcements" />}>
+                  <Route path="announcements" element={<AdminAnnouncementsPage />} />
+                </Route>
+                {/* Your own password — never gated. */}
+                <Route path="security" element={<SecurityPage />} />
               </Route>
+              {/* Full screen, so it sits OUTSIDE the AppLayout route above. */}
+              <Route path="/admin/help" element={<HelpCenterPage />} />
             </Route>
 
             {/* ── Shop owner/staff console: /tenant ────────────────── */}
@@ -144,6 +179,13 @@ export default function App() {
                     <Route path="/tenant/pos" element={<PosPage />} />
                   </Route>
                 </Route>
+
+                {/* The Help Centre is full screen and open to everyone in the
+                    shop — anyone can get stuck. What it SHOWS is filtered by
+                    this shop's business type and modules, and by what the
+                    reader personally can open, so a restaurant is never told
+                    how to count stock. */}
+                <Route path="/tenant/help" element={<HelpCenterPage />} />
 
                 {/* Dine-in runs full-screen too (floor → tab workspace), and
                     the kitchen board most of all: it hangs on a wall and is
@@ -313,6 +355,10 @@ export default function App() {
                   {/* What the shop pays is not a secret from the people who
                       work in it, and the server asks for no permission. */}
                   <Route path="subscription" element={<SubscriptionPage />} />
+                  {/* Your own password. Ungated on purpose — every person
+                      signed in to the shop has one, from the owner to the
+                      newest cashier. */}
+                  <Route path="security" element={<SecurityPage />} />
                 </Route>
               </Route>
               </Route>

@@ -184,13 +184,18 @@ export interface AdminDashboard {
   kpis: {
     total_tenants: Kpi;
     active_subscriptions: Kpi;
-    revenue_this_month: Kpi;
+    /**
+     * Withheld from platform staff without `billing.view` — the server omits
+     * the key rather than sending a zero, because a zero is an answer and the
+     * wrong one. Optional here so the panel is forced to handle its absence.
+     */
+    revenue_this_month?: Kpi;
     online_orders_today: Kpi;
     active_riders: Kpi;
     new_tenants_this_month: Kpi;
   };
-  /** 12 months, oldest first, zero-filled. */
-  revenue_series: Array<{ month: string; ym: string; total: number }>;
+  /** 12 months, oldest first, zero-filled. Absent without `billing.view`. */
+  revenue_series?: Array<{ month: string; ym: string; total: number }>;
   /** 6 months of sign-ups, split by where those tenants stand today. */
   tenant_growth: Array<{ month: string; ym: string; active: number; suspended: number; total: number }>;
   business_types: Array<{ type: string | null; label: string; count: number }>;
@@ -204,7 +209,8 @@ export interface AdminDashboard {
     is_custom: boolean;
     is_active: boolean;
     active_tenants: number;
-    revenue: number;
+    /** Absent without `billing.view` — the plan's PRICE is not the same thing. */
+    revenue?: number;
   }>;
   /**
    * What the platform's active shops actually run. Modules are assigned per
@@ -212,7 +218,8 @@ export interface AdminDashboard {
    * usage — this is the only view of it.
    */
   modules: Array<{ key: string; label: string; count: number; share: number }>;
-  recent_payments: Array<{
+  /** Absent without `billing.view`. */
+  recent_payments?: Array<{
     id: string;
     tenant: string | null;
     tenant_id: string | null;

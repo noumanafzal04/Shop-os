@@ -27,7 +27,7 @@ import { PAYMENT_METHODS, type BudgetRow, type Expense, type RecurringExpense } 
 import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../services/moneyFilters";
 import { MoneyFilterBar } from "../components/MoneyFilterBar";
 import { CategoryManager } from "../components/CategoryManager";
-import { downloadCsv, downloadFile } from "../../../common/api/download";
+import { downloadCsv, downloadFile, openAuthedFile } from "../../../common/api/download";
 import { useAuthStore } from "../../../stores/authStore";
 import { useSuppliers } from "../../purchases/hooks/usePurchases";
 
@@ -427,7 +427,16 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                     <td className="px-5 py-3.5 text-right">
                       {e.attachment_url ? (
                         <span className="inline-flex items-center gap-2">
-                          <a href={e.attachment_url} target="_blank" rel="noreferrer" className="text-theme-xs text-brand-600 hover:underline dark:text-brand-400">View</a>
+                          {/* Fetched with the bearer token rather than linked:
+                              the receipt is behind the API now, not on public
+                              storage, so an href would 401. */}
+                          <button
+                            type="button"
+                            className="text-theme-xs text-brand-600 hover:underline dark:text-brand-400"
+                            onClick={() => void openAuthedFile(e.attachment_url!)}
+                          >
+                            View
+                          </button>
                           <button className="text-theme-xs text-gray-400 hover:text-error-500" onClick={() => detach.mutate(e.id)}>✕</button>
                         </span>
                       ) : (

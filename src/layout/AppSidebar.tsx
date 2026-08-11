@@ -11,6 +11,7 @@ import {
   FileIcon,
   GridIcon,
   GroupIcon,
+  InfoIcon,
   ListIcon,
   PlugInIcon,
   UserCircleIcon,
@@ -21,11 +22,12 @@ import { useShopSettings } from "../modules/shop/hooks/useShop";
 import { useAuthStore } from "../stores/authStore";
 import { homeForRole } from "../common/routing/guards";
 import { canVisit } from "../common/routing/screenPermissions";
+import { canVisitAdmin } from "../common/routing/adminScreenPermissions";
 import { tracksSerials, usePrimaryBusinessType } from "../common/tenant/businessType";
 
 type SubItem = { name: string; path: string; pro?: boolean; new?: boolean };
 
-type NavItem = {
+export type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
@@ -111,6 +113,10 @@ export function shopNav(
       ...(has("expenses") ? [expenseManager] : []),
       ...(multiBranch ? [branchItem] : []),
       { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
+    // Last, and never gated: anyone in the shop can get stuck, and what
+    // the Help Centre SHOWS is already filtered to this shop's modules
+    // and to what the reader can open.
+    { icon: <InfoIcon />, name: "Help Centre", path: "/tenant/help" },
     ], can);
   }
 
@@ -250,6 +256,10 @@ export function shopNav(
     // what the shop pays is not a secret from the people who work in it.
     { icon: <DollarLineIcon />, name: "Subscription", path: "/tenant/subscription" },
     { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
+    // Last, and never gated: anyone in the shop can get stuck, and what
+    // the Help Centre SHOWS is already filtered to this shop's modules
+    // and to what the reader can open.
+    { icon: <InfoIcon />, name: "Help Centre", path: "/tenant/help" },
   ], can);
 }
 
@@ -285,7 +295,21 @@ const adminPlatformItems: NavItem[] = [
   { icon: <ChatIcon />, name: "Announcements", path: "/admin/announcements" },
   { icon: <UserCircleIcon />, name: "Platform Staff", path: "/admin/staff" },
   { icon: <FileIcon />, name: "Audit Log", path: "/admin/audit-logs" },
+  { icon: <InfoIcon />, name: "Help Centre", path: "/admin/help" },
 ];
+
+/**
+ * The admin rail this person is actually offered. The rule itself lives in
+ * adminScreenPermissions — the dashboard's Quick Actions offer the same nine
+ * screens, and two lists of one rule is how they drift apart.
+ */
+export function adminNav(
+  items: NavItem[],
+  isSuperAdmin: boolean,
+  permissions: string[] | undefined,
+): NavItem[] {
+  return items.filter((item) => !item.path || canVisitAdmin(item.path, isSuperAdmin, permissions));
+}
 
 /** Section roots would swallow every child route in a prefix match. */
 const SECTION_ROOTS = ["/tenant", "/admin"];
@@ -318,10 +342,12 @@ const AppSidebar: React.FC = () => {
   const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
   const isAdmin = role === "super_admin" || role === "admin_staff";
   const navItems = isAdmin
-    ? adminMainItems
+    ? adminNav(adminMainItems, role === "super_admin", permissions)
     : shopNav(features, businessType, mode, multiBranch, can);
   // Second group: platform config for admins; unused on the shop side.
-  const othersItems: NavItem[] = isAdmin ? adminPlatformItems : [];
+  const othersItems: NavItem[] = isAdmin
+    ? adminNav(adminPlatformItems, role === "super_admin", permissions)
+    : [];
 
   // Labels show when the rail is pinned open, peeked on hover, or drawn over
   // the page on mobile — the one condition that drives every layout choice.

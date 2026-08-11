@@ -20,7 +20,7 @@ import {
 import { CategoryManager } from "../../expenses/components/CategoryManager";
 import { MoneyFilterBar } from "../../expenses/components/MoneyFilterBar";
 import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../../expenses/services/moneyFilters";
-import { downloadFile } from "../../../common/api/download";
+import { downloadFile, openAuthedFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -285,14 +285,15 @@ export default function IncomePage() {
                     <td className="px-6 py-4 text-right">
                       {e.attachment_url ? (
                         <span className="inline-flex items-center gap-2">
-                          <a
-                            href={e.attachment_url}
-                            target="_blank"
-                            rel="noreferrer"
+                          {/* See ExpensesPage — the receipt is behind the API
+                              now, so it is fetched with the token. */}
+                          <button
+                            type="button"
                             className="text-theme-xs text-brand-600 hover:underline dark:text-brand-400"
+                            onClick={() => void openAuthedFile(e.attachment_url!)}
                           >
                             View
-                          </a>
+                          </button>
                           <button
                             className="text-theme-xs text-gray-400 hover:text-error-500"
                             aria-label={`Remove the receipt on ${e.description}`}

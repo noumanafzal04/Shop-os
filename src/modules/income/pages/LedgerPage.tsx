@@ -22,6 +22,10 @@ const TYPE_FILTERS: Array<{ value: LedgerType; label: string }> = [
   { value: "income", label: "Income" },
   { value: "expense", label: "Expenses" },
   { value: "refund", label: "Refunds" },
+  // The fifth money source. Paying the wholesaler is not an expense — a shop
+  // that files the wholesaler's bill AND records the payment would double-count
+  // it — so it is its own row type, and needs its own filter.
+  { value: "supplier_payment", label: "Supplier paid" },
 ];
 
 const METHODS = [

@@ -30,6 +30,10 @@ export default function UserDropdown() {
   const closeDropdown = () => setIsOpen(false);
   // Tenant-side users get a shortcut to shop settings; admins don't have one.
   const isTenantSide = user?.role === "shop_owner" || user?.role === "staff";
+  // Your own password and the Help Centre live on both consoles at the same
+  // path segment.
+  const securityPath = isTenantSide ? "/tenant/security" : "/admin/security";
+  const helpPath = isTenantSide ? "/tenant/help" : "/admin/help";
 
   const signOut = () => {
     closeDropdown();
@@ -87,8 +91,48 @@ export default function UserDropdown() {
           </span>
         </div>
 
-        {isTenantSide && (
-          <ul className="flex flex-col gap-1 border-b border-gray-200 py-3 dark:border-gray-800">
+        <ul className="flex flex-col gap-1 border-b border-gray-200 py-3 dark:border-gray-800">
+          {/* How every module works, filtered to this shop and this person. */}
+          <li>
+            <DropdownItem
+              onItemClick={closeDropdown}
+              tag="a"
+              to={helpPath}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-700 text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+            >
+              <svg className="fill-gray-500 dark:fill-gray-400" width="20" height="20" viewBox="0 0 24 24">
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M12 3a9 9 0 100 18 9 9 0 000-18zM9.5 9.25a2.5 2.5 0 114.02 1.98c-.64.5-1.27 1.06-1.27 1.9a.75.75 0 001.5 0c0-.1.07-.25.44-.54A4 4 0 108 9.25a.75.75 0 001.5 0zM12 17.25a1 1 0 100-2 1 1 0 000 2z"
+                  fill="currentColor"
+                />
+              </svg>
+              Help Centre
+            </DropdownItem>
+          </li>
+          {/* Nobody could change their own password on either side: the
+              endpoint and the panel's service call both existed, and no screen
+              ever reached them. */}
+          <li>
+            <DropdownItem
+              onItemClick={closeDropdown}
+              tag="a"
+              to={securityPath}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-700 text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+            >
+              <svg className="fill-gray-500 dark:fill-gray-400" width="20" height="20" viewBox="0 0 24 24">
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M12 2a5 5 0 00-5 5v3H6.5A1.5 1.5 0 005 11.5v8A1.5 1.5 0 006.5 21h11a1.5 1.5 0 001.5-1.5v-8a1.5 1.5 0 00-1.5-1.5H17V7a5 5 0 00-5-5zm3.5 8V7a3.5 3.5 0 10-7 0v3h7zm-3.5 3.75a1.25 1.25 0 00-.75 2.25v1.25a.75.75 0 001.5 0V16A1.25 1.25 0 0012 13.75z"
+                  fill="currentColor"
+                />
+              </svg>
+              Security
+            </DropdownItem>
+          </li>
+          {isTenantSide && (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -113,8 +157,8 @@ export default function UserDropdown() {
                 Shop settings
               </DropdownItem>
             </li>
-          </ul>
-        )}
+          )}
+        </ul>
 
         <button
           onClick={signOut}

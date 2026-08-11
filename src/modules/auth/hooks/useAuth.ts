@@ -36,6 +36,23 @@ export function useLogout() {
 }
 
 /**
+ * Change your own password.
+ *
+ * The server keeps THIS device signed in and revokes every other one, so the
+ * local token stays valid and there is nothing to re-store here. Queries are
+ * left alone deliberately: nothing about the data on screen has changed.
+ */
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (payload: {
+      current_password: string;
+      password: string;
+      password_confirmation: string;
+    }) => authService.changePassword(payload),
+  });
+}
+
+/**
  * Fresh profile from the server (auth store holds the cached copy).
  */
 export function useMe(enabled = true) {

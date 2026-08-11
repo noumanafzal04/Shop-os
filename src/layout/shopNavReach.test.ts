@@ -68,6 +68,7 @@ const NOT_IN_MENU: Record<string, string> = {
   "/tenant/setup": "the setup wizard runs before a menu exists",
   "/tenant/sales/new": "reached from the Sales screen, not the menu",
   "/tenant/products/new": "reached from the Products screen, not the menu",
+  "/tenant/security": "your own password — reached from the avatar menu",
 };
 
 describe("every screen is reachable from some shop's menu", () => {

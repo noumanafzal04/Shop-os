@@ -21,6 +21,25 @@ export async function downloadFile(
 }
 
 /**
+ * Open a file from an authenticated endpoint in a new tab.
+ *
+ * Receipts used to be plain `<a href>` links to public storage — which is why
+ * they were readable by anyone the URL reached. Now the bytes come through the
+ * axios instance (which carries the bearer token) and the browser is handed a
+ * blob URL, so the file is only ever seen by someone the API would answer.
+ *
+ * The blob URL is revoked on a timer rather than immediately: revoking it in
+ * the same tick closes the tab that was just opened with it.
+ */
+export async function openAuthedFile(url: string): Promise<void> {
+  const res = await api.get(url, { responseType: "blob" });
+
+  const blobUrl = URL.createObjectURL(res.data as Blob);
+  window.open(blobUrl, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
+/**
  * A CSV built from rows the browser already has.
  *
  * Most exports here stream from the server, because the screen only holds one

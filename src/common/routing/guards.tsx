@@ -3,6 +3,7 @@ import ThemeCustomizer from "../../components/theme/ThemeCustomizer";
 import { useTenantTheme } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
 import type { UserRole } from "../../modules/auth/types";
+import { canVisitAdmin } from "./adminScreenPermissions";
 
 /**
  * Each role's home:
@@ -103,6 +104,28 @@ export function RequirePermission({ permission }: { permission: string }) {
 
   if (!allowed) {
     return <Navigate to="/tenant" replace />;
+  }
+
+  return <Outlet />;
+}
+
+/**
+ * The platform-side twin of RequirePermission.
+ *
+ * Filtering the rail stops a screen being OFFERED; it does not stop it being
+ * reached. A banner scheduler who types /admin/payments got the whole billing
+ * page, which then filled with 403s — a broken screen rather than a closed
+ * door, and one that still tells them the screen exists.
+ *
+ * The permission per path is read from the same map the rail and the dashboard
+ * shortcuts use, so all three can only ever agree.
+ */
+export function RequireAdminScreen({ path }: { path: string }) {
+  const role = useAuthStore((s) => s.user?.role);
+  const permissions = useAuthStore((s) => s.user?.permissions);
+
+  if (!canVisitAdmin(path, role === "super_admin", permissions)) {
+    return <Navigate to="/admin" replace />;
   }
 
   return <Outlet />;

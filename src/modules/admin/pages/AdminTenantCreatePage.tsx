@@ -90,6 +90,16 @@ export default function AdminTenantCreatePage() {
     business_category: "",
     city_id: "",
     plan_id: "",
+    // The subscription window. Blank = starts today and runs for the plan's
+    // billing period, which is right for a shop signing up now and wrong for
+    // every shop migrating on mid-cycle.
+    period_starts_at: "",
+    period_ends_at: "",
+    // The opening payment, if one was taken at signup.
+    payment_amount: "",
+    payment_method: "cash",
+    payment_reference: "",
+    payment_paid_at: "",
     branches: "1",
     staff: "5",
     registers: "2",
@@ -146,6 +156,25 @@ export default function AdminTenantCreatePage() {
         business_category: form.business_category || undefined,
         city_id: form.city_id || undefined,
         plan_id: form.plan_id,
+        // Sent only when the admin typed something. An empty period object is
+        // indistinguishable from "no opinion" server-side, and this is the one
+        // field that must not be guessed at — every later renewal stacks onto
+        // whatever is recorded here.
+        period:
+          form.period_starts_at || form.period_ends_at
+            ? {
+                starts_at: form.period_starts_at || undefined,
+                ends_at: form.period_ends_at || undefined,
+              }
+            : undefined,
+        payment: form.payment_amount
+          ? {
+              amount: Number(form.payment_amount),
+              method: form.payment_method,
+              reference: form.payment_reference.trim() || undefined,
+              paid_at: form.payment_paid_at || undefined,
+            }
+          : undefined,
         modules,
         limits: {
           branches: Number(form.branches) || 1,
@@ -298,6 +327,95 @@ export default function AdminTenantCreatePage() {
                 </p>
               </div>
             )}
+
+            {/* The billing window and the opening payment.
+                This is the only moment the renewal anchor can be set
+                correctly: every later period stacks onto whatever is recorded
+                here, so a shop that joined mid-cycle and was entered as
+                "starts today" has the wrong renewal date forever. */}
+            <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
+              <p className="mb-3 text-theme-xs text-gray-400">
+                Billing period — leave blank to run from today for the plan's period
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>From</Label>
+                  <Input
+                    type="date"
+                    value={form.period_starts_at}
+                    onChange={(e) => set("period_starts_at", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>To</Label>
+                  <Input
+                    type="date"
+                    value={form.period_ends_at}
+                    onChange={(e) => set("period_ends_at", e.target.value)}
+                  />
+                  {errorFor("period.ends_at") && (
+                    <p className="mt-1 text-theme-xs text-error-500">{errorFor("period.ends_at")}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
+              <p className="mb-3 text-theme-xs text-gray-400">
+                Opening payment — leave the amount blank if nothing was taken yet
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Amount</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={form.payment_amount}
+                    onChange={(e) => set("payment_amount", e.target.value)}
+                    placeholder={selectedPlan ? String(selectedPlan.price) : "0"}
+                  />
+                </div>
+                <div>
+                  <Label>Method</Label>
+                  <Select
+                    value={form.payment_method}
+                    options={[
+                      { value: "cash", label: "Cash" },
+                      { value: "bank_transfer", label: "Bank transfer" },
+                      { value: "card", label: "Card" },
+                      { value: "other", label: "Other" },
+                    ]}
+                    placeholder="Cash"
+                    onChange={(v) => set("payment_method", v)}
+                  />
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Reference</Label>
+                  <Input
+                    value={form.payment_reference}
+                    onChange={(e) => set("payment_reference", e.target.value)}
+                    placeholder="Txn / receipt no."
+                  />
+                </div>
+                <div>
+                  {/* Paid Thursday, entered Monday: the ledger says Thursday.
+                      Capped at today because a payment in the future has not
+                      happened. */}
+                  <Label>Paid on</Label>
+                  <Input
+                    type="date"
+                    value={form.payment_paid_at}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => set("payment_paid_at", e.target.value)}
+                  />
+                  {errorFor("payment.paid_at") && (
+                    <p className="mt-1 text-theme-xs text-error-500">{errorFor("payment.paid_at")}</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </FormCard>
 

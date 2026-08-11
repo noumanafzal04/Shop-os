@@ -28,6 +28,13 @@ export interface LimitUsage {
   enforced: boolean;
 }
 
+/**
+ * Who has paid, who has not, who is inside the plan's grace period, and who
+ * the platform has switched off. Mutually exclusive — a suspended shop is only
+ * ever "suspended", whatever its dates say.
+ */
+export type PaymentStatus = "paid" | "grace" | "unpaid" | "suspended";
+
 export interface Tenant {
   id: string;
   business_name: string;
@@ -47,9 +54,16 @@ export interface Tenant {
   limits_usage?: LimitUsage[];
   status: "active" | "suspended";
   setup_completed: boolean;
+  subscription_starts_at?: string | null;
   subscription_ends_at: string | null;
   subscription_expired: boolean;
   subscription_state?: "active" | "grace" | "read_only";
+  /**
+   * The same lifecycle in billing words. `subscription_state` says what the
+   * SOFTWARE does (read_only); this says why (unpaid), and folds in suspension,
+   * which the other one does not know about. The admin list filters on this.
+   */
+  payment_status?: PaymentStatus;
   grace_ends_at?: string | null;
   business_type?: string | null;
   /**

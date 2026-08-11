@@ -11,7 +11,7 @@ import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
-import { useAdminCities, useAdminTenant, useExtendLimits, useModuleCatalog, usePayments, usePlans, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import { useAdminCities, useAdminTenant, useExtendLimits, useModuleCatalog, usePayments, usePlans, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
 import type { Plan } from "../services/adminService";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
@@ -442,11 +442,13 @@ export default function AdminTenantDetailPage() {
   const plans = usePlans();
   const payments = usePayments({ tenant_id: id });
   const { update, suspend, activate, remove, restore, assignPlan } = useTenantMutations();
+  const resetPassword = useResetOwnerPassword();
   const cities = useAdminCities();
   const businessTypes = useBusinessTypes();
 
   const planModal = useModal();
   const editModal = useModal();
+  const passwordModal = useModal();
   const [form, setForm] = useState({
     business_name: "", email: "", phone: "",
     business_type: "", business_category: "", city_id: "",
@@ -457,6 +459,10 @@ export default function AdminTenantDetailPage() {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
+  const [paidAt, setPaidAt] = useState("");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [pw, setPw] = useState({ password: "", confirm: "", user_id: "" });
 
   const t = tenant.data;
   const paymentRows = payments.data?.data ?? [];
@@ -484,12 +490,51 @@ export default function AdminTenantDetailPage() {
       {
         id,
         plan_id: planId,
-        payment: amount ? { amount: Number(amount), method, reference: reference || undefined } : undefined,
+        payment: amount
+          ? {
+              amount: Number(amount),
+              method,
+              reference: reference || undefined,
+              paid_at: paidAt || undefined,
+            }
+          : undefined,
+        // Sent only when the admin actually typed a date. An empty object here
+        // would be indistinguishable from "no opinion" on the server side, and
+        // this is the one field that must not be guessed at.
+        period: startsAt || endsAt ? { starts_at: startsAt || undefined, ends_at: endsAt || undefined } : undefined,
       },
       {
         onSuccess: () => {
           toast.success("Plan assigned");
           planModal.closeModal();
+          setStartsAt("");
+          setEndsAt("");
+          setPaidAt("");
+        },
+        onError,
+      },
+    );
+  };
+
+  /** Shop owners only — staff passwords are the owner's business, not ours. */
+  const owners = (t?.users ?? []).filter((u) => u.role === "shop_owner");
+
+  const doResetPassword = () => {
+    if (!id || resetPassword.isPending) return;
+    resetPassword.mutate(
+      {
+        id,
+        password: pw.password,
+        password_confirmation: pw.confirm,
+        // Only sent when there is a genuine choice — the server refuses to
+        // guess between two partners rather than picking the older row.
+        user_id: owners.length > 1 ? pw.user_id || undefined : undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Password set. Every session that owner had is now signed out.");
+          passwordModal.closeModal();
+          setPw({ password: "", confirm: "", user_id: "" });
         },
         onError,
       },
@@ -528,10 +573,20 @@ export default function AdminTenantDetailPage() {
               <div>
                 <dt className="text-gray-400">Subscription</dt>
                 <dd className="text-gray-700 dark:text-gray-300">
-                  {t.subscription_ends_at ? `until ${new Date(t.subscription_ends_at).toLocaleDateString()}` : "—"}
+                  {/* Both ends of the window, not just the deadline: an admin
+                      checking a renewal dispute needs to know what the last
+                      payment bought, and "until 12/09" alone does not say. */}
+                  {t.subscription_ends_at
+                    ? `${t.subscription_starts_at ? `${new Date(t.subscription_starts_at).toLocaleDateString()} → ` : "until "}${new Date(t.subscription_ends_at).toLocaleDateString()}`
+                    : "—"}
                   {t.subscription_state === "grace" && <Badge size="sm" color="warning">grace</Badge>}
                   {t.subscription_state === "read_only" && <Badge size="sm" color="error">expired</Badge>}
                 </dd>
+                {t.subscription_state === "grace" && t.grace_ends_at && (
+                  <dd className="text-theme-xs text-warning-600 dark:text-warning-400">
+                    Read-only from {new Date(t.grace_ends_at).toLocaleDateString()}
+                  </dd>
+                )}
               </div>
             </dl>
           </div>
@@ -616,6 +671,23 @@ export default function AdminTenantDetailPage() {
           <Button size="sm" className="w-full" onClick={() => { setPlanId(t.plan?.id ?? ""); planModal.openModal(); }}>
             Assign / renew plan
           </Button>
+          {/* Account recovery. Until this existed, a shop owner who lost their
+              email AND phone had no way back into their own business — the OTP
+              reset needs one of them, so the only remaining option was a
+              database console. */}
+          {!t.deleted_at && owners.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setPw({ password: "", confirm: "", user_id: owners.length === 1 ? owners[0].id : "" });
+                passwordModal.openModal();
+              }}
+            >
+              Reset owner password
+            </Button>
+          )}
           {t.deleted_at ? (
             <Button size="sm" variant="outline" className="w-full" onClick={() => run(restore, "Tenant restored")}>Restore</Button>
           ) : (
@@ -748,6 +820,26 @@ export default function AdminTenantDetailPage() {
               )}
             </div>
             <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
+              <p className="mb-3 text-theme-xs text-gray-400">
+                Billing period (optional — leave blank to run from today for the plan's period)
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>From</Label>
+                  <Input type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+                </div>
+                <div>
+                  <Label>To</Label>
+                  <Input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+                </div>
+              </div>
+              <p className="mt-1 text-theme-xs text-gray-400">
+                Renewing the same plan while it is still running stacks the new period onto the
+                current end date, so paid days are never lost. Typing dates here overrides that.
+              </p>
+            </div>
+
+            <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
               <p className="mb-3 text-theme-xs text-gray-400">Record payment (optional — leave amount blank for a free/complimentary assignment)</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -768,10 +860,98 @@ export default function AdminTenantDetailPage() {
                   />
                 </div>
               </div>
-              <div className="mt-3">
-                <Label>Reference (optional)</Label>
-                <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Txn / receipt no." />
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Reference (optional)</Label>
+                  <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Txn / receipt no." />
+                </div>
+                <div>
+                  {/* A shop that paid on Thursday and was entered on Monday
+                      paid on Thursday. max: today — a payment in the future
+                      has not happened. */}
+                  <Label>Paid on</Label>
+                  <Input
+                    type="date"
+                    value={paidAt}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setPaidAt(e.target.value)}
+                  />
+                </div>
               </div>
+            </div>
+          </div>
+        </ModalForm>
+      </Modal>
+
+      {/* Reset a shop owner's password */}
+      <Modal isOpen={passwordModal.isOpen} onClose={passwordModal.closeModal} className="max-w-md">
+        <ModalForm
+          title="Reset owner password"
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={passwordModal.closeModal}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={doResetPassword}
+                disabled={
+                  resetPassword.isPending ||
+                  pw.password.length < 8 ||
+                  pw.password !== pw.confirm ||
+                  (owners.length > 1 && !pw.user_id)
+                }
+              >
+                {resetPassword.isPending ? "Setting…" : "Set password"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p className="rounded-lg bg-warning-50 p-3 text-theme-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+              This signs the owner out of every device immediately. Give them the new password
+              yourself — it is never shown again after you close this box.
+            </p>
+
+            {owners.length > 1 && (
+              <div>
+                <Label>Which owner</Label>
+                <Select
+                  value={pw.user_id}
+                  options={owners.map((u) => ({ value: u.id, label: `${u.name} (${u.email ?? u.phone})` }))}
+                  placeholder="Choose owner"
+                  onChange={(v) => setPw((p) => ({ ...p, user_id: v }))}
+                />
+              </div>
+            )}
+            {owners.length === 1 && (
+              <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+                For <span className="font-medium text-gray-700 dark:text-gray-300">{owners[0].name}</span>
+                {" "}({owners[0].email ?? owners[0].phone})
+              </p>
+            )}
+
+            <div>
+              <Label>New password</Label>
+              <Input
+                type="text"
+                value={pw.password}
+                onChange={(e) => setPw((p) => ({ ...p, password: e.target.value }))}
+                placeholder="Min. 8 characters"
+              />
+            </div>
+            <div>
+              <Label>Type it again</Label>
+              <Input
+                type="text"
+                value={pw.confirm}
+                onChange={(e) => setPw((p) => ({ ...p, confirm: e.target.value }))}
+                placeholder="Must match"
+              />
+              {/* The admin is about to read this down a phone line. A typo
+                  here does not bounce back as "wrong password" the way their
+                  own would — it locks the owner out a second time. */}
+              {pw.confirm.length > 0 && pw.password !== pw.confirm && (
+                <p className="mt-1 text-theme-xs text-error-500">These do not match.</p>
+              )}
             </div>
           </div>
         </ModalForm>

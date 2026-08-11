@@ -19,6 +19,7 @@
  *   /tenant/subscription the server asks for no permission; what the shop
  *                        pays is not a secret from the people who work in it
  *   /tenant/setup        an unfinished shop must be finishable
+ *   /tenant/security     your own password — everyone signed in has one
  */
 /**
  * A screen may name SEVERAL permissions, and then it reads as ANY of them —

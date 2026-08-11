@@ -1,5 +1,39 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
-import type { Tenant } from "../../auth/types";
+import type { PaymentStatus, Tenant, User } from "../../auth/types";
+
+/**
+ * The billing window a subscription covers, and when the money for it arrived.
+ *
+ * Two separate facts on purpose: a shop that pays three days late has not
+ * bought three fewer days, and a shop entered on Monday may have paid on
+ * Thursday. Omit the period entirely and the server derives it from the plan,
+ * starting today — which is right for a shop signing up now and wrong for
+ * every shop migrating onto the platform mid-cycle.
+ */
+export interface BillingPeriodInput {
+  starts_at?: string;
+  ends_at?: string;
+}
+
+export interface SubscriptionPaymentInput {
+  amount?: number;
+  method?: string;
+  reference?: string;
+  notes?: string;
+  /** When the money actually arrived. Backdatable; never in the future. */
+  paid_at?: string;
+}
+
+/**
+ * Bucket totals that ride along on every tenant-list response, computed
+ * against the same search but WITHOUT the bucket filter — so the tabs read
+ * "Unpaid (3)" without a second round trip, and an admin who never opens the
+ * tab still sees that three shops are behind.
+ *
+ * `all` is not the sum of the other four: a deleted business is listed but
+ * belongs to no payment bucket.
+ */
+export type PaymentCounts = Record<PaymentStatus | "all", number>;
 
 /**
  * The usage a PLAN meters — null = unlimited for that resource.
@@ -98,6 +132,14 @@ export interface TenantInput {
   /** Branches, staff and lanes assigned to it. Omitted = platform defaults. */
   limits?: Record<string, number | null>;
   owner: { name: string; email?: string; phone?: string; password: string };
+  /**
+   * The subscription window this shop is being put on. This is the only moment
+   * the renewal anchor can be set correctly — every later period stacks onto
+   * whatever is recorded here.
+   */
+  period?: BillingPeriodInput;
+  /** The opening payment, if one was taken. */
+  payment?: SubscriptionPaymentInput;
 }
 
 /** One module in the catalog, with what it needs switched on first. */
@@ -129,11 +171,17 @@ export interface BillingSummary {
 }
 
 export const adminService = {
-  tenants: (params: { search?: string; status?: string; page?: number }) =>
+  tenants: (params: {
+    search?: string;
+    status?: string;
+    payment_status?: PaymentStatus | "";
+    page?: number;
+  }) =>
     apiGet<Tenant[]>("/admin/tenants", {
       params: {
         search: params.search || undefined,
         status: params.status || undefined,
+        payment_status: params.payment_status || undefined,
         with_deleted: true,
         page: params.page ?? 1,
       },
@@ -153,8 +201,22 @@ export const adminService = {
 
   assignPlan: (
     id: string,
-    payload: { plan_id: string; payment?: { amount?: number; method?: string; reference?: string } },
+    payload: { plan_id: string; payment?: SubscriptionPaymentInput; period?: BillingPeriodInput },
   ) => apiPost<Tenant>(`/admin/tenants/${id}/assign-plan`, payload),
+
+  /**
+   * Put a locked-out shop owner back into their own business.
+   *
+   * Needs `tenants.reset_password`, which is deliberately NOT part of
+   * `tenants.update` — this one can hand over the keys to a business, and
+   * support staff who fix typos in shop addresses should not hold it. Every
+   * session the owner had is destroyed server-side, and the password is never
+   * echoed back in the response.
+   */
+  resetOwnerPassword: (
+    id: string,
+    payload: { password: string; password_confirmation: string; user_id?: string },
+  ) => apiPost<User>(`/admin/tenants/${id}/owner-password`, payload),
 
   banners: () => apiGet<Banner[]>("/admin/banners"),
   createBanner: (data: FormData) => apiPost<Banner>("/admin/banners", data),

@@ -14,6 +14,13 @@ interface InputProps {
   step?: number;
   /** id of a <datalist> — suggestions the field offers without restricting it. */
   list?: string;
+  /**
+   * What a password manager should do with this field. Worth passing on the
+   * password screens specifically: without `new-password` on the two new
+   * fields, a manager offers the CURRENT password as the autofill for both,
+   * and the user saves the password they were trying to replace.
+   */
+  autoComplete?: string;
   disabled?: boolean;
   success?: boolean;
   error?: boolean;
@@ -32,6 +39,7 @@ const Input: FC<InputProps> = ({
   max,
   step,
   list,
+  autoComplete,
   disabled = false,
   success = false,
   error = false,
@@ -68,6 +76,7 @@ const Input: FC<InputProps> = ({
         max={max}
         step={step}
         list={list}
+        autoComplete={autoComplete}
         disabled={disabled}
         className={inputClasses}
       />

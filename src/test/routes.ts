@@ -52,4 +52,6 @@ export const TENANT_ROUTES = new Set([
   "/tenant/portfolio",
   "/tenant/subscription",
   "/tenant/settings",
+  "/tenant/security",
+  "/tenant/help",
 ]);

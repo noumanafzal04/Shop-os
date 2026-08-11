@@ -12,6 +12,8 @@ import {
   PlusIcon,
   UserCircleIcon,
 } from "../../../../icons";
+import { canVisitAdmin } from "../../../../common/routing/adminScreenPermissions";
+import { useAuthStore } from "../../../../stores/authStore";
 
 const GLYPH = "size-4";
 
@@ -29,9 +31,20 @@ const ACTIONS: ReadonlyArray<{ label: string; to: string; icon: ReactNode; prima
 ];
 
 export function QuickActions() {
+  const role = useAuthStore((s) => s.user?.role);
+  const permissions = useAuthStore((s) => s.user?.permissions);
+
+  // The same rule the sidebar reads, from the same file. These nine buttons
+  // offer the same nine screens the rail does, and a filtered rail beside an
+  // unfiltered shortcut row is the shop-side defect repeated on the console:
+  // the person still finds the screen, just one row further down the page.
+  const actions = ACTIONS.filter((a) => canVisitAdmin(a.to, role === "super_admin", permissions));
+
+  if (actions.length === 0) return null;
+
   return (
     <div className="flex flex-wrap gap-3">
-      {ACTIONS.map((a) => (
+      {actions.map((a) => (
         <Link
           key={a.to}
           to={a.to}

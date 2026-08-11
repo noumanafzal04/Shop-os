@@ -2,8 +2,16 @@ import { apiGet } from "../../../common/api/client";
 import type { ApiEnvelope } from "../../../common/types/api";
 import { toParams, type MoneyFilters } from "../../expenses/services/moneyFilters";
 
-/** Which way the money went, and where the row came from. */
-export type LedgerType = "sale" | "income" | "expense" | "refund";
+/**
+ * Which way the money went, and where the row came from.
+ *
+ * `supplier_payment` is a fifth SOURCE of money, not a kind of expense — a shop
+ * that pays its wholesaler and also files the wholesaler's bill would otherwise
+ * count the same rupees twice. It was added to LedgerService::TYPES on the
+ * server and never here, so those rows arrived in the ledger with no label and
+ * could not be filtered for.
+ */
+export type LedgerType = "sale" | "income" | "expense" | "refund" | "supplier_payment";
 
 export interface LedgerEntry {
   id: string;
@@ -53,4 +61,5 @@ export const LEDGER_TYPES: Record<LedgerType, { label: string; tone: "success" |
   income: { label: "Income", tone: "brand" },
   expense: { label: "Expense", tone: "error" },
   refund: { label: "Refund", tone: "gray" },
+  supplier_payment: { label: "Supplier paid", tone: "error" },
 };

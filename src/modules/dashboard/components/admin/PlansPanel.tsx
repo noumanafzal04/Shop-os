@@ -68,12 +68,17 @@ export function PlansPanel({ plans, loading = false }: Props) {
                   </p>
                   <p className="text-theme-xs text-gray-500 dark:text-gray-400">active tenants</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-theme-sm font-semibold tabular-nums text-gray-800 dark:text-white/90">
-                    {money(p.revenue)}
-                  </p>
-                  <p className="text-theme-xs text-gray-500 dark:text-gray-400">collected</p>
-                </div>
+                {/* Withheld from platform staff without `billing.view`. The
+                    column is dropped rather than zeroed — a zero is an answer,
+                    and it would be the wrong one. */}
+                {p.revenue !== undefined && (
+                  <div className="text-right">
+                    <p className="text-theme-sm font-semibold tabular-nums text-gray-800 dark:text-white/90">
+                      {money(p.revenue)}
+                    </p>
+                    <p className="text-theme-xs text-gray-500 dark:text-gray-400">collected</p>
+                  </div>
+                )}
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-white/[0.06]">
                 <div
