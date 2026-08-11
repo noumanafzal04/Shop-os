@@ -19,6 +19,17 @@ export interface JobPreset {
   permissions: string[];
 }
 
+/**
+ * One grantable permission as the server describes it. `hint` is null on most
+ * of them by design — a hint on every row is noise, and noise on a permission
+ * screen is how the wrong box gets ticked.
+ */
+export interface PermissionInfo {
+  key: string;
+  label: string;
+  hint: string | null;
+}
+
 export interface StaffInput {
   name: string;
   email?: string;
@@ -52,10 +63,17 @@ export function useStaffModule(basePath: string) {
       staleTime: 30 * 60 * 1000,
     });
 
+  /**
+   * The permissions this console can grant, each already carrying its label
+   * and any hint. The copy travels with the permission from the server so a
+   * newly-added one cannot arrive on the form with nothing but its slug —
+   * which is how the platform's most dangerous checkbox once shipped with no
+   * explanation at all.
+   */
   const usePermissionCatalog = () =>
     useQuery({
       queryKey: [...key, "permissions"],
-      queryFn: async () => (await apiGet<string[]>(`${basePath}/permissions`)).data,
+      queryFn: async () => (await apiGet<PermissionInfo[]>(`${basePath}/permissions`)).data,
       staleTime: 30 * 60 * 1000,
     });
 

@@ -207,6 +207,23 @@ export const HELP_ARTICLES: HelpArticle[] = [
           ["Transfers", "Move stock between branches. It leaves one and arrives at the other, and both sides are recorded."],
         ],
       },
+      { type: "h", text: "Reordering what has run low" },
+      {
+        type: "p",
+        text: "Set a reorder level on a product and it appears here the moment stock falls to it. The count on your dashboard — “12 items are running low” — opens this list directly.",
+      },
+      {
+        type: "steps",
+        items: [
+          "Inventory → Needs reordering. Only the short items, not the whole catalog.",
+          "Order these items — every one of them becomes a line on a new purchase order, at its last known cost.",
+          "Pick the supplier, correct the quantities, and save it as a draft or place it.",
+        ],
+      },
+      {
+        type: "note",
+        text: "On a multi-branch shop the list is for the branch you are looking at. A product with none of it on THIS branch's shelf counts as short even if the warehouse is full — because that is the shelf a customer is standing at.",
+      },
       {
         type: "warn",
         text: "A stock count never silently overwrites. The difference between what the system thought and what you counted is posted as its own movement, so a month later you can still see that a correction happened and how big it was.",
@@ -232,6 +249,23 @@ export const HELP_ARTICLES: HelpArticle[] = [
         text: "A medicine batch must have an expiry date. The form will not accept one without, because an expiry you cannot see is an expiry nobody checks.",
       },
       { type: "p", text: "Your dashboard warns on near-expiry stock while it is still sellable, rather than after it becomes a write-off." },
+      { type: "h", text: "Writing off a batch that has died" },
+      {
+        type: "p",
+        text: "The Inventory screen lists every batch expiring within 30 days, with the expired ones marked. Each row has a Write off next to it.",
+      },
+      {
+        type: "steps",
+        items: [
+          "Inventory → the expiring-stock panel at the top.",
+          "Write off, on the batch that has gone. Confirm the quantity.",
+          "What was left in that batch comes out of stock as recorded wastage, naming the batch.",
+        ],
+      },
+      {
+        type: "note",
+        text: "It is a recorded movement, not a deletion — the stock did not vanish, it was thrown away, and next month you can still see how much and which lot. That is the number that tells you whether you are over-ordering.",
+      },
     ],
   },
   {

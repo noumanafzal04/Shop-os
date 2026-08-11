@@ -98,6 +98,16 @@ describe("stock rows need the stock module", () => {
     expect(screen.getByText("1 batch is expiring")).toBeInTheDocument();
   });
 
+  it("sends the shop to the items it just counted, not to everything", () => {
+    // The row states a number. Landing on the unfiltered inventory list made
+    // the shopkeeper hunt a 500-row table for the badges this row counted,
+    // which is why the reorder endpoint sat built and unused for two months.
+    draw(short);
+
+    const row = screen.getByText("4 items are running low").closest("a");
+    expect(row).toHaveAttribute("href", "/tenant/inventory?filter=low");
+  });
+
   it("a shop that carries no stock is told none of it", () => {
     // The figures may still be in the payload; the shop has no screen for them.
     draw(short, caps({ tracksStock: false, inventory: false }));

@@ -43,6 +43,18 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
   const rows = list.data?.data ?? [];
   const pagination = list.data?.meta.pagination;
   const catalog = permissions.data ?? [];
+
+  /**
+   * The server's copy wins; the bundled map is the fallback.
+   *
+   * Keeping the fallback matters for the staff LIST, which renders chips for
+   * permissions a person already holds — including any the catalog no longer
+   * offers, where the server has nothing to say and a raw slug would otherwise
+   * show.
+   */
+  const described = new Map(catalog.map((p) => [p.key, p]));
+  const label = (key: string) => described.get(key)?.label ?? labelFor(key);
+  const hint = (key: string) => described.get(key)?.hint ?? hintFor(key);
   const jobs = presets.data ?? [];
 
   /**
@@ -154,7 +166,7 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
                       <div className="flex flex-wrap gap-1">
                         {(u.permissions ?? []).slice(0, 3).map((p) => (
                           <span key={p} className="rounded bg-gray-100 px-2 py-0.5 text-theme-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                            {labelFor(p)}
+                            {label(p)}
                           </span>
                         ))}
                         {(u.permissions ?? []).length > 3 && (
@@ -276,14 +288,14 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
 
             <Label>Permissions <span className="text-error-500">*</span></Label>
             <div className="mt-1 grid grid-cols-1 gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800 sm:grid-cols-2">
-              {catalog.map((key) => {
-                const hint = hintFor(key);
+              {catalog.map(({ key }) => {
+                const explanation = hint(key);
                 return (
                   <label key={key} className="flex cursor-pointer items-start gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
                     <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={form.permissions.includes(key)} onChange={() => togglePerm(key)} />
                     <span>
-                      {labelFor(key)}
-                      {hint && <span className="block text-theme-xs text-gray-400">{hint}</span>}
+                      {label(key)}
+                      {explanation && <span className="block text-theme-xs text-gray-400">{explanation}</span>}
                     </span>
                   </label>
                 );

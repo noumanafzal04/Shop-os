@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import { uuid } from "../../../common/uuid";
 import Button from "../../../components/ui/button/Button";
@@ -12,7 +13,8 @@ import { ApiError } from "../../../common/types/api";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import type { Product, ProductVariant } from "../../catalog/types";
-import { useAdjustStock, useBatches, useBatchMutations, useExpiring, useMovements } from "../hooks/useInventory";
+import { useAdjustStock, useBatches, useBatchMutations, useExpiring, useLowStock, useMovements } from "../hooks/useInventory";
+import { useAuthStore } from "../../../stores/authStore";
 
 type AdjustType = "in" | "out" | "set";
 
@@ -23,8 +25,30 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const debounced = useDebouncedValue(search, 350);
+  const navigate = useNavigate();
+  const hasPermission = useAuthStore((s) => s.hasPermission);
+
+  /**
+   * The reorder view. Driven by the URL so the dashboard can send the
+   * shopkeeper straight to it: the Attention panel says "12 items are running
+   * low", and landing on an unfiltered list of 500 products with the low ones
+   * merely badged is not an answer to that sentence.
+   */
+  const [params, setParams] = useSearchParams();
+  const reorderOnly = params.get("filter") === "low";
+  const setReorderOnly = (on: boolean) => {
+    const next = new URLSearchParams(params);
+    if (on) next.set("filter", "low");
+    else next.delete("filter");
+    setParams(next, { replace: true });
+    setPage(1);
+  };
 
   const products = useProducts({ search: debounced, type: "product", page });
+  // Server-computed, and branch-correct: a product with no row on THIS
+  // branch's shelf holds none of it, which the endpoint counts as the most
+  // urgent case rather than dropping it.
+  const lowStock = useLowStock();
   const adjust = useAdjustStock();
   const modal = useModal();
   const batchModal = useModal();
@@ -72,8 +96,31 @@ export default function InventoryPage() {
     );
   };
 
-  const rows = products.data?.data ?? [];
-  const pagination = products.data?.meta.pagination;
+  // In the reorder view the server decides the rows, so there is no paging and
+  // no client-side search — the whole point is that the list is already short.
+  const lowRows = lowStock.data ?? [];
+  const rows = reorderOnly ? lowRows : products.data?.data ?? [];
+  const pagination = reorderOnly ? undefined : products.data?.meta.pagination;
+
+  /**
+   * Hand the whole shortfall to a purchase order.
+   *
+   * This is the step the flow was missing: the shop could be told what was
+   * running low and then had to retype it into a PO by hand, product by
+   * product, which is the moment a busy shopkeeper stops using the feature.
+   */
+  const orderTheseItems = () => {
+    navigate("/tenant/purchases", {
+      state: {
+        reorder: lowRows.map((p) => ({
+          id: p.id,
+          name: p.name,
+          cost: p.cost ?? null,
+          units: p.units,
+        })),
+      },
+    });
+  };
 
   // One idempotency key per adjustment intent (a dialog open) — a resubmit
   // after a network error replays the same movement server-side.
@@ -137,9 +184,28 @@ export default function InventoryPage() {
                 <span>
                   {b.product?.name} · batch <span className="font-mono">{b.batch_number}</span> · {qty(b.quantity)} left
                 </span>
-                <Badge size="sm" color={b.expired ? "error" : "warning"}>
-                  {b.expired ? "EXPIRED" : `expires ${b.expiry_date}`}
-                </Badge>
+                <span className="flex items-center gap-2">
+                  <Badge size="sm" color={b.expired ? "error" : "warning"}>
+                    {b.expired ? "EXPIRED" : `expires ${b.expiry_date}`}
+                  </Badge>
+                  {/* The action belongs where the shop is TOLD about it. Writing
+                      the batch off was always possible, but only by leaving this
+                      banner, finding the product in the table and opening its
+                      batch manager — three steps away from the alert. */}
+                  {Number(b.quantity) > 0 && (
+                    <button
+                      className="text-theme-xs font-medium text-error-600 hover:text-error-700 disabled:opacity-50 dark:text-error-400"
+                      disabled={removeBatch.isPending}
+                      onClick={() => {
+                        if (confirm(`Write off batch ${b.batch_number}? ${qty(b.quantity)} will be taken out of stock and recorded as wastage.`)) {
+                          removeBatch.mutate(b.id);
+                        }
+                      }}
+                    >
+                      Write off
+                    </button>
+                  )}
+                </span>
               </div>
             ))}
             {expiring.data!.length > 6 && (
@@ -149,9 +215,45 @@ export default function InventoryPage() {
         </div>
       )}
 
-      <div className="mb-4 max-w-sm">
-        <Input placeholder="Search products…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {!reorderOnly && (
+          <div className="max-w-sm flex-1">
+            <Input placeholder="Search products…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant={reorderOnly ? "primary" : "outline"}
+            onClick={() => setReorderOnly(!reorderOnly)}
+          >
+            {reorderOnly ? "Show all stock" : "Needs reordering"}
+            {!reorderOnly && lowRows.length > 0 && (
+              <span className="ml-2 rounded-full bg-warning-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                {lowRows.length}
+              </span>
+            )}
+          </Button>
+
+          {/* Only offered to whoever can actually raise the order. */}
+          {reorderOnly && lowRows.length > 0 && hasPermission("purchases.manage") && (
+            <Button size="sm" variant="outline" onClick={orderTheseItems}>
+              Order these {lowRows.length} item{lowRows.length > 1 ? "s" : ""}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {reorderOnly && (
+        <p className="mb-3 text-theme-sm text-gray-500 dark:text-gray-400">
+          {lowStock.isPending
+            ? "Checking the shelf…"
+            : lowRows.length === 0
+              ? "Nothing is below its reorder level. This branch is fully stocked."
+              : `${lowRows.length} item${lowRows.length > 1 ? "s are" : " is"} at or below the reorder level you set.`}
+        </p>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">

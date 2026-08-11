@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import { uuid } from "../../../common/uuid";
 import PageMeta from "../../../components/common/PageMeta";
@@ -23,6 +24,9 @@ const STATUS_COLOR: Record<PurchaseStatus, "warning" | "info" | "success" | "err
 
 interface Line { key: string; product_id: string; product_name: string; quantity: number; unit_cost: number; product_unit_id?: string | null; units?: ProductUnit[] }
 let lk = 0;
+
+/** What the Inventory reorder view hands over when it sends the shop here. */
+interface ReorderItem { id: string; name: string; cost: string | number | null; units?: ProductUnit[] }
 
 export default function PurchaseOrdersPage() {
   const money = useMoney();
@@ -101,6 +105,41 @@ export default function PurchaseOrdersPage() {
     setSupplierId(""); setOrderDate(new Date().toISOString().slice(0, 10)); setLines([]); setProdSearch("");
     createModal.openModal();
   };
+
+  /**
+   * Arriving from the Inventory reorder view with a shortfall in hand.
+   *
+   * The shop is dropped into a half-written order — every low item already a
+   * line, quantity 1, at its last known cost — with only the supplier and the
+   * real quantities left to fill in. Retyping a dozen products was the step
+   * that made the reorder list not worth opening.
+   *
+   * The history entry is replaced on the way in, so a back-and-forward or a
+   * refresh does not reopen the same half-written order over and over.
+   */
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handoff = (location.state as { reorder?: ReorderItem[] } | null)?.reorder;
+
+  useEffect(() => {
+    if (!handoff?.length) return;
+
+    setSupplierId("");
+    setOrderDate(new Date().toISOString().slice(0, 10));
+    setProdSearch("");
+    setLines(handoff.map((p) => ({
+      key: `l${++lk}`,
+      product_id: p.id,
+      product_name: p.name,
+      quantity: 1,
+      unit_cost: Number(p.cost ?? 0),
+      product_unit_id: null,
+      units: p.units,
+    })));
+    createModal.openModal();
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoff]);
   const addLine = (p: { id: string; name: string; cost: string | number | null; units?: ProductUnit[] }) => {
     if (lines.some((l) => l.product_id === p.id)) return;
     setLines((ls) => [...ls, { key: `l${++lk}`, product_id: p.id, product_name: p.name, quantity: 1, unit_cost: Number(p.cost ?? 0), product_unit_id: null, units: p.units }]);

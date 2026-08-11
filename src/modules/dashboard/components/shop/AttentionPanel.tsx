@@ -111,6 +111,9 @@ export function AttentionPanel({ data, caps }: Props) {
       } out of stock`,
       detail: "Nothing left to sell until you restock.",
       icon: <ErrorHexaIcon className="size-5" />,
+      // NOT the reorder view: that list needs a reorder level set, and an item
+      // at zero with no level would be missing from the very screen sent to
+      // fix it.
       to: "/tenant/inventory",
     });
   }
@@ -124,6 +127,8 @@ export function AttentionPanel({ data, caps }: Props) {
       } expiring`,
       detail: "Within 30 days, or already expired — pull or discount them.",
       icon: <CalenderIcon className="size-5" />,
+      // The expiry banner sits at the top of the unfiltered page. Expiring is
+      // not the same question as running low.
       to: "/tenant/inventory",
     });
   }
@@ -137,7 +142,9 @@ export function AttentionPanel({ data, caps }: Props) {
       } running low`,
       detail: "At or below the reorder level you set.",
       icon: <BoxIconLine className="size-5" />,
-      to: "/tenant/inventory",
+      // Straight to the reorder view. Landing on the unfiltered list left the
+      // shopkeeper hunting a 500-row table for the badges this row counted.
+      to: "/tenant/inventory?filter=low",
     });
   }
 
