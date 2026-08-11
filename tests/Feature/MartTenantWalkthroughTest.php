@@ -691,11 +691,14 @@ class MartTenantWalkthroughTest extends TestCase
         // rostered on the counter could read what every item cost the shop and
         // work the margin out with a calculator.
         //
-        // Masked in Product::toArray() rather than in this one controller,
-        // because a product is serialised from a dozen places and a rule
-        // enforced at one of them leaks from the other eleven.
+        // Masked in the HidesCostPrice concern rather than in this one
+        // controller, because a product is serialised from a dozen places and a
+        // rule enforced at one of them leaks from the other eleven.
         $this->assertArrayNotHasKey('cost', $grid[0], 'A cashier can still read the buying price.');
-        $this->assertArrayNotHasKey('wholesale_price', $grid[0]);
+        // But `wholesale_price` stays. It is a SELLING price, and the till
+        // reads it to offer the wholesale level — hiding it from the cashier
+        // protects nothing and silently removes wholesale selling.
+        $this->assertArrayHasKey('wholesale_price', $grid[0]);
         // The selling price is still there — the till cannot work without it.
         $this->assertEquals(2500, $grid[0]['price']);
 

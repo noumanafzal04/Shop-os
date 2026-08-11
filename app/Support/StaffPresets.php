@@ -156,6 +156,24 @@ class StaffPresets
                 'trades' => [],
             ],
             [
+                'code' => 'forecourt_attendant',
+                'label' => 'Forecourt attendant',
+                // A station's counter job is not a shop's counter job, and
+                // "Cashier" was the only thing on offer. Closing a forecourt
+                // shift ends by setting fuel stock to the DIP — a stock
+                // correction, so it needs inventory.manage — and an attendant
+                // who cannot close their own shift leaves the reconciliation to
+                // whoever is still there at midnight.
+                'description' => 'Sells fuel at the pump and closes their own forecourt shift against the dip. No tanker deliveries, no price changes.',
+                'permissions' => [
+                    Permissions::SALES_MANAGE,
+                    Permissions::CUSTOMERS_MANAGE,
+                    Permissions::INVENTORY_MANAGE,
+                ],
+                'modules' => ['fuel'],
+                'trades' => ['petroleum'],
+            ],
+            [
                 'code' => 'pharmacist',
                 'label' => 'Pharmacist',
                 'description' => 'Dispenses against a prescription and manages batches and expiry as well as the counter.',

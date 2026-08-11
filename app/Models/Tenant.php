@@ -100,6 +100,19 @@ class Tenant extends BaseModel
     }
 
     /**
+     * Grace for a tenant whose plan does not state one. Plans are required at
+     * creation, so in practice this covers rows written before that rule
+     * existed — and those are exactly the rows an admin most needs to find.
+     */
+    public const DEFAULT_GRACE_DAYS = 7;
+
+    /** The days of grace this shop actually gets. */
+    public function graceDays(): int
+    {
+        return (int) ($this->plan?->grace_period_days ?? self::DEFAULT_GRACE_DAYS);
+    }
+
+    /**
      * Subscription lifecycle:
      *   active    → within the paid window (or no window set — e.g. free core)
      *   grace     → past end date but within the plan's grace period; full
@@ -113,10 +126,7 @@ class Tenant extends BaseModel
             return 'active';
         }
 
-        $graceDays = $this->plan?->grace_period_days ?? 7;
-        $graceEndsAt = $this->subscription_ends_at->addDays($graceDays);
-
-        return $graceEndsAt->isFuture() ? 'grace' : 'read_only';
+        return $this->graceEndsAt()->isFuture() ? 'grace' : 'read_only';
     }
 
     public function graceEndsAt(): ?Carbon
@@ -125,8 +135,96 @@ class Tenant extends BaseModel
             return null;
         }
 
-        return $this->subscription_ends_at->addDays($this->plan?->grace_period_days ?? 7);
+        // copy(): Illuminate's Carbon is mutable, and this used to be called
+        // twice in a row on the same instance.
+        return $this->subscription_ends_at->copy()->addDays($this->graceDays());
     }
+
+    /**
+     * The same lifecycle in the words an admin uses when chasing money, which
+     * are not the words the enforcement middleware uses.
+     *
+     * `read_only` describes what the SOFTWARE does; "unpaid" describes why. And
+     * suspension is a platform decision that outranks the calendar entirely — a
+     * suspended shop is off whether or not its month is paid, so it is one
+     * bucket and never appears in the other three. That exclusivity is the
+     * whole point: four filters that overlap cannot be counted.
+     */
+    public function paymentStatus(): string
+    {
+        if ($this->isSuspended()) {
+            return 'suspended';
+        }
+
+        return match ($this->subscriptionState()) {
+            'active' => 'paid',
+            'grace' => 'grace',
+            default => 'unpaid',
+        };
+    }
+
+    /**
+     * paymentStatus() as a query, so a list of 4,000 shops can be filtered by
+     * the database rather than loaded and sifted in PHP.
+     *
+     * The awkward part is grace, which varies per plan and so wants
+     * `ends_at + plan.grace_days >= now` — date arithmetic that is written
+     * differently on every driver (this codebase runs MySQL live and SQLite in
+     * tests). Rearranging the same inequality moves the arithmetic to PHP:
+     *
+     *     ends_at + graceDays > now   ⟺   ends_at > now - graceDays
+     *
+     * so nothing crosses into SQL but a timestamp. Plans is a table of a
+     * handful of rows, so one branch per plan is cheaper than a join and
+     * exactly matches what subscriptionState() computes for a single row.
+     */
+    public function scopePaymentStatus($query, string $status)
+    {
+        // The list is asked for `with_deleted` so an admin can restore a
+        // business, but a deleted business owes nothing and must never turn up
+        // on a chase list. Explicit because the caller has already lifted the
+        // soft-delete scope by the time this runs.
+        $query->whereNull('deleted_at');
+
+        if ($status === 'suspended') {
+            return $query->where('status', TenantStatus::Suspended);
+        }
+
+        $query->where('status', '!=', TenantStatus::Suspended);
+
+        if ($status === 'paid') {
+            // No end date = nothing is owed. A shop cannot be behind on a bill
+            // it was never given.
+            return $query->where(fn ($q) => $q
+                ->whereNull('subscription_ends_at')
+                ->orWhere('subscription_ends_at', '>=', now()));
+        }
+
+        // Both remaining buckets are past the end date; grace is what separates
+        // them. `>` for grace and `<=` for unpaid mirrors graceEndsAt()->isFuture().
+        $operator = $status === 'grace' ? '>' : '<=';
+
+        $graceByPlan = Plan::query()->pluck('grace_period_days', 'id');
+
+        return $query
+            ->whereNotNull('subscription_ends_at')
+            ->where('subscription_ends_at', '<', now())
+            ->where(function ($q) use ($graceByPlan, $operator): void {
+                foreach ($graceByPlan as $planId => $days) {
+                    $cutoff = now()->subDays((int) ($days ?? self::DEFAULT_GRACE_DAYS));
+                    $q->orWhere(fn ($w) => $w
+                        ->where('plan_id', $planId)
+                        ->where('subscription_ends_at', $operator, $cutoff));
+                }
+
+                $q->orWhere(fn ($w) => $w
+                    ->whereNull('plan_id')
+                    ->where('subscription_ends_at', $operator, now()->subDays(self::DEFAULT_GRACE_DAYS)));
+            });
+    }
+
+    /** The four buckets, in the order an admin reads them. */
+    public const PAYMENT_STATUSES = ['paid', 'grace', 'unpaid', 'suspended'];
 
     /**
      * Whether this tenant participates in the marketplace / online selling.

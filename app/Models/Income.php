@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 class Income extends BaseModel
 {
@@ -31,11 +30,12 @@ class Income extends BaseModel
      * evidenced. An owner questioning a Rs 80,000 "owner investment" had
      * nothing to open.
      */
+    /** The API endpoint, not a public link — see Expense::attachmentUrl. */
     protected function attachmentUrl(): Attribute
     {
         return Attribute::get(
             fn (): ?string => $this->attachment_path
-                ? Storage::disk('public')->url($this->attachment_path)
+                ? "/incomes/{$this->id}/attachment"
                 : null,
         );
     }

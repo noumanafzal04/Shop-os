@@ -45,6 +45,8 @@ class MoneyReceiptsTest extends TestCase
         parent::setUp();
         $this->withoutMiddleware(ThrottleRequests::class);
         Storage::fake('public');
+        // Receipts moved off the public disk — see ReceiptPrivacyTest.
+        Storage::fake('local');
 
         $this->tenant = Tenant::factory()->provisioned()->create();
         $this->owner = User::factory()->shopOwner($this->tenant)->create();
@@ -97,7 +99,7 @@ class MoneyReceiptsTest extends TestCase
         $path = Income::withoutTenancy()->findOrFail($id)->attachment_path;
 
         $this->assertNotNull($path, 'the column exists to be written');
-        Storage::disk('public')->assertExists($path);
+        Storage::disk('local')->assertExists($path);
         $this->assertNotNull($body['attachment_url'], 'and to be read back');
     }
 
@@ -139,8 +141,8 @@ class MoneyReceiptsTest extends TestCase
         $second = Income::withoutTenancy()->findOrFail($id)->attachment_path;
 
         $this->assertNotSame($first, $second);
-        Storage::disk('public')->assertMissing($first);
-        Storage::disk('public')->assertExists($second);
+        Storage::disk('local')->assertMissing($first);
+        Storage::disk('local')->assertExists($second);
     }
 
     public function test_an_income_receipt_can_be_removed(): void
@@ -154,7 +156,7 @@ class MoneyReceiptsTest extends TestCase
         $this->login()->deleteJson("/api/v1/incomes/{$id}/attachment")->assertOk();
 
         $this->assertNull(Income::withoutTenancy()->findOrFail($id)->attachment_path);
-        Storage::disk('public')->assertMissing($path);
+        Storage::disk('local')->assertMissing($path);
     }
 
     public function test_an_executable_masquerading_as_a_receipt_is_refused(): void
@@ -181,7 +183,7 @@ class MoneyReceiptsTest extends TestCase
         $path = Expense::withoutTenancy()->findOrFail($id)->attachment_path;
 
         $this->assertNotNull($path);
-        Storage::disk('public')->assertExists($path);
+        Storage::disk('local')->assertExists($path);
     }
 
     public function test_an_expense_receipt_can_be_removed(): void

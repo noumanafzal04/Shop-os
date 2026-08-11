@@ -111,7 +111,11 @@ class ProductController extends Controller
     /** Bulk-import products from a CSV — create/update by SKU, per-row results. */
     public function import(Request $request, ImportProductsAction $action): JsonResponse
     {
-        $request->validate(['file' => ['required', 'file', 'max:4096']]);
+        // The only upload on the platform that took ANY file type. It is read
+        // as text and never stored or served, so the exposure was small — but
+        // "we happen not to save it" is not the reason a rule should hold, and
+        // a 4 MB binary parsed line-by-line as CSV is nobody's intention.
+        $request->validate(['file' => ['required', 'file', 'mimes:csv,txt', 'max:4096']]);
 
         $summary = $action->execute($request->file('file')->get());
 

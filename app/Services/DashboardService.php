@@ -961,7 +961,10 @@ class DashboardService
      * Tenant-scoped models (Order, Rider) go through withoutTenancy() so a
      * stray tenant context can never narrow a platform-wide number.
      */
-    public function forPlatform(): array
+    /**
+     * @param  bool  $withRevenue  false strips the money — see DashboardController
+     */
+    public function forPlatform(bool $withRevenue = true): array
     {
         $now = now();
         $monthStart = $now->copy()->startOfMonth();
@@ -1027,6 +1030,16 @@ class DashboardService
             ->toBase()
             ->first();
 
+        // Omitted rather than zeroed for staff without `billing.view`. A zero
+        // is an answer — and the wrong one; an absent key is the panel's cue to
+        // leave the tile and the two revenue panels out altogether.
+        $money = $withRevenue ? [
+            'revenue_this_month' => $this->kpi(
+                round((float) ($revenue->this_month ?? 0), 2),
+                round((float) ($revenue->prev_month ?? 0), 2),
+            ),
+        ] : [];
+
         return [
             'tenants' => [
                 'total' => (int) ($t->total ?? 0),
@@ -1038,10 +1051,7 @@ class DashboardService
             'kpis' => [
                 'total_tenants' => $this->kpi((int) ($t->total ?? 0), (int) ($t->total_last_month ?? 0)),
                 'active_subscriptions' => $this->kpi((int) ($t->live_subs ?? 0), (int) ($t->live_subs_prev ?? 0)),
-                'revenue_this_month' => $this->kpi(
-                    round((float) ($revenue->this_month ?? 0), 2),
-                    round((float) ($revenue->prev_month ?? 0), 2),
-                ),
+                ...$money,
                 'online_orders_today' => $this->kpi((int) ($orders->today ?? 0), (int) ($orders->yesterday ?? 0)),
                 'active_riders' => $this->kpi((int) ($riders->active ?? 0), (int) ($riders->active_prev ?? 0)),
                 'new_tenants_this_month' => $this->kpi(
@@ -1049,12 +1059,14 @@ class DashboardService
                     (int) ($t->new_prev_month ?? 0),
                 ),
             ],
-            'revenue_series' => $this->revenueSeries(12),
+            ...($withRevenue ? [
+                'revenue_series' => $this->revenueSeries(12),
+                'recent_payments' => $this->recentPayments(),
+            ] : []),
             'tenant_growth' => $this->tenantGrowth(6),
             'business_types' => $this->businessTypeSpread(),
-            'plans' => $this->planSpread(),
+            'plans' => $this->planSpread($withRevenue),
             'modules' => $this->moduleAdoption(),
-            'recent_payments' => $this->recentPayments(),
             'activity' => $this->recentActivity(),
             'recent_tenants' => Tenant::query()
                 ->with('plan:id,name,code')
@@ -1223,7 +1235,16 @@ class DashboardService
      * @return array<int, array{id: string, name: string, code: string, price: float,
      *                          is_custom: bool, active_tenants: int, revenue: float}>
      */
-    private function planSpread(): array
+    /**
+     * @param  bool  $withRevenue  false drops the per-plan takings
+     *
+     * The takings had to be dropped HERE as well as from the KPI tile: this
+     * panel is about how tenants are distributed across the ladder, and it was
+     * carrying `revenue` per plan alongside. Stripping the headline figure
+     * while a table underneath still added up to it would have been the
+     * appearance of a gate rather than a gate.
+     */
+    private function planSpread(bool $withRevenue = true): array
     {
         $plans = Plan::query()->orderBy('name')->get(['id', 'name', 'code', 'price', 'is_custom', 'is_active']);
 
@@ -1253,7 +1274,7 @@ class DashboardService
                 'is_custom' => (bool) $plan->is_custom,
                 'is_active' => (bool) $plan->is_active,
                 'active_tenants' => (int) ($tenantCounts[$plan->id] ?? 0),
-                'revenue' => round((float) ($revenue[$plan->id] ?? 0), 2),
+                ...($withRevenue ? ['revenue' => round((float) ($revenue[$plan->id] ?? 0), 2)] : []),
             ])
             // A retired plan that still holds tenants or took money stays —
             // that is a real obligation. One that never did anything is just

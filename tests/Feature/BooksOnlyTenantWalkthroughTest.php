@@ -57,6 +57,8 @@ class BooksOnlyTenantWalkthroughTest extends TestCase
         parent::setUp();
         $this->withoutMiddleware(ThrottleRequests::class);
         Storage::fake('public');
+        // Receipts moved off the public disk — see ReceiptPrivacyTest.
+        Storage::fake('local');
         Carbon::setTestNow('2026-03-12 09:00:00');
 
         [$this->shop, $this->owner] = $this->booksOnlyShop();
@@ -265,7 +267,7 @@ class BooksOnlyTenantWalkthroughTest extends TestCase
         // file is on disk, the row says there is none, and the argument the
         // photo exists to settle cannot be settled.
         $this->assertNotNull($row['attachment_url'], 'The receipt was stored but the row cannot point at it.');
-        Storage::disk('public')->assertExists(
+        Storage::disk('local')->assertExists(
             Expense::withoutTenancy()->findOrFail($id)->attachment_path,
         );
     }

@@ -6,16 +6,19 @@ use App\Actions\Tenant\ActivateTenantAction;
 use App\Actions\Tenant\AssignPlanAction;
 use App\Actions\Tenant\CreateTenantAction;
 use App\Actions\Tenant\DeleteTenantAction;
+use App\Actions\Tenant\ResetTenantOwnerPasswordAction;
 use App\Actions\Tenant\SuspendTenantAction;
 use App\Actions\Tenant\UpdateTenantAction;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ExtendTenantLimitsRequest;
+use App\Http\Requests\Admin\ResetTenantOwnerPasswordRequest;
 use App\Http\Requests\Admin\UpdateTenantModulesRequest;
 use App\Http\Requests\Tenant\AssignPlanRequest;
 use App\Http\Requests\Tenant\StoreTenantRequest;
 use App\Http\Requests\Tenant\UpdateTenantRequest;
 use App\Http\Resources\TenantResource;
+use App\Http\Resources\UserResource;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Support\ApiResponse;
@@ -28,11 +31,27 @@ class TenantController extends Controller
 {
     /**
      * List tenants — paginated, searchable, filterable.
+     *
+     * `payment_status` is the one an admin chasing money actually reaches for:
+     * paid / grace / unpaid / suspended, mutually exclusive by construction
+     * (see Tenant::scopePaymentStatus). The bucket COUNTS ride along on every
+     * response, unfiltered, so the tab labels read "Unpaid (3)" without a
+     * second round trip — and so an admin who never clicks the tab still sees
+     * that three shops are behind.
      */
     public function index(Request $request): JsonResponse
     {
-        $tenants = Tenant::query()
-            ->with(['city', 'plan'])
+        $status = $request->query('payment_status');
+
+        if ($status !== null && ! in_array($status, Tenant::PAYMENT_STATUSES, true)) {
+            return ApiResponse::error(
+                'Unknown payment status: '.$status.'. Expected one of '.implode(', ', Tenant::PAYMENT_STATUSES).'.',
+                422,
+                code: 'UNKNOWN_PAYMENT_STATUS',
+            );
+        }
+
+        $filters = fn ($q) => $q
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('business_name', 'like', "%{$search}%")
@@ -40,15 +59,35 @@ class TenantController extends Controller
                         ->orWhere('phone', 'like', "%{$search}%");
                 });
             })
-            ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
+            ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))
             ->when($request->query('city_id'), fn ($q, $cityId) => $q->where('city_id', $cityId))
             ->when($request->query('plan_id'), fn ($q, $planId) => $q->where('plan_id', $planId))
             ->when($request->boolean('online_only'), fn ($q) => $q->where('online_shop_enabled', true))
-            ->when($request->boolean('with_deleted'), fn ($q) => $q->withTrashed())
-            ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->when($request->boolean('with_deleted'), fn ($q) => $q->withTrashed());
 
-        return ApiResponse::paginated(TenantResource::collection($tenants));
+        $tenants = $filters(Tenant::query()->with(['city', 'plan']))
+            ->when($status, fn ($q, $s) => $q->paymentStatus($s))
+            ->orderByDesc('created_at')
+            ->paginate(min((int) $request->query('per_page', 15), 100))
+            ->withQueryString();
+
+        // Counted against the SAME filters minus payment_status — a search for
+        // "Karachi" should show how the Karachi shops break down, not the
+        // whole platform.
+        $counts = [];
+        foreach (Tenant::PAYMENT_STATUSES as $bucket) {
+            $counts[$bucket] = $filters(Tenant::query())->paymentStatus($bucket)->count();
+        }
+
+        // "All" cannot be read off the paginator — once a bucket is selected
+        // the paginator counts that bucket — and it is not the sum of the four
+        // either, because a deleted business sits in none of them.
+        $counts['all'] = $filters(Tenant::query())->count();
+
+        return ApiResponse::paginated(
+            TenantResource::collection($tenants),
+            meta: ['payment_counts' => $counts],
+        );
     }
 
     public function store(StoreTenantRequest $request, CreateTenantAction $action): JsonResponse
@@ -213,12 +252,36 @@ class TenantController extends Controller
         return ApiResponse::ok(new TenantResource($tenant), 'Tenant restored');
     }
 
+    /**
+     * Put a locked-out shop owner back into their own business.
+     *
+     * Returns who was reset, never the password that was set — see the action.
+     */
+    public function resetOwnerPassword(
+        ResetTenantOwnerPasswordRequest $request,
+        string $id,
+        ResetTenantOwnerPasswordAction $action,
+    ): JsonResponse {
+        $owner = $action->execute(
+            actor: $request->user(),
+            tenant: Tenant::query()->findOrFail($id),
+            password: $request->validated('password'),
+            userId: $request->validated('user_id'),
+        );
+
+        return ApiResponse::ok(
+            new UserResource($owner),
+            "Password set for {$owner->name}. All of their sessions have been signed out.",
+        );
+    }
+
     public function assignPlan(AssignPlanRequest $request, string $id, AssignPlanAction $action): JsonResponse
     {
         $tenant = $action->execute(
             Tenant::query()->findOrFail($id),
             Plan::query()->findOrFail($request->validated('plan_id')),
             $request->validated('payment'),
+            $request->validated('period'),
         );
 
         return ApiResponse::ok(new TenantResource($tenant), 'Plan assigned');

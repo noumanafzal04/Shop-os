@@ -28,6 +28,26 @@ class Permissions
 
     public const TENANTS_ASSIGN_PLAN = 'tenants.assign_plan';
 
+    /**
+     * Setting a shop owner's password is the single most dangerous thing this
+     * platform can do: whoever holds it can sign in as any business and read
+     * every rupee that business has ever taken. It is deliberately NOT part of
+     * `tenants.update` — editing a phone number and taking over an account are
+     * not the same act, and bundling them would hand the second to everyone
+     * trusted with the first.
+     */
+    public const TENANTS_RESET_PASSWORD = 'tenants.reset_password';
+
+    /**
+     * The platform's own money: what every shop has paid and when.
+     *
+     * Platform staff are hired for different jobs — someone who schedules
+     * banner ads has no business reading the revenue ledger, and the whole
+     * point of giving them a permission list is that they don't. The billing
+     * endpoints were gated on ROLE alone, so every one of them did.
+     */
+    public const BILLING_VIEW = 'billing.view';
+
     public const PLATFORM_STAFF_MANAGE = 'platform_staff.manage';
 
     public const BANNERS_MANAGE = 'banners.manage';
@@ -179,10 +199,14 @@ class Permissions
      *
      * The margin report is correctly shut to a cashier, and then the same
      * figure walked out on the product grid the till loads anyway: every read
-     * of a product serialised the model whole, so `cost` and `wholesale_price`
-     * went to anyone rostered on the counter. A buying price is the one number
-     * a shop cannot let walk — it is what a competitor, or a leaving member of
-     * staff, would most like to have.
+     * of a product serialised the model whole, so `cost` went to anyone
+     * rostered on the counter. A buying price is the one number a shop cannot
+     * let walk — it is what a competitor, or a leaving member of staff, would
+     * most like to have.
+     *
+     * This covers `cost` and nothing else. `wholesale_price` is a SELLING
+     * price the till needs in order to offer the wholesale level, so it is not
+     * a secret to keep from the person ringing the sale.
      *
      * Same reasoning as SUPERVISES_TILLS: reports.view is the honest marker for
      * "you may look at how the shop performs". Added to it are the three roles
@@ -208,6 +232,8 @@ class Permissions
             self::TENANTS_DELETE,
             self::TENANTS_SUSPEND,
             self::TENANTS_ASSIGN_PLAN,
+            self::TENANTS_RESET_PASSWORD,
+            self::BILLING_VIEW,
             self::PLATFORM_STAFF_MANAGE,
             self::BANNERS_MANAGE,
             self::ANNOUNCEMENTS_MANAGE,

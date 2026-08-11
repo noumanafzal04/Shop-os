@@ -29,29 +29,70 @@ use Illuminate\Support\Facades\DB;
  *  - renewing the SAME plan while still active → the new period stacks onto
  *    the current end date, so paid days are never lost
  *  - switching plans, or renewing after expiry → the period starts now
+ *  - an EXPLICIT period overrides both — see below
  *  - a payment row is written whenever an amount is due (who paid, how much,
  *    for which period) — the billing ledger
+ *
+ * The explicit period exists because the calendar the software assumes and the
+ * one the business runs on are frequently not the same. A shop that paid in
+ * cash last Thursday, one moving onto the platform mid-cycle with two months
+ * already settled, one given a free month while it finds its feet — all of them
+ * were previously typed in as "starts now", and the renewal date was then wrong
+ * forever, because every subsequent period stacks onto it. Being able to state
+ * the window at the moment the shop is created is the only chance to get that
+ * anchor right.
+ *
+ * `paid_at` is separate from the period for the same reason: WHEN the money
+ * arrived and WHAT it bought are different facts, and a shop that pays three
+ * days late has not bought three fewer days.
  */
 class AssignPlanAction
 {
-    public function execute(Tenant $tenant, Plan $plan, ?array $payment = null): Tenant
+    /**
+     * @param  array{amount?: float, method?: string, reference?: string, notes?: string, paid_at?: string}|null  $payment
+     * @param  array{starts_at?: string, ends_at?: string}|null  $period  explicit billing window; overrides the default stacking
+     */
+    public function execute(Tenant $tenant, Plan $plan, ?array $payment = null, ?array $period = null): Tenant
     {
         if (! $plan->is_active) {
             throw DomainException::unprocessable('This plan is not available.', 'PLAN_INACTIVE');
         }
 
-        return DB::transaction(function () use ($tenant, $plan, $payment): Tenant {
+        return DB::transaction(function () use ($tenant, $plan, $payment, $period): Tenant {
             $samePlanRenewal = $tenant->plan_id === $plan->id
                 && $tenant->subscription_ends_at !== null
                 && $tenant->subscription_ends_at->isFuture();
 
             // Stack onto remaining paid time for a same-plan renewal; else now.
-            $start = $samePlanRenewal ? $tenant->subscription_ends_at : now();
-            $end = (clone $start)->addMonths($plan->billing_period_months);
+            $start = $samePlanRenewal ? $tenant->subscription_ends_at->copy() : now();
+
+            // An admin who names the window means it. Stacking exists to
+            // protect days the shop already paid for; it must not quietly
+            // relocate a window someone typed on purpose.
+            if (! empty($period['starts_at'])) {
+                $start = Carbon::parse($period['starts_at']);
+            }
+
+            $end = ! empty($period['ends_at'])
+                ? Carbon::parse($period['ends_at'])
+                : $start->copy()->addMonths($plan->billing_period_months);
+
+            if ($end->lessThanOrEqualTo($start)) {
+                throw DomainException::unprocessable(
+                    'The billing period ends before it starts.',
+                    'INVALID_BILLING_PERIOD',
+                );
+            }
 
             $tenant->forceFill([
                 'plan_id' => $plan->id,
-                'subscription_starts_at' => $samePlanRenewal ? $tenant->subscription_starts_at : now(),
+                // A stated start is this subscription's start, full stop. The
+                // renewal branch only preserves the original where the admin
+                // said nothing, which is what makes "member since" survive
+                // twelve renewals.
+                'subscription_starts_at' => ! empty($period['starts_at'])
+                    ? $start
+                    : ($samePlanRenewal ? $tenant->subscription_starts_at : now()),
                 'subscription_ends_at' => $end,
             ])->save();
 
@@ -66,9 +107,11 @@ class AssignPlanAction
                     'amount' => $amount,
                     'method' => $payment['method'] ?? 'manual',
                     'reference' => $payment['reference'] ?? null,
-                    'period_start' => Carbon::parse($start)->toDateString(),
-                    'period_end' => Carbon::parse($end)->toDateString(),
-                    'paid_at' => now(),
+                    'period_start' => $start->toDateString(),
+                    'period_end' => $end->toDateString(),
+                    // When the money actually arrived, which is not always the
+                    // moment someone got round to typing it in.
+                    'paid_at' => empty($payment['paid_at']) ? now() : Carbon::parse($payment['paid_at']),
                     'recorded_by' => auth()->id(),
                     'notes' => $payment['notes'] ?? null,
                 ]);

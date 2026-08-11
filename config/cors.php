@@ -20,7 +20,20 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    /*
+     * Which sites the browser may call this API from.
+     *
+     * `*` is right for local work — the panel, the mobile bundler and a device
+     * on the LAN all hit it from different origins. It is wrong for a live box,
+     * where it invites any page on the internet to script requests against the
+     * API from a logged-in merchant's browser. Set CORS_ALLOWED_ORIGINS to the
+     * panel's own origin(s), comma-separated, before this takes real money —
+     * `php artisan shopos:readiness` fails if it is still `*` in production.
+     */
+    'allowed_origins' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('CORS_ALLOWED_ORIGINS', '*')),
+    ))) ?: ['*'],
 
     'allowed_origins_patterns' => [],
 

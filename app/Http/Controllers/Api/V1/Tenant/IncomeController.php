@@ -14,10 +14,10 @@ use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\MoneyEntryFilters;
+use App\Support\ReceiptFiles;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -176,14 +176,26 @@ class IncomeController extends Controller
         $income = Income::query()->findOrFail($id);
 
         // Replacing an attachment removes the old file rather than orphaning it.
-        if ($income->attachment_path) {
-            Storage::disk('public')->delete($income->attachment_path);
-        }
+        ReceiptFiles::delete($income->attachment_path);
 
-        $path = $request->file('file')->store("receipts/{$income->tenant_id}", 'public');
+        $path = ReceiptFiles::store($request->file('file'), $income->tenant_id);
         $income->forceFill(['attachment_path' => $path])->save();
 
         return ApiResponse::ok($income->fresh(['category:id,name']), 'Receipt attached');
+    }
+
+    /** See ExpenseController::attachment — same rule, other side of the book. */
+    public function attachment(string $id): StreamedResponse|JsonResponse
+    {
+        /** @var Income $income */
+        $income = Income::query()->findOrFail($id);
+
+        if ($income->attachment_path === null) {
+            return ApiResponse::notFound('No receipt is attached to this income entry.');
+        }
+
+        return ReceiptFiles::response($income->attachment_path)
+            ?? ApiResponse::notFound('That receipt file is missing from storage.');
     }
 
     public function detach(string $id): JsonResponse
@@ -192,7 +204,7 @@ class IncomeController extends Controller
         $income = Income::query()->findOrFail($id);
 
         if ($income->attachment_path) {
-            Storage::disk('public')->delete($income->attachment_path);
+            ReceiptFiles::delete($income->attachment_path);
             $income->forceFill(['attachment_path' => null])->save();
         }
 

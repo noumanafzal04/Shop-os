@@ -43,6 +43,7 @@ class ReadinessCheck extends Command
         $this->checkDemoData();
         $this->checkHttps();
         $this->checkAppKey();
+        $this->checkCors();
         $this->checkQueueAndSchedule();
 
         return $this->report();
@@ -138,6 +139,34 @@ class ReadinessCheck extends Command
         }
 
         $this->pass('APP_KEY', 'set');
+    }
+
+    /**
+     * `*` invites any page on the internet to script requests against this API
+     * from a signed-in merchant's browser. It is the right setting on a laptop,
+     * where the panel, the mobile bundler and a phone on the LAN all call from
+     * different origins, and the wrong one the moment the box is public.
+     */
+    private function checkCors(): void
+    {
+        $origins = (array) config('cors.allowed_origins', []);
+
+        if (in_array('*', $origins, true)) {
+            if (app()->environment('production')) {
+                $this->blocker(
+                    'CORS accepts every origin',
+                    'Set CORS_ALLOWED_ORIGINS to the panel\'s own origin(s), comma-separated.',
+                );
+
+                return;
+            }
+
+            $this->caution('CORS accepts every origin', 'Fine locally. Set CORS_ALLOWED_ORIGINS before this box is public.');
+
+            return;
+        }
+
+        $this->pass('CORS', implode(', ', $origins));
     }
 
     /**

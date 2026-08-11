@@ -71,9 +71,13 @@ class TenantResource extends JsonResource
             'images_enabled' => $this->imagesEnabled(),
             'status' => $this->status,
             'setup_completed' => $this->setup_completed,
+            'subscription_starts_at' => $this->subscription_starts_at?->toIso8601String(),
             'subscription_ends_at' => $this->subscription_ends_at?->toIso8601String(),
             'subscription_expired' => $this->subscriptionExpired(),
             'subscription_state' => $this->subscriptionState(),
+            // The same lifecycle in billing words: paid / grace / unpaid /
+            // suspended. What the list filters and colours its chips by.
+            'payment_status' => $this->paymentStatus(),
             'grace_ends_at' => $this->graceEndsAt()?->toIso8601String(),
             'logo_path' => $this->logo_path,
             // Resolved server-side, like every other image the API hands out

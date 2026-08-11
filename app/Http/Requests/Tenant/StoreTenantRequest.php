@@ -44,6 +44,25 @@ class StoreTenantRequest extends FormRequest
             // created "for now" could never be corrected afterwards.
             'plan_id' => ['required', 'uuid', Rule::exists('plans', 'id')->where('is_active', true)],
 
+            // When this shop's subscription runs FROM and TO. Omitted, it
+            // starts today and runs for the plan's billing period — which was
+            // the only option before, and is wrong for every shop that joined
+            // mid-cycle or paid before the account was set up. This is the one
+            // moment the renewal anchor can be set correctly; afterwards every
+            // period stacks onto whatever was recorded here.
+            'period' => ['sometimes', 'array'],
+            'period.starts_at' => ['sometimes', 'nullable', 'date'],
+            'period.ends_at' => ['sometimes', 'nullable', 'date'],
+
+            // The opening payment, if one was taken. `paid_at` is the date the
+            // money arrived, not the date this form was filled in.
+            'payment' => ['sometimes', 'array'],
+            'payment.amount' => ['sometimes', 'numeric', 'min:0', 'max:99999999'],
+            'payment.method' => ['sometimes', Rule::in(['cash', 'card', 'bank_transfer', 'manual', 'other'])],
+            'payment.reference' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'payment.notes' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'payment.paid_at' => ['sometimes', 'nullable', 'date', 'before_or_equal:now'],
+
             // The modules this shop is given. The business type proposes a set
             // on the create screen; what arrives here is what the admin left
             // ticked. Omitted entirely = keep the type's proposal.
@@ -82,6 +101,14 @@ class StoreTenantRequest extends FormRequest
                 if (! array_key_exists($key, PlanLimits::REGISTRY)) {
                     $v->errors()->add('limits', "Unknown limit: {$key}.");
                 }
+            }
+
+            // See AssignPlanRequest for why this is not an `after:` rule.
+            $starts = $this->input('period.starts_at');
+            $ends = $this->input('period.ends_at');
+
+            if ($starts && $ends && strtotime((string) $ends) <= strtotime((string) $starts)) {
+                $v->errors()->add('period.ends_at', 'The billing period has to end after it starts.');
             }
         });
     }

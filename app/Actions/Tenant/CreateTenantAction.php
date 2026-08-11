@@ -64,8 +64,16 @@ class CreateTenantAction
             ]);
 
             // ② The plan: price, period, and the usage ceilings it baselines.
+            // The window and the opening payment ride along, because the
+            // moment a shop is created is the only chance to state its real
+            // renewal date — every later period stacks onto this one.
             if (! empty($data['plan_id'])) {
-                $this->assignPlan->execute($tenant, Plan::query()->findOrFail($data['plan_id']));
+                $this->assignPlan->execute(
+                    $tenant,
+                    Plan::query()->findOrFail($data['plan_id']),
+                    $data['payment'] ?? null,
+                    $data['period'] ?? null,
+                );
             }
 
             // ③ The admin's own decisions, last, so they win over both.

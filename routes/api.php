@@ -603,6 +603,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::apiResource('expenses', ExpenseController::class)->except(['show']);
                 // The photo of the bill.
                 Route::post('expenses/{expense}/attachment', [ExpenseController::class, 'attach']);
+                // The receipt itself. It used to be a public storage URL with
+                // no token and no tenant check; it is now gated exactly like
+                // the row it hangs off.
+                Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment']);
                 Route::delete('expenses/{expense}/attachment', [ExpenseController::class, 'detach']);
 
                 // Income is the other half of the same module.
@@ -612,6 +616,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::apiResource('incomes', IncomeController::class)->except(['show']);
                 // The proof the money came in — same pair as the expense side.
                 Route::post('incomes/{income}/attachment', [IncomeController::class, 'attach']);
+                Route::get('incomes/{income}/attachment', [IncomeController::class, 'attachment']);
                 Route::delete('incomes/{income}/attachment', [IncomeController::class, 'detach']);
 
                 // Cashbook: unified money-in / money-out ledger. DERIVES sales
@@ -816,9 +821,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::put('/plans/{plan}', [PlanController::class, 'update'])->middleware('role:super_admin');
             Route::delete('/plans/{plan}', [PlanController::class, 'destroy'])->middleware('role:super_admin');
 
-            // Billing / subscription payments
-            Route::get('/billing/summary', [BillingController::class, 'summary']);
-            Route::get('/billing/payments', [BillingController::class, 'payments']);
+            // Billing / subscription payments. Gated on their own permission —
+            // these were role-only, so a staffer hired to schedule banner ads
+            // could read every rupee the platform has ever taken.
+            Route::middleware('permission:billing.view')->group(function (): void {
+                Route::get('/billing/summary', [BillingController::class, 'summary']);
+                Route::get('/billing/payments', [BillingController::class, 'payments']);
+            });
 
             // Platform staff management
             Route::prefix('staff')->middleware('permission:platform_staff.manage')->group(function (): void {
@@ -846,6 +855,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('/{tenant}/activate', [TenantController::class, 'activate'])->middleware('permission:tenants.suspend');
                 Route::post('/{tenant}/restore', [TenantController::class, 'restore'])->middleware('permission:tenants.delete');
                 Route::post('/{tenant}/assign-plan', [TenantController::class, 'assignPlan'])->middleware('permission:tenants.assign_plan');
+                // Account recovery for a locked-out shop owner. Its own
+                // permission, not tenants.update — this one can impersonate a
+                // business, and it is throttled because a reset endpoint is a
+                // password oracle if you can call it in a loop.
+                Route::post('/{tenant}/owner-password', [TenantController::class, 'resetOwnerPassword'])
+                    ->middleware(['permission:tenants.reset_password', 'throttle:auth']);
             });
 
             // Promo banners (paid ads) — admin-created

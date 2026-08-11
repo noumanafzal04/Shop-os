@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 class Expense extends BaseModel
 {
@@ -47,12 +46,20 @@ class Expense extends BaseModel
         return $this->belongsTo(RecurringExpense::class);
     }
 
-    /** The receipt photo, ready to open. Null when none was attached. */
+    /**
+     * Where to fetch the receipt, not a link anyone can follow.
+     *
+     * This used to be a public storage URL — no token, no tenant check, one
+     * guessable path away from another business's bills. It is now the API
+     * endpoint, which runs the same permission and tenant scope as the row.
+     * The client must fetch it with its bearer token (see the panel's
+     * openAuthedFile) rather than dropping it into an href.
+     */
     protected function attachmentUrl(): Attribute
     {
         return Attribute::get(
             fn (): ?string => $this->attachment_path
-                ? Storage::disk('public')->url($this->attachment_path)
+                ? "/expenses/{$this->id}/attachment"
                 : null,
         );
     }

@@ -11,10 +11,10 @@ use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\MoneyEntryFilters;
+use App\Support\ReceiptFiles;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExpenseController extends Controller
@@ -180,14 +180,32 @@ class ExpenseController extends Controller
         $expense = Expense::query()->findOrFail($id);
 
         // Replacing an attachment removes the old file rather than orphaning it.
-        if ($expense->attachment_path) {
-            Storage::disk('public')->delete($expense->attachment_path);
-        }
+        ReceiptFiles::delete($expense->attachment_path);
 
-        $path = $request->file('file')->store("receipts/{$expense->tenant_id}", 'public');
+        $path = ReceiptFiles::store($request->file('file'), $expense->tenant_id);
         $expense->forceFill(['attachment_path' => $path])->save();
 
         return ApiResponse::ok($expense->fresh(['category:id,name']), 'Receipt attached');
+    }
+
+    /**
+     * Hand the file back.
+     *
+     * The query is tenant-scoped and the route carries `expenses.manage`, so a
+     * receipt is reachable by exactly the people who can already read the row
+     * it hangs off — which is what the old public URL could not say.
+     */
+    public function attachment(string $id): StreamedResponse|JsonResponse
+    {
+        /** @var Expense $expense */
+        $expense = Expense::query()->findOrFail($id);
+
+        if ($expense->attachment_path === null) {
+            return ApiResponse::notFound('No receipt is attached to this expense.');
+        }
+
+        return ReceiptFiles::response($expense->attachment_path)
+            ?? ApiResponse::notFound('That receipt file is missing from storage.');
     }
 
     public function detach(string $id): JsonResponse
@@ -196,7 +214,7 @@ class ExpenseController extends Controller
         $expense = Expense::query()->findOrFail($id);
 
         if ($expense->attachment_path) {
-            Storage::disk('public')->delete($expense->attachment_path);
+            ReceiptFiles::delete($expense->attachment_path);
             $expense->forceFill(['attachment_path' => null])->save();
         }
 
