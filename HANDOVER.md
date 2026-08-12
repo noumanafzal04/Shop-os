@@ -102,7 +102,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1581 tests / 7220 assertions green. Panel 225 tests green.** Gates all
+**Backend 1596 tests / 7281 assertions green. Panel 225 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint`.
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
@@ -199,7 +199,53 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-11 (latest) — the button the error message promised
+### 2026-08-12 — a QA report, and the screen that never said anything
+
+Muhammad Bilal's staging report. Six findings; five were real, one could not be
+reproduced, and the two headline ones turned out to be the same defect.
+
+**"Suspend does nothing" and "no success/failure message" are one bug.** The
+Staff screen had no feedback of any kind. Its only error surface was inside the
+form modal, and Suspend is a button on the row BEHIND it — so a failed suspend
+went nowhere at all, indistinguishable from one that worked. The backend was
+never at fault: `QaStaffReportTest` proves create succeeds on the first attempt,
+suspend suspends, and a suspended person cannot sign in.
+
+**"Server error on the first create, works on the second" could not be
+reproduced** — both consoles create first try. Most likely a cold start on the
+$6 droplet or a 422 that only rendered inside the modal. With the feedback fixed
+it will now say what went wrong; it needs a network-tab repro if it recurs.
+
+**"Address and location not working" is staging config, not code.** Vite bakes
+`VITE_GEOAPIFY_API_KEY` in at BUILD time and the droplet builds from its own
+untracked `.env.production`, which has none. The DEV-only startup warning was
+right — a production build must not crash over a map key — but silence was the
+wrong other half. `MapPicker` now says the map is not set up on this
+installation and that the address fields still save. **The droplet still needs
+the key.**
+
+**The CSV headers** shipped raw field names to somebody pricing shelves in
+Excel. Fixed via `ProductCsv`, and the constraint is written where the next
+person will edit it: the importer normalises `strtolower` + spaces-to-
+underscores, so Title Case with the SAME WORDS round-trips — renaming a column
+to something friendlier but different would normalise onto a field that does
+not exist and drop silently, which is worse than the bug being fixed.
+
+**What QA missed.** The template CSV was hand-rolled with `fputcsv` and carried
+no UTF-8 BOM, while the export goes through `CsvExport` which writes one "so
+Excel opens Urdu names correctly" — the one file a merchant TYPES INTO was the
+one without the protection. And the no-feedback problem is not confined to
+Staff: 21 screens mutate with no success toast, two of them
+(`LabelsPage`, `MyOrdersPage`) with no feedback whatsoever.
+
+**POS was checked and is fine** — record it so it is not re-audited. The
+checkout mutation has no `onError`, which looks alarming, but `checkout.error`
+renders a "Sale failed" alert in the tender modal; shift conflicts get an
+in-modal error carrying the way out; scan failures show inline with a sound.
+
+1596 tests, 7281 assertions · panel 225 tests.
+
+### 2026-08-11 — the button the error message promised
 
 Asked whether tables can be pre-assigned to staff. They cannot, and after
 looking I do not think they should be yet — but the question found a bug.
