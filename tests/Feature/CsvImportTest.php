@@ -104,6 +104,10 @@ class CsvImportTest extends TestCase
         $res = $this->actingAsUser($this->owner)->get('/api/v1/products/import/template');
         $res->assertOk();
         $this->assertStringContainsString('text/csv', $res->headers->get('content-type'));
-        $this->assertStringContainsString('name,item_type,sku', $res->streamedContent());
+        // Headers written for a shopkeeper opening this in Excel, not the
+        // column names of the products table. The importer lowercases and
+        // swaps spaces for underscores, so these still read back in —
+        // ProductCsvHeadersTest pins that round trip per column.
+        $this->assertStringContainsString('Name,"Item Type",SKU', $res->streamedContent());
     }
 }

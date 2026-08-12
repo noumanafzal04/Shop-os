@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
 use App\Support\Permissions;
+use App\Support\ProductCsv;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
@@ -79,9 +80,17 @@ class BulkExportTest extends TestCase
         $header = ltrim($lines[0], "\xEF\xBB\xBF");
 
         $this->assertSame(trim($templateHeader), trim($header));
-        // The columns each trade cannot bulk-load without.
+
+        // The columns each trade cannot bulk-load without. Asked of the FIELD
+        // each header maps back to rather than of the header text, because the
+        // headers are written for a person now ("Dosage Form") and what has to
+        // hold is that they still normalise onto the fields the importer knows.
+        $fields = array_map(
+            fn (string $h): string => ProductCsv::normalise($h),
+            str_getcsv($header),
+        );
         foreach (['strength', 'dosage_form', 'kitchen_station', 'tracks_serial', 'duration_minutes'] as $column) {
-            $this->assertStringContainsString($column, $header);
+            $this->assertContains($column, $fields, "the export can no longer carry `{$column}`");
         }
         $this->assertStringContainsString('Cooking Oil 1L', $csv);
         $this->assertStringContainsString('OIL-1L', $csv);

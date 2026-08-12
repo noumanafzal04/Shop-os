@@ -22,6 +22,7 @@ use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\ItemTypes;
+use App\Support\ProductCsv;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -128,20 +129,9 @@ class ProductController extends Controller
     /** A ready-to-fill CSV template with the supported columns + one example row. */
     public function importTemplate(): StreamedResponse
     {
-        $header = [
-            'name', 'item_type', 'sku', 'barcode', 'barcodes', 'plu_code', 'brand', 'category',
-            'unit', 'sold_by', 'price', 'cost', 'wholesale_price', 'discount_price', 'tax_rate',
-            'tax_group', 'stock_quantity', 'low_stock_threshold', 'min_order_qty', 'track_inventory',
-            // Pharmacy
-            'generic_name', 'strength', 'dosage_form', 'drug_schedule', 'requires_prescription',
-            // Food
-            'kitchen_station',
-            // Retail / automotive / petroleum
-            'tracks_serial', 'warranty_months',
-            // Services
-            'duration_minutes',
-            'description', 'is_active', 'visible_in_marketplace',
-        ];
+        // Title Case headers a merchant can read. The importer lowercases and
+        // swaps spaces for underscores, so this round-trips unchanged.
+        $header = ProductCsv::headerRow();
 
         // A few worked examples so a merchant sees how each column is filled:
         // a retail item, a weight-sold grocery item with a scale PLU code, a
@@ -159,14 +149,10 @@ class ProductController extends Controller
             ['Full Service', 'service', 'SRV-FULL', '', '', '', '', 'Workshop', 'job', 'unit', '3500', '1200', '', '', '0', '', '', '', '', '', '', '', '', '', '0', '', '0', '', '90', 'Oil, filter and a check over', '1', '1'],
         ];
 
-        return response()->streamDownload(function () use ($header, $samples): void {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, $header);
-            foreach ($samples as $row) {
-                fputcsv($out, $row);
-            }
-            fclose($out);
-        }, 'products-import-template.csv', ['Content-Type' => 'text/csv']);
+        // Through the same helper as the export, which writes the UTF-8 BOM.
+        // Hand-rolled, this file was the ONE a merchant types into — and the
+        // one without the marker that makes Excel read Urdu names correctly.
+        return CsvExport::stream('products-import-template.csv', $header, $samples);
     }
 
     /**
@@ -177,20 +163,9 @@ class ProductController extends Controller
      */
     public function export(Request $request): StreamedResponse
     {
-        $header = [
-            'name', 'item_type', 'sku', 'barcode', 'barcodes', 'plu_code', 'brand', 'category',
-            'unit', 'sold_by', 'price', 'cost', 'wholesale_price', 'discount_price', 'tax_rate',
-            'tax_group', 'stock_quantity', 'low_stock_threshold', 'min_order_qty', 'track_inventory',
-            // Pharmacy
-            'generic_name', 'strength', 'dosage_form', 'drug_schedule', 'requires_prescription',
-            // Food
-            'kitchen_station',
-            // Retail / automotive / petroleum
-            'tracks_serial', 'warranty_months',
-            // Services
-            'duration_minutes',
-            'description', 'is_active', 'visible_in_marketplace',
-        ];
+        // Title Case headers a merchant can read. The importer lowercases and
+        // swaps spaces for underscores, so this round-trips unchanged.
+        $header = ProductCsv::headerRow();
 
         $rows = Product::query()
             ->with(['category:id,name', 'taxGroup:id,name', 'barcodes:id,product_id,barcode'])
