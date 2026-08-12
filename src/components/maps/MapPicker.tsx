@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getGeocoder, tileLayer, type GeoPlace } from "../../common/maps/geocoding";
-import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, PINNED_MAP_ZOOM } from "../../config/maps";
+import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, PINNED_MAP_ZOOM, mapsConfigured } from "../../config/maps";
 
 export interface PickedLocation {
   lat: number;
@@ -37,6 +37,8 @@ const geocoder = getGeocoder();
  * resolved city/address in one callback. Provider-agnostic (see geocoding.ts).
  */
 export default function MapPicker({ value, onChange, heightClass = "h-72" }: MapPickerProps) {
+  // Hooks first — this component returns early when maps are unconfigured, and
+  // an early return above a hook changes the hook order between renders.
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -172,6 +174,23 @@ export default function MapPicker({ value, onChange, heightClass = "h-72" }: Map
       { enableHighAccuracy: true, timeout: 10_000 },
     );
   };
+
+  // No map key in this build. Say so, rather than rendering a search box that
+  // never returns anything and a grey square where the map should be — which
+  // is indistinguishable from broken software and was reported as exactly that.
+  if (!mapsConfigured) {
+    return (
+      <div className={`flex ${heightClass} flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center dark:border-gray-700 dark:bg-white/[0.02]`}>
+        <p className="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
+          Map search is not set up on this installation
+        </p>
+        <p className="max-w-sm text-theme-xs text-gray-500 dark:text-gray-400">
+          Your address fields below still work and still save. Pinning a location on the map
+          needs a map key — ask whoever set up your ShopOS to add one.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">

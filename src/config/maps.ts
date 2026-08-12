@@ -34,6 +34,22 @@ if (import.meta.env.DEV) {
 
 export const mapsConfig = { provider, geoapifyApiKey, googleMapsApiKey };
 
+/**
+ * Is maps actually usable in THIS build?
+ *
+ * The console warning above is `import.meta.env.DEV` only — correct, since a
+ * production build must not crash over a map key when every other screen works
+ * without one. But silence was the wrong other half: a staging build went out
+ * with no `VITE_GEOAPIFY_API_KEY`, and address search and the map tiles simply
+ * did nothing. QA reported it as "address and location functionality missing",
+ * which is precisely what a dead field looks like when nothing explains it.
+ *
+ * The screens now ask this and say so, so a missing key reads as a setting
+ * somebody has to fill in rather than as broken software.
+ */
+export const mapsConfigured =
+  provider === "google" ? googleMapsApiKey !== "" : geoapifyApiKey !== "";
+
 /** Country bias for geocoding (ISO 3166-1 alpha-2). Most shops are here. */
 export const MAPS_COUNTRY_BIAS = "pk";
 

@@ -6,6 +6,7 @@ import Input from "../../components/form/input/InputField";
 import Label from "../../components/form/Label";
 import Alert from "../../components/ui/alert/Alert";
 import { Modal, ModalForm } from "../../components/ui/modal";
+import { useToast } from "../../components/ui/toast";
 import { useModal } from "../../hooks/useModal";
 import { ApiError } from "../../common/types/api";
 import { useDebouncedValue } from "../../common/hooks/useDebouncedValue";
@@ -29,6 +30,7 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
   const list = staff.useStaffList({ search: useDebouncedValue(search, 350), page });
 
   const modal = useModal();
+  const toast = useToast();
   const [editing, setEditing] = useState<User | null>(null);
   const [form, setForm] = useState<{ name: string; email: string; phone: string; password: string; permissions: string[] }>({
     name: "", email: "", phone: "", password: "", permissions: [],
@@ -55,6 +57,13 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
   const described = new Map(catalog.map((p) => [p.key, p]));
   const label = (key: string) => described.get(key)?.label ?? labelFor(key);
   const hint = (key: string) => described.get(key)?.hint ?? hintFor(key);
+
+  // "Everything" means every box the catalog offers, not merely a non-empty
+  // list — so the warning below cannot fire on a staffer who happens to hold
+  // a lot of permissions.
+  const allChecked =
+    catalog.length > 0 && catalog.every((p) => form.permissions.includes(p.key));
+  const isTenantSide = basePath === "/staff";
   const jobs = presets.data ?? [];
 
   /**
@@ -106,19 +115,43 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
     if (editing) {
       staff.update.mutate(
         { id: editing.id, ...base, ...(form.password ? { password: form.password } : {}) },
-        { onSuccess: modal.closeModal },
+        {
+          onSuccess: () => { modal.closeModal(); toast.success(`${base.name} updated`); },
+        },
       );
     } else {
-      staff.create.mutate({ ...base, password: form.password } as StaffInput, { onSuccess: modal.closeModal });
+      staff.create.mutate({ ...base, password: form.password } as StaffInput, {
+        onSuccess: () => { modal.closeModal(); toast.success(`${base.name} added`); },
+      });
     }
   };
 
-  const toggleSuspend = (u: User) =>
-    staff.update.mutate({ id: u.id, status: u.status === "active" ? "suspended" : "active" });
+  /**
+   * Suspending had no outcome of any kind — no confirmation, and a failure
+   * went nowhere at all, because the only error surface on this screen is
+   * inside the form modal and this button is on the row behind it. QA reported
+   * it as "nothing happens when you click suspend", which is exactly what a
+   * silent request looks like from the outside whether it worked or not.
+   */
+  const toggleSuspend = (u: User) => {
+    const suspending = u.status === "active";
+    staff.update.mutate(
+      { id: u.id, status: suspending ? "suspended" : "active" },
+      {
+        onSuccess: () =>
+          toast.success(suspending ? `${u.name} suspended — they cannot sign in` : `${u.name} reactivated`),
+        onError: (e) =>
+          toast.error(e instanceof ApiError ? e.message : `Couldn't ${suspending ? "suspend" : "reactivate"} ${u.name}.`),
+      },
+    );
+  };
 
   const remove = (u: User) => {
     if (window.confirm(`Remove ${u.name}? Their sessions end immediately.`)) {
-      staff.remove.mutate(u.id, { onError: (e) => window.alert(e instanceof ApiError ? e.message : "Delete failed.") });
+      staff.remove.mutate(u.id, {
+        onSuccess: () => toast.success(`${u.name} removed`),
+        onError: (e) => toast.error(e instanceof ApiError ? e.message : `Couldn't remove ${u.name}.`),
+      });
     }
   };
 
@@ -286,7 +319,36 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
               </div>
             )}
 
-            <Label>Permissions <span className="text-error-500">*</span></Label>
+            <div className="flex items-end justify-between gap-3">
+              <Label>Permissions <span className="text-error-500">*</span></Label>
+              {/* Every box at once. Useful for a partner or a second manager,
+                  where ticking nineteen boxes by hand is the only thing
+                  standing between the owner and a working account. */}
+              <div className="mb-1.5 flex items-center gap-3 text-theme-xs">
+                <button
+                  type="button"
+                  className="font-medium text-brand-500 hover:text-brand-600 disabled:opacity-40 dark:text-brand-400"
+                  disabled={allChecked}
+                  onClick={() => setForm((f) => ({ ...f, permissions: catalog.map((p) => p.key) }))}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className="font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40 dark:text-gray-400"
+                  disabled={form.permissions.length === 0}
+                  onClick={() => setForm((f) => ({ ...f, permissions: [] }))}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            {allChecked && (
+              <p className="mt-1 text-theme-xs text-warning-600 dark:text-warning-400">
+                This person will be able to do everything you can, including
+                {isTenantSide ? " shop settings and hiring staff" : " managing platform staff"}.
+              </p>
+            )}
             <div className="mt-1 grid grid-cols-1 gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800 sm:grid-cols-2">
               {catalog.map(({ key }) => {
                 const explanation = hint(key);
