@@ -199,7 +199,56 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-12 (later) — every screen that changes something now says so
+### 2026-08-12 (latest) — the two audits that never ran
+
+Both agents died on a session limit on 2026-08-09 and the work had been owed
+since. Run inline. One real defect, one design question, and a lot cleared.
+
+**The migration audit found `migrate:rollback` broken.** Two migrations dropped
+a column while an index still named it — `product_batches.branch_id` and
+`sales.customer_id` — so the recovery path for a bad deploy did not exist at
+the moment it would be needed. Nothing caught it because the suite only ever
+runs `migrate:fresh`; the down direction had never been executed by anything.
+
+The fix order is **driver-specific and had to satisfy both**: SQLite refuses to
+drop a column an index still names, so the index goes first; MySQL refuses to
+drop an index a foreign key still needs, so the constraint goes before THAT.
+Constraint → index → column. My SQLite-only fix passed locally and failed on
+MySQL, which is the whole argument for running this against a real MySQL schema
+(a scratch database, dropped afterwards — the dev DB was never touched).
+
+CI now runs up → down → up on every push, against a FILE sqlite database, since
+each artisan call is its own process and `:memory:` would not survive between
+them.
+
+**Cleared by the migration audit**, so it is not re-audited: every migration
+has a real `down()`; money columns are consistent (12,2 money, 12,3 quantity);
+the raw backfill subqueries all read a different table than the one being
+updated, so none hits MySQL's restriction on that.
+
+**The POS audit found no defect.** Recorded in detail because four separate
+things looked wrong and were not: the checkout mutation has no `onError` but
+renders `checkout.error` as a "Sale failed" alert; the till DOES send an
+idempotency key, regenerated on every cart change so two identical baskets in a
+row get different keys; underpayment is refused server-side with cash rounding
+folded in; and schedule-controlled drugs are blocked server-side, with
+`requires_prescription` only warning — a coherent split between law and shop
+policy.
+
+**One design question, deliberately NOT changed.** A cash POS sale carrying no
+`cash_session_id` is invisible to every X and Z read, because `DrawerMath`
+totals a shift by that column — the drawer counts over at the end of the night
+with nothing to explain it. The POS screen refuses this (`canCheckout` requires
+an open shift), so the rule lives only in the till, and the planned offline
+client is exactly the caller that would not know it. **I enforced it
+server-side and 96 tests failed** — which is the codebase saying that running a
+till without a shift is a supported mode, not an oversight. Reverted. If shifts
+should be mandatory for cash, that is a product decision and a deliberate
+migration, not a bug fix.
+
+1596 tests, 7281 assertions · panel 227 tests.
+
+### 2026-08-12 — every screen that changes something now says so
 
 Closing the class QA found on Staff, and putting a guard under it.
 
