@@ -102,7 +102,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1596 tests / 7281 assertions green. Panel 225 tests green.** Gates all
+**Backend 1596 tests / 7281 assertions green. Panel 227 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint`.
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
@@ -198,6 +198,42 @@ session log).
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-08-12 (later) — every screen that changes something now says so
+
+Closing the class QA found on Staff, and putting a guard under it.
+
+**Three screens were genuinely mute.** `LabelsPage.generateAll` was the worst:
+a loop of `mutateAsync` inside `try/finally` with **no catch**, so a failure
+part-way through abandoned the rest silently — ask for 200 barcodes, get 40,
+hear nothing. It reports the partial count now, because a partial result is
+still a result. `MyOrdersPage` let a customer cancel their own order with no
+word either way. `MarketHeader` could fail to sign you out and leave you signed
+in, which matters most on a borrowed phone.
+
+**Deletes reported nothing on failure** on collections, coupons, suppliers,
+banners and announcements — and a refusal there is nearly always a REASON
+("still referenced by something"), so it looked like a row that would not go
+away. They surface the server's message now.
+
+**A global `MutationCache` onError was the obvious fix and is the wrong one.**
+A probe confirmed it fires even when the caller passed its own `onError`, and
+`mutation.options.onError` is `undefined` for per-call handlers — so it cannot
+tell whether the screen already spoke, and would double-report on fifteen
+screens. Written down so it is not attempted again.
+
+`mutationFeedback.test.ts` is the guard: a component calling `.mutate(` must
+contain some route to the user. It uses `import.meta.glob` rather than
+`node:fs`, which the app tsconfig has no types for. Mutation-checked by
+stripping the feedback back out of `MyOrdersPage`.
+
+**A correction worth keeping.** My sweep first reported 21 offending screens.
+Most were a bad regex — `set[A-Z]\w*Error` cannot match `setError`, it consumes
+the E — and `TakeOrderModal`, `OwnerOrdersPage` and `RidersPage` had proper
+error handling all along. The real count was three. Third time this session a
+grep produced a false finding; confirm "no caller" by reading the file.
+
+1596 tests, 7281 assertions · panel 227 tests.
 
 ### 2026-08-12 — a QA report, and the screen that never said anything
 
