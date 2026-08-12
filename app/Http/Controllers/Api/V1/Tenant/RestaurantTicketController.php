@@ -10,6 +10,8 @@ use App\Actions\Restaurant\OpenTicketAction;
 use App\Actions\Restaurant\SettleTicketAction;
 use App\Enums\RestaurantTicketStatus;
 use App\Enums\SaleStatus;
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Restaurant\AddTicketItemsRequest;
@@ -224,6 +226,40 @@ class RestaurantTicketController extends Controller
      * `tables.serve_any`. Both fall out of the same check: without it, this
      * endpoint would be the way around every other one.
      */
+    /**
+     * Who a table can be handed TO.
+     *
+     * The hand-over could not be built without this. Naming the new waiter
+     * means choosing from a list, and the staff directory is gated on
+     * `staff.manage` — which a waiter does not have and should not get, since
+     * it is the screen for hiring and firing. So the endpoint that told a
+     * waiter "ask a supervisor to hand the table over" described something
+     * nobody had a way to do.
+     *
+     * Deliberately the smallest possible read: the id and name of colleagues
+     * who can work a floor, and nothing else. No contact details, no
+     * permissions, no employment status — none of which is any of a waiter's
+     * business. A waiter already sees these names, on every tab that is not
+     * theirs and in the refusal message itself.
+     */
+    public function servers()
+    {
+        $servers = User::query()
+            ->where('tenant_id', $this->context->id())
+            ->where('status', UserStatus::Active)
+            ->whereIn('role', [UserRole::ShopOwner, UserRole::Staff])
+            ->orderBy('name')
+            ->get(['id', 'name', 'role', 'permissions'])
+            // The owner holds everything by role; staff carry an explicit list.
+            // Filtered in PHP because `permissions` is a JSON column and a LIKE
+            // against it would match a permission that merely CONTAINS this one.
+            ->filter(fn (User $u): bool => $u->hasPermission(Permissions::SALES_MANAGE))
+            ->map(fn (User $u): array => ['id' => $u->id, 'name' => $u->name])
+            ->values();
+
+        return ApiResponse::ok($servers);
+    }
+
     public function assignWaiter(Request $request, RestaurantTicket $ticket)
     {
         $this->assertMayWork($ticket);

@@ -736,6 +736,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // one, a section changes hands at shift change.
                     Route::post('tickets/{ticket}/move', [RestaurantTicketController::class, 'move']);
                     Route::post('tickets/{ticket}/merge', [RestaurantTicketController::class, 'merge']);
+                    // Who the table can be handed to. Names only, and only of
+                    // people who can work a floor — the staff directory itself
+                    // is gated on staff.manage, which no waiter holds.
+                    Route::get('servers', [RestaurantTicketController::class, 'servers']);
                     Route::post('tickets/{ticket}/waiter', [RestaurantTicketController::class, 'assignWaiter']);
                 });
 
