@@ -102,7 +102,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1569 tests / 7193 assertions green. Panel 225 tests green.** Gates all
+**Backend 1581 tests / 7220 assertions green. Panel 225 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint`.
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
@@ -199,7 +199,49 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-11 (latest) — the reorder list nobody could open
+### 2026-08-11 (latest) — the button the error message promised
+
+Asked whether tables can be pre-assigned to staff. They cannot, and after
+looking I do not think they should be yet — but the question found a bug.
+
+**What exists** is claim-on-open: `restaurant_tickets.waiter_id` is set by
+whoever opens the tab, `assertMayWork` blocks everyone else, `tables.serve_any`
+lifts it. `dining_tables.area` is a free-text section label (already guarded by
+a datalist), assignable to nobody. There is no `assigned_waiter_id` anywhere.
+
+**The bug:** the refusal reads *"Ask them or a supervisor to hand the table
+over"* — and `POST tickets/{ticket}/waiter` had never been called by anything.
+No hook, no screen, no button. A shift change with open tabs had exactly one
+resolution: grant `tables.serve_any` permanently, which is the blunt instrument
+that permission exists to avoid.
+
+**Why it was never finished** is the interesting part, and it is not laziness.
+Naming the new waiter means choosing from a list, and the staff directory is
+gated on `staff.manage` — hiring and firing — which a waiter neither has nor
+should get. So the feature was blocked on a read that did not exist.
+`GET /restaurant/servers` is that read, deliberately the smallest possible one:
+id and name of colleagues who can work a floor, nothing else. A waiter already
+sees those names on every tab that is not theirs and in the refusal itself.
+
+Filtered in PHP, not SQL: `permissions` is a JSON column and a LIKE against it
+matches a permission that merely CONTAINS this one.
+
+**On pre-assignment — the recommendation, so it is not re-litigated.** Don't
+build it until a real restaurant asks. Claim-on-open already gives the "if
+nobody is assigned, anyone can take it" behaviour, which is the half that
+matters; pre-assignment would only add the restrictive half. When it is built,
+build it at SECTION level (20 tables is 20 decisions that go stale every
+shift), and as a DEFAULT, never a fence — a fence fails relief cover, the same
+way every other rule tried here has failed it. A section decides who a table
+FALLS to when unclaimed; it never decides who MAY serve it.
+
+`TableHandoverTest`, 12 tests. Three mutations checked: dropping the
+`sales.manage` filter, the ownership guard, or the active-status filter each
+fails it.
+
+1581 tests, 7220 assertions · panel 225 tests.
+
+### 2026-08-11 — the reorder list nobody could open
 
 A flow audit that mostly disproved itself. I diffed all 331 tenant endpoints
 against what the panel calls and claimed three findings; **two were wrong**, and
