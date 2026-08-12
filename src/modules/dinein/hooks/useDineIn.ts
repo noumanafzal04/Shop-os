@@ -53,6 +53,20 @@ export function useTicket(id: string | undefined) {
   });
 }
 
+/**
+ * Who a table can be handed to. Loaded only when the hand-over is actually
+ * opened — a floor screen refreshing every few seconds has no business
+ * re-fetching the roster with it.
+ */
+export function useServers(enabled = false) {
+  return useQuery({
+    queryKey: ["dine-in", "servers"],
+    queryFn: async () => (await dineInService.servers()).data,
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useDineInMutations(ticketId?: string) {
   const qc = useQueryClient();
   const invalidate = () => {
@@ -106,6 +120,21 @@ export function useDineInMutations(ticketId?: string) {
     onSuccess: invalidate,
   });
 
+  /**
+   * A section changing hands at shift change. Also invalidates the open-tab
+   * list, because a tab that is no longer yours must leave your floor view —
+   * otherwise the waiter who gave it away still sees it and is refused on the
+   * next tap.
+   */
+  const assignWaiter = useMutation({
+    mutationFn: ({ id, waiterId }: { id: string; waiterId: string }) =>
+      dineInService.assignWaiter(id, waiterId),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["dine-in", "open-tickets"] });
+    },
+  });
+
   const createTable = useMutation({
     mutationFn: (payload: { name: string; seats?: number; area?: string }) => dineInService.createTable(payload),
     onSuccess: invalidate,
@@ -121,5 +150,5 @@ export function useDineInMutations(ticketId?: string) {
     onSuccess: invalidate,
   });
 
-  return { openTicket, addItems, voidItem, fire, settle, move, merge, cancel, createTable, deleteTable, reorderTables };
+  return { openTicket, addItems, voidItem, fire, settle, move, merge, cancel, assignWaiter, createTable, deleteTable, reorderTables };
 }

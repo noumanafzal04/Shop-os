@@ -373,6 +373,23 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "note",
         text: "A tab belongs to the waiter who opened it. A cashier can settle anyone's tab so payment can be taken at the counter; another waiter cannot, unless you tick 'Serve any table' on them.",
       },
+      { type: "h", text: "Going off shift with open tables" },
+      {
+        type: "p",
+        text: "Open the tab and press Hand over. Pick the colleague taking the section. The order, the kitchen tickets already fired and the bill all stay exactly as they are — only who is serving it changes.",
+      },
+      {
+        type: "list",
+        items: [
+          "You can always give YOUR OWN table to anyone. Finishing a shift should not need a supervisor.",
+          "Taking someone else's table needs 'Serve any table' — otherwise this would be the way around every other rule on the floor.",
+          "After handing over it is genuinely theirs. You will see the tab but not be able to change it.",
+        ],
+      },
+      {
+        type: "note",
+        text: "This is the answer to a shift change, not 'Serve any table'. Ticking that permanently, to solve one evening, gives that person every table in the restaurant for good.",
+      },
     ],
   },
   {

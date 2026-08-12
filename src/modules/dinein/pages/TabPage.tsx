@@ -14,7 +14,7 @@ import { ApiError } from "../../../common/types/api";
 import { useConfirm } from "../../../components/ui/confirm";
 import { catalogService } from "../../catalog/services/catalogService";
 import type { Product, ModifierGroup } from "../../catalog/types";
-import { useTicket, useDineInMutations, useOpenTickets, useTables } from "../hooks/useDineIn";
+import { useTicket, useDineInMutations, useOpenTickets, useServers, useTables } from "../hooks/useDineIn";
 import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
 
@@ -41,7 +41,7 @@ export default function TabPage() {
   const mine = mayWork(ticket?.waiter_id);
   const settings = useShopSettings();
   const taxRate = Number(settings.data?.default_tax_rate ?? 0);
-  const { addItems, voidItem, fire, settle, move, merge, cancel } = useDineInMutations(id);
+  const { addItems, voidItem, fire, settle, move, merge, cancel, assignWaiter } = useDineInMutations(id);
 
   const products = useQuery({
     queryKey: ["catalog", "menu"],
@@ -69,6 +69,13 @@ export default function TabPage() {
   const [mergeSource, setMergeSource] = useState("");
   const tables = useTables();
   const openTabs = useOpenTickets(mergeModal.isOpen);
+
+  // Hand over — a section changing hands at shift change. The roster is only
+  // fetched once the modal is open; a floor screen polling every few seconds
+  // has no business pulling it along too.
+  const handOverModal = useModal();
+  const [handTo, setHandTo] = useState("");
+  const servers = useServers(handOverModal.isOpen);
 
   // Settle — per-line quantity chosen for this payment (0 = skip the line,
   // < line qty = split part of it, = line qty = the whole line).
@@ -284,6 +291,13 @@ export default function TabPage() {
               className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
               Merge tab
             </button>
+            {/* Going off shift with open tabs. Without this the only way to
+                pass a table on was a permanent tables.serve_any — the blunt
+                instrument that permission exists to avoid. */}
+            <button onClick={() => { setHandTo(""); handOverModal.openModal(); }}
+              className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
+              Hand over
+            </button>
             <button onClick={onCancel} className="text-theme-sm text-error-500 hover:text-error-600">Cancel tab</button>
           </div>
         )}
@@ -450,6 +464,42 @@ export default function TabPage() {
             });
           }}>
             {move.isPending ? "Moving…" : "Move"}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={handOverModal.isOpen} onClose={handOverModal.closeModal} className="max-w-sm p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Hand this table over</h3>
+        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
+          The tab, its kitchen tickets and the bill all stay exactly as they are. Only who is
+          serving it changes — and from then on it is theirs, not yours.
+        </p>
+        <Label>Hand to</Label>
+        <Select
+          value={handTo}
+          options={[
+            { value: "", label: servers.isPending ? "Loading…" : "Choose a colleague" },
+            ...(servers.data ?? [])
+              // Handing a table to whoever already holds it is a no-op that
+              // reads like a mistake.
+              .filter((s) => s.id !== ticket.waiter_id)
+              .map((s) => ({ value: s.id, label: s.name })),
+          ]}
+          onChange={setHandTo}
+        />
+        <div className="mt-5 flex justify-end gap-3">
+          <Button size="sm" variant="outline" onClick={handOverModal.closeModal}>Cancel</Button>
+          <Button size="sm" disabled={!handTo || assignWaiter.isPending} onClick={() => {
+            if (!id || !handTo) return;
+            assignWaiter.mutate({ id, waiterId: handTo }, {
+              onSuccess: () => {
+                handOverModal.closeModal();
+                toast.success("Table handed over");
+              },
+              onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't hand the table over."),
+            });
+          }}>
+            {assignWaiter.isPending ? "Handing over…" : "Hand over"}
           </Button>
         </div>
       </Modal>

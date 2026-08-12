@@ -166,6 +166,9 @@ export const dineInService = {
   assignWaiter: (id: string, waiter_id: string) =>
     apiPost<Ticket>(`/restaurant/tickets/${id}/waiter`, { waiter_id }),
 
+  /** Colleagues a table may be handed to — id and name, nothing else. */
+  servers: () => apiGet<Array<{ id: string; name: string }>>("/restaurant/servers"),
+
   openTickets: () => apiGet<Ticket[]>("/restaurant/tickets", { params: { status: "open" } }),
 
   /** Lay the floor out in a given order. Index in the array IS the position. */
