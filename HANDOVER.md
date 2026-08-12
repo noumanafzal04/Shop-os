@@ -235,16 +235,25 @@ folded in; and schedule-controlled drugs are blocked server-side, with
 `requires_prescription` only warning — a coherent split between law and shop
 policy.
 
-**One design question, deliberately NOT changed.** A cash POS sale carrying no
-`cash_session_id` is invisible to every X and Z read, because `DrawerMath`
-totals a shift by that column — the drawer counts over at the end of the night
-with nothing to explain it. The POS screen refuses this (`canCheckout` requires
-an open shift), so the rule lives only in the till, and the planned offline
-client is exactly the caller that would not know it. **I enforced it
-server-side and 96 tests failed** — which is the codebase saying that running a
-till without a shift is a supported mode, not an oversight. Reverted. If shifts
-should be mandatory for cash, that is a product decision and a deliberate
-migration, not a bug fix.
+**One "design question" I raised here was WRONG, and the correction matters
+more than the original note.** I reported that a cash POS sale with no
+`cash_session_id` is ungated and that making it mandatory was an open product
+decision needing a migration.
+
+It is already built, already enforced and already tested. `pos_require_shift`
+is a shop setting, `SaleController::store` throws `SHIFT_REQUIRED` (409) on the
+counter channels when it is on, `MultiTerminalPosTest` pins that behaviour, and
+the toggle is on Shop Settings → POS labelled "Require open shift". It ships
+OFF, which is right — a one-person shop that never opens a drawer must not have
+its sales refused on upgrade day.
+
+I got it wrong by reading `CreateSaleAction` and not `SaleController`, which is
+the layer the gate lives at. The 96 failures I cited were not the codebase
+saying shift-less selling is sacred — they were the result of enforcing it
+UNCONDITIONALLY, ignoring the setting that already existed. **Nothing to
+decide and nothing to build.** The existing gate covers every counter sale
+rather than cash alone, which is the stronger rule: it attributes every sale to
+a cashier's shift, not just the ones that touch the drawer.
 
 1596 tests, 7281 assertions · panel 227 tests.
 
