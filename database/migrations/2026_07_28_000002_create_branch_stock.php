@@ -92,7 +92,17 @@ return new class extends Migration
             $table->dropConstrainedForeignId('branch_id');
         });
         Schema::table('product_batches', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('branch_id');
+            // Order matters, and it differs by driver — which is why this has
+            // to satisfy BOTH. SQLite refuses to drop a column an index still
+            // names, so the index must go first; MySQL refuses to drop an index
+            // a foreign key still needs, so the constraint must go before THAT.
+            // One order satisfies both: constraint, index, column.
+            //
+            // Getting it wrong left `migrate:rollback` broken, so the recovery
+            // path for a bad deploy did not exist.
+            $table->dropForeign(['branch_id']);
+            $table->dropIndex(['branch_id', 'product_id']);
+            $table->dropColumn('branch_id');
         });
         Schema::dropIfExists('branch_stock');
     }

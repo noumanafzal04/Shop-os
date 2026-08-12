@@ -45,6 +45,23 @@ jobs:
         # phpunit.xml pins sqlite :memory:, so no database service is needed.
         run: php artisan test
 
+      - name: Migrations go back down as well as up
+        # The suite only ever runs `migrate:fresh`, so the DOWN path had never
+        # been executed by anything — and both directions were broken: a column
+        # was dropped while an index still named it. That makes rollback the
+        # recovery path for a bad deploy that does not exist when it is needed.
+        #
+        # Run against a FILE database rather than :memory:, since each artisan
+        # call is its own process and an in-memory database would not survive
+        # between them.
+        run: |
+          touch database/audit.sqlite
+          export DB_CONNECTION=sqlite DB_DATABASE="$PWD/database/audit.sqlite"
+          php artisan migrate --force
+          php artisan migrate:rollback --step=999 --force
+          php artisan migrate --force
+          rm -f database/audit.sqlite
+
   deploy:
     name: Deploy to droplet
     needs: gate

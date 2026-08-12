@@ -39,7 +39,11 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('sales', fn (Blueprint $t) => $t->dropColumn('customer_id'));
+        // Index first: SQLite will not drop a column an index still names.
+        Schema::table('sales', function (Blueprint $t): void {
+            $t->dropIndex(['customer_id']);
+            $t->dropColumn('customer_id');
+        });
         Schema::dropIfExists('customers');
     }
 };
