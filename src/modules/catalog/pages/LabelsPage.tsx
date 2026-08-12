@@ -4,6 +4,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Alert from "../../../components/ui/alert/Alert";
+import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useGenerateBarcode, useProducts } from "../hooks/useCatalog";
 import { code128BarsSvg, code128ModuleCount } from "../utils/code128";
@@ -68,6 +69,7 @@ export default function LabelsPage() {
   const [page, setPage] = useState(1);
   const products = useProducts({ search: query || undefined, page });
   const generate = useGenerateBarcode();
+  const toast = useToast();
 
   // Typing shouldn't fire a request per keystroke.
   useEffect(() => {
@@ -158,11 +160,30 @@ export default function LabelsPage() {
     setQty(p, raw.trim() === "" ? 0 : Number(raw));
   };
 
+  /**
+   * Barcodes for everything that lacks one.
+   *
+   * This used to be try/finally with no catch: one failure part-way through
+   * abandoned the rest of the run and said nothing, so a shopkeeper who asked
+   * for 200 barcodes and got 40 had no way to know. The count is reported
+   * either way — a partial result is a result, and it has to be stated.
+   */
   const generateAll = async () => {
     if (bulkBusy || missing.length === 0) return;
     setBulkBusy(true);
+    let done = 0;
     try {
-      for (const p of missing) await generate.mutateAsync(p.id);
+      for (const p of missing) {
+        await generate.mutateAsync(p.id);
+        done++;
+      }
+      toast.success(`${done} barcode${done === 1 ? "" : "s"} generated`);
+    } catch (e) {
+      toast.error(
+        done === 0
+          ? `Couldn't generate barcodes. ${e instanceof Error ? e.message : ""}`.trim()
+          : `Stopped after ${done} of ${missing.length}. ${e instanceof Error ? e.message : ""}`.trim(),
+      );
     } finally {
       setBulkBusy(false);
     }
@@ -307,7 +328,13 @@ export default function LabelsPage() {
                   ) : (
                     <button
                       className="shrink-0 rounded-lg border border-brand-500 px-2.5 py-1.5 text-theme-xs font-medium text-brand-600 transition hover:bg-brand-50 disabled:opacity-50 dark:text-brand-400 dark:hover:bg-brand-500/10"
-                      onClick={() => generate.mutate(p.id)}
+                      onClick={() =>
+                        generate.mutate(p.id, {
+                          onSuccess: () => toast.success(`Barcode generated for ${p.name}`),
+                          onError: (e) =>
+                            toast.error(e instanceof Error ? e.message : `Couldn't generate a barcode for ${p.name}.`),
+                        })
+                      }
                       disabled={generate.isPending || bulkBusy}
                     >
                       Generate

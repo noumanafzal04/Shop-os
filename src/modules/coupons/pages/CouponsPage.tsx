@@ -8,6 +8,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
+import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCouponMutations, useCoupons } from "../hooks/useCoupons";
 import type { Coupon } from "../services/couponsService";
@@ -17,6 +18,20 @@ export default function CouponsPage() {
   const coupons = useCoupons();
   const { create, update, remove } = useCouponMutations();
   const editor = useModal();
+  const toast = useToast();
+
+  /**
+   * A delete that fails silently is the worst version of this: the row simply
+   * stays, and the shopkeeper is left pressing Delete on something that will
+   * never go. Most refusals here are a REASON — a coupon still referenced by
+   * something else — so the server's message is what gets shown.
+   */
+  const removeWithFeedback = (id: string, name: string) =>
+    remove.mutate(id, {
+      onSuccess: () => toast.success(`${name} deleted`),
+      onError: (e) => toast.error(e instanceof Error ? e.message : `Couldn't delete this coupon.`),
+    });
+
   const [editing, setEditing] = useState<Coupon | null>(null);
   const [form, setForm] = useState<Record<string, string>>({ type: "percent" });
 
@@ -92,7 +107,7 @@ export default function CouponsPage() {
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-3">
                       <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => openEdit(c)}>Edit</button>
-                      <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm(`Delete coupon ${c.code}?`)) remove.mutate(c.id); }}>Delete</button>
+                      <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm(`Delete coupon ${c.code}?`)) removeWithFeedback(c.id, c.code); }}>Delete</button>
                     </div>
                   </td>
                 </tr>

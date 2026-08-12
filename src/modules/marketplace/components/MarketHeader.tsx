@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useLogout } from "../../auth/hooks/useAuth";
 import { homeForRole } from "../../../common/routing/guards";
@@ -11,6 +12,7 @@ export function MarketHeader() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useLogout();
+  const toast = useToast();
 
   return (
     <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
@@ -37,7 +39,14 @@ export function MarketHeader() {
               <Link to="/my-orders" className="text-gray-600 hover:text-brand-500 dark:text-gray-300">My orders</Link>
               <span className="text-gray-600 dark:text-gray-300">Hi, {user.name.split(" ")[0]}</span>
               <button
-                onClick={() => logout.mutate()}
+                onClick={() =>
+                  logout.mutate(undefined, {
+                    // Signing out and staying signed in, with nothing said, is
+                    // the one failure here somebody needs to know about — on a
+                    // shared or borrowed phone especially.
+                    onError: () => toast.error("Couldn't sign you out. Check your connection and try again."),
+                  })
+                }
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400"
               >
                 Log out

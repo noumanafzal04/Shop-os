@@ -9,6 +9,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
+import { useToast } from "../../../components/ui/toast";
 import { useAnnouncements, useAnnouncementMutations } from "../hooks/useAdmin";
 import type { Announcement } from "../services/adminService";
 
@@ -22,6 +23,20 @@ export default function AdminAnnouncementsPage() {
   const announcements = useAnnouncements();
   const { create, update, send, remove } = useAnnouncementMutations();
   const editor = useModal();
+  const toast = useToast();
+
+  /**
+   * A delete that fails silently is the worst version of this: the row simply
+   * stays, and the shopkeeper is left pressing Delete on something that will
+   * never go. Most refusals here are a REASON — a announcement still referenced by
+   * something else — so the server's message is what gets shown.
+   */
+  const removeWithFeedback = (id: string, name: string) =>
+    remove.mutate(id, {
+      onSuccess: () => toast.success(`${name} deleted`),
+      onError: (e) => toast.error(e instanceof Error ? e.message : `Couldn't delete this announcement.`),
+    });
+
 
   const [editing, setEditing] = useState<Announcement | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -109,7 +124,7 @@ export default function AdminAnnouncementsPage() {
                 </button>
                 <div className="flex gap-3">
                   <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => openEdit(a)}>Edit</button>
-                  <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm("Delete announcement?")) remove.mutate(a.id); }}>Delete</button>
+                  <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm("Delete announcement?")) removeWithFeedback(a.id, "Announcement"); }}>Delete</button>
                 </div>
               </div>
             </div>

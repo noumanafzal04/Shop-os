@@ -8,6 +8,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
+import { useToast } from "../../../components/ui/toast";
 import { useAdminTenants, useBanners, useBannerMutations } from "../hooks/useAdmin";
 import type { Banner } from "../services/adminService";
 
@@ -17,6 +18,20 @@ export default function AdminBannersPage() {
   const banners = useBanners();
   const { create, update, remove } = useBannerMutations();
   const editor = useModal();
+  const toast = useToast();
+
+  /**
+   * A delete that fails silently is the worst version of this: the row simply
+   * stays, and the shopkeeper is left pressing Delete on something that will
+   * never go. Most refusals here are a REASON — a banner still referenced by
+   * something else — so the server's message is what gets shown.
+   */
+  const removeWithFeedback = (id: string, name: string) =>
+    remove.mutate(id, {
+      onSuccess: () => toast.success(`${name} deleted`),
+      onError: (e) => toast.error(e instanceof Error ? e.message : `Couldn't delete this banner.`),
+    });
+
 
   const [editing, setEditing] = useState<Banner | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -107,7 +122,7 @@ export default function AdminBannersPage() {
               </div>
               <div className="flex shrink-0 gap-3 text-sm">
                 <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => openEdit(b)}>Edit</button>
-                <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm("Delete banner?")) remove.mutate(b.id); }}>Delete</button>
+                <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm("Delete banner?")) removeWithFeedback(b.id, "Banner"); }}>Delete</button>
               </div>
             </div>
           ))}

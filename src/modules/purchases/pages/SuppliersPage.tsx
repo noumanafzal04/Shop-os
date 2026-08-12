@@ -9,6 +9,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
+import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useSuppliers, useSupplierMutations } from "../hooks/usePurchases";
 import type { Supplier } from "../types";
@@ -22,6 +23,20 @@ export default function SuppliersPage() {
   const { create, update, remove, pay } = useSupplierMutations();
 
   const editor = useModal();
+  const toast = useToast();
+
+  /**
+   * A delete that fails silently is the worst version of this: the row simply
+   * stays, and the shopkeeper is left pressing Delete on something that will
+   * never go. Most refusals here are a REASON — a supplier still referenced by
+   * something else — so the server's message is what gets shown.
+   */
+  const removeWithFeedback = (id: string, name: string) =>
+    remove.mutate(id, {
+      onSuccess: () => toast.success(`${name} deleted`),
+      onError: (e) => toast.error(e instanceof Error ? e.message : `Couldn't delete this supplier.`),
+    });
+
   const payModal = useModal();
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [target, setTarget] = useState<Supplier | null>(null);
@@ -125,7 +140,7 @@ export default function SuppliersPage() {
                         <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openPay(s)}>Pay</button>
                       )}
                       <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => openEdit(s)}>Edit</button>
-                      <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm(`Delete supplier "${s.name}"?`)) remove.mutate(s.id); }}>Delete</button>
+                      <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm(`Delete supplier "${s.name}"?`)) removeWithFeedback(s.id, s.name); }}>Delete</button>
                     </div>
                   </td>
                 </tr>

@@ -2,6 +2,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import { Link } from "react-router";
 import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
+import { useToast } from "../../../components/ui/toast";
 import { MarketHeader } from "../../marketplace/components/MarketHeader";
 import { useCancelMyOrder, useMyOrders } from "../hooks/useOrders";
 import type { CustomerOrder, OrderStatus } from "../services/ordersService";
@@ -18,6 +19,7 @@ const STEPS: OrderStatus[] = ["pending", "confirmed", "preparing", "out_for_deli
 export default function MyOrdersPage() {
   const orders = useMyOrders();
   const cancel = useCancelMyOrder();
+  const toast = useToast();
   const rows = orders.data?.data ?? [];
 
   const canCancel = (o: CustomerOrder) => o.status === "pending" || o.status === "confirmed";
@@ -77,8 +79,24 @@ export default function MyOrdersPage() {
                   </span>
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-gray-800 dark:text-white/90">{money(o.total)}</span>
+                    {/* A customer cancelling their own order. This said nothing
+                        either way — and an order you believe you cancelled but
+                        did not is the version of this that costs someone money. */}
                     {canCancel(o) && (
-                      <button className="text-error-500 hover:text-error-600" onClick={() => cancel.mutate(o.id)} disabled={cancel.isPending}>
+                      <button
+                        className="text-error-500 hover:text-error-600"
+                        disabled={cancel.isPending}
+                        onClick={() => {
+                          if (!window.confirm("Cancel this order?")) return;
+                          cancel.mutate(o.id, {
+                            onSuccess: () => toast.success("Order cancelled"),
+                            onError: (e) =>
+                              toast.error(
+                                e instanceof Error ? e.message : "Couldn't cancel the order. It may already be on its way.",
+                              ),
+                          });
+                        }}
+                      >
                         Cancel
                       </button>
                     )}

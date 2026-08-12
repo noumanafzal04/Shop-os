@@ -7,6 +7,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
+import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import {
   useCollection,
@@ -21,6 +22,20 @@ export default function CollectionsPage() {
   const collections = useCollections();
   const { create, update, remove } = useCollectionMutations();
   const editor = useModal();
+  const toast = useToast();
+
+  /**
+   * A delete that fails silently is the worst version of this: the row simply
+   * stays, and the shopkeeper is left pressing Delete on something that will
+   * never go. Most refusals here are a REASON — a collection still referenced by
+   * something else — so the server's message is what gets shown.
+   */
+  const removeWithFeedback = (id: string, name: string) =>
+    remove.mutate(id, {
+      onSuccess: () => toast.success(`${name} deleted`),
+      onError: (e) => toast.error(e instanceof Error ? e.message : `Couldn't delete this collection.`),
+    });
+
 
   const [editId, setEditId] = useState<string | null>(null);
   const detail = useCollection(editId ?? undefined);
@@ -123,7 +138,7 @@ export default function CollectionsPage() {
                 <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openEdit(c)}>Edit</button>
                 <button
                   className="text-error-500 hover:text-error-600"
-                  onClick={() => { if (confirm(`Delete collection "${c.name}"?`)) remove.mutate(c.id); }}
+                  onClick={() => { if (confirm(`Delete collection "${c.name}"?`)) removeWithFeedback(c.id, c.name); }}
                 >
                   Delete
                 </button>
