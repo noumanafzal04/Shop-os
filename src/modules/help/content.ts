@@ -1102,6 +1102,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
         text: "There are no fixed roles. Each person has a list of permissions, and a JOB is a button that ticks the right boxes so you never have to know which of nineteen checkboxes makes a cashier.",
       },
       { type: "p", text: "Staff → Add staff → pick the job → save. You can change any box afterwards." },
+      {
+        type: "p",
+        text: "Select all ticks every box at once — useful for a partner or a second manager. It warns you when you do, because it includes shop settings and hiring staff. Clear empties the list to start again.",
+      },
+      {
+        type: "h", text: "Stopping someone working",
+      },
+      {
+        type: "p",
+        text: "Suspend on the row. They stay on the list with their permissions intact, and they cannot sign in until you press Activate. Use this when somebody leaves, rather than Remove, if you may want their history to keep making sense.",
+      },
       { type: "h", text: "What each job gets" },
       { type: "p", text: "The jobs offered are already filtered to your shop — you will not be offered Waiter unless you have tables, or Pharmacist unless you are a pharmacy." },
       {
