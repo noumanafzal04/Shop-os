@@ -50,6 +50,7 @@ use App\Http\Controllers\Api\V1\Tenant\KitchenController;
 use App\Http\Controllers\Api\V1\Tenant\OrderController;
 use App\Http\Controllers\Api\V1\Tenant\PharmacyController;
 use App\Http\Controllers\Api\V1\Tenant\PosController;
+use App\Http\Controllers\Api\V1\Tenant\PosDeviceController;
 use App\Http\Controllers\Api\V1\Tenant\PosRegisterController;
 use App\Http\Controllers\Api\V1\Tenant\ProductController;
 use App\Http\Controllers\Api\V1\Tenant\ProductImageController;
@@ -392,6 +393,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Which lane am I, and what hardware do I drive?
                 Route::get('/terminal', [PosRegisterController::class, 'terminal']);
                 Route::get('/registers', [PosRegisterController::class, 'lanes']);
+                // The till announcing itself, on every boot rather than only
+                // the first: the touch keeps `last_seen_at` current, and how
+                // long ago a device last called IS the offline policy. The
+                // cashier's own browser does this, so it rides sales.manage
+                // like the rest of this block; listing and revoking are the
+                // owner's and sit with the other configuration below.
+                Route::post('/devices', [PosDeviceController::class, 'store']);
                 // Who is at the till. The roster and the PIN handover — the
                 // outgoing cashier's session on this device ends with it.
                 Route::get('/till-users', [TillIdentityController::class, 'roster']);
@@ -442,6 +450,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('registers', [PosRegisterController::class, 'store']);
                 Route::put('registers/{register}', [PosRegisterController::class, 'update']);
                 Route::delete('registers/{register}', [PosRegisterController::class, 'destroy']);
+                // The tills the shop runs on. Signing one out is how an owner
+                // answers a lost tablet, so it belongs with configuration
+                // rather than with the counter — and it is never a delete: the
+                // sales that device already sent still point at it.
+                //
+                // `pos-devices`, not `devices`: /devices is already push-token
+                // registration for the mobile app, and hardware-devices is
+                // already the printers and drawers. Three different things
+                // called a device is the shop's own vocabulary, so each path
+                // says which one it means.
+                Route::get('pos-devices', [PosDeviceController::class, 'index']);
+                Route::delete('pos-devices/{device}', [PosDeviceController::class, 'destroy']);
+                Route::post('pos-devices/{device}/restore', [PosDeviceController::class, 'restore']);
             });
 
             // Sales: workflow → payment → invoice → stock decrement

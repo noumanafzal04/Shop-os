@@ -306,7 +306,22 @@ class PlansAndModulesTest extends TestCase
         // The registry is the single answer to "can an admin change this for
         // one shop, or does it take a different plan?".
         $this->assertSame(['products', 'orders_month', 'storage_mb'], PlanLimits::billedKeys());
-        $this->assertSame(['branches', 'staff', 'registers'], PlanLimits::assignedKeys());
+        // offline_days sits with branches and staff on purpose: how long a till
+        // may sell out of contact is decided per shop by an admin, the same way
+        // its number of branches is. It is not something anyone buys, so it is
+        // not on a plan.
+        $this->assertSame(['branches', 'staff', 'registers', 'offline_days'], PlanLimits::assignedKeys());
+    }
+
+    public function test_a_policy_limit_is_not_a_count_of_anything_owned(): void
+    {
+        // The distinction decides whether the "never below live usage" guard
+        // applies. Every other limit counts rows the shop holds; this one is a
+        // rule, and an admin must be able to tighten it while a device is
+        // already past it — that is the remedy, not the mistake.
+        $this->assertTrue(PlanLimits::isCountable('branches'));
+        $this->assertTrue(PlanLimits::isCountable('products'));
+        $this->assertFalse(PlanLimits::isCountable('offline_days'));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────

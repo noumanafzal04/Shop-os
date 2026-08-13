@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\UserRole;
 use App\Exceptions\DomainException;
 use App\Models\Branch;
+use App\Models\PosDevice;
 use App\Models\Product;
 use App\Models\Register;
 use App\Models\Sale;
@@ -49,7 +50,17 @@ class PlanLimits
      *   default  fallback when a tenant-owned key was never assigned
      *   label    human noun, used in the refusal message
      *   enforced false = configurable + reported, but no hard block yet
+     *   kind     'count' (default) = a number of rows the shop owns
+     *            'policy'          = a rule about behaviour, not a possession
      * ]
+     *
+     * `kind` exists because one guard elsewhere is only true of countable
+     * things. An admin may never set a ceiling BELOW live usage — cutting a
+     * 800-product shop to 100 blocks every new product with no error and looks
+     * like broken software days later. That reasoning does not carry to a
+     * policy: tightening the offline window while a tablet is five days out is
+     * not a typo, it is the exact thing an owner does when a tablet goes
+     * missing, and refusing it would be refusing the remedy.
      */
     public const REGISTRY = [
         // ── Billed usage: the plan sets the baseline ────────────────────
@@ -67,7 +78,26 @@ class PlanLimits
         // Checkout lanes. A single-counter shop needs no register row at all,
         // so most tenants sit at zero used.
         'registers' => ['owner' => 'tenant', 'default' => 2, 'label' => 'registers', 'enforced' => true],
+        // How long a till may keep SELLING with no contact with the server.
+        //
+        // Not enforced through assert(): nothing is being created, so there is
+        // no write to refuse. The till reads this ceiling and degrades against
+        // it. What `usage` reports is the worst device currently out of
+        // contact, which is the number an admin actually wants beside the
+        // policy — "you allow 3 days, and one of their tablets is at 5".
+        //
+        // It limits SELLING, never SYNCING: the queue of unsent sales has no
+        // expiry at all, and a sale rung forty days ago still syncs and is
+        // still accepted. Expiring the queue along with the selling window is
+        // how offline systems lose money.
+        'offline_days' => ['owner' => 'tenant', 'default' => 3, 'label' => 'days offline', 'enforced' => false, 'kind' => 'policy'],
     ];
+
+    /** Is this a number of rows the shop owns, rather than a rule about behaviour? */
+    public static function isCountable(string $key): bool
+    {
+        return (self::REGISTRY[$key]['kind'] ?? 'count') === 'count';
+    }
 
     /** Limits the admin assigns to a shop rather than selling on a plan. */
     public static function assignedKeys(): array
@@ -136,6 +166,16 @@ class PlanLimits
                 ->where('created_at', '>=', now()->startOfMonth())->count(),
             'branches' => Branch::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
             'registers' => Register::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
+            // Not a count of anything owned — the WORST device currently out of
+            // contact, in whole days. Zero when every till is in touch, which
+            // is the normal reading. Revoked devices are excluded: a tablet
+            // that was stopped on purpose is not an outstanding one.
+            'offline_days' => (int) PosDevice::withoutTenancy()
+                ->where('tenant_id', $tenant->id)
+                ->live()
+                ->get(['last_seen_at'])
+                ->map(fn (PosDevice $d): int => $d->daysOffline())
+                ->max() ?? 0,
             // Not yet metered — subsystem lands later.
             'storage_mb' => 0,
             default => 0,

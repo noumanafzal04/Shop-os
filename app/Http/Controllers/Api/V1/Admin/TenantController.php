@@ -201,9 +201,14 @@ class TenantController extends Controller
                 );
             }
 
-            // The guard against a typo becoming an outage.
+            // The guard against a typo becoming an outage. It applies only to
+            // things the shop OWNS: cutting a ceiling below 800 existing
+            // products blocks every new one silently. A policy is the opposite
+            // case — tightening the offline window while a tablet is five days
+            // out is not a typo, it is what an owner does the moment a tablet
+            // goes missing, and refusing it would refuse the remedy.
             $used = PlanLimits::usage($tenant, $key);
-            if ($value < $used) {
+            if (PlanLimits::isCountable($key) && $value < $used) {
                 $label = PlanLimits::REGISTRY[$key]['label'];
                 throw DomainException::unprocessable(
                     "This shop already has {$used} {$label} — the limit can't be set to {$value}. "
