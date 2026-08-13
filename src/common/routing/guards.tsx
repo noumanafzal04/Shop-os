@@ -1,5 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import ThemeCustomizer from "../../components/theme/ThemeCustomizer";
+import UpdatePrompt from "../../modules/offline/pwa/UpdatePrompt";
+import { useOfflineBoot } from "../../modules/offline/useOfflineBoot";
 import { useTenantTheme } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
 import type { UserRole } from "../../modules/auth/types";
@@ -135,15 +137,26 @@ export function RequireAdminScreen({ path }: { path: string }) {
  * Applies the tenant's own brand colours to every shop-side screen — the
  * panel, the full-screen POS and the dine-in floor alike. Mounted once as a
  * layout route so there is a single place theming can come from.
+ *
+ * It is also where the offline boot runs, for the same reason: this is the one
+ * component every shop screen sits under, POS included. The till has to know
+ * which device it is and whether its storage is safe wherever the cashier
+ * happens to be standing, not only on the screen that sells.
  */
 export function TenantThemed() {
   useTenantTheme();
+  // Shop-side only. An admin browsing the platform console has no till, no
+  // device identity to announce and nothing queued to protect.
+  useOfflineBoot(true);
 
   return (
     <>
       <Outlet />
       {/* Appearance is reachable from every shop screen, POS included. */}
       <ThemeCustomizer />
+      {/* A new version waits here until somebody chooses a moment for it —
+          never mid-sale, and never while the outbox is being written. */}
+      <UpdatePrompt />
     </>
   );
 }
