@@ -1,0 +1,174 @@
+# Verified issue list — 2026-08-12
+
+> **Status 2026-08-13:** items 2, 3 and 9 are **FIXED** (see the ✅ notes below).
+> What is left is one owner chore (1), the security pass (4), the two P2 builds
+> (5, 6), and two deployment chores (7, 8 — also the owner's).
+
+Every line below was read in the source, not grepped for. Findings that did not
+survive that reading are in the CLOSED section at the bottom, with the reason —
+so the next audit does not spend a second pass on them.
+
+Services **appointment booking is permanently out of scope** (owner's decision,
+reconfirmed 2026-08-12). It is not a gap and must never be re-raised.
+
+---
+
+## P0 — live exposure, owner's hands
+
+### 1. The seeded super-admin password is published
+
+`database/seeders/SuperAdminSeeder.php:18` sets `'password' => 'password'`, and
+`HANDOVER.md` names the account `admin@shopos.test`. The repo is public and the
+staging droplet answers on both the API and the panel. Anyone who reads the repo
+can sign in as super admin.
+
+Fix: change the password on staging, then decide repo visibility. Nothing to
+build.
+
+---
+
+## P1 — should be fixed
+
+### 2. ✅ FIXED — nothing stopped the next product field from being dropped
+
+`CreateProductAction::execute` names every column by hand
+(`CreateProductAction.php:51-102`) while `UpdateProductAction` fills the model
+wholesale. A field the request validates but the insert omits vanishes on
+create and saves on edit — it looks like it works.
+
+Today the diff is **clean**: all 42 `StoreProductRequest` fields are written
+(scalars in the insert, nested ones via the `Sync*` actions, `collection_ids`
+via `sync()`, `opening_batch_number`/`expiry_date` into the batch, all six
+variant sub-fields). The three that were lost this way — `drug_schedule`,
+`tax_group_id`, `kitchen_station` — are already fixed at lines 78-80.
+
+What is missing is the fence. Create-time assertions exist for `drug_schedule`
+only (`PharmacyTenantWalkthroughTest:93`); `tax_group_id` and `kitchen_station`
+have none anywhere.
+
+**Fixed 2026-08-13** — `tests/Feature/ProductCreateParityTest.php`, 5 tests.
+It works in two halves that need each other: one compares the request's own rule
+keys against a declared list, so a NEW rule fails the suite until somebody says
+where the field lands; the other POSTs a maximal payload and reads every field
+back out of the database, so being named in that list is not a promise but an
+assertion. Values are picked to differ from the column defaults (`is_active` and
+`visible_in_marketplace` default true and are sent false, `sold_by` defaults to
+'unit' and is sent 'weight'), or a dropped field would match by accident.
+
+Mutation-checked both ways: deleting `kitchen_station` from the insert fails the
+round trip; adding a new rule to the request fails the fence with a message
+naming the two things you may do about it.
+
+### 3. ✅ FIXED — a product could not be switched off
+
+`is_active` is the only API field with no control in the product form —
+`ProductFormPage.tsx` never mentions it. `ProductsPage.tsx:336` renders an
+Active/Inactive badge, so the state is visible, but the row's only action is
+Delete.
+
+So a shop that stops stocking an item must either delete it — breaking the link
+from its sales history — or re-import a CSV, which is the one place `is_active`
+can be set (the import help text names it as a boolean column).
+
+**Fixed 2026-08-13** — a "Still selling this" toggle at the foot of the product
+form's Codes & packs tab, deliberately outside the goods-only block above it,
+because a service gets discontinued the same as a tin of paint does. Retiring an
+item takes it off the till and the storefront while its sales history keeps
+pointing at it, which deleting does not.
+
+Help Centre updated in the same pass, including the reason to prefer it over
+Delete for anything ever sold.
+
+### 4. The security pass was requested and never done
+
+Neither side has had one. Standing item from the 2026-08-11 admin backlog.
+
+---
+
+## P2 — worth doing, not urgent
+
+### 5. Automotive has no job card
+
+`job_card` / `jobcard` / `work_order` / `repair_order` return zero hits across
+backend, panel and migrations.
+
+What exists covers the ends: `CustomerVehicle` is the car's record, and
+`SaleDocument::KIND_QUOTATION` converts to a Sale, which is estimate → invoice.
+What is missing is the middle — the car is in the bay, parts and labour are
+accumulating, and there is no bill yet. That state is the whole of a workshop's
+day and there is nowhere to record it.
+
+### 6. A restaurant's default modules exclude the shelves
+
+`BusinessTypes.php:119` gives `food` the default `'inventory' => false`
+("menu items are products WITHOUT stock tracking").
+
+The reach is wider than the sidebar: Suppliers and Purchases live under the
+inventory module, and `SyncRecipeItemsAction::tracksStock()` also checks it — so
+a default food tenant gets no supplier, no purchase order **and no recipe / food
+costing**.
+
+This is a default, not a fence: modules are assigned per tenant at creation, so
+turning inventory on fixes all three. Right for a cloud kitchen or a tea stall;
+wrong for any restaurant that costs its food. Worth revisiting the default.
+
+### 7. `DEPLOY_SSH_KEY` is still bad
+
+The gate job in `.github/workflows/deploy-backend.yml` passes; the deploy job
+cannot authenticate. Owner's chore.
+
+---
+
+## P3 — cosmetic
+
+### 8. The trade gate exists only in the panel
+
+There is no business-type middleware — `app/Http/Middleware/` holds
+`EnsureFeature`, `EnsurePermission`, `EnsureRole`, `EnforceSubscription` and the
+three resolvers, and nothing else. Pharmacy rides `feature:inventory`, warranty
+the same, vehicles `customers.manage`.
+
+This was raised as a security issue and **is not one**. Every model carries the
+`BelongsToTenant` global scope, so a mart calling `/pharmacy/dispensing` reads
+its own rows; and `StoreProductRequest::withValidator` refuses `item_type:
+medicine` to a mart, so those rows do not exist. The register comes back empty.
+
+What it actually costs: a wrong-trade tenant who guesses a URL gets an empty
+screen instead of a 403. That is all.
+
+### 9. ✅ FIXED — Settings showed tabs for modules the shop does not have
+
+Found while writing the QA guide. `SETTINGS_TABS` in `ShopSettingsPage.tsx:45`
+is a plain const handed straight to `FilterTabs` — nothing filters it. Only the
+POS **sub**-tabs filter, on `tenantFeatures[t.needs]` (line 284), which is why
+Kitchen correctly hides without dine-in.
+
+So a Finance tenant — no till, no catalog, no stock — is still offered Point of
+Sale, Loyalty and Barcodes. The settings save harmlessly and do nothing.
+
+Same shape as the Reports finding, but with the opposite outcome: there the page
+gates itself and the sidebar does not need to. Here nothing gated at all.
+
+**Fixed 2026-08-13** — the tab order and the module each one needs moved to
+`src/modules/shop/settingsTabs.ts` so they can be tested without mounting the
+screen; the page keeps only the icons. "Sells" is the same `pos || marketplace
+|| dine_in` test `reportTabs` uses, deliberately, so the two screens cannot
+disagree about whether a shop sells anything. A Finance tenant now sees Business
+and nothing else. `settingsTabs.test.ts`, 6 tests, including a brute-force pass
+over all 16 module combinations; mutation-checked by ungating the POS tab.
+
+---
+
+## CLOSED — verified false or already fixed. Do not re-raise.
+
+| Claim | Why it is closed |
+|---|---|
+| Services trade needs appointment booking | Owner's decision: out of scope, permanently |
+| Create drops `drug_schedule` / `tax_group_id` / `kitchen_station` | Fixed — `CreateProductAction.php:78-80` |
+| Finance tenant gets empty/crashing Reports | `reportTabs(features)` gives it exactly one tab (Overview); an `unavailable` fallback also catches a module lost mid-session |
+| Product form's nested collections are add-only | All nine are removable: variants, barcodes, combo, recipe, units, price tiers, modifier groups, modifier options, images |
+| Backend trade gating is a security hole | Tenant scope + the item-type validator make it unexploitable — see P3 above |
+| 9-Aug QA sweep: none of the nine fixed | Stale. All nine were fixed and verified in code on 2026-08-11 |
+| Restaurant recipe drives ingredient stock negative | `SyncRecipeItemsAction::tracksStock()` checks the module; no trap |
+| `/tenant/portfolio` and `/tenant/labels` are dead links | Both registered — `App.tsx:214,242` |
+| Combo/pack cancel+return loses stock | `CancelSaleAction.php:47-83` reverses the movements |

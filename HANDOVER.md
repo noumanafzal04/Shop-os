@@ -199,7 +199,102 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-12 (latest) — the two audits that never ran
+### 2026-08-13 (latest) — the three fixes the verified list actually called for
+
+Everything on the code side of `docs/audit-2026-08-12/VERIFIED.md` is now done.
+Full suites green either side: **1601 backend tests**, **233 panel tests**,
+build and eslint clean.
+
+**The product-field fence** (`ProductCreateParityTest`, 5 tests). The bug class
+was never the three fields already fixed — it was that nothing stopped a fourth.
+The test has two halves that need each other: one diffs
+`StoreProductRequest::rules()` against a declared list, so a NEW rule fails the
+suite until somebody says where the field lands; the other POSTs a maximal
+payload and reads every field back **out of the database**, so being named in
+that list is an assertion rather than a promise. Every value is chosen to differ
+from its column default — `is_active` and `visible_in_marketplace` default true
+and are sent false, `sold_by` defaults to 'unit' and is sent 'weight' — because
+a dropped field that happens to match the default proves nothing. Mutation-
+checked both directions: removing `kitchen_station` from the insert fails the
+round trip, adding a rule fails the fence.
+
+**"Still selling this"** on the product form's Codes & packs tab. `is_active`
+was the only accepted field with no control anywhere, and the list row offered
+Delete and nothing else — so retiring a line meant deleting the record its own
+sales history points at. The toggle sits deliberately OUTSIDE the goods-only
+block above it: a service gets discontinued the same as a tin of paint.
+
+**Settings tabs now filter on the module map.** The list went straight to
+`FilterTabs` unfiltered, so a Finance tenant — no till, no catalog, no stock —
+was handed Point of Sale, Loyalty, Receipt and Barcodes: four tabs of switches
+that saved without complaint and changed nothing, on the first screen a new shop
+opens. Only the POS *sub*-tabs filtered, which is why Kitchen hid itself
+correctly and the four above it did not. Order and `needs` moved to
+`src/modules/shop/settingsTabs.ts` so they are testable without mounting the
+screen; the page keeps only the icons. "Sells" is the same `pos || marketplace
+|| dine_in` test `reportTabs` uses — on purpose, so the two screens cannot
+disagree about whether this shop sells anything. 6 tests including a brute force
+over all 16 module combinations.
+
+Help Centre updated for both screens per the standing rule, and
+`docs/qa/ShopOS-QA-Testing-Guide.md` too — the settings map's module column, a
+new tab-visibility step, seven new steps for retiring a product, and two rows
+struck off its do-not-log list. It carries a dated note at the top so a tester
+holding the earlier copy can see what moved.
+
+**Still open, and none of it is code:** the published super-admin password (P0,
+owner), the security pass neither side has had, the automotive job card and the
+`food` inventory default (both P2 builds needing their own scope), and the two
+deployment chores.
+
+### 2026-08-13 — a handover list, verified against the source
+
+An audit handoff arrived with eight claims to check. Every one was read in the
+code rather than grepped for, and the result was roughly half: **three worth
+fixing, five closed**. Written up in `docs/audit-2026-08-12/VERIFIED.md`, which
+carries a CLOSED table with the reason for each rejection so the next pass does
+not re-raise them.
+
+**What survived.** `CreateProductAction` still names every column by hand while
+`UpdateProductAction` fills the model wholesale — but the diff against
+`StoreProductRequest` is **clean today**, all 42 fields written. What is missing
+is the fence: only `drug_schedule` has a create-time assertion; `tax_group_id`
+and `kitchen_station` have none. One parity test closes the whole bug class.
+Separately, `is_active` is the only API field with no control in the product
+form, and the list row offers Delete and nothing else — so a shop that stops
+stocking an item must delete it and break its sales history, or re-import a CSV.
+And automotive has no job card: `CustomerVehicle` and quotation→sale cover the
+two ends, but not the car sitting in the bay accumulating parts and labour.
+
+**What did not survive.** The trade gate genuinely does not exist on the backend
+— and is not a security hole. `BelongsToTenant` scopes every model, and
+`StoreProductRequest::withValidator` refuses `item_type: medicine` to a mart, so
+a mart calling `/pharmacy/dispensing` reads an empty register of its own rows.
+The finance-tenant Reports claim was wrong the other way: `reportTabs(features)`
+already gives it exactly one tab. And the note saying none of the 9-Aug QA bugs
+were fixed is stale — all nine were fixed on 2026-08-11.
+
+**Services appointment booking is closed permanently**, reconfirmed by the owner.
+It is in the CLOSED table and in the QA guide's do-not-log list.
+
+**New, found while writing the QA guide:** `SETTINGS_TABS` is handed to
+`FilterTabs` unfiltered, so a Finance tenant is offered Point of Sale, Loyalty
+and Barcodes. Only the POS *sub*-tabs filter on the module map, which is why
+Kitchen correctly hides. Cosmetic; the fix is the one line the sub-tabs already
+have.
+
+**`docs/qa/ShopOS-QA-Testing-Guide.md`** is new — a tester was given an account
+and could not tell what to do first. It is ordered by dependency rather than by
+screen: settings first (with a table mapping every settings tab to the module it
+belongs to and where its effect shows), then category→product→supplier→PO→
+receive→stock, then the till, then the aftermath, then one trade-specific
+section per business type. It leads with how to read the module map off the
+sidebar and the three gates, because most "this screen is missing" reports are
+one of those. It also carries the known-gaps list so the same items stop coming
+back, and it repeats the save→close→reopen rule, since the create-vs-update bug
+shape above is exactly what a tester would otherwise miss.
+
+### 2026-08-12 — the two audits that never ran
 
 Both agents died on a session limit on 2026-08-09 and the work had been owed
 since. Run inline. One real defect, one design question, and a lot cleared.
