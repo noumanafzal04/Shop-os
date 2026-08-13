@@ -4,6 +4,7 @@ import { useBranchStore } from "../../stores/branchStore";
 import { useTerminalStore } from "../../stores/terminalStore";
 import { useConnectionStore } from "../../stores/connectionStore";
 import { ApiError, type ApiEnvelope } from "../types/api";
+import { markServerContact } from "../../modules/offline/contact";
 
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
@@ -66,16 +67,29 @@ async function refreshTokens(): Promise<string | null> {
   }
 }
 
+/**
+ * We touched the server. Two things record it, and both matter.
+ *
+ * The store drives the badge and lives in memory. The stamp is written to
+ * localStorage, because the question the offline policy asks — "how long has
+ * this tablet been out of contact?" — is asked hardest on a COLD boot with no
+ * network, where memory is empty and the server cannot be asked.
+ */
+function touchedServer(): void {
+  useConnectionStore.getState().markReachable();
+  markServerContact();
+}
+
 api.interceptors.response.use(
   (response) => {
     // Real traffic is the only honest signal that the server is reachable.
-    useConnectionStore.getState().markReachable();
+    touchedServer();
     return response;
   },
   async (error: AxiosError<ApiEnvelope>) => {
     // A response of ANY status means we reached the server; only silence means
     // we didn't. A 500 is a broken server, not a broken connection.
-    if (error.response) useConnectionStore.getState().markReachable();
+    if (error.response) touchedServer();
     else useConnectionStore.getState().markUnreachable();
 
     const original = error.config as AxiosRequestConfig & { _retried?: boolean };

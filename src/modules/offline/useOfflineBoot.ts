@@ -1,0 +1,106 @@
+import { useEffect, useRef } from "react";
+
+import { pendingCount } from "./db/repo";
+import { deviceId } from "./device/deviceId";
+import { deviceService } from "./device/deviceService";
+import { useOfflineStore } from "./offlineStore";
+import { checkStorage } from "./storage/persist";
+
+/**
+ * Everything the till does once, on the way in.
+ *
+ * Four things, in an order chosen so a failure in one never stops the next:
+ *
+ *   1. read this device's id — synchronous, and cannot fail
+ *   2. ask the browser to keep our data, and how much room is left
+ *   3. count what is already waiting to be sent
+ *   4. announce this till to the server, and learn the shop's window
+ *
+ * Step 4 is the only one that needs a network, and it is deliberately LAST. A
+ * till with no line still knows who it is, still knows whether its storage is
+ * safe, and still knows how many sales it is holding — which is exactly the
+ * information a cashier needs when the internet is the thing that is broken.
+ *
+ * Nothing here throws. A boot that crashes on a storage query or a failed
+ * registration is a till that will not open, and a till that will not open is
+ * worse in every way than one that opens knowing less.
+ *
+ * ── Why there is no "cancelled" flag ────────────────────────────────────
+ *
+ * The obvious shape — set `cancelled` in the cleanup and check it before every
+ * write — is wrong here, and wrong in a way that only shows up under
+ * StrictMode. React runs each effect, tears it down, then runs it again; the
+ * teardown cancels the first boot, and the ref below correctly stops the second
+ * from starting. The result is a till that registers exactly zero times, in
+ * development, silently.
+ *
+ * The flag is not needed anyway. Every write goes to a global zustand store,
+ * not to component state, so a write arriving after this hook unmounts is
+ * simply a store update — there is nothing to leak and nothing to warn about.
+ */
+export function useOfflineBoot(enabled: boolean): void {
+  const setDevice = useOfflineStore((s) => s.setDevice);
+  const setRegistered = useOfflineStore((s) => s.setRegistered);
+  const setPolicy = useOfflineStore((s) => s.setPolicy);
+  const setStorage = useOfflineStore((s) => s.setStorage);
+  const setPending = useOfflineStore((s) => s.setPending);
+  const refreshHoursOffline = useOfflineStore((s) => s.refreshHoursOffline);
+
+  // Once per mounted session. Registering twice does no harm on the server —
+  // it is idempotent — but a second round trip on every re-render would be a
+  // request per keystroke on a slow connection, and StrictMode would double
+  // every boot in development.
+  const booted = useRef(false);
+
+  useEffect(() => {
+    if (!enabled || booted.current) return;
+    booted.current = true;
+
+    const boot = async (): Promise<void> => {
+      setDevice(deviceId());
+
+      // Storage first, and independent of the network: whether this browser
+      // will keep unsent sales is the one question whose answer changes what a
+      // shop should do BEFORE it starts selling.
+      try {
+        setStorage(await checkStorage());
+      } catch {
+        // checkStorage already swallows; this is belt and braces so a future
+        // change in there can never take the boot down with it.
+      }
+
+      try {
+        setPending(await pendingCount());
+      } catch {
+        // No database yet, or a browser that refuses one. The till still works;
+        // it simply cannot say how much it is holding, which is the truth.
+      }
+
+      try {
+        await deviceService.register(deviceId());
+        setRegistered(true);
+      } catch {
+        // Offline, or refused. Neither stops the till: this is the
+        // announcement, not the permission.
+        setRegistered(false);
+      }
+
+      // Either way the contact clock has moved — a success stamped it through
+      // the interceptor, a failure did not — so re-read it rather than leave a
+      // warning on screen that the last request just disproved.
+      refreshHoursOffline();
+
+      // The shop's ceiling is a separate call because it needs a permission the
+      // cashier may not hold. A cashier simply never learns the number, which
+      // is fine — nothing they can do depends on it until Phase 3.
+      try {
+        const { data } = await deviceService.list();
+        setPolicy(data.offline_days);
+      } catch {
+        setPolicy(null);
+      }
+    };
+
+    void boot();
+  }, [enabled, setDevice, setRegistered, setPolicy, setStorage, setPending, refreshHoursOffline]);
+}
