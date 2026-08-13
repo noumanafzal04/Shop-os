@@ -152,8 +152,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
         items: [
           "Tab 2 — Media & online: photos, description, and which collections it belongs to.",
           "Tab 3 — Variants & options: the same product in sizes or colours (each with its own stock and barcode), or add-ons like 'extra cheese' that change the price.",
-          "Tab 4 — Codes & packs: extra barcodes for the same product, and pack sizes — sell as a piece, a dozen or a carton while stock is held in the base unit.",
+          "Tab 4 — Codes & packs: extra barcodes for the same product, and pack sizes — sell as a piece, a dozen or a carton while stock is held in the base unit. 'Still selling this' is at the bottom of it.",
         ],
+      },
+      { type: "h", text: "Stopping an item without losing its history" },
+      { type: "p", text: "Codes & packs → turn OFF 'Still selling this'. The item leaves the till and your online shop, but stays in the catalog marked Inactive, and every past sale still points at it. Turn it back on whenever you stock it again." },
+      {
+        type: "note",
+        text: "Use that rather than Delete for anything you have ever sold. Deleting removes the item its old receipts and reports refer to; switching it off keeps the record and simply stops it being sold.",
       },
       {
         type: "note",
@@ -1169,18 +1175,24 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/settings",
     keywords: ["settings", "logo", "tax", "receipt", "invoice", "hours", "branch", "printer", "theme"],
     body: [
+      { type: "p", text: "Settings is a row of tabs. You are only shown the ones your shop can use — a books-only business has no till, so it is not offered Point of Sale, Receipt or Barcodes." },
       {
-        type: "list",
-        items: [
-          "Name, logo, address and map location",
-          "Currency and your default tax rate",
-          "Receipt and invoice layout, with a live preview as you change it",
-          "Your discount ceiling — how far a cashier may go without a supervisor",
-          "Business hours",
-          "Branches, if you have more than one location",
-          "Hardware — printers, cash drawers, weighing scales",
-          "Theme colours",
+        type: "table",
+        head: ["Tab", "What it holds"],
+        rows: [
+          ["Business", "Name, logo, contact, map location, and whether your online shop is open."],
+          ["Tax & Delivery", "Your default tax rate, whether prices already include tax, and how customers get their orders."],
+          ["Point of Sale", "Four sub-tabs: Counter (till defaults, discount ceiling, whether a shift is required), Lanes & PINs, Quotes & advances, and Kitchen if you take dine-in orders."],
+          ["Loyalty", "Points — what a customer earns, what a point is worth, and the least they can redeem."],
+          ["Receipt", "Receipt and invoice layout, with a live preview as you change it, plus your NTN / STRN."],
+          ["Hardware", "Printers, cash drawers, scanners and weighing scales."],
+          ["Barcodes", "What prints on a label, and scale barcodes for items sold by weight."],
         ],
+      },
+      { type: "p", text: "Branches live on their own screen, and theme colours in the Appearance panel reachable from anywhere." },
+      {
+        type: "note",
+        text: "Every tab shares one Save. Change something on one tab, move to another, and it is still waiting to be saved — pressing Save anywhere saves the lot.",
       },
     ],
   },

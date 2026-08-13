@@ -184,6 +184,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
   const [trackStock, setTrackStock] = useState(true);
+  // Whether the shop still sells this at all. Distinct from `visibleOnline`,
+  // which only hides it from the storefront — an inactive item is off the till
+  // too. Without this the only way to stop selling something was to DELETE it,
+  // which takes its sales history's link with it.
+  const [isActive, setIsActive] = useState(true);
   const [visibleOnline, setVisibleOnline] = useState(true);
   const [collectionIds, setCollectionIds] = useState<string[]>([]);
   const [variants, setVariants] = useState<FormVariant[]>([]);
@@ -287,6 +292,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setAvailableFrom(p.available_from ? p.available_from.slice(0, 5) : "");
       setAvailableUntil(p.available_until ? p.available_until.slice(0, 5) : "");
       setTrackStock(p.track_inventory);
+      setIsActive(p.is_active);
       setVisibleOnline(p.visible_in_marketplace);
       setCollectionIds((p.collections ?? []).map((c) => c.id));
       setModifierGroups(
@@ -362,6 +368,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       price_tiers: isGood ? tiers.filter((t) => Number(t.min_qty) > 0 && Number(t.price) > 0) : undefined,
       min_order_qty: isGood ? (minOrderQty ? Number(minOrderQty) : null) : undefined,
       low_stock_threshold: stockManaged && trackStock && lowStockThreshold ? Number(lowStockThreshold) : undefined,
+      is_active: isActive,
       visible_in_marketplace: visibleOnline,
       collection_ids: collectionIds,
       ...(isFood ? { available_from: availableFrom || null, available_until: availableUntil || null } : {}),
@@ -1383,6 +1390,15 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 )}
               </div>
         )}
+
+            {/* Selling status — outside the goods-only block above, because a
+                service gets discontinued the same as a tin of paint does. */}
+            <Toggle
+              checked={isActive}
+              onChange={setIsActive}
+              title="Still selling this"
+              hint="Turn off to retire the item — it leaves the till and your online shop but keeps its sales history, unlike deleting it. Turn it back on any time."
+            />
             </div>{/* end Codes & packs tab */}
           </div>{/* end scroll area */}
 

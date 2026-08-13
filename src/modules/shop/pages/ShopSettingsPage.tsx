@@ -12,6 +12,7 @@ import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPut } from "../../../common/api/client";
 import { useCities, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
+import { settingsTabsFor, type SettingsTab } from "../settingsTabs";
 import { shopService } from "../services/shopService";
 import { useAuthStore } from "../../../stores/authStore";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
@@ -41,17 +42,19 @@ const PrinterGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><
 const UserGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.7" /><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>);
 const GiftGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7S10.5 3 8.5 3 6 5 8 7h4Zm0 0s1.5-4 3.5-4 2.5 2 .5 4h-4Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>);
 
-// Settings are split into tabs: shop info first, then module-wise topics.
-const SETTINGS_TABS = [
-  { key: "business", label: "Business", icon: <StoreGlyph /> },
-  { key: "tax", label: "Tax & Delivery", icon: <PercentGlyph /> },
-  { key: "pos", label: "Point of Sale", icon: <CartGlyph /> },
-  { key: "loyalty", label: "Loyalty", icon: <GiftGlyph /> },
-  { key: "receipt", label: "Receipt", icon: <ReceiptGlyph /> },
-  { key: "hardware", label: "Hardware", icon: <PrinterGlyph /> },
-  { key: "barcode", label: "Barcodes", icon: <BarcodeGlyph /> },
-] as const;
-type SettingsTab = (typeof SETTINGS_TABS)[number]["key"];
+/**
+ * The tab order and the module each one needs live in `../settingsTabs` so they
+ * can be tested without mounting this screen. Only the icons stay here.
+ */
+const TAB_ICONS: Record<SettingsTab, ReactNode> = {
+  business: <StoreGlyph />,
+  tax: <PercentGlyph />,
+  pos: <CartGlyph />,
+  loyalty: <GiftGlyph />,
+  receipt: <ReceiptGlyph />,
+  hardware: <PrinterGlyph />,
+  barcode: <BarcodeGlyph />,
+};
 
 /**
  * The till carries more settings than the rest of the shop put together, so it
@@ -281,6 +284,9 @@ export default function ShopSettingsPage() {
   // never offered — and if the module is switched off while you are standing on
   // that sub-tab, the view falls back rather than going blank.
   const tenantFeatures = ((user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features ?? {}) as Record<string, boolean>;
+  const settingsTabs = settingsTabsFor(tenantFeatures).map((t) => ({ key: t.key, label: t.label, icon: TAB_ICONS[t.key] }));
+  // Business is universal, so there is always something to fall back TO.
+  const activeTab = settingsTabs.some((t) => t.key === tab) ? tab : "business";
   const posSubTabs = POS_SUBTABS.filter((t) => !("needs" in t) || tenantFeatures[t.needs]);
   const activePosTab = posSubTabs.some((t) => t.key === posTab) ? posTab : "till";
   useEffect(() => { if (settings.data && !prefs) setPrefs({ ...settings.data }); }, [settings.data, prefs]);
@@ -321,14 +327,14 @@ export default function ShopSettingsPage() {
       {/* Topics. The underline treatment is reserved for the second level of
           tabs inside Point of Sale — two levels of navigation on one screen
           must not read as the same control. */}
-      <FilterTabs tabs={SETTINGS_TABS} value={tab} onChange={setTab} sticky className="mb-5" />
+      <FilterTabs tabs={settingsTabs} value={activeTab} onChange={setTab} sticky className="mb-5" />
 
       {/* Full width, two columns. The old single 3xl stack wasted half of a
           desktop and paid for it in scrolling. */}
       <div>
         {shop.isLoading ? (
           <div className="h-64 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
-        ) : tab === "business" ? (
+        ) : activeTab === "business" ? (
           <div className="space-y-5">
 
             <TwoCol
@@ -401,7 +407,7 @@ export default function ShopSettingsPage() {
         ) : (
           <div className="space-y-6">
 
-            {tab === "tax" && (
+            {activeTab === "tax" && (
               <>
               <TwoCol
                 left={
@@ -459,7 +465,7 @@ export default function ShopSettingsPage() {
             {/* The receipt is the only thing that leaves the shop, so it is
                 edited beside the thing itself — the preview is the real
                 template, server-rendered, not a mock-up of it. */}
-            {tab === "receipt" && (
+            {activeTab === "receipt" && (
               <>
               <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
                 <div className="flex flex-col gap-5">
@@ -563,13 +569,13 @@ export default function ShopSettingsPage() {
               </>
             )}
 
-            {tab === "hardware" && (
+            {activeTab === "hardware" && (
               <SectionCard icon={<PrinterGlyph />} title="Hardware" description="Your shop's receipt printer, label printer, barcode scanner, and cash drawer.">
                 <HardwareDevices />
               </SectionCard>
             )}
 
-            {tab === "pos" && (
+            {activeTab === "pos" && (
               <>
               <div className="mb-1 flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-800">
                 {posSubTabs.map((t) => (
@@ -949,7 +955,7 @@ export default function ShopSettingsPage() {
               </>
             )}
 
-            {tab === "loyalty" && (
+            {activeTab === "loyalty" && (
               <>
               {/* One card — stretching three number boxes across a whole desktop
                   would be worse than the scroll this page is fixing. */}
@@ -980,7 +986,7 @@ export default function ShopSettingsPage() {
               </>
             )}
 
-            {tab === "barcode" && (
+            {activeTab === "barcode" && (
               <>
               <TwoCol
                 left={
