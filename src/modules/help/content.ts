@@ -1185,6 +1185,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
           ["Point of Sale", "Four sub-tabs: Counter (till defaults, discount ceiling, whether a shift is required), Lanes & PINs, Quotes & advances, and Kitchen if you take dine-in orders."],
           ["Loyalty", "Points — what a customer earns, what a point is worth, and the least they can redeem."],
           ["Receipt", "Receipt and invoice layout, with a live preview as you change it, plus your NTN / STRN."],
+          ["Point of Sale → Lanes & PINs", "Also lists YOUR TILLS — every device the POS runs on, when each last reached us, and how to sign out one that went missing."],
           ["Hardware", "Printers, cash drawers, scanners and weighing scales."],
           ["Barcodes", "What prints on a label, and scale barcodes for items sold by weight."],
         ],
@@ -1193,6 +1194,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "note",
         text: "Every tab shares one Save. Change something on one tab, move to another, and it is still waiting to be saved — pressing Save anywhere saves the lot.",
+      },
+      { type: "h", text: "Your tills" },
+      { type: "p", text: "Settings → Point of Sale → Lanes & PINs. Every device that opens ShopOS signs itself in here, so you can see which tablets and computers your shop runs on and when each last reached us." },
+      { type: "p", text: "Lost a tablet, or lent one out and never got it back? Sign it out. It stops being usable straight away, but it stays on the list — the sales it already sent still belong to it, and you may want to see what happened. If it turns up, allow it again." },
+      {
+        type: "note",
+        text: "Sales rung on a till are never lost. If a till is out of contact, they wait on the device and send themselves the moment it gets a connection again — however long that takes.",
       },
     ],
   },

@@ -23,6 +23,7 @@ import TaxGroupsManager from "../../catalog/components/TaxGroupsManager";
 import { ReceiptPreview } from "../../receipts/components/ReceiptPreview";
 import TillPinsPanel from "../../pos/components/TillPinsPanel";
 import DeviceSessionsPanel from "../../auth/components/DeviceSessionsPanel";
+import TillDevicesPanel from "../../offline/device/TillDevicesPanel";
 
 /** One saved shop preference. Arrays exist because kitchen stations are a list. */
 type PrefValue = string | number | boolean | string[] | null;
@@ -754,6 +755,19 @@ export default function ShopSettingsPage() {
                         description="Every browser and tablet currently signed in to your account. Lost one, or lent it out and never got it back? Sign that one out without throwing every working till off mid-queue."
                       >
                         <DeviceSessionsPanel />
+                      </SectionCard>
+
+                      {/* A SESSION is who is signed in; a TILL is the machine
+                          itself, which keeps its identity across sign-outs and
+                          cashier handovers. Both belong here, and the two
+                          answer different questions — "whose login is on that
+                          tablet" and "when did that tablet last reach us". */}
+                      <SectionCard
+                        icon={<CartGlyph />}
+                        title="Your tills"
+                        description="The devices this shop's POS runs on, and when each last reached us. Signing one out stops it being used without touching the sales it already sent."
+                      >
+                        <TillDevicesPanel />
                       </SectionCard>
                     </>
                   }

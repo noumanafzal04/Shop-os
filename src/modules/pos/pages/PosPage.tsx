@@ -9,6 +9,7 @@ import Input from "../../../components/form/input/InputField";
 import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
+import StorageWarning from "../../offline/storage/StorageWarning";
 import { ApiError } from "../../../common/types/api";
 import { apiGet } from "../../../common/api/client";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
@@ -2471,6 +2472,11 @@ export default function PosPage() {
       {/* Open shift */}
       <Modal isOpen={openModal.isOpen} onClose={openModal.closeModal} className="max-w-sm p-6">
         <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Open shift</h3>
+        {/* Whether this browser will KEEP what has not been sent yet. Shown
+            here because this is the last moment before a day's takings start
+            going into it, and it warns rather than blocks — a shop refused its
+            own till over a browser permission is worse than the risk. */}
+        <StorageWarning className="mb-4" />
         {usesLanes && (
           <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
             {laneLabel ? <>On <span className="font-medium text-gray-700 dark:text-gray-200">{laneLabel}</span>.{" "}</> : "No register picked for this device. "}
