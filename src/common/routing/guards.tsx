@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import ThemeCustomizer from "../../components/theme/ThemeCustomizer";
 import UpdatePrompt from "../../modules/offline/pwa/UpdatePrompt";
+import { useKeepInSync } from "../../modules/offline/sync/useKeepInSync";
 import { useOfflineBoot } from "../../modules/offline/useOfflineBoot";
 import { useTenantTheme } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
@@ -148,6 +149,9 @@ export function TenantThemed() {
   // Shop-side only. An admin browsing the platform console has no till, no
   // device identity to announce and nothing queued to protect.
   useOfflineBoot(true);
+  // …and keeps it current afterwards: on reconnect, on a slow heartbeat, and
+  // when the tab comes back to the front.
+  useKeepInSync(true);
 
   return (
     <>

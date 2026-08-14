@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { pendingCount } from "./db/repo";
 import { deviceId } from "./device/deviceId";
 import { deviceService } from "./device/deviceService";
+import { pullNow } from "./sync/pullNow";
 import { useOfflineStore } from "./offlineStore";
 import { checkStorage } from "./storage/persist";
 
@@ -99,6 +100,12 @@ export function useOfflineBoot(enabled: boolean): void {
       } catch {
         setPolicy(null);
       }
+
+      // Last, and allowed to fail: a first load is a whole catalog, and a till
+      // that would not open until it finished downloading one would be useless
+      // on the morning it matters. Offline, this simply rejects and the till
+      // carries on with whatever it already holds.
+      void pullNow().catch(() => {});
     };
 
     void boot();
