@@ -1,5 +1,6 @@
 import { applyPull, readMeta } from "./applyPull";
 import { catalogService, PROJECTIONS, type Projection } from "./catalogService";
+import { flushVariances } from "../pricing/varianceService";
 
 /**
  * Fetching everything the server has for this till, and stopping.
@@ -86,6 +87,13 @@ async function run(): Promise<PullResult> {
       break;
     }
   }
+
+  // Diagnostics ride along with the catalog pull rather than on a timer of
+  // their own: the moment a till can reach the server is the moment to send
+  // what it found, and it costs one request that usually carries nothing.
+  // It cannot fail the pull — a till must not stop learning its catalog
+  // because a variance report did not go.
+  await flushVariances();
 
   return { applied, rounds, truncated };
 }
