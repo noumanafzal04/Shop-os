@@ -630,6 +630,55 @@ found unbuildable safely — see Phase 5).
 | P3-17 | `offline_hard_stop_days` passed → new sale refused, cart in hand completes |
 | P3-18 | Outbox from 40 days ago still syncs and is accepted; lateness is measured from the till's last contact, not from today ✅ |
 
+### The shadow check earned its keep — 2026-08-15
+
+Phase 2's whole argument was that a mirror cannot be trusted until it has been
+measured against real carts. On the first day a real shop ran it, it produced
+nine disagreements, all the same shape:
+
+```
+discount: server Rs 106.00, till Rs 0.00
+total:    server Rs 954.00, till Rs 1,060.00
+```
+
+Exactly ten per cent, on every cart. The shop had an active **"Weekend 10% Off"**
+promotion; the server applied it and the offline engine did not, because
+`priceCart` had said so in a comment since the day it was written — *"promotions
+are absent for now"*. Nobody was mis-billed, because the customer pays the
+server's price. A till allowed to sell offline would have printed a receipt ten
+per cent high on every sale of that day.
+
+**Promotions are now mirrored** (`bestPromotion.ts`), and they were the
+exception all along: an automatic promotion is a rule the shop wrote down in
+advance, the same for every till, with nothing to reserve and nothing to race
+over. A single till CAN decide it alone, which is the only test the offline rule
+applies. Coupons, loyalty and group discounts stay out for the reason they
+always did — each is shared state.
+
+Four decisions inside it:
+
+- **The clock is the SHOP's.** A promotion that runs on Fridays, or between 6pm
+  and 9pm, is a statement about local time. The till judges it against server
+  time with its own measured drift applied, in the shop's timezone — never
+  `new Date()`, which would run a flash sale that ended on Tuesday.
+- **A promotion the engine cannot evaluate stops the SHOP selling offline**, not
+  the cart. No cart can be rearranged to fix it, so telling a cashier to remove
+  an item would send them doing something that changes nothing.
+- **Switching a promotion off travels as a tombstone**, not as a flag — the till
+  drops the row entirely. The delta only carries what changed, so a promotion
+  that merely stopped appearing would sit on every tablet for ever.
+- **The fixtures are the proof.** Fourteen new carts rung through the real
+  endpoint, including the clamp case, BOGO-cheapest-free and a weighed line that
+  cannot complete a group. Two bugs surfaced writing them: promotions leaked
+  between fixture cases (every cart after the fourth was priced against
+  promotions it never asked for), and the first version embedded database UUIDs,
+  which would have made the gate go red on every run instead of when pricing
+  changed.
+
+The disagreement list is also grouped by shape now. Nine rows saying one thing
+were one finding; a shop trading all day would have produced nine hundred, and
+the pattern would have been invisible under its own evidence.
+
 ### Phase 4 — reconciliation and the owner's view
 
 **Build:** the variance report (price, stock, late-arrival) · oversell review

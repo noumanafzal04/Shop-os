@@ -212,7 +212,72 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-17 (latest) — two opinions, or a sale can disappear
+### 2026-08-15 (latest) — the shadow check earned its keep on day one
+
+Phase 2's entire argument was that a mirror cannot be trusted until it has been
+measured against real carts. The first day a real shop ran it, it returned nine
+disagreements — all the same shape, all exactly ten per cent:
+
+```
+discount: server Rs 106.00, till Rs 0.00
+total:    server Rs 954.00, till Rs 1,060.00
+```
+
+The shop had an active "Weekend 10% Off". The server applied it; the offline
+engine did not, because `priceCart` had said so in a comment since the day it
+was written. Nobody was mis-billed — the customer pays the server's price — but
+a till allowed to sell offline would have printed a receipt ten per cent high on
+every sale of that day. **That is the whole feature working exactly as designed.**
+
+**Promotions are now mirrored** (`bestPromotion.ts`) and they were the exception
+all along: an automatic promotion is a rule the shop wrote down in advance, the
+same for every till, nothing to reserve and nothing to race over. A single till
+CAN decide it alone, which is the only test the offline rule applies. Coupons,
+loyalty and group discounts stay out for the reason they always did.
+
+Fourteen new golden fixtures, rung through the real endpoint. Writing them found
+two bugs in the fixtures themselves: promotions LEAKED between cases (every cart
+after the fourth was priced against promotions it never asked for — the numbers
+said so, a Rs 250 discount on carts meant to have none), and my first version
+embedded database UUIDs, which would have made the gate go red on every run
+instead of when pricing changed. A gate that always fails is the same as no gate.
+
+Also: **a promotion the engine cannot evaluate stops the SHOP selling offline**,
+not the cart — no cart can be rearranged to fix it. And switching a promotion off
+travels as a TOMBSTONE, not a flag: the till drops the row entirely.
+
+**Three other things this session, all found by the user testing:**
+
+- **"Too many requests" after three quick sales.** The `api` limiter was 60/min
+  for the whole SPA, set when the panel was a handful of pages. A POS spends it
+  in twenty seconds. The counter now has its own — 600/min keyed by DEVICE,
+  because small shops run four lanes off one login and keying by user alone
+  would refuse the busiest shop first.
+- **A till could not be given a name.** The backend accepted one and nothing
+  ever sent it, so every device read "Unnamed till" — including in the offline
+  report, whose whole point is that a fault on ONE tablet is a different problem
+  from a fault in the shop. `PATCH /pos-devices/{id}`, deliberately NOT the
+  register call, which stamps `last_seen_at`.
+- **A P0 I had introduced.** IndexedDB is scoped to the browser ORIGIN, not the
+  tenant, so one laptop used for two shops has ONE outbox — and a flush after
+  switching accounts would post shop A's unsent sales under shop B's token, into
+  shop B's books at shop B's prices. Rows now name their shop, and an unknown
+  one is HELD rather than sent: everywhere else in that file the tie breaks
+  towards sending, but here there is a third outcome worse than both.
+
+Plus the **offline kill switch** the plan called for and nobody had built
+(`offline_selling`, tenant-owned, default OFF), and the variance list is now
+grouped by finding rather than one row per cart.
+
+Backend **1754 → 1757**. Panel **735 → 780**. 20 mutations, all caught after two
+of my own tests turned out too weak to kill theirs.
+
+**Known flake, NOT from this work:** `DemoWorldIsCompleteTest::test_income_exists_and_one_row_carries_a_receipt_that_resolves`
+failed once in a full run and passes in isolation and on re-run. It asserts a
+file exists on the real public disk, so it is order-dependent on whatever else
+touched storage. Worth fixing; not touched here.
+
+### 2026-08-17 — two opinions, or a sale can disappear
 
 Three items: P3-15 (training survives sync), P3-18 (a 40-day outbox), P4-3 (a
 day already signed off). The first was supposed to be free and was not.
