@@ -53,6 +53,7 @@ use App\Http\Controllers\Api\V1\Tenant\PosCatalogController;
 use App\Http\Controllers\Api\V1\Tenant\PosController;
 use App\Http\Controllers\Api\V1\Tenant\PosDeviceController;
 use App\Http\Controllers\Api\V1\Tenant\PosRegisterController;
+use App\Http\Controllers\Api\V1\Tenant\PricingVarianceController;
 use App\Http\Controllers\Api\V1\Tenant\ProductController;
 use App\Http\Controllers\Api\V1\Tenant\ProductImageController;
 use App\Http\Controllers\Api\V1\Tenant\PromotionController;
@@ -405,6 +406,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // no cursor is a first load, a cursor is everything since.
                 // Both ride sales.manage — this is what the counter sells.
                 Route::get('/bootstrap', [PosCatalogController::class, 'bootstrap']);
+                // A till reporting that it priced a cart differently from the
+                // server. The cashier's own browser sends it, so it rides
+                // sales.manage with the rest of this block; reading the pile is
+                // the owner's and sits with configuration below.
+                Route::post('/pricing-variances', [PricingVarianceController::class, 'store']);
                 Route::get('/catalog', [PosCatalogController::class, 'delta']);
                 // Who is at the till. The roster and the PIN handover — the
                 // outgoing cashier's session on this device ends with it.
@@ -467,6 +473,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // called a device is the shop's own vocabulary, so each path
                 // says which one it means.
                 Route::get('pos-devices', [PosDeviceController::class, 'index']);
+                // What the shop's tills found while the offline engine was
+                // being checked against the server. Empty is the answer we
+                // want; anything else is read before offline selling is turned
+                // on for this shop.
+                Route::get('pricing-variances', [PricingVarianceController::class, 'index']);
                 Route::delete('pos-devices/{device}', [PosDeviceController::class, 'destroy']);
                 Route::post('pos-devices/{device}/restore', [PosDeviceController::class, 'restore']);
             });
