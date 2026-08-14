@@ -28,9 +28,12 @@ export const DB_NAME = "shopos-till";
 /**
  * Version history — append only.
  *
- *   1  the stores below
+ *   1  catalog, barcode index, tax config, promotions, customers, outbox,
+ *      shift, device, sync meta
+ *   2  categories, customer groups and settings — the projections that turned
+ *      out to need syncing of their own once the server started sending them
  */
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 /** Every object store, by the name used to open a transaction on it. */
 export const STORE = {
@@ -38,8 +41,14 @@ export const STORE = {
   CATALOG: "catalog",
   /** barcode → { productId, variantId, unitId }. Key: the barcode itself. */
   BARCODE_INDEX: "barcodeIndex",
-  /** Tax groups, inclusive flag, rounding. Key: a fixed id. */
+  /** Tax groups. Key: tax group id. */
   TAX_CONFIG: "taxConfig",
+  /** Category rows, so a rename costs one row and not the whole catalog. */
+  CATEGORIES: "categories",
+  /** Price level and standing discount per group — pricing needs both. */
+  CUSTOMER_GROUPS: "customerGroups",
+  /** The shop's till settings, whole. Key: fixed. */
+  SETTINGS: "settings",
   /** Only the promotion rules that are safe to apply offline. Key: promo id. */
   PROMOTIONS: "promotions",
   /** id, name, phone, customer_group_id — and nothing else. Key: customer id. */
@@ -68,6 +77,9 @@ export const CACHE_STORES: readonly StoreName[] = [
   STORE.CATALOG,
   STORE.BARCODE_INDEX,
   STORE.TAX_CONFIG,
+  STORE.CATEGORIES,
+  STORE.CUSTOMER_GROUPS,
+  STORE.SETTINGS,
   STORE.PROMOTIONS,
   STORE.CUSTOMERS,
 ];
@@ -88,7 +100,7 @@ export function upgrade(db: IDBDatabase, oldVersion: number): void {
 
     db.createObjectStore(STORE.BARCODE_INDEX, { keyPath: "code" });
 
-    db.createObjectStore(STORE.TAX_CONFIG);
+    db.createObjectStore(STORE.TAX_CONFIG, { keyPath: "id" });
     db.createObjectStore(STORE.PROMOTIONS, { keyPath: "id" });
     db.createObjectStore(STORE.CUSTOMERS, { keyPath: "id" });
 
@@ -103,5 +115,15 @@ export function upgrade(db: IDBDatabase, oldVersion: number): void {
 
     db.createObjectStore(STORE.DEVICE);
     db.createObjectStore(STORE.SYNC_META);
+  }
+
+  if (oldVersion < 2) {
+    // Additive, and deliberately nowhere near OUTBOX or SHIFT: an upgrade must
+    // never touch work that has not reached the server. A till upgrading from
+    // version 1 keeps every unsent sale and simply pulls these three afresh,
+    // because they are caches and the server is their only source of truth.
+    db.createObjectStore(STORE.CATEGORIES, { keyPath: "id" });
+    db.createObjectStore(STORE.CUSTOMER_GROUPS, { keyPath: "id" });
+    db.createObjectStore(STORE.SETTINGS);
   }
 }

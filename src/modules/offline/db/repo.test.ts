@@ -206,7 +206,10 @@ describe("the outbox is never collateral damage", () => {
     await putMany(STORE.SHIFT, [{ id: "shift-1", status: "open" }]);
     await putMany(STORE.CATALOG, [{ id: "p1" }, { id: "p2" }]);
     await putMany(STORE.CUSTOMERS, [{ id: "c1" }]);
-    await putSingleton(STORE.TAX_CONFIG, { rate: 17 });
+    // Tax groups are keyed rows, not a singleton — they sync like everything
+    // else the server sends. Settings are the singleton.
+    await putMany(STORE.TAX_CONFIG, [{ id: "t1", name: "Standard", rate: 17 }]);
+    await putSingleton(STORE.SETTINGS, { default_tax_rate: 17 });
 
     await clearCaches();
 
@@ -215,6 +218,7 @@ describe("the outbox is never collateral damage", () => {
     expect(await count(STORE.CATALOG)).toBe(0);
     expect(await count(STORE.CUSTOMERS)).toBe(0);
     expect(await count(STORE.TAX_CONFIG)).toBe(0);
+    expect(await count(STORE.SETTINGS)).toBe(0);
   });
 
   it("keeps the durable stores out of the disposable list", async () => {
