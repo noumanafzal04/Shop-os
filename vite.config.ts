@@ -76,7 +76,32 @@ export default defineConfig({
         // API responses are NEVER cached here. What the till may use offline is
         // a deliberate projection kept in IndexedDB, decided per item type —
         // not whatever happened to be requested last.
-        runtimeCaching: [],
+        //
+        // Product photos are the one exception, and they are not API responses:
+        // they are static files the catalog points at. A food shop's POS browses
+        // a visual grid, and a grid of broken images offline is worse than no
+        // grid at all. Only the small squares are ever referenced — the
+        // projection carries `thumb_url` and never the full-size one — so the
+        // cap below is a few megabytes rather than a few hundred.
+        runtimeCaching: [
+          {
+            urlPattern: /\/storage\/products\//,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "shopos-product-images",
+              expiration: {
+                // Roughly a large menu. Least-recently-used are evicted first,
+                // so a shop that reorganises its catalog does not accumulate
+                // pictures of things it stopped selling.
+                maxEntries: 600,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
+                purgeOnQuotaError: true,
+              },
+              // A photo that 404s must not be cached as a 404 for a month.
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
       },
 
       devOptions: {
