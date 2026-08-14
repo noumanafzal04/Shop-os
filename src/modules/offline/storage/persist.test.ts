@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   checkStorage,
+  isInstalled,
   isNearlyFull,
   NEARLY_FULL,
   requestPersistentStorage,
@@ -129,6 +130,27 @@ describe("the one call the boot sequence makes", () => {
   });
 });
 
+describe("is this an installed till or a browser tab", () => {
+  it("reads Safari's own standalone flag", () => {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: { standalone: true },
+    });
+
+    expect(isInstalled()).toBe(true);
+  });
+
+  it("reads the display-mode media query everywhere else", () => {
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: {} });
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: q.includes("standalone") })) as typeof window.matchMedia;
+
+    expect(isInstalled()).toBe(true);
+
+    window.matchMedia = original;
+  });
+});
+
 describe("what the shop is told", () => {
   const health = (over: Partial<StorageHealth>): StorageHealth => ({
     state: "persisted",
@@ -139,11 +161,11 @@ describe("what the shop is told", () => {
   });
 
   it("says nothing when storage is durable and roomy", () => {
-    expect(storageWarning(health({}))).toBeNull();
+    expect(storageWarning(health({}), true)).toBeNull();
   });
 
   it("warns plainly when the browser has NOT promised to keep the data", () => {
-    const message = storageWarning(health({ state: "not-persisted" }));
+    const message = storageWarning(health({ state: "not-persisted" }), true);
 
     expect(message).toMatch(/permanent storage/i);
     // It has to say what is at stake and what to do — a warning that names
@@ -153,30 +175,46 @@ describe("what the shop is told", () => {
   });
 
   it("warns when the device is nearly full", () => {
-    expect(storageWarning(health({ used: NEARLY_FULL }))).toMatch(/almost out of storage/i);
-    expect(storageWarning(health({ used: 0.99 }))).toMatch(/almost out of storage/i);
+    expect(storageWarning(health({ used: NEARLY_FULL }), true)).toMatch(/almost out of storage/i);
+    expect(storageWarning(health({ used: 0.99 }), true)).toMatch(/almost out of storage/i);
   });
 
   it("stays quiet just below the line", () => {
-    expect(storageWarning(health({ used: NEARLY_FULL - 0.01 }))).toBeNull();
+    expect(storageWarning(health({ used: NEARLY_FULL - 0.01 }), true)).toBeNull();
   });
 
-  it("stays silent on a browser too old to act on the warning", () => {
-    // A message nobody can do anything about is noise, and noise is what trains
-    // people to dismiss the message that matters.
-    expect(storageWarning(health({ state: "unsupported" }))).toBeNull();
-    expect(storageWarning(health({ state: "unsupported", used: null }))).toBeNull();
+  it("tells an UNINSTALLED Safari till to install itself", () => {
+    // Not a rare old browser — this branch is every iPad and iPhone. Safari has
+    // no persist() at all, so it is the platform where we are blindest, and
+    // silence would leave exactly the tills that need the advice most without
+    // any. Installing is what changes Safari's behaviour, so that is the ask.
+    const message = storageWarning(health({ state: "unsupported" }), false);
+
+    expect(message).toMatch(/home screen/i);
+    expect(message).toMatch(/won't promise to keep/i);
+  });
+
+  it("stops asking once the till IS installed", () => {
+    // The advice has been taken. Repeating it is the noise that teaches people
+    // to dismiss the message that matters.
+    expect(storageWarning(health({ state: "unsupported" }), true)).toBeNull();
+    expect(storageWarning(health({ state: "unsupported", used: null }), true)).toBeNull();
+  });
+
+  it("puts durability ahead of installing when the browser DID answer", () => {
+    // "not-persisted" is a real refusal and outranks the Safari advice.
+    expect(storageWarning(health({ state: "not-persisted" }), false)).toMatch(/permanent storage/i);
   });
 
   it("puts durability ahead of fullness when both are wrong", () => {
     // Losing everything beats running out of room.
-    expect(storageWarning(health({ state: "not-persisted", used: 0.99 }))).toMatch(
+    expect(storageWarning(health({ state: "not-persisted", used: 0.99 }), true)).toMatch(
       /permanent storage/i,
     );
   });
 
   it("does not claim fullness when the browser never said how full it is", () => {
     expect(isNearlyFull(health({ used: null }))).toBe(false);
-    expect(storageWarning(health({ used: null }))).toBeNull();
+    expect(storageWarning(health({ used: null }), true)).toBeNull();
   });
 });

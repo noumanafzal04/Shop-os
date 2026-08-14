@@ -26,8 +26,20 @@ const health = (over: Partial<StorageHealth> = {}): StorageHealth => ({
   ...over,
 });
 
+/** Pretend the till is (or is not) installed to the home screen. */
+function installed(yes: boolean): void {
+  window.matchMedia = ((query: string) => ({
+    matches: yes && query.includes("standalone"),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })) as unknown as typeof window.matchMedia;
+}
+
 beforeEach(() => {
   useOfflineStore.setState({ storage: null });
+  // Installed by default, so each test names the case it actually cares about.
+  installed(true);
 });
 
 describe("silence", () => {
@@ -45,8 +57,10 @@ describe("silence", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("says nothing on a browser too old to act on it", () => {
-    // Noise is what trains people to dismiss the message that matters.
+  it("says nothing on a browser that cannot report, once the till is installed", () => {
+    // Safari never reports. Installed, there is nothing further to do about it,
+    // and noise is what teaches people to dismiss the message that matters.
+    installed(true);
     useOfflineStore.setState({ storage: health({ state: "unsupported" }) });
 
     const { container } = render(<StorageWarning />);
@@ -56,6 +70,18 @@ describe("silence", () => {
 });
 
 describe("speech", () => {
+  it("asks an uninstalled iPad to add itself to the home screen", () => {
+    // Safari has no persist() at all, so this is every iPad — the platform
+    // where the till is blindest, and the one where installing genuinely
+    // changes how long its data survives.
+    installed(false);
+    useOfflineStore.setState({ storage: health({ state: "unsupported" }) });
+
+    render(<StorageWarning />);
+
+    expect(screen.getByRole("status").textContent).toMatch(/home screen/i);
+  });
+
   it("warns when the browser has not promised to keep unsent sales", () => {
     useOfflineStore.setState({ storage: health({ state: "not-persisted" }) });
 

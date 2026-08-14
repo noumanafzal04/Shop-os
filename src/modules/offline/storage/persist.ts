@@ -38,6 +38,25 @@ export function storageApiAvailable(): boolean {
 }
 
 /**
+ * Is the app running as an installed app rather than in a browser tab?
+ *
+ * It matters far more than it looks. Safari has no `storage.persist()` at all,
+ * so on an iPad we can never be TOLD whether the data is safe — but an
+ * installed web app is treated very differently from a tab that gets evicted
+ * after a week of not being opened. Installing is therefore the one action that
+ * actually changes the outcome on the platform where we are blindest.
+ */
+export function isInstalled(): boolean {
+  if (typeof window === "undefined") return false;
+
+  // `standalone` is Safari's own, non-standard and iOS-only. The media query
+  // covers Chrome, Edge and Android.
+  const iosStandalone = (window.navigator as { standalone?: boolean }).standalone === true;
+
+  return iosStandalone || window.matchMedia?.("(display-mode: standalone)")?.matches === true;
+}
+
+/**
  * Ask for durable storage, returning what the browser decided.
  *
  * Safe to call on every boot: `persisted()` is checked first, so an origin that
@@ -103,17 +122,27 @@ export function isNearlyFull(health: StorageHealth): boolean {
  * function so the wording lives in exactly one place — the same warning belongs
  * on the shift screen, on the settings page and in a support answer.
  */
-export function storageWarning(health: StorageHealth): string | null {
+export function storageWarning(health: StorageHealth, installed = isInstalled()): string | null {
   if (health.state === "not-persisted") {
     return "This device hasn't given ShopOS permanent storage. If the browser runs low on space it can delete sales that haven't reached the server yet. Install ShopOS to the home screen, or keep this till online.";
+  }
+
+  // Safari — every iPad and iPhone — has no persist() at all, so this branch is
+  // not a rare old browser: it is a whole platform, and the one where we are
+  // blindest. Silence there would leave exactly the tills that need the advice
+  // most without any. Installing is what changes Safari's behaviour, so the
+  // warning appears only while the app is still a browser tab, and stops the
+  // moment somebody acts on it.
+  if (health.state === "unsupported" && !installed) {
+    return "This browser won't promise to keep sales that haven't reached the server. Add ShopOS to the home screen and open it from there — an installed till holds onto its data far better than a browser tab.";
   }
 
   if (isNearlyFull(health)) {
     return "This device is almost out of storage. Free some space before the next shift — a till with no room can lose sales that haven't been sent.";
   }
 
-  // "unsupported" is deliberately silent. An older browser cannot act on the
-  // warning, and a message nobody can do anything about is noise that trains
-  // people to dismiss the one that matters.
+  // An installed app on a browser that cannot report its state gets nothing to
+  // say: there is no further action to take, and a message nobody can act on is
+  // what teaches people to dismiss the one that matters.
   return null;
 }
