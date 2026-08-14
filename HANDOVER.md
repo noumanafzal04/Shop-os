@@ -102,8 +102,9 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1596 tests / 7281 assertions green. Panel 227 tests green.** Gates all
-clean: `tsc`, `npm run build`, `pint`, `eslint`.
+**Backend 1744 tests / 7816 assertions green. Panel 703 tests green.** Gates all
+clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
+long-standing baseline).
 
 Shipped and tested: catalog (variants, packs, combos, modifiers, batches/FEFO);
 a single audited stock write-path; POS with server-authoritative pricing,
@@ -139,7 +140,19 @@ middleware, controller `abort_unless`, and service-layer filtering.
 
 ## 5. In flight
 
-Nothing. `wip/relief-cover` shipped on 2026-08-07 and is merged into `backend`.
+**The whole offline build is UNCOMMITTED.** Phases 0–5 sit in the working tree
+of both repos and nothing has been committed or pushed for it. If this machine
+is rebuilt before that happens, all of it is gone — read
+`docs/decisions/offline-pos.md` and start again from the plan.
+
+Two gates stand between it and a real shop, and neither is a coding task:
+
+1. **Shadow mode must run over real trading** until the check count is large and
+   the variance count is still nil. Phase 3 must not be turned on for a shop
+   before that. Zero findings from zero checks is not evidence.
+2. The 72-hour soak (P5-4).
+
+`wip/relief-cover` shipped on 2026-08-07 and is merged into `backend`.
 
 ---
 
@@ -199,7 +212,257 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-13 (latest) — the three fixes the verified list actually called for
+### 2026-08-17 (latest) — two opinions, or a sale can disappear
+
+Three items: P3-15 (training survives sync), P3-18 (a 40-day outbox), P4-3 (a
+day already signed off). The first was supposed to be free and was not.
+
+**P3-15 — the hole under the easy test.** `is_training` is inherited from the
+shift and the offline payload already carries `cash_session_id`, so a practice
+sale rung offline should just stay practice. Writing the test found the other
+direction. Online a training sale is *loud* — banner, TRAINING on the slip,
+`TRN-` number — and `SyncRequest` had deliberately dropped the `OwnOpenShift`
+rule so a Tuesday sale could still land on Friday. Together those mean naming a
+practice shift on a synced operation would turn a **real** sale into one that
+takes no stock, earns no revenue and shows up nowhere. Silently. That is a way
+to walk goods out of a shop, and it existed only on the path I built.
+
+Fixed with a second opinion: the drawer says training, and so must the till
+(`operations.*.training`). The till's word can only ever *withhold* — the
+existing rule that a client flag must never create training still holds. Silence
+counts as real, because a practice sale shown as real is visible and voidable
+while the reverse is invisible. Disagreements are flagged, never silently
+resolved. The same flag stops a trainee's afternoon walking the till's own local
+stock figure down through goods that never moved.
+
+**P3-18 — and a comment that lied.** A 40-day outbox syncs in full, and days 1
+and 2 of a 40-day outage are *not* late while days 20 and 39 are. Writing that
+test showed the doc comment on `beyondWindow` described an example the code does
+not produce ("a sale rung five minutes before a till reconnected is not late").
+The code is right — lateness is *how long had this till been away when it rang
+this*, not *how old is this sale now* — so the comment was corrected in both
+places it had been copied to.
+
+**P4-3 — the money nobody was told about.** The spec said a sale from a closed
+day should "post to the open day". It does not and must not: `sold_at` decides
+the day, and moving Tuesday's sale to Wednesday makes both days wrong. What was
+actually missing is the consequence — a business day's totals are frozen at
+close and never recomputed, so Tuesday's *recorded* takings end up short of
+Tuesday's *sales* with nothing saying so. New `sales.after_day_close`, stamped
+at sync, and the report names the **amount in rupees** because an adjustment is
+written from a figure, not a count.
+
+**Mutation notes, both mine.** A `perl -0pi` mutation "applied" but hit the
+*first* matching site in the file rather than the intended one — the file
+changed, so my own applied/unchanged assert passed while proving nothing. Two of
+four day-check mutations then survived on tests that were too weak (no day at
+all, so a status filter was never exercised; one branch, so a branch filter was
+never exercised). Both strengthened, all four now caught.
+
+**One pre-existing flake fixed on the way.** `test_the_buying_price_never_leaves_the_server`
+asserted the raw JSON body does not contain `190`. A randomly generated UUID
+ending `bf19079b` contains `190`, and it failed on a build that had nothing to
+do with it. Rewritten against the decoded item — and it now also catches a cost
+leaked under a *renamed* field, which the substring check never did.
+
+Backend **1734 → 1744**. Panel **693 → 703**. tsc/eslint/build clean, 18
+warnings (baseline). 13 mutations run, all caught after the fixes above. Help
+Centre and `docs/decisions/offline-pos.md` updated; the edge-case register rows
+E9 and E12 were describing behaviour that no longer matches the code and were
+corrected.
+
+**60 of 64 test IDs.** Left: P3-10 (offline returns — the returns path is
+untouched), P3-17 (the opt-in hard stop), P4-4 (a device clock days out), P4-5
+(variance totals against the cashbook), P4-6 (offline sales in the staff
+report), P5-4 (the 72-hour soak — a run, not a build), P5-5 (a device moved
+branch offline).
+
+### 2026-08-16 — out of room is not the same as low on room
+
+P5-1, and it turned on splitting a condition that had been one.
+
+The shift-open screen already warned about storage, and its comment said
+plainly that it warns rather than blocks — *"a shop refused its own till over a
+browser permission is worse than the risk"*. That reasoning is right and stands.
+It is also about a different case.
+
+`not-persisted` is a PROBABILITY: the browser may evict, some day, under
+pressure that might never come. Being out of room is not — the next write fails,
+and the write that fails is a sale, discovered with a customer at the counter.
+So `shiftBlocker` blocks only at `FULL` (0.98), leaving `NEARLY_FULL` (0.9) as
+the warning it always was. Refusing before a shift costs nothing: nobody has
+paid. Refusing after costs a sale that already happened.
+
+The message names the fix — sync, or clear cached images — because a blocked
+till with no way forward is just a broken one, and a mutation that strips the
+fix from the sentence is caught.
+
+Panel **687 → 693**. 4 mutations, all caught. Help Centre updated.
+
+### 2026-08-16 — the upgrade that must not eat the queue
+
+Phase 5's first piece, and the one that can lose real money.
+
+A shop trades through a two-day outage with two hundred sales queued. On the
+third morning the app updates. If that upgrade drops, renames or recreates the
+outbox, two hundred sales that already crossed a counter are gone — no copy
+anywhere in the world, nobody aware they existed. **Nothing else in the app can
+fail this way:** a lost catalog re-downloads, a lost cursor re-bootstraps. The
+outbox is the one store with no upstream.
+
+`db/upgrade.test.ts` seeds a till at an old version, writes two hundred queued
+sales, runs the REAL `upgrade()`, and asserts every one survives **with its cart
+intact** — a row whose cart was emptied still counts and is still worthless.
+Three mutations confirm it bites: a release that recreates the outbox, one that
+demotes the receipt counter to a cache, one that drops a store.
+
+**The fixture has to be hand-written, and finding that out cost twenty minutes.**
+The obvious build is `upgrade(db, 0)` at version 1 — but oldVersion 0 runs
+*every* block, producing today's schema under an old version number, a database
+no till has ever had. It failed with a ConstraintError that looked like a schema
+bug until I instrumented `createObjectStore` and saw `categories` being created
+twice.
+
+Also: the update strip now says the queued sales survive the reload. The fear is
+unfounded, but an unanswered fear postpones the update for a week.
+
+Panel **678 → 687**. 4 mutations, all caught.
+
+**Left in Phase 5:** P5-1 (quota → refuse to open a shift), P5-4 (72-hour soak —
+a run, not a build), P5-5 (a device moved branch offline must not change branch).
+
+### 2026-08-16 — the morning after
+
+Phase 4's screen: **Reports → Offline**, `GET /reports/offline`. One question,
+asked before the shop opens — *what did I miss, and is anything wrong?*
+
+**Oversell is a SHELF query, not a sales query.** Two tills offline can each
+sell the last carton and both are telling the truth. No sale is wrong, so no
+sale can be found by looking for the mistake — the shelf is what is wrong, and a
+negative `branch_stock` says so plainly. The screen calls it **"count these
+again"**: naming it an error sends an owner looking for somebody to blame
+instead of for a clipboard.
+
+**"Nothing happened" is written as a real answer.** Most mornings this is empty,
+and an empty table reads as a report that failed to load. It says the tills were
+in touch the whole time — and a load FAILURE says something different, pinned by
+a test, because a failure rendering as "nothing came in late" would tell an
+owner everything was fine.
+
+Also: offline **refunds and exchanges** are blocked with the reason *before* a
+cashier promises the money back (P3-10) — the words live in `MONEY_BACK_OFFLINE`
+and are tested, because "not allowed" sends someone hunting for a setting while
+"take the customer's details" sends them to the counter. The POS pill's title
+still said *"Sales can't be rung until this clears"*, which my own change had
+made false; it now reads **"12 saved here"**.
+
+**🔴 P3-16 as the plan wrote it is not safely buildable.** It asks for the
+owner's PIN once the offline window has passed. Verifying a PIN with no server
+means shipping its hash to the device, and a ShopOS PIN is four digits — ten
+thousand guesses on a stolen tablet, after which that PIN opens every till in
+the shop for ever. Built instead: selling continues, every sale past the window
+is stamped `beyond_offline_window` and listed for the owner. The protection that
+needs no secret on the device already exists — Settings → Your tills → Sign out.
+
+Backend **1717 → 1729**. Panel **666 → 678**. 14 mutations, all caught after two
+fixes: a `beyond_window` count test with only one sale could not tell the filter
+from `count()`, and a UI test I wrote rendered **its own copy** of the refund
+controls rather than the real screen — deleted, and replaced by testing the
+shared copy for real.
+
+### 2026-08-16 — a till that sells with nobody listening
+
+Phase 3 of offline (`docs/decisions/offline-pos.md`), most of the way. A till
+now rings a sale with no server, prints a slip, counts the stock down, and sends
+everything when the line comes back.
+
+**Server — `POST /pos/sync`.** Per operation, never per batch: one bad row in
+fifty must not cost the other forty-nine. Its job is explicitly NOT to approve —
+the money already crossed the counter, so out-of-stock sells to negative
+(`allow_negative`, the mechanism the recipe path already used), a closed shift
+still accepts, and a broken rule is flagged rather than fixed. **Rewriting a
+credit sale into a cash one would leave a shop believing it had been paid.**
+
+**Two trusts, deliberately not one.** `trusted_offline` lets the sync path set
+`sold_at` and the device; `trusted_prices` stays off so the server re-prices
+every cart. A mutation proved the second is dead code today — `SyncRequest`
+borrows a rule set with no `unit_price`, so nothing arrives to trust — and it is
+kept anyway as the second layer. Mutating **both** at once is caught.
+
+**Client — the outbox.** Status machine, oldest-first, capped backoff, Web Locks
+so one tab sends. `SENDING` is not a state a row may rest in: every one goes
+back to PENDING on boot, because the tab was closed mid-request and nobody knows
+whether it landed. A refused sale is KEPT — dropping it leaves a customer
+holding a receipt for something the shop has no record of.
+
+**Local stock is derived from the outbox, not stored beside it.** The shop this
+is for: a mart shifts forty cartons of milk in one load-shedding evening, and
+without it the till reads "forty in stock" on the fortieth sale. A second store
+of deltas would drift, and the day it did the cashier would read the wrong one
+silently. Summing the queue cannot drift, because it *is* the queue.
+
+Backend **1694 → 1717**. Panel **565 → 663**. 18 mutations across both, all
+caught. Two findings on the way: `pendingCount` counted every outbox row
+including acked ones (a badge reading "47 unsent" at a till owing nothing), and
+`owedCount` now counts anything NOT definitively finished — an over-count makes
+a cashier ask a question, an under-count makes nobody ask anything.
+
+**Still open in Phase 3:** offline returns (P3-10), training mode surviving sync
+(P3-15), the `offline_days` PIN gate and hard stop (P3-16/17), a 40-day-old
+outbox (P3-18). Then Phases 4 and 5 entirely.
+
+### 2026-08-14 — the number that makes zero mean something
+
+Phase 2 of offline (`docs/decisions/offline-pos.md`) had a hole in the middle of
+its own gate. The build counted **findings** and nothing else, so the screen an
+owner would read said "no disagreements" in both of these shops:
+
+| what happened | what it showed |
+|---|---|
+| the engine agreed on 1,284 real carts | no disagreements |
+| no till finished its catalog pull, so every check silently skipped | no disagreements |
+
+Only the first is safe to ship on, and the second is the quieter of the two. The
+plan's own gate already said "over **1,000 live carts**" — the code simply had
+no way to tell you whether it had seen one.
+
+**The tally.** Each till now counts what it did — checked / matched / skipped /
+differed — bumped **inside** `runShadowCheck` rather than by its caller, because
+a caller that forgets costs the denominator. It rides the device boot, not the
+variance report: a till that finds nothing never reports a variance, and that is
+precisely the till whose count the shop needs. Skips are counted **by reason**
+(bounded at 12 + `other`), so a fortnight of "an item is not in the local
+catalog yet" reads as the projection gap it is instead of a clean sheet.
+
+Three rules, all following from the fact that this number's only job is to
+authorise a risky change, so it must fail by **under**-claiming:
+
+- Totals are **stored as sent, never accumulated** — a re-sent boot is a no-op,
+  and a wiped till counting down takes the shop's total with it, correctly.
+- The window is the **newest** reset across the fleet, not the oldest.
+- **Revoked tills don't vote** — the question is whether the working fleet has
+  been exercised.
+
+**A Phase 1 bug fell out of it.** `deviceService.register` runs once per app
+start, and nothing else touched `last_seen_at` — the clock the entire offline
+policy reads. A counter tablet opened Monday and still open Friday, syncing
+every fifteen minutes the whole time, sat on the owner's roster reading "last
+reached us 4 days ago". It was measuring **time since the browser was
+reloaded**. `pullNow` now touches the device at most every five minutes; the
+boot claims the window it just used so a cold start is not two requests, and the
+clock advances only on success so a failed touch retries immediately.
+
+**Also:** Settings → POS → Lanes & PINs gained *Offline pricing checks*, which
+leads with the denominator and warns separately when only part of the fleet is
+reporting or when skips exceed 20%. Help Centre article `tills` added.
+
+Backend **1677 → 1694**. Panel **520 → 565**. 19 mutations run across both, all
+caught; two initially reported *file unchanged* (perl `$` interpolation) and one
+was green for the wrong reason — `test_half_a_tally_is_refused` dropped several
+fields at once, so it passed on whichever rule fired first and left the other
+four unguarded. Now a `#[DataProvider]` over one field at a time.
+
+### 2026-08-13 — the three fixes the verified list actually called for
 
 Everything on the code side of `docs/audit-2026-08-12/VERIFIED.md` is now done.
 Full suites green either side: **1601 backend tests**, **233 panel tests**,

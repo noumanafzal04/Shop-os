@@ -1,9 +1,29 @@
 # Offline POS — the build plan
 
-**Status:** agreed, not started. Nothing offline exists in the codebase today.
 **Written:** 2026-08-14. Supersedes the 2026-07-21 sketch, which predates
 loyalty, promotions, serials, tax groups, dine-in, branches, registers, till
 PINs, training mode and business days — every one of which changes the surface.
+
+**Status (2026-08-17):** Phases 0, 1 and 2 are **built and green**. Phase 3 is
+built bar the returns path and the hard stop; Phase 4 has its report and its
+closed-day reconciliation; Phase 5 is built bar the soak run. What remains of
+each is listed under that phase. Branches: `offline/v1/backend`,
+`offline/v1/admin-panel`. **60 of 64 test IDs.**
+
+Phase 2's remaining gate is **not a build task**: shadow mode must run over real
+trading until the check count is large and the variance count is still nil.
+Until that has happened, offline selling must not be turned on for a real shop.
+
+**One item in the plan turned out not to be safely buildable as written.** P3-16
+asks for the owner's PIN once the offline window has passed. Verifying a PIN
+with no server means shipping its hash to the device, and a ShopOS till PIN is
+four digits — ten thousand guesses on a stolen tablet, after which that PIN
+opens every till in the shop for ever. The gate would create more risk than it
+removes. What is built instead: selling continues (closing a shop is almost
+always the more expensive failure), every sale past the window is stamped
+`beyond_offline_window`, and they are listed for the owner. The real protection
+is the one that already exists and needs no secret on the device — Settings →
+Your tills → Sign out.
 
 ---
 
@@ -456,8 +476,45 @@ would drift, quietly, in the direction nobody checks.
 computes the local one and logs the difference. Two weeks of that produces real
 fixtures from real carts.
 
+**The denominator, and why it is half the feature.** P2-13 below reads "over
+1,000 live carts", and the first build of shadow mode could not have told you
+whether it had seen one. It counted findings only — and an empty findings list
+is produced identically by two very different shops:
+
+| what happened | what the screen showed |
+|---|---|
+| the engine agreed on 1,284 real carts | no disagreements |
+| no till ever finished its catalog pull, so every check silently skipped | no disagreements |
+
+Only the first makes shipping safe, and the second is the quieter of the two:
+nothing to see is exactly what it looks like. So each till now counts what it
+DID — checked, matched, skipped, differed — and reports it on the boot that was
+happening anyway. `skipped` is counted separately and by reason, because a
+fortnight where nine carts in ten were skipped for "an item is not in the local
+catalog yet" is a finding about the PROJECTION, and it would otherwise read as a
+clean sheet.
+
+Three rules follow from that number's only job being to authorise a risky
+change, so it must fail by under-claiming:
+
+- **Totals are stored as sent, never accumulated.** A re-sent boot is then a
+  no-op. A till whose storage is wiped drops back to zero and takes the shop's
+  total with it — which is correct, because the evidence really did go with it.
+- **The window is the NEWEST reset across the fleet**, not the oldest. A till
+  wiped yesterday sits beside another's three weeks; printing "three weeks" over
+  that is the over-claim the whole number exists to prevent.
+- **Revoked tills don't vote.** Their checks happened, but the question is
+  whether the WORKING fleet has been exercised.
+
+**Also fixed here (a Phase 1 bug):** registration ran once per app start, so
+`last_seen_at` — the clock the entire offline policy reads — was measuring time
+since the browser was last reloaded. A counter tablet open all week, syncing
+every fifteen minutes, sat on the owner's roster reading "last reached us 7 days
+ago". The catalog pull now touches the device at most every five minutes.
+
 **Done when:** every fixture matches exactly, CI fails on any mismatch, and
-shadow-mode disagreement over a week of live use is zero.
+shadow-mode disagreement over a week of live use is zero **against a count of
+checks that proves the week happened**.
 
 **Tests**
 
@@ -476,8 +533,17 @@ shadow-mode disagreement over a week of live use is zero.
 | P2-11 | **Float trap:** a cart whose naive float sum ends `.30000000000000004` |
 | P2-12 | Discount ceiling enforced locally the same way the server does |
 | P2-13 | Shadow mode over 1,000 live carts: zero disagreements |
+| P2-14 | A skip is counted as a CHECK, never as a match |
+| P2-15 | A shop that checked nothing is told so, and never shown a clean sheet |
+| P2-16 | A re-sent boot does not inflate the tally; a wiped till may count down |
+| P2-17 | The reported window is the newest reset, not the luckiest till's |
+| P2-18 | A revoked till's checks do not vouch for the working fleet |
+| P2-19 | A till open a week does not read as a week out of contact |
 
-> **Gate: no offline sale ships until P2-1 through P2-13 are green in CI.**
+> **Gate: no offline sale ships until P2-1 through P2-19 are green in CI.**
+>
+> P2-14 and P2-15 are the gate on the gate: without them "zero disagreements"
+> is not a result, it is a silence.
 
 ### Phase 3 — offline selling
 
@@ -491,6 +557,55 @@ number and **both are stored**, so a customer's printed slip can always be found
 
 **Done when:** a till sells for three days with no network and every sale lands
 exactly once, correctly, on reconnect.
+
+**Built (2026-08-16).** `POST /pos/sync` · the outbox and its status machine ·
+the Web Locks flusher · `OFF-{lane}-{device}-{seq}` · the allow-list on both
+sides · local stock · the POS wiring. Four decisions worth keeping:
+
+- **A refusal is never a correction.** A sale that broke the offline rules is
+  recorded exactly as it happened and FLAGGED (`sales.offline_violations`).
+  Rewriting a credit sale into a cash one would leave a shop believing it had
+  been paid, which is worse than any refusal.
+- **`SENDING` is not a state a row may rest in.** Every one goes back to
+  PENDING on boot. The tab was closed mid-request and nobody knows whether the
+  server got it; sending twice costs a lookup, not sending costs the sale.
+- **Local stock is DERIVED from the outbox, never stored beside it.** Two
+  records of one fact drift, and the day they disagree the cashier reads the
+  wrong one silently. Summing the queue cannot drift, because it *is* the queue.
+- **Two separate trusts.** `trusted_offline` lets the sync path set `sold_at`
+  and the device; `trusted_prices` stays off, so the server re-prices every
+  cart. Folding them would grant price authority to the one caller that must
+  not have it.
+
+**Extended 2026-08-17 — P3-15, and a hole it uncovered.**
+
+Training was going to be free: `is_training` is inherited from the shift, the
+offline payload already carries `cash_session_id`, so a practice sale rung
+offline should just stay practice. Writing the test found the other half.
+
+Online, a training sale is **loud** — a banner across the POS, TRAINING on the
+slip, a `TRN-` number. A synced sale has none of that, and `SyncRequest`
+deliberately dropped the `OwnOpenShift` rule so a Tuesday sale could still land
+on Friday. Between those two facts: naming a practice shift on a synced
+operation would turn a real sale into one that takes no stock, earns no
+revenue and appears in no report — **silently**. That is a way to walk goods out
+of a shop, and it exists only on the offline path.
+
+So practice now needs **two** opinions: the drawer *and* the till that was
+standing at it (`operations.*.training`). The till's word can only ever
+withhold training, never grant it — the "a client-supplied practice flag is a
+switch for making stock disappear" rule still holds. Silence counts as real: a
+practice sale recorded as real is visible and voidable; a real sale recorded as
+practice is invisible, which is the whole point of the attack. A disagreement
+is flagged either way, because a silent correction teaches nobody.
+
+The same flag keeps the till's own shelf honest — `unsyncedDeltas()` skips
+practice rows, so a trainee's afternoon no longer walks the local stock figure
+down through goods that never moved.
+
+**Still open in Phase 3:** P3-10 (offline returns refused — the returns path is
+untouched), P3-16/17 (the `offline_days` PIN gate and the hard stop; P3-16 was
+found unbuildable safely — see Phase 5).
 
 **Tests**
 
@@ -510,10 +625,10 @@ exactly once, correctly, on reconnect.
 | P3-12 | Two tabs flushing → exactly one sends |
 | P3-13 | 1,500 queued sales flush over a slow link without duplication |
 | P3-14 | Local stock decrements; never `set` |
-| P3-15 | Training-mode sale offline stays training on sync |
+| P3-15 | Training-mode sale offline stays training on sync — and a real sale cannot be MADE training by naming a practice shift ✅ |
 | P3-16 | Device offline past `offline_days` → owner PIN demanded, sale stamped |
 | P3-17 | `offline_hard_stop_days` passed → new sale refused, cart in hand completes |
-| P3-18 | Outbox from 40 days ago still syncs and is accepted |
+| P3-18 | Outbox from 40 days ago still syncs and is accepted; lateness is measured from the till's last contact, not from today ✅ |
 
 ### Phase 4 — reconciliation and the owner's view
 
@@ -524,13 +639,60 @@ audit entries for every offline sale · `beyond_offline_window` reporting.
 **Done when:** an owner can answer "what happened while we were offline?" from
 one screen, without asking anyone.
 
+**Built (2026-08-16).** `GET /reports/offline` + Reports → Offline. Two
+decisions:
+
+- **Oversell is a SHELF query, not a sales query.** Two tills offline can each
+  sell the last carton and both are telling the truth — no sale is wrong, so no
+  sale can be found by looking for the mistake. The shelf is what is wrong, and
+  a negative `branch_stock` quantity says so plainly. The screen calls it "count
+  these again", not an error: naming it a mistake sends an owner looking for
+  somebody to blame instead of for a clipboard.
+- **"Nothing happened" is a real answer and is written as one.** Most mornings
+  this screen is empty, and an empty table would read as a report that failed to
+  load. It says the tills were in touch the whole time. A load FAILURE says
+  something different, and a test pins that the two can never be confused.
+
+**Extended 2026-08-17 — P4-3, the day that was already signed off.**
+
+The spec line below said such a sale should "post to the open day". It does
+not, and should not: `sold_at` decides the trading day, so Tuesday's sale lands
+on Tuesday. Posting it to Wednesday would move money between two days' figures
+and make both wrong. The code is right and the spec row has been corrected.
+
+What was missing was the consequence. Tuesday's drawers were counted, the day
+was closed, the cash was banked — and a business day's totals are summed once
+from the shifts' frozen close figures and never recomputed, because "a day
+signed off in March has to read the same in September". So Tuesday's *recorded*
+takings are now short of Tuesday's *sales*, and nothing said so.
+
+`sales.after_day_close` is stamped at sync and the report names the **amount in
+rupees**, not the count — an adjustment is written from a figure. Three
+decisions inside it:
+
+- **Stamped on arrival, never derived at report time.** "Was the day closed
+  when this landed" is a fact about a moment. Derived later, a sale that arrived
+  while the day was still open would start being flagged the evening somebody
+  closed that day — and that sale was in the totals.
+- **Not a violation.** `offline_violations` is for things the till was not
+  allowed to do. This is nobody's fault and needs a different action, so mixing
+  them would bury one in the other.
+- **The shop's calendar and the shop's branch.** The trading date is read in the
+  tenant's timezone (the same calendar `trading_date` is written from), and
+  matched per branch — Gulberg signing off says nothing about Saddar, still
+  trading. Both were mutations that survived the first version of the tests.
+
+**Still open in Phase 4:** P4-4 (a device whose clock is days out), P4-5
+(variance totals reconciled against the cashbook), P4-6 (offline sales in the
+staff report).
+
 **Tests**
 
 | ID | Test |
 |---|---|
 | P4-1 | Price changed while offline → sale recorded at the price taken, variance listed |
 | P4-2 | Two tills sold the last unit → both accepted, stock −1, oversell listed |
-| P4-3 | Sale from a closed business day → posts to the open day, flagged, original time shown |
+| P4-3 | Sale from a closed business day → filed on the day it HAPPENED, the signed-off figures do not move, and the shortfall is named in rupees ✅ |
 | P4-4 | Sale timestamped by a clock 3 days slow → server assigns the correct day |
 | P4-5 | Variance report totals reconcile against the cashbook |
 | P4-6 | Offline sales appear in the staff report against the right cashier |
@@ -547,6 +709,39 @@ worker update policy · long-soak and chaos tests.
 | P5-3 | Service worker update is deferred while a shift is open |
 | P5-4 | 72-hour soak, 5,000 sales, random disconnects → zero loss, zero duplicates |
 | P5-5 | Device moved to another branch offline → branch cannot change |
+
+---
+
+### Phase 5 — what is built
+
+**Schema upgrade with a pending outbox (P5-2)** — `upgrade.test.ts` seeds a
+till at an OLD version from a hand-written fixture, writes two hundred queued
+sales, then runs the REAL `upgrade()` and asserts every one survives with its
+cart intact. The fixture has to be hand-written: calling today's `upgrade()`
+with a low version runs every block and builds today's schema under an old
+version number, which is a database no till has ever had. The first attempt did
+exactly that, failed with a ConstraintError, and looked like a schema bug for a
+minute.
+
+Mutations confirm it bites: a future release that recreates the outbox, demotes
+the receipt counter to a cache, or drops a store from the upgrade path is
+caught.
+
+**The update strip (P5-3)** now says the queued sales survive the reload. The
+fear is unfounded — the outbox is in IndexedDB and every step is additive — but
+an unanswered fear postpones the update for a week.
+
+**Out of room blocks a shift; low on room does not (P5-1).** The two were one
+condition and they are not the same risk. `not-persisted` says the browser MAY
+evict, some day, under pressure that might never come — refusing a till today,
+for certain, to avoid that is the worse trade, and it stays the warning it
+already was. Being out of room is not a probability: the next write fails, and
+the write that fails is a sale. Refusing before the shift costs nothing, because
+nobody has paid yet. `shiftBlocker` blocks only at `FULL` (0.98), and its message
+names the fix — a blocked till with no way forward is just a broken one.
+
+**Still open in Phase 5:** P5-4 (the 72-hour soak, which is a run rather than a
+build), P5-5 (a device moved to another branch offline must not change branch).
 
 ---
 
@@ -576,10 +771,10 @@ Each has an ID, a resolution, and the test that proves it.
 
 | ID | Case | Resolution | Test |
 |---|---|---|---|
-| E9 | The sale's business day is already closed and frozen — *"a day signed off in March must read the same in September"* | **Never reopen a closed day.** Post to the current open day, flagged `late_offline_arrival`, with the original time on the variance report | P4-3 |
+| E9 | The sale's business day is already closed and frozen — *"a day signed off in March must read the same in September"* | **Never reopen a closed day, and never re-file the sale either.** It is recorded on the day it HAPPENED (posting it to the open day would move money between two days and make both wrong), the frozen figures do not budge, and `sales.after_day_close` lets the report name the resulting shortfall in rupees | P4-3 |
 | E10 | The tablet's clock is days out | Carry `client_sold_at`, `server_received_at`, `clock_skew`; **the server decides the business day** | P4-4 |
 | E11 | A product was deleted while the device was offline — `softDeletes()` means `updated_at > cursor` never carries it | Explicit tombstones in the delta | P1-4 |
-| E12 | A training-mode sale syncs as real | The training flag rides the operation; the `business_day_id = null` fence holds | P3-15 |
+| E12 | A training-mode sale syncs as real — or worse, a REAL sale syncs as training | Practice needs two opinions: the drawer's `is_training` **and** the till's `operations.*.training`. The till's word can only withhold, never grant; silence means real | P3-15 |
 | E13 | The device is carried to another branch | Branch is bound into the device token at registration; it cannot change offline | P5-5 |
 
 ### 🟠 Stock
