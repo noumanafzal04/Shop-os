@@ -95,6 +95,7 @@ class PricingVarianceController extends Controller
             ->get();
 
         return ApiResponse::ok([
+            'checks' => $this->checks(),
             'total' => PricingVariance::query()->count(),
             'variances' => $variances->map(fn (PricingVariance $v): array => [
                 'id' => $v->id,
@@ -107,5 +108,41 @@ class PricingVarianceController extends Controller
                 'cart' => $v->cart,
             ]),
         ]);
+    }
+
+    /**
+     * What the shop's tills have DONE — the denominator under that count.
+     *
+     * Zero disagreements is the answer we want and also the answer a shop gets
+     * when no till has checked anything at all, which is the more dangerous of
+     * the two and the quieter one. `checked` is what tells them apart, and
+     * `reporting` is what stops one busy till speaking for four.
+     *
+     * Revoked tills are excluded. Their checks did happen, but the question
+     * being asked is whether THIS shop's working fleet has been exercised, and
+     * a signed-out tablet in a drawer cannot answer it.
+     */
+    private function checks(): array
+    {
+        $tills = PosDevice::query()->live()->get([
+            'shadow_checked', 'shadow_matched', 'shadow_skipped', 'shadow_differed', 'shadow_since',
+        ]);
+
+        return [
+            'checked' => (int) $tills->sum('shadow_checked'),
+            'matched' => (int) $tills->sum('shadow_matched'),
+            'skipped' => (int) $tills->sum('shadow_skipped'),
+            'differed' => (int) $tills->sum('shadow_differed'),
+            'tills' => $tills->count(),
+            // A fleet's evidence is only as broad as the tills producing it.
+            'reporting' => $tills->where('shadow_checked', '>', 0)->count(),
+            // The NEWEST start, not the oldest. These totals are a mix — a till
+            // wiped yesterday contributes a day beside another's three weeks —
+            // and the only date every one of them has been counting since is
+            // the latest reset. Taking the oldest would print "three weeks of
+            // evidence" over a fleet where one till has a day of it, which is
+            // the over-claim this whole number exists to prevent.
+            'since' => $tills->whereNotNull('shadow_since')->max('shadow_since')?->toIso8601String(),
+        ];
     }
 }

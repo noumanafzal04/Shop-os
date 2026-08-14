@@ -34,6 +34,17 @@ class RegisterDeviceRequest extends FormRequest
             // blank the "Counter tablet" the shop typed.
             'name' => ['sometimes', 'nullable', 'string', 'max:80'],
             'platform' => ['sometimes', Rule::in(['web', 'android', 'ios'])],
+            // What this till has done with the offline pricing engine so far —
+            // the denominator under the variance count. Optional, because a
+            // till on an older build has none to send and its boot must still
+            // work; sent whole when sent at all, because a tally missing its
+            // `checked` is a number with no meaning rather than a partial one.
+            'shadow' => ['sometimes', 'array'],
+            'shadow.checked' => ['required_with:shadow', 'integer', 'min:0'],
+            'shadow.matched' => ['required_with:shadow', 'integer', 'min:0'],
+            'shadow.skipped' => ['required_with:shadow', 'integer', 'min:0'],
+            'shadow.differed' => ['required_with:shadow', 'integer', 'min:0'],
+            'shadow.since' => ['required_with:shadow', 'date'],
         ];
     }
 }

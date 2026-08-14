@@ -88,6 +88,21 @@ class PosDeviceController extends Controller
             $device->name = $name;
         }
 
+        // What this till has done with the offline engine so far. Stored as
+        // sent rather than added to what is already there: a boot that never
+        // got its acknowledgement is re-sent, and an increment would inflate
+        // the exact number the offline decision turns on. See the migration for
+        // why a WIPED till dropping back to zero is the safe half of that.
+        if (($shadow = $request->validated('shadow')) !== null) {
+            $device->fill([
+                'shadow_checked' => $shadow['checked'],
+                'shadow_matched' => $shadow['matched'],
+                'shadow_skipped' => $shadow['skipped'],
+                'shadow_differed' => $shadow['differed'],
+                'shadow_since' => $shadow['since'],
+            ]);
+        }
+
         $device->last_seen_at = now();
         $device->save();
 

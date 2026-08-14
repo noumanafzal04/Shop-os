@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -323,5 +324,120 @@ class PosDeviceTest extends TestCase
             ])
             ->assertStatus(422)
             ->assertJsonPath('meta.error_code', 'LIMIT_BELOW_USAGE');
+    }
+
+    // ── The shadow tally ────────────────────────────────────────────
+    //
+    // What a till has DONE with the offline engine, as opposed to what it
+    // found. Zero disagreements is the answer we want and also the answer a
+    // shop gets when no till ever checked anything — this is the number that
+    // tells those two apart, so it has to be honest in both directions.
+
+    private function tally(array $over = []): array
+    {
+        return ['shadow' => array_merge([
+            'checked' => 120,
+            'matched' => 118,
+            'skipped' => 2,
+            'differed' => 0,
+            'since' => now()->subWeek()->toIso8601String(),
+        ], $over)];
+    }
+
+    public function test_a_till_reports_what_it_has_checked(): void
+    {
+        $id = (string) Str::uuid();
+
+        $this->register($this->cashier, $id, $this->tally())->assertOk();
+
+        $device = PosDevice::withoutTenancy()->find($id);
+        $this->assertSame(120, $device->shadow_checked);
+        $this->assertSame(118, $device->shadow_matched);
+        $this->assertSame(2, $device->shadow_skipped);
+        $this->assertNotNull($device->shadow_since);
+    }
+
+    public function test_a_re_sent_boot_does_not_inflate_the_tally(): void
+    {
+        // The reason totals are STORED rather than added to. A boot whose
+        // acknowledgement was lost is simply sent again, and an increment would
+        // climb on its own — inflating the exact number the offline decision
+        // turns on.
+        $id = (string) Str::uuid();
+        $tally = $this->tally();
+
+        $this->register($this->cashier, $id, $tally)->assertOk();
+        $this->register($this->cashier, $id, $tally)->assertOk();
+
+        $this->assertSame(120, PosDevice::withoutTenancy()->find($id)->shadow_checked);
+    }
+
+    public function test_a_wiped_till_is_allowed_to_count_down(): void
+    {
+        // Local storage cleared: the till genuinely has no evidence any more,
+        // and a monotonic guard would freeze a stale high number in place and
+        // authorise offline selling on evidence nothing can still produce.
+        $id = (string) Str::uuid();
+        $this->register($this->cashier, $id, $this->tally())->assertOk();
+
+        $this->register($this->cashier, $id, $this->tally([
+            'checked' => 3, 'matched' => 3, 'skipped' => 0,
+            'since' => now()->toIso8601String(),
+        ]))->assertOk();
+
+        $this->assertSame(3, PosDevice::withoutTenancy()->find($id)->shadow_checked);
+    }
+
+    public function test_a_till_that_sends_no_tally_keeps_the_one_it_had(): void
+    {
+        // An older build has none to send, and a routine boot must not blank
+        // what a working till already reported — the same rule the name follows.
+        $id = (string) Str::uuid();
+        $this->register($this->cashier, $id, $this->tally())->assertOk();
+
+        $this->register($this->cashier, $id, ['name' => 'Counter tablet'])->assertOk();
+
+        $this->assertSame(120, PosDevice::withoutTenancy()->find($id)->shadow_checked);
+    }
+
+    public function test_a_till_on_an_older_build_still_boots(): void
+    {
+        // The tally is diagnostics. A device must never fail to register — and
+        // so never be able to sell — because it cannot describe itself fully.
+        $this->register($this->cashier, (string) Str::uuid())->assertOk();
+    }
+
+    #[DataProvider('tallyFields')]
+    public function test_half_a_tally_is_refused(string $missing): void
+    {
+        // A tally missing any one of its parts is not a partial number, it is a
+        // meaningless one — matched with no `checked` has no denominator, and a
+        // count with no `since` has no window.
+        //
+        // Each field is dropped ON ITS OWN. Dropping several at once passes
+        // whichever rule happens to fire first and would leave the other four
+        // unguarded while still reading green.
+        $tally = $this->tally()['shadow'];
+        unset($tally[$missing]);
+
+        $this->register($this->cashier, (string) Str::uuid(), ['shadow' => $tally])
+            ->assertStatus(422);
+    }
+
+    public static function tallyFields(): array
+    {
+        return [
+            'checked' => ['checked'],
+            'matched' => ['matched'],
+            'skipped' => ['skipped'],
+            'differed' => ['differed'],
+            'since' => ['since'],
+        ];
+    }
+
+    public function test_a_negative_tally_is_refused(): void
+    {
+        $this->register($this->cashier, (string) Str::uuid(), $this->tally(['checked' => -1]))
+            ->assertStatus(422);
     }
 }

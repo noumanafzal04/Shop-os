@@ -38,6 +38,11 @@ class PosDevice extends Model
         return [
             'last_seen_at' => 'datetime',
             'revoked_at' => 'datetime',
+            'shadow_since' => 'datetime',
+            'shadow_checked' => 'integer',
+            'shadow_matched' => 'integer',
+            'shadow_skipped' => 'integer',
+            'shadow_differed' => 'integer',
         ];
     }
 

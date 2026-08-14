@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\PosDevice;
 use App\Models\PricingVariance;
 use App\Models\Tenant;
 use App\Models\User;
@@ -193,6 +194,112 @@ class PricingVarianceTest extends TestCase
         $this->report([$this->variance()])->assertOk();
 
         $this->actingAsUser($this->cashier)->getJson('/api/v1/pricing-variances')->assertForbidden();
+    }
+
+    // ── The denominator ─────────────────────────────────────────────
+    //
+    // An empty list is produced identically by "the engine agreed on 1,284 real
+    // carts" and "no till ever checked anything", and the second is both the
+    // dangerous one and the quieter one. These are the numbers that separate
+    // them, so an empty list can be read as evidence rather than as silence.
+
+    private function till(array $shadow, bool $revoked = false): PosDevice
+    {
+        return PosDevice::withoutTenancy()->create([
+            'id' => (string) Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'last_seen_at' => now(),
+            'revoked_at' => $revoked ? now() : null,
+        ] + $shadow);
+    }
+
+    public function test_it_reports_how_many_carts_were_actually_checked(): void
+    {
+        $this->till(['shadow_checked' => 900, 'shadow_matched' => 890, 'shadow_skipped' => 10]);
+        $this->till(['shadow_checked' => 384, 'shadow_matched' => 384]);
+
+        $checks = $this->actingAsUser($this->owner)->getJson('/api/v1/pricing-variances')
+            ->assertOk()->json('data.checks');
+
+        $this->assertSame(1284, $checks['checked']);
+        $this->assertSame(1274, $checks['matched']);
+        $this->assertSame(10, $checks['skipped']);
+    }
+
+    public function test_a_shop_that_has_checked_nothing_says_zero_rather_than_looking_clean(): void
+    {
+        // The whole point. Without this, a shop where the engine never ran once
+        // is indistinguishable from one where it ran perfectly.
+        $this->till(['shadow_checked' => 0]);
+
+        $checks = $this->actingAsUser($this->owner)->getJson('/api/v1/pricing-variances')
+            ->assertOk()->json('data.checks');
+
+        $this->assertSame(0, $checks['checked']);
+        $this->assertSame(1, $checks['tills']);
+        $this->assertSame(0, $checks['reporting']);
+    }
+
+    public function test_it_says_how_many_tills_are_actually_reporting(): void
+    {
+        // Four tills and one of them exercised is not a fleet that has been
+        // tested, however large the count on that one till gets.
+        $this->till(['shadow_checked' => 1284]);
+        $this->till(['shadow_checked' => 0]);
+        $this->till(['shadow_checked' => 0]);
+
+        $checks = $this->actingAsUser($this->owner)->getJson('/api/v1/pricing-variances')
+            ->assertOk()->json('data.checks');
+
+        $this->assertSame(3, $checks['tills']);
+        $this->assertSame(1, $checks['reporting']);
+    }
+
+    public function test_the_window_is_the_newest_start_and_not_the_luckiest(): void
+    {
+        // A till wiped yesterday contributes a day beside another's three
+        // weeks. The only date every till in the sum has been counting since is
+        // the latest reset; taking the oldest would print "three weeks of
+        // evidence" over a fleet that has one day of it.
+        $old = now()->subWeeks(3);
+        $recent = now()->subDay();
+        $this->till(['shadow_checked' => 900, 'shadow_since' => $old]);
+        $this->till(['shadow_checked' => 12, 'shadow_since' => $recent]);
+
+        $since = $this->actingAsUser($this->owner)->getJson('/api/v1/pricing-variances')
+            ->assertOk()->json('data.checks.since');
+
+        $this->assertSame($recent->toIso8601String(), $since);
+    }
+
+    public function test_a_signed_out_till_does_not_vouch_for_a_fleet_it_left(): void
+    {
+        // Its checks did happen. The question being asked is whether the
+        // WORKING fleet has been exercised, and a tablet in a drawer cannot
+        // answer it.
+        $this->till(['shadow_checked' => 5000, 'shadow_matched' => 5000], revoked: true);
+
+        $checks = $this->actingAsUser($this->owner)->getJson('/api/v1/pricing-variances')
+            ->assertOk()->json('data.checks');
+
+        $this->assertSame(0, $checks['checked']);
+        $this->assertSame(0, $checks['tills']);
+    }
+
+    public function test_one_shops_checks_are_not_anothers(): void
+    {
+        $other = Tenant::factory()->create([
+            'setup_completed' => true,
+            'business_type' => 'mart',
+            'features' => BusinessTypes::defaultFeatures('mart'),
+        ]);
+        $otherOwner = User::factory()->shopOwner($other)->create();
+        $this->till(['shadow_checked' => 1284]);
+
+        $checks = $this->actingAsUser($otherOwner)->getJson('/api/v1/pricing-variances')
+            ->assertOk()->json('data.checks');
+
+        $this->assertSame(0, $checks['checked']);
     }
 
     public function test_one_shops_findings_are_not_anothers(): void
