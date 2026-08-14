@@ -10,7 +10,13 @@ import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import StorageWarning from "../../offline/storage/StorageWarning";
+import { shiftBlocker } from "../../offline/storage/persist";
 import { runShadowCheck } from "../../offline/pricing/runShadowCheck";
+import { completeOffline, linesFromCatalog } from "../../offline/outbox/offlineCheckout";
+import { pendingCount } from "../../offline/db/repo";
+import { onHand, unsyncedDeltas } from "../../offline/outbox/localStock";
+import { lastServerContact } from "../../offline/contact";
+import { useOfflineStore } from "../../offline/offlineStore";
 import { ApiError } from "../../../common/types/api";
 import { apiGet } from "../../../common/api/client";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
@@ -23,7 +29,7 @@ import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { catalogService } from "../../catalog/services/catalogService";
 import type { Product as CatalogProduct, ProductUnit } from "../../catalog/types";
 import { salesService } from "../../sales/services/salesService";
-import type { Sale } from "../../sales/types";
+import type { PaymentMethod, Sale, SaleInput, SaleStatus } from "../../sales/types";
 import { posService, type HeldSale } from "../services/posService";
 import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
@@ -305,6 +311,39 @@ export default function PosPage() {
   const tillLocked = useTillStore((s) => s.locked);
   const online = useConnectionStore((s) => s.online);
   const reachable = useConnectionStore((s) => s.reachable);
+  const setOfflinePending = useOfflineStore((s) => s.setPending);
+  const offlineOwed = useOfflineStore((s) => s.pending);
+
+  /**
+   * Out of room, as against running low.
+   *
+   * A low-storage WARNING belongs on this screen and always has. This is the
+   * separate, harder case: the device cannot write any more, so a sale rung on
+   * this shift would not be saved. Refusing now costs nothing — nobody has paid
+   * yet, and the fix takes a minute. Refusing later costs a sale that already
+   * happened, with the customer already gone.
+   */
+  const storageHealth = useOfflineStore((s) => s.storage);
+  const blockedReason = storageHealth === null ? null : shiftBlocker(storageHealth);
+
+  /**
+   * What the queue is holding off the shelf.
+   *
+   * The catalog's stock figure is whatever the server last said. On a
+   * load-shedding evening a mart shifts forty cartons of milk before the line
+   * comes back, and without this the till reads "forty in stock" on the
+   * fortieth sale — the cashier finds out when a customer asks for one more.
+   *
+   * Re-read whenever a sale is rung, which is the only thing that changes it.
+   */
+  const [stockDeltas, setStockDeltas] = useState<Map<string, number>>(new Map());
+  const refreshStockDeltas = () => {
+    void unsyncedDeltas().then(setStockDeltas).catch(() => {});
+  };
+  useEffect(refreshStockDeltas, []);
+  /** The catalog's figure, less what this till has sold and not yet sent. */
+  const shownStock = (p: { id: string; stock_quantity?: number | string | null }) =>
+    onHand(Number(p.stock_quantity ?? 0), stockDeltas, p.id);
   const connected = online && reachable;
   // Auto-lock is off unless the shop turns it on (Settings → POS).
   useIdleLock(Number(settings.data?.pos_idle_lock_minutes ?? 0), !tillLocked);
@@ -730,9 +769,90 @@ export default function PosPage() {
     setCustomerPoints(null); setRedeemPts(""); setPromo(null);
   };
 
+  /**
+   * Ringing a sale when the server cannot be reached.
+   *
+   * Everything the online path sends is built once, above, and handed here
+   * unchanged — the queued payload IS the online payload. Building a smaller
+   * one for offline is how a tip, a prescription or an odometer reading
+   * silently stops being recorded, with nothing failing to say so.
+   *
+   * The refusal has to arrive BEFORE the drawer opens. A cashier allowed to
+   * complete a sale the shop will later reject has already handed over the
+   * goods, and the customer has gone.
+   */
+  const ringOffline = async (payload: Record<string, unknown>) => {
+    const { lines, guardLines } = await linesFromCatalog(
+      cart.map((l) => ({
+        product_id: l.product_id,
+        variant_id: l.variant_id,
+        quantity: l.quantity,
+        price_level: l.price_level === "wholesale" ? ("wholesale" as const) : ("retail" as const),
+        discountValue: l.discountValue,
+        discountMode: l.discountMode,
+      })),
+    );
+
+    const queued = await completeOffline({
+      sale: payload,
+      lines,
+      cartDiscount: Number(discount) || 0,
+      guard: {
+        lines: guardLines,
+        paymentMethod: method,
+        orderType: isRestaurant ? orderType : null,
+        redeemPoints: redeemPtsNum,
+        couponCode: couponCode || null,
+      },
+      registerName: terminalName,
+      // What this till was standing at. The server needs this AND the shift to
+      // agree before a synced sale counts as practice — read the veto in
+      // CreateSaleAction. Sent from the same `training` the banner above the
+      // screen is drawn from, so the cashier and the books cannot be told two
+      // different things.
+      training,
+      // When this device was last in touch — which is what "was this rung past
+      // the shop's window" is measured from. The question is how long the till
+      // had been away WHEN IT RANG THIS, not how old the sale is by the time
+      // it arrives: a sale rung on the second day of an outage was one day
+      // out, and stays one day out however long the outbox then waits.
+      offlineSince: (() => {
+        const at = lastServerContact();
+
+        return at === null ? null : new Date(at).toISOString();
+      })(),
+    });
+
+    // Assembled HERE and not in the offline module, so that module never has
+    // to know what a receipt looks like. It answers "what did this cost and
+    // what is it called"; presenting that as a sale is the POS's job.
+    const paid = method === "cash" ? Number(tendered) || queued.total : queued.total;
+
+    const offlineSale: Sale & { offline: true } = {
+      ...queued,
+      channel: "pos" as const,
+      status: "completed" as SaleStatus,
+      customer_name: customer || null,
+      customer_phone: customerPhone || null,
+      subtotal: String(queued.subtotal),
+      discount: String(queued.discount),
+      tax: String(queued.tax),
+      total: String(queued.total),
+      payment_method: method as PaymentMethod,
+      amount_paid: String(paid),
+      change_due: String(Math.max(0, paid - queued.total)),
+      notes: null,
+      sold_at: new Date().toISOString(),
+      cancelled_at: null,
+      cancel_reason: null,
+    };
+
+    return offlineSale;
+  };
+
   const checkout = useMutation({
-    mutationFn: () =>
-      salesService.create({
+    mutationFn: async () => {
+      const payload: SaleInput = {
         channel: "pos",
         cash_session_id: activeSessionId,
         customer_name: customer || undefined,
@@ -794,22 +914,47 @@ export default function PosPage() {
           ? { prescription_number: rxNumber || undefined, prescriber_name: rxPrescriber || undefined, patient_name: rxPatient || undefined }
           : {}),
         idempotency_key: idemRef.current,
-      }),
+      };
+
+      // The SAME payload either way. When the server can be reached it goes
+      // straight there; when it cannot, it is priced here, queued, and sent
+      // whenever the line comes back. Nothing is trimmed for the offline path
+      // — see `ringOffline`.
+      if (!connected) return { data: await ringOffline(payload as unknown as Record<string, unknown>) };
+
+      return salesService.create(payload);
+    },
     onSuccess: ({ data }) => {
       // Captured BEFORE clearSale(), which empties both — the shadow check
       // below needs the cart that was actually rung, not the empty one.
       const soldLines = cart;
       const discountAtCheckout = Number(discount || 0);
 
+      // An offline sale has no server row behind it yet, so everything that
+      // would go and ask the server about it is skipped. It is still a real
+      // sale: the drawer opens, the slip prints, the customer leaves.
+      const isOffline = "offline" in data && data.offline === true;
+
       setLastSale(data);
       clearSale();
       tenderModal.closeModal();
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["sales"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["pos", "session"] });
+      if (!isOffline) {
+        // Re-reading these offline would replace what the till knows with
+        // whatever a failed request returned — the catalog is the local
+        // projection's job, and it updates on the next sync.
+        qc.invalidateQueries({ queryKey: ["products"] });
+        qc.invalidateQueries({ queryKey: ["sales"] });
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
+        qc.invalidateQueries({ queryKey: ["pos", "session"] });
+      }
       receiptModal.openModal();
       setLastPrint(null);
+      // Keep the badge honest the moment the queue grows, rather than at the
+      // next sync — the cashier has just added to it.
+      if (isOffline) {
+        void pendingCount().then(setOfflinePending).catch(() => {});
+        refreshStockDeltas();
+      }
       // The drawer opens on cash, not on card — that's the whole reason the
       // setting exists. `payments` is set for a split tender.
       const tookCash = data.payments?.some((p) => p.method === "cash") ?? data.payment_method === "cash";
@@ -817,7 +962,10 @@ export default function PosPage() {
       // Auto-print the receipt when the shop setting is on (Shop Settings →
       // POS). Failures are surfaced softly — the receipt modal's Print button
       // is always available as the manual fallback.
-      if (settings.data?.pos_auto_print) void printReceipt(data.id);
+      // Printing asks the SERVER to render the receipt, so offline it would
+      // fail — and would be the one failure a cashier sees at the exact moment
+      // the shop is proving it can trade without a connection.
+      if (settings.data?.pos_auto_print && !isOffline) void printReceipt(data.id);
 
       // Shadow check: price the same cart AGAIN with the offline engine and
       // record any disagreement. The customer has already paid the server's
@@ -827,7 +975,13 @@ export default function PosPage() {
       // shop rings hundreds a day nobody thought of. Two weeks of these is what
       // decides whether a till may price on its own. Fire-and-forget: it never
       // throws, and its result is a diagnostic, not the cashier's problem.
-      void runShadowCheck(
+      //
+      // NOT run on an offline sale. There is no server figure to compare
+      // against — the totals below ARE the local engine's — so it would be
+      // comparing the engine with itself and recording a perfect match. That
+      // would inflate the very count the offline decision is read from, with
+      // evidence that proves nothing.
+      if (!isOffline) void runShadowCheck(
         data.id,
         soldLines.map((l) => ({
           product_id: l.product_id,
@@ -934,7 +1088,7 @@ export default function PosPage() {
   // choices, blocks out-of-stock, then clears the box so the next scan/search
   // starts fresh (focus never leaves the input, so the cashier keeps typing).
   const commitProduct = (p: CatalogProduct) => {
-    const out = p.type === "product" && p.track_inventory && Number(p.stock_quantity) <= 0;
+    const out = p.type === "product" && p.track_inventory && shownStock(p) <= 0;
     if (out) {
       posSound.error();
       // At a chemist an out-of-stock brand is rarely the end of the sale: the
@@ -1596,7 +1750,7 @@ export default function PosPage() {
               ) : (
                 tiles.map((p, i) => {
                   const sale = onSale(p);
-                  const out = p.type === "product" && p.track_inventory && Number(p.stock_quantity) <= 0;
+                  const out = p.type === "product" && p.track_inventory && shownStock(p) <= 0;
                   const active = i === activeIndex;
                   return (
                     <button
@@ -1615,7 +1769,7 @@ export default function PosPage() {
                           {p.generic_name ? <span className="text-white/60">{p.generic_name}</span> : null}
                           {p.generic_name && (p.sku || p.type === "product") ? " · " : null}
                           {p.sku ? `#${p.sku}` : null}
-                          {p.item_type === "deal" ? `${p.sku ? " · " : ""}Deal` : p.type === "product" && p.track_inventory ? `${p.sku ? " · " : ""}stock ${fmtQty(Number(p.stock_quantity))}${p.unit ? " " + p.unit : ""}` : null}
+                          {p.item_type === "deal" ? `${p.sku ? " · " : ""}Deal` : p.type === "product" && p.track_inventory ? `${p.sku ? " · " : ""}stock ${fmtQty(shownStock(p))}${p.unit ? " " + p.unit : ""}` : null}
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
@@ -2165,10 +2319,23 @@ export default function PosPage() {
                 ? "border-success-500/40 bg-success-500/15 text-success-300"
                 : "border-error-500/50 bg-error-500/15 text-error-300"
             }`}
-            title={connected ? "The till reached the server on its last request." : "The last request never reached the server. Sales can't be rung until this clears."}
+            title={
+              connected
+                ? "The till reached the server on its last request."
+                : offlineOwed > 0
+                  ? `${offlineOwed} ${offlineOwed === 1 ? "sale is" : "sales are"} saved on this device and will send themselves when the connection returns. Nothing is lost.`
+                  : "The last request never reached the server. You can keep selling — sales are saved here and sent when the line is back."
+            }
           >
             <span className={`h-2 w-2 rounded-full ${connected ? "bg-success-500" : "bg-error-500 animate-pulse"}`} />
-            {connected ? "Online" : online ? "No server" : "Offline"}
+            {/* Not "pending", which reads as a fault and frightens a
+                shopkeeper. "Saved here" is what is actually true, and it is
+                the thing they need to know. */}
+            {connected
+              ? "Online"
+              : offlineOwed > 0
+                ? `${offlineOwed} saved here`
+                : online ? "No server" : "Offline"}
           </span>
         </div>
 
@@ -2510,6 +2677,18 @@ export default function PosPage() {
             going into it, and it warns rather than blocks — a shop refused its
             own till over a browser permission is worse than the risk. */}
         <StorageWarning className="mb-4" />
+        {/* Out of room is not the same as low on room. The warning above says
+            "act soon"; this says "a sale rung now might not be saved", and it
+            is the one case where refusing the till is cheaper than allowing
+            it — see `shiftBlocker`. */}
+        {blockedReason !== null && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-error-200 bg-error-50 p-3 text-theme-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
+          >
+            {blockedReason}
+          </div>
+        )}
         {usesLanes && (
           <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
             {laneLabel ? <>On <span className="font-medium text-gray-700 dark:text-gray-200">{laneLabel}</span>.{" "}</> : "No register picked for this device. "}
@@ -2566,7 +2745,7 @@ export default function PosPage() {
           <Button size="sm" variant="outline" onClick={openModal.closeModal}>Cancel</Button>
           <Button
             size="sm"
-            disabled={shift.open.isPending}
+            disabled={shift.open.isPending || blockedReason !== null}
             onClick={() => {
               setShiftError(null);
               shift.open.mutate({ float: Number(openingFloat) || 0, registerId: terminalId, training: openTraining }, {

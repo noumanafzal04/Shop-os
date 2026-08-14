@@ -39,6 +39,10 @@ describe("everyone else keeps what their modules feed", () => {
   it("a mart gets the lot", () => {
     expect(keys(MART)).toEqual([
       "overview", "margins", "valuation", "dead-stock", "purchases", "staff", "tax", "receipts",
+      // Offered to every selling shop and not gated on having been offline —
+      // load-shedding is universal here, and a tab that appeared only once
+      // there was bad news is a tab nobody knows exists.
+      "offline",
     ]);
   });
 

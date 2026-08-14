@@ -7,6 +7,7 @@ import { count, putMany, putSingleton } from "../db/repo";
 import { STORE } from "../db/schema";
 import { MAX_VARIANCES, readVariances, runShadowCheck, type ShadowLine } from "./runShadowCheck";
 import type { CatalogItem } from "../sync/catalogService";
+import { readTally } from "./shadowTally";
 
 /**
  * The shadow check as it will actually run, against the till's own catalog.
@@ -282,5 +283,43 @@ describe("what it feeds the engine", () => {
     );
 
     expect(outcome.status).toBe("matched");
+  });
+});
+
+describe("counting what it did", () => {
+  // Zero findings is the answer we want and also the answer a shop gets when
+  // no check ever ran. The tally is bumped inside runShadowCheck rather than by
+  // its caller precisely so no caller can drop the denominator.
+
+  it("counts a match", async () => {
+    await seed([item({ id: "p1", price: 100 })]);
+
+    await runShadowCheck("s1", [line({})], { subtotal: 100, discount: 0, tax: 0, total: 100 }, 0);
+
+    expect(await readTally()).toMatchObject({ checked: 1, matched: 1 });
+  });
+
+  it("counts a disagreement", async () => {
+    await seed([item({ id: "p1", price: 100 })]);
+
+    await runShadowCheck("s1", [line({})], { subtotal: 999, discount: 0, tax: 0, total: 999 }, 0);
+
+    expect(await readTally()).toMatchObject({ checked: 1, differed: 1 });
+  });
+
+  it("counts a SKIP, and keeps why", async () => {
+    // The load-bearing one. A till that never pulled its catalog skips every
+    // cart, and a fortnight of that must not read as a fortnight of agreement.
+    await runShadowCheck("s1", [line({})], { subtotal: 100, discount: 0, tax: 0, total: 100 }, 0);
+
+    const tally = await readTally();
+    expect(tally).toMatchObject({ checked: 1, skipped: 1, matched: 0 });
+    expect(Object.keys(tally?.skips ?? {})).toHaveLength(1);
+  });
+
+  it("counts an empty cart as a check that was skipped, not as nothing", async () => {
+    await runShadowCheck("s1", [], { subtotal: 0, discount: 0, tax: 0, total: 0 }, 0);
+
+    expect(await readTally()).toMatchObject({ checked: 1, skipped: 1 });
   });
 });

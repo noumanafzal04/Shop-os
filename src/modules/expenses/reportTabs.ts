@@ -2,7 +2,7 @@
 export const STOCK_TABS = ["valuation", "dead-stock", "purchases"];
 
 /** Reports built out of SALES — margins, who sold it, the tax on it, receipts. */
-export const SALES_TABS = ["margins", "staff", "tax", "receipts"];
+export const SALES_TABS = ["margins", "staff", "tax", "receipts", "offline"];
 
 /**
  * Which report tabs this shop can actually fill.
@@ -42,6 +42,13 @@ export function reportTabs(
           ["staff", "Staff"],
           ["tax", "Tax"],
           ["receipts", "Receipts"],
+          // Offered to every shop that sells, and NOT gated on having been
+          // offline. Load-shedding is universal here; the day a shop needs
+          // this is the day it has never looked for it, and a tab that
+          // appeared only once there was bad news would be a tab nobody knew
+          // existed. On a good day it says the tills were in touch all along,
+          // which is worth reading too.
+          ["offline", "Offline"],
         ] as Array<[string, string]>)
       : []),
   ];

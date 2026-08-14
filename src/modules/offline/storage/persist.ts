@@ -146,3 +146,40 @@ export function storageWarning(health: StorageHealth, installed = isInstalled())
   // what teaches people to dismiss the one that matters.
   return null;
 }
+
+/**
+ * Out of room, as against running low.
+ *
+ * The gap between this and `NEARLY_FULL` is the whole point. Below it a warning
+ * is right, because everything still works and the shop has time to act. At it,
+ * a write is going to fail — and the write that fails is a sale, discovered
+ * with a customer at the counter and nothing to be done about it.
+ */
+export const FULL = 0.98;
+
+export function isFull(health: StorageHealth): boolean {
+  return health.used !== null && health.used >= FULL;
+}
+
+/**
+ * May a shift be opened on this till?
+ *
+ * ── Why only the FULL case blocks, and not the permission case ──────────
+ *
+ * `not-persisted` says the browser MAY evict, some day, under pressure that
+ * might never come. Refusing to open a till over a browser permission is worse
+ * than the risk it guards — the shop cannot trade at all, today, for certain,
+ * to avoid something that probably will not happen. That stays a warning.
+ *
+ * Being out of room is not a probability. The next sales cannot be written, so
+ * opening a shift is opening one that will fail partway through a queue. And
+ * refusing NOW costs nothing: no sale has been rung, nobody is waiting, and the
+ * fix takes a minute. Refusing LATER costs a sale that already happened.
+ *
+ * The message has to name the fix, or a blocked till is just a broken one.
+ */
+export function shiftBlocker(health: StorageHealth): string | null {
+  if (!isFull(health)) return null;
+
+  return "This till has run out of storage, so a sale rung now might not be saved. Connect it to the internet and let it sync — that sends anything waiting and frees the space. If it is already online, clear this browser's cached images and try again.";
+}

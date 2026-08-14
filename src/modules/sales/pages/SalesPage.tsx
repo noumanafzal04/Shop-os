@@ -24,6 +24,8 @@ import type { SaleStatus } from "../types";
 import { VOID_REASONS, type VoidReasonCode } from "../services/salesService";
 import { receiptService } from "../../receipts/services/receiptService";
 import { useReceiptTrail } from "../../receipts/hooks/useReceipts";
+import { useConnectionStore } from "../../../stores/connectionStore";
+import { MONEY_BACK_OFFLINE } from "../../offline/outbox/canSellOffline";
 
 const STATUS_COLOR: Record<SaleStatus, "success" | "error" | "warning" | "info"> = {
   completed: "success",
@@ -61,6 +63,21 @@ export default function SalesPage() {
 
   const sales = useSales({ search: debounced, status, page });
   const { cancel, processReturn, exchange } = useSaleMutations();
+
+  /**
+   * Money going back OUT needs the server, and the cashier has to hear that
+   * before they promise it.
+   *
+   * A refund is not a sale in reverse. It restocks, it reverses loyalty, it
+   * credits a khata — every one of those is a shared figure another till could
+   * be moving, so it is the clearest case of the rule the whole offline design
+   * turns on: a single till cannot decide this alone.
+   *
+   * Offline the request fails on its own, so nothing here is what STOPS it.
+   * What is missing without this is the REASON, arriving after a cashier has
+   * already told a customer they would get their money back.
+   */
+  const connected = useConnectionStore((s) => s.online && s.reachable);
   // Counter sales need the POS module — an online-only shop sees only history.
   const hasPos = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.pos ?? true,
@@ -465,9 +482,16 @@ export default function SalesPage() {
                 {processReturn.error instanceof ApiError && (
                   <Alert variant="error" title="Return failed" message={processReturn.error.message} />
                 )}
+                {!connected && (
+                  <Alert
+                    variant="warning"
+                    title="Refunds need the connection"
+                    message={`${MONEY_BACK_OFFLINE.refund.reason} ${MONEY_BACK_OFFLINE.refund.fix}`}
+                  />
+                )}
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setReturning(false)}>Back</Button>
-                  <Button size="sm" onClick={doReturn} disabled={processReturn.isPending || Object.values(returnQty).every((q) => !q)}>
+                  <Button size="sm" onClick={doReturn} disabled={!connected || processReturn.isPending || Object.values(returnQty).every((q) => !q)}>
                     {processReturn.isPending ? "Processing…" : "Refund & restock"}
                   </Button>
                 </div>
@@ -551,9 +575,16 @@ export default function SalesPage() {
                 {exchange.error instanceof ApiError && (
                   <Alert variant="error" title="Exchange failed" message={exchange.error.message} />
                 )}
+                {!connected && (
+                  <Alert
+                    variant="warning"
+                    title="Exchanges need the connection"
+                    message={`${MONEY_BACK_OFFLINE.exchange.reason} ${MONEY_BACK_OFFLINE.exchange.fix}`}
+                  />
+                )}
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setExchanging(false)}>Back</Button>
-                  <Button size="sm" onClick={doExchange} disabled={exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0}>
+                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0}>
                     {exchange.isPending ? "Processing…" : "Complete exchange"}
                   </Button>
                 </div>

@@ -3,6 +3,7 @@ import { STORE } from "../db/schema";
 import type { CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
 import type { CartLine, PriceLevel } from "./priceCart";
 import { comparePricing, type PricingVariance, type ServerTotals } from "./shadow";
+import { bumpTally } from "./shadowTally";
 
 /**
  * Running the shadow check against a sale the server just completed.
@@ -52,13 +53,32 @@ export type ShadowOutcome =
 export const MAX_VARIANCES = 200;
 
 /**
- * Price the sale locally, compare, and record any disagreement.
+ * Price the sale locally, compare, record any disagreement — and count it.
  *
  * Never throws and never blocks. It runs after the customer has paid and after
  * the receipt is on screen; a shadow check that interrupted a counter would be
  * the worst possible trade for information nobody asked for.
+ *
+ * The tally is bumped HERE rather than by the caller, and that is the whole
+ * reason this wrapper exists. A caller that forgets costs the denominator, and
+ * a denominator missing is what turns "we found nothing" from evidence into
+ * silence — the one confusion this exercise cannot afford.
  */
 export async function runShadowCheck(
+  saleId: string,
+  lines: ShadowLine[],
+  server: ServerTotals,
+  cartDiscount: number,
+): Promise<ShadowOutcome> {
+  const outcome = await evaluate(saleId, lines, server, cartDiscount);
+
+  await bumpTally(outcome.status, outcome.status === "skipped" ? outcome.reason : undefined);
+
+  return outcome;
+}
+
+/** The check itself. Split out only so the tally above cannot be skipped. */
+async function evaluate(
   saleId: string,
   lines: ShadowLine[],
   server: ServerTotals,

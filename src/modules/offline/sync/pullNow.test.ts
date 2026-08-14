@@ -8,6 +8,8 @@ import { STORE } from "../db/schema";
 import { readMeta } from "./applyPull";
 import { catalogService, type CatalogItem, type CatalogPull, type Page, type Tombstone } from "./catalogService";
 import { isPulling, pullNow } from "./pullNow";
+import { deviceService } from "../device/deviceService";
+import { resetTouchClock } from "../device/touch";
 
 /**
  * Fetching everything the server has, and stopping.
@@ -253,5 +255,33 @@ describe("failure", () => {
 
     expect(await count(STORE.CATALOG)).toBe(1);
     expect((await readMeta()).cursors.products).toBe("c1");
+  });
+});
+
+describe("saying the till is still here", () => {
+  // Registration runs once, on the way in. A counter tablet left open all week
+  // would otherwise sit on the owner's roster reading "last reached us 7 days
+  // ago" while it synced every quarter of an hour — and `last_seen_at` is the
+  // clock the whole offline policy is built on.
+
+  it("touches the device once the catalog is in", async () => {
+    resetTouchClock();
+    const touch = vi.spyOn(deviceService, "touch").mockResolvedValue(envelope({}) as never);
+    vi.spyOn(catalogService, "bootstrap").mockResolvedValue(envelope(pull([item("p1")], "c1")));
+
+    await pullNow();
+
+    expect(touch).toHaveBeenCalled();
+  });
+
+  it("does not let a failed touch fail the pull", async () => {
+    // The catalog is what the till sells from; a heartbeat is not.
+    resetTouchClock();
+    vi.spyOn(deviceService, "touch").mockRejectedValue(new Error("offline"));
+    vi.spyOn(catalogService, "bootstrap").mockResolvedValue(envelope(pull([item("p1")], "c1")));
+
+    await expect(pullNow()).resolves.toBeTruthy();
+
+    expect(await count(STORE.CATALOG)).toBe(1);
   });
 });

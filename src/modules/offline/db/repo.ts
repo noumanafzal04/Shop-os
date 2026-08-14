@@ -1,5 +1,5 @@
 import { run, runAll } from "./open";
-import { CACHE_STORES, SINGLETON_KEY, STORE, type StoreName } from "./schema";
+import { CACHE_STORES, SINGLETON_KEY, type StoreName } from "./schema";
 
 /**
  * The operations the till performs on its local database.
@@ -85,7 +85,16 @@ export async function clearCaches(): Promise<void> {
   }
 }
 
-/** How much unsent work this till is holding. The number the cashier sees. */
+/**
+ * How much unsent work this till is holding. The number the cashier sees.
+ *
+ * NOT the row count. An acknowledged sale keeps its row — that mapping from the
+ * printed slip to the real invoice number is the only thing that can answer a
+ * customer holding the paper — so counting rows would show a badge reading "47
+ * unsent" at a till that owes nothing, on a shop's busiest day.
+ */
 export async function pendingCount(): Promise<number> {
-  return count(STORE.OUTBOX);
+  const { owedCount } = await import("../outbox/outbox");
+
+  return owedCount();
 }

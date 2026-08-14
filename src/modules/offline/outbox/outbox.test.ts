@@ -1,0 +1,264 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import "fake-indexeddb/auto";
+import { IDBFactory } from "fake-indexeddb";
+
+import { resetDbCache } from "../db/open";
+import { getAll } from "../db/repo";
+import { STORE } from "../db/schema";
+import {
+  allRows,
+  BACKOFF_MS,
+  dueRows,
+  enqueue,
+  KEEP_ACKED_MS,
+  markAcked,
+  markFailed,
+  markRetry,
+  markSending,
+  newRow,
+  OUTBOX_STATUS,
+  owedCount,
+  pruneAcked,
+  readRow,
+  recoverInFlight,
+  type OutboxRow,
+} from "./outbox";
+
+/**
+ * The queue of sales that have happened but not yet reached the server.
+ *
+ * The only store in the till that holds money. Every other store is a cache the
+ * server can send again; a row in here is a customer who has paid and walked
+ * out, and it exists nowhere else in the world.
+ *
+ * One asymmetry decides every doubtful case: sending a sale twice costs a
+ * lookup, and not sending it at all costs the sale.
+ */
+
+const row = (op: string, over: Partial<OutboxRow> = {}): OutboxRow => ({
+  ...newRow(op, "2026-08-16T10:00:00.000Z", `OFF-L1-AB-${op}`, { total: 100 }, null),
+  ...over,
+});
+
+beforeEach(() => {
+  globalThis.indexedDB = new IDBFactory();
+  resetDbCache();
+});
+
+describe("queueing", () => {
+  it("keeps the sale exactly as it will be sent", async () => {
+    await enqueue(row("1"));
+
+    const stored = await readRow("1");
+    expect(stored?.status).toBe(OUTBOX_STATUS.PENDING);
+    expect(stored?.sale).toEqual({ total: 100 });
+    expect(stored?.offlineNumber).toBe("OFF-L1-AB-1");
+  });
+
+  it("counts what is owed, and does not count what has landed", async () => {
+    await enqueue(row("1"));
+    await enqueue(row("2", { status: OUTBOX_STATUS.SENDING }));
+    await enqueue(row("3", { status: OUTBOX_STATUS.ACKED }));
+
+    expect(await owedCount()).toBe(2);
+  });
+
+  it("counts a FAILED row as no longer owed, because retrying cannot help", async () => {
+    await enqueue(row("1", { status: OUTBOX_STATUS.FAILED }));
+
+    expect(await owedCount()).toBe(0);
+  });
+});
+
+describe("what to send next", () => {
+  it("sends the oldest first", async () => {
+    // A queue that sent its newest first would, on a link that keeps dropping,
+    // leave the oldest sale unsent for ever — and that is the one closest to
+    // being forgotten by everyone who was there.
+    await enqueue(row("new", { createdAt: "2026-08-16T12:00:00.000Z" }));
+    await enqueue(row("old", { createdAt: "2026-08-14T09:00:00.000Z" }));
+
+    expect((await dueRows()).map((r) => r.op)).toEqual(["old", "new"]);
+  });
+
+  it("does not send a row that is waiting out its backoff", async () => {
+    await enqueue(row("1", { nextAttemptAt: new Date(Date.now() + 60_000).toISOString() }));
+
+    expect(await dueRows()).toEqual([]);
+  });
+
+  it("sends it once the wait is over", async () => {
+    await enqueue(row("1", { nextAttemptAt: new Date(Date.now() - 1).toISOString() }));
+
+    expect(await dueRows()).toHaveLength(1);
+  });
+
+  it("never offers a row that is already in flight", async () => {
+    await enqueue(row("1", { status: OUTBOX_STATUS.SENDING }));
+
+    expect(await dueRows()).toEqual([]);
+  });
+});
+
+describe("in flight", () => {
+  it("counts the attempt when a row goes out", async () => {
+    await enqueue(row("1"));
+    await markSending([await readRow("1") as OutboxRow]);
+
+    const stored = await readRow("1");
+    expect(stored?.status).toBe(OUTBOX_STATUS.SENDING);
+    expect(stored?.attempts).toBe(1);
+  });
+
+  it("PUTS A ROW LEFT MID-FLIGHT BACK IN THE QUEUE", async () => {
+    // The single most important behaviour in this file. The tab was closed or
+    // the battery died mid-request, and nobody knows whether the server got it.
+    // Left alone that row is never sent again and the sale is simply gone.
+    await enqueue(row("1", { status: OUTBOX_STATUS.SENDING, attempts: 1 }));
+
+    expect(await recoverInFlight()).toBe(1);
+
+    const stored = await readRow("1");
+    expect(stored?.status).toBe(OUTBOX_STATUS.PENDING);
+    expect(await dueRows()).toHaveLength(1);
+  });
+
+  it("does not reset the attempt count when recovering", async () => {
+    // A row that keeps dying mid-flight has to reach its backoff eventually, or
+    // a till in a crash loop hammers the server every time it opens.
+    await enqueue(row("1", { status: OUTBOX_STATUS.SENDING, attempts: 4 }));
+
+    await recoverInFlight();
+
+    expect((await readRow("1"))?.attempts).toBe(4);
+  });
+
+  it("leaves rows that were not in flight alone", async () => {
+    await enqueue(row("1", { status: OUTBOX_STATUS.ACKED }));
+
+    expect(await recoverInFlight()).toBe(0);
+    expect((await readRow("1"))?.status).toBe(OUTBOX_STATUS.ACKED);
+  });
+});
+
+describe("when it lands", () => {
+  it("keeps the real invoice number against the slip that was printed", async () => {
+    // The slip in the customer's bag is the only reference they hold.
+    await enqueue(row("1"));
+    await markAcked((await readRow("1")) as OutboxRow, "INV-1043", []);
+
+    const stored = await readRow("1");
+    expect(stored?.status).toBe(OUTBOX_STATUS.ACKED);
+    expect(stored?.invoiceNumber).toBe("INV-1043");
+    expect(stored?.offlineNumber).toBe("OFF-L1-AB-1");
+  });
+
+  it("carries back what the shop flagged about it", async () => {
+    await enqueue(row("1"));
+    await markAcked((await readRow("1")) as OutboxRow, "INV-1", ["Khata needs the connection"]);
+
+    expect((await readRow("1"))?.violations).toHaveLength(1);
+  });
+});
+
+describe("when it does not land", () => {
+  it("waits longer each time rather than hammering a dead link", async () => {
+    await enqueue(row("1", { attempts: 2 }));
+    const at = Date.parse("2026-08-16T10:00:00.000Z");
+
+    await markRetry((await readRow("1")) as OutboxRow, "offline", at);
+
+    const stored = await readRow("1");
+    expect(stored?.status).toBe(OUTBOX_STATUS.PENDING);
+    expect(Date.parse(String(stored?.nextAttemptAt))).toBe(at + BACKOFF_MS[2]);
+  });
+
+  it("caps the wait, so a till away for two days is not backed off for hours", async () => {
+    await enqueue(row("1", { attempts: 99 }));
+    const at = Date.parse("2026-08-16T10:00:00.000Z");
+
+    await markRetry((await readRow("1")) as OutboxRow, "offline", at);
+
+    expect(Date.parse(String((await readRow("1"))?.nextAttemptAt)))
+      .toBe(at + BACKOFF_MS[BACKOFF_MS.length - 1]);
+  });
+
+  it("KEEPS a refused sale rather than dropping it", async () => {
+    // A till that quietly discarded a refused sale would leave a customer
+    // holding a receipt for something the shop has no record of, and nobody
+    // would ever know to look.
+    await enqueue(row("1"));
+    await markFailed((await readRow("1")) as OutboxRow, "Discount exceeds subtotal");
+
+    const stored = await readRow("1");
+    expect(stored).toBeDefined();
+    expect(stored?.status).toBe(OUTBOX_STATUS.FAILED);
+    expect(stored?.error).toMatch(/Discount/);
+    expect(stored?.sale).toEqual({ total: 100 });
+  });
+
+  it("stops offering a refused sale to the sender", async () => {
+    await enqueue(row("1", { status: OUTBOX_STATUS.FAILED }));
+
+    expect(await dueRows()).toEqual([]);
+  });
+});
+
+describe("pruning", () => {
+  it("keeps the slip-to-invoice mapping for ever, and drops only the cart", async () => {
+    // Two short strings answer "what became of OFF-L1-AB-000123". The cart
+    // behind it can be hundreds of lines, and the server has had it a week.
+    const old = new Date(Date.now() - KEEP_ACKED_MS - 1000).toISOString();
+    await enqueue(row("1", { status: OUTBOX_STATUS.ACKED, createdAt: old, invoiceNumber: "INV-9" }));
+
+    expect(await pruneAcked()).toBe(1);
+
+    const stored = await readRow("1");
+    expect(stored?.offlineNumber).toBe("OFF-L1-AB-1");
+    expect(stored?.invoiceNumber).toBe("INV-9");
+    expect(stored?.sale).toEqual({});
+  });
+
+  it("never prunes a sale that has not landed, however old", async () => {
+    // The one that would lose money. Age is not evidence of arrival.
+    const ancient = new Date(Date.now() - KEEP_ACKED_MS * 10).toISOString();
+    await enqueue(row("1", { status: OUTBOX_STATUS.PENDING, createdAt: ancient }));
+
+    expect(await pruneAcked()).toBe(0);
+    expect((await readRow("1"))?.sale).toEqual({ total: 100 });
+  });
+
+  it("leaves a recently acked sale intact", async () => {
+    await enqueue(row("1", { status: OUTBOX_STATUS.ACKED }));
+
+    expect(await pruneAcked()).toBe(0);
+  });
+});
+
+describe("the store itself", () => {
+  it("holds one row per operation, so a re-queue cannot double a sale", async () => {
+    await enqueue(row("1"));
+    await enqueue(row("1"));
+
+    expect(await allRows()).toHaveLength(1);
+    expect(await getAll(STORE.OUTBOX)).toHaveLength(1);
+  });
+});
+
+describe("a status this build does not recognise", () => {
+  it("still counts as money owed", async () => {
+    // The outbox is append-only and is read by app versions newer than the one
+    // that wrote a row. Counting only the statuses we know would report zero
+    // owed while the till was still holding sales — and nobody would ask.
+    await enqueue(row("1", { status: "queued" as OutboxRow["status"] }));
+
+    expect(await owedCount()).toBe(1);
+  });
+
+  it("does not count one that is definitively finished", async () => {
+    await enqueue(row("1", { status: OUTBOX_STATUS.ACKED }));
+    await enqueue(row("2", { status: OUTBOX_STATUS.FAILED }));
+
+    expect(await owedCount()).toBe(0);
+  });
+});

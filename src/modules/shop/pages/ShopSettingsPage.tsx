@@ -24,6 +24,7 @@ import { ReceiptPreview } from "../../receipts/components/ReceiptPreview";
 import TillPinsPanel from "../../pos/components/TillPinsPanel";
 import DeviceSessionsPanel from "../../auth/components/DeviceSessionsPanel";
 import TillDevicesPanel from "../../offline/device/TillDevicesPanel";
+import PricingVariancesPanel from "../../offline/pricing/PricingVariancesPanel";
 
 /** One saved shop preference. Arrays exist because kitchen stations are a list. */
 type PrefValue = string | number | boolean | string[] | null;
@@ -768,6 +769,17 @@ export default function ShopSettingsPage() {
                         description="The devices this shop's POS runs on, and when each last reached us. Signing one out stops it being used without touching the sales it already sent."
                       >
                         <TillDevicesPanel />
+                      </SectionCard>
+
+                      {/* Sits with the tills because it is a fact ABOUT them:
+                          whether this shop's own devices have been proved able
+                          to price without the server. */}
+                      <SectionCard
+                        icon={<CartGlyph />}
+                        title="Offline pricing checks"
+                        description="Every sale is priced a second time by the offline engine and the two answers compared. Customers always pay the server's price — this is the evidence being gathered before a till is allowed to price on its own."
+                      >
+                        <PricingVariancesPanel />
                       </SectionCard>
                     </>
                   }

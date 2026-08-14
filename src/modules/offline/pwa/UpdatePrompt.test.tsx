@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import UpdatePrompt from "./UpdatePrompt";
+import { useOfflineStore } from "../offlineStore";
 
 /**
  * The "a new version is ready" strip.
@@ -99,5 +100,29 @@ describe("when a new version is waiting", () => {
     // No dialog role, no aria-modal, and the till's own controls stay reachable.
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: /complete sale/i })).toBeEnabled();
+  });
+});
+
+describe("when the till is holding sales", () => {
+  it("says they survive the update, rather than leaving a cashier to guess", async () => {
+    // The one fear a cashier has standing over a queue of unsent sales. It is
+    // unfounded — the outbox is in IndexedDB and every upgrade step is
+    // additive — but an unanswered fear postpones the update for a week.
+    useOfflineStore.setState({ pending: 12 });
+    needRefresh = true;
+
+    render(<UpdatePrompt />);
+
+    expect(await screen.findByText(/12 sales/)).toBeInTheDocument();
+    expect(screen.getByText(/still be here afterwards/)).toBeInTheDocument();
+  });
+
+  it("says nothing extra when there is nothing owed", () => {
+    useOfflineStore.setState({ pending: 0 });
+    needRefresh = true;
+
+    render(<UpdatePrompt />);
+
+    expect(screen.queryByText(/still be here afterwards/)).toBeNull();
   });
 });

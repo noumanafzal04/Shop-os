@@ -1,5 +1,7 @@
 import { useRegisterSW } from "virtual:pwa-register/react";
 
+import { useOfflineStore } from "../offlineStore";
+
 /**
  * "A new version is ready."
  *
@@ -29,6 +31,13 @@ export default function UpdatePrompt() {
     },
   });
 
+  // Sales this till is still holding. An update reloads the app, and the one
+  // thing a cashier standing over a queue of unsent sales will fear is that
+  // reloading loses them. It does not — the outbox is in IndexedDB and every
+  // upgrade step is additive, which the schema tests pin — so the strip says so
+  // rather than leaving them to guess and put it off for a week.
+  const owed = useOfflineStore((s) => s.pending);
+
   if (!needRefresh) return null;
 
   return (
@@ -39,6 +48,12 @@ export default function UpdatePrompt() {
       <span className="flex-1 text-theme-sm text-gray-700 dark:text-gray-200">
         A newer ShopOS is ready. Update between customers — nothing is lost
         either way.
+        {owed > 0 && (
+          <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
+            The {owed} {owed === 1 ? "sale" : "sales"} saved on this till will
+            still be here afterwards.
+          </span>
+        )}
       </span>
       <button
         type="button"

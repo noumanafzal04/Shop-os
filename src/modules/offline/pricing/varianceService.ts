@@ -34,8 +34,32 @@ export const varianceService = {
       })),
     }),
 
-  list: () => apiGet<{ total: number; variances: ReportedVariance[] }>("/pricing-variances"),
+  list: () => apiGet<VarianceReport>("/pricing-variances"),
 };
+
+/**
+ * What the shop's tills have DONE — the denominator under the count.
+ *
+ * Zero findings is the answer we are hoping for, and also the answer a shop
+ * gets when no till ever checked anything. These are what tell them apart.
+ */
+export interface ShadowChecks {
+  checked: number;
+  matched: number;
+  skipped: number;
+  differed: number;
+  /** Live tills in the shop, and how many of them have checked anything. */
+  tills: number;
+  reporting: number;
+  /** The newest start across the fleet — the window every till has covered. */
+  since: string | null;
+}
+
+export interface VarianceReport {
+  checks: ShadowChecks;
+  total: number;
+  variances: ReportedVariance[];
+}
 
 /**
  * Send what this till has found, and forget it locally once it lands.

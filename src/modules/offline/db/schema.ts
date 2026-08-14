@@ -1,7 +1,8 @@
 /**
  * The shape of the till's local database, and the only place it changes.
  *
- * Nine stores, not a hundred and one tables. What lives here is a PROJECTION of
+ * A handful of stores, not a hundred and one tables. What lives here is a
+ * PROJECTION of
  * what the till needs to sell, never a mirror of the server: no cost prices, no
  * descriptions, no customer balances, no other branch's stock. A projection
  * that grows into a mirror is how a stolen tablet becomes a leaked pricing book.
@@ -34,8 +35,11 @@ export const DB_NAME = "shopos-till";
  *      out to need syncing of their own once the server started sending them
  *   3  pricing variances: what the offline engine and the server disagreed
  *      about, kept while offline selling earns its place
+ *   4  the shadow tally — how many carts were CHECKED, not only how many
+ *      disagreed. Zero findings means nothing without it
+ *   5  the offline receipt counter, so a till can number a slip with no server
  */
-export const DB_VERSION = 3;
+export const DB_VERSION = 5;
 
 /** Every object store, by the name used to open a transaction on it. */
 export const STORE = {
@@ -74,12 +78,31 @@ export const STORE = {
    * Key: the sale id.
    */
   PRICING_VARIANCES: "pricingVariances",
+  /**
+   * How many carts this till has shadow-checked, and how they came out. Key:
+   * fixed. The DENOMINATOR under the variance count — see shadowTally.ts.
+   */
+  SHADOW_TALLY: "shadowTally",
+  /**
+   * This device's own receipt sequence. Key: fixed.
+   *
+   * DURABLE, not a cache. Rebuilding it from the server would restart the
+   * numbering and hand two sales the same slip — see receiptNumber.ts.
+   */
+  RECEIPT_COUNTER: "receiptCounter",
 } as const;
 
 export type StoreName = (typeof STORE)[keyof typeof STORE];
 
 /** Stores holding work that has not reached the server. Never dropped. */
-export const DURABLE_STORES: readonly StoreName[] = [STORE.OUTBOX, STORE.SHIFT];
+export const DURABLE_STORES: readonly StoreName[] = [
+  STORE.OUTBOX,
+  STORE.SHIFT,
+  // Not work owed to the server, but destroying it is just as bad: the
+  // sequence would restart and two sales on this till would print the same
+  // slip. The one counter in the app that cannot be rebuilt from anywhere.
+  STORE.RECEIPT_COUNTER,
+];
 
 /** Stores that are a cache of server state and may be rebuilt at any time. */
 export const CACHE_STORES: readonly StoreName[] = [
@@ -92,6 +115,13 @@ export const CACHE_STORES: readonly StoreName[] = [
   STORE.PROMOTIONS,
   STORE.CUSTOMERS,
   STORE.PRICING_VARIANCES,
+  // Disposable on purpose, and the handover case is why. A till passed to a
+  // different shop that KEPT its tally would tell the new shop that 1,284 carts
+  // had been checked when it has checked none — the exact over-claim the tally
+  // exists to prevent. A rebuilt catalog resetting a legitimate count is the
+  // cost, and it errs the safe way: it delays offline selling, never authorises
+  // it on evidence that no longer applies.
+  STORE.SHADOW_TALLY,
 ];
 
 /** Single-row stores use one fixed key, so reading needs no id from anywhere. */
@@ -141,5 +171,17 @@ export function upgrade(db: IDBDatabase, oldVersion: number): void {
     // Additive, and disposable: these are findings about the engine, not work
     // owed to anybody.
     db.createObjectStore(STORE.PRICING_VARIANCES, { keyPath: "saleId" });
+  }
+
+  if (oldVersion < 4) {
+    // A till upgrading into this starts counting from zero, which is correct:
+    // it has no record of what it checked before, and inventing one would be
+    // the only thing worse than having none.
+    db.createObjectStore(STORE.SHADOW_TALLY);
+  }
+
+  if (oldVersion < 5) {
+    // Additive and, unlike everything else added since version 1, DURABLE.
+    db.createObjectStore(STORE.RECEIPT_COUNTER);
   }
 }

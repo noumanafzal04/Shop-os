@@ -497,6 +497,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "A shift close counts one drawer. This counts the day, across every drawer in the shop, and records what was deposited." },
       { type: "note", text: "Anyone at the till can read the day. Closing it off is a manager's job." },
+      { type: "warn", text: "Once a day is closed off, its figures never change again — not when a correction is made, and not when a sale that was stuck on an offline till finally arrives. That is on purpose: a variance you counted and accepted has to still mean the same thing months later. If late sales do land against a day you have already closed, Reports → Offline names the amount so you can post an adjustment." },
     ],
   },
 
@@ -1060,6 +1061,62 @@ export const HELP_ARTICLES: HelpArticle[] = [
         "Cash drawer — opens when a cash sale completes.",
         "Weighing scale — for anything sold by weight.",
       ]},
+    ],
+  },
+  {
+    id: "tills",
+    title: "Your tills & offline pricing checks",
+    summary: "The devices your POS runs on, and whether they could sell without the internet.",
+    group: "People & setup",
+    parent: "settings",
+    permission: "settings.manage",
+    screen: "/tenant/settings",
+    keywords: ["till", "device", "tablet", "offline", "internet", "pricing", "variance", "sign out", "lost tablet"],
+    body: [
+      { type: "h", text: "Your tills" },
+      { type: "p", text: "Shop settings → Point of Sale → Lanes & PINs. Every device that opens the POS adds itself to this list on its own — there is nothing to register by hand. Each row shows which lane it stands at and when it last reached us." },
+      { type: "p", text: "A till that goes quiet is a till that has lost its connection, so 'last reached us' is the number worth reading. It updates while the POS is open, not only when the browser is reloaded." },
+      { type: "note", text: "Signing a till out is not a delete. The tablet stops being usable, but its row stays and every sale it already sent still points at it — which is exactly what you will want to look up afterwards. 'Allow again' brings it back if it turns up." },
+
+      { type: "h", text: "Offline pricing checks" },
+      { type: "p", text: "ShopOS is being prepared to keep selling when the internet drops. Before a till is allowed to work out prices on its own, it has to prove it gets the same answer your server does." },
+      { type: "p", text: "So every sale is priced TWICE — once by the server, which is what the customer pays, and again by the offline engine, purely to compare. Nothing on the receipt changes, and nobody is ever charged the second figure." },
+      { type: "keys", items: [
+        ["Carts checked", "How many sales have actually been compared. This is the number that matters — zero disagreements means nothing if nothing was checked."],
+        ["Matched exactly", "Both engines agreed to the paisa."],
+        ["Couldn't be priced", "The till could not price the cart, usually an item it had not downloaded yet. This is not agreement, and a large number here needs looking at."],
+        ["Tills reporting", "How many of your devices have contributed. One busy till does not speak for four."],
+      ]},
+      { type: "warn", text: "A disagreement never means a customer was overcharged. They paid the server's price. It means the offline engine is not ready, and it is far better to find that here than on a day the internet is down." },
+      { type: "p", text: "If a till's browser data is cleared, its count starts again from zero and the totals here go down. That is deliberate — the evidence really did go with it, and a figure that only ever climbed would claim more than it could show." },
+
+      { type: "h", text: "Selling when the internet is down" },
+      { type: "p", text: "Once the checks above are clean, a till keeps trading through a power cut or a dead connection. Nothing to switch on — the POS notices and carries on." },
+      { type: "keys", items: [
+        ["The receipt", "Prints a slip numbered OFF-… instead of an invoice number. Keep it: when the connection returns, the sale gets its real invoice number and BOTH are searchable, so a customer holding the slip can always be found."],
+        ["Stock", "Counts down as you sell, so the shelf figure stays honest through a long outage — not stuck on whatever the server last said."],
+        ["The queue", "The counter at the top shows how many sales are still waiting. They send themselves the moment the line is back."],
+        ["A practice shift", "Training a new cashier works offline too, and it still takes nothing off the shelf — neither on the till nor in your books when it syncs. Practice sales keep their own TRN- numbering and stay out of every figure you read."],
+      ]},
+      { type: "warn", text: "Some things still need the connection, and the till will say so before you take the money — never after. Khata (a customer's balance is shared between tills), spending loyalty points, coupons, dine-in tables, medicines, and anything tracked by serial number. Take cash or card instead, or wait." },
+      { type: "note", text: "A sale that has been rung is never lost. Close the browser, flatten the battery, come back three days later — it is still there and it still sends. It is safest of all if you have installed ShopOS to the home screen rather than leaving it in a browser tab." },
+      { type: "p", text: "When they arrive, the shop records them against the time they actually happened — a Tuesday sale counts in Tuesday's takings and Tuesday's cashier's figures, not the day it finally reached us." },
+
+      { type: "h", text: "The morning after" },
+      { type: "p", text: "Reports → Offline answers one question: what happened while we were out of contact. Open it the morning after a power cut." },
+      { type: "keys", items: [
+        ["Count these again", "Items whose stock went below zero. Two tills with no connection can each sell the last one and BOTH are telling the truth — the goods really did leave. Nothing here is a mistake; the shelf just needs counting."],
+        ["Need a decision", "Sales that broke one of the offline rules and were recorded anyway. They are never quietly corrected — a credit sale turned into a cash one would leave you thinking you had been paid."],
+        ["The slip number", "Shown next to the real invoice number, so a customer holding an OFF-… receipt can always be found."],
+        ["Arrived after the day was closed", "Sales that reached us after you had already counted the drawer, closed the day and banked the cash. The amount is shown in rupees, because that is exactly how much that day's takings now read short of that day's sales."],
+      ]},
+      { type: "warn", text: "A day you have signed off is never changed behind your back — a day closed in March has to still read the same in September, or a variance you accepted stops meaning anything. So when late sales land against a closed day, the day holds still and the shortfall is named instead. Post an adjustment for it; the sales themselves are already in your books under the right date." },
+      { type: "note", text: "On most days this screen says your tills were in touch the whole time. That is the answer you want, and it is worth a glance." },
+
+      { type: "h", text: "If a till runs out of space" },
+      { type: "p", text: "A till holds its unsent sales on the device itself, so it needs room. You will see a warning long before it matters — free some space and carry on." },
+      { type: "warn", text: "If the device genuinely fills up, the till will not let you open a shift. That is deliberate: a sale rung with no room to save it is a sale lost with the customer already gone, and refusing before the shift starts costs nothing. Connect the till and let it sync — that sends what is waiting and frees the space." },
+      { type: "note", text: "Add ShopOS to the home screen and open it from there. An installed till holds onto its data far better than a browser tab, and on an iPad it is the only thing that makes a real difference." },
     ],
   },
   {

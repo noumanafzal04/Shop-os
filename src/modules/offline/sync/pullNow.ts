@@ -1,6 +1,8 @@
 import { applyPull, readMeta } from "./applyPull";
 import { catalogService, PROJECTIONS, type Projection } from "./catalogService";
 import { flushVariances } from "../pricing/varianceService";
+import { touchIfDue } from "../device/touch";
+import { flushOutbox } from "../outbox/flush";
 
 /**
  * Fetching everything the server has for this till, and stopping.
@@ -57,6 +59,15 @@ export function isPulling(): boolean {
 }
 
 async function run(): Promise<PullResult> {
+  // MONEY OUT BEFORE CATALOG IN, and the order is the whole point. A till that
+  // reconnects for ninety seconds on a bad shop link has time for one of these.
+  // A stale price costs a wrong figure on one sale; an unsent sale costs the
+  // sale. Whichever finishes, the more valuable one went first.
+  //
+  // It cannot fail the pull: a till must not stop learning its catalog because
+  // its queue would not go, and the queue keeps everything it could not send.
+  await flushOutbox().catch(() => ({}));
+
   const applied = Object.fromEntries(PROJECTIONS.map((p) => [p, 0])) as Record<Projection, number>;
   let rounds = 0;
   let truncated = false;
@@ -94,6 +105,13 @@ async function run(): Promise<PullResult> {
   // It cannot fail the pull — a till must not stop learning its catalog
   // because a variance report did not go.
   await flushVariances();
+
+  // And say we are still here. Registration happens once per app start, so
+  // without this a tablet left open all week reads as a week out of contact
+  // while it is syncing every quarter of an hour. It also carries the shadow
+  // tally up, which matters most for the till that never finds anything and so
+  // never has a variance to report.
+  await touchIfDue();
 
   return { applied, rounds, truncated };
 }

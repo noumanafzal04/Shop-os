@@ -8,6 +8,7 @@ import {
   requestPersistentStorage,
   storageApiAvailable,
   storageEstimate,
+  shiftBlocker,
   storageWarning,
   type StorageHealth,
 } from "./persist";
@@ -216,5 +217,54 @@ describe("what the shop is told", () => {
   it("does not claim fullness when the browser never said how full it is", () => {
     expect(isNearlyFull(health({ used: null }))).toBe(false);
     expect(storageWarning(health({ used: null }), true)).toBeNull();
+  });
+});
+
+describe("out of room, as against running low", () => {
+  const health = (over: Partial<StorageHealth>): StorageHealth => ({
+    state: "persisted",
+    usage: 10,
+    quota: 100,
+    used: 0.1,
+    ...over,
+  });
+
+  // The gap between NEARLY_FULL and FULL is the whole point. Below it a
+  // warning is right — everything still works and there is time to act. At it,
+  // the next write fails, and the write that fails is a sale.
+
+  it("does not block a till that is merely low", () => {
+    // Refusing here would close a shop that can still trade all day.
+    expect(shiftBlocker(health({ usage: 91, quota: 100, used: 0.91 }))).toBeNull();
+  });
+
+  it("BLOCKS a shift when the device is out of room", () => {
+    expect(shiftBlocker(health({ usage: 99, quota: 100, used: 0.99 }))).not.toBeNull();
+  });
+
+  it("does not block over a browser PERMISSION, however it was answered", () => {
+    // `not-persisted` says the browser MAY evict, some day, under pressure
+    // that might never come. Refusing a till today, for certain, to avoid
+    // something that probably will not happen is the worse trade — and that
+    // stays a warning, which it already is.
+    expect(shiftBlocker(health({ state: "not-persisted", used: 0.1 }))).toBeNull();
+    expect(shiftBlocker(health({ state: "unsupported", used: 0.1 }))).toBeNull();
+  });
+
+  it("does not block when the browser cannot say how full it is", () => {
+    // Blocking on an unknown would refuse every till on a browser with no
+    // storage API, which is a guess dressed as a safety measure.
+    expect(shiftBlocker(health({ usage: null, quota: null, used: null }))).toBeNull();
+  });
+
+  it("names the fix, or a blocked till is just a broken one", () => {
+    const message = shiftBlocker(health({ usage: 100, quota: 100, used: 1 }));
+
+    expect(message).toMatch(/sync/i);
+    expect(message).toMatch(/cached images/i);
+  });
+
+  it("says what is at stake in the cashier's terms", () => {
+    expect(shiftBlocker(health({ used: 1 }))).toMatch(/might not be saved/);
   });
 });

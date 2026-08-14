@@ -3,6 +3,8 @@ import { useEffect, useRef } from "react";
 import { pendingCount } from "./db/repo";
 import { deviceId } from "./device/deviceId";
 import { deviceService } from "./device/deviceService";
+import { markTouched } from "./device/touch";
+import { pruneAcked, recoverInFlight } from "./outbox/outbox";
 import { pullNow } from "./sync/pullNow";
 import { useOfflineStore } from "./offlineStore";
 import { checkStorage } from "./storage/persist";
@@ -70,6 +72,18 @@ export function useOfflineBoot(enabled: boolean): void {
         // change in there can never take the boot down with it.
       }
 
+      // BEFORE anything counts or sends. Every row left SENDING is a sale
+      // whose fate nobody knows — the tab was closed or the battery died
+      // mid-request — and left alone it is never sent again. The only safe
+      // assumption is that it did not arrive; the duplicate that may cause is
+      // absorbed by the server's idempotency key.
+      try {
+        await recoverInFlight();
+        await pruneAcked();
+      } catch {
+        // No database, or a browser that refuses one. The till still opens.
+      }
+
       try {
         setPending(await pendingCount());
       } catch {
@@ -80,6 +94,10 @@ export function useOfflineBoot(enabled: boolean): void {
       try {
         await deviceService.register(deviceId());
         setRegistered(true);
+        // The pull below would otherwise touch a device that announced itself
+        // half a second ago — two identical requests at the slowest moment of
+        // the app's life.
+        markTouched();
       } catch {
         // Offline, or refused. Neither stops the till: this is the
         // announcement, not the permission.
