@@ -32,8 +32,10 @@ export const DB_NAME = "shopos-till";
  *      shift, device, sync meta
  *   2  categories, customer groups and settings — the projections that turned
  *      out to need syncing of their own once the server started sending them
+ *   3  pricing variances: what the offline engine and the server disagreed
+ *      about, kept while offline selling earns its place
  */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 /** Every object store, by the name used to open a transaction on it. */
 export const STORE = {
@@ -65,6 +67,13 @@ export const STORE = {
   DEVICE: "device",
   /** Sync cursor, clock skew, schema version. Key: fixed. */
   SYNC_META: "syncMeta",
+  /**
+   * Carts where the offline engine and the server disagreed. DIAGNOSTICS, not
+   * accounting — bounded, and disposable, because a till's storage exists to
+   * hold unsent sales and nothing may crowd them out.
+   * Key: the sale id.
+   */
+  PRICING_VARIANCES: "pricingVariances",
 } as const;
 
 export type StoreName = (typeof STORE)[keyof typeof STORE];
@@ -82,6 +91,7 @@ export const CACHE_STORES: readonly StoreName[] = [
   STORE.SETTINGS,
   STORE.PROMOTIONS,
   STORE.CUSTOMERS,
+  STORE.PRICING_VARIANCES,
 ];
 
 /** Single-row stores use one fixed key, so reading needs no id from anywhere. */
@@ -125,5 +135,11 @@ export function upgrade(db: IDBDatabase, oldVersion: number): void {
     db.createObjectStore(STORE.CATEGORIES, { keyPath: "id" });
     db.createObjectStore(STORE.CUSTOMER_GROUPS, { keyPath: "id" });
     db.createObjectStore(STORE.SETTINGS);
+  }
+
+  if (oldVersion < 3) {
+    // Additive, and disposable: these are findings about the engine, not work
+    // owed to anybody.
+    db.createObjectStore(STORE.PRICING_VARIANCES, { keyPath: "saleId" });
   }
 }

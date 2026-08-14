@@ -10,6 +10,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import StorageWarning from "../../offline/storage/StorageWarning";
+import { runShadowCheck } from "../../offline/pricing/runShadowCheck";
 import { ApiError } from "../../../common/types/api";
 import { apiGet } from "../../../common/api/client";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
@@ -795,6 +796,11 @@ export default function PosPage() {
         idempotency_key: idemRef.current,
       }),
     onSuccess: ({ data }) => {
+      // Captured BEFORE clearSale(), which empties both — the shadow check
+      // below needs the cart that was actually rung, not the empty one.
+      const soldLines = cart;
+      const discountAtCheckout = Number(discount || 0);
+
       setLastSale(data);
       clearSale();
       tenderModal.closeModal();
@@ -812,6 +818,33 @@ export default function PosPage() {
       // POS). Failures are surfaced softly — the receipt modal's Print button
       // is always available as the manual fallback.
       if (settings.data?.pos_auto_print) void printReceipt(data.id);
+
+      // Shadow check: price the same cart AGAIN with the offline engine and
+      // record any disagreement. The customer has already paid the server's
+      // price and the receipt is on screen — this changes nothing they see.
+      //
+      // It exists because the golden fixtures pin carts we thought of, and a
+      // shop rings hundreds a day nobody thought of. Two weeks of these is what
+      // decides whether a till may price on its own. Fire-and-forget: it never
+      // throws, and its result is a diagnostic, not the cashier's problem.
+      void runShadowCheck(
+        data.id,
+        soldLines.map((l) => ({
+          product_id: l.product_id,
+          variant_id: l.variant_id,
+          quantity: l.quantity,
+          price_level: l.price_level === "wholesale" ? "wholesale" : "retail",
+          discountValue: l.discountValue,
+          discountMode: l.discountMode,
+        })),
+        {
+          subtotal: Number(data.subtotal),
+          discount: Number(data.discount),
+          tax: Number(data.tax),
+          total: Number(data.total),
+        },
+        Number(discountAtCheckout),
+      );
     },
   });
 
