@@ -91,6 +91,28 @@ class PlanLimits
         // still accepted. Expiring the queue along with the selling window is
         // how offline systems lose money.
         'offline_days' => ['owner' => 'tenant', 'default' => 3, 'label' => 'days offline', 'enforced' => false, 'kind' => 'policy'],
+        // May this shop's tills SELL with no server at all?
+        //
+        // The kill switch, and the reason it is a separate key rather than
+        // `offline_days => 0`: the window does not stop selling, it marks it.
+        // A shop set to zero days would carry on trading and simply flag every
+        // sale, which is the opposite of a switch.
+        //
+        // 0 = off, 1 = on. A limit rather than a setting because the shop must
+        // not be able to turn it on for itself: `tenants.settings` is written
+        // through the shop's own form, and this is the admin's decision about
+        // whether this particular shop has earned it — the same axis as
+        // branches and staff, set on the same screen.
+        //
+        // OFF DOES NOT MEAN "REJECT WHAT IS ALREADY QUEUED." Turning it off
+        // stops NEW offline sales; a sale already rung on a tablet syncs and is
+        // accepted, for ever, exactly as before. The money crossed the counter
+        // and no switch can un-cross it — see `PosSyncController`.
+        //
+        // Defaults to 0. A shop gets offline selling when an admin decides it
+        // does, after shadow mode has actually proved the pricing mirror on
+        // that shop's own carts.
+        'offline_selling' => ['owner' => 'tenant', 'default' => 0, 'label' => 'offline selling (0 = off, 1 = on)', 'enforced' => false, 'kind' => 'policy'],
     ];
 
     /** Is this a number of rows the shop owns, rather than a rule about behaviour? */

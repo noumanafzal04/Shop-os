@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\TaxGroup;
 use App\Models\Tenant;
 use App\Models\User;
@@ -51,7 +52,7 @@ class PricingFixturesTest extends TestCase
     use RefreshDatabase;
 
     /** Bumped when the fixture SHAPE changes, so a stale copy is obvious. */
-    private const VERSION = 1;
+    private const VERSION = 2;
 
     private Tenant $tenant;
 
@@ -279,15 +280,131 @@ class PricingFixturesTest extends TestCase
                 ['price' => 1.005, 'tax_rate' => 0, 'quantity' => 3],
                 ['price' => 0.145, 'tax_rate' => 0, 'quantity' => 7],
             ]),
+
+            // ── Automatic promotions ────────────────────────────────
+            //
+            // Added after the first real shadow run, which produced nine
+            // disagreements: every one a shop's "Weekend 10% Off" that the
+            // server applied and the till did not. Nobody was mis-billed —
+            // the customer pays the server's price — but a till selling
+            // offline would have printed a receipt ten per cent high all day.
+            //
+            // Every promotion here is ALWAYS live: no dates, no weekdays, no
+            // time window. That is deliberate. A fixture whose answer depends
+            // on the day it was generated is a fixture that goes red on a
+            // Tuesday for no reason, and the window rules are pinned by unit
+            // tests against a fixed clock instead. What these prove is the
+            // half that arithmetic can get wrong.
+
+            $this->cart('a percentage off the whole order', [
+                ['price' => 500, 'tax_rate' => 0, 'quantity' => 2],
+            ], [], [], [['type' => 'percent', 'value' => 10, 'scope' => 'order']]),
+
+            $this->cart('a promotion on top of a cart discount, and the tax between them', [
+                ['price' => 500, 'tax_rate' => 17, 'quantity' => 2],
+            ], [], ['discount' => 100], [['type' => 'percent', 'value' => 10, 'scope' => 'order']]),
+
+            $this->cart('a percentage capped by max_discount', [
+                ['price' => 1000, 'tax_rate' => 0, 'quantity' => 1],
+            ], [], [], [['type' => 'percent', 'value' => 50, 'scope' => 'order', 'max_discount' => 100]]),
+
+            $this->cart('a flat amount off the order', [
+                ['price' => 500, 'tax_rate' => 0, 'quantity' => 2],
+            ], [], [], [['type' => 'fixed', 'value' => 250, 'scope' => 'order']]),
+
+            $this->cart('a promotion below its minimum spend does not apply', [
+                ['price' => 100, 'tax_rate' => 0, 'quantity' => 1],
+            ], [], [], [['type' => 'percent', 'value' => 10, 'scope' => 'order', 'min_spend' => 5000]]),
+
+            $this->cart('a category promotion touches only its own lines', [
+                ['price' => 1000, 'tax_rate' => 0, 'quantity' => 1, 'in_promo_category' => true],
+                ['price' => 500, 'tax_rate' => 0, 'quantity' => 1],
+            ], [], [], [['type' => 'percent', 'value' => 10, 'scope' => 'category']]),
+
+            $this->cart('the LARGEST of two live promotions wins', [
+                ['price' => 1000, 'tax_rate' => 0, 'quantity' => 1],
+            ], [], [], [
+                ['type' => 'percent', 'value' => 5, 'scope' => 'order'],
+                ['type' => 'percent', 'value' => 20, 'scope' => 'order'],
+            ]),
+
+            $this->cart('a tie between two promotions goes to the higher priority', [
+                ['price' => 1000, 'tax_rate' => 0, 'quantity' => 1],
+            ], [], [], [
+                ['type' => 'fixed', 'value' => 100, 'scope' => 'order', 'priority' => 1],
+                ['type' => 'percent', 'value' => 10, 'scope' => 'order', 'priority' => 9],
+            ]),
+
+            $this->cart('buy one get one, cheapest free', [
+                ['price' => 300, 'tax_rate' => 0, 'quantity' => 1],
+                ['price' => 100, 'tax_rate' => 0, 'quantity' => 1],
+            ], [], [], [['type' => 'bogo', 'scope' => 'order', 'buy_qty' => 1, 'get_qty' => 1]]),
+
+            $this->cart('buy one get one at half off rather than free', [
+                ['price' => 300, 'tax_rate' => 0, 'quantity' => 1],
+                ['price' => 100, 'tax_rate' => 0, 'quantity' => 1],
+            ], [], [], [[
+                'type' => 'bogo', 'scope' => 'order',
+                'buy_qty' => 1, 'get_qty' => 1, 'get_discount_pct' => 50,
+            ]]),
+
+            $this->cart('buy two get one, across a single line', [
+                ['price' => 120, 'tax_rate' => 0, 'quantity' => 6],
+            ], [], [], [['type' => 'bogo', 'scope' => 'order', 'buy_qty' => 2, 'get_qty' => 1]]),
+
+            $this->cart('a promotion CLAMPED to what is still owed after the cashier discount', [
+                // Rs 1,000 cart, the cashier keys Rs 950 off, and a Rs 250
+                // promotion is live. Only Rs 50 is still owed, so that is all
+                // the promotion can take — without the clamp the two together
+                // would discount Rs 1,200 off a Rs 1,000 bill. No fixture
+                // reached this before, and a mutation removing the clamp
+                // stayed green on every one of them.
+                ['price' => 1000, 'tax_rate' => 0, 'quantity' => 1],
+            ], [], ['discount' => 950], [['type' => 'fixed', 'value' => 250, 'scope' => 'order']]),
+
+            $this->cart('buy one get one where a weighed line cannot complete the group', [
+                // 1.5 + 0.5 units is two units of weight and ONE whole unit.
+                // Counting the fractions would hand out a free unit nobody
+                // bought.
+                ['price' => 200, 'tax_rate' => 0, 'quantity' => 1.5, 'sold_by' => 'weight'],
+                ['price' => 200, 'tax_rate' => 0, 'quantity' => 0.5, 'sold_by' => 'weight'],
+            ], [], [], [['type' => 'bogo', 'scope' => 'order', 'buy_qty' => 1, 'get_qty' => 1]]),
+
+            $this->cart('a switched-OFF promotion changes nothing', [
+                ['price' => 500, 'tax_rate' => 0, 'quantity' => 2],
+            ], [], [], [['type' => 'percent', 'value' => 10, 'scope' => 'order', 'is_active' => false]]),
         ];
     }
 
     /**
      * Ring one cart through the real endpoint and record what it charged.
      */
-    private function cart(string $name, array $items, array $settings = [], array $sale = []): array
-    {
+    private function cart(
+        string $name,
+        array $items,
+        array $settings = [],
+        array $sale = [],
+        array $promotions = [],
+    ): array {
         $this->tenant->forceFill(['settings' => $settings])->save();
+
+        // Every earlier case's promotions, gone.
+        //
+        // Without this each cart inherits the ones before it — `best()` reads
+        // every active promotion in the shop — so case twelve is priced
+        // against eleven promotions it never asked for. The generated numbers
+        // said so plainly: a Rs 250 discount turned up on carts that were
+        // meant to have none, including one asserting that a switched-OFF
+        // promotion changes nothing. The fixture would then have been the
+        // server's honest answer to the WRONG question, and both sides would
+        // have agreed on it forever.
+        Promotion::query()->forceDelete();
+
+        // A promotion scoped by category needs a category that only SOME lines
+        // are in, or "only its own lines" is untestable.
+        $promoCategory = Category::query()->create([
+            'tenant_id' => $this->tenant->id, 'name' => "Promo {$name}", 'is_active' => true,
+        ]);
 
         $products = [];
         $payloadItems = [];
@@ -306,7 +423,9 @@ class PricingFixturesTest extends TestCase
 
             $product = Product::query()->create([
                 'tenant_id' => $this->tenant->id,
-                'category_id' => $this->category->id,
+                'category_id' => ($spec['in_promo_category'] ?? false)
+                    ? $promoCategory->id
+                    : $this->category->id,
                 'type' => 'product',
                 'item_type' => 'physical_product',
                 'name' => "Fixture {$name} {$index}",
@@ -343,6 +462,17 @@ class PricingFixturesTest extends TestCase
             // fields plus the cart line, with no product id — an engine that
             // needed one would be reading a database rather than pricing.
             $inputItems[] = [
+                // STABLE names, not the database's UUIDs.
+                //
+                // The engine needs identity only to answer "is this line
+                // inside the promotion's scope", which is a question about
+                // this cart and nothing else. Writing the real ids in made the
+                // fixtures unreproducible — every run mints new UUIDs, so the
+                // committed file could never match a fresh one again, and the
+                // gate that is supposed to catch a pricing change would have
+                // gone red on every build instead.
+                'product_id' => "item-{$index}",
+                'category_id' => ($spec['in_promo_category'] ?? false) ? 'cat-promo' : 'cat-other',
                 'price' => (float) $spec['price'],
                 'discount_price' => isset($spec['discount_price']) ? (float) $spec['discount_price'] : null,
                 'wholesale_price' => isset($spec['wholesale_price']) ? (float) $spec['wholesale_price'] : null,
@@ -355,6 +485,34 @@ class PricingFixturesTest extends TestCase
                 'line_discount_pct' => isset($spec['line_discount_pct']) ? (float) $spec['line_discount_pct'] : null,
                 'line_discount' => isset($spec['line_discount']) ? (float) $spec['line_discount'] : null,
             ];
+        }
+
+        // Created AFTER the products, because a product-scoped promotion has to
+        // name them. Always live — no dates, no weekdays, no time window — so
+        // a fixture cannot go red on a Tuesday for reasons that are not about
+        // pricing. The window rules are pinned by unit tests against a fixed
+        // clock instead.
+        $promoRows = [];
+        foreach ($promotions as $index => $spec) {
+            $promoRows[] = Promotion::query()->create([
+                'tenant_id' => $this->tenant->id,
+                'name' => "Promo {$name} {$index}",
+                'is_active' => $spec['is_active'] ?? true,
+                'type' => $spec['type'],
+                'value' => $spec['value'] ?? 0,
+                'scope' => $spec['scope'],
+                'category_id' => ($spec['scope'] ?? null) === 'category' ? $promoCategory->id : null,
+                'product_ids' => ($spec['scope'] ?? null) === 'product'
+                    ? array_map(fn (Product $p): string => $p->id, $products)
+                    : null,
+                'min_spend' => $spec['min_spend'] ?? null,
+                'min_qty' => $spec['min_qty'] ?? null,
+                'max_discount' => $spec['max_discount'] ?? null,
+                'buy_qty' => $spec['buy_qty'] ?? null,
+                'get_qty' => $spec['get_qty'] ?? null,
+                'get_discount_pct' => $spec['get_discount_pct'] ?? null,
+                'priority' => $spec['priority'] ?? 0,
+            ]);
         }
 
         $payload = array_merge([
@@ -377,6 +535,39 @@ class PricingFixturesTest extends TestCase
                 ],
                 'items' => $inputItems,
                 'discount' => (float) ($sale['discount'] ?? 0),
+                // Exactly the projection the till receives — same field names,
+                // same shapes. Anything reshaped here would be testing a shape
+                // no device ever sees.
+                'promotions' => array_values(array_map(static fn (int $i, Promotion $p): array => [
+                    // Stable, like the product names above. A database UUID
+                    // here made the file unreproducible — the gate meant to
+                    // catch a pricing change would have gone red on every run
+                    // instead, which is the same as having no gate.
+                    'id' => "promo-{$i}",
+                    'name' => $p->name,
+                    'is_active' => (bool) $p->is_active,
+                    'type' => $p->type,
+                    'value' => (float) $p->value,
+                    'scope' => $p->scope,
+                    // The same stable names the lines carry above, so scope
+                    // matching is exercised without a UUID in the file.
+                    'category_id' => $p->category_id === null ? null : 'cat-promo',
+                    'product_ids' => $p->product_ids === null
+                        ? null
+                        : array_map(static fn (int $i): string => "item-{$i}", array_keys($items)),
+                    'min_spend' => $p->min_spend === null ? null : (float) $p->min_spend,
+                    'min_qty' => $p->min_qty === null ? null : (float) $p->min_qty,
+                    'max_discount' => $p->max_discount === null ? null : (float) $p->max_discount,
+                    'starts_on' => null,
+                    'ends_on' => null,
+                    'days_of_week' => null,
+                    'start_time' => null,
+                    'end_time' => null,
+                    'priority' => (int) $p->priority,
+                    'buy_qty' => $p->buy_qty === null ? null : (float) $p->buy_qty,
+                    'get_qty' => $p->get_qty === null ? null : (float) $p->get_qty,
+                    'get_discount_pct' => $p->get_discount_pct === null ? null : (float) $p->get_discount_pct,
+                ], array_keys($promoRows), $promoRows)),
             ],
             'expected' => [
                 'subtotal' => (float) $data['subtotal'],

@@ -258,6 +258,117 @@ class PosCatalogSyncTest extends TestCase
         $this->assertNotNull($data['server_time']);
     }
 
+    // ── The kill switch ─────────────────────────────────────────────
+    //
+    // It rides the catalog because that is the one call a till makes WHILE IT
+    // STILL HAS a connection — the only moment the answer can change hands.
+
+    public function test_a_shop_is_not_allowed_to_sell_offline_until_it_is_granted(): void
+    {
+        // Off by default. A shop earns offline selling once shadow mode has
+        // proved the pricing mirror on ITS OWN carts, and an admin turns it on
+        // — never by installing the software.
+        $this->assertFalse($this->bootstrap()['offline_selling']);
+    }
+
+    public function test_an_admin_can_grant_offline_selling(): void
+    {
+        $this->tenant->update(['limits' => ['offline_selling' => 1]]);
+
+        $this->assertTrue($this->bootstrap()['offline_selling']);
+    }
+
+    public function test_turning_it_off_again_reaches_the_till(): void
+    {
+        // The kill switch half. It stops NEW offline sales; it is never a
+        // reason to reject one already queued — that is PosSyncController's
+        // rule and it does not consult this at all.
+        $this->tenant->update(['limits' => ['offline_selling' => 1]]);
+        $this->assertTrue($this->bootstrap()['offline_selling']);
+
+        $this->tenant->update(['limits' => ['offline_selling' => 0]]);
+
+        $this->assertFalse($this->bootstrap()['offline_selling']);
+    }
+
+    public function test_the_shop_cannot_switch_it_on_from_its_own_settings(): void
+    {
+        // It is a LIMIT, not a setting, precisely so the shop cannot. Settings
+        // are written through the shop's own form; limits are the admin's
+        // decision about this particular shop, on the same axis as branches
+        // and staff.
+        $this->tenant->update(['settings' => ['offline_selling' => true]]);
+
+        $this->assertFalse($this->bootstrap()['offline_selling']);
+    }
+
+    // ── What a till needs to price a promotion itself ───────────────
+    //
+    // The first real shadow run found nine carts where the server applied a
+    // 10% promotion and the till applied nothing. The till now mirrors the
+    // promotion engine — and it cannot, unless every field that decides one
+    // actually reaches it.
+
+    public function test_switching_a_promotion_of_f_removes_it_from_every_till(): void
+    {
+        // Not "sent with a flag" — REMOVED. The catalog is a delta, and a
+        // deactivated promotion travels as a tombstone, exactly as a deleted
+        // one does. That is the stronger of the two mechanisms: a till cannot
+        // apply an offer it no longer holds.
+        //
+        // Absence would be the failure. The delta only carries what CHANGED,
+        // so a promotion that simply stopped appearing would sit on every
+        // tablet for ever, discounting every cart against the owner's own
+        // decision to stop it.
+        $live = Promotion::query()->create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Weekend 10% Off',
+            'type' => 'percent', 'value' => 10, 'scope' => 'order', 'is_active' => true,
+        ]);
+
+        $first = $this->bootstrap()['promotions'];
+        $this->assertSame($live->id, $first['items'][0]['id']);
+        $this->assertTrue($first['items'][0]['is_active']);
+
+        // Past the cursor's second, or the delta reads it as already seen —
+        // the cursor is `updated_at|id` and a change inside the same second
+        // is not "after" it.
+        $this->travel(1)->minutes();
+        $live->update(['is_active' => false]);
+
+        $row = collect($this->delta('promotions', $first['cursor'])['items'])
+            ->firstWhere('id', $live->id);
+
+        $this->assertNotNull($row, 'Switching a promotion off must reach the till.');
+        $this->assertTrue($row['deleted'] ?? false, 'It has to arrive as a removal.');
+    }
+
+    public function test_a_till_is_told_the_buy_and_get_quantities(): void
+    {
+        // Without these a till cannot tell a BOGO it understands from one it
+        // does not, and guessing at a promotion is how a receipt goes wrong.
+        $bogo = Promotion::query()->create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Buy 2 get 1',
+            'type' => 'bogo', 'value' => 0, 'scope' => 'order', 'is_active' => true,
+            'buy_qty' => 2, 'get_qty' => 1, 'get_discount_pct' => 50,
+        ]);
+
+        $row = collect($this->bootstrap()['promotions']['items'])->firstWhere('id', $bogo->id);
+
+        $this->assertEqualsWithDelta(2.0, $row['buy_qty'], 0.001);
+        $this->assertEqualsWithDelta(1.0, $row['get_qty'], 0.001);
+        $this->assertEqualsWithDelta(50.0, $row['get_discount_pct'], 0.001);
+    }
+
+    public function test_a_till_is_told_the_shops_own_timezone(): void
+    {
+        // A promotion that runs on Fridays, or between 6pm and 9pm, is a
+        // statement about LOCAL time. Judged in UTC it would open a Karachi
+        // shop's evening sale five hours early and close it five hours early.
+        $this->tenant->update(['timezone' => 'Asia/Karachi']);
+
+        $this->assertSame('Asia/Karachi', $this->bootstrap()['timezone']);
+    }
+
     public function test_the_first_load_does_not_leak_the_rest_of_the_shops_settings(): void
     {
         $data = $this->bootstrap();

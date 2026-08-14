@@ -310,7 +310,25 @@ class PlansAndModulesTest extends TestCase
         // may sell out of contact is decided per shop by an admin, the same way
         // its number of branches is. It is not something anyone buys, so it is
         // not on a plan.
-        $this->assertSame(['branches', 'staff', 'registers', 'offline_days'], PlanLimits::assignedKeys());
+        // offline_selling is the kill switch, and it is a LIMIT rather than a
+        // shop setting for exactly the same reason: the shop must not be able
+        // to grant itself offline selling. Settings are written through the
+        // shop's own form; this is the admin's decision about whether this
+        // particular shop has earned it.
+        $this->assertSame(
+            ['branches', 'staff', 'registers', 'offline_days', 'offline_selling'],
+            PlanLimits::assignedKeys(),
+        );
+    }
+
+    public function test_offline_selling_is_off_until_a_shop_is_granted_it(): void
+    {
+        // A shop earns it by running shadow mode over its OWN carts until the
+        // pricing mirror has been proved on them. Installing the software is
+        // not the same as having proved anything, so the default is off.
+        $tenant = Tenant::factory()->create(['setup_completed' => true]);
+
+        $this->assertSame(0, PlanLimits::limit($tenant, 'offline_selling'));
     }
 
     public function test_a_policy_limit_is_not_a_count_of_anything_owned(): void

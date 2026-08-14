@@ -116,11 +116,27 @@ class PosCatalogController extends Controller
 
             'settings' => collect($tenant?->allSettings() ?? [])->only(self::TILL_SETTINGS),
             'offline_days' => $tenant === null ? null : PlanLimits::limit($tenant, 'offline_days'),
+            // May this till sell with no server at all? The kill switch, and
+            // it lives on the catalog because that is the one call a till makes
+            // WHILE IT STILL HAS a connection — which is the only moment the
+            // answer can change hands. Off by default: a shop earns offline
+            // selling once shadow mode has proved the pricing mirror on its own
+            // carts, and an admin turns it on.
+            //
+            // Never a reason to reject a queued sale. Turning this off stops
+            // NEW offline sales; anything already rung syncs exactly as before.
+            'offline_selling' => $tenant !== null && PlanLimits::limit($tenant, 'offline_selling') === 1,
 
             // The till's own clock cannot be trusted — a tablet three days slow
             // would file its sales into the wrong trading day. This is what it
             // measures its drift against.
             'server_time' => now()->toIso8601String(),
+            // The SHOP's calendar, which is not the server's and not the
+            // tablet's. A promotion that runs on Fridays, or between 6pm and
+            // 9pm, is a statement about local time — and a till evaluating
+            // that in UTC would start a Karachi shop's evening sale five hours
+            // early and end it five hours early too.
+            'timezone' => $tenant?->timezone ?: 'Asia/Karachi',
         ];
     }
 
@@ -162,6 +178,12 @@ class PosCatalogController extends Controller
             ? [
                 'id' => $p->id,
                 'name' => $p->name,
+                // Sent rather than filtered out, because a promotion switched
+                // OFF has to reach the till as an off promotion. Filtering it
+                // from the list would leave the till holding yesterday's copy
+                // and still applying it — the delta only carries what changed,
+                // and "gone from the results" is how a tombstone looks too.
+                'is_active' => (bool) $p->is_active,
                 'type' => $p->type,
                 'value' => (float) $p->value,
                 'scope' => $p->scope,
@@ -180,6 +202,13 @@ class PosCatalogController extends Controller
                 'start_time' => $p->start_time,
                 'end_time' => $p->end_time,
                 'priority' => (int) $p->priority,
+                // Buy-X-get-Y. Meaningless on the other types and sent anyway,
+                // because a till that cannot see them cannot tell a BOGO it
+                // understands from one it does not — and guessing at a
+                // promotion is how a receipt goes wrong offline.
+                'buy_qty' => $p->buy_qty === null ? null : (float) $p->buy_qty,
+                'get_qty' => $p->get_qty === null ? null : (float) $p->get_qty,
+                'get_discount_pct' => $p->get_discount_pct === null ? null : (float) $p->get_discount_pct,
             ]
             : null);
     }
