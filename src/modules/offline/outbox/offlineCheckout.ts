@@ -2,8 +2,16 @@ import { get, getAll, getSingleton } from "../db/repo";
 import { STORE } from "../db/schema";
 import { deviceId } from "../device/deviceId";
 import { priceCart, type CartLine } from "../pricing/priceCart";
-import type { CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
-import { canSellOffline, refusalsFor, type OfflineCart } from "./canSellOffline";
+import type { CatalogItem, CatalogPromotion, CatalogTaxGroup } from "../sync/catalogService";
+import { readMeta } from "../sync/applyPull";
+import { unsupportedPromotions } from "../pricing/bestPromotion";
+import {
+  canSellOffline,
+  OFFLINE_SELLING_OFF,
+  PROMOTION_TOO_NEW,
+  refusalsFor,
+  type OfflineCart,
+} from "./canSellOffline";
 import { enqueue, newRow } from "./outbox";
 import { nextOfflineNumber } from "./receiptNumber";
 
@@ -59,6 +67,13 @@ export interface OfflineSaleInput {
    * agree. This can only withhold practice, never grant it.
    */
   training: boolean;
+  /**
+   * WHICH SHOP is signed in as this is rung.
+   *
+   * Stamped on the row so a browser used for two tenants can never flush one
+   * shop's sales into the other's books — see `belongsHere` in the outbox.
+   */
+  tenantId: string | null;
 }
 
 /** What the POS gets back — deliberately the shape of a server sale. */
@@ -78,6 +93,57 @@ export class OfflineRefused extends Error {
   constructor(public readonly reasons: string[]) {
     super(reasons[0] ?? "This sale can't be rung while the internet is down.");
     this.name = "OfflineRefused";
+  }
+}
+
+/**
+ * Has this shop been granted offline selling at all?
+ *
+ * Read from the catalog's settings, which is where the switch arrives — the
+ * one call a till makes WHILE IT STILL HAS a connection, and therefore the only
+ * moment the answer can change hands.
+ *
+ * `=== true` and a swallowed error both fall the same way: OFF. A till that
+ * cannot read its own settings has no business deciding it may trade blind,
+ * and a shop that has not been granted this must never get it by accident.
+ */
+export async function offlineSellingAllowed(): Promise<boolean> {
+  try {
+    const settings = await getSingleton<Record<string, unknown>>(STORE.SETTINGS);
+
+    return settings?.offline_selling === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A live promotion this till cannot work out.
+ *
+ * Checked per sale rather than once at boot, because a promotion can be
+ * switched on from the office in the middle of a trading day and the catalog
+ * pull that carries it is the till's only warning.
+ *
+ * Judged against SERVER time with the till's drift applied, and the shop's own
+ * timezone — the same clock the engine itself uses, or a shop could be refused
+ * over an evening promotion at two in the afternoon.
+ */
+export async function unpriceableOffer(): Promise<boolean> {
+  try {
+    const settings = await getSingleton<Record<string, unknown>>(STORE.SETTINGS);
+    const promotions = await getAll<CatalogPromotion>(STORE.PROMOTIONS);
+
+    return (
+      unsupportedPromotions(
+        promotions,
+        new Date(Date.now() + (await readMeta()).clockSkewMs),
+        String(settings?.timezone ?? "Asia/Karachi"),
+      ).length > 0
+    );
+  } catch {
+    // A till that cannot read its own promotions cannot promise it applies
+    // them. Same direction as every other doubt on this path.
+    return true;
   }
 }
 
@@ -105,6 +171,12 @@ export async function priceLocally(
     {
       default_tax_rate: Number(settings.default_tax_rate ?? 0),
       tax_inclusive: Boolean(settings.tax_inclusive),
+      // The shop's automatic promotions, judged against SERVER time with this
+      // till's measured drift applied — never the tablet's own clock, which
+      // would run a flash sale that ended on Tuesday.
+      promotions: await getAll<CatalogPromotion>(STORE.PROMOTIONS),
+      now: new Date(Date.now() + (await readMeta()).clockSkewMs),
+      timezone: String(settings.timezone ?? "Asia/Karachi"),
     },
     cartDiscount,
   );
@@ -174,6 +246,10 @@ export async function linesFromCatalog(
 
     lines.push({
       item: {
+        // Which product and category — the promotion rules scope by one or the
+        // other, and a line that cannot say what it is matches nothing.
+        id: item.id,
+        category_id: item.category_id,
         price: variant ? variant.price : item.price,
         // A sale price is product-level and does not apply to a variant —
         // the server's rule, mirrored rather than approximated.
@@ -204,6 +280,22 @@ export async function linesFromCatalog(
  * it is thrown rather than reported.
  */
 export async function completeOffline(input: OfflineSaleInput): Promise<OfflineSale> {
+  // The shop's own switch, checked before the cart's contents. It is not a
+  // fact about this sale — it is whether these tills may sell with no server
+  // at all — so answering "your cart contains a medicine" to a shop that was
+  // never granted offline selling would send a cashier removing items to fix
+  // something no cart can fix.
+  if (!(await offlineSellingAllowed())) {
+    throw new OfflineRefused([`${OFFLINE_SELLING_OFF.reason} ${OFFLINE_SELLING_OFF.fix}`]);
+  }
+
+  // A promotion the engine cannot evaluate is not a smaller discount — it is
+  // a receipt wrong on every cart it touches. Refused for the SHOP, like the
+  // switch above, because no cart can be rearranged to fix it.
+  if (await unpriceableOffer()) {
+    throw new OfflineRefused([`${PROMOTION_TOO_NEW.reason} ${PROMOTION_TOO_NEW.fix}`]);
+  }
+
   if (!canSellOffline(input.guard)) {
     throw new OfflineRefused(refusalsFor(input.guard).map((r) => r.reason));
   }
@@ -220,7 +312,7 @@ export async function completeOffline(input: OfflineSaleInput): Promise<OfflineS
       offlineNumber,
       input.sale,
       input.offlineSince,
-      input.training,
+      { training: input.training, tenantId: input.tenantId },
     ),
   );
 

@@ -95,3 +95,43 @@ describe("the boot", () => {
     expect(touch).not.toHaveBeenCalled();
   });
 });
+
+describe("when findings have just gone up", () => {
+  // The tally and the variances travel by different roads: a finding goes on
+  // the catalog pull, the count of checks rides this call. Waiting out the
+  // five minutes leaves a shop reading "9 carts priced differently" above
+  // "Carts checked: 2" — a screen contradicting itself while somebody reads it.
+
+  it("goes now, rather than waiting out the clock", async () => {
+    const touch = vi.spyOn(deviceService, "touch").mockResolvedValue({} as never);
+
+    await touchIfDue(0);
+    expect(touch).toHaveBeenCalledTimes(1);
+
+    // Well inside the window, and it still goes.
+    await touchIfDue(1_000, { force: true });
+    expect(touch).toHaveBeenCalledTimes(2);
+  });
+
+  it("still holds the clock back when nothing was found", async () => {
+    // A warning that fires on every pull is the noise the rate limit exists
+    // to prevent.
+    const touch = vi.spyOn(deviceService, "touch").mockResolvedValue({} as never);
+
+    await touchIfDue(0);
+    await touchIfDue(1_000, { force: false });
+
+    expect(touch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not move the clock when a forced touch fails", async () => {
+    // Same rule as the ordinary path: the clock advances on success only, or
+    // one lost request buys five minutes of looking out of contact.
+    vi.spyOn(deviceService, "touch").mockRejectedValue(new Error("offline"));
+
+    expect(await touchIfDue(0, { force: true })).toBe(false);
+
+    vi.spyOn(deviceService, "touch").mockResolvedValue({} as never);
+    expect(await touchIfDue(1_000)).toBe(true);
+  });
+});

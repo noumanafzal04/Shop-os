@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from "../../../common/api/client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "../../../common/api/client";
 import { readTally } from "../pricing/shadowTally";
 
 /** One till, as the shop sees it. Carries nothing secret. */
@@ -93,4 +93,14 @@ export const deviceService = {
 
   /** Allow a signed-out till back. The tablet turned up. */
   restore: (id: string) => apiPost<PosDevice>(`/pos-devices/${id}/restore`, {}),
+
+  /**
+   * Name a till, from the office.
+   *
+   * Deliberately NOT `register(id, name)`. That call stamps `last_seen_at`,
+   * and an owner labelling a tablet that has been switched off for a week
+   * would write "reached us just now" onto exactly the device whose silence
+   * the roster exists to show. This touches the name and nothing else.
+   */
+  rename: (id: string, name: string) => apiPatch<PosDevice>(`/pos-devices/${id}`, { name }),
 };

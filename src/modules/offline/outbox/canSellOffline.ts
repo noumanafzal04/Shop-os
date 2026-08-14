@@ -96,6 +96,40 @@ export function canSellOffline(cart: OfflineCart): boolean {
 }
 
 /**
+ * This shop has not been given offline selling.
+ *
+ * The kill switch, as the cashier meets it. It is off until an admin turns it
+ * on, because a shop earns it by running shadow mode over its OWN carts until
+ * the pricing mirror has been proved on them — not on somebody else's.
+ *
+ * Worded so nobody at the counter goes looking for a setting they cannot see.
+ * The shop cannot switch this on for itself, so "ask support" is the only true
+ * next step, and the sentence says so.
+ */
+export const OFFLINE_SELLING_OFF: Refusal = {
+  reason: "This shop's tills aren't set up to sell without a connection yet.",
+  fix: "Take cash at the counter and ring it once you are back online, or ask support to turn offline selling on for this shop.",
+};
+
+/**
+ * This shop runs a promotion the till cannot work out.
+ *
+ * The safety net behind the promotion mirror, and it matters more than the
+ * mirror does. A promotion the engine does not understand is not a smaller
+ * discount — it is a receipt that is WRONG on every cart the promotion touches,
+ * discovered by a customer days later with no way to check.
+ *
+ * The whole offline design says a till may only do what it can decide
+ * correctly, alone. A promotion it cannot evaluate is the clearest possible
+ * case of something it cannot, so the answer is no — for the shop, not for the
+ * cart, because no cart can be rearranged to fix it.
+ */
+export const PROMOTION_TOO_NEW: Refusal = {
+  reason: "This shop is running an offer this till doesn't know how to work out, so it can't price a sale correctly without the internet.",
+  fix: "Take cash at the counter and ring it once you are back online.",
+};
+
+/**
  * Money going back OUT always needs the server.
  *
  * A refund is not a sale in reverse. It restocks, it reverses loyalty points

@@ -41,6 +41,7 @@ export default function TillDevicesPanel() {
   const toast = useToast();
   const qc = useQueryClient();
   const thisDevice = useOfflineStore((s) => s.deviceId);
+  const refusal = useOfflineStore((s) => s.registrationRefusal);
 
   const roster = useQuery({
     queryKey: ["pos-devices"],
@@ -67,6 +68,32 @@ export default function TillDevicesPanel() {
     onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't allow that till."),
   });
 
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => deviceService.rename(id, name),
+    onSuccess: () => {
+      toast.success("Till renamed.");
+      invalidate();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't rename that till."),
+  });
+
+  // A prompt rather than an inline field, deliberately. This is a list an owner
+  // opens perhaps twice a year — once when a tablet arrives and once when one
+  // goes missing — and an edit affordance on every row would compete for
+  // attention with the button that actually matters, which is Sign out.
+  const askName = (device: PosDevice): void => {
+    const next = window.prompt(
+      "What is this till called? Use the name the staff use — \"Counter tablet\", \"Lane 2\".",
+      device.name ?? "",
+    );
+
+    // Cancel returns null; an empty box is somebody clearing it, and going back
+    // to "Unnamed till" is never what they meant.
+    if (next === null || next.trim() === "") return;
+
+    rename.mutate({ id: device.id, name: next.trim() });
+  };
+
   if (roster.isLoading) {
     return <p className="text-theme-sm text-gray-400">Loading tills…</p>;
   }
@@ -83,6 +110,25 @@ export default function TillDevicesPanel() {
   const windowDays = roster.data?.offline_days ?? null;
 
   if (devices.length === 0) {
+    // "No tills yet" is true of a shop nobody has opened ShopOS on. It is a LIE
+    // to a shop whose device announced itself and was turned away — signed out,
+    // or already registered to another shop — and that owner is looking at the
+    // device while the screen tells them it does not exist. The server sends a
+    // sentence with each refusal; this is where it has to land.
+    if (refusal !== null) {
+      return (
+        <div
+          role="alert"
+          className="rounded-xl border border-warning-200 bg-warning-50 p-4 dark:border-warning-500/30 dark:bg-warning-500/10"
+        >
+          <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+            This device could not sign itself in
+          </p>
+          <p className="mt-1 text-theme-xs text-gray-600 dark:text-gray-300">{refusal}</p>
+        </div>
+      );
+    }
+
     return (
       <p className="text-theme-sm text-gray-400">
         No tills yet. Every device that opens ShopOS signs itself in here.
@@ -120,6 +166,19 @@ export default function TillDevicesPanel() {
                   >
                     {device.name ?? "Unnamed till"}
                   </span>
+                  {/* Named, not decorated. The offline report puts this against
+                      every late sale, because a fault on ONE tablet is a
+                      different problem from a fault in the shop — and three
+                      tills all reading "Unnamed till" make that column say
+                      nothing at all. */}
+                  <button
+                    type="button"
+                    onClick={() => askName(device)}
+                    disabled={rename.isPending}
+                    className="text-theme-xs text-brand-500 hover:underline disabled:opacity-50"
+                  >
+                    {device.name === null ? "Name it" : "Rename"}
+                  </button>
                   {isThis && (
                     <Badge size="sm" color="info">
                       This device

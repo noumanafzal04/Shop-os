@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import fixtures from "./fixtures/pricing.json";
 import { round2 } from "./money";
 import { priceCart, type CartLine, type PriceLevel } from "./priceCart";
+import type { CatalogPromotion } from "../sync/catalogService";
 
 /**
  * The gate. Nothing sells offline until this file is green.
@@ -29,6 +30,8 @@ interface RoundingCase {
 }
 
 interface FixtureItem {
+  product_id: string;
+  category_id: string | null;
   price: number;
   discount_price: number | null;
   wholesale_price: number | null;
@@ -48,6 +51,8 @@ interface CartFixture {
     settings: { tax_inclusive: boolean; default_tax_rate: number; cash_rounding: number };
     items: FixtureItem[];
     discount: number;
+    /** The shop's automatic promotions, in exactly the projection shape. */
+    promotions: CatalogPromotion[];
   };
   expected: {
     subtotal: number;
@@ -65,7 +70,7 @@ const FIXTURES = fixtures as unknown as {
 };
 
 /** The shape this file understands. A bump means the copy here is stale. */
-const EXPECTED_VERSION = 1;
+const EXPECTED_VERSION = 2;
 
 describe("the fixtures themselves", () => {
   it("are the version this engine was written against", () => {
@@ -108,10 +113,29 @@ describe("rounding money the way the server does", () => {
   });
 });
 
+/**
+ * The shop as the fixture describes it.
+ *
+ * Every fixture promotion is deliberately always-live — no dates, no weekdays,
+ * no time window — so the clock passed here cannot change an answer. A fixture
+ * whose result depended on the day it ran would go red on a Tuesday for
+ * reasons that are not about pricing; the window rules are pinned in
+ * `bestPromotion.test.ts` against a fixed clock instead.
+ */
+const shopFor = (fixture: CartFixture) => ({
+  default_tax_rate: fixture.input.settings.default_tax_rate,
+  tax_inclusive: fixture.input.settings.tax_inclusive,
+  promotions: fixture.input.promotions,
+  now: new Date("2026-08-11T09:00:00Z"),
+  timezone: "Asia/Karachi",
+});
+
 describe("every cart the server was asked to price", () => {
   const toLines = (fixture: CartFixture): CartLine[] =>
     fixture.input.items.map((item) => ({
       item: {
+        id: item.product_id,
+        category_id: item.category_id,
         price: item.price,
         discount_price: item.discount_price,
         wholesale_price: item.wholesale_price,
@@ -128,10 +152,7 @@ describe("every cart the server was asked to price", () => {
   it.each(FIXTURES.carts.map((c) => [c.name, c] as const))("%s", (_name, fixture) => {
     const result = priceCart(
       toLines(fixture),
-      {
-        default_tax_rate: fixture.input.settings.default_tax_rate,
-        tax_inclusive: fixture.input.settings.tax_inclusive,
-      },
+      shopFor(fixture),
       fixture.input.discount,
     );
 
@@ -161,6 +182,8 @@ describe("the whole set, not just the ones that pass", () => {
         priceCart(
           fixture.input.items.map((item) => ({
             item: {
+              id: item.product_id,
+              category_id: item.category_id,
               price: item.price,
               discount_price: item.discount_price,
               wholesale_price: item.wholesale_price,
@@ -173,10 +196,7 @@ describe("the whole set, not just the ones that pass", () => {
             lineDiscountPct: item.line_discount_pct,
             lineDiscount: item.line_discount,
           })),
-          {
-            default_tax_rate: fixture.input.settings.default_tax_rate,
-            tax_inclusive: fixture.input.settings.tax_inclusive,
-          },
+          shopFor(fixture),
           fixture.input.discount,
         );
 

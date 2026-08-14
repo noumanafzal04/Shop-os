@@ -811,6 +811,11 @@ export default function PosPage() {
       // screen is drawn from, so the cashier and the books cannot be told two
       // different things.
       training,
+      // WHICH SHOP is signed in. The outbox lives in IndexedDB, scoped to the
+      // browser origin rather than to a tenant, so one laptop used for two
+      // shops has one queue — and a flush after switching accounts would post
+      // this sale into the other shop's books. Stamped here, checked there.
+      tenantId: user?.tenant?.id ?? null,
       // When this device was last in touch — which is what "was this rung past
       // the shop's window" is measured from. The question is how long the till
       // had been away WHEN IT RANG THIS, not how old the sale is by the time

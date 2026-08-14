@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 
+import { ApiError } from "../../common/types/api";
 import { pendingCount } from "./db/repo";
 import { deviceId } from "./device/deviceId";
 import { deviceService } from "./device/deviceService";
@@ -41,6 +42,22 @@ import { checkStorage } from "./storage/persist";
  * not to component state, so a write arriving after this hook unmounts is
  * simply a store update — there is nothing to leak and nothing to warn about.
  */
+/**
+ * A refusal worth repeating, or nothing.
+ *
+ * Only a 409 qualifies. Everything else registration can fail with is either a
+ * dead line — which the offline badge already says, in the cashier's words —
+ * or a bug, and neither belongs on an owner's roster as an explanation.
+ *
+ * The two real ones both come from the server with a sentence already written
+ * for a human ("This till was signed out by the shop owner", "That device is
+ * registered to another shop"), so it is passed through rather than restated
+ * here: one wording, on the server, where the rule lives.
+ */
+export function refusalFrom(error: unknown): string | null {
+  return error instanceof ApiError && error.status === 409 ? error.message : null;
+}
+
 export function useOfflineBoot(enabled: boolean): void {
   const setDevice = useOfflineStore((s) => s.setDevice);
   const setRegistered = useOfflineStore((s) => s.setRegistered);
@@ -98,10 +115,16 @@ export function useOfflineBoot(enabled: boolean): void {
         // half a second ago — two identical requests at the slowest moment of
         // the app's life.
         markTouched();
-      } catch {
+      } catch (error) {
         // Offline, or refused. Neither stops the till: this is the
         // announcement, not the permission.
-        setRegistered(false);
+        //
+        // But the two are different things to be told. "No connection" needs no
+        // words — the offline badge already says it. A REFUSAL has a cause and
+        // a remedy, and dropping it is how an owner ends up reading "No tills
+        // yet" about a device that is right there, announcing itself, and being
+        // turned away every single boot.
+        setRegistered(false, refusalFrom(error));
       }
 
       // Either way the contact clock has moved — a success stamped it through

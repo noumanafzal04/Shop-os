@@ -76,6 +76,14 @@ export interface CatalogCategory {
 export interface CatalogPromotion {
   id: string;
   name: string;
+  /**
+   * Switched off promotions are SENT, not filtered out.
+   *
+   * The catalog is a delta: absence means "unchanged", and a tombstone means
+   * "deleted". Dropping a deactivated promotion from the results would leave
+   * the till holding yesterday's copy and still applying it.
+   */
+  is_active: boolean;
   type: string;
   value: number;
   scope: string;
@@ -90,6 +98,11 @@ export interface CatalogPromotion {
   start_time: string | null;
   end_time: string | null;
   priority: number;
+  /** Buy-X-get-Y only. Null on every other type. */
+  buy_qty: number | null;
+  get_qty: number | null;
+  /** Null means the free units are free; 50 means half off. */
+  get_discount_pct: number | null;
 }
 
 export interface CatalogTaxGroup {
@@ -140,6 +153,16 @@ export interface CatalogPull {
   customers: Page<CatalogCustomer>;
   settings: Record<string, unknown>;
   offline_days: number | null;
+  /**
+   * The SHOP's calendar — not the server's and not the tablet's.
+   *
+   * A promotion that runs on Fridays, or between 6pm and 9pm, is a statement
+   * about local time. Evaluated in UTC it would open a Karachi shop's evening
+   * sale five hours early and close it five hours early too.
+   */
+  timezone: string;
+  /** May these tills sell with no server at all? Off unless the shop was granted it. */
+  offline_selling: boolean;
   server_time: string;
   /** Only on a first load. */
   branch_id?: string | null;

@@ -3,6 +3,7 @@ import { catalogService, PROJECTIONS, type Projection } from "./catalogService";
 import { flushVariances } from "../pricing/varianceService";
 import { touchIfDue } from "../device/touch";
 import { flushOutbox } from "../outbox/flush";
+import { useAuthStore } from "../../../stores/authStore";
 
 /**
  * Fetching everything the server has for this till, and stopping.
@@ -66,7 +67,13 @@ async function run(): Promise<PullResult> {
   //
   // It cannot fail the pull: a till must not stop learning its catalog because
   // its queue would not go, and the queue keeps everything it could not send.
-  await flushOutbox().catch(() => ({}));
+  //
+  // The shop that is SIGNED IN, not the shop the queue came from. IndexedDB is
+  // scoped to the origin, so one laptop used for two tenants has one queue —
+  // and without naming the shop here, the boot after switching accounts would
+  // post shop A's unsent sales under shop B's token. Rows that do not belong to
+  // this shop are held, not sent.
+  await flushOutbox(useAuthStore.getState().user?.tenant?.id ?? null).catch(() => ({}));
 
   const applied = Object.fromEntries(PROJECTIONS.map((p) => [p, 0])) as Record<Projection, number>;
   let rounds = 0;
@@ -104,14 +111,22 @@ async function run(): Promise<PullResult> {
   // what it found, and it costs one request that usually carries nothing.
   // It cannot fail the pull — a till must not stop learning its catalog
   // because a variance report did not go.
-  await flushVariances();
+  const variances = await flushVariances();
 
   // And say we are still here. Registration happens once per app start, so
   // without this a tablet left open all week reads as a week out of contact
   // while it is syncing every quarter of an hour. It also carries the shadow
   // tally up, which matters most for the till that never finds anything and so
   // never has a variance to report.
-  await touchIfDue();
+  //
+  // FORCED when findings just went up, rather than waiting for the five-minute
+  // clock. Those two travel by different roads — a variance goes on this pull,
+  // the tally rides the device touch — so a shop that has just found something
+  // reads "9 carts priced differently" above "Carts checked: 2", which is a
+  // screen contradicting itself at the exact moment somebody is trying to read
+  // it. The denominator has to arrive with the numerator or it is not a
+  // denominator.
+  await touchIfDue(Date.now(), { force: variances.sent > 0 });
 
   return { applied, rounds, truncated };
 }

@@ -36,6 +36,17 @@ interface OfflineState {
   /** True once the server has acknowledged this device at least once. */
   registered: boolean;
   /**
+   * Why the server would not accept this device, when it said.
+   *
+   * Registration failing is usually just "no connection", which needs no
+   * words. But two answers are REFUSALS with a specific cause and a specific
+   * remedy — this till was signed out by the owner, or this browser's device
+   * id already belongs to another shop — and losing them leaves an owner
+   * reading "No tills yet" about a device that is sitting right in front of
+   * them, announcing itself, and being turned away every time.
+   */
+  registrationRefusal: string | null;
+  /**
    * The shop's ceiling, in days, as the server reported it. Null = not known
    * yet, which is treated as "do not warn about something unmeasured".
    */
@@ -55,7 +66,7 @@ interface OfflineState {
   pending: number;
 
   setDevice: (id: string) => void;
-  setRegistered: (registered: boolean) => void;
+  setRegistered: (registered: boolean, refusal?: string | null) => void;
   setPolicy: (offlineDays: number | null) => void;
   setStorage: (storage: StorageHealth) => void;
   setPending: (pending: number) => void;
@@ -66,13 +77,14 @@ interface OfflineState {
 export const useOfflineStore = create<OfflineState>()((set) => ({
   deviceId: null,
   registered: false,
+  registrationRefusal: null,
   offlineDays: null,
   hoursOffline: hoursSinceContact(),
   storage: null,
   pending: 0,
 
   setDevice: (deviceId) => set({ deviceId }),
-  setRegistered: (registered) => set({ registered }),
+  setRegistered: (registered, refusal = null) => set({ registered, registrationRefusal: refusal }),
   setPolicy: (offlineDays) => set({ offlineDays }),
   setStorage: (storage) => set({ storage }),
   setPending: (pending) => set({ pending }),

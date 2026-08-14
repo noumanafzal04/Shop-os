@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import Badge from "../../../components/ui/badge/Badge";
 import { ApiError } from "../../../common/types/api";
+import { describe, groupVariances, type VarianceGroup } from "./groupVariances";
 import { varianceService, type ReportedVariance } from "./varianceService";
 import { SKIP_CONCERN, verdict } from "./verdict";
 
@@ -59,6 +60,7 @@ export default function PricingVariancesPanel() {
   };
   const total = report.data?.total ?? 0;
   const variances = report.data?.variances ?? [];
+  const groups = groupVariances(variances);
   const state = verdict(checks, total);
   const days = daysSince(checks.since);
   const skipShare = checks.checked === 0 ? 0 : checks.skipped / checks.checked;
@@ -116,22 +118,87 @@ export default function PricingVariancesPanel() {
         </p>
       )}
 
-      {variances.length > 0 && (
-        <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-          {variances.map((v) => (
-            <VarianceRow key={v.id} variance={v} />
-          ))}
-        </div>
+      {groups.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+            {groups.length === 1 ? "What went wrong" : `${groups.length} things went wrong`}
+          </h3>
+          {/* Grouped, because nine rows saying the same thing are ONE finding.
+              Listed one per cart, a reader has to compare nine blocks of
+              numbers before noticing there is only one defect — and a shop
+              trading all day would produce nine hundred. */}
+          <div className="space-y-2">
+            {groups.map((group) => (
+              <GroupCard key={group.key} group={group} />
+            ))}
+          </div>
+        </section>
       )}
 
       {total > variances.length && (
         <p className="text-theme-xs text-gray-400">
-          Showing the newest {variances.length} of {total.toLocaleString()}.
+          Grouped from the newest {variances.length} of {total.toLocaleString()} disagreements.
         </p>
       )}
     </div>
   );
 }
+
+/**
+ * One finding, with its carts folded away.
+ *
+ * Collapsed by default. The count and the sentence are what an owner needs;
+ * the individual carts are what a developer needs to reproduce it, and putting
+ * the second in front of the first buries the answer under the evidence.
+ */
+function GroupCard({ group }: { group: VarianceGroup }) {
+  const range =
+    group.smallest === group.largest
+      ? money(group.largest)
+      : `${money(group.smallest)}–${money(group.largest)}`;
+
+  return (
+    <details className="rounded-xl border border-gray-200 dark:border-gray-800">
+      <summary className="cursor-pointer list-none p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+              {describe(group)}
+            </p>
+            <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              {group.count} {group.count === 1 ? "cart" : "carts"} · off by {range} · fields:{" "}
+              {group.fields.join(", ")}
+            </p>
+          </div>
+          <Badge size="sm" color="warning">
+            ×{group.count}
+          </Badge>
+        </div>
+      </summary>
+
+      <div className="divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
+        {group.examples.slice(0, EXAMPLES).map((v) => (
+          <VarianceRow key={v.id} variance={v} />
+        ))}
+        {group.count > EXAMPLES && (
+          <p className="p-3 text-theme-xs text-gray-400">
+            {group.count - EXAMPLES} more like these. They are the same finding — fixing one fixes
+            all of them.
+          </p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/**
+ * How many carts are shown inside a group.
+ *
+ * A handful is enough to reproduce a defect; the rest are the same finding
+ * again, and printing all of them is how the pattern gets buried under its own
+ * evidence.
+ */
+const EXAMPLES = 5;
 
 /** One disagreement, in the terms a developer would need to reproduce it. */
 function VarianceRow({ variance }: { variance: ReportedVariance }) {

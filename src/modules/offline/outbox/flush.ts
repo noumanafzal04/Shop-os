@@ -82,9 +82,9 @@ function wire(row: OutboxRow): Record<string, unknown> {
   };
 }
 
-export async function flushOutbox(): Promise<FlushResult> {
+export async function flushOutbox(tenantId: string | null = null): Promise<FlushResult> {
   const locks = navigator.locks;
-  if (locks === undefined) return runFlush();
+  if (locks === undefined) return runFlush(tenantId);
 
   let result: FlushResult = { sent: 0, acked: 0, failed: 0, skipped: true };
 
@@ -92,7 +92,7 @@ export async function flushOutbox(): Promise<FlushResult> {
   // wake against rows the first tab had just retired.
   await locks.request(LOCK, { ifAvailable: true }, async (lock) => {
     if (lock === null) return;
-    result = await runFlush();
+    result = await runFlush(tenantId);
   });
 
   return result;
@@ -105,7 +105,7 @@ export async function flushOutbox(): Promise<FlushResult> {
  */
 const MAX_ROUNDS = 200;
 
-async function runFlush(): Promise<FlushResult> {
+async function runFlush(tenantId: string | null): Promise<FlushResult> {
   const result: FlushResult = { sent: 0, acked: 0, failed: 0, skipped: false };
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
@@ -113,7 +113,7 @@ async function runFlush(): Promise<FlushResult> {
     // mean one successful batch made every later all-retried batch look like
     // progress, and the loop would never end.
     let moved = 0;
-    const batch = (await dueRows()).slice(0, BATCH);
+    const batch = (await dueRows(Date.now(), tenantId)).slice(0, BATCH);
     if (batch.length === 0) return result;
 
     await markSending(batch);

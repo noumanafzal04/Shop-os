@@ -44,6 +44,20 @@ export interface OutboxRow {
   offlineNumber: string;
   /** When this device last reached the server, so lateness can be judged. */
   offlineSince: string | null;
+  /**
+   * WHICH SHOP this sale belongs to.
+   *
+   * The outbox lives in IndexedDB, which is scoped to the browser ORIGIN — not
+   * to the shop that is signed in. One laptop, two shops (an owner with two
+   * tenants, a support machine, a demo) share one queue. Without this the boot
+   * after switching accounts would flush shop A's unsent sales under shop B's
+   * token, and the server would do exactly as it was told: record them as
+   * shop B's, priced from shop B's catalog, in shop B's books.
+   *
+   * Nothing about that is recoverable by a shopkeeper. So a row names its shop,
+   * and a row whose shop is not the one signed in is not sent.
+   */
+  tenantId: string | null;
   /** The sale payload, in the shape the sync endpoint takes. */
   sale: Record<string, unknown>;
   /**
@@ -85,7 +99,10 @@ export function newRow(
   offlineNumber: string,
   sale: Record<string, unknown>,
   offlineSince: string | null,
-  training = false,
+  // Bundled rather than trailing positionals: two of these are a boolean and a
+  // string, and `newRow(op, at, num, payload, null, false, "019f…")` is a call
+  // nobody can read and anybody can transpose.
+  { training = false, tenantId = null }: { training?: boolean; tenantId?: string | null } = {},
 ): OutboxRow {
   return {
     op,
@@ -94,6 +111,7 @@ export function newRow(
     offlineSince,
     sale,
     training,
+    tenantId,
     status: OUTBOX_STATUS.PENDING,
     createdAt: new Date().toISOString(),
     attempts: 0,
@@ -123,12 +141,38 @@ export async function allRows(): Promise<OutboxRow[]> {
  * that keeps dropping, leave the oldest sale unsent for ever — and the oldest
  * sale is the one closest to being forgotten by everyone who was there.
  */
-export async function dueRows(now: number = Date.now()): Promise<OutboxRow[]> {
+export async function dueRows(
+  now: number = Date.now(),
+  tenantId: string | null = null,
+): Promise<OutboxRow[]> {
   const pending = await getAllByIndex<OutboxRow>(STORE.OUTBOX, "by_status", OUTBOX_STATUS.PENDING);
 
   return pending
     .filter((r) => r.nextAttemptAt === null || Date.parse(r.nextAttemptAt) <= now)
+    .filter((r) => belongsHere(r, tenantId))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * Is this row's shop the shop that is signed in?
+ *
+ * The rule that keeps one browser's two shops apart. IndexedDB is scoped to the
+ * ORIGIN, so a laptop used for two tenants has ONE queue, and a flush after
+ * switching accounts would post shop A's sales under shop B's token. The server
+ * would do exactly as told and file them as shop B's — money moved between two
+ * businesses, silently, with no way for a shopkeeper to unpick it.
+ *
+ * An UNKNOWN tenant is held rather than sent. Everywhere else in this file the
+ * asymmetry is "sending twice costs a lookup, not sending costs the sale" — but
+ * there is a third outcome here and it is worse than both, so the tie breaks
+ * the other way. A stuck row can still be read, counted and recovered; a row
+ * filed under the wrong business cannot.
+ *
+ * `tenantId === null` means the caller did not say which shop is signed in, and
+ * the only safe reading of that is the same one: do not send.
+ */
+export function belongsHere(row: OutboxRow, tenantId: string | null): boolean {
+  return tenantId !== null && row.tenantId === tenantId;
 }
 
 /**

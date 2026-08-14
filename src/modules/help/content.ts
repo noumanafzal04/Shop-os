@@ -1077,6 +1077,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Shop settings → Point of Sale → Lanes & PINs. Every device that opens the POS adds itself to this list on its own — there is nothing to register by hand. Each row shows which lane it stands at and when it last reached us." },
       { type: "p", text: "A till that goes quiet is a till that has lost its connection, so 'last reached us' is the number worth reading. It updates while the POS is open, not only when the browser is reloaded." },
       { type: "note", text: "Signing a till out is not a delete. The tablet stops being usable, but its row stays and every sale it already sent still points at it — which is exactly what you will want to look up afterwards. 'Allow again' brings it back if it turns up." },
+      { type: "p", text: "Name each one. 'Name it' beside a till lets you call it what the staff call it — 'Counter tablet', 'Lane 2'. It is worth the ten seconds: the offline report puts this name against every sale that came in late, and a problem on ONE tablet is a very different thing from a problem in the shop. Three tills all reading 'Unnamed till' tell you nothing." },
+      { type: "warn", text: "One device belongs to one shop. If a tablet has already signed itself in somewhere else, this screen will say so instead of listing it — it is not a fault, it is the tablet still being registered to the other shop." },
 
       { type: "h", text: "Offline pricing checks" },
       { type: "p", text: "ShopOS is being prepared to keep selling when the internet drops. Before a till is allowed to work out prices on its own, it has to prove it gets the same answer your server does." },
@@ -1088,10 +1090,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ["Tills reporting", "How many of your devices have contributed. One busy till does not speak for four."],
       ]},
       { type: "warn", text: "A disagreement never means a customer was overcharged. They paid the server's price. It means the offline engine is not ready, and it is far better to find that here than on a day the internet is down." },
+      { type: "p", text: "Disagreements are grouped by what actually went wrong, not listed one per sale. Nine carts with the same fault are one problem shown once, with the carts folded underneath — fixing one fixes all of them." },
+      { type: "note", text: "Your automatic offers ARE worked out by the till, including buy-one-get-one. If you ever set up an offer of a kind the till does not recognise, it will refuse to sell offline rather than print a wrong price — the shop is told, not the customer." },
       { type: "p", text: "If a till's browser data is cleared, its count starts again from zero and the totals here go down. That is deliberate — the evidence really did go with it, and a figure that only ever climbed would claim more than it could show." },
 
       { type: "h", text: "Selling when the internet is down" },
-      { type: "p", text: "Once the checks above are clean, a till keeps trading through a power cut or a dead connection. Nothing to switch on — the POS notices and carries on." },
+      { type: "p", text: "Once the checks above are clean and support has turned offline selling on for your shop, a till keeps trading through a power cut or a dead connection. Nothing for you to switch on at the counter — the POS notices and carries on." },
+      { type: "note", text: "Offline selling is off until it is granted. That is deliberate: it is turned on for your shop once the pricing checks above have run over YOUR OWN sales for long enough to prove the till prices exactly as the server does. Until then the POS will say so at the tender screen rather than at the end." },
       { type: "keys", items: [
         ["The receipt", "Prints a slip numbered OFF-… instead of an invoice number. Keep it: when the connection returns, the sale gets its real invoice number and BOTH are searchable, so a customer holding the slip can always be found."],
         ["Stock", "Counts down as you sell, so the shelf figure stays honest through a long outage — not stuck on whatever the server last said."],

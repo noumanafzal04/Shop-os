@@ -48,7 +48,7 @@ function renderPanel() {
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  useOfflineStore.setState({ deviceId: null });
+  useOfflineStore.setState({ deviceId: null, registrationRefusal: null });
 });
 
 describe("the roster", () => {
@@ -187,5 +187,102 @@ describe("how long ago", () => {
     // Scoped: the window sentence above also contains the word "never"
     // ("sales already rung are never lost"), and a bare /never/ matches both.
     expect(await screen.findByText(/reached us never/)).toBeInTheDocument();
+  });
+});
+
+describe("naming a till", () => {
+  // Not cosmetic. The offline report puts this name against every late sale,
+  // because a fault on ONE tablet is a different problem from a fault in the
+  // shop — and three tills all reading "Unnamed till" make that column say
+  // nothing at all.
+
+  const promptWith = (answer: string | null): void => {
+    vi.spyOn(window, "prompt").mockReturnValue(answer);
+  };
+
+  it("renames through the endpoint that does NOT touch last-seen", async () => {
+    // `register(id, name)` would work and would also stamp "reached us just
+    // now" onto a tablet that has been switched off for a week — corrupting
+    // the one column this whole screen exists to show.
+    vi.spyOn(deviceService, "list").mockResolvedValue(
+      envelope({ devices: [device()], offline_days: 3 }),
+    );
+    const rename = vi.spyOn(deviceService, "rename").mockResolvedValue(envelope(device()));
+    const register = vi.spyOn(deviceService, "register");
+    promptWith("Lane 2");
+
+    renderPanel();
+    await userEvent.click(await screen.findByRole("button", { name: /rename/i }));
+
+    await waitFor(() => expect(rename).toHaveBeenCalledWith("d1", "Lane 2"));
+    expect(register).not.toHaveBeenCalled();
+  });
+
+  it("invites a name on a till that has none", async () => {
+    vi.spyOn(deviceService, "list").mockResolvedValue(
+      envelope({ devices: [device({ name: null })], offline_days: 3 }),
+    );
+
+    renderPanel();
+
+    expect(await screen.findByRole("button", { name: /name it/i })).toBeInTheDocument();
+  });
+
+  it("does nothing when the box is cancelled", async () => {
+    vi.spyOn(deviceService, "list").mockResolvedValue(
+      envelope({ devices: [device()], offline_days: 3 }),
+    );
+    const rename = vi.spyOn(deviceService, "rename");
+    promptWith(null);
+
+    renderPanel();
+    await userEvent.click(await screen.findByRole("button", { name: /rename/i }));
+
+    expect(rename).not.toHaveBeenCalled();
+  });
+
+  it("refuses to blank a name somebody typed", async () => {
+    // Emptying the box is a slip, not a request to go back to "Unnamed till".
+    vi.spyOn(deviceService, "list").mockResolvedValue(
+      envelope({ devices: [device()], offline_days: 3 }),
+    );
+    const rename = vi.spyOn(deviceService, "rename");
+    promptWith("   ");
+
+    renderPanel();
+    await userEvent.click(await screen.findByRole("button", { name: /rename/i }));
+
+    expect(rename).not.toHaveBeenCalled();
+  });
+});
+
+describe("a device the server turned away", () => {
+  // "No tills yet" is true of a shop nobody has opened ShopOS on. It is a LIE
+  // to a shop whose device announced itself and was refused — and that owner
+  // is looking straight at the device while the screen says it does not exist.
+
+  it("shows the server's reason instead of 'no tills yet'", async () => {
+    vi.spyOn(deviceService, "list").mockResolvedValue(
+      envelope({ devices: [], offline_days: 3 }),
+    );
+    useOfflineStore.setState({
+      registrationRefusal: "That device is registered to another shop.",
+    });
+
+    renderPanel();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/registered to another shop/);
+    expect(screen.queryByText(/No tills yet/)).not.toBeInTheDocument();
+  });
+
+  it("still says 'no tills yet' when nothing was refused", async () => {
+    // A genuinely new shop must not be shown an alarm.
+    vi.spyOn(deviceService, "list").mockResolvedValue(
+      envelope({ devices: [], offline_days: 3 }),
+    );
+
+    renderPanel();
+
+    expect(await screen.findByText(/No tills yet/)).toBeInTheDocument();
   });
 });

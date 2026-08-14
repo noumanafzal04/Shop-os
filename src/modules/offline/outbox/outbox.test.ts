@@ -35,8 +35,13 @@ import {
  * lookup, and not sending it at all costs the sale.
  */
 
+/** The shop signed in for every test here — see `belongsHere`. */
+const SHOP = "shop-a";
+
 const row = (op: string, over: Partial<OutboxRow> = {}): OutboxRow => ({
-  ...newRow(op, "2026-08-16T10:00:00.000Z", `OFF-L1-AB-${op}`, { total: 100 }, null),
+  ...newRow(op, "2026-08-16T10:00:00.000Z", `OFF-L1-AB-${op}`, { total: 100 }, null, {
+    tenantId: SHOP,
+  }),
   ...over,
 });
 
@@ -78,25 +83,35 @@ describe("what to send next", () => {
     await enqueue(row("new", { createdAt: "2026-08-16T12:00:00.000Z" }));
     await enqueue(row("old", { createdAt: "2026-08-14T09:00:00.000Z" }));
 
-    expect((await dueRows()).map((r) => r.op)).toEqual(["old", "new"]);
+    expect((await dueRows(Date.now(), SHOP)).map((r) => r.op)).toEqual(["old", "new"]);
+  });
+
+  it("leaves another shop's rows where they are", async () => {
+    // One browser, two shops: IndexedDB is scoped to the origin, not to the
+    // signed-in tenant. Sending these under the wrong session would file one
+    // business's takings into another's books.
+    await enqueue(row("mine"));
+    await enqueue(row("theirs", { tenantId: "shop-b" }));
+
+    expect((await dueRows(Date.now(), SHOP)).map((r) => r.op)).toEqual(["mine"]);
   });
 
   it("does not send a row that is waiting out its backoff", async () => {
     await enqueue(row("1", { nextAttemptAt: new Date(Date.now() + 60_000).toISOString() }));
 
-    expect(await dueRows()).toEqual([]);
+    expect(await dueRows(Date.now(), SHOP)).toEqual([]);
   });
 
   it("sends it once the wait is over", async () => {
     await enqueue(row("1", { nextAttemptAt: new Date(Date.now() - 1).toISOString() }));
 
-    expect(await dueRows()).toHaveLength(1);
+    expect(await dueRows(Date.now(), SHOP)).toHaveLength(1);
   });
 
   it("never offers a row that is already in flight", async () => {
     await enqueue(row("1", { status: OUTBOX_STATUS.SENDING }));
 
-    expect(await dueRows()).toEqual([]);
+    expect(await dueRows(Date.now(), SHOP)).toEqual([]);
   });
 });
 
@@ -120,7 +135,7 @@ describe("in flight", () => {
 
     const stored = await readRow("1");
     expect(stored?.status).toBe(OUTBOX_STATUS.PENDING);
-    expect(await dueRows()).toHaveLength(1);
+    expect(await dueRows(Date.now(), SHOP)).toHaveLength(1);
   });
 
   it("does not reset the attempt count when recovering", async () => {
@@ -200,7 +215,7 @@ describe("when it does not land", () => {
   it("stops offering a refused sale to the sender", async () => {
     await enqueue(row("1", { status: OUTBOX_STATUS.FAILED }));
 
-    expect(await dueRows()).toEqual([]);
+    expect(await dueRows(Date.now(), SHOP)).toEqual([]);
   });
 });
 

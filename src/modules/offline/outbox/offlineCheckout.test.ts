@@ -49,6 +49,9 @@ const item = (over: Partial<CatalogItem> & { id: string }): CatalogItem =>
     ...over,
   }) as unknown as CatalogItem;
 
+/** The shop signed in for every test here. */
+const SHOP = "shop-a";
+
 const guard = (over: Partial<OfflineCart> = {}): OfflineCart => ({
   lines: [{ name: "Milkpak 1L", offline_ok: true }],
   paymentMethod: "cash",
@@ -57,7 +60,13 @@ const guard = (over: Partial<OfflineCart> = {}): OfflineCart => ({
 
 async function seed(items: CatalogItem[] = [item({ id: "p1" })]): Promise<void> {
   await putMany(STORE.CATALOG, items);
-  await putSingleton(STORE.SETTINGS, { default_tax_rate: 0, tax_inclusive: false });
+  await putSingleton(STORE.SETTINGS, {
+    default_tax_rate: 0,
+    tax_inclusive: false,
+    // The shop has been granted offline selling. Every test below is about
+    // what happens AFTER that grant; the grant itself has its own section.
+    offline_selling: true,
+  });
 }
 
 const input = (over: Record<string, unknown> = {}) => ({
@@ -68,6 +77,7 @@ const input = (over: Record<string, unknown> = {}) => ({
   registerName: "Lane 1",
   offlineSince: null,
   training: false,
+  tenantId: SHOP,
   ...over,
 });
 
@@ -129,6 +139,139 @@ describe("ringing it", () => {
 
     const rows = await allRows();
     expect(rows.map((r) => r.training).sort()).toEqual([false, true]);
+  });
+});
+
+describe("the shop's own switch", () => {
+  // Off until an admin turns it on, because a shop earns offline selling by
+  // running shadow mode over ITS OWN carts — not somebody else's. Checked
+  // before the cart's contents: answering "your cart contains a medicine" to a
+  // shop that was never granted this would send a cashier removing items to
+  // fix something no cart can fix.
+
+  const withSwitch = async (offline_selling: unknown): Promise<void> => {
+    await putMany(STORE.CATALOG, [item({ id: "p1" })]);
+    await putSingleton(STORE.SETTINGS, { default_tax_rate: 0, tax_inclusive: false, offline_selling });
+  };
+
+  it("refuses when the shop has not been granted offline selling", async () => {
+    await withSwitch(false);
+
+    await expect(completeOffline(input())).rejects.toThrow(/aren't set up to sell without a connection/);
+  });
+
+  it("queues nothing when it refuses", async () => {
+    await withSwitch(false);
+
+    await expect(completeOffline(input())).rejects.toThrow();
+    expect(await allRows()).toEqual([]);
+  });
+
+  it("refuses when the till has never been told either way", async () => {
+    // A server too old to send the flag, or a response that lost it. A till
+    // that cannot read its own settings has no business deciding it may trade
+    // blind, and a shop must never get this by accident.
+    await withSwitch(undefined);
+
+    await expect(completeOffline(input())).rejects.toThrow(/aren't set up/);
+  });
+
+  it("says what to do instead, not just no", async () => {
+    // "Not allowed" sends someone hunting for a setting the shop cannot see.
+    await withSwitch(false);
+
+    await expect(completeOffline(input())).rejects.toThrow(/Take cash at the counter/);
+  });
+
+  it("is asked BEFORE the cart is inspected", async () => {
+    // Otherwise a shop with no grant and a medicine in the basket is told to
+    // remove the medicine, and doing so changes nothing.
+    await withSwitch(false);
+
+    await expect(
+      completeOffline(input({ guard: guard({ lines: [{ name: "Panadol", offline_ok: false }] }) })),
+    ).rejects.toThrow(/aren't set up/);
+  });
+});
+
+describe("an offer the till cannot work out", () => {
+  // The safety net behind the promotion mirror, and it matters more than the
+  // mirror does. A promotion the engine does not understand is not a smaller
+  // discount — it is a receipt WRONG on every cart it touches, found by a
+  // customer days later with no way to check.
+
+  const withPromotion = async (over: Record<string, unknown>): Promise<void> => {
+    await seed();
+    await putMany(STORE.PROMOTIONS, [
+      {
+        id: "promo-1",
+        name: "Something new",
+        is_active: true,
+        type: "percent",
+        value: 10,
+        scope: "order",
+        category_id: null,
+        product_ids: null,
+        min_spend: null,
+        min_qty: null,
+        max_discount: null,
+        starts_on: null,
+        ends_on: null,
+        days_of_week: null,
+        start_time: null,
+        end_time: null,
+        priority: 0,
+        buy_qty: null,
+        get_qty: null,
+        get_discount_pct: null,
+        ...over,
+      },
+    ]);
+  };
+
+  it("refuses the SHOP, not the cart, when a live offer is unknown", async () => {
+    // No cart can be rearranged to fix this, so telling a cashier to remove
+    // an item would send them doing something that changes nothing.
+    await withPromotion({ type: "tiered-mystery" });
+
+    await expect(completeOffline(input())).rejects.toThrow(/doesn't know how to work out/);
+  });
+
+  it("queues nothing when it refuses", async () => {
+    await withPromotion({ type: "tiered-mystery" });
+
+    await expect(completeOffline(input())).rejects.toThrow();
+    expect(await allRows()).toEqual([]);
+  });
+
+  it("sells normally when every live offer is one it CAN do", async () => {
+    // The dangerous version of this net is one that refuses everything.
+    await withPromotion({ type: "percent" });
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 2 }]);
+
+    await expect(completeOffline(input({ lines }))).resolves.toBeTruthy();
+  });
+
+  it("ignores an unknown offer that is switched OFF", async () => {
+    // Refusing a shop over a promotion nobody has turned on is a refusal with
+    // no risk behind it, and a gate that cries wolf gets switched off.
+    await withPromotion({ type: "tiered-mystery", is_active: false });
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 2 }]);
+
+    await expect(completeOffline(input({ lines }))).resolves.toBeTruthy();
+  });
+
+  it("applies a promotion it DOES understand to the price", async () => {
+    // The whole point of the exercise: the shadow run found nine carts where
+    // the server took 10% off and the till took nothing.
+    await withPromotion({ type: "percent", value: 10 });
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 2 }]);
+
+    const sale = await completeOffline(input({ lines }));
+
+    expect(sale.subtotal).toBe(200);
+    expect(sale.discount).toBe(20);
+    expect(sale.total).toBe(180);
   });
 });
 

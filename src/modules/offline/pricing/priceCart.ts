@@ -1,4 +1,6 @@
+import { bestPromotion, type PromoResult } from "./bestPromotion";
 import { round2 } from "./money";
+import type { CatalogPromotion } from "../sync/catalogService";
 
 /**
  * Pricing a cart with no server.
@@ -23,9 +25,13 @@ import { round2 } from "./money";
  * shop can change — and a till cannot decide any of them alone. They stay
  * online, so this engine never has to guess at them.
  *
- * Promotions are absent for now too: they are decidable offline in principle,
- * and they arrive with the promotion engine's own fixtures rather than by being
- * half-implemented here.
+ * Promotions ARE here, as of the first real shadow run — see `bestPromotion`.
+ * They were the exception all along: an automatic promotion is a rule the shop
+ * wrote down in advance, the same for every till, with nothing to reserve and
+ * nothing to race over. A single till can decide it alone, which is the only
+ * test that matters. What kept them out was that nobody had mirrored them yet,
+ * and the shadow check found the cost of that on its first day: nine carts,
+ * every one ten per cent high.
  */
 
 export type PriceLevel = "retail" | "wholesale";
@@ -38,6 +44,16 @@ export interface PriceTier {
 
 /** What the till knows about an item, from the catalog projection. */
 export interface PricedItem {
+  /**
+   * Which product and which category this is.
+   *
+   * Needed only by the promotion rules, which scope by one or the other, so
+   * both are optional — a caller pricing a cart with no promotions in play
+   * never has to supply them, and a promotion simply does not match a line
+   * that cannot say what it is.
+   */
+  id?: string;
+  category_id?: string | null;
   price: number;
   discount_price: number | null;
   wholesale_price: number | null;
@@ -65,6 +81,18 @@ export interface ShopPricing {
   default_tax_rate: number;
   /** True when prices already contain the tax rather than having it added. */
   tax_inclusive: boolean;
+  /** Every automatic promotion this till holds, live or not. */
+  promotions?: CatalogPromotion[];
+  /**
+   * SERVER time, with the till's measured drift already applied.
+   *
+   * Never `new Date()`. A tablet three days slow would run a flash sale that
+   * ended on Tuesday, and the whole point of a mirror is that it cannot
+   * disagree with the server about anything, least of all what day it is.
+   */
+  now?: Date;
+  /** The shop's timezone, which is what a promotion's window is written in. */
+  timezone?: string;
 }
 
 export interface PricedLine {
@@ -76,9 +104,12 @@ export interface PricedLine {
 export interface PricedCart {
   lines: PricedLine[];
   subtotal: number;
+  /** Everything off the bill: what the cashier keyed, plus any promotion. */
   discount: number;
   tax: number;
   total: number;
+  /** The automatic promotion that applied, when one did. */
+  promotion: PromoResult | null;
 }
 
 /**
@@ -184,7 +215,32 @@ export function priceCart(lines: CartLine[], shop: ShopPricing, discount = 0): P
     });
   }
 
-  const cartDiscount = round2(Math.min(round2(discount), subtotal));
+  const keyed = round2(Math.min(round2(discount), subtotal));
+
+  // ── The automatic promotion ─────────────────────────────────────────
+  //
+  // Exactly where the server applies it, and clamped exactly as the server
+  // clamps it: never more than what is still owed after the cashier's own
+  // discount. Applied AFTER the keyed discount and BEFORE tax, because tax is
+  // charged on what is actually being paid.
+  const promotion = bestPromotion(
+    shop.promotions ?? [],
+    priced.map((line, i) => ({
+      productId: lines[i].item.id ?? "",
+      categoryId: lines[i].item.category_id ?? null,
+      quantity: lines[i].quantity,
+      lineTotal: line.line_total,
+    })),
+    subtotal,
+    shop.now ?? new Date(),
+    shop.timezone ?? "Asia/Karachi",
+  );
+
+  const promoDiscount = promotion === null
+    ? 0
+    : round2(Math.min(promotion.discount, round2(subtotal - keyed)));
+
+  const cartDiscount = promoDiscount > 0 ? round2(keyed + promoDiscount) : keyed;
   const taxableBase = subtotal - cartDiscount;
 
   let tax = 0;
@@ -210,5 +266,12 @@ export function priceCart(lines: CartLine[], shop: ShopPricing, discount = 0): P
     ? round2(subtotal - cartDiscount)
     : round2(subtotal - cartDiscount + tax);
 
-  return { lines: priced, subtotal, discount: cartDiscount, tax, total };
+  return {
+    lines: priced,
+    subtotal,
+    discount: cartDiscount,
+    tax,
+    total,
+    promotion: promoDiscount > 0 ? promotion : null,
+  };
 }

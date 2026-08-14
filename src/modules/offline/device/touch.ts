@@ -55,8 +55,18 @@ export function markTouched(now: number = Date.now()): void {
  * server anything, and skipping the next five minutes because of it would turn
  * one lost request into ten minutes of a till looking out of contact.
  */
-export async function touchIfDue(now: number = Date.now()): Promise<boolean> {
-  if (now - lastTouch < TOUCH_EVERY_MS) return false;
+export async function touchIfDue(
+  now: number = Date.now(),
+  { force = false }: { force?: boolean } = {},
+): Promise<boolean> {
+  // The rate limit exists so a cashier tabbing back and forth does not fire a
+  // POST per pull. It must not also delay the SHADOW TALLY, which rides this
+  // call: findings travel on the catalog pull while the count of checks waits
+  // here, so a shop that has just found something would read "9 carts priced
+  // differently" above "Carts checked: 2" — a screen contradicting itself at
+  // the moment somebody is reading it. `force` is for exactly that: the
+  // numerator moved, so the denominator goes now.
+  if (!force && now - lastTouch < TOUCH_EVERY_MS) return false;
 
   try {
     await deviceService.touch(deviceId());

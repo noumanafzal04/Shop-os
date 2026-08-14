@@ -1,6 +1,7 @@
 import { get, getAll, getSingleton, putMany, remove } from "../db/repo";
 import { STORE } from "../db/schema";
-import type { CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
+import type { CatalogItem, CatalogPromotion, CatalogTaxGroup } from "../sync/catalogService";
+import { readMeta } from "../sync/applyPull";
 import type { CartLine, PriceLevel } from "./priceCart";
 import { comparePricing, type PricingVariance, type ServerTotals } from "./shadow";
 import { bumpTally } from "./shadowTally";
@@ -115,6 +116,10 @@ async function evaluate(
 
       priced.push({
         item: {
+          // Which product and category — the promotion rules scope by one or
+          // the other, and a line that cannot say what it is matches nothing.
+          id: item.id,
+          category_id: item.category_id,
           price: variant ? variant.price : item.price,
           // A sale price is product-level and does not apply to a variant,
           // which is the server's rule and not an approximation of it.
@@ -138,6 +143,13 @@ async function evaluate(
       {
         default_tax_rate: Number(settings.default_tax_rate ?? 0),
         tax_inclusive: Boolean(settings.tax_inclusive),
+        promotions: await getAll<CatalogPromotion>(STORE.PROMOTIONS),
+        // SERVER time, drift applied — never the tablet's own clock. A slow
+        // tablet would otherwise run a flash sale that ended on Tuesday, and
+        // the whole point of a mirror is that it cannot disagree with the
+        // server about anything, least of all what day it is.
+        now: new Date(Date.now() + (await readMeta()).clockSkewMs),
+        timezone: String(settings.timezone ?? "Asia/Karachi"),
       },
       cartDiscount,
       server,

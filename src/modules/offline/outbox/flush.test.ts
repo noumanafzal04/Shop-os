@@ -17,8 +17,13 @@ import { enqueue, newRow, OUTBOX_STATUS, readRow, type OutboxRow } from "./outbo
  * So every doubtful case below resolves the same way: send it again.
  */
 
+/** The shop signed in for every test here. */
+const SHOP = "shop-a";
+
 const row = (op: string, over: Partial<OutboxRow> = {}): OutboxRow => ({
-  ...newRow(op, "2026-08-16T10:00:00.000Z", `OFF-L1-AB-${op}`, { total: 100 }, null),
+  ...newRow(op, "2026-08-16T10:00:00.000Z", `OFF-L1-AB-${op}`, { total: 100 }, null, {
+    tenantId: SHOP,
+  }),
   ...over,
 });
 
@@ -49,7 +54,7 @@ describe("sending", () => {
       .spyOn(outboxApi, "sync")
       .mockResolvedValue(envelope({ results: [answer("1")], accepted: 1 }) as never);
 
-    const result = await flushOutbox();
+    const result = await flushOutbox(SHOP);
 
     expect(sync).toHaveBeenCalledTimes(1);
     expect(result.acked).toBe(1);
@@ -60,7 +65,7 @@ describe("sending", () => {
   it("does nothing when there is nothing owed", async () => {
     const sync = vi.spyOn(outboxApi, "sync");
 
-    expect((await flushOutbox()).sent).toBe(0);
+    expect((await flushOutbox(SHOP)).sent).toBe(0);
     expect(sync).not.toHaveBeenCalled();
   });
 
@@ -70,7 +75,7 @@ describe("sending", () => {
       .spyOn(outboxApi, "sync")
       .mockResolvedValue(envelope({ results: [answer("1")], accepted: 1 }) as never);
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     expect(sync.mock.calls[0][0][0]).toMatchObject({
       op: "1",
@@ -89,7 +94,7 @@ describe("sending", () => {
       envelope({ results: [answer("1", { status: "duplicate" })], accepted: 1 }) as never,
     );
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     expect((await readRow("1"))?.status).toBe(OUTBOX_STATUS.ACKED);
   });
@@ -102,7 +107,7 @@ describe("what goes on the wire", () => {
       .spyOn(outboxApi, "sync")
       .mockResolvedValue(envelope({ results: [answer(stored.op)], accepted: 1 }) as never);
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     return (sync.mock.calls[0][0] as Record<string, unknown>[])[0];
   };
@@ -129,13 +134,84 @@ describe("what goes on the wire", () => {
   });
 });
 
+describe("one browser, two shops", () => {
+  // The outbox lives in IndexedDB, which is scoped to the browser ORIGIN and
+  // not to the shop that is signed in. A laptop used for two tenants — an owner
+  // with two shops, a support machine, a demo — has ONE queue. Flushing it
+  // under whoever happens to be logged in would file one business's takings
+  // into another's books, from the till's own catalog prices, silently.
+  //
+  // Everywhere else in this file the tie breaks towards SENDING, because not
+  // sending costs the sale. Here there is a third outcome and it is worse than
+  // both, so it breaks the other way: a stuck row can be read, counted and
+  // recovered; a row filed under the wrong business cannot.
+
+  it("does not send another shop's sales", async () => {
+    await enqueue(row("1", { tenantId: "shop-b" }));
+    const sync = vi.spyOn(outboxApi, "sync");
+
+    const result = await flushOutbox(SHOP);
+
+    expect(sync).not.toHaveBeenCalled();
+    expect(result.sent).toBe(0);
+    // Held, not lost. It is still owed to the shop it belongs to.
+    expect((await readRow("1"))?.status).toBe(OUTBOX_STATUS.PENDING);
+  });
+
+  it("sends this shop's while holding the other's", async () => {
+    await enqueue(row("mine"));
+    await enqueue(row("theirs", { tenantId: "shop-b" }));
+    const sync = vi
+      .spyOn(outboxApi, "sync")
+      .mockResolvedValue(envelope({ results: [answer("mine")], accepted: 1 }) as never);
+
+    await flushOutbox(SHOP);
+
+    expect(sync.mock.calls[0][0]).toHaveLength(1);
+    expect((await readRow("mine"))?.status).toBe(OUTBOX_STATUS.ACKED);
+    expect((await readRow("theirs"))?.status).toBe(OUTBOX_STATUS.PENDING);
+  });
+
+  it.each([
+    ["a row written before the field existed", "missing" as const],
+    ["a row whose shop is explicitly unset", "null" as const],
+  ])("holds %s", async (_label, how) => {
+    // We cannot tell whose it is, and guessing puts real money in the wrong
+    // business. BOTH shapes are tested because they are different values:
+    // deleting the key gives `undefined`, while `newRow` with no shop gives
+    // `null` — and a guard written against only one of them lets the other
+    // through. A mutation that sent explicit nulls stayed green until this
+    // second case existed.
+    const legacy = row("1") as Partial<OutboxRow>;
+    if (how === "missing") delete legacy.tenantId;
+    else legacy.tenantId = null;
+
+    await enqueue(legacy as OutboxRow);
+    const sync = vi.spyOn(outboxApi, "sync");
+
+    await flushOutbox(SHOP);
+
+    expect(sync).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing at all when no shop is signed in", async () => {
+    // No session means no way to know whose these are.
+    await enqueue(row("1"));
+    const sync = vi.spyOn(outboxApi, "sync");
+
+    await flushOutbox(null);
+
+    expect(sync).not.toHaveBeenCalled();
+  });
+});
+
 describe("when the link dies", () => {
   it("puts every row back, and loses nothing", async () => {
     await enqueue(row("1"));
     await enqueue(row("2"));
     vi.spyOn(outboxApi, "sync").mockRejectedValue(new Error("Network Error"));
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     for (const op of ["1", "2"]) {
       const stored = await readRow(op);
@@ -150,7 +226,7 @@ describe("when the link dies", () => {
     await enqueue(row("1"));
     vi.spyOn(outboxApi, "sync").mockRejectedValue(new Error("Network Error"));
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     expect((await readRow("1"))?.status).not.toBe(OUTBOX_STATUS.FAILED);
   });
@@ -159,7 +235,7 @@ describe("when the link dies", () => {
     await enqueue(row("1"));
     vi.spyOn(outboxApi, "sync").mockRejectedValue(new Error("Network Error"));
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     expect((await readRow("1"))?.nextAttemptAt).not.toBeNull();
   });
@@ -180,7 +256,7 @@ describe("when the server answers per row", () => {
       }) as never,
     );
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     expect((await readRow("1"))?.status).toBe(OUTBOX_STATUS.ACKED);
     expect((await readRow("2"))?.status).toBe(OUTBOX_STATUS.FAILED);
@@ -196,7 +272,7 @@ describe("when the server answers per row", () => {
       }) as never,
     );
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     expect((await readRow("1"))?.status).toBe(OUTBOX_STATUS.PENDING);
   });
@@ -210,7 +286,7 @@ describe("when the server answers per row", () => {
       envelope({ results: [answer("1")], accepted: 1 }) as never,
     );
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     expect((await readRow("2"))?.status).toBe(OUTBOX_STATUS.PENDING);
     expect((await readRow("2"))?.sale).toEqual({ total: 100 });
@@ -225,7 +301,7 @@ describe("when the server answers per row", () => {
       }) as never,
     );
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     expect((await readRow("1"))?.violations).toEqual(["Khata needs the connection"]);
   });
@@ -253,7 +329,7 @@ describe("more than one tab", () => {
       },
     };
 
-    const [first, second] = await Promise.all([flushOutbox(), flushOutbox()]);
+    const [first, second] = await Promise.all([flushOutbox(SHOP), flushOutbox(SHOP)]);
 
     expect(sync).toHaveBeenCalledTimes(1);
     expect([first.skipped, second.skipped]).toContain(true);
@@ -267,7 +343,7 @@ describe("more than one tab", () => {
       envelope({ results: [answer("1")], accepted: 1 }) as never,
     );
 
-    expect((await flushOutbox()).acked).toBe(1);
+    expect((await flushOutbox(SHOP)).acked).toBe(1);
   });
 });
 
@@ -280,7 +356,7 @@ describe("the loop", () => {
         accepted: ops.length,
       })) as never);
 
-    const result = await flushOutbox();
+    const result = await flushOutbox(SHOP);
 
     expect(sync).toHaveBeenCalledTimes(2);
     expect(result.acked).toBe(60);
@@ -294,7 +370,7 @@ describe("the loop", () => {
       envelope({ results: [], accepted: 0 }) as never,
     );
 
-    await flushOutbox();
+    await flushOutbox(SHOP);
 
     expect(sync).toHaveBeenCalledTimes(1);
   });

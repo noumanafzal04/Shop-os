@@ -74,6 +74,8 @@ const pull = (over: Partial<CatalogPull> = {}): CatalogPull => ({
   customers: page([]),
   settings: { default_tax_rate: 17 },
   offline_days: 3,
+  offline_selling: true,
+  timezone: "Asia/Karachi",
   server_time: new Date().toISOString(),
   ...over,
 });

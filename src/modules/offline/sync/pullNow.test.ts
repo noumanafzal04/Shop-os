@@ -10,6 +10,7 @@ import { catalogService, type CatalogItem, type CatalogPull, type Page, type Tom
 import { isPulling, pullNow } from "./pullNow";
 import { deviceService } from "../device/deviceService";
 import { resetTouchClock } from "../device/touch";
+import * as variances from "../pricing/varianceService";
 
 /**
  * Fetching everything the server has, and stopping.
@@ -71,6 +72,8 @@ const pull = (items: CatalogItem[], cursor: string, hasMore = false): CatalogPul
   customers: page([], "cust"),
   settings: {},
   offline_days: 3,
+  offline_selling: true,
+  timezone: "Asia/Karachi",
   server_time: new Date().toISOString(),
 });
 
@@ -272,6 +275,42 @@ describe("saying the till is still here", () => {
     await pullNow();
 
     expect(touch).toHaveBeenCalled();
+  });
+
+  it("sends the tally IMMEDIATELY when findings just went up", async () => {
+    // The two travel by different roads — a variance goes on this pull, the
+    // count of checks rides the device touch — so without forcing it, a shop
+    // reads "9 carts priced differently" above "Carts checked: 2". A screen
+    // that contradicts itself at the moment somebody reads it is worse than a
+    // screen that is late.
+    resetTouchClock();
+    const touch = vi.spyOn(deviceService, "touch").mockResolvedValue(envelope({}) as never);
+    vi.spyOn(catalogService, "bootstrap").mockResolvedValue(envelope(pull([item("p1")], "c1")));
+    vi.spyOn(variances, "flushVariances").mockResolvedValue({ sent: 3 });
+
+    // The first pull spends the five-minute allowance.
+    await pullNow();
+    expect(touch).toHaveBeenCalledTimes(1);
+
+    // The second is well inside it, and goes anyway because findings moved.
+    vi.spyOn(catalogService, "delta").mockResolvedValue(envelope(pull([], "c2")));
+    await pullNow();
+
+    expect(touch).toHaveBeenCalledTimes(2);
+  });
+
+  it("still holds the clock back when nothing was found", async () => {
+    // Forcing on every pull would undo the rate limit the touch exists behind.
+    resetTouchClock();
+    const touch = vi.spyOn(deviceService, "touch").mockResolvedValue(envelope({}) as never);
+    vi.spyOn(catalogService, "bootstrap").mockResolvedValue(envelope(pull([item("p1")], "c1")));
+    vi.spyOn(variances, "flushVariances").mockResolvedValue({ sent: 0 });
+
+    await pullNow();
+    vi.spyOn(catalogService, "delta").mockResolvedValue(envelope(pull([], "c2")));
+    await pullNow();
+
+    expect(touch).toHaveBeenCalledTimes(1);
   });
 
   it("does not let a failed touch fail the pull", async () => {

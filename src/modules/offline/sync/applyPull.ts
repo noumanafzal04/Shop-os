@@ -109,6 +109,16 @@ export async function applyPull(pull: CatalogPull): Promise<{
   await putSingleton(STORE.SETTINGS, {
     ...pull.settings,
     offline_days: pull.offline_days,
+    // The kill switch. It arrives HERE, on the one call a till makes while it
+    // still has a connection — which is the only moment the answer can change
+    // hands. `=== true` rather than a cast, so a server too old to send it, or
+    // a response that lost it, reads as OFF: a shop that has not been granted
+    // offline selling must never get it by accident.
+    offline_selling: pull.offline_selling === true,
+    // The SHOP's calendar, which every promotion window is written in. A till
+    // judging "Fridays, 6pm to 9pm" against UTC would open a Karachi shop's
+    // evening sale five hours early.
+    timezone: pull.timezone,
     ...(pull.branch_id === undefined ? {} : { branch_id: pull.branch_id }),
   });
 
