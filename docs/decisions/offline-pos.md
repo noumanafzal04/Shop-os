@@ -249,11 +249,22 @@ has a menu of 100–400 items. So:
 - **list mode → cache no images at all.** Zero bytes.
 - **grid mode → cache thumbnails only**, capped (500 images / 20 MB, LRU).
 
-**Blocker:** no thumbnail pipeline exists. `product_images` stores a `path` and
-nothing resizes it, so the grid loads full phone photos — 2–4 MB each. That is
-already hurting the *online* POS on a slow connection. A 200×200 WebP derivative
-(~10 KB) at upload time must land before grid-mode offline, and pays for itself
-immediately regardless.
+**Built 2026-08-14.** `Thumbnail::make()` on upload, plain GD rather than an
+image library (GD ships with the PHP the droplet runs; a library would be a
+dependency, a version to track and a supply-chain surface, in exchange for
+resizing one square). 200×200 WebP, **centre-cropped** rather than letterboxed —
+a POS grid is squares, and padding every tile to fit a wide photo wastes a third
+of a screen read at arm's length.
+
+Failure is never fatal: a corrupt upload, a format GD cannot read, or a PHP
+built without WebP each leave `thumb_path` null, and `thumb_url` falls back to
+the original. The grid then behaves exactly as it did before. `images:thumbnails`
+backfills what predates the change — resumable and safe to re-run, because a
+shop's images can be thousands of files.
+
+The projection carries the SMALL square only. Sending the full-size URL would
+invite a client to cache 2–4 MB per item, and there is no shop where that ends
+well.
 
 ### Measured sizes
 
@@ -401,11 +412,17 @@ registers a device, and behaves identically in every other respect.
 | P0-6 | A tenant tries to `PUT /shop/settings` with `offline_days` → ignored, value unchanged |
 | P0-7 | `navigator.storage.persist()` refused → the shift-open screen warns before opening |
 
-### Phase 1 — read-only offline
+### Phase 1 — read-only offline ✅ DONE 2026-08-14
 
-**Build:** `GET /pos/bootstrap` + `GET /pos/sync?cursor` with tombstones ·
-catalog hydration · barcode index · local search · thumbnail pipeline (grid
-trades only). **Sales still go to the server.**
+**Built:** `GET /pos/bootstrap` + `GET /pos/catalog?<projection>=<cursor>` ·
+**six** projections, not one · applier with cursor discipline · derived barcode
+index · local search · thumbnail pipeline. **Sales still go to the server.**
+
+Two things turned out bigger than the plan said. The delta had to carry
+categories, promotions, tax groups, customer groups and customers as well as
+products — a till that only learns about products goes quietly wrong, and the
+change WAS saved, it just never travelled. And each needs its OWN cursor, or a
+category rename waits behind a 20,000-item catalog's twenty pages.
 
 **Done when:** with the network cut, the catalog browses and scans instantly,
 and Complete Sale is disabled with a clear reason.
