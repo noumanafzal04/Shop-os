@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Pos\RegisterDeviceRequest;
+use App\Http\Requests\Pos\RenameDeviceRequest;
 use App\Models\PosDevice;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
@@ -124,6 +125,35 @@ class PosDeviceController extends Controller
             // degrade against without a second call.
             'offline_days' => PlanLimits::limit($this->tenant->get(), 'offline_days'),
         ]);
+    }
+
+    /**
+     * Give a till a name a human uses.
+     *
+     * ── Why this is not just `store` with a name on it ──────────────────
+     *
+     * `store` is a device speaking for itself, and it stamps `last_seen_at`.
+     * Renaming is an owner labelling a tablet from the office, possibly one
+     * that has been switched off for a week — and routing that through `store`
+     * would write "last reached us just now" onto exactly the device whose
+     * silence the shop is trying to notice. It would corrupt the one column
+     * the whole tills screen exists to show.
+     *
+     * So this touches the name and nothing else.
+     *
+     * It matters more than a label usually does. The offline report names the
+     * till against every late sale, because a fault on ONE tablet is a
+     * different problem from a fault in the shop — and three tills all reading
+     * "Unnamed till" makes that column say nothing at all.
+     */
+    public function rename(RenameDeviceRequest $request, string $id): JsonResponse
+    {
+        $device = PosDevice::query()->findOrFail($id);
+
+        $device->name = $request->validated('name');
+        $device->save();
+
+        return ApiResponse::ok($this->shape($device->fresh()), 'Till renamed');
     }
 
     /**

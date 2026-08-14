@@ -368,7 +368,20 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             // POS terminal: scan, shifts, held sales (checkout goes through /sales).
             // Gated by the POS module — an online-only shop has no in-shop till.
-            Route::prefix('pos')->middleware(['feature:pos', 'permission:sales.manage'])->group(function (): void {
+            //
+            // On the COUNTER's own rate limit rather than the general one, and
+            // the swap is deliberate. A till is not a screen somebody browses:
+            // a rush-hour cashier rings a sale every few seconds and scans and
+            // searches in between, and the general ceiling turns that into
+            // "Too many requests" with a customer standing there and the goods
+            // already bagged. `throttle:pos` is keyed per DEVICE, because small
+            // shops share one login across four lanes and dividing one
+            // allowance between them refuses the busiest shop first — the exact
+            // inversion of what a limit is for.
+            Route::prefix('pos')
+                ->middleware(['feature:pos', 'permission:sales.manage', 'throttle:pos'])
+                ->withoutMiddleware('throttle:api')
+                ->group(function (): void {
                 Route::get('/lookup', [PosController::class, 'lookup']);
                 // The counter's own shortlist — derived from what this branch
                 // actually sells, un-scannable items first. Never curated: a
@@ -484,6 +497,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // want; anything else is read before offline selling is turned
                 // on for this shop.
                 Route::get('pricing-variances', [PricingVarianceController::class, 'index']);
+                // Naming a till is deliberately NOT the register call with a name
+                // on it — that one stamps `last_seen_at`, and renaming a tablet
+                // that has been switched off for a week would write "reached us
+                // just now" onto exactly the device whose silence matters.
+                Route::patch('pos-devices/{device}', [PosDeviceController::class, 'rename']);
                 Route::delete('pos-devices/{device}', [PosDeviceController::class, 'destroy']);
                 Route::post('pos-devices/{device}/restore', [PosDeviceController::class, 'restore']);
             });

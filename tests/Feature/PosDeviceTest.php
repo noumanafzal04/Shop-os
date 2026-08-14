@@ -440,4 +440,86 @@ class PosDeviceTest extends TestCase
         $this->register($this->cashier, (string) Str::uuid(), $this->tally(['checked' => -1]))
             ->assertStatus(422);
     }
+
+    // ── Naming a till ───────────────────────────────────────────────
+    //
+    // Not a cosmetic feature. The offline report names the till against every
+    // late sale, because a fault on ONE tablet is a different problem from a
+    // fault in the shop — and three tills all reading "Unnamed till" make that
+    // column say nothing at all.
+
+    private function rename(User $user, string $id, mixed $name): TestResponse
+    {
+        return $this->actingAsUser($user)->patchJson("/api/v1/pos-devices/{$id}", ['name' => $name]);
+    }
+
+    public function test_an_owner_can_name_a_till(): void
+    {
+        $id = (string) Str::uuid();
+        $this->register($this->cashier, $id)->assertOk();
+
+        $this->rename($this->owner, $id, 'Lane 2')->assertOk();
+
+        $this->assertSame('Lane 2', PosDevice::withoutTenancy()->find($id)->name);
+    }
+
+    public function test_naming_a_till_does_no_t_say_it_just_reached_us(): void
+    {
+        // The whole reason this is not `register` with a name on it. An owner
+        // labelling a tablet that has been switched off for a week would
+        // otherwise write "reached us just now" onto exactly the device whose
+        // silence the roster exists to show — corrupting the one column the
+        // offline policy reads.
+        $id = (string) Str::uuid();
+        $this->register($this->cashier, $id)->assertOk();
+
+        $silentSince = now()->subDays(7);
+        PosDevice::withoutTenancy()->whereKey($id)->update(['last_seen_at' => $silentSince]);
+
+        $this->rename($this->owner, $id, 'The one in the back')->assertOk();
+
+        $this->assertSame(
+            $silentSince->toDateTimeString(),
+            PosDevice::withoutTenancy()->find($id)->last_seen_at->toDateTimeString(),
+        );
+    }
+
+    public function test_an_empty_name_is_refused_rather_than_wiping_the_one_there(): void
+    {
+        // Registration's rule is `sometimes|nullable` so a routine boot cannot
+        // blank a name somebody typed. Here a name is what was ASKED for, and
+        // an empty one is a mistake — not a way back to "Unnamed till".
+        $id = (string) Str::uuid();
+        $this->register($this->cashier, $id, ['name' => 'Counter tablet'])->assertOk();
+
+        $this->rename($this->owner, $id, '')->assertStatus(422);
+
+        $this->assertSame('Counter tablet', PosDevice::withoutTenancy()->find($id)->name);
+    }
+
+    public function test_a_cashier_cannot_rename_a_till(): void
+    {
+        // Same permission as the rest of this screen: naming the shop's
+        // hardware is configuration, not counter work.
+        $id = (string) Str::uuid();
+        $this->register($this->cashier, $id)->assertOk();
+
+        $this->rename($this->cashier, $id, 'Mine now')->assertForbidden();
+    }
+
+    public function test_a_till_belonging_to_another_shop_cannot_be_renamed(): void
+    {
+        $other = Tenant::factory()->create([
+            'setup_completed' => true,
+            'business_type' => 'mart',
+            'features' => BusinessTypes::defaultFeatures('mart'),
+        ]);
+        $theirCashier = User::factory()->tenantStaff($other, ['sales.manage'])->create();
+        $id = (string) Str::uuid();
+        $this->register($theirCashier, $id, ['name' => 'Theirs'])->assertOk();
+
+        $this->rename($this->owner, $id, 'Ours')->assertNotFound();
+
+        $this->assertSame('Theirs', PosDevice::withoutTenancy()->find($id)->name);
+    }
 }
