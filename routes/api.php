@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\V1\Tenant\InventoryController;
 use App\Http\Controllers\Api\V1\Tenant\KitchenController;
 use App\Http\Controllers\Api\V1\Tenant\OrderController;
 use App\Http\Controllers\Api\V1\Tenant\PharmacyController;
+use App\Http\Controllers\Api\V1\Tenant\PosCatalogController;
 use App\Http\Controllers\Api\V1\Tenant\PosController;
 use App\Http\Controllers\Api\V1\Tenant\PosDeviceController;
 use App\Http\Controllers\Api\V1\Tenant\PosRegisterController;
@@ -400,6 +401,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // like the rest of this block; listing and revoking are the
                 // owner's and sit with the other configuration below.
                 Route::post('/devices', [PosDeviceController::class, 'store']);
+                // The catalog as the till holds it. One shape, two modes:
+                // no cursor is a first load, a cursor is everything since.
+                // Both ride sales.manage — this is what the counter sells.
+                Route::get('/bootstrap', [PosCatalogController::class, 'bootstrap']);
+                Route::get('/catalog', [PosCatalogController::class, 'delta']);
                 // Who is at the till. The roster and the PIN handover — the
                 // outgoing cashier's session on this device ends with it.
                 Route::get('/till-users', [TillIdentityController::class, 'roster']);
