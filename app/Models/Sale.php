@@ -66,6 +66,15 @@ class Sale extends BaseModel
             'points_redeemed' => 'integer',
             'sold_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            // When it reached us, as against when it happened. A sale rung on
+            // Tuesday and synced on Friday is Tuesday's money and Friday's
+            // arrival, and neither column can answer the other's question.
+            'synced_at' => 'datetime',
+            'beyond_offline_window' => 'boolean',
+            'after_day_close' => 'boolean',
+            // What offline was not allowed to do, that this sale did anyway.
+            // Recorded, never corrected — see the migration.
+            'offline_violations' => 'array',
         ];
     }
 
@@ -87,6 +96,19 @@ class Sale extends BaseModel
     public function register(): BelongsTo
     {
         return $this->belongsTo(Register::class);
+    }
+
+    /**
+     * The physical till that rang it — set only on a sale that came in offline.
+     *
+     * A register is a PLACE and this is the THING, and for an offline sale the
+     * thing is what matters: the queue lived on that tablet, so "which of my
+     * devices did this come from" is the question an owner asks when a day's
+     * sales arrive three days late.
+     */
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(PosDevice::class, 'pos_device_id');
     }
 
     /**

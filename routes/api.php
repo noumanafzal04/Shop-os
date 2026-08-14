@@ -47,12 +47,14 @@ use App\Http\Controllers\Api\V1\Tenant\IncomeCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\IncomeController;
 use App\Http\Controllers\Api\V1\Tenant\InventoryController;
 use App\Http\Controllers\Api\V1\Tenant\KitchenController;
+use App\Http\Controllers\Api\V1\Tenant\OfflineReportController;
 use App\Http\Controllers\Api\V1\Tenant\OrderController;
 use App\Http\Controllers\Api\V1\Tenant\PharmacyController;
 use App\Http\Controllers\Api\V1\Tenant\PosCatalogController;
 use App\Http\Controllers\Api\V1\Tenant\PosController;
 use App\Http\Controllers\Api\V1\Tenant\PosDeviceController;
 use App\Http\Controllers\Api\V1\Tenant\PosRegisterController;
+use App\Http\Controllers\Api\V1\Tenant\PosSyncController;
 use App\Http\Controllers\Api\V1\Tenant\PricingVarianceController;
 use App\Http\Controllers\Api\V1\Tenant\ProductController;
 use App\Http\Controllers\Api\V1\Tenant\ProductImageController;
@@ -411,6 +413,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // sales.manage with the rest of this block; reading the pile is
                 // the owner's and sits with configuration below.
                 Route::post('/pricing-variances', [PricingVarianceController::class, 'store']);
+                // Sales rung with no server, arriving late. Same permission as
+                // ringing one, because that is what it is — the sale the
+                // cashier already made, catching up.
+                Route::post('/sync', [PosSyncController::class, 'store']);
                 Route::get('/catalog', [PosCatalogController::class, 'delta']);
                 // Who is at the till. The roster and the PIN handover — the
                 // outgoing cashier's session on this device ends with it.
@@ -675,6 +681,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // Reports
             Route::middleware('permission:reports.view')->group(function (): void {
                 Route::get('/reports/summary', [ReportController::class, 'summary']);
+                // What happened while the shop was offline — the morning-after
+                // screen. Reads sales AND the shelf, because an oversell is
+                // not visible in any single sale.
+                Route::get('/reports/offline', [OfflineReportController::class, 'index']);
                 Route::get('/reports/purchases', [ReportController::class, 'purchases']);
                 Route::get('/reports/staff', [ReportController::class, 'staff']);
                 Route::get('/reports/tax', [ReportController::class, 'tax']);

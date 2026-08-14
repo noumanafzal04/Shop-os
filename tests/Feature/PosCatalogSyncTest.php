@@ -116,11 +116,21 @@ class PosCatalogSyncTest extends TestCase
         // picks the tablet up.
         $this->product();
 
-        $body = $this->actingAsUser($this->cashier)->getJson('/api/v1/pos/bootstrap')
-            ->assertOk()->getContent();
+        $item = $this->bootstrap()['products']['items'][0];
 
-        $this->assertStringNotContainsString('"cost"', $body);
-        $this->assertStringNotContainsString('190', $body);
+        // Checked against the decoded item and not the raw body. The body
+        // carries UUIDs, and a UUID that happens to contain "190" made this
+        // test fail on a build that had nothing to do with it — a check that
+        // cries wolf gets deleted, and this is the one assertion in the file
+        // that must never be.
+        foreach (['cost', 'cost_price', 'avg_cost', 'purchase_price'] as $field) {
+            $this->assertArrayNotHasKey($field, $item);
+        }
+
+        // And nothing else on the item quietly carries the figure either — a
+        // renamed field would slip past a list of names.
+        $this->assertNotContains(190, $item);
+        $this->assertNotContains('190.00', $item);
     }
 
     public function test_it_carries_what_a_counter_needs_and_leaves_the_rest(): void

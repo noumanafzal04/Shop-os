@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Models\BranchPrice;
+use App\Models\BusinessDay;
 use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\CustomerVehicle;
@@ -27,6 +28,7 @@ use App\Support\Permissions;
 use App\Support\RegisterContext;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -84,6 +86,16 @@ class CreateSaleAction
                 $trusted = (bool) ($data['trusted_prices'] ?? false);
                 $shopTimezone = $this->context->get()?->timezone;
 
+                // A SECOND, separate trust — and it must not be the same one.
+                //
+                // The offline sync path needs to say when a sale happened and
+                // which tablet rang it, while emphatically NOT being trusted
+                // about price: the whole point of syncing through this action
+                // is that the server re-prices the cart itself. Folding the two
+                // together would mean the only caller that has to be doubted on
+                // money is the one caller granted authority over it.
+                $trustedOffline = (bool) ($data['trusted_offline'] ?? false);
+
                 // The goods already left the shelf, so this sale must not take them
                 // again. Exactly one caller sets it: converting a LAYAWAY, whose
                 // stock moved out the day the advance was taken (reference_type
@@ -101,6 +113,34 @@ class CreateSaleAction
                     && (bool) CashSession::query()
                         ->whereKey($data['cash_session_id'])
                         ->value('is_training');
+
+                // ── The offline veto ────────────────────────────────────
+                // Online, a training sale is LOUD: the screen carries a
+                // banner, the slip prints TRAINING across it, and the number
+                // is TRN-. Nobody rings a real customer on a practice drawer
+                // by accident, and nobody does it on purpose without the
+                // customer seeing.
+                //
+                // A synced sale has none of that. The shift is named by a
+                // client, hours after the fact, and if the shift alone
+                // decided then swapping in a practice shift's id would turn a
+                // real sale into one that takes no stock, earns no revenue
+                // and appears in no report. Quietly. That is a way to walk
+                // goods out of a shop.
+                //
+                // So practice offline needs BOTH to say so: the drawer, and
+                // the till that was standing at it. The till's word can never
+                // CREATE training — the comment above still holds — it can
+                // only refuse it. One source alone cannot make a sale
+                // disappear.
+                //
+                // Silence counts as "real". A practice sale wrongly recorded
+                // as real is visible and can be voided; a real sale wrongly
+                // recorded as practice is invisible, which is the whole point
+                // of the attack.
+                if ($training && $trustedOffline && empty($data['offline_training'])) {
+                    $training = false;
+                }
 
                 // Practice takes nothing off the shelf.
                 $skipStock = $skipStock || $training;
@@ -670,6 +710,21 @@ class CreateSaleAction
                     ? CashSession::query()->whereKey($data['cash_session_id'])->value('register_id')
                     : null) ?? app(RegisterContext::class)->id();
 
+                // WHEN the money crossed the counter, which for a synced sale
+                // is days before it reached us. Gated behind `trusted_offline`
+                // for the same reason `unit_price` is gated: from HTTP it
+                // would be a switch for filing today's takings under last
+                // month, past a closed business day and a settled drawer.
+                //
+                // Resolved ONCE, because more than one thing is read against
+                // it — the trading day, the shift, the cashier's figures, and
+                // whether that day had already been signed off. Two copies of
+                // this expression is two chances for them to disagree about
+                // which day a sale belongs to.
+                $soldAt = $trustedOffline && ! empty($data['sold_at'])
+                    ? Carbon::parse($data['sold_at'])
+                    : now();
+
                 /** @var Sale $sale */
                 $sale = Sale::query()->create([
                     'invoice_number' => $invoiceNumber,
@@ -728,7 +783,23 @@ class CreateSaleAction
                     'patient_name' => $data['patient_name'] ?? null,
                     'prescription_notes' => $data['prescription_notes'] ?? null,
                     'idempotency_key' => $data['idempotency_key'] ?? null,
-                    'sold_at' => now(),
+                    // The moment of the sale, never the moment of the sync.
+                    // Resolved above, where the reason it matters is written.
+                    'sold_at' => $soldAt,
+                    'offline_number' => $trustedOffline ? ($data['offline_number'] ?? null) : null,
+                    'pos_device_id' => $trustedOffline ? ($data['pos_device_id'] ?? null) : null,
+                    'synced_at' => $trustedOffline && ! empty($data['sold_at']) ? now() : null,
+                    'beyond_offline_window' => (bool) ($trustedOffline && ! empty($data['beyond_offline_window'])),
+                    // Recorded, not corrected. See the migration.
+                    'offline_violations' => $trustedOffline && ! empty($data['offline_violations'])
+                        ? $data['offline_violations']
+                        : null,
+                    // Its trading day had already been counted, closed and
+                    // banked before this arrived. Nothing in the books moves —
+                    // a signed-off day must read the same in September — so
+                    // this is the only way the shop ever hears about it.
+                    'after_day_close' => $trustedOffline
+                        && $this->dayAlreadyClosed($branchId, $soldAt),
                 ]);
 
                 // The vehicle's own record moves forward with the job: the last
@@ -867,6 +938,18 @@ class CreateSaleAction
                             'reference_type' => 'sale',
                             'reference_id' => $sale->id,
                             'branch_id' => $branchId,
+                            // An offline sale's goods have ALREADY left the
+                            // shelf. Refusing it now for insufficient stock
+                            // would delete the record of that, and the stock
+                            // figure would still be wrong — just wrong and
+                            // missing a sale as well.
+                            //
+                            // Two tills offline can each sell the last unit and
+                            // both are telling the truth. Stock goes to -1, the
+                            // oversell is listed for the owner, and the shop
+                            // finds out from a report rather than from a
+                            // customer holding a receipt nobody can find.
+                            'allow_negative' => $trustedOffline,
                         ]);
                     }
                 }
@@ -1232,6 +1315,39 @@ class CreateSaleAction
                 );
             }
         }
+    }
+
+    /**
+     * Had this sale's trading day already been signed off when it arrived?
+     *
+     * Asked only of a synced sale, and asked NOW rather than worked out later:
+     * "was the day closed when this landed" is a fact about a moment. Derived
+     * at report time it would give a different answer depending on when you
+     * looked — a sale that arrived while the day was still open would start
+     * being flagged the evening somebody closed that day, and that sale was in
+     * the totals.
+     *
+     * The date is the SHOP's, not the server's — the same calendar
+     * `trading_date` is written from when a day is opened. A till reporting in
+     * UTC would otherwise put a Karachi shop's late-evening sales on
+     * yesterday, and the flag would misfire on exactly the hours a power cut
+     * is most likely to fall in.
+     *
+     * And per BRANCH: Gulberg signing off at ten says nothing about Saddar,
+     * still trading.
+     */
+    private function dayAlreadyClosed(?string $branchId, Carbon $soldAt): bool
+    {
+        $tenant = $this->context->get();
+        $tradingDate = $soldAt->copy()
+            ->setTimezone($tenant?->timezone ?: 'Asia/Karachi')
+            ->toDateString();
+
+        return BusinessDay::query()
+            ->where('branch_id', $branchId)
+            ->whereDate('trading_date', $tradingDate)
+            ->where('status', BusinessDay::STATUS_CLOSED)
+            ->exists();
     }
 
     private function nextInvoiceNumber(string $tenantId, bool $training = false): string

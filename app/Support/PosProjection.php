@@ -51,20 +51,16 @@ class PosProjection
      * would be right it is already redundant, because BusinessTypes::itemTypesFor
      * stops a mart ever holding a medicine in the first place.
      */
+    /**
+     * Delegated to `OfflinePolicy`, which is also what the SYNC endpoint reads.
+     *
+     * Two copies of this rule is how a till comes to believe it may sell
+     * something the server will refuse — the cashier is told yes at the counter
+     * and the shop finds out at the end of the day.
+     */
     public static function sellableOffline(Product $product): bool
     {
-        // A medicine needs live batch quantities, FEFO order and the expiry
-        // fence. Selling expired stock offline is a regulatory event.
-        if ($product->item_type === ItemTypes::MEDICINE) {
-            return false;
-        }
-
-        // One specific handset. Two tills would sell the same IMEI.
-        if ($product->tracks_serial) {
-            return false;
-        }
-
-        return true;
+        return OfflinePolicy::sellable($product);
     }
 
     /**
