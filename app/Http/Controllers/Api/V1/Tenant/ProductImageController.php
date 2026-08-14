@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Catalog\UploadProductImagesRequest;
 use App\Models\Product;
 use App\Models\ProductImage;
-use App\Exceptions\DomainException;
 use App\Support\ApiResponse;
+use App\Support\TenantContext;
+use App\Support\Thumbnail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -21,7 +23,7 @@ class ProductImageController extends Controller
      * Upload one or more images for a product. Appended after existing ones.
      * {product} is tenant-scoped via the BelongsToTenant global scope.
      */
-    public function store(UploadProductImagesRequest $request, Product $product, \App\Support\TenantContext $context): JsonResponse
+    public function store(UploadProductImagesRequest $request, Product $product, TenantContext $context): JsonResponse
     {
         // Image module gate: a walk-in-only shop that keeps images off can't
         // upload. Selling online always allows them (see Tenant::imagesEnabled).
@@ -49,6 +51,13 @@ class ProductImageController extends Controller
                 $product->images()->create([
                     'tenant_id' => $product->tenant_id,
                     'path' => $path,
+                    // A small square made at upload time, because the
+                    // alternative is a restaurant's POS grid downloading a
+                    // gigabyte of phone photos before the first order of the
+                    // day. Null when it could not be made — a corrupt file, an
+                    // unsupported format, a PHP without WebP — and the grid
+                    // then falls back to the original exactly as before.
+                    'thumb_path' => Thumbnail::make($path),
                     'sort_order' => $sort++,
                 ]);
             }

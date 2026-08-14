@@ -146,6 +146,16 @@ class PosProjection
                 ? $product->barcodes->pluck('barcode')->values()->all()
                 : [],
 
+            // The cover photo's SMALL square, and only that. A food shop's POS
+            // browses a visual grid; every high-SKU trade (mart, pharmacy,
+            // retail) renders a search-first list with no images at all, which
+            // is why 20,000 items cost a till nothing in pictures. Sending the
+            // full-size URL instead would invite a client to cache 2–4 MB per
+            // item, and there is no shop where that ends well.
+            'image' => $product->relationLoaded('images')
+                ? $product->images->first()?->thumb_url
+                : null,
+
             'modifier_groups' => $product->relationLoaded('modifierGroups')
                 ? $product->modifierGroups->map(fn ($g): array => [
                     'id' => $g->id,
@@ -204,5 +214,5 @@ class PosProjection
     }
 
     /** Relations `item()` reads. Eager-load these or every row is a query. */
-    public const RELATIONS = ['variants', 'units', 'barcodes', 'modifierGroups.options'];
+    public const RELATIONS = ['variants', 'units', 'barcodes', 'modifierGroups.options', 'images'];
 }
