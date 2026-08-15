@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\Promotion;
+use App\Support\OfferWindow;
 use Illuminate\Support\Carbon;
 
 /**
@@ -43,37 +44,23 @@ class PromotionService
         return $best;
     }
 
-    /** Is the promotion live at $now — date range, day-of-week, and time window? */
+    /**
+     * Is the promotion live at $now — date range, day-of-week, and time window?
+     *
+     * The rule itself lives in `OfferWindow`, because a bank's card offer now
+     * carries the same four fields and a second copy of this would drift. See
+     * the note there; it is the reasoning, not the code, that matters.
+     */
     public function liveNow(Promotion $promo, Carbon $now): bool
     {
-        $today = $now->copy()->startOfDay();
-        if ($promo->starts_on !== null && $today->lt($promo->starts_on->copy()->startOfDay())) {
-            return false;
-        }
-        if ($promo->ends_on !== null && $today->gt($promo->ends_on->copy()->startOfDay())) {
-            return false;
-        }
-        $days = $promo->days_of_week ?? [];
-        if (! empty($days) && ! in_array((int) $now->dayOfWeek, array_map('intval', $days), true)) {
-            return false;
-        }
-        if ($promo->start_time !== null && $promo->end_time !== null) {
-            $t = $now->format('H:i:s');
-            $from = $this->hms((string) $promo->start_time);
-            $to = $this->hms((string) $promo->end_time);
-            // A window that wraps midnight (22:00–02:00) is handled.
-            $inWindow = $from <= $to ? ($t >= $from && $t <= $to) : ($t >= $from || $t <= $to);
-            if (! $inWindow) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private function hms(string $t): string
-    {
-        return strlen($t) === 5 ? $t.':00' : $t;
+        return OfferWindow::isLive(
+            $now,
+            $promo->starts_on,
+            $promo->ends_on,
+            $promo->days_of_week,
+            $promo->start_time === null ? null : (string) $promo->start_time,
+            $promo->end_time === null ? null : (string) $promo->end_time,
+        );
     }
 
     /** The discount this promotion yields for the cart (0 if it doesn't apply). */

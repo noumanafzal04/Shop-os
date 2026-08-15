@@ -127,6 +127,27 @@ class StoreSaleRequest extends FormRequest
             ],
             'odometer' => ['nullable', 'integer', 'min:0', 'max:9999999'],
 
+            // ── A bank funding part of its own card's transaction ────
+            //
+            // The shop names the BANK and the server works out the money. No
+            // discount, percentage or offer value is accepted from here, for
+            // the same reason `unit_price` is not: from HTTP it would be a
+            // "give me any discount I like" field.
+            'bank_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists('banks', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
+            // Some deals are credit-only, so the offer needs to know.
+            'card_type' => ['nullable', 'in:credit,debit'],
+            // FOUR DIGITS, and the rule is the fence rather than a formatting
+            // nicety. A full card number in this database puts the shop and
+            // this platform inside PCI DSS — an audit regime, not a setting —
+            // and it is the kind of column that ends a company when a database
+            // leaks. `digits:4` refuses sixteen outright rather than quietly
+            // storing them and trimming later.
+            'card_last4' => ['nullable', 'digits:4'],
+
             // A tip rides on top of the bill: it raises what must be paid and
             // what the drawer should hold, and never touches revenue.
             'tip_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:999999'],

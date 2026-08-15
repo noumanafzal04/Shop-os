@@ -6,6 +6,7 @@ use App\Enums\ItemType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
+use App\Models\BankCardOffer;
 use App\Models\BranchPrice;
 use App\Models\BusinessDay;
 use App\Models\CashSession;
@@ -18,6 +19,7 @@ use App\Models\ProductVariant;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleItemSerial;
+use App\Services\BankOfferService;
 use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\PromotionService;
@@ -688,12 +690,46 @@ class CreateSaleAction
                     }
                 }
 
+                // ── A bank funding part of its own card's transaction ───
+                //
+                // HBL runs the offer, the customer taps less, and HBL reimburses
+                // the shop afterwards. Three consequences, all of them here:
+                //
+                //   • `total` DOES NOT MOVE. The shop sold goods worth the bill,
+                //     and it is still owed all of it — part by the customer and
+                //     part by the bank. Shrinking `total` would understate the
+                //     day's trading and delete the only figure the claim can be
+                //     written from.
+                //   • What is DUE from the customer drops, and the card tender
+                //     drops with it, because that is the money that physically
+                //     does not cross the counter.
+                //   • The figure is computed HERE, from the offer, never taken
+                //     from the request. The POS shows a quote it asked for; the
+                //     books use the number the server worked out.
+                //
+                // The card slice sent in is the share of the bill going on the
+                // card BEFORE the bank's help. The offer is a percentage of the
+                // transaction the bank is funding, and computing it against an
+                // already-reduced figure would quietly shrink every offer.
+                [$bankOffer, $bankDiscount] = $this->bankOffer(
+                    $data,
+                    $payments,
+                    $paymentMethod,
+                    $amountPaid,
+                    $shopTimezone,
+                );
+
+                if ($bankDiscount > 0) {
+                    $payments = $this->discountCardTenders($payments, $bankDiscount);
+                    $amountPaid = round($amountPaid - $bankDiscount, 2);
+                }
+
                 // A tip rides along with the payment but is NOT revenue: the bill is
                 // still the bill. It raises what the customer must hand over and
                 // what the drawer should hold, and nothing else — so it is added to
                 // the payment bar, never to `total`.
                 $tip = max(0, round((float) ($data['tip_amount'] ?? 0), 2));
-                $due = round($total + $tip, 2);
+                $due = round($total + $tip - $bankDiscount, 2);
 
                 // ── Settling in coins that exist ────────────────────────
                 // A cash-only bill settles to the smallest coin the shop
@@ -778,6 +814,15 @@ class CreateSaleAction
                     'subtotal' => $subtotal,
                     'discount' => $discount,
                     'coupon_code' => $couponCode,
+                    // The bank's own money, in its own columns. Never folded
+                    // into `discount` or `promo_discount`: three different
+                    // people fund those three, and a shop that cannot separate
+                    // them cannot invoice the bank for the third.
+                    'bank_card_offer_id' => $bankOffer?->id,
+                    'bank_discount' => $bankDiscount,
+                    // FOUR digits. What a claim is matched on, and the most a
+                    // card may ever leave behind here — see the migration.
+                    'card_last4' => $this->cardLast4($data),
                     'promotion_id' => $promotionId,
                     'promo_name' => $promoName,
                     'promo_discount' => $promoDiscount,
@@ -1373,6 +1418,112 @@ class CreateSaleAction
      * And per BRANCH: Gulberg signing off at ten says nothing about Saddar,
      * still trading.
      */
+    /**
+     * The bank offer this sale earned, and what it is worth.
+     *
+     * Returns `[null, 0.0]` for the overwhelming majority of sales — no bank
+     * named, no card tendered, or nothing running today. The whole path costs
+     * one query, and only when a cashier actually picked a bank.
+     *
+     * @param  array<int, array{method: string, amount: float|string}>  $payments
+     * @return array{0: BankCardOffer|null, 1: float}
+     */
+    private function bankOffer(
+        array $data,
+        array $payments,
+        ?string $paymentMethod,
+        float $amountPaid,
+        ?string $shopTimezone,
+    ): array {
+        if (empty($data['bank_id'])) {
+            return [null, 0.0];
+        }
+
+        $cardBase = $this->cardSlice($payments, $paymentMethod, $amountPaid);
+        if ($cardBase <= 0) {
+            // A bank was named and nothing went on a card — a cashier changed
+            // the tender after picking. Not an error, and refusing the sale
+            // over it would be refusing money at the counter.
+            return [null, 0.0];
+        }
+
+        $best = app(BankOfferService::class)->best(
+            $data['bank_id'],
+            $cardBase,
+            // The SHOP's clock. An offer that runs on Fridays, or after six in
+            // the evening, is a statement about local time — the same rule the
+            // promotion engine is judged by, resolved the same way.
+            now()->setTimezone($shopTimezone ?: config('app.timezone')),
+            $data['card_type'] ?? null,
+        );
+
+        return $best === null ? [null, 0.0] : [$best['offer'], $best['discount']];
+    }
+
+    /**
+     * How much of this bill is going on a card.
+     *
+     * A split names its slices, so it is a sum. A single card tender is the
+     * whole of what was handed over. Anything else is zero — a bank cannot fund
+     * a transaction its card was not part of.
+     *
+     * @param  array<int, array{method: string, amount: float|string}>  $payments
+     */
+    private function cardSlice(array $payments, ?string $paymentMethod, float $amountPaid): float
+    {
+        if ($payments !== []) {
+            return round(array_sum(array_map(
+                fn (array $p): float => $p['method'] === PaymentMethod::Card->value ? (float) $p['amount'] : 0.0,
+                $payments,
+            )), 2);
+        }
+
+        return $paymentMethod === PaymentMethod::Card->value ? $amountPaid : 0.0;
+    }
+
+    /**
+     * Take the bank's share off the card tender, because that money never moves.
+     *
+     * Card lines only: the cash the customer put down is unchanged, and a bank
+     * does not fund somebody else's tender. Spread across several card lines in
+     * the order they were keyed, so what the screen showed and what is recorded
+     * agree.
+     *
+     * @param  array<int, array{method: string, amount: float|string}>  $payments
+     * @return array<int, array{method: string, amount: float|string}>
+     */
+    private function discountCardTenders(array $payments, float $discount): array
+    {
+        $left = $discount;
+
+        foreach ($payments as $i => $p) {
+            if ($left <= 0 || $p['method'] !== PaymentMethod::Card->value) {
+                continue;
+            }
+
+            $take = min($left, (float) $p['amount']);
+            $payments[$i]['amount'] = round((float) $p['amount'] - $take, 2);
+            $left = round($left - $take, 2);
+        }
+
+        return $payments;
+    }
+
+    /**
+     * The last four digits of the card, and never a digit more.
+     *
+     * Trimmed here as well as validated at the request, because this is the
+     * last point before the column. A full card number in this database puts
+     * the shop and this platform inside PCI DSS — an audit regime rather than a
+     * setting. See the migration.
+     */
+    private function cardLast4(array $data): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) ($data['card_last4'] ?? ''));
+
+        return $digits === '' || $digits === null ? null : substr($digits, -4);
+    }
+
     private function dayAlreadyClosed(?string $branchId, Carbon $soldAt): bool
     {
         $tenant = $this->context->get();
