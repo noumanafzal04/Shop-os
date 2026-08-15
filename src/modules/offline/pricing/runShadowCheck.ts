@@ -1,7 +1,7 @@
 import { get, getAll, getSingleton, putMany, remove } from "../db/repo";
 import { STORE } from "../db/schema";
 import type { CatalogItem, CatalogPromotion, CatalogTaxGroup } from "../sync/catalogService";
-import { readMeta } from "../sync/applyPull";
+import { shopNow } from "../clock";
 import type { CartLine, PriceLevel } from "./priceCart";
 import { comparePricing, type PricingVariance, type ServerTotals } from "./shadow";
 import { bumpTally } from "./shadowTally";
@@ -148,7 +148,7 @@ async function evaluate(
         // tablet would otherwise run a flash sale that ended on Tuesday, and
         // the whole point of a mirror is that it cannot disagree with the
         // server about anything, least of all what day it is.
-        now: new Date(Date.now() + (await readMeta()).clockSkewMs),
+        now: await shopNow(),
         timezone: String(settings.timezone ?? "Asia/Karachi"),
       },
       cartDiscount,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 
@@ -51,6 +51,7 @@ const item = (over: Partial<CatalogItem> & { id: string }): CatalogItem =>
 
 /** The shop signed in for every test here. */
 const SHOP = "shop-a";
+const CASHIER = "cashier-a";
 
 const guard = (over: Partial<OfflineCart> = {}): OfflineCart => ({
   lines: [{ name: "Milkpak 1L", offline_ok: true }],
@@ -78,6 +79,8 @@ const input = (over: Record<string, unknown> = {}) => ({
   offlineSince: null,
   training: false,
   tenantId: SHOP,
+  cartStartedAt: null,
+  rungBy: CASHIER,
   ...over,
 });
 
@@ -395,3 +398,161 @@ describe("the allow-list's view of the cart", () => {
     ).rejects.toThrow(OfflineRefused);
   });
 });
+
+describe("the shop's own ceiling on trading blind", () => {
+  // `offline_days` MARKS a sale for the owner to look at afterwards. This
+  // REFUSES to start a new one, and only shops that asked for a ceiling have
+  // one at all — for most, a fourth day without internet is not worse than a
+  // closed counter.
+
+  const CONTACT = "shopos-last-server-contact";
+
+  const away = async (days: number, hardStop: unknown): Promise<void> => {
+    await putMany(STORE.CATALOG, [item({ id: "p1" })]);
+    await putSingleton(STORE.SETTINGS, {
+      default_tax_rate: 0,
+      tax_inclusive: false,
+      offline_selling: true,
+      offline_hard_stop_days: hardStop,
+    });
+    localStorage.setItem(CONTACT, String(Date.now() - days * 86_400_000));
+  };
+
+  afterEach(() => localStorage.removeItem(CONTACT));
+
+  it("refuses a new sale once the till is past the ceiling", async () => {
+    await away(6, 5);
+
+    await expect(completeOffline(input())).rejects.toThrow(/longer than the shop allows/);
+  });
+
+  it("queues nothing when it refuses", async () => {
+    await away(6, 5);
+
+    await expect(completeOffline(input())).rejects.toThrow();
+    expect(await allRows()).toEqual([]);
+  });
+
+  it("names the way back rather than only saying no", async () => {
+    // A cashier told only "no" tries again, and again, with a queue behind
+    // them. The fix here is a real one: one moment online clears it.
+    await away(6, 5);
+
+    await expect(completeOffline(input())).rejects.toThrow(/back online for a moment/);
+  });
+
+  it("sells right up to the ceiling", async () => {
+    // Five days allowed means the fifth day still trades. An off-by-one here
+    // closes a counter a day early, every time.
+    await away(4, 5);
+
+    await expect(completeOffline(input())).resolves.toBeTruthy();
+  });
+
+  it("lets the cart already in the cashier's hand complete", async () => {
+    // The whole point of the rule. The goods are on the counter and the
+    // customer is standing there; a ceiling that lands between the first scan
+    // and Complete refuses a sale with nothing anybody can do about it.
+    await away(6, 5);
+
+    const startedWhileStillAllowed = Date.now() - 2 * 86_400_000;
+
+    await expect(
+      completeOffline(input({ cartStartedAt: startedWhileStillAllowed })),
+    ).resolves.toBeTruthy();
+  });
+
+  it("still refuses a cart STARTED after the ceiling had passed", async () => {
+    // The other half of the same rule, and without it the field above is just
+    // a way to switch the ceiling off.
+    await away(6, 5);
+
+    await expect(
+      completeOffline(input({ cartStartedAt: Date.now() })),
+    ).rejects.toThrow(/longer than the shop allows/);
+  });
+
+  it.each([
+    ["zero — what the server actually sends for a shop with no ceiling", 0],
+    ["null — a server too old to send the field at all", null],
+    ["undefined — a response that lost it", undefined],
+  ])("sells when the shop never asked for a ceiling (%s)", async (_why, ceiling) => {
+    // The default for almost every shop, and the direction every doubt on this
+    // one guard falls: a counter closed over a number nobody chose is a loss
+    // with no risk behind it. Every other guard on this path falls the other
+    // way, so the three shapes of "no ceiling" are pinned one by one.
+    await away(400, ceiling);
+
+    await expect(completeOffline(input())).resolves.toBeTruthy();
+  });
+
+  it("sells when the till has never heard from the server at all", async () => {
+    // A brand new tablet has no history, not a long one. Reading that as
+    // maximally stale would refuse a shop on its first morning.
+    await putMany(STORE.CATALOG, [item({ id: "p1" })]);
+    await putSingleton(STORE.SETTINGS, {
+      default_tax_rate: 0,
+      tax_inclusive: false,
+      offline_selling: true,
+      offline_hard_stop_days: 5,
+    });
+    localStorage.removeItem(CONTACT);
+
+    await expect(completeOffline(input())).resolves.toBeTruthy();
+  });
+});
+
+describe("what the queued row carries about WHEN and WHO", () => {
+  it("stamps the sale on the shop's clock and keeps the tablet's own reading", async () => {
+    // `at` becomes `sold_at` — the trading day, the shift, the day-close check.
+    // `clientAt` is kept only so a shop can be told its tablet is three days
+    // out; a correction nobody can see is a clock that never gets set.
+    await seed();
+    await putSingleton(STORE.SYNC_META, {
+      cursors: {},
+      clockSkewMs: 3 * 86_400_000,
+      lastPullAt: null,
+    });
+
+    await completeOffline(input());
+
+    const [row] = await allRows();
+    const gap = new Date(row.at).getTime() - new Date(row.clientAt!).getTime();
+    expect(gap).toBe(3 * 86_400_000);
+  });
+
+  it("moves the last-contact floor by the SAME offset", async () => {
+    // It is the floor the server measures the sale against. Correcting the
+    // sale and not the floor hands the server two numbers that no longer
+    // describe the same day — and the floor then rewrites a correct sale.
+    await seed();
+    await putSingleton(STORE.SYNC_META, {
+      cursors: {},
+      clockSkewMs: 3 * 86_400_000,
+      lastPullAt: null,
+    });
+    const stamped = new Date("2026-08-12T06:00:00.000Z").toISOString();
+
+    await completeOffline(input({ offlineSince: stamped }));
+
+    const [row] = await allRows();
+    expect(row.offlineSince).toBe("2026-08-15T06:00:00.000Z");
+  });
+
+  it("leaves a till with no contact history with none", async () => {
+    await seed();
+
+    await completeOffline(input({ offlineSince: null }));
+
+    expect((await allRows())[0].offlineSince).toBeNull();
+  });
+
+  it("records the cashier who rang it, not whoever will send it", async () => {
+    await seed();
+
+    await completeOffline(input({ rungBy: "morning-cashier" }));
+
+    expect((await allRows())[0].rungBy).toBe("morning-cashier");
+  });
+});
+

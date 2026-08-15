@@ -163,6 +163,14 @@ export interface CatalogPull {
   timezone: string;
   /** May these tills sell with no server at all? Off unless the shop was granted it. */
   offline_selling: boolean;
+  /**
+   * The depth at which this shop stops trading blind altogether.
+   *
+   * `offline_days` marks a sale as beyond the window; this refuses to start a
+   * new one. Null for almost everybody — a ceiling is opt-in, because for most
+   * shops a fourth day without internet is not worse than a closed counter.
+   */
+  offline_hard_stop_days: number | null;
   server_time: string;
   /** Only on a first load. */
   branch_id?: string | null;

@@ -1,13 +1,15 @@
 import { get, getAll, getSingleton } from "../db/repo";
 import { STORE } from "../db/schema";
+import { driftMs, shopNow } from "../clock";
+import { hoursSinceContact } from "../contact";
 import { deviceId } from "../device/deviceId";
 import { priceCart, type CartLine } from "../pricing/priceCart";
 import type { CatalogItem, CatalogPromotion, CatalogTaxGroup } from "../sync/catalogService";
-import { readMeta } from "../sync/applyPull";
 import { unsupportedPromotions } from "../pricing/bestPromotion";
 import {
   canSellOffline,
   OFFLINE_SELLING_OFF,
+  OFFLINE_TOO_LONG,
   PROMOTION_TOO_NEW,
   refusalsFor,
   type OfflineCart,
@@ -74,6 +76,25 @@ export interface OfflineSaleInput {
    * shop's sales into the other's books — see `belongsHere` in the outbox.
    */
   tenantId: string | null;
+  /**
+   * WHO is standing at this till.
+   *
+   * Not the same person who will send it. A sale rung by the morning cashier
+   * is routinely flushed by the evening one, or by a manager clearing a queue
+   * after a week's outage — and the server stamps `created_by` from whoever
+   * is authenticated, so without this one cashier's whole day lands in
+   * another's staff report. Recorded at the moment Complete is pressed,
+   * because that is the only moment it is known.
+   */
+  rungBy: string | null;
+  /**
+   * When the cashier started building this cart, in epoch ms.
+   *
+   * Only the hard stop reads it, and only so that a ceiling reached mid-cart
+   * does not refuse a sale with the goods already on the counter. Null when the
+   * caller does not track it, which reads as "judge it from now".
+   */
+  cartStartedAt: number | null;
 }
 
 /** What the POS gets back — deliberately the shape of a server sale. */
@@ -118,6 +139,46 @@ export async function offlineSellingAllowed(): Promise<boolean> {
 }
 
 /**
+ * Has this till been away longer than the shop is willing to trade blind for?
+ *
+ * ── Judged from when the CART was started, not from now ─────────────────
+ *
+ * The cashier has the goods on the counter and the customer in front of them.
+ * A ceiling that trips between the first scan and Complete would refuse a sale
+ * halfway through, with no way to finish it and nothing the cashier can do —
+ * the exact failure offline selling exists to prevent. So the question asked is
+ * "was this shop still allowed to trade when this cart began", and a cart that
+ * was allowed to start is always allowed to finish.
+ *
+ * `cartStartedAt` of null means the caller does not track it, and then this is
+ * judged from now. That is the honest reading of "we don't know when this
+ * began" and it is what a test calling `completeOffline` directly gets.
+ *
+ * ── Which way the doubts fall, and why it is the OTHER way ──────────────
+ *
+ * Every other guard on this path falls towards refusing. This one falls
+ * towards SELLING: no ceiling set, an unreadable setting, a till that has never
+ * heard from the server at all — each means "no ceiling I can prove", and a
+ * counter closed over a number nobody chose is a loss with no risk behind it.
+ * The risk this guards against is a stale catalog, which is real but slow; the
+ * risk of refusing wrongly arrives immediately, at the counter.
+ */
+export async function pastHardStop(cartStartedAt: number | null = null): Promise<boolean> {
+  try {
+    const settings = await getSingleton<Record<string, unknown>>(STORE.SETTINGS);
+    const days = Number(settings?.offline_hard_stop_days);
+    if (!Number.isFinite(days) || days <= 0) return false;
+
+    const hours = hoursSinceContact(cartStartedAt ?? Date.now());
+    if (hours === null) return false;
+
+    return hours > days * 24;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * A live promotion this till cannot work out.
  *
  * Checked per sale rather than once at boot, because a promotion can be
@@ -134,11 +195,8 @@ export async function unpriceableOffer(): Promise<boolean> {
     const promotions = await getAll<CatalogPromotion>(STORE.PROMOTIONS);
 
     return (
-      unsupportedPromotions(
-        promotions,
-        new Date(Date.now() + (await readMeta()).clockSkewMs),
-        String(settings?.timezone ?? "Asia/Karachi"),
-      ).length > 0
+      unsupportedPromotions(promotions, await shopNow(), String(settings?.timezone ?? "Asia/Karachi"))
+        .length > 0
     );
   } catch {
     // A till that cannot read its own promotions cannot promise it applies
@@ -175,7 +233,7 @@ export async function priceLocally(
       // till's measured drift applied — never the tablet's own clock, which
       // would run a flash sale that ended on Tuesday.
       promotions: await getAll<CatalogPromotion>(STORE.PROMOTIONS),
-      now: new Date(Date.now() + (await readMeta()).clockSkewMs),
+      now: await shopNow(),
       timezone: String(settings.timezone ?? "Asia/Karachi"),
     },
     cartDiscount,
@@ -296,6 +354,12 @@ export async function completeOffline(input: OfflineSaleInput): Promise<OfflineS
     throw new OfflineRefused([`${PROMOTION_TOO_NEW.reason} ${PROMOTION_TOO_NEW.fix}`]);
   }
 
+  // The shop's own ceiling on trading blind, measured from when this cart was
+  // STARTED — a cart that was allowed to begin is always allowed to finish.
+  if (await pastHardStop(input.cartStartedAt)) {
+    throw new OfflineRefused([`${OFFLINE_TOO_LONG.reason} ${OFFLINE_TOO_LONG.fix}`]);
+  }
+
   if (!canSellOffline(input.guard)) {
     throw new OfflineRefused(refusalsFor(input.guard).map((r) => r.reason));
   }
@@ -304,15 +368,38 @@ export async function completeOffline(input: OfflineSaleInput): Promise<OfflineS
   const op = crypto.randomUUID();
   const offlineNumber = await nextOfflineNumber(input.registerName, deviceId());
 
+  // ── The moment, on two clocks ─────────────────────────────────────────
+  //
+  // `at` is the shop's, and it is the one that becomes `sold_at` — the trading
+  // day, the shift, the cashier's figures, the day-close check. A tablet three
+  // days out would otherwise file every sale of the outage into days that were
+  // counted and banked before the cut even started.
+  //
+  // `clientAt` is the tablet's own, uncorrected, and it is kept for the shop
+  // rather than for the books: a correction nobody can see is a clock that
+  // never gets set. `offlineSince` moves by the same offset because it was
+  // stamped from the same wrong clock, and it is the FLOOR the server measures
+  // this sale against — leaving one corrected and the other not would hand the
+  // server two numbers that no longer describe the same day.
+  const drift = await driftMs();
+  const clientAt = Date.now();
+
   // The money is safe from here. Everything after this is presentation.
   await enqueue(
     newRow(
       op,
-      new Date().toISOString(),
+      new Date(clientAt + drift).toISOString(),
       offlineNumber,
       input.sale,
-      input.offlineSince,
-      { training: input.training, tenantId: input.tenantId },
+      input.offlineSince === null
+        ? null
+        : new Date(new Date(input.offlineSince).getTime() + drift).toISOString(),
+      {
+        training: input.training,
+        tenantId: input.tenantId,
+        clientAt: new Date(clientAt).toISOString(),
+        rungBy: input.rungBy,
+      },
     ),
   );
 

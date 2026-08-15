@@ -112,6 +112,23 @@ export const OFFLINE_SELLING_OFF: Refusal = {
 };
 
 /**
+ * This till has been out of contact past the shop's own ceiling.
+ *
+ * Not the same tool as `offline_days`, which MARKS a sale for the owner to look
+ * at afterwards. This one refuses, and only shops that asked for it have one at
+ * all — for most, a fourth day without internet is not worse than a closed
+ * counter, and a ceiling nobody chose would be this software deciding otherwise
+ * on their behalf.
+ *
+ * The fix names the actual fix. A cashier told only "no" will try again, and
+ * again, with a queue of customers behind them.
+ */
+export const OFFLINE_TOO_LONG: Refusal = {
+  reason: "This till has been without internet for longer than the shop allows, so it can't start a new sale.",
+  fix: "Get this device back online for a moment — its queued sales will send and it can sell again straight away.",
+};
+
+/**
  * This shop runs a promotion the till cannot work out.
  *
  * The safety net behind the promotion mirror, and it matters more than the

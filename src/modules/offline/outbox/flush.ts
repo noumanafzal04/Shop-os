@@ -71,6 +71,12 @@ function wire(row: OutboxRow): Record<string, unknown> {
   return {
     op: row.op,
     at: row.at,
+    // What the tablet's own clock said, before the drift was applied. Sent so
+    // the shop can be told its clock is wrong; never used for a figure.
+    client_at: row.clientAt ?? null,
+    // The cashier who rang it, which is not the login sending it. The server
+    // checks it names a live user of this shop and falls back to the sender.
+    rung_by: row.rungBy ?? null,
     offline_number: row.offlineNumber,
     offline_since: row.offlineSince,
     // `=== true` rather than a cast: a row written by an older build has no

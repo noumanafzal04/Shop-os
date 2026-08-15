@@ -38,8 +38,34 @@ export type OutboxStatus = (typeof OUTBOX_STATUS)[keyof typeof OUTBOX_STATUS];
 export interface OutboxRow {
   /** The operation id — minted when Complete was pressed. Also the key. */
   op: string;
-  /** ISO. When the money crossed the counter, never when it was queued. */
+  /**
+   * ISO. When the money crossed the counter, never when it was queued.
+   *
+   * On the SHOP's clock — this till's own reading with its measured drift
+   * applied. It becomes `sold_at`, which decides the trading day, the shift,
+   * whose figures it lands in and whether that day was already signed off, so
+   * a tablet three days out would file a whole outage into days that had been
+   * counted and banked before the cut began.
+   */
   at: string;
+  /**
+   * The same moment on the TABLET's own clock, uncorrected.
+   *
+   * Never used for a figure. It exists so the shop can be told that counter
+   * two is three days behind — a correction nobody can see is a clock that
+   * goes on being wrong every morning for ever. Optional: rows written by a
+   * build older than the correction have no such reading to report.
+   */
+  clientAt?: string;
+  /**
+   * WHO rang it.
+   *
+   * Not who sends it. The queue is flushed by whoever reconnects — the evening
+   * cashier, a manager, an owner opening the till after a week — and the
+   * server stamps `created_by` from whoever is authenticated. Without this, one
+   * cashier's whole day lands in another's staff report.
+   */
+  rungBy?: string | null;
   /** OFF-{register}-{device}-{seq}. What the customer's slip says. */
   offlineNumber: string;
   /** When this device last reached the server, so lateness can be judged. */
@@ -102,11 +128,23 @@ export function newRow(
   // Bundled rather than trailing positionals: two of these are a boolean and a
   // string, and `newRow(op, at, num, payload, null, false, "019f…")` is a call
   // nobody can read and anybody can transpose.
-  { training = false, tenantId = null }: { training?: boolean; tenantId?: string | null } = {},
+  {
+    training = false,
+    tenantId = null,
+    clientAt,
+    rungBy = null,
+  }: {
+    training?: boolean;
+    tenantId?: string | null;
+    clientAt?: string;
+    rungBy?: string | null;
+  } = {},
 ): OutboxRow {
   return {
     op,
     at,
+    clientAt,
+    rungBy,
     offlineNumber,
     offlineSince,
     sale,

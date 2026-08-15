@@ -444,6 +444,19 @@ export default function PosPage() {
   const [cart, setCart] = useState<CartLine[]>(() => readParkedCart<CartLine>(terminalId)?.lines ?? []);
   const [restoredCart] = useState(() => readParkedCart<CartLine>(terminalId));
 
+  // When THIS cart began. Read by exactly one thing: the offline hard stop, so
+  // that a shop's ceiling on trading blind cannot land between the first scan
+  // and Complete — with the goods bagged, the customer waiting and nothing the
+  // cashier can do about it. A cart allowed to start is allowed to finish.
+  //
+  // A ref rather than state: nothing renders from it, and a re-render per
+  // scan to store a number nobody displays is a cost for no return.
+  const cartStartedAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (cart.length === 0) cartStartedAt.current = null;
+    else cartStartedAt.current ??= Date.now();
+  }, [cart.length]);
+
   // Park the cart on every change. Cheap (a few lines of JSON) and it is the
   // difference between a refresh costing a blink and costing the trolley.
   useEffect(() => {
@@ -816,6 +829,12 @@ export default function PosPage() {
       // shops has one queue — and a flush after switching accounts would post
       // this sale into the other shop's books. Stamped here, checked there.
       tenantId: user?.tenant?.id ?? null,
+      // WHO is standing at this till, captured now rather than at flush time.
+      // The queue is sent by whoever reconnects — the evening cashier, a
+      // manager, an owner opening up after a week — and the server would
+      // otherwise credit the whole outage to them.
+      rungBy: user?.id ?? null,
+      cartStartedAt: cartStartedAt.current,
       // When this device was last in touch — which is what "was this rung past
       // the shop's window" is measured from. The question is how long the till
       // had been away WHEN IT RANG THIS, not how old the sale is by the time

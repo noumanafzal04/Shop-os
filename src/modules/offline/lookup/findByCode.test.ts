@@ -64,6 +64,7 @@ const pull = (items: Array<CatalogItem | Tombstone>): CatalogPull => ({
   settings: {},
   offline_days: 3,
   offline_selling: true,
+  offline_hard_stop_days: null,
   timezone: "Asia/Karachi",
   server_time: new Date().toISOString(),
 });

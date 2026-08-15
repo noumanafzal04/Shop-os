@@ -115,6 +115,12 @@ export async function applyPull(pull: CatalogPull): Promise<{
     // a response that lost it, reads as OFF: a shop that has not been granted
     // offline selling must never get it by accident.
     offline_selling: pull.offline_selling === true,
+    // The harder ceiling, and it arrives the same way for the same reason.
+    // `?? null` rather than a cast: a server too old to send it, or a shop
+    // that never asked for one, must read as NO CEILING — the direction is
+    // opposite to the switch above, because this one refuses trade and a
+    // ceiling invented by a missing field would close a counter for nothing.
+    offline_hard_stop_days: pull.offline_hard_stop_days ?? null,
     // The SHOP's calendar, which every promotion window is written in. A till
     // judging "Fridays, 6pm to 9pm" against UTC would open a Karachi shop's
     // evening sale five hours early.

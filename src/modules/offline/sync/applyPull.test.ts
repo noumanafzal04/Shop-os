@@ -75,6 +75,7 @@ const pull = (over: Partial<CatalogPull> = {}): CatalogPull => ({
   settings: { default_tax_rate: 17 },
   offline_days: 3,
   offline_selling: true,
+  offline_hard_stop_days: null,
   timezone: "Asia/Karachi",
   server_time: new Date().toISOString(),
   ...over,
