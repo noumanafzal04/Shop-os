@@ -734,6 +734,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // rest — it is the shop's own money, seen by whoever reads the
                 // shop's own figures.
                 Route::get('/reports/bank-claims', [ReportController::class, 'bankClaims']);
+                // The same report as a file, because a shop cannot email a
+                // screen — and emailing it IS the point of the feature.
+                Route::get('/reports/bank-claims/export', [ReportController::class, 'exportBankClaims']);
                 // What each item actually earned — revenue crowns whatever is
                 // expensive, margin crowns what pays.
                 Route::get('/reports/margins', [ReportController::class, 'margins']);

@@ -436,4 +436,45 @@ class BankOfferSaleTest extends TestCase
         $this->assertSame('4291', $line['card_last4']);
         $this->assertEqualsWithDelta(1000.0, $line['discount'], 0.001);
     }
+
+    public function test_the_claim_can_be_sent_to_the_bank_as_a_file(): void
+    {
+        // A shop cannot email a screen, and emailing it IS the point. One row
+        // per SALE rather than per campaign: a bank reconciles line by line
+        // against its own settlement file, so a summary is what a shop reads
+        // and a list is what a bank accepts.
+        $this->offer();
+        $this->ring(['bank_id' => $this->bank->id, 'card_last4' => '4291']);
+        $this->ring(['bank_id' => $this->bank->id]);
+
+        $owner = User::factory()->shopOwner($this->tenant)->create();
+        $csv = $this->actingAsUser($owner)->get(
+            '/api/v1/reports/bank-claims/export?from='.now()->subDay()->toDateString()
+            .'&to='.now()->toDateString(),
+        )->assertOk()->streamedContent();
+
+        $lines = array_values(array_filter(explode("\n", trim($csv))));
+
+        $this->assertStringContainsString('card_last4', $lines[0]);
+        $this->assertCount(3, $lines, 'a header and one row per sale');
+        $this->assertStringContainsString('4291', $csv);
+        $this->assertStringContainsString('Ramadan 10%', $csv);
+        $this->assertStringContainsString('HBL', $csv);
+    }
+
+    public function test_a_sale_with_no_card_reference_still_gets_a_row(): void
+    {
+        // Written blank rather than left out. A gap in a column is a question
+        // somebody asks; a missing row is one nobody notices — and it is money.
+        $this->offer();
+        $this->ring(['bank_id' => $this->bank->id]);
+
+        $owner = User::factory()->shopOwner($this->tenant)->create();
+        $csv = $this->actingAsUser($owner)->get(
+            '/api/v1/reports/bank-claims/export?from='.now()->subDay()->toDateString()
+            .'&to='.now()->toDateString(),
+        )->assertOk()->streamedContent();
+
+        $this->assertCount(2, array_values(array_filter(explode("\n", trim($csv)))));
+    }
 }

@@ -191,6 +191,51 @@ class ReportController extends Controller
         );
     }
 
+    /**
+     * The claim, as a file somebody can send to a bank.
+     *
+     * A shop cannot email a screen. This is the last step of the only thing the
+     * whole bank-offer feature exists for — the campaign, the invoice numbers,
+     * the dates and the last four digits, in the shape a claim form asks for.
+     *
+     * ONE ROW PER SALE, not per campaign. A bank reconciles line by line against
+     * its own settlement file; a summary is what a shop reads, and a list is
+     * what a bank accepts. The campaign name rides on every row so a single file
+     * can be split by whoever receives it.
+     *
+     * `card_last4` is written blank rather than omitted when it is missing. A
+     * gap in a column is a question somebody asks; a shorter row is one nobody
+     * notices.
+     */
+    public function exportBankClaims(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): StreamedResponse
+    {
+        $p = $this->period($request, $reports);
+        // The same report the screen was showing — an export must never widen
+        // the period the merchant was looking at when they pressed the button.
+        $report = $reports->bankClaims($context->id(), $branch->scopeId(), $p['from'], $p['to']);
+
+        $rows = [];
+        foreach ($report['claims'] as $claim) {
+            foreach ($claim['lines'] as $line) {
+                $rows[] = [
+                    $claim['bank'],
+                    $claim['offer'],
+                    $line['invoice_number'],
+                    $line['sold_at'],
+                    $line['card_last4'] ?? '',
+                    $line['total'],
+                    $line['discount'],
+                ];
+            }
+        }
+
+        return CsvExport::stream(
+            "bank-claims-{$p['from']}-to-{$p['to']}.csv",
+            ['bank', 'offer', 'invoice_number', 'sold_at', 'card_last4', 'sale_total', 'amount_claimed'],
+            $rows,
+        );
+    }
+
     public function exportValuation(StockReportService $stock, TenantContext $context, BranchContext $branch): StreamedResponse
     {
         $report = $stock->valuation($context->id(), $branch->scopeId());
