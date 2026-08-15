@@ -42,6 +42,7 @@ export const TENANT_ROUTES = new Set([
   "/tenant/customers",
   "/tenant/coupons",
   "/tenant/promotions",
+  "/tenant/bank-offers",
   "/tenant/reviews",
   "/tenant/reservations",
   "/tenant/reports",

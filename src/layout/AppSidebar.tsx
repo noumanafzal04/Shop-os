@@ -208,6 +208,10 @@ export function shopNav(
             { name: "Customer List", path: "/tenant/customers" },
             { name: "Coupons", path: "/tenant/coupons" },
             { name: "Promotions", path: "/tenant/promotions" },
+            // A bank funding a discount on its own cards. Beside Promotions
+            // because it is the same kind of thing and the same permission —
+            // and because a shop looking for "our offers" looks here.
+            { name: "Bank offers", path: "/tenant/bank-offers" },
             // Replying is the only thing anyone does on the reviews screen,
             // and the server asks for settings.manage to do it.
             ...(has("marketplace") ? [{ name: "Reviews", path: "/tenant/reviews" }] : []),

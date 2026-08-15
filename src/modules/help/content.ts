@@ -986,6 +986,43 @@ export const HELP_ARTICLES: HelpArticle[] = [
     ],
   },
   {
+    id: "bank-offers",
+    title: "Bank card offers",
+    summary: "When a bank pays for the discount, not you.",
+    group: "Selling",
+    parent: "coupons",
+    permission: "coupons.manage",
+    screen: "/tenant/bank-offers",
+    keywords: ["bank", "card", "hbl", "meezan", "ubl", "discount", "claim", "reimburse", "credit card", "debit card"],
+    body: [
+      { type: "p", text: "Customers → Bank offers. A bank runs a deal on its own cards — say 10% off on HBL cards through Ramadan. The customer pays 10% less, and THE BANK PAYS YOU THE DIFFERENCE. You are not giving the discount; you are the counter it happens at." },
+      { type: "warn", text: "That one sentence is the whole feature. If you set the offer up here and never claim it back from Reports → Bank claims, you have simply given customers a discount out of your own pocket. Claim monthly." },
+
+      { type: "h", text: "Setting one up" },
+      { type: "p", text: "Add the bank first — it is a relationship you keep for years. Then add an offer to it, which is a campaign with dates that you will replace every few months." },
+      { type: "keys", items: [
+        ["Name it properly", "The cashier sees this name and the claim is filed under it. 'Ramadan 10%' — not 'Offer 1', which is a name you will regret in March."],
+        ["Put the cap in", "If the bank's letter names a maximum per transaction, enter it. Without one, 10% off a Rs 400,000 sale gives away Rs 40,000 and the bank will refuse the claim."],
+        ["Put the end date in", "A campaign with no end runs until somebody remembers to switch it off. Every day past the real end is a discount you fund yourself."],
+        ["Which cards", "Leave both unticked for any card, which is the commonest deal. Tick one only if the bank's deal really is credit-only — it makes the cashier answer an extra question at the till."],
+      ]},
+      { type: "note", text: "Days and times work exactly like Promotions, including a window that crosses midnight. Set it up once and it applies itself." },
+
+      { type: "h", text: "At the till" },
+      { type: "p", text: "When a customer pays by card, the cashier picks the bank from a short list and the discount appears. Everything about it is optional — the bank, and the last 4 digits of the card. A cashier who ignores it takes the payment exactly as before." },
+      { type: "keys", items: [
+        ["The list is short on purpose", "Only banks with an offer running right now appear. A bank whose campaign ended is not offered."],
+        ["Last 4 digits", "Optional, and never blocks a sale. But the bank matches your claim on it, so a sale without one may be harder to collect — the claims report flags those separately."],
+        ["The amount due drops", "The customer taps less. What YOU are owed has not changed; the bank pays the rest."],
+      ]},
+      { type: "warn", text: "Never type a full card number anywhere in ShopOS. The box takes four digits and nothing else, deliberately — holding full card numbers is a serious legal obligation, and this is not the place for them." },
+
+      { type: "h", text: "Getting the money back" },
+      { type: "p", text: "Reports → Bank claims. Per campaign, with every invoice number, date and last-4 the bank will ask for. Export it and send it to them." },
+      { type: "note", text: "A shop promotion and a bank offer both apply to the same sale — they are two different people's money. Your promotion comes off the bill; the bank's comes off the card payment of whatever is left." },
+    ],
+  },
+  {
     id: "promotions",
     title: "Promotions",
     summary: "Offers that apply themselves, with no code.",

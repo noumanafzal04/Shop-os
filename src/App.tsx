@@ -74,6 +74,7 @@ const SuppliersPage = lazy(() => import("./modules/purchases/pages/SuppliersPage
 const CustomersPage = lazy(() => import("./modules/customers/pages/CustomersPage"));
 const CouponsPage = lazy(() => import("./modules/coupons/pages/CouponsPage"));
 const PromotionsPage = lazy(() => import("./modules/promotions/pages/PromotionsPage"));
+const BankOffersPage = lazy(() => import("./modules/banks/pages/BankOffersPage"));
 const PortfolioPage = lazy(() => import("./modules/shop/pages/PortfolioPage"));
 const PurchaseOrdersPage = lazy(() => import("./modules/purchases/pages/PurchaseOrdersPage"));
 const InventoryPage = lazy(() => import("./modules/inventory/pages/InventoryPage"));
@@ -236,6 +237,7 @@ export default function App() {
                   <Route element={<RequirePermission permission="coupons.manage" />}>
                     <Route path="coupons" element={<CouponsPage />} />
                     <Route path="promotions" element={<PromotionsPage />} />
+                    <Route path="bank-offers" element={<BankOffersPage />} />
                   </Route>
                   <Route element={<RequireFeature feature="services" />}>
                     <Route element={<RequirePermission permission="settings.manage" />}>

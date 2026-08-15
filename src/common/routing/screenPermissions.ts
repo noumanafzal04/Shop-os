@@ -86,6 +86,9 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   "/tenant/vehicles": "customers.manage",
   "/tenant/coupons": "coupons.manage",
   "/tenant/promotions": "coupons.manage",
+  // Signing a deal with a bank is marketing, not a settings switch — the same
+  // permission promotions and coupons ride, for the same reason.
+  "/tenant/bank-offers": "coupons.manage",
   "/tenant/reservations": "reservations.manage",
   // Replying is the only thing anyone does on the reviews screen.
   "/tenant/reviews": "settings.manage",
