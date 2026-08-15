@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BankOfferRow } from "../../banks/components/BankOfferRow";
+import type { CardType } from "../../banks/services/banksService";
 import { Link } from "react-router";
 import { uuid } from "../../../common/uuid";
 import { ChevronLeftIcon, ChevronDownIcon, TrashBinIcon, PlusIcon, AlertIcon, CloseIcon, DollarLineIcon, ListIcon, UserCircleIcon, CheckLineIcon } from "../../../icons";
@@ -480,6 +482,16 @@ export default function PosPage() {
   const [tableNo, setTableNo] = useState("");
   const [discount, setDiscount] = useState("");
   const [method, setMethod] = useState<"cash" | "card" | "credit" | "split">("cash");
+
+  // ── A bank funding part of its own card's transaction ──────────────
+  // All three optional. A shop with no bank deals never sees the row, and a
+  // cashier who ignores it gets exactly the tender screen they had before.
+  const [bankId, setBankId] = useState<string | null>(null);
+  const [cardLast4, setCardLast4] = useState("");
+  const [cardType, setCardType] = useState<CardType | null>(null);
+  // What the SERVER quoted. Shown, never computed here — the sale works it out
+  // again from the same offer, so this can only ever be a display.
+  const [bankDiscount, setBankDiscount] = useState(0);
   const [tenders, setTenders] = useState<Array<{ method: "cash" | "card" | "bank_transfer" | "credit"; amount: string }>>([{ method: "cash", amount: "" }]);
   const [tendered, setTendered] = useState("");
   /**
@@ -778,6 +790,7 @@ export default function PosPage() {
     setTradeIns([]); setTradeInSearch("");
     setVehicle(null); setVehicleSearch(""); setOdometer("");
     setTableNo(""); setOrderType("takeaway"); setMethod(defaultTender); setTenders([{ method: "cash", amount: "" }]); clearCoupon();
+    setBankId(null); setCardLast4(""); setCardType(null); setBankDiscount(0);
     setRxNumber(""); setRxPrescriber(""); setRxPatient("");
     setCustomerPoints(null); setRedeemPts(""); setPromo(null);
   };
@@ -915,6 +928,11 @@ export default function PosPage() {
         ...(method === "split"
           ? { payments: tenders.filter((t) => Number(t.amount) > 0).map((t) => ({ method: t.method, amount: Number(t.amount) })) }
           : { payment_method: method, amount_paid: method === "cash" ? Number(tendered) || payable : payable }),
+        // The bank is NAMED; the server works out what it takes off. Sending a
+        // figure from here would be the same hole `unit_price` is kept out of.
+        ...(bankId !== null ? { bank_id: bankId } : {}),
+        ...(cardLast4.length === 4 ? { card_last4: cardLast4 } : {}),
+        ...(cardType !== null ? { card_type: cardType } : {}),
         // Only the lines — never an amount. The server computes the allowance
         // and adds it as a `trade_in` tender itself, because a till that could
         // name its own would be able to settle any bill with nothing crossing
@@ -2508,8 +2526,22 @@ export default function PosPage() {
                 <span className="text-theme-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
                   {tradeInTotal > 0 ? "To pay" : "Amount due"}
                 </span>
-                <span className="text-3xl font-extrabold tabular-nums text-gray-900 dark:text-white">{money(payable)}</span>
+                <span className="text-3xl font-extrabold tabular-nums text-gray-900 dark:text-white">
+                  {money(Math.max(0, payable - bankDiscount))}
+                </span>
               </div>
+              {/* The bank's share, said out loud. The figure above has already
+                  dropped by it, and a cashier reading out a number that does
+                  not match the terminal is how a queue starts arguing. What the
+                  SHOP is owed has not changed — the bank pays the difference. */}
+              {bankDiscount > 0 && (
+                <div className="mt-1 flex items-baseline justify-between text-theme-xs">
+                  <span className="text-gray-500 dark:text-gray-400">Bank offer pays</span>
+                  <span className="font-semibold tabular-nums text-success-600 dark:text-success-500">
+                    −{money(bankDiscount)}
+                  </span>
+                </div>
+              )}
               {/* The bill and the goods, stated separately. The customer is
                   being charged the full price — their old unit is settling part
                   of it, not reducing what the shop asked for. */}
@@ -2615,6 +2647,24 @@ export default function PosPage() {
                 </button>
               ))}
             </div>
+            <BankOfferRow
+              cardAmount={
+                method === "card"
+                  ? payable
+                  : method === "split"
+                    ? tenders
+                        .filter((t) => t.method === "card")
+                        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
+                    : 0
+              }
+              bankId={bankId}
+              onBank={setBankId}
+              cardLast4={cardLast4}
+              onLast4={setCardLast4}
+              cardType={cardType}
+              onCardType={setCardType}
+              onQuote={setBankDiscount}
+            />
             {method === "cash" && (
               <div>
                 <div className="mb-1.5 flex items-center justify-between">

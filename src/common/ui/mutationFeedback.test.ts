@@ -34,6 +34,13 @@ const NO_FEEDBACK_NEEDED: Record<string, string> = {
   // Fire-and-forget telemetry. The visitor did not ask for it and cannot act
   // on a failure.
   "marketplace/pages/MarketShopPage.tsx": "records a storefront view, not a user action",
+  // A QUOTE, not a change. It asks the server what a bank takes off and shows
+  // the answer; nothing is written and nothing is reserved. A failure must be
+  // silent on purpose — the row goes quiet, the customer pays full price, and
+  // that is the honest outcome when nobody can say otherwise. A toast here
+  // would fire while a cashier is still choosing, over a number that has no
+  // consequence yet.
+  "banks/components/BankOfferRow.tsx": "quotes a figure for display; writes nothing",
 };
 
 /** Anything that can put an outcome in front of the user. */
