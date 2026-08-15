@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "../../../common/api/client";
+import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import type { LoginResponse } from "../../auth/types";
 
 export interface PublicShop {
@@ -114,4 +114,57 @@ export const marketplaceService = {
 
   submitReview: (payload: { shop_slug: string; rating: number; comment?: string }) =>
     apiPost<PublicReview>("/customer/reviews", payload),
+
+  // ── The buyer's own saved places and bookings ─────────────────────
+  //
+  // Both of these were built on the server and never called from here, which
+  // is the same shape of bug this codebase keeps producing: the capability
+  // exists, one link is missing, and nothing fails. What it cost was small and
+  // constant — an address retyped on every order, and a reservation nobody
+  // could look at after making it.
+
+  addresses: () => apiGet<SavedAddress[]>("/customer/addresses"),
+
+  saveAddress: (payload: AddressPayload) =>
+    apiPost<SavedAddress>("/customer/addresses", payload),
+
+  updateAddress: (id: string, payload: AddressPayload) =>
+    apiPut<SavedAddress>(`/customer/addresses/${id}`, payload),
+
+  deleteAddress: (id: string) => apiDelete<null>(`/customer/addresses/${id}`),
+
+  reservations: () => apiGet<CustomerReservation[]>("/customer/reservations"),
+
+  cancelReservation: (id: string) =>
+    apiPost<CustomerReservation>(`/customer/reservations/${id}/cancel`),
 };
+
+/** One place this buyer has had something delivered to before. */
+export interface SavedAddress {
+  id: string;
+  /** What they call it — "Home", "Office". Optional; the address is the point. */
+  label: string | null;
+  address: string;
+  city?: { id: string; name: string } | null;
+  /** Exactly one of these is true at a time; the server keeps it that way. */
+  is_default: boolean;
+}
+
+export interface AddressPayload {
+  label?: string;
+  address: string;
+  is_default?: boolean;
+}
+
+/** A buyer's own view of something they asked a shop to hold for them. */
+export interface CustomerReservation {
+  id: string;
+  shop: { slug: string | null; business_name: string | null };
+  product_name: string;
+  variant_name: string | null;
+  quantity: number;
+  unit_price: string | number;
+  status: string;
+  expires_at: string | null;
+  created_at: string | null;
+}

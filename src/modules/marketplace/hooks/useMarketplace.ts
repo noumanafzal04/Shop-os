@@ -6,7 +6,11 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { useAuthStore } from "../../../stores/authStore";
-import { marketplaceService, type RegisterPayload } from "../services/marketplaceService";
+import {
+  marketplaceService,
+  type AddressPayload,
+  type RegisterPayload,
+} from "../services/marketplaceService";
 
 export function useBanners() {
   return useQuery({
@@ -89,5 +93,61 @@ export function useSubmitReview() {
       queryClient.invalidateQueries({ queryKey: ["market", "reviews", shop_slug] });
       queryClient.invalidateQueries({ queryKey: ["market", "shop", shop_slug] });
     },
+  });
+}
+
+// ── The buyer's saved places ──────────────────────────────────────────
+//
+// `enabled` rather than an early return, because a signed-out visitor browsing
+// a shop must not fire a call that can only 401. They see the plain address box
+// and nothing is missing to them.
+
+const ADDRESSES = ["market", "addresses"];
+
+export function useAddresses(enabled: boolean) {
+  return useQuery({
+    queryKey: ADDRESSES,
+    queryFn: async () => (await marketplaceService.addresses()).data,
+    enabled,
+  });
+}
+
+export function useSaveAddress() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: AddressPayload) => marketplaceService.saveAddress(payload),
+    // The whole list, not just the new row: saving a default clears the old
+    // one on the server, so a local insert would leave two showing as default.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ADDRESSES }),
+  });
+}
+
+export function useDeleteAddress() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => marketplaceService.deleteAddress(id),
+    // Same reason: deleting the default promotes another one server-side.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ADDRESSES }),
+  });
+}
+
+// ── The buyer's own reservations ──────────────────────────────────────
+
+export function useMyReservations(enabled: boolean) {
+  return useQuery({
+    queryKey: ["market", "reservations"],
+    queryFn: async () => (await marketplaceService.reservations()).data,
+    enabled,
+  });
+}
+
+export function useCancelReservation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => marketplaceService.cancelReservation(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["market", "reservations"] }),
   });
 }

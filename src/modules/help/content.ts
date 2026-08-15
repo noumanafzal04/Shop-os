@@ -1061,6 +1061,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
         "Cash drawer — opens when a cash sale completes.",
         "Weighing scale — for anything sold by weight.",
       ]},
+
+      { type: "h", text: "Which paper size actually gets used" },
+      { type: "p", text: "There are two places a paper size can be set, and they answer different questions. Shop settings → Point of Sale sets the size for the WHOLE shop. The size on a registered printer, here, is for THAT printer." },
+      { type: "keys", items: [
+        ["A printer with a size set", "That printer's size wins for the receipts it prints. This is what you want when the shop issues A4 invoices from the office but the counter has an 80mm roll."],
+        ["A printer with no size set", "The shop-wide setting decides, exactly as before. Leaving it alone is a perfectly good answer."],
+        ["No printer registered at all", "The shop-wide setting decides. Most shops never register a printer and never need to."],
+      ]},
+      { type: "note", text: "The receipt you see in the preview under Point of Sale is the real receipt — the same page the counter prints, not a drawing of one. What it cannot know is which lane you will print from, so if one counter has a different roll to the shop default, set that size on the printer here." },
     ],
   },
   {

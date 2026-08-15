@@ -20,6 +20,7 @@ import {
   useToggleFavorite,
 } from "../hooks/useMarketplace";
 import { MarketHeader } from "../components/MarketHeader";
+import { DeliveryAddressField } from "../components/DeliveryAddressField";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
@@ -451,7 +452,15 @@ export default function MarketShopPage() {
                   </div>
                   {fulfillment === "delivery" && (
                     <div className="mb-3">
-                      <Input placeholder="Delivery address" value={address} onChange={(e) => setAddress(e.target.value)} />
+                      {/* Picked, not retyped — the saved-address endpoints have
+                          been on the server since the marketplace shipped and
+                          nothing called them. A signed-out visitor still gets
+                          the plain box. */}
+                      <DeliveryAddressField
+                        value={address}
+                        onChange={setAddress}
+                        enabled={isAuthenticated && isCustomer}
+                      />
                     </div>
                   )}
                   <div className="mb-3">

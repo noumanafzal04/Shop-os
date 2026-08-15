@@ -4,6 +4,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
 import { useToast } from "../../../components/ui/toast";
 import { MarketHeader } from "../../marketplace/components/MarketHeader";
+import { MyReservations } from "../../marketplace/components/MyReservations";
 import { useCancelMyOrder, useMyOrders } from "../hooks/useOrders";
 import type { CustomerOrder, OrderStatus } from "../services/ordersService";
 
@@ -106,6 +107,12 @@ export default function MyOrdersPage() {
             ))}
           </div>
         )}
+
+        {/* Reservations a buyer asked for. Renders nothing at all when there
+            are none, which is almost everybody — the shop's half of this
+            feature has always been complete and the buyer's half was built on
+            the server and never called. */}
+        <MyReservations />
       </div>
     </div>
   );
