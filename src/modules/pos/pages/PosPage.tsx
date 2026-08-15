@@ -829,6 +829,9 @@ export default function PosPage() {
         orderType: isRestaurant ? orderType : null,
         redeemPoints: redeemPtsNum,
         couponCode: couponCode || null,
+        // Not mirrored on the till yet — a till that took one offline would
+        // print a receipt wrong by the whole discount.
+        bankId,
       },
       registerName: terminalName,
       // What this till was standing at. The server needs this AND the shift to

@@ -43,6 +43,11 @@ describe("everyone else keeps what their modules feed", () => {
       // load-shedding is universal here, and a tab that appeared only once
       // there was bad news is a tab nobody knows exists.
       "offline",
+      // Same argument, one step further: a shop that has never signed a bank
+      // deal opens this once, reads "no bank-funded sales", and now knows the
+      // feature exists. A tab that appeared only once money was already owed
+      // is one nobody finds in time to claim it.
+      "bank-claims",
     ]);
   });
 

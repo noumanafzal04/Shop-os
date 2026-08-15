@@ -49,6 +49,12 @@ export function reportTabs(
           // existed. On a good day it says the tills were in touch all along,
           // which is worth reading too.
           ["offline", "Offline"],
+          // What the banks owe. Offered to every shop that sells, like Offline
+          // above and for a related reason: a shop that has never set up a bank
+          // deal opens this once, reads "no bank-funded sales", and now knows
+          // the feature exists. A tab that appeared only once money was already
+          // owed would be one nobody found in time to claim it.
+          ["bank-claims", "Bank claims"],
         ] as Array<[string, string]>)
       : []),
   ];

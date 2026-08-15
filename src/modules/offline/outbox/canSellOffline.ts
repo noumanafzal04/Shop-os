@@ -29,6 +29,8 @@ export interface OfflineCart {
   orderType?: string | null;
   redeemPoints?: number;
   couponCode?: string | null;
+  /** A bank card offer the cashier picked. Not mirrored on the till — yet. */
+  bankId?: string | null;
 }
 
 /** Tenders a single till can settle alone. Mirrors `OfflinePolicy::TENDERS`. */
@@ -85,6 +87,24 @@ export function refusalsFor(cart: OfflineCart): Refusal[] {
   if (cart.couponCode !== null && cart.couponCode !== undefined && cart.couponCode !== "") {
     refusals.push({
       reason: "A coupon's remaining uses can only be checked by the server.",
+    });
+  }
+
+  // A bank offer is not, in principle, a shared figure — it is a rule the shop
+  // agreed in advance, the same for every till, with nothing to reserve. By the
+  // offline rule it COULD be decided alone, and one day it will be, the way
+  // promotions were.
+  //
+  // Today the till holds no bank offers at all: they are not in the catalog
+  // pull and there is no mirror of the engine. So a till that accepted one
+  // offline would print a receipt wrong by the whole discount — which the
+  // customer discovers, days later, with no way to check. The refusal is about
+  // what this till currently KNOWS, not about what the rule permits, and the
+  // words say so rather than implying the shop did something wrong.
+  if (cart.bankId !== null && cart.bankId !== undefined && cart.bankId !== "") {
+    refusals.push({
+      reason: "A bank offer has to be worked out by the server, and this till can't reach it.",
+      fix: "Ring it without the bank offer, or wait for the connection — the customer keeps the discount either way if you wait.",
     });
   }
 

@@ -149,3 +149,36 @@ describe("money going back out", () => {
     expect(MONEY_BACK_OFFLINE.exchange.fix).toBeDefined();
   });
 });
+
+describe("a bank offer", () => {
+  // Not, in principle, a shared figure: it is a rule the shop agreed in
+  // advance, the same for every till, with nothing to reserve. By the offline
+  // rule it COULD be decided alone, and one day it will be — the way promotions
+  // were. Today the till holds no bank offers at all, so it cannot work one out.
+
+  it("is refused while the till has no way to work one out", () => {
+    expect(canSellOffline({ ...cart(), bankId: "hbl" })).toBe(false);
+  });
+
+  it("says the till cannot reach it, not that the shop did something wrong", () => {
+    const [refusal] = refusalsFor({ ...cart(), bankId: "hbl" });
+
+    expect(refusal.reason).toMatch(/can't reach it/);
+  });
+
+  it("tells the cashier the customer keeps the discount if they wait", () => {
+    // The whole point of the sentence. "No" sends a cashier arguing; naming
+    // what waiting buys the customer sends them to the counter.
+    const [refusal] = refusalsFor({ ...cart(), bankId: "hbl" });
+
+    expect(refusal.fix).toMatch(/keeps the discount/);
+  });
+
+  it("does not fire when no bank was picked", () => {
+    // Which is almost every cart. A bank offer is optional at the till, and a
+    // shop with no deals must never be refused over a field nobody filled in.
+    expect(canSellOffline({ ...cart(), bankId: null })).toBe(true);
+    expect(canSellOffline(cart())).toBe(true);
+  });
+});
+

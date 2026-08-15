@@ -11,6 +11,7 @@ import { MetricCard, MetricCardSkeleton } from "../../../common/ui/MetricCard";
 import { usePurchasesReport, useReport, useStaffReport, useTaxReport } from "../hooks/useExpenses";
 import { ReprintReportTab } from "../../receipts/components/ReprintReportTab";
 import { OfflineReportTab } from "../../offline/report/OfflineReportTab";
+import { BankClaimsTab } from "../../banks/components/BankClaimsTab";
 import { DeadStockTab, MarginsTab, ValuationTab } from "../components/StockReportTabs";
 import { useAuthStore } from "../../../stores/authStore";
 import { reportTabs, shopSells, SALES_TABS, STOCK_TABS } from "../reportTabs";
@@ -161,7 +162,7 @@ export default function ReportsPage() {
       {/* Every tab gets the SAME window object. They used to be handed a bare
           period name, so any tab that resolved its own dates could — and one
           did — report a different week than the header claimed. */}
-      {tab === "margins" ? <MarginsTab range={asked} /> : tab === "valuation" ? <ValuationTab /> : tab === "dead-stock" ? <DeadStockTab /> : tab === "purchases" ? <PurchasesTab range={asked} /> : tab === "staff" ? <StaffTab range={asked} /> : tab === "tax" ? <TaxTab range={asked} /> : tab === "receipts" ? <ReprintReportTab range={asked} /> : tab === "offline" ? <OfflineReportTab /> : (
+      {tab === "margins" ? <MarginsTab range={asked} /> : tab === "valuation" ? <ValuationTab /> : tab === "dead-stock" ? <DeadStockTab /> : tab === "purchases" ? <PurchasesTab range={asked} /> : tab === "staff" ? <StaffTab range={asked} /> : tab === "tax" ? <TaxTab range={asked} /> : tab === "receipts" ? <ReprintReportTab range={asked} /> : tab === "offline" ? <OfflineReportTab /> : tab === "bank-claims" ? <BankClaimsTab range={asked} /> : (
       <>
       {/* Totals. A shop that sells nothing is shown what it actually has —
           money in, money out, and what that leaves — not four cards of Rs 0
