@@ -1,7 +1,8 @@
 # Bank card offers — the plan
 
-**Requested 2026-08-15. Not built. This is the design to argue with before
-anybody writes a migration.**
+**Requested and BUILT 2026-08-15.** The plan below is what was argued with
+first; the four open questions at the end are answered in §7, which was written
+after the build rather than before it.
 
 > *"Settings mein banks ka CRUD — koi bank card par kuch percent discount de
 > raha, ya min amount par, ya fixed ya percentage. POS mein card method select
@@ -196,3 +197,76 @@ this half.**
    optional but warned, and the claim report flags rows that lack it.*
 4. **Who may edit offers?** `settings.manage`, or its own permission? A bank
    offer is money — the same argument that keeps `staff.manage` with the owner.
+
+---
+
+## 7. What was built, and how the four questions were answered
+
+**1. Promotion + bank offer: BOTH apply.** The shop prices the cart (its own
+discounts and promotion), and the bank then discounts the card slice of what is
+left. "Largest wins" is the wrong shape — it would let a campaign the shop is
+PAID for cancel one the shop is paying for, and neither party agreed to that.
+
+**2. Split payment: the CARD slice.** The bank is discounting its own
+transaction. `min_spend` is measured the same way, or a shop would promise
+"Rs 5,000 and above" to somebody paying Rs 200 by card.
+
+**3. The last four digits: optional, and never a reason a sale cannot
+complete.** A cashier with a queue must not be blocked by a reference field. The
+claim report counts and FLAGS the rows that lack one — dropping them understates
+the claim, hiding them overstates what is collectable.
+
+The rule is `digits:4`, which REFUSES sixteen outright rather than trimming
+them. A PAN accepted into the request is a PAN in the logs and in any error
+report on the way.
+
+**4. Permission: `coupons.manage` to set up, `sales.manage` to apply.** Exactly
+the promotions split. Requiring the marketing permission to HONOUR an offer
+would mean the only people who can accept one are the people allowed to
+negotiate it — the coupons bug, again.
+
+### The arithmetic, which is the part that goes quietly wrong
+
+| | |
+|---|---|
+| `total` | **does not move.** The shop parted with the whole bill and is owed all of it — part by the customer, part by the bank |
+| the tenders | **drop.** That money physically never crosses the counter |
+| `bank_discount` | **its own column**, beside `discount` and `promo_discount` |
+
+Three different people fund those three. A shop that cannot separate them cannot
+invoice the bank for the third.
+
+### One thing extracted on the way
+
+`App\Support\OfferWindow` — "is this offer running right now" now has exactly
+one implementation, read by both `PromotionService` and `BankOfferService`. Two
+copies drift, and this codebase has already paid for that once: the offline
+pricing mirror silently stopped applying promotions the server was applying.
+
+The proof it is genuinely shared: one mutation of the midnight-wrapping branch
+fails a bank test AND a promotion test.
+
+### Where it lives
+
+| | |
+|---|---|
+| Set up | **Customers → Bank offers** — beside Promotions, same permission |
+| At the till | a row on the tender screen when a card is involved. Bank optional, last-4 optional, whole row absent for a shop with no live deals |
+| Claim it back | **Reports → Bank claims** — per campaign, with every invoice number, date and last-4 a bank asks for |
+
+### Offline: refused, for now
+
+A bank offer IS decidable by a single till — a rule agreed in advance, the same
+for every till, nothing to reserve. By the offline rule it could be mirrored,
+the way promotions were. It is not yet: the catalog pull does not carry offers
+and there is no mirror of the engine, so a till that accepted one offline would
+print a receipt wrong by the whole discount. The refusal names that honestly and
+tells the cashier the customer keeps the discount if they wait.
+
+### Still open
+
+- **Returns and cancellations** do not yet reverse a bank discount specifically.
+  A cancelled sale correctly drops out of the claim; a partial refund does not
+  reduce what is claimed. Decide with a bank first — most reimburse on the
+  transaction, not on what was kept.
+- No **export** on the claim report yet. The figures are all on screen.

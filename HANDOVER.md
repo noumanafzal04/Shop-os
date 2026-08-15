@@ -102,7 +102,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1842 tests / 8098 assertions green. Panel 809 tests green.** Gates all
+**Backend 1898 tests / 8237 assertions green. Panel 813 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
 long-standing baseline).
 
@@ -219,7 +219,64 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-15 (latest) — three things that were built and never plugged in
+### 2026-08-15 (latest) — a bank funding its own card's transaction
+
+Asked for as "banks ka CRUD, card par discount", and the design turned on one
+sentence that changes the whole build: **this is not the shop's discount.** HBL
+runs the offer, the customer pays less, and HBL reimburses the shop. The shop is
+a channel for somebody else's marketing.
+
+So the CLAIM REPORT is the feature and the till is the easy half. A discount
+folded into a sale total is one the shop cannot invoice back — a marketing win
+becomes a straight loss discovered at year end. It shipped WITH the POS row, not
+after it. Full write-up in `docs/decisions/bank-card-offers.md`.
+
+**The arithmetic is where this goes quietly wrong.** `total` does not move: the
+shop parted with the whole bill and is owed all of it, part by the customer and
+part by the bank. What drops is what is DUE, and the card tender with it, since
+that money never crosses the counter. `bank_discount` is its own column beside
+`discount` and `promo_discount` — three different people fund those three.
+
+**The card field takes four digits and refuses sixteen** rather than trimming
+them. A full PAN puts the shop and this platform inside PCI DSS, which is an
+audit regime and not a setting, and a number accepted into the request is a
+number in the logs. The label is half the control: a box saying "card number"
+has sixteen digits in it by lunchtime on day one. The first six are refused too,
+tempting as they are — six plus four is most of a card.
+
+**Four open questions, answered.** Promotion and bank offer BOTH apply (the shop
+prices the cart, the bank discounts the card slice of what is left) — "largest
+wins" would let a campaign the shop is paid for cancel one it is paying for. The
+split follows the card slice. The last-4 is optional and never blocks a sale;
+the claim report flags what is missing. Permissions are the promotions split
+exactly: `coupons.manage` to set up, `sales.manage` to apply.
+
+**`OfferWindow` came out of it.** "Is this offer running right now" now has one
+implementation, read by both engines. Two copies drift, and this codebase has
+already paid for that — the offline mirror silently stopped applying promotions
+the server was applying. Proof it is shared: one mutation of the
+midnight-wrapping branch fails a bank test AND a promotion test.
+
+Offline REFUSES a cart with a bank offer, and the reason is worth keeping: a
+bank offer genuinely IS decidable by one till, so the refusal is about what this
+till currently knows rather than what the rule permits. The words say so, and
+tell the cashier the customer keeps the discount if they wait.
+
+Six existing fences caught this on the way in and every one was right — the
+nav-reachability pair, `screenPermissions`, the report-tab contract, the
+mutation-feedback rule, and the Help Centre test, which is the standing "update
+the Help Centre" rule enforced rather than remembered.
+
+Backend 1898 / 8237, panel 813. Eighteen mutations across the engine, the sale
+path, the claim report and the offline refusal — all caught.
+
+Still open, both written down rather than half-built: returns do not yet reverse
+a bank discount (decide with a bank first — most reimburse on the transaction),
+and the claim report has no export.
+
+---
+
+### 2026-08-15 — three things that were built and never plugged in
 
 Asked "what is actually pending on the web side", and answered it by measuring
 rather than by re-reading a list: **every authenticated backend endpoint matched
