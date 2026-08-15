@@ -1,6 +1,27 @@
 export type SaleChannel = "walk_in" | "pos" | "phone" | "whatsapp" | "online";
 export type SaleStatus = "completed" | "partially_refunded" | "refunded" | "cancelled";
-export type PaymentMethod = "cash" | "card" | "bank_transfer" | "other" | "split" | "credit";
+/**
+ * Every tender a SALE can carry — the server's `PaymentMethod` enum, in full.
+ *
+ * `deposit` and `trade_in` were missing here while both were reachable on the
+ * server: an advance settling a layaway, and an allowance covering a whole bill
+ * at a tyre shop. Nothing broke, because the two screens that render a method
+ * fall back gracefully (`.replace("_"," ")` and a label lookup with a default).
+ *
+ * It was a trap rather than a bug: a union that omits a real value tells the
+ * next person writing an exhaustive `switch` that they have covered everything.
+ * Found by listing every backend enum and asking which values the panel never
+ * mentions — `trade_in` was the only one in the whole codebase.
+ */
+export type PaymentMethod =
+  | "cash"
+  | "card"
+  | "bank_transfer"
+  | "other"
+  | "split"
+  | "credit"
+  | "deposit"
+  | "trade_in";
 /** A single tender in a split payment. */
 export interface TenderInput {
   // 'credit' = sell-on-credit (khata) — goes onto the customer's balance.
