@@ -159,10 +159,57 @@ exposure for as long as the staging droplet answers.
 
 ---
 
+## Dependency CVEs — run 2026-08-16
+
+Owed by the pass above, and done.
+
+### Backend: clean
+
+`guzzlehttp/guzzle` (6 advisories) and `league/commonmark` (6). Guzzle is a real
+runtime HTTP client, and its highest was *"noncanonical host can bypass
+host-based checks"* — worth taking seriously in a package that makes outbound
+requests. Updated to 7.15.3 and 2.10.0 respectively. **`composer audit` now
+reports nothing**, and the suite is unchanged at 1900 green.
+
+### Panel: one critical removed by DELETING the package
+
+`swiper` carried the only **critical** — prototype pollution. Before touching a
+version, the question worth asking was whether the code is even reachable, and
+it is not: the only reference anywhere was `import "swiper/swiper-bundle.css"`
+in `main.tsx`. No component imports a Swiper. The four CSS rules styling its
+buttons targeted `.stocks-slider-outer`, which nothing renders. The built JS
+bundle contained no swiper at all.
+
+A TailAdmin template leftover, shipping a stylesheet to every user for classes
+nothing uses, with a critical advisory attached. **Removed rather than
+upgraded** — the fix that also makes every page smaller.
+
+`react-router` had a real runtime XSS-via-open-redirect. `npm i
+react-router@latest` took it from 7.1.5 to **8.3.0 — a major version**, which is
+how a routing layer breaks silently across a whole app. The advisory range ended
+at 7.17.0, so **7.18.2 fixes it inside the same major**. Pinned there instead.
+Taking the major bump would have been the audit tool choosing an upgrade nobody
+reviewed.
+
+`nanoid` upgraded; it is bundled.
+
+### What is left, and why it is left
+
+Seven high advisories remain and **none of them reach a user's browser.** Each
+was checked against the built bundle rather than assumed:
+
+| | |
+|---|---|
+| `brace-expansion`, `flatted`, `js-yaml`, `minimatch`, `picomatch`, `postcss` | **0 hits** in `dist/assets/*.js`. Build and lint tooling |
+| `vite` | 3 hits, all `vite__mapDeps` — a build helper's function NAME, not the package. The advisory is a dev-server file-read bypass, and a deployed shop runs no dev server |
+
+They are a developer-machine concern, not a shop's. Worth clearing on the next
+dependency sweep; not worth a risky upgrade to the build chain today.
+
+---
+
 ## What this pass did not cover
 
 - **Infrastructure.** TLS, headers, CORS in production, the droplet itself. The
   droplet has no domain and no certbot yet; there is nothing to audit.
-- **Dependency CVEs.** No `composer audit` / `npm audit` run — worth a separate
-  pass with its own remediation budget.
 - **`shopos-mobile`**, which is out of scope by standing decision.
