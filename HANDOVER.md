@@ -102,7 +102,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1744 tests / 7816 assertions green. Panel 703 tests green.** Gates all
+**Backend 1823 tests / 8059 assertions green. Panel 801 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
 long-standing baseline).
 
@@ -140,17 +140,24 @@ middleware, controller `abort_unless`, and service-layer filtering.
 
 ## 5. In flight
 
-**The whole offline build is UNCOMMITTED.** Phases 0–5 sit in the working tree
-of both repos and nothing has been committed or pushed for it. If this machine
-is rebuilt before that happens, all of it is gone — read
-`docs/decisions/offline-pos.md` and start again from the plan.
+**Offline is BUILT — 63 of 64 test IDs.** Phases 0–4 are done; Phase 5 is done
+bar the soak. There is no offline coding task left. Everything is committed and
+pushed on `offline/v1/backend` and `offline/v1/admin-panel`; the plan and every
+decision behind it are in `docs/decisions/offline-pos.md`.
 
-Two gates stand between it and a real shop, and neither is a coding task:
+Two gates stand between it and a real shop, and NEITHER IS A CODING TASK:
 
 1. **Shadow mode must run over real trading** until the check count is large and
-   the variance count is still nil. Phase 3 must not be turned on for a shop
-   before that. Zero findings from zero checks is not evidence.
-2. The 72-hour soak (P5-4).
+   the variance count is still nil. Offline selling must not be turned on for a
+   shop before that. Zero findings from zero checks is not evidence — and the
+   check has already earned its keep once, catching a promotion the mirror was
+   not applying on its very first real day.
+2. The 72-hour soak (P5-4) — the one outstanding test ID, and a run rather than
+   a build.
+
+Two switches gate it in production, both admin-set per shop and both in
+`PlanLimits`: `offline_selling` (0/1, off until a shop has earned it through
+shadow mode) and `offline_hard_stop_days` (0 = never, opt-in).
 
 `wip/relief-cover` shipped on 2026-08-07 and is merged into `backend`.
 
@@ -212,7 +219,75 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-15 (latest) — the shadow check earned its keep on day one
+### 2026-08-15 (latest) — the three fields a synced sale was believed about
+
+Offline's last five items, and four of them turned out to be the same bug wearing
+different clothes: **the sync request carries something, and the server simply
+believed it.**
+
+**WHEN (P4-4).** `sold_at` decides the trading day, the shift, whose figures a
+sale lands in and whether that day was already counted and banked — and it
+arrived from a tablet. A cheap Android flat for a week comes back believing it is
+the day it shipped, and a whole outage would file into days closed before the cut
+began. Two layers now: the till corrects itself against the drift it measures on
+every catalog pull (one place — `clock.ts` — so the sale's stamp, the promotion
+windows, the pricing clock and the till's own last-contact record all move
+together), and the server bounds what it cannot know. Not in the future. Not
+before the till last reached us. The claim moves the smallest distance that makes
+it possible, so P3-18's forty-day outbox is untouched. The tablet's wrong reading
+is KEPT and rolled up per device on the offline report — a correction nobody can
+see is a tablet that stays three days out for ever.
+
+**WHO (P4-6).** `created_by` defaults to the authenticated user. Online that is
+the cashier; on sync it is whoever reconnected. One person's entire outage was
+landing in another's staff report. The till now names who rang it, checked to be
+a live user of this shop. Deliberately the till's word and not the shift's —
+under relief cover the reliever rings and the drawer stays the cashier's, so the
+shift names the person who was on their break.
+
+**WHERE (P5-5).** A tablet registered at Gulberg and carried to Saddar would file
+a week of Gulberg's queue into Saddar's books and take it off Saddar's shelf. The
+branch now comes from the device row, written by the server at registration.
+Resolved beside the header it replaces rather than beside the sale row, because
+branch prices are read from it.
+
+**The hard stop (P3-17).** Opt-in, 0 = never. Judged from when the CART STARTED,
+so a ceiling reached mid-transaction never strands a cashier with the goods
+bagged. The one guard on the offline path whose every doubt falls towards
+SELLING — a counter closed over a number nobody chose is a loss with no risk
+behind it.
+
+**P4-5** pins two screens against each other instead of adding a third: every
+rupee the offline report calls late is a rupee the cashbook also has, on the day
+it happened — and after a day close, `after_close_total` is exactly how far the
+cashbook now stands ahead of a drawer that cannot move.
+
+**Then the per-trade sweep** (`EveryTradeSellsTest`). Each trade already had deep
+tests of its SPECIAL thing — FEFO, serving windows, serials. None proved the
+ordinary thing: that a shop of that type can open, ring a sale, and have the
+money arrive everywhere a shopkeeper looks for it that evening. That is exactly
+where this codebase's recurring bug lives — *capability built, one link missing*
+— and what catches it is not a deeper test of one feature but a shallow test of
+the whole chain, repeated for every trade, because the missing link is never in
+the same place twice. Seven trades × (the sale, the drawer, the cashbook, the
+staff report, the cost that must never leave the server), plus finance asserting
+the opposite: money moves, catalog stays shut. Plus each trade's offline verdict,
+so the day somebody adds a fourth refusal to `OfflinePolicy` the question asked is
+"which shops just lost the ability to trade through a power cut".
+
+**Eighteen mutations run, all eighteen caught.** Two of them mattered: one proved
+a fixture-level bug in my own reasoning (a mutation of `itemTypesFor` that looked
+like it should fail and correctly did not — the guard it removed is redundant on
+the live path and defensive only), and one caught a test asserting on an empty
+loop, which is the `assert-not-empty-on-an-envelope` anti-pattern the standing
+rule exists to stop.
+
+Backend 1823 / 8059. Panel 801. **Offline: 63 of 64 — only the soak is left, and
+it is a run, not a build.**
+
+---
+
+### 2026-08-15 — the shadow check earned its keep on day one
 
 Phase 2's entire argument was that a mirror cannot be trusted until it has been
 measured against real carts. The first day a real shop ran it, it returned nine

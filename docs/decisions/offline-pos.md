@@ -4,11 +4,10 @@
 loyalty, promotions, serials, tax groups, dine-in, branches, registers, till
 PINs, training mode and business days — every one of which changes the surface.
 
-**Status (2026-08-17):** Phases 0, 1 and 2 are **built and green**. Phase 3 is
-built bar the returns path and the hard stop; Phase 4 has its report and its
-closed-day reconciliation; Phase 5 is built bar the soak run. What remains of
-each is listed under that phase. Branches: `offline/v1/backend`,
-`offline/v1/admin-panel`. **60 of 64 test IDs.**
+**Status (2026-08-15):** Phases 0, 1, 2, 3 and 4 are **built and green**. Phase
+5 is built bar the soak run, which is a run and not a build. Branches:
+`offline/v1/backend`, `offline/v1/admin-panel`. **63 of 64 test IDs** — the one
+outstanding is P5-4, the 72-hour soak.
 
 Phase 2's remaining gate is **not a build task**: shadow mode must run over real
 trading until the check count is large and the variance count is still nil.
@@ -627,7 +626,7 @@ found unbuildable safely — see Phase 5).
 | P3-14 | Local stock decrements; never `set` |
 | P3-15 | Training-mode sale offline stays training on sync — and a real sale cannot be MADE training by naming a practice shift ✅ |
 | P3-16 | Device offline past `offline_days` → owner PIN demanded, sale stamped |
-| P3-17 | `offline_hard_stop_days` passed → new sale refused, cart in hand completes |
+| P3-17 | `offline_hard_stop_days` passed → new sale refused, cart in hand completes ✅ |
 | P3-18 | Outbox from 40 days ago still syncs and is accepted; lateness is measured from the till's last contact, not from today ✅ |
 
 ### The shadow check earned its keep — 2026-08-15
@@ -731,9 +730,62 @@ decisions inside it:
   matched per branch — Gulberg signing off says nothing about Saddar, still
   trading. Both were mutations that survived the first version of the tests.
 
-**Still open in Phase 4:** P4-4 (a device whose clock is days out), P4-5
-(variance totals reconciled against the cashbook), P4-6 (offline sales in the
-staff report).
+### The three fields a synced sale could not be trusted about — 2026-08-15
+
+Phase 4 closed on three questions that all have the same shape: *the sync
+request carries something, and until now the server simply believed it.*
+
+**WHEN (P4-4).** `sold_at` decides the trading day, the shift, whose figures the
+sale lands in, and whether that day had already been counted and banked — and it
+arrived from a tablet. A cheap Android that has been flat for a week comes back
+believing it is the day it shipped, and a whole outage would file into days that
+were closed before the cut began. Two layers now:
+
+- **The till corrects itself.** `clock.ts` is the one place that turns the drift
+  measured on every catalog pull back into a moment. The sale's stamp, the
+  promotion windows, the pricing clock and — critically — the till's own record
+  of its last contact all move by the same offset. Correcting the sale and not
+  the floor would hand the server two numbers that no longer describe one day.
+- **The server bounds what it cannot know.** It cannot know when the sale
+  happened; it knows two moments it cannot have happened outside of. Not in the
+  future (`now()`). Not before the till last reached us (`offline_since` — a
+  sale rung while still in contact would have gone online). The claim is moved
+  the smallest distance that makes it possible, so P3-18's forty-day outbox is
+  left exactly where it says it happened.
+
+The tablet's wrong reading is **kept** (`client_sold_at`, `clock_skew_seconds`)
+and rolled up per device on the offline report. A correction nobody can see is a
+tablet that goes on being three days out every morning for ever.
+
+**WHO (P4-6).** `created_by` defaults to the authenticated user. Online that is
+the cashier; here it is whoever reconnected — the evening shift, a manager, an
+owner opening up after a week. One person's entire outage was landing in
+another's staff report. The till now names who was standing at it, checked to be
+a live user of this shop. Deliberately the till's word and not the shift's: under
+relief cover the reliever rings and the drawer stays the cashier's, so the shift
+names the person who was on their break.
+
+**WHERE (P5-5).** A tablet is a thing that can be carried. Registered at Gulberg
+and walked to Saddar, the moment it reconnects the branch header says Saddar —
+and a week of Gulberg's unsent sales would land in Saddar's books and come off
+Saddar's shelf. On the sync path the branch now comes from the device row, which
+is server-written at registration and cannot be changed by moving the hardware.
+Resolved beside the header it replaces rather than beside the sale row: branch
+prices are read from it, and a cart priced at one branch's list and filed
+against another's is a harder error to find than the one it prevents.
+
+**And the hard stop (P3-17).** `offline_days` marks; this refuses. Opt-in, 0 =
+never — in most of Pakistan a fourth day without internet is not worse than a
+closed counter, so a ceiling nobody chose would be this software deciding
+otherwise on their behalf. Judged from when the CART WAS STARTED, so a ceiling
+reached mid-transaction never strands a cashier with the goods already bagged.
+It is the one guard on the offline path whose every doubt falls towards SELLING.
+
+**P4-5** pins the relationship between two screens rather than adding a third:
+every rupee the offline report claims came in late is a rupee the cashbook also
+has, on the day it happened — and after a day close, `after_close_total` is
+exactly the amount by which the cashbook now stands ahead of a drawer that
+cannot move.
 
 **Tests**
 
@@ -742,9 +794,9 @@ staff report).
 | P4-1 | Price changed while offline → sale recorded at the price taken, variance listed |
 | P4-2 | Two tills sold the last unit → both accepted, stock −1, oversell listed |
 | P4-3 | Sale from a closed business day → filed on the day it HAPPENED, the signed-off figures do not move, and the shortfall is named in rupees ✅ |
-| P4-4 | Sale timestamped by a clock 3 days slow → server assigns the correct day |
-| P4-5 | Variance report totals reconcile against the cashbook |
-| P4-6 | Offline sales appear in the staff report against the right cashier |
+| P4-4 | Sale timestamped by a clock 3 days slow → server assigns the correct day ✅ |
+| P4-5 | Variance report totals reconcile against the cashbook ✅ |
+| P4-6 | Offline sales appear in the staff report against the right cashier ✅ |
 
 ### Phase 5 — hardening
 
@@ -757,7 +809,7 @@ worker update policy · long-soak and chaos tests.
 | P5-2 | App upgraded with 200 sales pending → all 200 still sync |
 | P5-3 | Service worker update is deferred while a shift is open |
 | P5-4 | 72-hour soak, 5,000 sales, random disconnects → zero loss, zero duplicates |
-| P5-5 | Device moved to another branch offline → branch cannot change |
+| P5-5 | Device moved to another branch offline → branch cannot change ✅ |
 
 ---
 
@@ -789,8 +841,8 @@ the write that fails is a sale. Refusing before the shift costs nothing, because
 nobody has paid yet. `shiftBlocker` blocks only at `FULL` (0.98), and its message
 names the fix — a blocked till with no way forward is just a broken one.
 
-**Still open in Phase 5:** P5-4 (the 72-hour soak, which is a run rather than a
-build), P5-5 (a device moved to another branch offline must not change branch).
+**Still open in Phase 5:** P5-4 alone — the 72-hour soak, which is a run rather
+than a build.
 
 ---
 
@@ -821,10 +873,10 @@ Each has an ID, a resolution, and the test that proves it.
 | ID | Case | Resolution | Test |
 |---|---|---|---|
 | E9 | The sale's business day is already closed and frozen — *"a day signed off in March must read the same in September"* | **Never reopen a closed day, and never re-file the sale either.** It is recorded on the day it HAPPENED (posting it to the open day would move money between two days and make both wrong), the frozen figures do not budge, and `sales.after_day_close` lets the report name the resulting shortfall in rupees | P4-3 |
-| E10 | The tablet's clock is days out | Carry `client_sold_at`, `server_received_at`, `clock_skew`; **the server decides the business day** | P4-4 |
+| E10 | The tablet's clock is days out | The till corrects by its measured drift (sale, floor and promotion windows together); the server then bounds it — never in the future, never before the till's last contact. `client_sold_at` + `clock_skew_seconds` keep the wrong reading so somebody sets the clock | P4-4 |
 | E11 | A product was deleted while the device was offline — `softDeletes()` means `updated_at > cursor` never carries it | Explicit tombstones in the delta | P1-4 |
 | E12 | A training-mode sale syncs as real — or worse, a REAL sale syncs as training | Practice needs two opinions: the drawer's `is_training` **and** the till's `operations.*.training`. The till's word can only withhold, never grant; silence means real | P3-15 |
-| E13 | The device is carried to another branch | Branch is bound into the device token at registration; it cannot change offline | P5-5 |
+| E13 | The device is carried to another branch | On the sync path the branch comes from the DEVICE ROW, written at registration — never the request's branch header. Resolved before pricing, so branch prices and branch books cannot disagree | P5-5 |
 
 ### 🟠 Stock
 
