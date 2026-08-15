@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Marketplace\FavoriteController;
 use App\Http\Controllers\Api\V1\Marketplace\MarketplaceController;
 use App\Http\Controllers\Api\V1\Marketplace\ReviewController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Tenant\BankController;
 use App\Http\Controllers\Api\V1\Tenant\BatchController;
 use App\Http\Controllers\Api\V1\Tenant\BranchController;
 use App\Http\Controllers\Api\V1\Tenant\BusinessDayController;
@@ -331,6 +332,29 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     ->only(['index', 'store', 'update', 'destroy']);
             });
 
+            // Bank card offers — a bank funding a discount on its own card.
+            //
+            // The same split, and the same reason, as promotions immediately
+            // above: signing a deal with HBL is marketing, and reading what is
+            // running is a cashier at the counter with a customer's card in
+            // their hand. Requiring coupons.manage to APPLY an offer would mean
+            // the only people who could honour it are the people allowed to
+            // negotiate it.
+            Route::get('banks/live', [BankController::class, 'live'])
+                ->middleware('permission:sales.manage');
+            Route::post('banks/quote', [BankController::class, 'quote'])
+                ->middleware('permission:sales.manage');
+            Route::middleware('permission:coupons.manage')->group(function (): void {
+                Route::get('banks', [BankController::class, 'index']);
+                Route::post('banks', [BankController::class, 'store']);
+                Route::put('banks/{bank}', [BankController::class, 'update']);
+                Route::delete('banks/{bank}', [BankController::class, 'destroy']);
+
+                Route::post('bank-offers', [BankController::class, 'storeOffer']);
+                Route::put('bank-offers/{offer}', [BankController::class, 'updateOffer']);
+                Route::delete('bank-offers/{offer}', [BankController::class, 'destroyOffer']);
+            });
+
             // Suppliers — vendor directory + payables. Part of the stock chain,
             // so it rides the inventory module.
             Route::middleware('feature:inventory')->group(function (): void {
@@ -382,91 +406,91 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->middleware(['feature:pos', 'permission:sales.manage', 'throttle:pos'])
                 ->withoutMiddleware('throttle:api')
                 ->group(function (): void {
-                Route::get('/lookup', [PosController::class, 'lookup']);
-                // The counter's own shortlist — derived from what this branch
-                // actually sells, un-scannable items first. Never curated: a
-                // favourites list somebody has to maintain is wrong in a month.
-                Route::get('/quick-keys', [PosController::class, 'quickKeys']);
-                Route::get('/session', [PosController::class, 'currentSession']);
-                Route::post('/session/open', [PosController::class, 'openSession']);
-                // Terminal handover — carry an open drawer to another lane.
-                Route::post('/session/move', [PosController::class, 'moveSession']);
-                // Relief cover: hold the lane while the cashier is on a break.
-                // The reliever sells under their own name; the drawer stays the
-                // cashier's to count. Sales.manage only — covering is ringing.
-                Route::post('/session/cover', [PosController::class, 'startCover']);
-                Route::post('/session/cover/end', [PosController::class, 'endCover']);
-                Route::post('/session/close', [PosController::class, 'closeSession']);
-                // The live X-read: what this drawer should hold right now.
-                Route::get('/session/report', [PosController::class, 'sessionReport']);
-                // Non-sale cash: paid-in, paid-out, safe drop, float top-up, no-sale.
-                Route::get('/session/movements', [PosController::class, 'movements']);
-                Route::post('/session/movements', [PosController::class, 'storeMovement']);
-                Route::get('/held', [PosController::class, 'heldIndex']);
-                Route::post('/held', [PosController::class, 'heldStore']);
-                // Claim = resume atomically, so only one lane can take it.
-                Route::post('/held/{id}/claim', [PosController::class, 'heldClaim']);
-                Route::delete('/held/{id}', [PosController::class, 'heldDestroy']);
-                // Which lane am I, and what hardware do I drive?
-                Route::get('/terminal', [PosRegisterController::class, 'terminal']);
-                Route::get('/registers', [PosRegisterController::class, 'lanes']);
-                // The till announcing itself, on every boot rather than only
-                // the first: the touch keeps `last_seen_at` current, and how
-                // long ago a device last called IS the offline policy. The
-                // cashier's own browser does this, so it rides sales.manage
-                // like the rest of this block; listing and revoking are the
-                // owner's and sit with the other configuration below.
-                Route::post('/devices', [PosDeviceController::class, 'store']);
-                // The catalog as the till holds it. One shape, two modes:
-                // no cursor is a first load, a cursor is everything since.
-                // Both ride sales.manage — this is what the counter sells.
-                Route::get('/bootstrap', [PosCatalogController::class, 'bootstrap']);
-                // A till reporting that it priced a cart differently from the
-                // server. The cashier's own browser sends it, so it rides
-                // sales.manage with the rest of this block; reading the pile is
-                // the owner's and sits with configuration below.
-                Route::post('/pricing-variances', [PricingVarianceController::class, 'store']);
-                // Sales rung with no server, arriving late. Same permission as
-                // ringing one, because that is what it is — the sale the
-                // cashier already made, catching up.
-                Route::post('/sync', [PosSyncController::class, 'store']);
-                Route::get('/catalog', [PosCatalogController::class, 'delta']);
-                // Who is at the till. The roster and the PIN handover — the
-                // outgoing cashier's session on this device ends with it.
-                Route::get('/till-users', [TillIdentityController::class, 'roster']);
-                Route::post('/unlock', [TillIdentityController::class, 'unlock'])
-                    // A PIN is short. Even scoped to an already-signed-in till,
-                    // it never gets an unmetered guessing rate.
-                    ->middleware('throttle:10,1');
-                // Manager-only lane operations: the consolidated day view and
-                // force-closing a drawer the cashier walked away from.
-                // The Z-read for a shift already counted out. Same permission
-                // as ringing sales: a cashier is entitled to the record of
-                // their own drawer, and withholding it is how a disputed shift
-                // becomes one person's word.
-                Route::get('/sessions/{session}/z-report', [PosController::class, 'zReport']);
-                Route::get('/sessions/{session}/z-report/print', [PosController::class, 'zReportPrint']);
+                    Route::get('/lookup', [PosController::class, 'lookup']);
+                    // The counter's own shortlist — derived from what this branch
+                    // actually sells, un-scannable items first. Never curated: a
+                    // favourites list somebody has to maintain is wrong in a month.
+                    Route::get('/quick-keys', [PosController::class, 'quickKeys']);
+                    Route::get('/session', [PosController::class, 'currentSession']);
+                    Route::post('/session/open', [PosController::class, 'openSession']);
+                    // Terminal handover — carry an open drawer to another lane.
+                    Route::post('/session/move', [PosController::class, 'moveSession']);
+                    // Relief cover: hold the lane while the cashier is on a break.
+                    // The reliever sells under their own name; the drawer stays the
+                    // cashier's to count. Sales.manage only — covering is ringing.
+                    Route::post('/session/cover', [PosController::class, 'startCover']);
+                    Route::post('/session/cover/end', [PosController::class, 'endCover']);
+                    Route::post('/session/close', [PosController::class, 'closeSession']);
+                    // The live X-read: what this drawer should hold right now.
+                    Route::get('/session/report', [PosController::class, 'sessionReport']);
+                    // Non-sale cash: paid-in, paid-out, safe drop, float top-up, no-sale.
+                    Route::get('/session/movements', [PosController::class, 'movements']);
+                    Route::post('/session/movements', [PosController::class, 'storeMovement']);
+                    Route::get('/held', [PosController::class, 'heldIndex']);
+                    Route::post('/held', [PosController::class, 'heldStore']);
+                    // Claim = resume atomically, so only one lane can take it.
+                    Route::post('/held/{id}/claim', [PosController::class, 'heldClaim']);
+                    Route::delete('/held/{id}', [PosController::class, 'heldDestroy']);
+                    // Which lane am I, and what hardware do I drive?
+                    Route::get('/terminal', [PosRegisterController::class, 'terminal']);
+                    Route::get('/registers', [PosRegisterController::class, 'lanes']);
+                    // The till announcing itself, on every boot rather than only
+                    // the first: the touch keeps `last_seen_at` current, and how
+                    // long ago a device last called IS the offline policy. The
+                    // cashier's own browser does this, so it rides sales.manage
+                    // like the rest of this block; listing and revoking are the
+                    // owner's and sit with the other configuration below.
+                    Route::post('/devices', [PosDeviceController::class, 'store']);
+                    // The catalog as the till holds it. One shape, two modes:
+                    // no cursor is a first load, a cursor is everything since.
+                    // Both ride sales.manage — this is what the counter sells.
+                    Route::get('/bootstrap', [PosCatalogController::class, 'bootstrap']);
+                    // A till reporting that it priced a cart differently from the
+                    // server. The cashier's own browser sends it, so it rides
+                    // sales.manage with the rest of this block; reading the pile is
+                    // the owner's and sits with configuration below.
+                    Route::post('/pricing-variances', [PricingVarianceController::class, 'store']);
+                    // Sales rung with no server, arriving late. Same permission as
+                    // ringing one, because that is what it is — the sale the
+                    // cashier already made, catching up.
+                    Route::post('/sync', [PosSyncController::class, 'store']);
+                    Route::get('/catalog', [PosCatalogController::class, 'delta']);
+                    // Who is at the till. The roster and the PIN handover — the
+                    // outgoing cashier's session on this device ends with it.
+                    Route::get('/till-users', [TillIdentityController::class, 'roster']);
+                    Route::post('/unlock', [TillIdentityController::class, 'unlock'])
+                        // A PIN is short. Even scoped to an already-signed-in till,
+                        // it never gets an unmetered guessing rate.
+                        ->middleware('throttle:10,1');
+                    // Manager-only lane operations: the consolidated day view and
+                    // force-closing a drawer the cashier walked away from.
+                    // The Z-read for a shift already counted out. Same permission
+                    // as ringing sales: a cashier is entitled to the record of
+                    // their own drawer, and withholding it is how a disputed shift
+                    // becomes one person's word.
+                    Route::get('/sessions/{session}/z-report', [PosController::class, 'zReport']);
+                    Route::get('/sessions/{session}/z-report/print', [PosController::class, 'zReportPrint']);
 
-                // The trading day. Reading it is open to anyone on the floor;
-                // closing it off is the sign-off on every cashier's variance,
-                // so that stays manager-only (checked in the controller).
-                Route::get('/day', [BusinessDayController::class, 'current']);
-                Route::get('/days', [BusinessDayController::class, 'index']);
-                Route::get('/days/{day}', [BusinessDayController::class, 'show']);
-                Route::post('/days/{day}/close', [BusinessDayController::class, 'close']);
-                Route::get('/deposits', [BusinessDayController::class, 'deposits']);
-                Route::post('/deposits', [BusinessDayController::class, 'storeDeposit']);
+                    // The trading day. Reading it is open to anyone on the floor;
+                    // closing it off is the sign-off on every cashier's variance,
+                    // so that stays manager-only (checked in the controller).
+                    Route::get('/day', [BusinessDayController::class, 'current']);
+                    Route::get('/days', [BusinessDayController::class, 'index']);
+                    Route::get('/days/{day}', [BusinessDayController::class, 'show']);
+                    Route::post('/days/{day}/close', [BusinessDayController::class, 'close']);
+                    Route::get('/deposits', [BusinessDayController::class, 'deposits']);
+                    Route::post('/deposits', [BusinessDayController::class, 'storeDeposit']);
 
-                // Reading how the drawers counted out is supervision, not
-                // configuration — a manager holds 16 of 18 permissions and
-                // still could not open the shift history. Force-closing
-                // somebody else's drawer stays with the owner.
-                Route::get('/sessions', [PosController::class, 'sessions'])
-                    ->middleware('permission:'.Permissions::SUPERVISES_TILLS);
-                Route::middleware('permission:settings.manage')->group(function (): void {
-                    Route::post('/registers/{register}/close', [PosController::class, 'forceCloseSession']);
+                    // Reading how the drawers counted out is supervision, not
+                    // configuration — a manager holds 16 of 18 permissions and
+                    // still could not open the shift history. Force-closing
+                    // somebody else's drawer stays with the owner.
+                    Route::get('/sessions', [PosController::class, 'sessions'])
+                        ->middleware('permission:'.Permissions::SUPERVISES_TILLS);
+                    Route::middleware('permission:settings.manage')->group(function (): void {
+                        Route::post('/registers/{register}/close', [PosController::class, 'forceCloseSession']);
+                    });
                 });
-            });
 
             // Registers (checkout lanes / tills) — configuration, so the same
             // permission as branches and hardware. Gated by the POS module: an
@@ -706,6 +730,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/reports/purchases', [ReportController::class, 'purchases']);
                 Route::get('/reports/staff', [ReportController::class, 'staff']);
                 Route::get('/reports/tax', [ReportController::class, 'tax']);
+                // What the banks owe. Rides the same reports permission as the
+                // rest — it is the shop's own money, seen by whoever reads the
+                // shop's own figures.
+                Route::get('/reports/bank-claims', [ReportController::class, 'bankClaims']);
                 // What each item actually earned — revenue crowns whatever is
                 // expensive, margin crowns what pays.
                 Route::get('/reports/margins', [ReportController::class, 'margins']);

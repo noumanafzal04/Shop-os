@@ -561,4 +561,97 @@ class ReportService
             ])
             ->all();
     }
+
+    /**
+     * What each bank owes this shop — the claim.
+     *
+     * ── This report IS the feature ──────────────────────────────────────
+     *
+     * A bank card offer is not the shop's discount. HBL runs it, the customer
+     * pays less, and HBL reimburses the shop afterwards. Everything at the till
+     * — the dropdown, the quote, the reduced tender — is the easy half. THIS is
+     * the half that gets the money back, and without it the shop hands
+     * customers a discount funded by nobody and discovers it at year end.
+     *
+     * Grouped per OFFER rather than per bank, because a bank reimburses against
+     * a campaign: "HBL Ramadan 10%" and "HBL Weekend Fuel" are two claims to two
+     * desks, and one combined figure matches neither invoice.
+     *
+     * ── Why rows without a card reference are counted AND flagged ───────
+     *
+     * The last four digits are optional at the counter, deliberately — a
+     * cashier with a queue must never be blocked by a reference field. But a
+     * bank matches a claim on them, so a row without one is money the shop may
+     * struggle to collect. Dropping those rows would understate the claim;
+     * counting them silently would overstate what is collectable. They are
+     * counted and named, and the shop decides.
+     *
+     * @return array{
+     *   period: array{from: string, to: string},
+     *   totals: array{sales: int, card_value: float, discount: float, unreferenced: int},
+     *   claims: array<int, array<string, mixed>>
+     * }
+     */
+    public function bankClaims(string $tenantId, ?string $branchId, string $from, string $to): array
+    {
+        $fromStart = CarbonImmutable::parse($from)->startOfDay();
+        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+
+        $sales = Sale::query()
+            ->where('tenant_id', $tenantId)
+            ->whereNotNull('bank_card_offer_id')
+            ->where('bank_discount', '>', 0)
+            // A cancelled sale gave nothing away, so there is nothing to claim.
+            // A refunded one DID — the discount was funded at the counter — and
+            // it stays until somebody decides otherwise with the bank.
+            ->whereIn('status', [SaleStatus::Completed, SaleStatus::PartiallyRefunded, SaleStatus::Refunded])
+            ->whereBetween('sold_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['bankOffer.bank:id,name,short_code'])
+            ->orderByDesc('sold_at')
+            ->get([
+                'id', 'invoice_number', 'sold_at', 'total', 'bank_discount',
+                'card_last4', 'bank_card_offer_id',
+            ]);
+
+        $claims = $sales
+            ->groupBy('bank_card_offer_id')
+            ->map(function (Collection $rows): array {
+                $offer = $rows->first()->bankOffer;
+
+                return [
+                    'offer_id' => $offer?->id,
+                    'offer' => $offer?->label,
+                    'bank' => $offer?->bank?->name,
+                    'sales' => $rows->count(),
+                    // What the bank's cards actually carried, which is the
+                    // figure a claim form asks for first.
+                    'card_value' => round((float) $rows->sum('total'), 2),
+                    'discount' => round((float) $rows->sum('bank_discount'), 2),
+                    'unreferenced' => $rows->whereNull('card_last4')->count(),
+                    'lines' => $rows->map(fn (Sale $s): array => [
+                        'invoice_number' => $s->invoice_number,
+                        'sold_at' => $s->sold_at?->toIso8601String(),
+                        'total' => round((float) $s->total, 2),
+                        'discount' => round((float) $s->bank_discount, 2),
+                        'card_last4' => $s->card_last4,
+                    ])->values()->all(),
+                ];
+            })
+            // Biggest claim first: it is the one worth chasing this month.
+            ->sortByDesc('discount')
+            ->values()
+            ->all();
+
+        return [
+            'period' => ['from' => $from, 'to' => $to],
+            'totals' => [
+                'sales' => $sales->count(),
+                'card_value' => round((float) $sales->sum('total'), 2),
+                'discount' => round((float) $sales->sum('bank_discount'), 2),
+                'unreferenced' => $sales->whereNull('card_last4')->count(),
+            ],
+            'claims' => $claims,
+        ];
+    }
 }

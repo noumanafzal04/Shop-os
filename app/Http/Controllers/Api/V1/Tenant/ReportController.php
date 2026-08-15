@@ -58,6 +58,21 @@ class ReportController extends Controller
         return ApiResponse::ok($reports->staffPerformance($context->id(), $branch->scopeId(), $p['from'], $p['to']));
     }
 
+    /**
+     * What each bank owes this shop.
+     *
+     * The half of bank card offers that gets the money BACK. A discount funded
+     * by nobody is a straight loss, and the shop only finds out at year end —
+     * so this screen is not a nice-to-have beside the feature, it IS the
+     * feature. See `ReportService::bankClaims`.
+     */
+    public function bankClaims(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
+    {
+        $p = $this->period($request, $reports);
+
+        return ApiResponse::ok($reports->bankClaims($context->id(), $branch->scopeId(), $p['from'], $p['to']));
+    }
+
     public function tax(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
     {
         $p = $this->period($request, $reports);

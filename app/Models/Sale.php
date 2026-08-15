@@ -70,6 +70,9 @@ class Sale extends BaseModel
             // Tuesday and synced on Friday is Tuesday's money and Friday's
             // arrival, and neither column can answer the other's question.
             'synced_at' => 'datetime',
+            // The bank's own share, kept apart from `discount` and
+            // `promo_discount` — three different people fund those three.
+            'bank_discount' => 'decimal:2',
             'beyond_offline_window' => 'boolean',
             'after_day_close' => 'boolean',
             // What the tablet's own clock said, before it was corrected, and
@@ -114,6 +117,19 @@ class Sale extends BaseModel
     public function device(): BelongsTo
     {
         return $this->belongsTo(PosDevice::class, 'pos_device_id');
+    }
+
+    /**
+     * The bank campaign that funded part of this sale.
+     *
+     * Nullable on almost every sale ever rung. When it is set, the money in
+     * `bank_discount` is owed to the shop BY THE BANK, and this is what the
+     * claim is compiled against — per campaign, because a bank reimburses
+     * against a campaign and not against a name.
+     */
+    public function bankOffer(): BelongsTo
+    {
+        return $this->belongsTo(BankCardOffer::class, 'bank_card_offer_id');
     }
 
     /**

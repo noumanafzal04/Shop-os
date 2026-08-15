@@ -335,4 +335,105 @@ class BankOfferSaleTest extends TestCase
         $this->assertEqualsWithDelta(10000.0, (float) $sale['amount_paid'], 0.001);
         $this->assertNull(Sale::withoutTenancy()->find($sale['id'])->bank_card_offer_id);
     }
+
+    // ── The claim — the half that gets the money back ───────────────
+    //
+    // A bank card offer is not the shop's discount. Everything at the till is
+    // the easy half; this is the half that turns a discount funded by nobody
+    // into an invoice somebody pays. Without it the shop finds out at year end.
+
+    private function claims(): array
+    {
+        $owner = User::factory()->shopOwner($this->tenant)->create();
+
+        return $this->actingAsUser($owner)->getJson(
+            '/api/v1/reports/bank-claims?from='.now()->subDay()->toDateString()
+            .'&to='.now()->toDateString(),
+        )->assertOk()->json('data');
+    }
+
+    public function test_the_claim_totals_what_the_bank_owes(): void
+    {
+        $this->offer();
+        $this->ring(['bank_id' => $this->bank->id]);
+        $this->ring(['bank_id' => $this->bank->id]);
+
+        $totals = $this->claims()['totals'];
+
+        $this->assertSame(2, $totals['sales']);
+        $this->assertEqualsWithDelta(2000.0, $totals['discount'], 0.001);
+    }
+
+    public function test_the_claim_is_grouped_per_campaig_n_not_per_bank(): void
+    {
+        // A bank reimburses against a campaign. "HBL Ramadan" and "HBL Weekend"
+        // are two claims to two desks, and one combined figure matches neither
+        // invoice.
+        $ramadan = $this->offer(['label' => 'Ramadan 10%']);
+        $this->ring(['bank_id' => $this->bank->id]);
+
+        $ramadan->update(['is_active' => false]);
+        $this->offer(['label' => 'Weekend 5%', 'value' => 5]);
+        $this->ring(['bank_id' => $this->bank->id]);
+
+        $claims = $this->claims()['claims'];
+
+        $this->assertCount(2, $claims);
+        // Biggest first — it is the one worth chasing this month.
+        $this->assertSame('Ramadan 10%', $claims[0]['offer']);
+        $this->assertEqualsWithDelta(1000.0, $claims[0]['discount'], 0.001);
+        $this->assertEqualsWithDelta(500.0, $claims[1]['discount'], 0.001);
+    }
+
+    public function test_rows_with_no_card_reference_are_counted_an_d_named(): void
+    {
+        // The last four digits are optional at the counter on purpose. But a
+        // bank matches a claim on them, so a row without one is money the shop
+        // may struggle to collect. Dropping it understates the claim; hiding it
+        // overstates what is collectable. It is counted and flagged.
+        $this->offer();
+        $this->ring(['bank_id' => $this->bank->id, 'card_last4' => '4291']);
+        $this->ring(['bank_id' => $this->bank->id]);
+
+        $data = $this->claims();
+
+        $this->assertSame(2, $data['totals']['sales']);
+        $this->assertSame(1, $data['totals']['unreferenced']);
+        $this->assertSame(1, $data['claims'][0]['unreferenced']);
+    }
+
+    public function test_a_cancelled_sale_is_not_claimed_for(): void
+    {
+        // Nothing was given away, so there is nothing to invoice. Claiming it
+        // is how a shop's relationship with a bank goes wrong.
+        $this->offer();
+        $id = $this->ring(['bank_id' => $this->bank->id])->assertCreated()->json('data.id');
+
+        Sale::withoutTenancy()->find($id)->forceFill(['status' => 'cancelled'])->save();
+
+        $this->assertSame(0, $this->claims()['totals']['sales']);
+    }
+
+    public function test_a_sale_with_no_bank_never_appears(): void
+    {
+        // Which is almost every sale. A claim report padded with ordinary sales
+        // is one nobody trusts twice.
+        $this->offer();
+        $this->ring();
+
+        $this->assertSame(0, $this->claims()['totals']['sales']);
+    }
+
+    public function test_the_lines_carry_what_a_claim_form_asks_for(): void
+    {
+        $this->offer();
+        $this->ring(['bank_id' => $this->bank->id, 'card_last4' => '4291']);
+
+        $line = $this->claims()['claims'][0]['lines'][0];
+
+        $this->assertNotNull($line['invoice_number']);
+        $this->assertNotNull($line['sold_at']);
+        $this->assertSame('4291', $line['card_last4']);
+        $this->assertEqualsWithDelta(1000.0, $line['discount'], 0.001);
+    }
 }
