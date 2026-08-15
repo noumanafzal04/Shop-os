@@ -277,6 +277,58 @@ Four tests, and the three that matter are the ones that must NOT change: a
 printer with no size set, a shop with no printer at all, and an A4 printer under
 a thermal default. Mutation-checked ×3, including mapping `a4` wrongly.
 
+## Business-type audit — the MEASURABLE axes, run 2026-08-15
+
+The audit was designed as twelve reading exercises. Four of them are not reading
+exercises at all — they are measurements, and measurements can be run in an
+afternoon and re-run whenever. Those four are now done, with denominators.
+
+| Axis | Denominator | Result |
+|---|---|---|
+| **panel** — API surface vs UI | 259 authenticated endpoint shapes | 252 called. 3 of the 7 misses were false (paths built from `${basePath}`), 4 were real → items 10 and 11 |
+| **schema** — per-trade fields reaching the form | 44 `StoreProductRequest` scalar fields | **44/44** named in the panel. Backed by the existing `ProductCreateParityTest` fence |
+| **drift** — one truth stated twice | 9 backend enums, every value | one real finding, below |
+| **gating** — trade vs module vs person | every route's resolved middleware | 185/209 gated; the other 24 role-gated or self-service. Covered again by the security pass |
+
+### 13. ✅ FIXED — the panel's `PaymentMethod` omitted two real tenders
+
+`deposit` and `trade_in` were missing from `src/modules/sales/types.ts` while
+both are reachable on the server: an advance settling a layaway, and an
+allowance covering a whole bill at a tyre shop.
+
+**Nothing broke**, and the reason is worth keeping: the two screens that render
+a method both degrade gracefully — `.replace("_", " ")` and a label lookup with
+a default. It was a TRAP rather than a bug. A union that omits a real value
+tells the next person writing an exhaustive `switch` that they have covered
+everything.
+
+Found by listing every backend enum and asking which values the panel never
+mentions anywhere. `trade_in` was the only one in the whole codebase.
+
+### Three leads that did NOT survive checking
+
+Written down because the next audit should not spend a second pass on them, and
+because two of the three were bad questions rather than bad code:
+
+| Lead | Why it is closed |
+|---|---|
+| `serial_number` never exercised | There is no such column. It is `serial` — my guess at the name was wrong, not the coverage |
+| `unit_factor` never exercised | `PackBreakingTest` proves the behaviour it drives in 25 assertions (a strip of 10 draws 10 base units, a box of 100 draws 100). Asking "is the column NAMED in a test" is the wrong question — a good test asserts the outcome |
+| 0 of 28 trade signature fields covered | A broken measuring stick: the script ran from the panel directory and read an empty test corpus. Same class as the route-middleware miscount above |
+
+**The denominator rule earned its keep three times in one session** — twice on
+route middleware and once here. A result that says "nothing is covered" or
+"nothing is authenticated" is a broken instrument, not a finding.
+
+### What is genuinely left
+
+The eight TRADE areas (`food`, `pharmacy`, `retail`, `automotive`, `petroleum`,
+`finance`, plus `mart` and `services` already done) are judgment, not
+measurement: *does a real shop of this type have what it needs?* No script
+answers that. The two findings already on this list — the automotive job card
+(#5) and `food`'s `inventory: false` default (#6) — came from exactly that kind
+of reading, and they are the shape of what remains.
+
 ---
 
 ## CLOSED — verified false or already fixed. Do not re-raise.
