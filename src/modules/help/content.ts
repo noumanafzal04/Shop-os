@@ -1284,6 +1284,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "note",
         text: "Locked out entirely, with no access to the phone or email on the account? Ask us — an administrator can set a new password for the shop owner, which signs out every device on that account.",
       },
+
+      { type: "h", text: "Wrong passwords, and what they can and cannot do" },
+      { type: "p", text: "Five wrong passwords in a row on an account and further WRONG passwords stop being accepted for fifteen minutes. Your own correct password always works — nobody can shut you out of your own till by typing rubbish at the login screen." },
+      { type: "note", text: "A one-time code works too, for the same reason: proving you own the phone or email is proof enough. That is the door to use if you have genuinely forgotten the password." },
+
+      { type: "h", text: "Who can reset somebody else's password" },
+      { type: "p", text: "You can, for anyone on your team — you are the owner. A staff member who is allowed to manage staff can only reset the password of someone who can do LESS than they can." },
+      { type: "warn", text: "That limit is deliberate and worth knowing before you tick 'Manage staff' for a manager. Setting someone's password means being able to sign in as them, so without it a manager could quietly reach anything you had decided not to give them. The same applies to changing a colleague's email or phone, because a one-time code goes to whichever one is on the account." },
     ],
   },
 ];

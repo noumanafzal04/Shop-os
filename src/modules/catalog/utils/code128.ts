@@ -60,6 +60,34 @@ function encode(value: string): string {
   return symbols.map((s) => PATTERNS[s]).join("");
 }
 
+/**
+ * The one place a barcode's own characters reach the markup.
+ *
+ * Everywhere else in this file the input is gone by the time anything is
+ * built: `encode` turns it into a run of 1s and 0s and only computed integers
+ * become `<rect>`. The human-readable line under the bars is the exception —
+ * it prints the string itself.
+ *
+ * Code 128-B covers every printable ASCII character, `<` and `>` and `"`
+ * included, so a barcode reading `</text><script>...` survives encoding intact.
+ * These SVG strings are rendered through `dangerouslySetInnerHTML`, which is
+ * the whole reason this matters: a barcode typed into a product form, or landed
+ * by a supplier's CSV import, would otherwise be script running inside the
+ * shop's own session on every label sheet somebody printed.
+ *
+ * Not reachable today — `code128Svg` has no caller — and that is exactly the
+ * argument for escaping it now rather than the day it gets one.
+ */
+function escapeXml(value: string): string {
+  return value.replace(/[<>&"']/g, (c) => ({
+    "<": "&lt;",
+    ">": "&gt;",
+    "&": "&amp;",
+    '"': "&quot;",
+    "'": "&apos;",
+  })[c] ?? c);
+}
+
 export interface BarcodeOptions {
   height?: number;      // bar height in px
   moduleWidth?: number; // px per module
@@ -136,7 +164,7 @@ export function code128Svg(value: string, opts: BarcodeOptions = {}): string {
   }
 
   const text = showText
-    ? `<text x="${(width / 2).toFixed(2)}" y="${height + 11}" text-anchor="middle" font-family="monospace" font-size="11" fill="#000">${value}</text>`
+    ? `<text x="${(width / 2).toFixed(2)}" y="${height + 11}" text-anchor="middle" font-family="monospace" font-size="11" fill="#000">${escapeXml(value)}</text>`
     : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width.toFixed(0)}" height="${height + textH}" viewBox="0 0 ${width.toFixed(2)} ${height + textH}"><rect width="100%" height="100%" fill="#fff"/>${rects}${text}</svg>`;
