@@ -113,7 +113,18 @@ class StoreSaleRequest extends FormRequest
             // The vehicle this work was done on, and the reading at the time.
             // A tyre shop's real customer key: what a warranty claim hangs off
             // and what a service reminder is counted from.
-            'vehicle_id' => ['nullable', 'uuid', Rule::exists('customer_vehicles', 'id')],
+            // Scoped to THIS shop, like `product_id` above and for the same
+            // reason. Unscoped it was not an exposure — every read of a
+            // vehicle's history goes through the tenant scope, so another
+            // shop's car could never show anyone else's work — but it let a
+            // sale store a pointer that resolves to nothing for ever, and a
+            // record that renders as a blank where a car should be is a bug
+            // somebody debugs a year later.
+            'vehicle_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists('customer_vehicles', 'id')->where('tenant_id', $tenantId),
+            ],
             'odometer' => ['nullable', 'integer', 'min:0', 'max:9999999'],
 
             // A tip rides on top of the bill: it raises what must be paid and

@@ -91,22 +91,131 @@ class AuthTest extends TestCase
         ])->assertStatus(401)->assertJsonPath('meta.error_code', 'INVALID_CREDENTIALS');
     }
 
-    public function test_account_locks_after_repeated_failures(): void
+    // ── The failed-attempt lock ─────────────────────────────────────
+    //
+    // It stops GUESSING, and that is the whole of its job. It used to be
+    // checked before the password was, which put it in reach of anyone who knew
+    // a shopkeeper's email address: five wrong guesses and the shop was off its
+    // own till for fifteen minutes — one-time codes included, because the guard
+    // was shared — from anywhere, as often as somebody cared to. A locked
+    // counter at Friday rush hour is the entire loss.
+
+    private function wrongPasswordTimes(int $n, string $email = 'owner@test.com'): void
     {
-        $user = User::factory()->create(['email' => 'owner@test.com']);
-
-        for ($i = 0; $i < 5; $i++) {
-            $this->postJson('/api/v1/auth/login', [
-                'identifier' => 'owner@test.com',
-                'password' => 'wrong',
-            ]);
+        for ($i = 0; $i < $n; $i++) {
+            $this->postJson('/api/v1/auth/login', ['identifier' => $email, 'password' => 'wrong']);
         }
+    }
 
-        // Even the CORRECT password is rejected while locked.
+    public function test_repeated_wrong_passwords_lock_the_account(): void
+    {
+        User::factory()->create(['email' => 'owner@test.com']);
+
+        $this->wrongPasswordTimes(5);
+
+        $this->assertTrue(User::query()->where('email', 'owner@test.com')->first()->isLocked());
+    }
+
+    public function test_a_locked_account_still_refuses_the_next_wrong_password(): void
+    {
+        // The protection itself. Without this the lock is decoration.
+        User::factory()->create(['email' => 'owner@test.com']);
+        $this->wrongPasswordTimes(5);
+
+        $this->postJson('/api/v1/auth/login', [
+            'identifier' => 'owner@test.com',
+            'password' => 'still-wrong',
+        ])->assertStatus(401)->assertJsonPath('meta.error_code', 'INVALID_CREDENTIALS');
+    }
+
+    public function test_a_stranger_cannot_lock_a_shop_out_of_its_own_till(): void
+    {
+        // The one that matters. Five wrong guesses from anybody, and then the
+        // owner types their real password — and gets in. A lock cannot stop
+        // somebody who already has the password, so refusing them only ever
+        // cost the person the lock was meant to protect.
+        User::factory()->create(['email' => 'owner@test.com']);
+
+        $this->wrongPasswordTimes(5);
+
         $this->postJson('/api/v1/auth/login', [
             'identifier' => 'owner@test.com',
             'password' => 'password',
-        ])->assertStatus(429)->assertJsonPath('meta.error_code', 'ACCOUNT_LOCKED');
+        ])->assertOk()->assertJsonPath('data.user.email', 'owner@test.com');
+    }
+
+    public function test_a_one_time_code_also_still_works_after_somebody_else_burned_the_attempts(): void
+    {
+        // The lock used to live in the guard BOTH login paths share, so five
+        // wrong passwords closed the passwordless door as well — and that door
+        // is the one a shopkeeper who has forgotten their password walks
+        // through. Proving the channel is proving the credential.
+        $user = User::factory()->create(['email' => 'owner@test.com']);
+        $this->wrongPasswordTimes(5);
+        $this->assertTrue($user->fresh()->isLocked());
+
+        $otp = app(OtpService::class)->request('owner@test.com', OtpPurpose::Login);
+
+        $this->postJson('/api/v1/auth/otp/login', [
+            'identifier' => 'owner@test.com',
+            'code' => $otp->getAttribute('debug_code'),
+        ])->assertOk()->assertJsonPath('data.user.email', 'owner@test.com');
+    }
+
+    public function test_getting_in_clears_the_lock_rather_than_leaving_it_to_expire(): void
+    {
+        User::factory()->create(['email' => 'owner@test.com']);
+        $this->wrongPasswordTimes(5);
+
+        $this->postJson('/api/v1/auth/login', [
+            'identifier' => 'owner@test.com',
+            'password' => 'password',
+        ])->assertOk();
+
+        $fresh = User::query()->where('email', 'owner@test.com')->first();
+        $this->assertFalse($fresh->isLocked());
+        $this->assertSame(0, (int) $fresh->failed_login_attempts);
+    }
+
+    public function test_a_locked_account_does_not_announce_that_it_exists(): void
+    {
+        // A distinct "locked" answer is a free oracle: try five passwords
+        // against an address and watch whether the reply changes. A real
+        // account would say ACCOUNT_LOCKED and an imaginary one would not, so
+        // anybody could sort a stolen mailing list into customers and strangers
+        // without ever guessing a password.
+        User::factory()->create(['email' => 'owner@test.com']);
+        $this->wrongPasswordTimes(5);
+
+        $real = $this->postJson('/api/v1/auth/login', [
+            'identifier' => 'owner@test.com', 'password' => 'wrong',
+        ])->json();
+
+        $imaginary = $this->postJson('/api/v1/auth/login', [
+            'identifier' => 'nobody@test.com', 'password' => 'wrong',
+        ])->json();
+
+        $this->assertSame($imaginary['message'], $real['message']);
+        $this->assertSame($imaginary['meta']['error_code'], $real['meta']['error_code']);
+    }
+
+    public function test_knocking_again_while_locked_does_not_extend_the_lock(): void
+    {
+        // Otherwise the window is not a ceiling on guesses, it is a punishment
+        // that compounds — and anybody could hold a shop out indefinitely by
+        // knocking once a minute for as long as they liked.
+        User::factory()->create(['email' => 'owner@test.com']);
+        $this->wrongPasswordTimes(5);
+
+        $lockedAt = User::query()->where('email', 'owner@test.com')->first()->locked_until;
+
+        $this->travel(2)->minutes();
+        $this->wrongPasswordTimes(3);
+
+        $this->assertEquals(
+            $lockedAt->timestamp,
+            User::query()->where('email', 'owner@test.com')->first()->locked_until->timestamp,
+        );
     }
 
     public function test_suspended_user_cannot_login(): void

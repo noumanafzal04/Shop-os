@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\CashSession;
+use App\Models\CustomerVehicle;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
@@ -386,5 +387,62 @@ class EveryTradeSellsTest extends TestCase
 
         $this->assertNotEmpty($reasons);
         $this->assertStringContainsString('shared', strtolower($reasons[0]));
+    }
+
+    // ── Foreign keys named by the client ────────────────────────────
+    //
+    // A sale payload carries ids: which product, which customer, which car.
+    // Every one is a chance to name a row belonging to somebody else, and the
+    // rule set is the only place that says no — the write path takes what it is
+    // given.
+
+    public function test_a_workshop_cannot_hang_a_sale_on_another_shops_car(): void
+    {
+        // Not an exposure: every read of a vehicle's history runs through the
+        // tenant scope, so this car could never show anyone else's work. What
+        // it WAS is a sale storing a pointer that resolves to nothing for ever
+        // — a blank where a car should be, debugged by somebody a year later.
+        [$tenant, $owner] = $this->shop('automotive');
+        $product = $this->product($tenant, 'physical_product', 9800.0);
+
+        [$otherShop] = $this->shop('automotive');
+        $theirCar = CustomerVehicle::withoutTenancy()->create([
+            'tenant_id' => $otherShop->id,
+            'registration' => 'LEA-1234',
+            'make' => 'Toyota',
+        ]);
+
+        $this->actingAsUser($owner)->postJson('/api/v1/sales', [
+            'channel' => 'pos',
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'payment_method' => 'cash',
+            'amount_paid' => 9800,
+            'vehicle_id' => $theirCar->id,
+        ])->assertStatus(422)->assertJsonValidationErrors('vehicle_id');
+    }
+
+    public function test_a_workshop_can_still_hang_a_sale_on_its_ow_n_car(): void
+    {
+        // The half that keeps the rule honest. A scope that refuses everything
+        // passes the test above and breaks every tyre shop in the country.
+        [$tenant, $owner] = $this->shop('automotive');
+        $product = $this->product($tenant, 'physical_product', 9800.0);
+
+        $car = CustomerVehicle::withoutTenancy()->create([
+            'tenant_id' => $tenant->id,
+            'registration' => 'LEB-5678',
+            'make' => 'Suzuki',
+        ]);
+
+        $sale = $this->actingAsUser($owner)->postJson('/api/v1/sales', [
+            'channel' => 'pos',
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'payment_method' => 'cash',
+            'amount_paid' => 9800,
+            'vehicle_id' => $car->id,
+            'odometer' => 84000,
+        ])->assertCreated()->json('data');
+
+        $this->assertSame($car->id, $sale['vehicle_id']);
     }
 }

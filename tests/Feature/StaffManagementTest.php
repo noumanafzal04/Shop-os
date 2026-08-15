@@ -267,4 +267,115 @@ class StaffManagementTest extends TestCase
 
         return parent::withToken($token, $type);
     }
+
+    // ── Taking over an account is an escalation too ─────────────────
+    //
+    // The permission guard was complete about permissions and blind about
+    // identity. A manager who could not TICK a box could set the password of
+    // somebody who already had it ticked, sign in as them, and be done. Email
+    // and phone are the same door — login is by either, so moving a colleague's
+    // address to one you control hands you their next one-time code.
+
+    /** @return array{0: Tenant, 1: User, 2: User} shop, manager, the better-privileged colleague */
+    private function shopWithAManagerAndACashier(): array
+    {
+        $tenant = Tenant::factory()->create();
+
+        $manager = User::factory()->tenantStaff($tenant, [
+            Permissions::STAFF_MANAGE, Permissions::SALES_MANAGE,
+        ])->create();
+
+        // Holds something the manager deliberately does not.
+        $cashier = User::factory()->tenantStaff($tenant, [
+            Permissions::SALES_MANAGE, Permissions::REPORTS_VIEW,
+        ])->create();
+
+        return [$tenant, $manager, $cashier];
+    }
+
+    public function test_a_manager_cannot_set_the_password_of_someone_who_can_do_more_than_they_can(): void
+    {
+        [, $manager, $cashier] = $this->shopWithAManagerAndACashier();
+
+        $this->actingAsUser($manager)->putJson("/api/v1/staff/{$cashier->id}", [
+            'password' => 'iknowthisone',
+        ])->assertStatus(403)->assertJsonPath('meta.error_code', 'PERMISSION_ESCALATION');
+    }
+
+    public function test_a_manager_cannot_move_that_persons_email_to_one_they_control(): void
+    {
+        // The quieter half. No password is changed and nothing looks unusual —
+        // the next one-time code simply arrives somewhere else.
+        [, $manager, $cashier] = $this->shopWithAManagerAndACashier();
+
+        $this->actingAsUser($manager)->putJson("/api/v1/staff/{$cashier->id}", [
+            'email' => 'manager-controls-this@test.com',
+        ])->assertStatus(403)->assertJsonPath('meta.error_code', 'PERMISSION_ESCALATION');
+    }
+
+    public function test_a_manager_cannot_move_that_persons_phone_either(): void
+    {
+        [, $manager, $cashier] = $this->shopWithAManagerAndACashier();
+
+        $this->actingAsUser($manager)->putJson("/api/v1/staff/{$cashier->id}", [
+            'phone' => '03001234567',
+        ])->assertStatus(403)->assertJsonPath('meta.error_code', 'PERMISSION_ESCALATION');
+    }
+
+    public function test_a_manager_may_still_reset_the_password_of_somebody_who_can_do_less(): void
+    {
+        // The half that keeps this usable. A guard that refuses every reset
+        // makes the manager useless and gets switched off — and resetting the
+        // password of someone whose permissions you already hold gains nothing
+        // you did not have.
+        $tenant = Tenant::factory()->create();
+        $manager = User::factory()->tenantStaff($tenant, [
+            Permissions::STAFF_MANAGE, Permissions::SALES_MANAGE,
+        ])->create();
+        $junior = User::factory()->tenantStaff($tenant, [Permissions::SALES_MANAGE])->create();
+
+        $this->actingAsUser($manager)->putJson("/api/v1/staff/{$junior->id}", [
+            'password' => 'newpassword1',
+        ])->assertOk();
+    }
+
+    public function test_a_manager_may_still_fix_their_ow_n_details(): void
+    {
+        // Changing your own password is not taking anybody over.
+        $tenant = Tenant::factory()->create();
+        $manager = User::factory()->tenantStaff($tenant, [
+            Permissions::STAFF_MANAGE, Permissions::SALES_MANAGE,
+        ])->create();
+
+        $this->actingAsUser($manager)->putJson("/api/v1/staff/{$manager->id}", [
+            'password' => 'mynewpassword',
+        ])->assertOk();
+    }
+
+    public function test_the_owner_may_reset_anybodys_password(): void
+    {
+        // The owner holds every permission implicitly, so there is nothing for
+        // them to acquire — and being locked out of their own shop's accounts
+        // would be the guard causing the outage it exists to prevent.
+        $tenant = Tenant::factory()->create();
+        $owner = User::factory()->shopOwner($tenant)->create();
+        $cashier = User::factory()->tenantStaff($tenant, [
+            Permissions::SALES_MANAGE, Permissions::REPORTS_VIEW,
+        ])->create();
+
+        $this->actingAsUser($owner)->putJson("/api/v1/staff/{$cashier->id}", [
+            'password' => 'ownerknowsbest',
+        ])->assertOk();
+    }
+
+    public function test_a_change_that_touches_no_credential_is_left_alone(): void
+    {
+        // Renaming somebody is not taking them over, and a guard that fires on
+        // every edit is a guard nobody keeps.
+        [, $manager, $cashier] = $this->shopWithAManagerAndACashier();
+
+        $this->actingAsUser($manager)->putJson("/api/v1/staff/{$cashier->id}", [
+            'name' => 'Corrected Spelling',
+        ])->assertOk();
+    }
 }
