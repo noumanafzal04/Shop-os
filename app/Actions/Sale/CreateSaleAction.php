@@ -96,6 +96,31 @@ class CreateSaleAction
                 // money is the one caller granted authority over it.
                 $trustedOffline = (bool) ($data['trusted_offline'] ?? false);
 
+                // ── Where a synced sale belongs ─────────────────────────
+                //
+                // A tablet is a thing that can be carried. Registered on Lane 1
+                // at Gulberg, it can be walked to Saddar in somebody's bag, and
+                // the moment it reconnects there the branch header says Saddar
+                // — so a week of Gulberg's unsent sales would file against
+                // Saddar's books and come off Saddar's shelf, twice wrong in
+                // one step and invisible in both places.
+                //
+                // The device row is written by the server at registration and
+                // cannot be changed by moving the hardware, so on this path it
+                // outranks the header. Resolved HERE, beside the header it
+                // replaces, and not later beside the sale row: branch-specific
+                // prices are read from `$branchId` further down, and a sale
+                // priced at one branch's list and filed against another's books
+                // is a harder error to find than the one this prevents.
+                //
+                // A FALLBACK, not a requirement: a shop with one branch
+                // registers devices before there is a lane to assign them to,
+                // and refusing those sales would be refusing over a field that
+                // is protecting nothing.
+                if ($trustedOffline && ! empty($data['offline_branch_id'])) {
+                    $branchId = $data['offline_branch_id'];
+                }
+
                 // The goods already left the shelf, so this sale must not take them
                 // again. Exactly one caller sets it: converting a LAYAWAY, whose
                 // stock moved out the day the advance was taken (reference_type
@@ -786,6 +811,18 @@ class CreateSaleAction
                     // The moment of the sale, never the moment of the sync.
                     // Resolved above, where the reason it matters is written.
                     'sold_at' => $soldAt,
+                    // WHO rang it. `HasAuditFields` fills this from the
+                    // authenticated user, which online is the same person and
+                    // on the sync path is whoever happened to reconnect — one
+                    // cashier's whole day landing in another's staff report.
+                    // Gated behind `trusted_offline` because from HTTP it would
+                    // be a switch for filing your sales under somebody else.
+                    'created_by' => $trustedOffline ? ($data['created_by'] ?? null) : null,
+                    // What the tablet's own clock said, and by how much it was
+                    // out. Never a figure — the evidence that a clock needs
+                    // setting, which nobody gets if the fix is silent.
+                    'client_sold_at' => $trustedOffline ? ($data['client_sold_at'] ?? null) : null,
+                    'clock_skew_seconds' => $trustedOffline ? ($data['clock_skew_seconds'] ?? null) : null,
                     'offline_number' => $trustedOffline ? ($data['offline_number'] ?? null) : null,
                     'pos_device_id' => $trustedOffline ? ($data['pos_device_id'] ?? null) : null,
                     'synced_at' => $trustedOffline && ! empty($data['sold_at']) ? now() : null,

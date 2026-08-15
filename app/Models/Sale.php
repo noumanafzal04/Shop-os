@@ -72,6 +72,11 @@ class Sale extends BaseModel
             'synced_at' => 'datetime',
             'beyond_offline_window' => 'boolean',
             'after_day_close' => 'boolean',
+            // What the tablet's own clock said, before it was corrected, and
+            // how far out that was. Kept so a shop can be TOLD its clock is
+            // wrong — see the migration.
+            'client_sold_at' => 'datetime',
+            'clock_skew_seconds' => 'integer',
             // What offline was not allowed to do, that this sale did anyway.
             // Recorded, never corrected — see the migration.
             'offline_violations' => 'array',

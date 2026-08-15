@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\BusinessDay;
 use App\Models\CashSession;
 use App\Models\Customer;
+use App\Models\PosDevice;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\Tenant;
@@ -735,5 +736,251 @@ class PosSyncTest extends TestCase
         $this->sync([$this->operation(sale: [
             'items' => [['product_id' => $theirs->id, 'quantity' => 1]],
         ])])->assertStatus(422);
+    }
+
+    // ── A till whose clock is wrong (P4-4) ──────────────────────────
+    //
+    // `sold_at` is not a display field. It decides the trading day, the shift,
+    // whose figures the sale lands in, and whether the day it belongs to had
+    // already been counted and banked. It arrives from a tablet, and a tablet
+    // that has been flat for a week comes back believing it is the day it
+    // shipped. Two layers answer that: the till corrects itself against
+    // `server_time`, and the server refuses to file anything OUTSIDE what is
+    // possible — never in the future, never before the till's last contact.
+
+    public function test_a_clock_running_days_slo_w_cannot_file_a_sale_before_the_till_was_last_in_touch(): void
+    {
+        // The till was with us an hour ago. It now claims this sale happened
+        // three days ago, which cannot be true — three days ago it was online,
+        // and an online sale never comes through here at all.
+        $contact = now()->subHour();
+
+        $result = $this->sync([$this->operation([
+            'at' => now()->subDays(3)->toIso8601String(),
+            'offline_since' => $contact->toIso8601String(),
+        ])])->assertOk()->json('data.results.0');
+
+        $sale = Sale::withoutTenancy()->find($result['sale_id']);
+        $this->assertSame($contact->toDateString(), $sale->sold_at->toDateString());
+        $this->assertTrue($sale->sold_at->greaterThanOrEqualTo($contact->startOfSecond()));
+    }
+
+    public function test_a_clock_running_fas_t_cannot_file_a_sale_into_a_day_nobody_has_traded_yet(): void
+    {
+        // The other direction, and it needs no help from the till at all: the
+        // server's own clock says tomorrow has not happened. A sale filed
+        // forward sits ahead of the books until that day arrives, and lands in
+        // a business day that will be opened and closed around it.
+        $result = $this->sync([$this->operation([
+            'at' => now()->addDays(2)->toIso8601String(),
+        ])])->assertOk()->json('data.results.0');
+
+        $sale = Sale::withoutTenancy()->find($result['sale_id']);
+        $this->assertSame(now()->toDateString(), $sale->sold_at->toDateString());
+    }
+
+    public function test_a_genuinely_old_sale_is_left_exactly_where_it_says_it_happened(): void
+    {
+        // The bound must not become a rewrite. A till away for forty days rang
+        // real sales on every one of them, and each belongs to its own day —
+        // this is the case that makes the correction safe to have at all.
+        $rang = now()->subDays(40)->startOfHour();
+
+        $result = $this->sync([$this->operation([
+            'at' => $rang->toIso8601String(),
+            'offline_since' => now()->subDays(41)->toIso8601String(),
+        ])])->assertOk()->json('data.results.0');
+
+        $sale = Sale::withoutTenancy()->find($result['sale_id']);
+        $this->assertSame($rang->toDateString(), $sale->sold_at->toDateString());
+        $this->assertSame(0, $sale->clock_skew_seconds);
+    }
+
+    public function test_a_till_with_no_record_of_its_last_contact_still_syncs(): void
+    {
+        // A fresh device, a cleared browser, a build too old to send it. There
+        // is no floor to measure against, and refusing over a missing field
+        // would throw away a sale that already happened.
+        $rang = now()->subDays(2)->startOfHour();
+
+        $result = $this->sync([$this->operation([
+            'at' => $rang->toIso8601String(),
+            'offline_since' => null,
+        ])])->assertOk()->json('data.results.0');
+
+        $this->assertSame('applied', $result['status']);
+        $this->assertSame(
+            $rang->toDateString(),
+            Sale::withoutTenancy()->find($result['sale_id'])->sold_at->toDateString(),
+        );
+    }
+
+    public function test_the_tablets_own_wrong_reading_is_kep_t_so_somebody_fixes_the_clock(): void
+    {
+        // A correction nobody can see is a tablet that goes on being three days
+        // out every morning for ever. This is the only way the shop ever finds
+        // out there is a clock to set.
+        $wrong = now()->subDays(3);
+
+        $result = $this->sync([$this->operation([
+            'at' => now()->subMinutes(5)->toIso8601String(),
+            'client_at' => $wrong->toIso8601String(),
+            'offline_since' => now()->subHour()->toIso8601String(),
+        ])])->assertOk()->json('data.results.0');
+
+        $sale = Sale::withoutTenancy()->find($result['sale_id']);
+        $this->assertSame($wrong->toDateString(), $sale->client_sold_at->toDateString());
+        // Positive means the till was BEHIND. Three days, near enough.
+        $this->assertEqualsWithDelta(3 * 86400, $sale->clock_skew_seconds, 600);
+    }
+
+    public function test_a_sale_rung_with_a_server_in_front_of_it_carries_no_clock_story_at_all(): void
+    {
+        // The online path shares this action. A `client_sold_at` on a sale that
+        // was never offline would put every ordinary sale in the wrong-clock
+        // report, which is how a report stops being read.
+        $this->actingAsUser($this->cashier)->postJson('/api/v1/sales', [
+            'channel' => 'pos',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+            'payment_method' => 'cash',
+            'amount_paid' => 200,
+        ])->assertCreated();
+
+        $sale = Sale::withoutTenancy()->whereNull('offline_number')->latest('created_at')->first();
+        $this->assertNull($sale->client_sold_at);
+        $this->assertNull($sale->clock_skew_seconds);
+    }
+
+    // ── Whose sale it was (P4-6) ────────────────────────────────────
+
+    public function test_a_synced_sale_is_credited_to_the_cashier_who_ran_g_it(): void
+    {
+        // The queue is flushed by whoever reconnects — the evening cashier, a
+        // manager, an owner opening up after a week. Without the till naming
+        // the person who was standing at it, one cashier's entire outage lands
+        // in another's staff report.
+        $morning = User::factory()->tenantStaff($this->tenant, ['sales.manage'])->create();
+
+        $result = $this->sync([$this->operation(['rung_by' => $morning->id])])
+            ->assertOk()->json('data.results.0');
+
+        $this->assertSame($morning->id, Sale::withoutTenancy()->find($result['sale_id'])->created_by);
+    }
+
+    public function test_a_sale_that_names_nobody_is_credited_to_whoever_sent_it(): void
+    {
+        // A row written by a build older than the field. Somebody is better
+        // than nobody: an unattributed sale is invisible in every staff report.
+        $result = $this->sync([$this->operation()])->assertOk()->json('data.results.0');
+
+        $this->assertSame($this->cashier->id, Sale::withoutTenancy()->find($result['sale_id'])->created_by);
+    }
+
+    public function test_a_till_cannot_credit_a_sale_to_someone_from_another_shop(): void
+    {
+        // The one thing that makes accepting a client-named user safe at all.
+        $stranger = User::factory()->create();
+
+        $result = $this->sync([$this->operation(['rung_by' => $stranger->id])])
+            ->assertOk()->json('data.results.0');
+
+        $this->assertSame($this->cashier->id, Sale::withoutTenancy()->find($result['sale_id'])->created_by);
+    }
+
+    public function test_a_till_cannot_credit_a_sale_to_someone_who_has_been_switched_off(): void
+    {
+        // A cashier who left. Their figures are closed, and reopening them from
+        // a queue somebody kept is exactly the kind of quiet edit a shop cannot
+        // see happening.
+        $gone = User::factory()->tenantStaff($this->tenant, ['sales.manage'])->create();
+        $gone->forceFill(['status' => 'suspended'])->save();
+
+        $result = $this->sync([$this->operation(['rung_by' => $gone->id])])
+            ->assertOk()->json('data.results.0');
+
+        $this->assertSame($this->cashier->id, Sale::withoutTenancy()->find($result['sale_id'])->created_by);
+    }
+
+    // ── A tablet that was carried somewhere else (P5-5) ─────────────
+
+    public function test_a_till_carried_to_another_branch_still_files_its_queue_at_home(): void
+    {
+        // The tablet was registered on Gulberg and walked to Saddar in a bag.
+        // The moment it reconnects there the branch header says Saddar — and a
+        // week of Gulberg's unsent sales would land in Saddar's books and come
+        // off Saddar's shelf. Twice wrong in one step, and invisible in both.
+        $home = Branch::query()->create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Gulberg', 'is_active' => true,
+        ]);
+        $away = Branch::query()->create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Saddar', 'is_active' => true,
+        ]);
+
+        $device = PosDevice::query()->create([
+            'id' => (string) Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $home->id,
+            'name' => 'Counter tablet',
+            'last_seen_at' => now(),
+        ]);
+
+        $result = $this->actingAsUser($this->cashier)
+            ->withHeader('X-Branch-Id', $away->id)
+            ->postJson('/api/v1/pos/sync', [
+                'device_id' => $device->id,
+                'operations' => [$this->operation()],
+            ])->assertOk()->json('data.results.0');
+
+        $this->assertSame($home->id, Sale::withoutTenancy()->find($result['sale_id'])->branch_id);
+    }
+
+    public function test_a_till_with_no_branch_of_its_own_uses_the_one_it_is_signed_in_at(): void
+    {
+        // A shop with one counter registers devices before there is a lane to
+        // assign them to. Refusing those sales would be refusing over a field
+        // that is protecting nothing.
+        $device = PosDevice::query()->create([
+            'id' => (string) Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => null,
+            'name' => 'The only tablet',
+            'last_seen_at' => now(),
+        ]);
+
+        $result = $this->sync([$this->operation()], $device->id)->assertOk()->json('data.results.0');
+
+        $this->assertSame('applied', $result['status']);
+        $this->assertNotNull(Sale::withoutTenancy()->find($result['sale_id'])->branch_id);
+    }
+
+    public function test_the_staff_report_shows_a_synced_sale_against_the_person_who_rang_it(): void
+    {
+        // The end-to-end of the rule above, and the only version of it that
+        // proves anything a shop can see. A `created_by` written correctly and
+        // then read by a report that filters on the wrong date, or excludes
+        // offline sales, is still a cashier whose day disappeared.
+        $morning = User::factory()->tenantStaff($this->tenant, ['sales.manage'])->create();
+        $rang = now()->subDays(2)->setTime(11, 0);
+
+        $this->sync([$this->operation([
+            'at' => $rang->toIso8601String(),
+            'rung_by' => $morning->id,
+            'offline_since' => now()->subDays(3)->toIso8601String(),
+        ])])->assertOk();
+
+        $owner = User::factory()->shopOwner($this->tenant)->create();
+        $report = $this->actingAsUser($owner)
+            ->getJson('/api/v1/reports/staff?from='.now()->subDays(7)->toDateString().'&to='.now()->toDateString())
+            ->assertOk()->json('data.staff');
+
+        $row = collect($report)->firstWhere('staff_id', $morning->id);
+        $this->assertNotNull($row, 'A cashier who rang sales must appear in the staff report at all.');
+        $this->assertSame(1, $row['sales_count']);
+        $this->assertEqualsWithDelta(200.0, $row['revenue'], 0.001);
+
+        $this->assertNull(
+            collect($report)->firstWhere('staff_id', $this->cashier->id),
+            'The person who merely flushed the queue must not be credited with the sale.',
+        );
     }
 }

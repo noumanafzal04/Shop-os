@@ -126,6 +126,14 @@ class PosCatalogController extends Controller
             // Never a reason to reject a queued sale. Turning this off stops
             // NEW offline sales; anything already rung syncs exactly as before.
             'offline_selling' => $tenant !== null && PlanLimits::limit($tenant, 'offline_selling') === 1,
+            // The depth at which this shop would rather turn a customer away
+            // than sell from a catalog nobody has updated in a week. Null for
+            // almost everybody — a ceiling is opt-in, because in most of
+            // Pakistan a fourth day without internet is not worse than a
+            // closed counter. See `PlanLimits`.
+            'offline_hard_stop_days' => $tenant === null
+                ? null
+                : PlanLimits::limit($tenant, 'offline_hard_stop_days'),
 
             // The till's own clock cannot be trusted — a tablet three days slow
             // would file its sales into the wrong trading day. This is what it

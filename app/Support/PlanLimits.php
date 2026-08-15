@@ -113,6 +113,36 @@ class PlanLimits
         // does, after shadow mode has actually proved the pricing mirror on
         // that shop's own carts.
         'offline_selling' => ['owner' => 'tenant', 'default' => 0, 'label' => 'offline selling (0 = off, 1 = on)', 'enforced' => false, 'kind' => 'policy'],
+        // The point past which a till stops trading blind altogether.
+        //
+        // `offline_days` MARKS; this REFUSES, and the two are deliberately
+        // different tools. A shop that trades through a week-long outage and
+        // flags every sale still has a week of prices, stock and promotions
+        // decided by a catalog nobody has updated — at some depth the flag
+        // stops being information and the shop is simply guessing.
+        //
+        // OPT-IN, and 0 means NEVER STOP. Nothing changes for anybody until an
+        // owner asks for a ceiling: a non-zero default here would be this file
+        // deciding, on behalf of a shop it knows nothing about, that a fourth
+        // day without internet is worse than turning customers away — and in
+        // most of Pakistan it is not. The shops that want it are the ones with
+        // something to lose.
+        //
+        // 0 rather than null because a TENANT-OWNED limit is never unlimited —
+        // an unset one falls to the platform default, which is the rule the
+        // whole usage screen is built on (see the note at the top of this
+        // file). `offline_selling` spends 0 the same way, for the same reason.
+        //
+        // ── What "refused" is careful NOT to mean ──────────────────────
+        //
+        // Not the cart in the cashier's hand. The goods are on the counter and
+        // the customer is standing there; a stop that lands mid-transaction is
+        // the exact failure offline selling exists to prevent. The ceiling is
+        // judged when a cart is STARTED, so what is already open finishes.
+        //
+        // Not the queue, either. Sales already rung sync for ever, like every
+        // other offline rule here — see `offline_selling`.
+        'offline_hard_stop_days' => ['owner' => 'tenant', 'default' => 0, 'label' => 'hard stop after N days offline (0 = never)', 'enforced' => false, 'kind' => 'policy'],
     ];
 
     /** Is this a number of rows the shop owns, rather than a rule about behaviour? */

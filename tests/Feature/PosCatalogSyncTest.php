@@ -302,6 +302,53 @@ class PosCatalogSyncTest extends TestCase
         $this->assertFalse($this->bootstrap()['offline_selling']);
     }
 
+    // ── The shop's own ceiling on trading blind (P3-17) ─────────────
+    //
+    // `offline_days` MARKS a sale for the owner to look at afterwards. This
+    // REFUSES to start a new one, and the two are different tools for a reason:
+    // at some depth a flag stops being information and the shop is simply
+    // guessing at prices, stock and offers from a catalog nobody has updated.
+
+    public function test_a_shop_has_no_hard_stop_unless_it_asked_for_one(): void
+    {
+        // Zero — never stop. A ceiling nobody chose would close a counter over
+        // a decision this software made on the shop's behalf.
+        $this->assertSame(0, $this->bootstrap()['offline_hard_stop_days']);
+    }
+
+    public function test_a_hard_stop_reaches_the_till_that_has_to_enforce_it(): void
+    {
+        // It rides the catalog for the same reason the kill switch does: that
+        // is the one call a till makes while it still HAS a connection, which
+        // is the only moment the answer can change hands.
+        $this->tenant->update(['limits' => ['offline_hard_stop_days' => 5]]);
+
+        $this->assertSame(5, $this->bootstrap()['offline_hard_stop_days']);
+    }
+
+    public function test_lifting_a_hard_stop_reaches_the_till_too(): void
+    {
+        // A shop that turned one on during Ramadan and wants it gone in March.
+        // Half a switch is worse than none — the tills that took it would go on
+        // refusing sales against a rule nobody is enforcing any more.
+        $this->tenant->update(['limits' => ['offline_hard_stop_days' => 5]]);
+        $this->assertSame(5, $this->bootstrap()['offline_hard_stop_days']);
+
+        $this->tenant->update(['limits' => ['offline_hard_stop_days' => 0]]);
+
+        $this->assertSame(0, $this->bootstrap()['offline_hard_stop_days']);
+    }
+
+    public function test_the_shop_cannot_set_its_own_ceiling_from_its_settings(): void
+    {
+        // The same reason as the kill switch: settings are written through the
+        // shop's own form, and this is an owner-and-admin decision that sits
+        // beside branches and staff.
+        $this->tenant->update(['settings' => ['offline_hard_stop_days' => 2]]);
+
+        $this->assertSame(0, $this->bootstrap()['offline_hard_stop_days']);
+    }
+
     // ── What a till needs to price a promotion itself ───────────────
     //
     // The first real shadow run found nine carts where the server applied a

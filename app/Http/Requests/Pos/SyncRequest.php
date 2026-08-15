@@ -72,7 +72,17 @@ class SyncRequest extends FormRequest
             'operations.*.op' => ['required', 'uuid', 'distinct'],
             // When the money crossed the counter. Decides the trading day, the
             // shift and whose figures it lands in — never the sync's own clock.
+            // Already corrected by the till for its own measured drift; the
+            // server bounds it again on arrival. See `PosSyncController::when`.
             'operations.*.at' => ['required', 'date'],
+            // What the tablet's own clock said, uncorrected. Never used for a
+            // figure — it is how a shop finds out a till is three days behind
+            // instead of the software quietly papering over it every morning.
+            'operations.*.client_at' => ['nullable', 'date'],
+            // The cashier who rang it, which is not the login flushing the
+            // queue — see `PosSyncController::rungBy`. Checked to be a live
+            // user of this shop; anything else falls back to the sender.
+            'operations.*.rung_by' => ['nullable', 'uuid'],
             // What the customer's printed slip says. The server assigns the
             // real invoice number and keeps both, because that slip is the only
             // reference the customer has.

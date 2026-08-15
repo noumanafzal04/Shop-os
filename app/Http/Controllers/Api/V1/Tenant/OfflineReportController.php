@@ -50,6 +50,16 @@ class OfflineReportController extends Controller
     /** A morning's reading, not an audit trail. */
     private const RECENT = 100;
 
+    /**
+     * How far a till's clock may be out before it is worth naming.
+     *
+     * Two minutes, not two seconds. Every tablet drifts a little and a screen
+     * that reports each one is a screen nobody reads twice — while a clock two
+     * minutes out cannot move a sale across a trading day, a shift boundary or
+     * a day close, which are the only things `sold_at` decides.
+     */
+    private const DRIFT_SECONDS = 120;
+
     public function index(Request $request): JsonResponse
     {
         $from = $request->filled('from')
@@ -78,6 +88,14 @@ class OfflineReportController extends Controller
                 // only number an adjustment can be written from.
                 'after_close' => (clone $late)->where('after_day_close', true)->count(),
                 'after_close_total' => (float) (clone $late)->where('after_day_close', true)->sum('total'),
+                // Sales whose till had the wrong time. The moment was corrected
+                // before it was filed, so no figure here is wrong — but a
+                // correction nobody sees is a tablet that goes on being three
+                // days out every morning for ever.
+                'clock_off' => (clone $late)
+                    ->whereNotNull('clock_skew_seconds')
+                    ->whereRaw('abs(clock_skew_seconds) > ?', [self::DRIFT_SECONDS])
+                    ->count(),
                 // A shop trading through a cut wants to know how long the gap
                 // was, and the arrival times are the only record of it.
                 'oldest' => (clone $late)->min('sold_at'),
@@ -114,7 +132,46 @@ class OfflineReportController extends Controller
                 ])
                 ->values(),
             'oversold' => $this->oversold(),
+            'clocks' => $this->clocks($from),
         ]);
+    }
+
+    /**
+     * Tills whose clock is wrong — one row each, not one per sale.
+     *
+     * The list above answers "what came in late". This answers a different
+     * question with a different owner: which piece of hardware needs somebody
+     * to walk over and set its time. Rolled up per device because that is the
+     * unit of the fix — a tablet three days out produced forty sales and there
+     * is still only one thing to do about it.
+     *
+     * Signed, and the worst by absolute size wins: a till running BEHIND files
+     * sales into days that have been counted and banked, and one running AHEAD
+     * files them into a day nobody has traded yet. Both are the same defect and
+     * the shop needs to see which way round it is.
+     */
+    private function clocks(Carbon $from): array
+    {
+        return Sale::query()
+            ->whereNotNull('synced_at')
+            ->where('sold_at', '>=', $from)
+            ->whereNotNull('pos_device_id')
+            ->whereNotNull('clock_skew_seconds')
+            ->whereRaw('abs(clock_skew_seconds) > ?', [self::DRIFT_SECONDS])
+            ->with('device:id,name')
+            ->get(['id', 'pos_device_id', 'clock_skew_seconds'])
+            ->groupBy('pos_device_id')
+            ->map(fn ($sales): array => [
+                'till' => $sales->first()->device?->name,
+                'sales' => $sales->count(),
+                // Whole seconds, signed. Positive means the till was BEHIND.
+                'skew_seconds' => (int) $sales
+                    ->sortByDesc(fn (Sale $s): int => abs((int) $s->clock_skew_seconds))
+                    ->first()->clock_skew_seconds,
+            ])
+            ->sortByDesc(fn (array $row): int => abs($row['skew_seconds']))
+            ->values()
+            ->all();
     }
 
     /**

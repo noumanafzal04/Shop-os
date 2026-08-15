@@ -9,6 +9,7 @@ use App\Http\Requests\Pos\SyncRequest;
 use App\Models\CashSession;
 use App\Models\PosDevice;
 use App\Models\Sale;
+use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\OfflinePolicy;
 use App\Support\PlanLimits;
@@ -82,7 +83,7 @@ class PosSyncController extends Controller
     private function apply(array $operation, ?PosDevice $device, ?int $windowDays): array
     {
         $sale = $operation['sale'];
-        $soldAt = Carbon::parse($operation['at']);
+        [$soldAt, $clientSoldAt] = $this->when($operation);
 
         // Already here? Then this is a retry after a lost acknowledgement, and
         // the till gets the original back. Checked before anything else: a
@@ -106,8 +107,19 @@ class PosSyncController extends Controller
                 // trading day, the shift and whose figures this lands in. Never
                 // the moment it reached us.
                 'sold_at' => $soldAt,
+                // What the tablet itself believed, and by how much it was out.
+                // Never a figure — only the evidence that a clock needs setting.
+                'client_sold_at' => $clientSoldAt,
+                'clock_skew_seconds' => (int) round($clientSoldAt->diffInSeconds($soldAt, false)),
                 'offline_number' => $operation['offline_number'] ?? null,
                 'pos_device_id' => $device?->id,
+                // WHERE this till stands, from the device's own registration —
+                // never from the header this request happens to carry. See
+                // `CreateSaleAction`: a tablet carried to another branch must
+                // not carry its unsent sales, or its stock, with it.
+                'offline_branch_id' => $device?->branch_id,
+                // WHO rang it, which is not who is sending it. See `rungBy()`.
+                'created_by' => $this->rungBy($operation),
                 'beyond_offline_window' => $this->beyondWindow($soldAt, $operation, $windowDays),
                 'offline_violations' => $violations === [] ? null : $violations,
                 // Half of the practice test. The shift is the other half, and
@@ -143,6 +155,105 @@ class PosSyncController extends Controller
 
             return $this->failed($operation['op'], 'This sale could not be recorded. It is still safe on the till.', 'SYNC_FAILED', retryable: true);
         }
+    }
+
+    /**
+     * When this actually happened, and what the tablet thought.
+     *
+     * ── Why a tablet's clock cannot simply be believed ──────────────────
+     *
+     * `sold_at` is not a display field. It decides the trading day, the shift,
+     * the cashier's figures and whether the day it lands in had already been
+     * counted and banked. And it arrives from a device that may have been
+     * bought in a market, never set up, and left flat for a week — an Android
+     * that loses its battery comes back believing it is the day it shipped.
+     *
+     * The till corrects itself first: it measures its own drift against
+     * `server_time` on every catalog pull and stamps the corrected moment. This
+     * is the second line, for the cases that correction cannot reach — a till
+     * that has never pulled, a clock reset after the last pull, a build old
+     * enough to predate the correction entirely.
+     *
+     * ── The two things the server knows for certain ─────────────────────
+     *
+     * It cannot know when the sale happened. It CAN know two moments it cannot
+     * have happened outside of, and both come from numbers already on the wire:
+     *
+     *   • Not in the future. `now()` is the server's own clock and needs no
+     *     argument. A sale filed forward lands in a day nobody has traded yet
+     *     and would sit there, ahead of the books, until that day arrived.
+     *   • Not before the till last reached us. `offline_since` is that moment,
+     *     and every offline sale is by definition rung after it — while the
+     *     till was still in contact, the sale would have gone online.
+     *
+     * So the claim is moved the SMALLEST distance that makes it possible, and
+     * left exactly where it was when it already is. A genuinely old sale — the
+     * forty-day outbox of P3-18 — sits inside those bounds and is not touched.
+     *
+     * @return array{0: Carbon, 1: Carbon} the corrected moment, and the raw one
+     */
+    private function when(array $operation): array
+    {
+        $claim = Carbon::parse($operation['at']);
+
+        // The raw reading, before the till applied any drift of its own. Older
+        // builds do not send it, and then the corrected stamp is all we have.
+        $client = empty($operation['client_at'])
+            ? $claim->copy()
+            : Carbon::parse($operation['client_at']);
+
+        $soldAt = $claim->copy();
+
+        $floor = empty($operation['offline_since']) ? null : Carbon::parse($operation['offline_since']);
+        if ($floor !== null && $soldAt->lt($floor)) {
+            $soldAt = $floor->copy();
+        }
+
+        $ceiling = now();
+        if ($soldAt->gt($ceiling)) {
+            $soldAt = $ceiling->copy();
+        }
+
+        return [$soldAt, $client];
+    }
+
+    /**
+     * The cashier who rang it — not the login that sent it.
+     *
+     * These are the same person online and routinely different here. A sale
+     * rung by the morning cashier can be flushed by the evening one, by a
+     * manager clearing a queue, or by whoever happens to open the till after a
+     * week's outage. `created_by` defaults to the authenticated user, so
+     * without this every synced sale would be credited to whoever reconnected
+     * — one person's staff report carrying another's whole day.
+     *
+     * ── Why the till's word, and not the shift's ────────────────────────
+     *
+     * The obvious alternative is to read the shift's own user, which needs no
+     * trust at all. It is also wrong exactly where it matters: under relief
+     * cover the reliever rings and the drawer stays the cashier's, so the shift
+     * names the person who was on their break. The till knows who was standing
+     * at it, because that person was logged into it.
+     *
+     * ── What that trust is worth ────────────────────────────────────────
+     *
+     * It is the client naming a user, so it is checked: a real user of THIS
+     * shop, and still active. Anything else falls back to the sender, who is at
+     * least someone. The exposure is an attribution on a report, by a cashier
+     * willing to hand-edit their own browser database — and `cash_session_id`,
+     * already accepted from the same place, carries more weight than this does.
+     */
+    private function rungBy(array $operation): ?string
+    {
+        if (empty($operation['rung_by'])) {
+            return auth()->id();
+        }
+
+        $user = User::query()
+            ->where('tenant_id', $this->tenant->id())
+            ->find($operation['rung_by']);
+
+        return $user?->isActive() === true ? $user->id : auth()->id();
     }
 
     /**

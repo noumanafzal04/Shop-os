@@ -315,10 +315,34 @@ class PlansAndModulesTest extends TestCase
         // to grant itself offline selling. Settings are written through the
         // shop's own form; this is the admin's decision about whether this
         // particular shop has earned it.
+        // offline_hard_stop_days is the same axis again: the depth at which a
+        // shop would rather turn a customer away than sell from a week-old
+        // catalog. Opt-in and nobody's to buy.
         $this->assertSame(
-            ['branches', 'staff', 'registers', 'offline_days', 'offline_selling'],
+            ['branches', 'staff', 'registers', 'offline_days', 'offline_selling', 'offline_hard_stop_days'],
             PlanLimits::assignedKeys(),
         );
+    }
+
+    public function test_no_shop_has_a_hard_stop_until_somebody_asks_for_one(): void
+    {
+        // The opposite default to the kill switch above, deliberately. Offline
+        // selling is off until earned because turning it on risks money.
+        // A hard stop is ZERO until asked for because turning it on CLOSES A
+        // COUNTER — and in most of Pakistan a fourth day without internet is
+        // not worse than sending customers away. A default here would be this
+        // file deciding otherwise on behalf of a shop it knows nothing about.
+        $tenant = Tenant::factory()->create(['setup_completed' => true]);
+
+        $this->assertSame(0, PlanLimits::limit($tenant, 'offline_hard_stop_days'));
+    }
+
+    public function test_a_hard_stop_is_a_rule_and_not_a_count_of_anything_owned(): void
+    {
+        // So an owner can tighten it while a till is ALREADY past it. The
+        // "never below live usage" guard would otherwise refuse the setting at
+        // exactly the moment it is needed — which is the remedy, not a mistake.
+        $this->assertFalse(PlanLimits::isCountable('offline_hard_stop_days'));
     }
 
     public function test_offline_selling_is_off_until_a_shop_is_granted_it(): void

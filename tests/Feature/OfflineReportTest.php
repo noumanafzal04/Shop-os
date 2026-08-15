@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Branch;
 use App\Models\BranchStock;
+use App\Models\PosDevice;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\ReportService;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -265,5 +267,156 @@ class OfflineReportTest extends TestCase
             ->getJson('/api/v1/reports/offline')->assertOk()->json('data');
 
         $this->assertSame(0, $data['summary']['sales']);
+    }
+
+    // ── Tills whose clock is wrong (P4-4) ───────────────────────────
+    //
+    // The moment was corrected before the sale was filed, so no figure in the
+    // books is wrong. What IS wrong is a tablet, and a correction nobody can
+    // see is a tablet that goes on being three days out every morning for ever.
+
+    public function test_it_names_the_till_whose_clock_is_out_and_which_way(): void
+    {
+        $device = PosDevice::query()->create([
+            'id' => (string) Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Counter tablet',
+            'last_seen_at' => now(),
+        ]);
+
+        $this->sale(['pos_device_id' => $device->id, 'clock_skew_seconds' => 3 * 86400]);
+        $this->sale(['pos_device_id' => $device->id, 'clock_skew_seconds' => 3 * 86400 + 12]);
+
+        $clocks = $this->report()['clocks'];
+
+        $this->assertCount(1, $clocks, 'One tablet is one thing to fix, however many sales it produced.');
+        $this->assertSame('Counter tablet', $clocks[0]['till']);
+        $this->assertSame(2, $clocks[0]['sales']);
+        $this->assertSame(3 * 86400 + 12, $clocks[0]['skew_seconds']);
+    }
+
+    public function test_a_till_running_ahea_d_reads_negative_rather_than_being_hidden(): void
+    {
+        // Both directions are the same defect and the shop needs to see which
+        // way round it is: behind files sales into days already banked, ahead
+        // files them into a day nobody has traded yet.
+        $device = PosDevice::query()->create([
+            'id' => (string) Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Lane 2',
+            'last_seen_at' => now(),
+        ]);
+
+        $this->sale(['pos_device_id' => $device->id, 'clock_skew_seconds' => -7200]);
+
+        $this->assertSame(-7200, $this->report()['clocks'][0]['skew_seconds']);
+    }
+
+    public function test_a_clock_a_few_seconds_out_is_not_reported_at_all(): void
+    {
+        // Every tablet drifts a little. A screen that names each one is a
+        // screen nobody reads twice — and a clock a minute out cannot move a
+        // sale across a trading day, a shift or a day close, which are the only
+        // things `sold_at` decides.
+        $device = PosDevice::query()->create([
+            'id' => (string) Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Lane 3',
+            'last_seen_at' => now(),
+        ]);
+
+        $this->sale(['pos_device_id' => $device->id, 'clock_skew_seconds' => 45]);
+
+        $report = $this->report();
+        $this->assertSame([], $report['clocks']);
+        $this->assertSame(0, $report['summary']['clock_off']);
+    }
+
+    // ── Reconciling against the cashbook (P4-5) ─────────────────────
+    //
+    // The offline report and the cashbook are two screens looking at the same
+    // money from different ends. If they disagree, one of them is lying and an
+    // owner has no way to tell which — so the relationship between them is
+    // pinned here rather than left to be discovered during an argument about a
+    // day's takings.
+
+    public function test_a_late_sale_lands_in_the_cashbook_on_the_day_it_happened(): void
+    {
+        // Not the day it arrived. A Tuesday sale synced on Friday is Tuesday's
+        // money; putting it in Friday's column makes two days wrong at once and
+        // an owner reconciling either one finds a hole.
+        $tuesday = now()->subDays(4)->setTime(14, 0);
+        $this->sale(['total' => 500, 'sold_at' => $tuesday, 'synced_at' => now()]);
+
+        $book = app(ReportService::class)->cashbook(
+            $this->tenant->id,
+            null,
+            now()->subDays(7)->toDateString(),
+            now()->toDateString(),
+        );
+
+        $row = collect($book['days'])->firstWhere('date', $tuesday->toDateString());
+        $this->assertNotNull($row, 'The day it happened has to have a row at all.');
+        $this->assertEqualsWithDelta(500.0, (float) $row['money_in'], 0.001);
+    }
+
+    public function test_the_offline_reports_total_is_the_same_money_the_cashbook_counted(): void
+    {
+        // The reconciliation itself: every rupee the offline screen claims came
+        // in late is a rupee the cashbook also has, in the same window. A
+        // difference between the two is money one screen invented.
+        $this->sale(['total' => 500, 'sold_at' => now()->subDays(3)]);
+        $this->sale(['total' => 250, 'sold_at' => now()->subDays(2)]);
+        $this->sale(['total' => 125, 'sold_at' => now()->subDay()]);
+
+        $offline = $this->report()['summary']['total'];
+
+        $book = app(ReportService::class)->cashbook(
+            $this->tenant->id,
+            null,
+            now()->subDays(7)->toDateString(),
+            now()->toDateString(),
+        );
+        $counted = collect($book['days'])->sum(fn (array $r): float => (float) $r['money_in']);
+
+        $this->assertEqualsWithDelta(875.0, $offline, 0.001);
+        $this->assertEqualsWithDelta($offline, $counted, 0.001);
+    }
+
+    public function test_the_shortfall_named_after_a_day_close_is_exactly_what_the_cashbook_gained(): void
+    {
+        // The hardest case, and the reason `after_close_total` is a rupee
+        // figure rather than a count. Tuesday was counted, closed and banked.
+        // Tuesday's last sales arrive on Wednesday. The signed-off drawer does
+        // not move — a day closed in March must read the same in September — so
+        // the cashbook, which reads the sales, is now AHEAD of the day's
+        // recorded takings by precisely this amount. That gap is what an
+        // adjustment is written from, and it must be a figure somebody can key.
+        $tuesday = now()->subDays(3)->setTime(15, 0);
+
+        $this->sale(['total' => 400, 'sold_at' => $tuesday, 'after_day_close' => true]);
+        $this->sale(['total' => 150, 'sold_at' => $tuesday, 'after_day_close' => true]);
+        // One that landed on an open day. It is late, but it changes no
+        // signed-off figure, so it must not be counted in the shortfall.
+        $this->sale(['total' => 999, 'sold_at' => now()->subDay()]);
+
+        $summary = $this->report()['summary'];
+        $this->assertSame(2, $summary['after_close']);
+        $this->assertEqualsWithDelta(550.0, $summary['after_close_total'], 0.001);
+
+        $book = app(ReportService::class)->cashbook(
+            $this->tenant->id,
+            null,
+            now()->subDays(7)->toDateString(),
+            now()->toDateString(),
+        );
+        $tuesdayRow = collect($book['days'])->firstWhere('date', $tuesday->toDateString());
+
+        $this->assertEqualsWithDelta(
+            $summary['after_close_total'],
+            (float) $tuesdayRow['money_in'],
+            0.001,
+            'The shortfall must be exactly the money the cashbook now shows on a day whose drawer cannot move.',
+        );
     }
 }
