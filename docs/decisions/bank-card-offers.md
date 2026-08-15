@@ -267,6 +267,14 @@ tells the cashier the customer keeps the discount if they wait.
 
 - **Returns and cancellations** do not yet reverse a bank discount specifically.
   A cancelled sale correctly drops out of the claim; a partial refund does not
-  reduce what is claimed. Decide with a bank first — most reimburse on the
-  transaction, not on what was kept.
-- No **export** on the claim report yet. The figures are all on screen.
+  reduce what is claimed. **This is deliberately unresolved, not forgotten:**
+  most banks reimburse against the transaction that happened rather than against
+  what the customer kept, so the current behaviour may already be right — and
+  the wrong version of this is a shop over-claiming and losing a bank's trust.
+  Settle it with a real bank's letter, not from first principles.
+
+**Done since:** the claim report exports as CSV, one row per SALE rather than
+per campaign. A bank reconciles line by line against its own settlement file, so
+a summary is what a shop reads and a list is what a bank accepts. `card_last4`
+is written blank rather than omitted when missing — a gap in a column is a
+question somebody asks, a missing row is one nobody notices.
