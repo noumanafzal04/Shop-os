@@ -93,6 +93,15 @@ class ReceiptController extends Controller
                 'sale' => $sale,
                 'tenant' => $tenant,
                 'settings' => $settings,
+                // What THIS lane's printer actually holds, which is not always
+                // what the shop's default says. A shop that issues A4 invoices
+                // and puts an 80mm thermal on Lane 2 was getting a correct test
+                // page and a wrong receipt: the device's paper size was stored,
+                // validated, and read by nothing but its own test print.
+                //
+                // Null falls through to the shop setting inside the template,
+                // which is where every other document already resolves it.
+                'paper' => $this->paperFor($printer),
                 'kind' => $kind,
                 'copyNo' => $copyNo,
                 'cashier' => $this->cashierName($sale),
@@ -101,6 +110,29 @@ class ReceiptController extends Controller
             // The client needs the row id to report a failure against it.
             ->header('X-Receipt-Print-Id', $print->id)
             ->header('X-Receipt-Kind', $kind);
+    }
+
+    /**
+     * A printer's own paper, in the vocabulary the templates speak.
+     *
+     * The hardware registry records `58mm | 80mm | a4` because that is what is
+     * written on the box; the templates say `thermal_58 | thermal_80 |
+     * standard` because that is what the shop setting has always said. Two
+     * vocabularies for one thing is a translation, and this is the one place it
+     * happens rather than in three Blade files.
+     *
+     * Null means "this lane has nothing to say" — no printer registered, or one
+     * registered without a size — and the shop's own setting decides, exactly as
+     * it did before.
+     */
+    private function paperFor(?HardwareDevice $printer): ?string
+    {
+        return match ($printer?->settings['paper_size'] ?? null) {
+            '58mm' => 'thermal_58',
+            '80mm' => 'thermal_80',
+            'a4' => 'standard',
+            default => null,
+        };
     }
 
     /**

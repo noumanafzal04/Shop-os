@@ -446,4 +446,73 @@ class ReceiptTest extends TestCase
 
         $this->actingAsUser($otherOwner)->get("/api/v1/sales/{$sale->id}/invoice")->assertNotFound();
     }
+
+    // ── The paper this LANE actually holds ──────────────────────────
+    //
+    // `receipt_width` is the shop's default and it always reached the counter —
+    // the print and the settings preview render the same Blade file, so the two
+    // cannot drift. What did NOT reach it was the printer's own paper size: the
+    // hardware registry validated it, stored it, and nothing but the device's
+    // own test page ever read it.
+    //
+    // The shop that pays for that is the ordinary one: A4 by default because it
+    // issues A4 invoices, an 80mm thermal on Lane 2 because that is what a
+    // counter needs. Correct test print, wrong receipt, and a setting that
+    // looks like it works.
+
+    private function printerOn(?string $registerId, ?string $paperSize): HardwareDevice
+    {
+        return HardwareDevice::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'register_id' => $registerId,
+            'type' => 'receipt_printer',
+            'name' => 'Counter printer',
+            'connection_type' => 'browser',
+            'is_active' => true,
+            'is_default' => true,
+            'settings' => $paperSize === null ? null : ['paper_size' => $paperSize],
+        ]);
+    }
+
+    public function test_the_lanes_own_printer_decides_the_paper_not_the_shop_default(): void
+    {
+        $this->tenant->update(['settings' => ['receipt_width' => 'standard']]);
+        $this->printerOn(null, '58mm');
+
+        $this->fetchReceipt($this->ringSale())->assertOk()
+            ->assertSee('size: 58mm auto', false);
+    }
+
+    public function test_a_printer_with_no_paper_size_leaves_the_shop_default_alone(): void
+    {
+        // Half the registered printers in the world have never had this field
+        // touched. Reading a missing one as anything but "no opinion" would
+        // change the paper under every shop that ever added a device.
+        $this->tenant->update(['settings' => ['receipt_width' => 'thermal_58']]);
+        $this->printerOn(null, null);
+
+        $this->fetchReceipt($this->ringSale())->assertOk()
+            ->assertSee('size: 58mm auto', false);
+    }
+
+    public function test_a_shop_with_no_registered_printer_is_untouched(): void
+    {
+        // Which is most shops. Nothing about this feature may require hardware
+        // to be registered before a receipt prints correctly.
+        $this->tenant->update(['settings' => ['receipt_width' => 'thermal_80']]);
+
+        $this->fetchReceipt($this->ringSale())->assertOk()
+            ->assertSee('size: 80mm auto', false);
+    }
+
+    public function test_an_a4_printer_beats_a_thermal_shop_default(): void
+    {
+        // The other direction, and it has to work too — a back-office printer
+        // in a shop whose counters are all thermal.
+        $this->tenant->update(['settings' => ['receipt_width' => 'thermal_58']]);
+        $this->printerOn(null, 'a4');
+
+        $this->fetchReceipt($this->ringSale())->assertOk()
+            ->assertDontSee('size: 58mm auto', false);
+    }
 }

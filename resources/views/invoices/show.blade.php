@@ -13,7 +13,7 @@
     it is a copy.
 --}}
 @php
-    $width   = $settings['receipt_width'] ?? 'standard';
+    $width   = ($paper ?? null) ?: ($settings['receipt_width'] ?? 'standard');
     $roll    = in_array($width, ['thermal_58', 'thermal_80'], true);
     $paperMm = $width === 'thermal_58' ? '58mm' : ($width === 'thermal_80' ? '80mm' : 'auto');
     $rollMm  = $width === 'thermal_58' ? '48mm' : '72mm';
