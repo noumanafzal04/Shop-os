@@ -1,8 +1,8 @@
 # Verified issue list — 2026-08-12
 
-> **Status 2026-08-13:** items 2, 3 and 9 are **FIXED** (see the ✅ notes below).
-> What is left is one owner chore (1), the security pass (4), the two P2 builds
-> (5, 6), and two deployment chores (7, 8 — also the owner's).
+> **Status 2026-08-15:** items 2, 3, 4 and 9 are **FIXED**. What is left is one
+> owner chore (1), the two P2 builds (5, 6), and two deployment chores
+> (7, 8 — also the owner's).
 
 Every line below was read in the source, not grepped for. Findings that did not
 survive that reading are in the CLOSED section at the bottom, with the reason —
@@ -79,9 +79,42 @@ pointing at it, which deleting does not.
 Help Centre updated in the same pass, including the reason to prefer it over
 Delete for anything ever sold.
 
-### 4. The security pass was requested and never done
+### 4. ✅ DONE — the security pass
 
-Neither side has had one. Standing item from the 2026-08-11 admin backlog.
+**Run 2026-08-15 — `docs/decisions/security-pass.md`.** Backend and panel, with
+the denominator for every surface beside the findings.
+
+Four fixes, in descending order of what they cost a real shop:
+
+1. **Anyone could lock a shop out of its own till.** The failed-attempt lock was
+   checked before the password was, and the guard is shared by both login paths
+   — so five wrong guesses against a known email took the shop off its POS,
+   password and one-time code alike, for fifteen minutes, from anywhere,
+   repeatable. The lock now refuses a wrong password and never a right one; an
+   attacker still gets five guesses, the owner always gets in.
+2. **Changing somebody's password bypassed the escalation guard.** A manager who
+   could not tick a permission box could set that person's password and sign in
+   as them. Email and phone were the same door. Now: you may only take over an
+   account you could have created.
+3. **A barcode's own characters reached the markup** in `code128Svg` — not
+   reachable today (no caller), escaped anyway, because its sibling is rendered
+   through `dangerouslySetInnerHTML`.
+4. **`vehicle_id` was not tenant-scoped.** Explicitly NOT an exposure — every
+   read goes through the tenant scope — but it let a sale store a pointer that
+   resolves to nothing.
+
+Found sound and recorded so nobody audits them twice: route authorization
+(185/209 gated, the other 24 role-gated or self-service), the customer surface
+(all three controllers re-scope by `customer_id`), route-model binding, raw SQL,
+privilege escalation on create AND update, token abilities and refresh rotation,
+uploads, receipt privacy, cost-price fencing, password hashes.
+
+Accepted and written down rather than fixed: tokens in `localStorage` (the
+ordinary SPA trade-off; moving off it is httpOnly cookies plus CSRF everywhere),
+and the unauthenticated banner-click counter.
+
+Not covered: infrastructure (no domain, no TLS yet — nothing to audit) and
+dependency CVEs, which want their own pass with its own remediation budget.
 
 ---
 

@@ -102,7 +102,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1823 tests / 8059 assertions green. Panel 801 tests green.** Gates all
+**Backend 1838 tests / 8086 assertions green. Panel 809 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
 long-standing baseline).
 
@@ -219,7 +219,60 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-15 (latest) — the three fields a synced sale was believed about
+### 2026-08-15 (latest) — the security pass, and the lock that locked the wrong people
+
+The standing item from the 2026-08-11 backlog, and item 4 of the verified list.
+Full write-up in `docs/decisions/security-pass.md`, with the denominator beside
+every surface — because a count of findings is not evidence without a count of
+attempts, and that discipline earned its keep twice in one session.
+
+**The first sweep nearly filed a catastrophe that did not exist.** It reported
+that *zero* of 215 mutating routes were authenticated. `route:list --json`
+returns resolved middleware CLASS names, not the aliases routes are written
+with. A surface where nothing at all is authenticated is not a finding, it is a
+broken measuring stick — rerun properly, 185 of 209 carry `EnsurePermission` and
+the other 24 are role-gated or self-service.
+
+**The one that cost a real shop money: anyone could lock a shop out of its own
+till.** The failed-attempt lock was checked BEFORE the password was, and that
+guard is shared by both login paths. Five wrong passwords against a known email
+took the shop off its POS — password *and* one-time code — for fifteen minutes,
+from anywhere, with no credential at all, repeatable for as long as somebody
+cared to. A locked counter at Friday rush hour is the whole loss.
+
+The lock now refuses a wrong password and never a right one. An attacker still
+gets five guesses per account per fifteen minutes; the owner who types their own
+password gets in. Nothing was traded for it — a lock cannot stop somebody who
+already has the password, so refusing them only ever cost the person it was
+meant to protect. Two things fell out: every failure now reads identically (a
+distinct "locked" reply was a free oracle for whether an address is real), and
+knocking again while locked no longer extends the window, or the DoS returns at
+one attempt a minute.
+
+**The one that bypassed a guard that already existed: changing somebody's
+password.** Staff create and update both refuse to grant a permission the actor
+does not hold. Complete about permissions, blind about identity — a manager who
+could not tick a box could set that person's password and sign in as them. Email
+and phone are the same door, since login is by either. One sentence closes all
+three: *you may only take over an account you could have created.*
+
+Two smaller ones: a barcode's own characters reached the markup in `code128Svg`
+(no caller today — escaped now rather than the day it gets one, because its
+sibling IS rendered through `dangerouslySetInnerHTML`), and `vehicle_id` was not
+tenant-scoped, which was explicitly **not** an exposure and is written up as
+such — every read goes through the tenant scope.
+
+Sound and recorded so nobody audits them twice: the customer surface (all three
+controllers re-scope by `customer_id`), route-model binding, raw SQL, token
+abilities and refresh rotation, uploads, receipt privacy, cost-price fencing.
+Accepted and written down rather than fixed: tokens in `localStorage`.
+
+Backend 1838 / 8086. Panel 809. Twelve mutations across the four fixes, all
+caught — including putting the original lockout bug back, which kills five.
+
+---
+
+### 2026-08-15 — the three fields a synced sale was believed about
 
 Offline's last five items, and four of them turned out to be the same bug wearing
 different clothes: **the sync request carries something, and the server simply

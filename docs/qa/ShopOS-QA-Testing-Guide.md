@@ -8,13 +8,25 @@ matters** — most steps need something the step before it created. If you jump 
 the till before you have a product, the till will be empty and you will report a
 bug that is not one.
 
-> **Changed on 2026-08-13 — if you were sent an earlier copy, these three moved:**
+**Part 7 (offline) is the same rule at a larger scale:** it needs a shop that has
+already been built and sold from, so leave it until last — and read 7.1 before
+you touch it.
+
+> **Changed on 2026-08-15 — if you were sent an earlier copy:**
+>
+> 1. **Part 7 is new: selling with no internet.** Twenty-one tests, O1–O21. Read
+>    7.1 FIRST — which of them apply depends on a switch you cannot see from the
+>    shop, and getting that wrong costs you an afternoon.
+> 2. Reporting moved from Part 7 to **Part 8**.
+> 3. The "already known, do not log" list has grown — check it before logging
+>    anything from Part 7.
+>
+> **Changed on 2026-08-13:**
 >
 > 1. **Settings tabs are now filtered by module.** A missing tab is usually
 >    correct. See the box in Part 1 and the map in 1.1.
 > 2. **A product can now be retired** — "Still selling this" on the Codes & packs
 >    tab. New steps P16–P22.
-> 3. Both of those left the "already known, do not log" list at the end.
 
 ---
 
@@ -553,7 +565,397 @@ Run these no matter what business type you have.
 
 ---
 
-## Part 7 — How to report what you find
+## Part 7 — Selling with no internet
+
+**Do this LAST.** It needs a shop that already has products, a till that has
+been used, and settings that are finished — because the whole feature is about a
+till carrying on with what it already knows.
+
+Two very different tests live in here and which one you run depends on a switch
+you cannot see from the shop. **Read 7.1 first and find out which shop you have**
+before you do anything else, or you will spend an afternoon reporting a refusal
+that is the software working correctly.
+
+---
+
+### 7.1 First: which of the two shops do you have?
+
+Offline selling is **off until a platform admin turns it on for that shop.**
+That is deliberate — a shop earns it by running the pricing checks in 7.4 over
+its own sales until the till has been proved to price exactly as the server
+does.
+
+Find out which one you have by going to **Shop settings → Point of Sale →
+Lanes & PINs** and reading the box at the bottom:
+
+| What you see | Which shop this is | Which tests you run |
+|---|---|---|
+| Pricing checks with numbers climbing, but the till refuses to complete a sale offline | **Shadow shop** — the normal state | 7.2, 7.3, **7.4**, 7.6 |
+| The till completes a sale offline and prints an `OFF-…` slip | **Offline shop** — it has been granted | all of Part 7 |
+
+> **A refusal is not a bug.** If your shop is a shadow shop, the till telling you
+> *"This shop's tills aren't set up to sell without a connection yet"* at the
+> tender screen is exactly right. Do not log it. What you test instead is 7.4.
+
+---
+
+### 7.2 Setup — five things that must be true, or nothing here works
+
+Work through these **in order**. Most "offline is broken" reports are one of
+these five not being true.
+
+**① The address must be `https://` or `localhost`.**
+This is the one that catches everybody. The offline engine is a service worker,
+and a browser refuses to run one on a plain `http://` address — **including a
+LAN IP like `http://192.168.1.40`.** If you were given a plain-http address,
+offline cannot be tested at all. Say so and stop; it is not a bug in ShopOS.
+
+**② Install it to the home screen.**
+Chrome/Edge: the install icon in the address bar. Safari on iPad: Share → Add to
+Home Screen. A browser tab works, but an installed till holds onto its data far
+better under pressure — **and on an iPad it is the only thing that makes a real
+difference.** Test from the installed icon, not the tab.
+
+**③ Open the POS once, online, and let it settle.**
+The till downloads the shop's catalog on its first run. On a big catalog this
+takes a moment. Do not pull the plug until it has finished.
+
+**④ Check the till registered itself.**
+**Shop settings → Point of Sale → Lanes & PINs.** Your device should be in the
+list. Nothing to register by hand — it adds itself.
+
+**⑤ Name your till.**
+Press **Name it** and call it something you will recognise: *"QA tablet"*, *"Lane
+1 laptop"*. Ten seconds, and it is worth it — every later screen names the till
+against what it did, and three rows all reading *Unnamed till* tell you nothing.
+
+**Write down:**
+
+```
+Address (https / localhost?):
+Installed to home screen?      yes / no
+Till name I gave it:
+Shadow shop or offline shop?
+```
+
+---
+
+### 7.3 The connection pill — learn to read it before you need it
+
+Top of the POS. It is the one thing that tells you what state the till is in.
+
+| It says | It means |
+|---|---|
+| nothing / normal | online, nothing waiting |
+| **Offline** | the till cannot reach the server |
+| **47 saved here** | 47 sales are on this device waiting to send. **Not an error** — it says the money is safe |
+| **Sending 12 of 47** | it is catching up right now |
+
+**Test O1 — the pill is honest.** With the POS open, turn the connection off
+(see 7.5 for how). The pill must turn Offline **within about 5 seconds.** Turn
+it back on: it must go back within about 5 seconds.
+
+If the pill lies about the connection, log it as **P1** — every other decision a
+cashier makes rests on it.
+
+---
+
+### 7.4 The pricing checks — **the most important test in Part 7**
+
+**Every shop runs this, granted or not.** This is the gate that decides whether a
+shop is allowed to sell offline at all, and it is the thing most worth your time.
+
+**What is happening:** every sale you ring **online** is priced twice — once by
+the server (which is what the customer pays) and again by the offline engine,
+purely to compare. Nothing on the receipt changes. Nobody is ever charged the
+second figure.
+
+**Where to look:** Shop settings → Point of Sale → Lanes & PINs → *Offline
+pricing checks*.
+
+**Test O2 — build up a real count.**
+
+1. Ring **15–20 ordinary sales** on the till. Vary them on purpose:
+
+| Ring at least one of each | Why |
+|---|---|
+| a plain single item | the base case |
+| several items at once | line totals adding up |
+| something sold by weight (0.35 kg) | fractional quantity |
+| a whole-bill discount | the discount order |
+| a per-line discount | the other discount order |
+| an item that is on one of your promotions | **this is the one that found a real bug** |
+| a taxed item, if the shop charges tax | rounding |
+| a quantity that hits a bulk-price break | tiers |
+
+2. Go back to the pricing checks box and read the four numbers.
+
+**What good looks like:**
+
+```
+Carts checked      18
+Matched exactly    18      ← must equal Carts checked
+Couldn't be priced  0
+Tills reporting     1 of 1
+```
+
+**What each number means when it is wrong:**
+
+| Number | If it is not what you expect |
+|---|---|
+| **Carts checked** stays 0 | the checks are not running. Confirm 7.2 ① and ③, then log **P1** |
+| **Matched exactly** < Carts checked | a real disagreement. **Log it — this is the highest-value bug you can find in Part 7.** Expand the row and copy BOTH figures |
+| **Couldn't be priced** > 0 | the till is missing something it needs. Note what those carts had in common |
+| **Tills reporting** 0 of N | a till is not reporting at all |
+
+> **A disagreement never means a customer was overcharged.** They paid the
+> server's price. It means the offline engine is not ready — and finding that
+> here, on a normal trading day, is exactly the point.
+
+**When you log a disagreement, include this shape:**
+
+```
+discount:  server Rs 106.00, till Rs 0.00
+total:     server Rs 954.00, till Rs 1,060.00
+Cart:      2 × Milkpak 1L, 1 × Bread
+Promotion running at the time:  "Weekend 10% Off"
+```
+
+---
+
+### 7.5 How to actually go offline (do it properly)
+
+Three ways, best first:
+
+| Method | How | Note |
+|---|---|---|
+| **DevTools** *(best)* | F12 → Network tab → the throttling dropdown → **Offline** | Precise, and only this tab. Leave DevTools open |
+| **Airplane mode** | Tablet/phone: switch it on | Realistic. Use this for the long tests |
+| Unplug the router | — | **Avoid.** Slow to take effect and hard to undo cleanly |
+
+> Do **not** just close the laptop lid or walk out of Wi-Fi range mid-sale for
+> the first few tests. Start with DevTools so you know exactly when the
+> connection went.
+
+---
+
+### 7.6 What the till must REFUSE offline — and the exact words
+
+This is not caution. The rule behind every line below is one sentence:
+
+> **A till may only do what it can decide correctly on its own.**
+
+Anything where **two tills could reach different answers at the same moment** —
+a customer's khata balance, a loyalty point, one specific IMEI, a coupon that
+may be used once, a dining table — needs the server.
+
+**Test O3 — go offline and try each row. The refusal must arrive BEFORE you take
+the money, never after.**
+
+| Put this in the cart | Expected | The words you should see |
+|---|---|---|
+| A **medicine** | refused | *"Panadol can't be sold while the internet is down. Take it off the bill, or wait for the connection."* — it names **the item**, so a cashier knows which line to pull |
+| An item tracked by **serial / IMEI** | refused | same shape, naming that item |
+| Pay by **khata (credit)** | refused | *"Khata needs the connection — a customer's balance is shared between tills."* |
+| **Spend loyalty points** | refused | *"Points can't be spent while the internet is down — the balance is shared."* Plus: ring it without points and the points **earned** still arrive later |
+| Enter a **coupon code** | refused | *"A coupon's remaining uses can only be checked by the server."* |
+| A **dine-in table** order | refused | *"A table's bill is shared between tills, so it needs the connection."* |
+| Pay by **deposit / advance** | refused | *"deposit can't be settled while the internet is down."* |
+| Pay by **trade-in** | refused | *"trade_in can't be settled while the internet is down."* |
+| A **refund** | refused | *"…puts stock back, reverses any points and can credit a khata…"* then **"Take the customer's details and refund it once you are back online."** |
+| An **exchange** | refused | *"An exchange is a refund and a sale together…"* |
+| **Takeaway** food, cash | **allowed** | — |
+| An ordinary product, cash or card | **allowed** | — |
+
+> The wordings above are what the **till** says at the counter. The offline
+> report may describe the same refusal differently — it is written for the owner
+> the next morning, not the cashier mid-sale. Both being different is correct.
+
+**Two things to check about every refusal, and log a P2 if either fails:**
+
+1. **It arrives before the drawer opens.** A cashier who completes a sale and is
+   then told it was not allowed has already handed the goods over.
+2. **It says what to do instead.** *"Not allowed"* sends someone hunting for a
+   setting. *"Take cash and ring it once you are back online"* sends them back to
+   the counter. Every refusal here should name the way forward.
+
+**Test O4 — a cart with three problems at once.** Put a medicine AND a coupon in
+one cart and pay by khata. You should be told **all three**, not the first one. A
+cashier who fixes the tender and is only then told about the medicine has been
+interrupted twice for one decision.
+
+---
+
+### 7.7 Ringing a sale offline *(offline shop only)*
+
+**Test O5 — the sale itself.**
+
+1. Go offline (7.5).
+2. Ring a plain cash sale.
+3. Complete it.
+
+Expect: the drawer behaviour and the slip are normal, but the number is
+`OFF-LANE1-…` instead of an invoice number. The pill now says **1 saved here**.
+
+4. **Keep that slip number written down.** You need it in step 7.
+5. Ring three or four more.
+6. Go back online.
+7. Within a few seconds the pill counts down and clears.
+
+**Test O6 — the slip a customer walked out with still finds the sale.**
+
+Go to Sales and search for the `OFF-…` number from step 4. It must find the
+sale, and that sale must **also** have a real invoice number now. **Both are
+kept, and both are searchable** — that slip is the only reference the customer
+has.
+
+If the `OFF-…` number finds nothing, log **P1**.
+
+**Test O7 — stock came down.**
+
+Note a product's stock, sell 3 of it offline, and check the till's own figure
+drops by 3 immediately. After syncing, the shop's stock must be down by 3 —
+**not by 6.**
+
+---
+
+### 7.8 A sale that has happened is never lost
+
+This is the promise the whole feature rests on. Test it rudely.
+
+| # | Do this | Expected |
+|---|---|---|
+| **O8** | Ring 3 offline, then **close the browser completely** and reopen | still there, still says 3 saved here, still sends |
+| **O9** | Ring 3 offline, then **reload the page mid-way** | nothing lost |
+| **O10** | Ring 3 offline, leave it **overnight**, come back and reconnect | all 3 sync |
+| **O11** | Ring 3 offline, then let the **battery die**. Charge and reopen | all 3 sync |
+| **O12** | Open the POS in **two tabs**, both offline, ring in both, reconnect | every sale lands **exactly once** — no duplicates, none missing |
+| **O13** | Ring **50+** offline sales, then reconnect | all of them sync; the pill counts down honestly |
+
+**Anything lost here is P0.** Anything **duplicated** here is also P0 — the shop
+would bank the same money twice.
+
+---
+
+### 7.9 A till whose clock is wrong
+
+A tablet that has been flat for a week can come back believing it is the day it
+was made. The moment of a sale decides its trading day, its shift, whose figures
+it lands in — so this matters more than it sounds.
+
+**Test O14 — the slow clock.**
+
+1. Go offline.
+2. In the tablet's own settings, turn **automatic date & time OFF** and set the
+   date **3 days back**.
+3. Ring two sales.
+4. Put the clock back to automatic and reconnect.
+
+**Expected:**
+
+- The sales file on **today**, not three days ago.
+- **Reports → Offline** shows a row naming your till and how far out its clock
+  was, in the *"a till with the wrong time"* section.
+
+**What is NOT expected:** the sales appearing in a day that has already been
+closed and banked. If that happens, log **P0**.
+
+**Test O15 — the fast clock.** Same, but set the date **2 days forward**. The
+sales must still file on today. A sale in a day nobody has traded yet is P0.
+
+> Put the clock back to automatic when you are done, or every later test in this
+> guide will be strange.
+
+---
+
+### 7.10 Whose sale was it *(needs two logins)*
+
+**Test O16.**
+
+1. Sign in as **cashier A**. Go offline. Ring two sales.
+2. Sign out. Sign in as **cashier B** on the same device.
+3. Go back online and let the queue send.
+4. Owner → **Reports → Staff**, covering today.
+
+**Expected:** the two sales are against **cashier A**, who rang them — not
+against cashier B, who merely happened to be signed in when the connection
+returned. If B is credited, log **P1**: one person's whole day has landed in
+somebody else's figures.
+
+---
+
+### 7.11 A till carried to another branch *(multi-branch shops only)*
+
+**Test O17.**
+
+1. On a till registered at **Branch A**, go offline and ring two sales.
+2. Still offline, switch the branch selector to **Branch B**.
+3. Go back online.
+
+**Expected:** those two sales belong to **Branch A** — its books, its shelf. A
+tablet being carried does not move the goods that already left Branch A's shelf.
+If they land in Branch B, log **P0**: two branches are now wrong at once.
+
+---
+
+### 7.12 The hard stop *(only if your shop was given one)*
+
+Most shops have none, and that is the sensible default. If yours has one, you
+were told the number of days.
+
+**Test O18.** Set the tablet's clock **FORWARD** past the limit — forward, not
+back. The limit is measured from when this till last reached the server, so
+winding the clock backwards makes the till read *"never heard from the server"*
+and no limit applies at all; you would be testing nothing.
+
+Then go offline and try to start a **new** sale. Expect a refusal that names the
+way back: *"This till has been without internet for longer than the shop allows…
+Get this device back online for a moment — its queued sales will send and it can
+sell again straight away."*
+
+**Test O19 — the cart already on the counter finishes.** Start a cart **before**
+the limit passes, then let it pass, then complete. It must go through. A stop
+that lands mid-transaction, with the goods bagged and the customer waiting, is
+the exact failure this feature exists to prevent — log **P1** if it happens.
+
+---
+
+### 7.13 The morning after — Reports → Offline
+
+Open this after any of the tests above. It answers one question: *what happened
+while we were out of contact?*
+
+| Section | What it is | What to check |
+|---|---|---|
+| **Late sales** | everything that came in after the fact | your test sales are here, with the right totals and the right tills |
+| **Count these again** | stock that went below zero | correct after two tills sell the last one. **Not a bug** |
+| **Need a decision** | sales that broke an offline rule and were recorded anyway | should be empty in a clean run |
+| **Arrived after the day was closed** | a rupee figure, not a count | it is how far that day's takings now read short |
+| **A till with the wrong time** | one row per **tablet**, not per sale | your clock test from 7.9 |
+
+**Test O20 — the slip number is here too.** Every late sale row shows the
+`OFF-…` number beside the real invoice number.
+
+**Test O21 — a clean run says so.** On a shop with no outage, this screen should
+say your tills were in touch the whole time. **That is the answer you want.**
+
+---
+
+### 7.14 Offline — correct behaviour, do NOT log
+
+| | Why it is right |
+|---|---|
+| The till refuses to complete a sale offline | The shop has not been granted offline selling. This is the normal state |
+| Medicines, serials, khata, points, coupons, dine-in, refunds refused offline | The rule in 7.6 — every one is shared between tills |
+| Stock going **negative** after two tills sold the last one | Both cashiers told the truth; the goods really did leave twice. The shelf needs counting, nothing is corrupted |
+| A sale filed on the day it **happened**, not the day it arrived | Deliberate. Tuesday's sale is Tuesday's money |
+| A closed day's figures not changing when a late sale lands | Deliberate. A day signed off in March must read the same in September — the shortfall is **named** instead |
+| Nothing works at all on a plain `http://` LAN address | A browser will not run a service worker outside a secure context. Not a ShopOS bug — see 7.2 ① |
+| "47 saved here" | Not an error. It says the money is safe on this device |
+
+---
+
+## Part 8 — How to report what you find
 
 One issue per entry. An issue nobody can reproduce cannot be fixed.
 
@@ -593,6 +995,11 @@ CONSOLE:    open the browser console (F12) and paste any red errors
 | No appointment / time-slot booking | Deliberate — out of scope permanently |
 | No job card for workshops | Known gap, recorded |
 | "Map search is not set up on this installation" | Deployment config, not a code bug |
+| The till refuses to sell offline | Correct unless the shop was granted it — see 7.1 |
+| Medicines / serials / khata / points / coupons / dine-in / refunds refused offline | Correct — see the rule in 7.6 |
+| Stock going negative after an outage | Correct — see 7.14 |
+| A closed day's figures not moving when a late sale lands | Correct — the shortfall is named instead |
+| Nothing offline works on a plain `http://` LAN address | A browser will not run a service worker outside a secure context — see 7.2 ① |
 
 ### Severity — mark each one
 
@@ -615,8 +1022,14 @@ CONSOLE:    open the browser console (F12) and paste any red errors
 4.  Returns → Loyalty → Expenses → Reports
 5.  Your trade's own section (5.1 – 5.8) — ONE of them only
 6.  Permissions, error messages, branches, help, currency
-7.  Write it up
+7.  Offline (O1–O21)                        ← do this LAST, and read 7.1 first
+8.  Write it up
 ```
+
+**If you only have an hour for Part 7,** do 7.4 — the pricing checks. It is the
+one that decides whether this shop may sell offline at all, it runs on any shop
+granted or not, and it has already caught a real bug on its first day in a real
+shop.
 
 **The single rule to remember:** for every field you fill in —
 **save it, close it, open it again, and check it is still there.**

@@ -602,9 +602,13 @@ The same flag keeps the till's own shelf honest — `unsyncedDeltas()` skips
 practice rows, so a trainee's afternoon no longer walks the local stock figure
 down through goods that never moved.
 
-**Still open in Phase 3:** P3-10 (offline returns refused — the returns path is
-untouched), P3-16/17 (the `offline_days` PIN gate and the hard stop; P3-16 was
-found unbuildable safely — see Phase 5).
+**Nothing open in Phase 3.** The note that used to sit here listed P3-10 and
+P3-17 and was simply stale — both landed afterwards and nobody came back to it.
+P3-10 refuses money going back out on both routes, refund and exchange, with the
+words wired into `SalesPage`; P3-17 is the hard stop, judged from when the cart
+was started. P3-16 is resolved by DECISION rather than by code — verifying an
+owner's four-digit PIN with no server means shipping its hash to a tablet, which
+buys ten thousand guesses on a stolen one. See the header.
 
 **Tests**
 
@@ -619,13 +623,13 @@ found unbuildable safely — see Phase 5).
 | P3-7 | Serialised item offline → refused |
 | P3-8 | `credit` / `deposit` / `trade_in` offline → refused |
 | P3-9 | Dine-in offline → refused; takeaway on the same tenant → allowed |
-| P3-10 | Return offline → refused |
+| P3-10 | Return offline → refused ✅ |
 | P3-11 | Loyalty redeem offline → refused; earn accrues on sync |
 | P3-12 | Two tabs flushing → exactly one sends |
 | P3-13 | 1,500 queued sales flush over a slow link without duplication |
 | P3-14 | Local stock decrements; never `set` |
 | P3-15 | Training-mode sale offline stays training on sync — and a real sale cannot be MADE training by naming a practice shift ✅ |
-| P3-16 | Device offline past `offline_days` → owner PIN demanded, sale stamped |
+| P3-16 | Device offline past `offline_days` → owner PIN demanded, sale stamped — **resolved by decision, not built**: see the header |
 | P3-17 | `offline_hard_stop_days` passed → new sale refused, cart in hand completes ✅ |
 | P3-18 | Outbox from 40 days ago still syncs and is accepted; lateness is measured from the till's last contact, not from today ✅ |
 
