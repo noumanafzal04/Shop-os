@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { useState } from "react";
+
 import { apiGet } from "../../../common/api/client";
+import { downloadFile } from "../../../common/api/download";
+import Button from "../../../components/ui/button/Button";
+import { useToast } from "../../../components/ui/toast";
 import Badge from "../../../components/ui/badge/Badge";
 
 /**
@@ -59,6 +64,9 @@ const day = (iso: string | null) =>
   iso === null ? "—" : new Date(iso).toLocaleDateString();
 
 export function BankClaimsTab({ range }: { range: { from: string; to: string } }) {
+  const toast = useToast();
+  const [downloading, setDownloading] = useState(false);
+
   const report = useQuery({
     queryKey: ["reports", "bank-claims", range.from, range.to],
     queryFn: async () =>
@@ -94,10 +102,33 @@ export function BankClaimsTab({ range }: { range: { from: string; to: string } }
         <p className="mt-1 text-3xl font-extrabold tabular-nums text-gray-900 dark:text-white">
           {money(totals!.discount)}
         </p>
-        <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-          across {totals!.sales} {totals!.sales === 1 ? "sale" : "sales"} worth{" "}
-          {money(totals!.card_value)}
-        </p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+            across {totals!.sales} {totals!.sales === 1 ? "sale" : "sales"} worth{" "}
+            {money(totals!.card_value)}
+          </p>
+
+          {/* The last step of the only thing this feature is for. A shop cannot
+              email a screen, and one row per SALE is what a bank reconciles
+              against its own settlement file. */}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={downloading}
+            onClick={async () => {
+              setDownloading(true);
+              try {
+                await downloadFile("/reports/bank-claims/export", range);
+              } catch {
+                toast.error("That file could not be downloaded. Try again.");
+              } finally {
+                setDownloading(false);
+              }
+            }}
+          >
+            {downloading ? "Preparing…" : "Download for the bank"}
+          </Button>
+        </div>
 
         {totals!.unreferenced > 0 && (
           <p className="mt-2 text-theme-xs text-warning-700 dark:text-warning-400">
