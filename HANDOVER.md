@@ -102,7 +102,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1838 tests / 8086 assertions green. Panel 809 tests green.** Gates all
+**Backend 1842 tests / 8098 assertions green. Panel 809 tests green.** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
 long-standing baseline).
 
@@ -219,7 +219,58 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-15 (latest) — the security pass, and the lock that locked the wrong people
+### 2026-08-15 (latest) — three things that were built and never plugged in
+
+Asked "what is actually pending on the web side", and answered it by measuring
+rather than by re-reading a list: **every authenticated backend endpoint matched
+against every string in the panel's source.** 252 of 259 endpoint shapes are
+called. Of the seven that are not, three are false positives — the staff screens
+build their path as `${basePath}/permissions`, which a literal match cannot see.
+
+The other four were two real gaps, and a third turned up separately when the
+receipt-size question was verified. All three are the same shape this codebase
+keeps producing: **capability built, one link missing, nothing fails.**
+
+**A buyer retyped their delivery address on every order.** The saved-address
+endpoints have been on the server since the marketplace shipped — list, add,
+edit, remove, one default kept correct atomically — and nothing ever called
+them. Checkout had a bare text box. A customer ordering from the same shop every
+week typed the same address every week, and a mistyped one is a rider at the
+wrong gate. `DeliveryAddressField` makes it a pick; a signed-out visitor still
+gets the plain box, because losing an address book must never cost an order.
+
+**A buyer could not see or cancel a reservation they had made.** The shop's half
+is complete — accept, reject, complete, with stock actually held. The buyer's
+half was built and only `create` was ever wired. So somebody could ask a shop to
+hold a fridge and then had to phone to find out what happened, while the shop
+held stock for a person who changed their mind a week ago.
+
+**A printer's own paper size was stored and read by nothing but its own test
+page.** The receipt-size question came back half clean and half not:
+`receipt_width` DOES reach the counter — the print and the settings preview
+render the same Blade file, so they cannot drift, and that was deliberate. But a
+shop with an A4 default (because it issues A4 invoices) and an 80mm thermal on
+Lane 2 got a correct test print and a wrong receipt. The printer was already
+being resolved in `show()` for the print log; it now also decides the paper.
+
+The `mutationFeedback` test caught the address field on its first run — it could
+delete a saved address and say nothing, which reads as a glitch rather than as
+something you did. That test exists because of an earlier session's finding, and
+it paid for itself again here.
+
+Also written, not built: **`docs/decisions/bank-card-offers.md`** — banks that
+fund a discount on their own cards. Two things settled before any migration: the
+discount is the BANK's money, so the claim report is the feature and the POS
+interaction is the easy half; and the card field stores the **last four digits
+only**, because a full PAN puts a shop inside PCI DSS, which is an audit regime
+rather than a setting. Four open questions listed there change the build.
+
+Backend 1842 / 8098. Panel 809. Three mutations on the paper-size fix, all
+caught.
+
+---
+
+### 2026-08-15 — the security pass, and the lock that locked the wrong people
 
 The standing item from the 2026-08-11 backlog, and item 4 of the verified list.
 Full write-up in `docs/decisions/security-pass.md`, with the denominator beside

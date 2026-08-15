@@ -1,8 +1,8 @@
 # Verified issue list — 2026-08-12
 
 > **Status 2026-08-15:** items 2, 3, 4 and 9 are **FIXED**. What is left is one
-> owner chore (1), the two P2 builds (5, 6), and two deployment chores
-> (7, 8 — also the owner's).
+> owner chore (1), the two P2 builds (5, 6), two deployment chores (7, 8 — also
+> the owner's), and **three new P2s found and FIXED the same day (10, 11, 12)**.
 
 Every line below was read in the source, not grepped for. Findings that did not
 survive that reading are in the CLOSED section at the bottom, with the reason —
@@ -189,6 +189,93 @@ screen; the page keeps only the icons. "Sells" is the same `pos || marketplace
 disagree about whether a shop sells anything. A Finance tenant now sees Business
 and nothing else. `settingsTabs.test.ts`, 6 tests, including a brute-force pass
 over all 16 module combinations; mutation-checked by ungating the POS tab.
+
+---
+
+## Found 2026-08-15 — the buyer side of the web app
+
+Found by a different method than the rest of this list, and the method is worth
+keeping: every authenticated backend endpoint was matched against every string
+in the panel's source. **252 of 259 endpoint shapes are called. Seven are not**
+— three of those are false positives (the staff screens build their path as
+`${basePath}/permissions`, which a literal match cannot see).
+
+The remaining four are two real gaps, both the same shape as every other bug in
+this codebase: **capability built, one link missing.**
+
+### 10. ✅ FIXED — a buyer retyped their address on every single order
+
+`GET/POST/PUT/DELETE /customer/addresses` is fully built and **nothing in the
+panel calls it.** Meanwhile `MarketShopPage` genuinely takes delivery orders on
+the web: line 147 sends `delivery_address` as a free-typed string.
+
+So a customer ordering from the same shop every week types their address out
+again every week — and a mistyped one is a rider at the wrong gate. The backend
+already holds the answer.
+
+### 11. ✅ FIXED — a buyer could not see or cancel a reservation they made
+
+`GET/POST /customer/reservations` and `POST /customer/reservations/{id}/cancel`
+are built; nothing in the panel calls them. A buyer can create a reservation and
+then has no way to look at it, and no way to cancel it — while the shop-side
+screen (`/reservations`, accept/reject/complete) is fully wired.
+
+The asymmetry is the tell: one side of the same feature reached a screen and the
+other did not.
+
+**Both are the WEB buyer surface.** Neither touches the till, the shop panel or
+the admin panel — the POS itself calls every endpoint it has.
+
+**Fixed 2026-08-15.** `DeliveryAddressField` turns checkout into a pick rather
+than a retype: saved addresses listed, the default pre-filled once (only into an
+empty box, or a refetch would wipe an address somebody was mid-way through
+typing), a "save this for next time" tick, and removal. A signed-out visitor, a
+failed fetch and a customer with nothing saved all get the plain box they had
+before — losing an address book must never cost anybody an order.
+
+`MyReservations` sits under My Orders and renders **nothing at all** when the
+list is empty, which is almost everybody: a menu entry that is blank for nine
+people in ten is one nobody reads. Statuses are worded for the person waiting
+("Being held for you") rather than for the shop.
+
+Both were caught by the existing `mutationFeedback` test on the first run — the
+address field could delete a saved address and say nothing, which reads as a
+glitch rather than as something you did. Toasts on both paths now.
+
+### 12. ✅ FIXED — a printer's own paper size was stored and never used
+
+**Asked as a verification, and half of it came back clean.** The tenant's
+`receipt_width` setting (A4 / 80mm / 58mm) **does** reach the counter: the real
+print (`ReceiptController::show`) renders `invoices.show` with
+`$tenant->allSettings()`, and that Blade file reads `$settings['receipt_width']`
+at line 16. It is the SAME template the settings preview renders, so the two
+cannot drift — that was deliberate and it holds.
+
+What does not reach anything is the **hardware device's** own `paper_size`.
+`HardwareDevice` validates it (`58mm | 80mm | a4`), stores it, and the panel
+uses it for exactly one thing: the printer's **test page**. No sale receipt has
+ever consulted it.
+
+The consequence is narrow but sharp: a shop whose default is A4 (because it
+issues A4 invoices) and whose Lane 2 has an 80mm thermal gets a **correct test
+print and a wrong receipt.** The setting looks like it works.
+
+There is also an inconsistency next door. A Z-report and a quotation both accept
+a `?paper=` override at print time (`PosController`, `SaleDocumentController`)
+and honour it — `$paper ?? $settings['receipt_width']`. The sale receipt takes
+no such parameter. So the one document a shop prints hundreds of times a day is
+the one with no per-printer control.
+
+**Fixed 2026-08-15**, exactly that way: `show()` already resolved the printer for
+the print log, so it now also maps its size into the templates' vocabulary
+(`58mm|80mm|a4` → `thermal_58|thermal_80|standard` — two names for one thing,
+translated in ONE place rather than in three Blade files) and passes it as
+`$paper`. The template resolves `$paper ?: $settings['receipt_width']`, the
+shape `documents` and `z-report` already used.
+
+Four tests, and the three that matter are the ones that must NOT change: a
+printer with no size set, a shop with no printer at all, and an A4 printer under
+a thermal default. Mutation-checked ×3, including mapping `a4` wrongly.
 
 ---
 
