@@ -84,6 +84,10 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   // A vehicle IS customer data — the plate is how an auto shop finds a person.
   "/tenant/customers": "customers.manage",
   "/tenant/vehicles": "customers.manage",
+  // The bay board is a till screen: moving a car along it is what a mechanic
+  // does all day, and gating it on the CRM permission would mean handing that
+  // permission to everybody who touches a car.
+  "/tenant/workshop": "sales.manage",
   "/tenant/coupons": "coupons.manage",
   "/tenant/promotions": "coupons.manage",
   // Signing a deal with a bank is marketing, not a settings switch — the same

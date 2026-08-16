@@ -986,6 +986,40 @@ export const HELP_ARTICLES: HelpArticle[] = [
     ],
   },
   {
+    id: "workshop",
+    title: "The workshop board",
+    summary: "Every car in the shop, and what stage it is at.",
+    group: "Selling",
+    permission: "sales.manage",
+    screen: "/tenant/workshop",
+    keywords: ["workshop", "job card", "bay", "board", "car", "vehicle", "repair", "mechanic", "ready"],
+    body: [
+      { type: "p", text: "Workshop, in the sidebar. Three columns — in the bay, being worked on, ready — and every car you have booked in sits in one of them. It is the whiteboard on the wall, in a place the person answering the phone can also see." },
+      { type: "note", text: "This screen is for Auto & Tyre shops. Other trades never see it." },
+
+      { type: "h", text: "Booking a car in" },
+      { type: "p", text: "Press 'Book a car in' when it arrives. It asks for four things and none of them is a price — nobody knows the price yet, and that is exactly why this is a job card and not a quotation." },
+      { type: "keys", items: [
+        ["The registration", "Start typing and pick the car if you have seen it before. That is what keeps its history together — 'what did we do last time' is only answerable if the same car is one record. A new plate is registered for you."],
+        ["What is wrong", "In the customer's words. 'Noise from front left when braking' — not your diagnosis. It is the first thing the mechanic reads and the thing most likely to get lost."],
+        ["Promised back", "When you told them to come and collect. The board turns the card amber once that time has passed, which is the one thing on it worth a colour."],
+        ["One opening item", "The diagnostic hour, or the part you already know it needs. Everything else goes on afterwards."],
+      ]},
+
+      { type: "h", text: "While the car is with you" },
+      { type: "p", text: "Open the job from the board to add parts and labour as you fit them. Prices come from your catalog — you cannot type a price on a job, for the same reason you cannot type one at the till." },
+      { type: "keys", items: [
+        ["Moving it along", "One tap on the card. Cars go backwards too — a job you marked ready that fails its road test goes straight back to 'being worked on'. Nothing is one-way."],
+        ["Taking money up front", "You can record an advance against a job, the same as goods held on advance. Useful when you are about to order a part."],
+      ]},
+
+      { type: "h", text: "When they collect" },
+      { type: "p", text: "'Bill it' turns the whole job into a real invoice — every part, every hour, the advance already paid deducted. Stock comes off then, not before." },
+      { type: "warn", text: "Bill it and the car leaves the board. That is deliberate: the board is what is IN the shop, and a car you have been paid for is not. The job is still there under Documents, and the work now shows in that car's history." },
+      { type: "note", text: "That history is the whole reason this is worth doing. A year later somebody asks what you did to this plate last time, and the answer is on the car's own record instead of in somebody's memory." },
+    ],
+  },
+  {
     id: "bank-offers",
     title: "Bank card offers",
     summary: "When a bank pays for the discount, not you.",

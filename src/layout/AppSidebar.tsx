@@ -238,6 +238,14 @@ export function shopNav(
         ...(has("products") && (businessType === "automotive" || businessType === "petroleum")
           ? [{ name: "Vehicles", path: "/tenant/vehicles" }]
           : []),
+        // The bay board — every car in the shop and what stage it is at.
+        // AUTOMOTIVE only, and narrower than Vehicles above on purpose: a fuel
+        // station keeps vehicle records for its account customers but has no
+        // bay, and a board that is permanently empty is a menu item people
+        // learn to skip.
+        ...(has("pos") && businessType === "automotive"
+          ? [{ name: "Workshop", path: "/tenant/workshop" }]
+          : []),
         // Serialized goods (phones, electronics, batteries) — look up a
         // serial's warranty. The trades that sell a unit somebody brings back;
         // a grocery or pharmacy never does. Same list the product form gates

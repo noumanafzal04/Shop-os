@@ -75,6 +75,7 @@ const CustomersPage = lazy(() => import("./modules/customers/pages/CustomersPage
 const CouponsPage = lazy(() => import("./modules/coupons/pages/CouponsPage"));
 const PromotionsPage = lazy(() => import("./modules/promotions/pages/PromotionsPage"));
 const BankOffersPage = lazy(() => import("./modules/banks/pages/BankOffersPage"));
+const WorkshopPage = lazy(() => import("./modules/workshop/pages/WorkshopPage"));
 const PortfolioPage = lazy(() => import("./modules/shop/pages/PortfolioPage"));
 const PurchaseOrdersPage = lazy(() => import("./modules/purchases/pages/PurchaseOrdersPage"));
 const InventoryPage = lazy(() => import("./modules/inventory/pages/InventoryPage"));
@@ -342,6 +343,15 @@ export default function App() {
                   <Route element={<RequireFeature feature="products" />}>
                     <Route element={<RequirePermission permission="customers.manage" />}>
                       <Route path="vehicles" element={<VehiclesPage />} />
+                    </Route>
+                  </Route>
+                  {/* The bay board. Rides the till's own permission, not the
+                      CRM one: moving a car along the board is what a mechanic
+                      does all day, and a workshop that had to hand out customer
+                      permissions to do it would hand them to everybody. */}
+                  <Route element={<RequireFeature feature="pos" />}>
+                    <Route element={<RequirePermission permission="sales.manage" />}>
+                      <Route path="workshop" element={<WorkshopPage />} />
                     </Route>
                   </Route>
                   <Route element={<RequireFeature feature="inventory" />}>

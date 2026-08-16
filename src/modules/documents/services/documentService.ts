@@ -2,7 +2,22 @@ import { api, apiGet, apiPost } from "../../../common/api/client";
 import { printHtmlDocument } from "../../../common/print";
 import type { Sale } from "../../sales/types";
 
-export type DocumentKind = "quotation" | "layaway";
+/**
+ * `job_card` is the workshop's: a car in the bay, parts and labour
+ * accumulating, no bill yet. It behaves like the other two — priced lines, an
+ * advance, and it becomes a sale — which is exactly why it is a kind here and
+ * not a parallel feature.
+ */
+export type DocumentKind = "quotation" | "layaway" | "job_card";
+
+/**
+ * Where the CAR is, as against where the paperwork is.
+ *
+ * `DocumentStatus` says whether the document is still live. This says whether
+ * the customer can come and collect. A job can be `ready` and still `open`
+ * until somebody pays, which is why they are two fields.
+ */
+export type WorkStatus = "received" | "in_progress" | "ready";
 export type DocumentStatus = "open" | "converted" | "cancelled";
 
 /** Tenders a customer can hand over as an advance. Deliberately no "credit". */
@@ -41,6 +56,14 @@ export interface DocumentPayment {
 export interface SaleDocument {
   id: string;
   kind: DocumentKind;
+  /** Job card only. Null on every quotation and layaway. */
+  work_status?: WorkStatus | null;
+  vehicle_id?: string | null;
+  vehicle?: { id: string; registration: string; make: string | null; model: string | null } | null;
+  /** What the customer said is wrong, in their words. */
+  complaint?: string | null;
+  odometer_in?: number | null;
+  promised_at?: string | null;
   number: string;
   status: DocumentStatus;
   customer_id: string | null;
@@ -97,6 +120,12 @@ export interface CreateDocumentInput {
   items: DocumentLineInput[];
   customer_name?: string;
   customer_phone?: string;
+  // ── Job card only. Ignored on a quotation or a layaway. ──────────
+  vehicle_id?: string;
+  odometer_in?: number;
+  /** What the customer said is wrong, in their words. */
+  complaint?: string;
+  promised_at?: string;
   discount?: number;
   expires_at?: string | null;
   terms?: string;
@@ -110,6 +139,8 @@ export const documentService = {
   list: (params: {
     kind?: DocumentKind;
     status?: string;
+    /** The bay board: what is in the shop at this stage right now. */
+    work_status?: WorkStatus;
     search?: string;
     customer_id?: string;
     page?: number;
@@ -118,11 +149,21 @@ export const documentService = {
       params: {
         kind: params.kind || undefined,
         status: params.status || undefined,
+        work_status: params.work_status || undefined,
         search: params.search || undefined,
         customer_id: params.customer_id || undefined,
         page: params.page ?? 1,
       },
     }),
+
+  /**
+   * Move a car along the board.
+   *
+   * Its own call, sending one field. A mechanic marking a car READY must not be
+   * able to change its price by posting the whole document back.
+   */
+  setWorkStatus: (id: string, work_status: WorkStatus) =>
+    apiPost<SaleDocument>(`/sale-documents/${id}/work-status`, { work_status }),
 
   summary: () => apiGet<DocumentSummary>("/sale-documents/summary"),
 
