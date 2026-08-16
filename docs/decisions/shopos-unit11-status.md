@@ -45,4 +45,27 @@ variance destroys the distinction the owner is trying to make.
   `inventory.manage`, deliveries `purchases.manage`, rates `products.manage`.
   No new permission keys, so no staff-permission migration.
 
+**Added 2026-08-16 — the unbilled figure gets a name.** `attendant_id` on
+`forecourt_readings` (nullable, `nullOnDelete`, indexed `['tenant_id',
+'attendant_id']`). It goes on the READING because that is where the litres are;
+one shift has several nozzles and two men can be short the same night for
+unrelated reasons. `ForecourtShift::attendantTotals()` is computed, never
+stored, sorted litres-desc, with unassigned nozzles rolled up under a null id.
+
+**The invariant this feature is defined by: the unbilled litres are NOT split
+per attendant, and cannot be.** A till sale does not record its nozzle, so
+meters-minus-till is a station figure. Splitting it would invent an accusation
+nobody could defend. `test_the_unbilled_figure_is_no_t_split_between_them`
+asserts the split is absent — the feature's honest half is what it refuses to
+claim.
+
+**Two API rules that took a bug to find:**
+- An entry in `readings` that names an attendant must NOT require
+  `opening_reading`. An echoed reading is written back to the nozzle
+  (`OpenForecourtShiftAction`), so forcing a screen to restate the meter in
+  order to name a man lets a cached figure move a totaliser.
+- The meter override keys on the FIGURE (`isset($o[$id]['opening_reading'])`),
+  never on the entry. Keying on the entry reads a missing key as zero and winds
+  every assigned nozzle back to nothing.
+
 Related: [[shopos-petroleum-analysis]], [[shopos-build-sequence]].

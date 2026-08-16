@@ -418,6 +418,52 @@ on a deploy.
 
 ---
 
+### 15. ✅ FIXED — that same column, shipped unreachable
+
+**Found 2026-08-16, in my own work from the day before.** #14 built the column,
+the validation, the relation, the computed totals and the API field. No screen
+could set it and no screen showed it. The panel's `Start shift` button posted an
+empty body, so `attendant_id` had exactly one caller: the test suite.
+
+This is the fifth time this shape has been found in this codebase and the first
+time the author was me. **A capability is not shipped until something a person
+touches can reach it.**
+
+Two halves were missing, and the second hid a real bug:
+
+**Nothing could name an attendant.** `ForecourtPage` opened every shift with
+`openShift({})`. Now a start-shift screen lists every live nozzle with its
+attendant, defaulting to nobody, and sends only the assignments.
+
+**Naming somebody forced you to restate the meter.** `opening_reading` was
+`required` on every entry in the readings array — the same array `attendant_id`
+rides on. So the only way to assign a man was to send a reading too, and an
+echoed reading is *written back to the nozzle*
+(`OpenForecourtShiftAction.php:133`). A screen posting the figure it had cached
+would have moved a totaliser while assigning a person — silently, and into the
+one number the whole reconciliation is measured from.
+
+Every attendant test passed `opening_reading` alongside `attendant_id`, so the
+suite never once exercised the case every real screen has. **The tests agreed
+with the API because they were written against the API.**
+
+Now: `opening_reading` is required only when the entry carries no attendant, and
+the action keys the override on the FIGURE (`isset($overrides[$id]['opening_reading'])`)
+rather than on the entry — reading a missing key as an override would have wound
+every assigned nozzle back to zero.
+
+An entry carrying neither a meter nor a man is refused, which is what catches a
+mistyped key.
+
+The shift page now leads with a **Handover** table above the meters, because it
+is the part somebody acts on tonight and the rest is read next morning if at
+all. It carries the line that stops it being read as a charge sheet: the
+unbilled litres are not split here.
+
+2 tests, 2 mutations caught. Backend 1931 green, panel 813 green.
+
+---
+
 ## CLOSED — verified false or already fixed. Do not re-raise.
 
 | Claim | Why it is closed |

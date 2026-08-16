@@ -219,7 +219,61 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-15 (latest) — a bank funding its own card's transaction
+### 2026-08-16 (latest) — whose nozzle it was, and the column nobody could reach
+
+Two entries in one, because the second is the first one's fault.
+
+**The finding.** Read the petroleum trade rather than measured it — the kind of
+finding no script produces, because nothing was missing. The forecourt close
+already computes the number that matters most at a pump: `unbilled_litres`, fuel
+that crossed a meter and was never rung up, per nozzle, meters against till,
+test litres out of both sides, and kept deliberately apart from tank variance so
+a hose being worked is never confused with a hole in the ground.
+
+**It landed on the SHIFT.** An owner read "forty litres unbilled" and could not
+say by whom. `opened_by` and `closed_by` are the manager, not the men on the
+hoses. At a Pakistani pump the attendant IS the control — each works assigned
+nozzles and hands over cash for their litres, that evening or never. A
+station-wide total is a number an owner can worry about and cannot act on.
+
+`attendant_id` went on the READING, not the shift: one shift has several
+nozzles, and two men can be short on the same night for unrelated reasons.
+
+**What it refuses to do is the honest half.** It does not split the unbilled
+litres per man, and cannot: a till sale of twenty litres does not record which
+nozzle it came from, so that gap is a station figure. Dividing it would be
+inventing an accusation you could not defend to a man who says it was not him.
+A test asserts the split is absent. Unassigned nozzles roll up under nobody
+rather than vanishing — a shortfall no one is named for is still a shortfall.
+
+**Then the second half, found the next day in my own work.** The column, the
+validation, the relation, the computed totals and the API field all shipped —
+and `attendant_id` had exactly one caller: the test suite. The panel's
+`Start shift` button posted an empty body. **Fifth time this shape has been
+found in this codebase; first time the author was me.**
+
+Worse, the API made the panel's case impossible. `opening_reading` was
+`required` on every entry of the array `attendant_id` rides on — so naming a man
+obliged you to send a meter too, and **an echoed reading is written back to the
+nozzle**. A screen posting its cached figure would have moved a totaliser while
+assigning a person, silently, into the one number the whole reconciliation is
+measured from. Every attendant test had passed `opening_reading` alongside
+`attendant_id`, so the suite never exercised the case every real screen has:
+**the tests agreed with the API because they were written against it.**
+
+Now `opening_reading` is required only when the entry names nobody, the override
+keys on the FIGURE rather than the entry (a missing key read as an override
+would wind every assigned nozzle back to zero), and an entry carrying neither is
+refused — which is what catches a mistyped key.
+
+The start-shift screen asks the one thing the equipment cannot know and nothing
+else; the meters open where the last shift left them. The closed shift leads
+with a **Handover** table above the meters, because that is the part somebody
+acts on tonight and the rest is read next morning if at all.
+
+Backend 1931 · panel 813. 7 tests, 5 mutations caught across the two.
+
+### 2026-08-15 — a bank funding its own card's transaction
 
 Asked for as "banks ka CRUD, card par discount", and the design turned on one
 sentence that changes the whole build: **this is not the shop's discount.** HBL
