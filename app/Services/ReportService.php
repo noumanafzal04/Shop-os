@@ -347,34 +347,77 @@ class ReportService
     }
 
     /**
-     * Staff performance: completed sales grouped by the staff who rang them up.
+     * Who rang the sales, and — where the shop says so — who sold them.
+     *
+     * These are two different questions and the report used to answer only the
+     * first while calling it the second. `created_by` is the till: it says who
+     * typed the sale, which in a one-person shop is also who sold it and on a
+     * showroom floor is the cashier who sold nothing at all.
+     *
+     * `served_by` is the answer to the question the screen was claiming to
+     * answer, and it exists only where somebody entered it. It is never
+     * inferred from the till — that inference IS the defect.
      */
     public function staffPerformance(string $tenantId, ?string $branchId, string $from, string $to): array
     {
         $fromStart = CarbonImmutable::parse($from)->startOfDay();
         $toEnd = CarbonImmutable::parse($to)->endOfDay();
 
-        $rows = Sale::query()
+        $base = fn () => Sale::query()
             ->where('sales.tenant_id', $tenantId)
             ->where('status', SaleStatus::Completed)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
-            ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
+            ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId));
+
+        $rows = $base()
             ->whereNotNull('created_by')
             ->selectRaw('created_by, COUNT(*) as sales_count, SUM(total) as revenue')
             ->groupBy('created_by')
             ->orderByDesc('revenue')
             ->get();
 
-        $names = User::query()->whereIn('id', $rows->pluck('created_by'))->pluck('name', 'id');
+        // Sales the shop actually attributed to a seller. A shop that has never
+        // used the field produces no rows here and the section stays absent
+        // rather than showing a table of nobodies.
+        $served = $base()
+            ->whereNotNull('served_by')
+            ->selectRaw('served_by, COUNT(*) as sales_count, SUM(total) as revenue')
+            ->groupBy('served_by')
+            ->orderByDesc('revenue')
+            ->get();
+
+        // What was NOT attributed, once the shop has started attributing. This
+        // is the honest half: it must not be quietly folded into the cashier's
+        // row, because doing that is the thing that made this report wrong.
+        $unattributed = $served->isEmpty() ? null : $base()
+            ->whereNull('served_by')
+            ->selectRaw('COUNT(*) as sales_count, SUM(total) as revenue')
+            ->first();
+
+        $names = User::query()
+            ->whereIn('id', $rows->pluck('created_by')->merge($served->pluck('served_by'))->unique())
+            ->pluck('name', 'id');
 
         return [
             'period' => ['from' => $from, 'to' => $to],
+            // Who operated the till.
             'staff' => $rows->map(fn ($r) => [
                 'staff_id' => $r->created_by,
                 'name' => $names[$r->created_by] ?? 'Unknown',
                 'sales_count' => (int) $r->sales_count,
                 'revenue' => round((float) $r->revenue, 2),
             ])->all(),
+            // Who sold it. Empty on a shop that does not track this.
+            'served' => $served->map(fn ($r) => [
+                'staff_id' => $r->served_by,
+                'name' => $names[$r->served_by] ?? 'Unknown',
+                'sales_count' => (int) $r->sales_count,
+                'revenue' => round((float) $r->revenue, 2),
+            ])->all(),
+            'unattributed' => $unattributed === null || (int) $unattributed->sales_count === 0 ? null : [
+                'sales_count' => (int) $unattributed->sales_count,
+                'revenue' => round((float) $unattributed->revenue, 2),
+            ],
         ];
     }
 

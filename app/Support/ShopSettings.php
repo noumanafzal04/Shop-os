@@ -95,6 +95,13 @@ class ShopSettings
             // between customers is a worse problem than the one it solves, and
             // nobody has a PIN yet on the day this ships.
             'pos_idle_lock_minutes' => 0,
+            // Ask who SOLD it, as a separate person from who rang it. Ships OFF
+            // and stays off for most shops: one counter and one person means
+            // the two are the same, and a picker on every sale would slow the
+            // till to answer a question that shop never asks. A showroom floor
+            // — garments, shoes, electronics — is the opposite case, where the
+            // staff report is meaningless without it.
+            'pos_ask_who_served' => false,
 
             // ── Kitchen (food service) ──────────────────────────────────
             // The sections a fired order can be routed to. Empty = no routing:
@@ -256,6 +263,7 @@ class ShopSettings
             'pos_auto_print' => ['sometimes', 'boolean'],
             'pos_drawer_kick' => ['sometimes', 'boolean'],
             'pos_idle_lock_minutes' => ['sometimes', 'integer', 'min:0', 'max:240'],
+            'pos_ask_who_served' => ['sometimes', 'boolean'],
             'kitchen_stations' => ['sometimes', 'array', 'max:12'],
             'kitchen_stations.*' => ['string', 'max:40'],
             'kot_auto_print' => ['sometimes', 'boolean'],

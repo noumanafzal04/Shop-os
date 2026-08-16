@@ -43,6 +43,16 @@ class StoreSaleRequest extends FormRequest
             'customer_phone' => ['nullable', 'string', 'max:32'],
             'order_type' => ['nullable', 'in:dine_in,takeaway'],
             'table_no' => ['nullable', 'string', 'max:16'],
+            // WHO SOLD IT, which is not who rang it. On a showroom floor the
+            // salesman walks the customer round and the cashier types; crediting
+            // the till operator is what the staff report did until now. Scoped
+            // to this shop's own staff — a performance figure has to name
+            // somebody the owner can actually talk to. Optional everywhere: a
+            // one-person shop never sends it and nothing changes.
+            'served_by' => [
+                'nullable', 'uuid',
+                Rule::exists('users', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
             'items' => ['required', 'array', 'min:1', 'max:200'],
             'items.*.product_id' => [
                 'required', 'uuid',

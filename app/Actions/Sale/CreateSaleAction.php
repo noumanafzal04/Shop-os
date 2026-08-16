@@ -863,6 +863,15 @@ class CreateSaleAction
                     // Gated behind `trusted_offline` because from HTTP it would
                     // be a switch for filing your sales under somebody else.
                     'created_by' => $trustedOffline ? ($data['created_by'] ?? null) : null,
+                    // WHO SOLD it, which is a different person from the one
+                    // above wherever a showroom floor and a counter are two
+                    // jobs. Taken from the request on every path, unlike
+                    // `created_by`: naming a colleague as the seller is what
+                    // the field is FOR, so there is nothing to fence. It stays
+                    // null when nobody was named — never falling back to the
+                    // cashier, which is the exact mistake this column exists to
+                    // stop the staff report making.
+                    'served_by' => $data['served_by'] ?? null,
                     // What the tablet's own clock said, and by how much it was
                     // out. Never a figure — the evidence that a clock needs
                     // setting, which nobody gets if the fix is silent.

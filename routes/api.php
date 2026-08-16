@@ -445,6 +445,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // no cursor is a first load, a cursor is everything since.
                     // Both ride sales.manage — this is what the counter sells.
                     Route::get('/bootstrap', [PosCatalogController::class, 'bootstrap']);
+                    // Who this till may credit a sale to. Rides sales.manage
+                    // like the rest of the counter: naming a colleague as the
+                    // seller must not need the permission that EDITS people.
+                    Route::get('/sellers', [PosCatalogController::class, 'sellers']);
                     // A till reporting that it priced a cart differently from the
                     // server. The cashier's own browser sends it, so it rides
                     // sales.manage with the rest of this block; reading the pile is

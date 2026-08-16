@@ -149,6 +149,20 @@ class Sale extends BaseModel
         'other' => 'Other',
     ];
 
+    /**
+     * WHO SOLD IT, which is not `created_by`.
+     *
+     * `created_by` is the till — who typed the sale. On a showroom floor that
+     * is the cashier, and the salesman who walked the customer round appears
+     * nowhere. Null wherever the shop does not answer the question, and never
+     * defaulted to the cashier: that inference is what made the staff report
+     * wrong in the first place.
+     */
+    public function servedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'served_by');
+    }
+
     /** The vehicle this job was done on — a tyre or auto shop's real key. */
     public function vehicle(): BelongsTo
     {

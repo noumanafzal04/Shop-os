@@ -9,6 +9,7 @@ use App\Models\CustomerGroup;
 use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\TaxGroup;
+use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\PlanLimits;
@@ -67,7 +68,7 @@ class PosCatalogController extends Controller
         'receipt_width', 'invoice_header', 'invoice_footer', 'invoice_show_logo',
         'receipt_show_cashier', 'invoice_ntn', 'invoice_strn',
         'scale_barcode_enabled', 'scale_barcode_prefix', 'scale_barcode_mode',
-        'pos_require_shift', 'pos_default_payment',
+        'pos_require_shift', 'pos_default_payment', 'pos_ask_who_served',
     ];
 
     public function __construct(
@@ -87,6 +88,40 @@ class PosCatalogController extends Controller
     public function delta(Request $request): JsonResponse
     {
         return ApiResponse::ok($this->pull($request));
+    }
+
+    /**
+     * The names this till may credit a sale to.
+     *
+     * The online counter asks for this on its own rather than pulling a whole
+     * catalog for a list of names; the offline one gets the same list inside
+     * the catalog it already caches. One method answers both, so the two can
+     * never come to disagree about who works here.
+     */
+    public function sellers(): JsonResponse
+    {
+        return ApiResponse::ok($this->sellerList($this->tenant->get()));
+    }
+
+    /**
+     * Active staff, names only, and only where the shop has switched the
+     * question on. Empty otherwise — a till that is not asking has no reason to
+     * be holding a staff list.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function sellerList(?Model $tenant): array
+    {
+        if ($tenant === null || ! $tenant->setting('pos_ask_who_served')) {
+            return [];
+        }
+
+        return User::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->all();
     }
 
     /**
@@ -115,6 +150,15 @@ class PosCatalogController extends Controller
             'customers' => $this->customers($cursor('customers')),
 
             'settings' => collect($tenant?->allSettings() ?? [])->only(self::TILL_SETTINGS),
+            // Who the till may name as the seller — cached with the catalog so
+            // a till that loses its connection can still attribute a sale.
+            //
+            // It rides here rather than /staff for one reason: a cashier holds
+            // `sales.manage` and not `staff.manage`, and gating the NAME LIST
+            // behind the permission that EDITS people is this codebase's
+            // documented `*.manage` mistake — a write permission fencing a
+            // read. Names only, and only once the shop has asked the question.
+            'sellers' => $this->sellerList($tenant),
             'offline_days' => $tenant === null ? null : PlanLimits::limit($tenant, 'offline_days'),
             // May this till sell with no server at all? The kill switch, and
             // it lives on the catalog because that is the one call a till makes
