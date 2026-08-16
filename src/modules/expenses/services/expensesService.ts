@@ -283,9 +283,30 @@ export interface PurchasesReport {
   by_supplier: Array<{ supplier: string; orders: number; total: number; outstanding: number }>;
 }
 
+interface StaffRow {
+  staff_id: string;
+  name: string;
+  sales_count: number;
+  revenue: number;
+}
+
+/**
+ * Two different questions about the same sales.
+ *
+ * `staff` is the TILL — who typed the sale. In a one-person shop that is also
+ * who sold it; on a showroom floor it is the cashier, who sold nothing.
+ *
+ * `served` is who actually sold it, and exists only where somebody said so. It
+ * is never inferred from the till — that inference is the defect this replaced.
+ * Empty on every shop that does not track it, so the section is absent rather
+ * than a table of nobodies.
+ */
 export interface StaffReport {
   period: { from: string; to: string };
-  staff: Array<{ staff_id: string; name: string; sales_count: number; revenue: number }>;
+  staff: StaffRow[];
+  served: StaffRow[];
+  /** What was rung while `served` was in use and nobody was named for it. */
+  unattributed: { sales_count: number; revenue: number } | null;
 }
 
 export interface TaxReport {

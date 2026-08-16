@@ -330,26 +330,73 @@ function PurchasesTab({ range }: { range: ReportRange }) {
   );
 }
 
+/**
+ * Who rang the sales, and — where the shop says so — who sold them.
+ *
+ * This screen used to show one table titled "Staff performance" over a figure
+ * grouped by who OPERATED THE TILL. In a one-person shop those are the same
+ * person. On a showroom floor they are not: the salesmen work the customers and
+ * one cashier types, so the report credited the cashier with everybody's month
+ * and named nobody who had done the work.
+ *
+ * So the till figure keeps its own heading, saying plainly what it counts, and
+ * the seller figure sits above it when the shop tracks one — because that is
+ * the question somebody opened this tab to ask.
+ */
+function StaffRows({ rows }: { rows: Array<{ staff_id: string; name: string; sales_count: number; revenue: number }> }) {
+  return (
+    <table className="w-full text-left text-theme-sm">
+      <thead><tr className="text-theme-xs text-gray-500 dark:text-gray-400"><th className="pb-2 font-medium">Staff</th><th className="pb-2 text-right font-medium">Sales</th><th className="pb-2 text-right font-medium">Revenue</th></tr></thead>
+      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+        {rows.map((s) => (
+          <tr key={s.staff_id} className="text-gray-700 dark:text-gray-300">
+            <td className="py-2.5">{s.name}</td><td className="py-2.5 text-right">{s.sales_count}</td>
+            <td className="py-2.5 text-right font-medium">{fmt(s.revenue)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function StaffTab({ range }: { range: ReportRange }) {
   const q = useStaffReport(range, true);
   const d = q.data;
   if (q.isLoading || !d) return <div className="h-40 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;
+
+  const empty = <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No sales in this period.</p>;
+
   return (
-    <Panel title="Staff performance">
-      {d.staff.length === 0 ? <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No sales in this period.</p> : (
-        <table className="w-full text-left text-theme-sm">
-          <thead><tr className="text-theme-xs text-gray-500 dark:text-gray-400"><th className="pb-2 font-medium">Staff</th><th className="pb-2 text-right font-medium">Sales</th><th className="pb-2 text-right font-medium">Revenue</th></tr></thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {d.staff.map((s) => (
-              <tr key={s.staff_id} className="text-gray-700 dark:text-gray-300">
-                <td className="py-2.5">{s.name}</td><td className="py-2.5 text-right">{s.sales_count}</td>
-                <td className="py-2.5 text-right font-medium">{fmt(s.revenue)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="space-y-5">
+      {/* Absent, never empty: a shop that does not name a seller has no such
+          table rather than a table of nobodies. */}
+      {d.served.length > 0 && (
+        <Panel title="Who sold it">
+          <StaffRows rows={d.served} />
+          {d.unattributed && (
+            /* The honest half. These sales are NOT quietly credited to whoever
+               was at the till — doing that is what made this report wrong. */
+            <p className="mt-3 border-t border-gray-100 pt-3 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+              {d.unattributed.sales_count} sale{d.unattributed.sales_count === 1 ? "" : "s"} ·{" "}
+              {fmt(d.unattributed.revenue)} had nobody named. They are not counted above, and are
+              not credited to whoever rang them.
+            </p>
+          )}
+        </Panel>
       )}
-    </Panel>
+
+      <Panel title={d.served.length > 0 ? "Who rang it up" : "Sales by till operator"}>
+        {d.staff.length === 0 ? empty : <StaffRows rows={d.staff} />}
+        {d.served.length === 0 && d.staff.length > 0 && (
+          /* Says what it actually counts, which the old heading did not. */
+          <p className="mt-3 border-t border-gray-100 pt-3 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            This counts who <em>entered</em> each sale. If your salesmen and your counter are
+            different people, switch on “Ask who served the customer” in Settings → POS and this
+            tab will also show who sold it.
+          </p>
+        )}
+      </Panel>
+    </div>
   );
 }
 

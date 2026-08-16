@@ -143,6 +143,12 @@ export interface SaleInput {
   customer_phone?: string;
   order_type?: "dine_in" | "takeaway";
   table_no?: string;
+  /**
+   * Who SOLD it, which is not who rang it. Sent only where the shop asks; left
+   * out rather than defaulted to the cashier, because a sale credited to the
+   * till operator by default is what made the staff report wrong.
+   */
+  served_by?: string;
   items: SaleLineInput[];
   discount?: number;
   coupon_code?: string;

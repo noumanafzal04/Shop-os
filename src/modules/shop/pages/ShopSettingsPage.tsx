@@ -646,6 +646,12 @@ export default function ShopSettingsPage() {
                           hint="Sends the receipt to the printer the moment a sale is paid, without asking."
                         />
                         <ToggleRow
+                          checked={!!prefs.pos_ask_who_served}
+                          onChange={(v) => setP("pos_ask_who_served", v)}
+                          label="Ask who served the customer"
+                          hint="For a shop where the salesman and the counter are different people. The till adds a 'Served by' box, and Reports → Staff then shows who SOLD each sale as well as who rang it. Leave it off if one person does both — that is most shops."
+                        />
+                        <ToggleRow
                           checked={!!prefs.pos_drawer_kick}
                           onChange={(v) => setP("pos_drawer_kick", v)}
                           label="Open drawer on cash"

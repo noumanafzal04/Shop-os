@@ -353,6 +353,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "warn",
         text: "Prices are decided by the server, never by the browser. That is why a discount past your ceiling needs a supervisor, and why nothing on the page can change what a customer is charged.",
       },
+      { type: "h", text: "Served by" },
+      { type: "p", text: "If your shop has switched this on, a Served by box sits above the payment methods. Pick the person who actually sold it — which is not necessarily you, if you are the one at the counter. It starts on Nobody and stays there unless you change it." },
+      { type: "note", text: "Leaving it on Nobody is fine and is never treated as you. The sale is simply reported as unattributed rather than credited to whoever typed it." },
     ],
   },
   {
@@ -1234,12 +1237,16 @@ export const HELP_ARTICLES: HelpArticle[] = [
     group: "Money",
     permission: "reports.view",
     screen: "/tenant/reports",
-    keywords: ["report", "profit", "best seller", "analysis", "tax year", "financial year", "year"],
+    keywords: ["report", "profit", "best seller", "analysis", "tax year", "financial year", "year", "staff", "salesman", "commission", "target"],
     body: [
       { type: "p", text: "What sold, who bought it, and who sold it." },
       { type: "p", text: "Profit is takings, plus other income, minus the cost of what was sold, minus expenses." },
       { type: "p", text: "Two different years are on offer, and they are different questions. This Year is January to December — what you made, the way you'd say it out loud. Tax Year is 1 July to 30 June, which is the window FBR's return, your audited accounts and your advance tax all sit inside. For anything you file, use Tax Year." },
       { type: "note", text: "The dates under the buttons always say which twelve months you are looking at, so you never have to remember which is which." },
+      { type: "h", text: "Who sold it vs who rang it" },
+      { type: "p", text: "The Staff tab counts who ENTERED each sale. In a shop where one person serves the customer and takes the money, that is the same thing. In a showroom where salesmen work the floor and one cashier types, it is not — the cashier would show as having sold everything." },
+      { type: "p", text: "Switch on Settings → POS → “Ask who served the customer” and the till adds a Served by box. The Staff tab then shows both: who sold it, and who rang it, as separate tables." },
+      { type: "warn", text: "Sales where nobody was named are shown as unattributed and are never quietly credited to whoever was at the till. If a figure looks low, check that line first — it usually means the box was skipped, not that somebody sold less." },
     ],
   },
 

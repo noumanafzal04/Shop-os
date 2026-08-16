@@ -138,6 +138,12 @@ export interface ShopSettings {
   pos_drawer_kick: boolean;
   /** Lock the till after this many idle minutes. 0 = never. */
   pos_idle_lock_minutes: number;
+  /**
+   * Ask who SOLD each sale, separately from who rang it. Off for most shops —
+   * one counter and one person means the two are the same, and a picker on
+   * every sale would slow the till to answer a question they never ask.
+   */
+  pos_ask_who_served: boolean;
   /** Sections a fired order routes to. Empty = one KOT for everything. */
   kitchen_stations: string[];
   kot_auto_print: boolean;

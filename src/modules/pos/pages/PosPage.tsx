@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BankOfferRow } from "../../banks/components/BankOfferRow";
+import { ServedByRow } from "../components/ServedByRow";
 import type { CardType } from "../../banks/services/banksService";
 import { Link } from "react-router";
 import { uuid } from "../../../common/uuid";
@@ -486,6 +487,15 @@ export default function PosPage() {
   // ── A bank funding part of its own card's transaction ──────────────
   // All three optional. A shop with no bank deals never sees the row, and a
   // cashier who ignores it gets exactly the tender screen they had before.
+  /**
+   * Who sold this, where the shop and the counter are different jobs.
+   *
+   * Null is a real answer and the default one. It is never seeded with the
+   * signed-in cashier: a sale silently credited to whoever typed it is the
+   * defect this exists to fix, and pre-filling would reintroduce it with the
+   * cashier's own consent implied.
+   */
+  const [servedBy, setServedBy] = useState<string | null>(null);
   const [bankId, setBankId] = useState<string | null>(null);
   const [cardLast4, setCardLast4] = useState("");
   const [cardType, setCardType] = useState<CardType | null>(null);
@@ -897,6 +907,11 @@ export default function PosPage() {
         cash_session_id: activeSessionId,
         customer_name: customer || undefined,
         customer_phone: customerPhone || undefined,
+        // WHO SOLD IT, which is not who is typing. Sent only where the shop
+        // asks — and left out rather than defaulted to the cashier, because a
+        // sale credited to the till operator by default is exactly what made
+        // the staff report wrong.
+        ...(servedBy !== null ? { served_by: servedBy } : {}),
         ...(isRestaurant
           ? { order_type: orderType, table_no: orderType === "dine_in" ? tableNo || undefined : undefined }
           : {}),
@@ -2639,6 +2654,14 @@ export default function PosPage() {
                 )}
               </div>
             )}
+            {/* Who sold it, above the tenders because it is a fact about the
+                sale rather than about the money. Absent entirely unless the
+                shop has asked for it. */}
+            <ServedByRow
+              enabled={!!settings.data?.pos_ask_who_served}
+              value={servedBy}
+              onChange={setServedBy}
+            />
             <div className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Payment method</div>
             <div className="mb-5 grid grid-cols-4 gap-2">
               {(["cash", "card", "credit", "split"] as const).map((m) => (

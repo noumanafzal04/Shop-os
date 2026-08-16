@@ -227,6 +227,16 @@ export const posService = {
    */
   quickKeys: () => apiGet<Product[]>("/pos/quick-keys"),
 
+  /**
+   * Who this till may credit a sale to. Empty unless the shop has switched on
+   * "ask who served the customer".
+   *
+   * Rides the POS prefix, not `/staff`: a cashier holds `sales.manage` and not
+   * `staff.manage`, and naming a colleague as the seller must not need the
+   * permission that edits people.
+   */
+  sellers: () => apiGet<Array<{ id: string; name: string }>>("/pos/sellers"),
+
   // Answers with my own drawer, the one I'm covering, or null. Narrow it with
   // `isCover()` before reading any figure off it.
   currentSession: () => apiGet<SessionState>("/pos/session"),
