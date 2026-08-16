@@ -63,10 +63,13 @@ class ForecourtShiftController extends Controller
     public function show(string $id): JsonResponse
     {
         $shift = ForecourtShift::query()
-            ->with(['readings', 'dips', 'deliveries.supplier:id,name', 'branch:id,name', 'openedBy:id,name', 'closedBy:id,name'])
+            ->with([
+                'readings.attendant:id,name', 'dips', 'deliveries.supplier:id,name',
+                'branch:id,name', 'openedBy:id,name', 'closedBy:id,name',
+            ])
             ->findOrFail($id);
 
-        return ApiResponse::ok($shift);
+        return ApiResponse::ok($this->present($shift));
     }
 
     public function close(CloseForecourtShiftRequest $request, string $id, CloseForecourtShiftAction $action): JsonResponse
@@ -77,8 +80,23 @@ class ForecourtShiftController extends Controller
         $closed = $action->execute($request->user(), $shift, $request->validated());
 
         return ApiResponse::ok(
-            $closed->load(['readings', 'dips']),
+            $this->present($closed->load(['readings.attendant:id,name', 'dips'])),
             "Forecourt shift {$closed->number} closed",
         );
+    }
+
+    /**
+     * The shift, plus what each attendant is responsible for.
+     *
+     * The handover figure, straight off the meters. It deliberately does not
+     * split the unbilled litres — a till sale does not record which nozzle it
+     * came from, so that gap is a station figure and dividing it by attendant
+     * would be inventing an accusation. See `ForecourtShift::attendantTotals`.
+     */
+    private function present(ForecourtShift $shift): array
+    {
+        return array_merge($shift->toArray(), [
+            'attendant_totals' => $shift->attendantTotals(),
+        ]);
     }
 }

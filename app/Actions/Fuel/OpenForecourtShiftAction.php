@@ -118,6 +118,12 @@ class OpenForecourtShiftAction
                     'product_id' => $product?->id,
                     'product_name' => $product?->name ?? '—',
                     'opening_reading' => $opening,
+                    // WHOSE nozzle this is for the shift. Optional — a one-man
+                    // pump has no assignment to make — but where it is given it
+                    // is the difference between "forty litres unbilled" and
+                    // "forty litres unbilled, on Ali's nozzles", which is the
+                    // only version an owner can act on that evening.
+                    'attendant_id' => $readingOverrides[$nozzle->id]['attendant_id'] ?? null,
                     // The rate in force as the shift opens. Snapshotted so a
                     // midnight price notification can't retroactively revalue
                     // litres that were sold before it landed.

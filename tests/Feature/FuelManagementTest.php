@@ -666,4 +666,114 @@ class FuelManagementTest extends TestCase
 
         return $this->withToken($token);
     }
+
+    // ── Whose nozzle it was ─────────────────────────────────────────
+    //
+    // The close already produces the number that matters most at a pump —
+    // fuel that crossed a meter and was never rung up. It was computed
+    // perfectly and owed by nobody: `opened_by` and `closed_by` are the manager
+    // who ran the shift, not the men who worked the hoses.
+    //
+    // At a Pakistani pump the attendant IS the control. Each works assigned
+    // nozzles and hands over cash for their litres, and that handover is
+    // counted the same evening or not at all.
+
+    public function test_a_nozzle_can_be_assigned_to_the_man_working_it(): void
+    {
+        $ali = User::factory()->tenantStaff($this->station, ['sales.manage'])->create(['name' => 'Ali']);
+
+        $shift = $this->actingAsUser($this->manager)->postJson('/api/v1/fuel/shifts', [
+            'readings' => [
+                ['fuel_nozzle_id' => $this->nozzleA->id, 'opening_reading' => 100000, 'attendant_id' => $ali->id],
+            ],
+        ])->assertCreated()->json('data');
+
+        $reading = collect($shift['readings'])->firstWhere('fuel_nozzle_id', $this->nozzleA->id);
+        $this->assertSame($ali->id, $reading['attendant_id']);
+    }
+
+    public function test_a_one_man_pump_assigns_nobody_and_still_runs(): void
+    {
+        // Most stations. Nothing about this feature may require an assignment
+        // before a shift can open.
+        $shift = $this->openShift();
+
+        $this->assertNull(collect($shift['readings'])->first()['attendant_id']);
+    }
+
+    public function test_an_attendant_from_another_station_is_refused(): void
+    {
+        // The figure this produces is a person's shortfall. It has to name
+        // somebody the owner can actually go and ask.
+        $stranger = User::factory()->create();
+
+        $this->actingAsUser($this->manager)->postJson('/api/v1/fuel/shifts', [
+            'readings' => [
+                ['fuel_nozzle_id' => $this->nozzleA->id, 'opening_reading' => 100000, 'attendant_id' => $stranger->id],
+            ],
+        ])->assertStatus(422)->assertJsonValidationErrors('readings.0.attendant_id');
+    }
+
+    public function test_the_close_says_what_each_man_must_hand_over(): void
+    {
+        // Straight off the meters — the figure an owner counts the handover
+        // against.
+        $ali = User::factory()->tenantStaff($this->station, ['sales.manage'])->create(['name' => 'Ali']);
+
+        $shift = $this->actingAsUser($this->manager)->postJson('/api/v1/fuel/shifts', [
+            'readings' => [
+                ['fuel_nozzle_id' => $this->nozzleA->id, 'opening_reading' => 100000, 'attendant_id' => $ali->id],
+                ['fuel_nozzle_id' => $this->nozzleB->id, 'opening_reading' => 50000],
+            ],
+        ])->assertCreated()->json('data');
+
+        $closed = $this->closeShift(
+            $shift,
+            [[$this->nozzleA, 100100], [$this->nozzleB, 50060], [$this->dieselNozzle, 20000]],
+            [[$this->petrolTank, 10000 - 160], [$this->dieselTank, 5000]],
+        );
+
+        $totals = collect($closed['attendant_totals']);
+
+        $mine = $totals->firstWhere('attendant_id', $ali->id);
+        $this->assertNotNull($mine, 'the man on the nozzle must be named');
+        $this->assertEqualsWithDelta(100.0, $mine['litres'], 0.001);
+
+        // The unassigned nozzle is still there, under nobody. A shortfall no
+        // one is named for is still a shortfall — hiding it would be worse
+        // than not asking who was on the hose.
+        $unnamed = $totals->firstWhere('attendant_id', null);
+        $this->assertNotNull($unnamed);
+        $this->assertEqualsWithDelta(60.0, $unnamed['litres'], 0.001);
+    }
+
+    public function test_the_unbilled_figure_is_no_t_split_between_them(): void
+    {
+        // It cannot be. A till sale of twenty litres does not record which
+        // nozzle it came from, so the gap between meters and till is a STATION
+        // figure. Dividing it by attendant would be inventing an accusation,
+        // and a report that does that is one nobody can defend to a man who
+        // says it was not him.
+        $ali = User::factory()->tenantStaff($this->station, ['sales.manage'])->create(['name' => 'Ali']);
+
+        $shift = $this->actingAsUser($this->manager)->postJson('/api/v1/fuel/shifts', [
+            'readings' => [
+                ['fuel_nozzle_id' => $this->nozzleA->id, 'opening_reading' => 100000, 'attendant_id' => $ali->id],
+                ['fuel_nozzle_id' => $this->nozzleB->id, 'opening_reading' => 50000],
+            ],
+        ])->assertCreated()->json('data');
+
+        $closed = $this->closeShift(
+            $shift,
+            [[$this->nozzleA, 100100], [$this->nozzleB, 50060], [$this->dieselNozzle, 20000]],
+            [[$this->petrolTank, 10000 - 160], [$this->dieselTank, 5000]],
+        );
+
+        foreach ($closed['attendant_totals'] as $row) {
+            $this->assertArrayNotHasKey('unbilled_litres', $row);
+        }
+
+        // It stays where it honestly belongs.
+        $this->assertArrayHasKey('unbilled_litres', $closed);
+    }
 }

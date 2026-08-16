@@ -23,6 +23,14 @@ class OpenForecourtShiftRequest extends FormRequest
             'readings' => ['sometimes', 'array'],
             'readings.*.fuel_nozzle_id' => ['required', 'uuid', Rule::exists('fuel_nozzles', 'id')->whereNull('deleted_at')],
             'readings.*.opening_reading' => ['required', 'numeric', 'min:0', 'max:99999999999'],
+            // Whose nozzle this is for the shift. Optional — a one-man pump has
+            // nobody to assign — and scoped to this shop's own staff, because
+            // the unbilled figure it produces is a person's shortfall and it
+            // must name somebody the owner can actually go and ask.
+            'readings.*.attendant_id' => [
+                'nullable', 'uuid',
+                Rule::exists('users', 'id')->where('tenant_id', $this->user()->tenant_id)->whereNull('deleted_at'),
+            ],
             'dips' => ['sometimes', 'array'],
             'dips.*.fuel_tank_id' => ['required', 'uuid', Rule::exists('fuel_tanks', 'id')->whereNull('deleted_at')],
             'dips.*.opening_dip' => ['required', 'numeric', 'min:0', 'max:9999999'],

@@ -74,4 +74,58 @@ class ForecourtShift extends BaseModel
     {
         return $this->status === self::STATUS_OPEN;
     }
+
+    /**
+     * What each attendant's nozzles pushed, and what that is worth.
+     *
+     * ── The number an attendant hands over ──────────────────────────────
+     *
+     * At a pump the control is the man on the nozzle: he works his assigned
+     * hoses and hands over cash for their litres at the end of the shift. This
+     * is that figure, straight off the meters — the thing an owner counts the
+     * handover against.
+     *
+     * ── What it deliberately does NOT do ────────────────────────────────
+     *
+     * It does not split `unbilled_litres`. It CANNOT: a till sale of twenty
+     * litres of petrol does not record which nozzle it came from, so the gap
+     * between meters and till is a station figure and stays one. Dividing it by
+     * attendant would be inventing an accusation.
+     *
+     * What it gives an owner is the other half of the same question — how much
+     * each man is responsible for — and the shortfall stays where it honestly
+     * belongs, on the shift.
+     *
+     * ── Computed, not stored ────────────────────────────────────────────
+     *
+     * Everything on a closed shift is written once so a signed-off figure reads
+     * the same in September. This obeys that without a column: the readings it
+     * sums are themselves written once, so the answer cannot drift either.
+     *
+     * Unassigned readings roll up under a null id rather than being dropped. A
+     * shortfall nobody is named for is still a shortfall, and hiding it would
+     * be worse than not asking who was on the nozzle.
+     *
+     * @return array<int, array{attendant_id: string|null, attendant: string|null, litres: float, value: float, nozzles: int}>
+     */
+    public function attendantTotals(): array
+    {
+        return $this->readings
+            ->groupBy(fn (ForecourtReading $r): string => $r->attendant_id ?? '')
+            ->map(fn ($rows): array => [
+                'attendant_id' => $rows->first()->attendant_id,
+                'attendant' => $rows->first()->attendant?->name,
+                'litres' => round((float) $rows->sum('litres_sold'), 3),
+                'value' => round((float) $rows->sum(
+                    fn (ForecourtReading $r): float => (float) $r->litres_sold * (float) $r->unit_price,
+                ), 2),
+                'nozzles' => $rows->count(),
+            ])
+            // Most litres first: the biggest handover is the one to count
+            // carefully, and on a busy night it is the only one anybody has
+            // time to.
+            ->sortByDesc('litres')
+            ->values()
+            ->all();
+    }
 }

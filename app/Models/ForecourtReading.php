@@ -29,6 +29,18 @@ class ForecourtReading extends Model
         ];
     }
 
+    /**
+     * The person on this nozzle for this shift.
+     *
+     * Null on a one-man pump and on every reading taken before the column
+     * existed. Where it is set, it is what turns "the station is forty litres
+     * short" into a question somebody can be asked that evening.
+     */
+    public function attendant(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'attendant_id');
+    }
+
     public function shift(): BelongsTo
     {
         return $this->belongsTo(ForecourtShift::class, 'forecourt_shift_id');
