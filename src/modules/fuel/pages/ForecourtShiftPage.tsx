@@ -66,6 +66,62 @@ export default function ForecourtShiftPage() {
         />
       </div>
 
+      {/* ── Handover ───────────────────────────────────────────────────
+          Above the meters because it is the part somebody acts on tonight.
+          The rest of this page is read the next morning, if at all. */}
+      {(s.attendant_totals ?? []).length > 0 && (
+        <section className="mt-5 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+          <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+            <h3 className="text-sm font-medium text-gray-800 dark:text-white/90">Handover</h3>
+            <span className="text-theme-xs text-gray-400">
+              Straight off each man&rsquo;s meters — count the cash against this
+            </span>
+          </header>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[32rem] text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-left text-theme-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
+                  <th className="px-4 py-2.5 font-medium">Attendant</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Nozzles</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Litres</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Owed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(s.attendant_totals ?? []).map((a) => (
+                  <tr
+                    key={a.attendant_id ?? "unassigned"}
+                    className="border-b border-gray-50 last:border-0 dark:border-gray-800/60"
+                  >
+                    <td className="px-4 py-2.5">
+                      {a.attendant ? (
+                        <span className="text-gray-800 dark:text-white/90">{a.attendant}</span>
+                      ) : (
+                        /* A shortfall nobody is named for is still a shortfall.
+                           Hiding this row would be worse than never asking. */
+                        <span className="text-gray-400">Nobody assigned</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{a.nozzles}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-800 dark:text-white/90">
+                      {litres(a.litres)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800 dark:text-white/90">
+                      {money(a.value)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* The line that stops this table being read as a charge sheet. */}
+          <p className="border-t border-gray-100 px-4 py-2.5 text-theme-xs text-gray-400 dark:border-gray-800">
+            The unbilled litres above are not split here. A till sale doesn&rsquo;t record which
+            nozzle it came from, so that gap belongs to the station, not to a man.
+          </p>
+        </section>
+      )}
+
       <section className="mt-5 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <header className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
           <h3 className="text-sm font-medium text-gray-800 dark:text-white/90">Meters</h3>
@@ -87,7 +143,10 @@ export default function ForecourtShiftPage() {
                 <tr key={r.id} className="border-b border-gray-50 last:border-0 dark:border-gray-800/60">
                   <td className="px-4 py-2.5">
                     <div className="text-gray-800 dark:text-white/90">{r.pump_name} · {r.nozzle_name}</div>
-                    <div className="text-theme-xs text-gray-400">{r.product_name} @ {money(r.unit_price)}</div>
+                    <div className="text-theme-xs text-gray-400">
+                      {r.product_name} @ {money(r.unit_price)}
+                      {r.attendant ? ` · ${r.attendant.name}` : ""}
+                    </div>
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{Number(r.opening_reading).toLocaleString()}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{r.closing_reading ? Number(r.closing_reading).toLocaleString() : "—"}</td>

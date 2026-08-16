@@ -6,6 +6,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { useToast } from "../../../components/ui/toast";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useCurrentShift, useFuelMutations, useShifts } from "../hooks/useFuel";
+import { StartShiftModal } from "../components/StartShiftModal";
 import type { ForecourtDip, ForecourtReading, ForecourtShift } from "../services/fuelService";
 
 /** A totaliser rolls at 999999.999 and starts again — mirrors FuelNozzle::ROLLOVER_AT. */
@@ -37,11 +38,18 @@ export default function ForecourtPage() {
   const { openShift, closeShift } = useFuelMutations();
 
   const shift = current.data ?? null;
+  const [starting, setStarting] = useState(false);
 
-  const start = async () => {
+  /**
+   * Assignments only. No meter is sent: an echoed reading is written back to
+   * the nozzle, so a screen that posted the figure it had cached would move a
+   * totaliser while it was naming a man.
+   */
+  const start = async (readings: Array<{ fuel_nozzle_id: string; attendant_id: string }>) => {
     try {
-      const res = await openShift.mutateAsync({});
+      const res = await openShift.mutateAsync(readings.length > 0 ? { readings } : {});
       toast.success(`Shift ${res.data.number} opened`);
+      setStarting(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not open the shift");
     }
@@ -59,7 +67,7 @@ export default function ForecourtPage() {
           </p>
         </div>
         {!shift && !current.isLoading && (
-          <Button size="sm" onClick={start} disabled={openShift.isPending}>
+          <Button size="sm" onClick={() => setStarting(true)} disabled={openShift.isPending}>
             {openShift.isPending ? "Opening…" : "Start shift"}
           </Button>
         )}
@@ -88,7 +96,12 @@ export default function ForecourtPage() {
             Starting one records where every meter and tank stands right now. Nothing can be
             reconciled without that first reading.
           </p>
+          <Button size="sm" className="mt-3" onClick={() => setStarting(true)}>Start shift</Button>
         </div>
+      )}
+
+      {starting && (
+        <StartShiftModal onClose={() => setStarting(false)} onStart={start} busy={openShift.isPending} />
       )}
 
       {/* ── Closed shifts ──────────────────────────────────────────── */}

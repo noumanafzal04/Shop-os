@@ -470,18 +470,21 @@ export const HELP_ARTICLES: HelpArticle[] = [
     trades: ["petroleum"],
     permission: "inventory.manage",
     screen: "/tenant/fuel",
-    keywords: ["fuel", "pump", "nozzle", "dip", "tank", "meter", "petrol", "diesel"],
+    keywords: ["fuel", "pump", "nozzle", "dip", "tank", "meter", "petrol", "diesel", "attendant", "handover"],
     body: [
       {
         type: "steps",
         items: [
-          "Open a shift. Meter readings are taken at the start.",
+          "Start a shift. Say who is on which hose — that part is optional, and the meters open where the equipment already stands.",
           "Fuel sells through the shift, priced at the rate in force at the time.",
           "Test litres are recorded and are not a sale — they went back in the tank.",
           "Close the shift: meter readings again, then dip the tank and set stock to the dip.",
           "The difference between what the meters say sold and what the dip says is left is the variance.",
         ],
       },
+      { type: "p", text: "Where you named the men, the closed shift carries a Handover table: each attendant's litres and what they come to, straight off their own meters. That is the figure you count their cash against, the same evening." },
+      { type: "note", text: "The unbilled litres are never split between attendants. A till sale doesn't record which nozzle it came from, so that gap belongs to the station as a whole — a per-man share of it would be a guess, and you couldn't stand behind it if the man denied it." },
+      { type: "note", text: "Assigning nobody is normal. A one-man pump has nothing to assign, and the shift opens and closes exactly the same either way." },
       { type: "note", text: "Tanker deliveries and rate changes are recorded separately, under Deliveries & rates." },
     ],
   },

@@ -59,6 +59,27 @@ export interface ForecourtReading {
   litres_sold: string;
   unit_price: string;
   value: string;
+  /** The man on this hose for the shift. Null on a station that assigns nobody. */
+  attendant_id: string | null;
+  attendant?: { id: string; name: string } | null;
+}
+
+/**
+ * What one attendant is answerable for, straight off their meters.
+ *
+ * Deliberately carries no share of the unbilled litres. A till sale does not
+ * record which nozzle it came from, so that gap is a station figure; splitting
+ * it per man would be inventing an accusation nobody could defend.
+ *
+ * These are numbers, not decimal strings — the server computes them rather
+ * than storing them.
+ */
+export interface AttendantTotal {
+  attendant_id: string | null;
+  attendant: string | null;
+  litres: number;
+  value: number;
+  nozzles: number;
 }
 
 export interface ForecourtDip {
@@ -99,6 +120,8 @@ export interface ForecourtShift {
   notes: string | null;
   readings?: ForecourtReading[];
   dips?: ForecourtDip[];
+  /** Present on a single shift read back, not in the list. */
+  attendant_totals?: AttendantTotal[];
 }
 
 export interface FuelDelivery {
