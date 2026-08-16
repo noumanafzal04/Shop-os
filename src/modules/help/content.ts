@@ -586,6 +586,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
           ["Categories", "Your own vocabulary, seeded from your business type."],
         ],
       },
+      { type: "h", text: "Picking a period" },
+      { type: "p", text: "The date shortcuts above the list include Tax year — 1 July to 30 June, the twelve months your return is filed against. This year, next to it, is the calendar year. Both are kept because they answer different questions; use Tax year for anything that goes to FBR or an auditor." },
     ],
   },
   {
@@ -1232,10 +1234,12 @@ export const HELP_ARTICLES: HelpArticle[] = [
     group: "Money",
     permission: "reports.view",
     screen: "/tenant/reports",
-    keywords: ["report", "profit", "best seller", "analysis"],
+    keywords: ["report", "profit", "best seller", "analysis", "tax year", "financial year", "year"],
     body: [
       { type: "p", text: "What sold, who bought it, and who sold it." },
       { type: "p", text: "Profit is takings, plus other income, minus the cost of what was sold, minus expenses." },
+      { type: "p", text: "Two different years are on offer, and they are different questions. This Year is January to December — what you made, the way you'd say it out loud. Tax Year is 1 July to 30 June, which is the window FBR's return, your audited accounts and your advance tax all sit inside. For anything you file, use Tax Year." },
+      { type: "note", text: "The dates under the buttons always say which twelve months you are looking at, so you never have to remember which is which." },
     ],
   },
 

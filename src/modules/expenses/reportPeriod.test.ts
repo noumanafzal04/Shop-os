@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { PERIODS, rangeError, rangeParams, resolveReportRange } from "./reportPeriod";
+import { PERIODS, rangeError, rangeParams, resolveReportRange, taxYearRange } from "./reportPeriod";
+import { presetRange } from "./services/moneyFilters";
 
 /**
  * The window a report covers.
@@ -63,6 +64,58 @@ describe("named periods resolve the way the server resolves them", () => {
     expect(resolveReportRange("yearly", undefined, undefined, WEDNESDAY)).toEqual({
       period: "yearly", from: "2026-01-01", to: "2026-12-31",
     });
+  });
+});
+
+/**
+ * FBR's year runs 1 July – 30 June. The annual return, the audited accounts and
+ * every advance-tax working sit inside that window, so a calendar-year total is
+ * a figure nobody submits. Mirrors App\Support\TaxYear — these cases exist on
+ * both sides deliberately.
+ */
+describe("the tax year is the one a business here files against", () => {
+  it("August belongs to the year that opened the July before it", () => {
+    expect(resolveReportRange("tax_year", undefined, undefined, WEDNESDAY)).toEqual({
+      period: "tax_year", from: "2026-07-01", to: "2027-06-30",
+    });
+  });
+
+  it("March belongs to the year that opened LAST July", () => {
+    // The month an accountant is most likely to ask in, and the one where the
+    // calendar year gives entirely the wrong twelve months.
+    expect(taxYearRange(new Date(2026, 2, 15))).toEqual({
+      from: "2025-07-01", to: "2026-06-30",
+    });
+  });
+
+  it("30 June closes the year it is in", () => {
+    expect(taxYearRange(new Date(2026, 5, 30))).toEqual({ from: "2025-07-01", to: "2026-06-30" });
+  });
+
+  it("1 July opens the next one", () => {
+    // One day either side of this is a different return.
+    expect(taxYearRange(new Date(2026, 6, 1))).toEqual({ from: "2026-07-01", to: "2027-06-30" });
+  });
+
+  it("is a whole year even across a leap February", () => {
+    expect(taxYearRange(new Date(2028, 1, 29))).toEqual({ from: "2027-07-01", to: "2028-06-30" });
+  });
+
+  it("is offered in the picker, and has not displaced the calendar year", () => {
+    const keys = PERIODS.map(([key]) => key);
+
+    expect(keys).toContain("tax_year");
+    expect(keys).toContain("yearly");
+  });
+
+  it("agrees with the money screens' own preset, to the day", () => {
+    // The two are computed separately — this is the pair that has already
+    // drifted once in this codebase, by a day, over which day a week starts.
+    for (const day of [new Date(2026, 2, 15), new Date(2026, 5, 30), new Date(2026, 6, 1)]) {
+      const report = resolveReportRange("tax_year", undefined, undefined, day);
+
+      expect(presetRange("tax_year", day)).toEqual({ from: report.from, to: report.to });
+    }
   });
 });
 

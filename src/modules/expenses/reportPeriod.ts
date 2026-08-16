@@ -25,7 +25,18 @@
  * tested against the cases where the two could drift.
  */
 
-export type PeriodKey = "daily" | "weekly" | "monthly" | "yearly" | "custom";
+export type PeriodKey = "daily" | "weekly" | "monthly" | "yearly" | "tax_year" | "custom";
+
+/**
+ * The month a Pakistani tax year opens on. July.
+ *
+ * FBR's tax year runs 1 July – 30 June, and it is the window behind the annual
+ * return, the audited accounts and every advance-tax working. "This year" has
+ * always meant January–December here, which is a figure nobody files.
+ *
+ * Mirrors App\Support\TaxYear, which carries the full reasoning.
+ */
+export const TAX_YEAR_STARTS_IN_MONTH = 7;
 
 /** What the report screen asks for: a named window, or two dates. */
 export interface ReportRange {
@@ -39,12 +50,32 @@ export const PERIODS: Array<[PeriodKey, string]> = [
   ["weekly", "This Week"],
   ["monthly", "This Month"],
   ["yearly", "This Year"],
+  // Added alongside the calendar year, never in place of it: a shopkeeper
+  // asking what they made "this year" usually does mean January to December,
+  // and their accountant never does.
+  ["tax_year", "Tax Year"],
   ["custom", "Custom range"],
 ];
 
 /** A local YYYY-MM-DD. `toISOString` would shift a Karachi evening to yesterday. */
 export function iso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * The tax year containing a given day, as two dates.
+ *
+ * The boundary is the whole point: 30 June closes the year that began the
+ * previous July, and 1 July opens the next one. `Date` months are 0-based, so
+ * July is 6 here while the constant states the 7 a person would say.
+ */
+export function taxYearRange(today = new Date()): { from: string; to: string } {
+  const july = TAX_YEAR_STARTS_IN_MONTH - 1;
+  const startYear = today.getMonth() >= july ? today.getFullYear() : today.getFullYear() - 1;
+
+  // Day 0 of July the following year IS 30 June, without hard-coding a month
+  // length.
+  return { from: iso(new Date(startYear, july, 1)), to: iso(new Date(startYear + 1, july, 0)) };
 }
 
 /**
@@ -79,6 +110,9 @@ export function resolveReportRange(
 
     case "yearly":
       return { period, from: iso(new Date(y, 0, 1)), to: iso(new Date(y, 11, 31)) };
+
+    case "tax_year":
+      return { period, ...taxYearRange(today) };
 
     default:
       // The server's own fallback: start of this month → today.

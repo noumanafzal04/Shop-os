@@ -1,4 +1,4 @@
-import { iso } from "../reportPeriod";
+import { iso, taxYearRange } from "../reportPeriod";
 
 /**
  * The questions a merchant asks their own books.
@@ -106,15 +106,25 @@ export function monthRange(date = new Date()): { from: string; to: string } {
   return { from: iso(new Date(y, m, 1)), to: iso(new Date(y, m + 1, 0)) };
 }
 
-export type RangePreset = "today" | "week" | "month" | "last_month" | "quarter" | "year";
+export type RangePreset =
+  | "today" | "week" | "month" | "last_month" | "quarter" | "year" | "tax_year";
 
 /**
  * The ranges people actually ask for.
  *
  * Two date boxes can express any window, and typing both of them is still the
  * wrong way to ask for "last month" — the question every set of books is
- * closed against. The boxes stay; these are the shortcuts to the six windows
- * that account for most of the asking.
+ * closed against. The boxes stay; these are the shortcuts to the windows that
+ * account for most of the asking.
+ *
+ * `tax_year` is the one that is not a shortcut. Every other entry saves typing;
+ * that one asks a question the calendar cannot express — FBR's year runs 1 July
+ * to 30 June, so a books screen without it can only produce a twelve-month
+ * total that nobody files. It matters most on the Finance Manager tenant, whose
+ * whole product is this screen.
+ *
+ * Quarters need no such treatment: calendar quarters and tax-year quarters fall
+ * on the same four boundaries — only their numbering differs.
  */
 export const DATE_PRESETS: Array<[RangePreset, string]> = [
   ["today", "Today"],
@@ -123,6 +133,7 @@ export const DATE_PRESETS: Array<[RangePreset, string]> = [
   ["last_month", "Last month"],
   ["quarter", "This quarter"],
   ["year", "This year"],
+  ["tax_year", "Tax year"],
 ];
 
 /** Weeks start MONDAY, matching the server's Carbon and the reports screen. */
@@ -148,6 +159,8 @@ export function presetRange(key: RangePreset, today = new Date()): { from: strin
     }
     case "year":
       return { from: iso(new Date(y, 0, 1)), to: iso(new Date(y, 11, 31)) };
+    case "tax_year":
+      return taxYearRange(today);
     default:
       return monthRange(today);
   }
