@@ -62,6 +62,24 @@ class StoreSaleDocumentRequest extends FormRequest
             'deposit.method' => ['nullable', Rule::in(SaleDocument::DEPOSIT_METHODS)],
             'deposit.reference' => ['nullable', 'string', 'max:120'],
             'deposit.note' => ['nullable', 'string', 'max:255'],
+            // ── Job card: the car, and what the customer said ───────
+            //
+            // A quotation and a layaway ignore all of these. They are here
+            // rather than in a request of their own because the three kinds
+            // share one create path, and a second request class would drift
+            // from it the first time a line rule changed.
+            'vehicle_id' => [
+                'nullable', 'uuid',
+                Rule::exists('customer_vehicles', 'id')->where('tenant_id', $tenantId),
+            ],
+            // The reading when it came IN — not the same number as the sale's
+            // odometer, which is taken when it goes out.
+            'odometer_in' => ['nullable', 'integer', 'min:0', 'max:9999999'],
+            // What the customer said is wrong, in their words. The first thing
+            // a mechanic reads and the last thing that should be paraphrased.
+            'complaint' => ['nullable', 'string', 'max:1000'],
+            'promised_at' => ['nullable', 'date'],
+            'work_status' => ['nullable', Rule::in(SaleDocument::WORK_STATUSES)],
             'idempotency_key' => ['nullable', 'string', 'max:100'],
         ];
     }

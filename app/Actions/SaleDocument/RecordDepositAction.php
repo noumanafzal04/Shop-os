@@ -38,7 +38,14 @@ class RecordDepositAction
             /** @var SaleDocument $locked */
             $locked = SaleDocument::query()->whereKey($document->id)->lockForUpdate()->firstOrFail();
 
-            if (! $locked->isLayaway()) {
+            // A layaway takes instalments, and so does a JOB CARD: a workshop
+            // asks for money up front because it is about to order parts, and
+            // the customer pays the rest when they collect the car. Same
+            // machinery, same guards, same ledger.
+            //
+            // A quotation still takes nothing. It is a price, not an
+            // arrangement — there is no agreement to pay against yet.
+            if (! $locked->isLayaway() && ! $locked->isJobCard()) {
                 throw DomainException::unprocessable(
                     'Only goods held on advance take instalments — a quotation is just a price.',
                     'NOT_A_LAYAWAY',

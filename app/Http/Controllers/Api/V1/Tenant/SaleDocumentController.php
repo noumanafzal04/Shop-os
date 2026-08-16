@@ -19,6 +19,7 @@ use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 
 /**
  * Quotations and layaways — the counter's list of promises outstanding.
@@ -28,7 +29,13 @@ class SaleDocumentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $filters = $request->validate([
-            'kind' => ['nullable', 'in:quotation,layaway'],
+            // Bound to the model's own list rather than spelled out. It was
+            // spelled out, and adding a third kind left it unfilterable —
+            // which is this codebase's recurring shape: capability built, one
+            // link missing, nothing fails.
+            'kind' => ['nullable', Rule::in(SaleDocument::KINDS)],
+            // The bay board: what is in the shop right now.
+            'work_status' => ['nullable', Rule::in(SaleDocument::WORK_STATUSES)],
             // 'lapsed' is a filter, never a stored status — see
             // SaleDocument::hasLapsed().
             'status' => ['nullable', 'in:open,converted,cancelled,lapsed'],
@@ -40,8 +47,13 @@ class SaleDocumentController extends Controller
         ]);
 
         $query = SaleDocument::query()
-            ->with('items:id,sale_document_id,product_name,quantity,line_total')
+            ->with([
+                'items:id,sale_document_id,product_name,quantity,line_total',
+                // The bay board prints a registration, not a uuid.
+                'vehicle:id,registration,make,model',
+            ])
             ->when($filters['kind'] ?? null, fn ($q, $kind) => $q->where('kind', $kind))
+            ->when($filters['work_status'] ?? null, fn ($q, $w) => $q->where('work_status', $w))
             ->when($filters['customer_id'] ?? null, fn ($q, $id) => $q->where('customer_id', $id))
             ->when($filters['from'] ?? null, fn ($q, $d) => $q->whereDate('created_at', '>=', $d))
             ->when($filters['to'] ?? null, fn ($q, $d) => $q->whereDate('created_at', '<=', $d))
@@ -109,9 +121,14 @@ class SaleDocumentController extends Controller
 
         // The shop can switch either document off. Checked here rather than on
         // the route because it is a shop preference, not a plan entitlement.
-        $enabled = $data['kind'] === SaleDocument::KIND_LAYAWAY
-            ? (bool) $tenant?->setting('layaway_enabled', true)
-            : (bool) $tenant?->setting('quotations_enabled', true);
+        $enabled = match ($data['kind']) {
+            SaleDocument::KIND_LAYAWAY => (bool) $tenant?->setting('layaway_enabled', true),
+            // A workshop that can book a car in is a workshop. There is no
+            // switch for it and there should not be one: the alternative to a
+            // job card is a paper pad, not a tidier screen.
+            SaleDocument::KIND_JOB_CARD => true,
+            default => (bool) $tenant?->setting('quotations_enabled', true),
+        };
 
         if (! $enabled) {
             throw DomainException::forbidden(
@@ -124,11 +141,16 @@ class SaleDocumentController extends Controller
 
         $document = $action->execute($data);
 
+        // Presented rather than raw: a job card carries the car, and a screen
+        // that got back only a vehicle id would fetch the registration
+        // separately just to print the row it already has.
         return ApiResponse::created(
-            $document,
-            $document->isLayaway()
-                ? "Goods held · {$document->number}"
-                : "Quotation {$document->number} created",
+            $this->present($document->load(['items', 'vehicle'])),
+            match (true) {
+                $document->isLayaway() => "Goods held · {$document->number}",
+                $document->isJobCard() => "Job {$document->number} opened",
+                default => "Quotation {$document->number} created",
+            },
         );
     }
 
@@ -163,6 +185,59 @@ class SaleDocumentController extends Controller
             'sale' => $sale->load(['items', 'payments']),
             'document' => $this->present($document->fresh(['items', 'payments'])),
         ], "Billed as {$sale->invoice_number}");
+    }
+
+    /**
+     * Move a car along the bay board.
+     *
+     * ── Why this is its own endpoint and not part of update ─────────────
+     *
+     * It is the one thing a workshop does twenty times a day, usually from a
+     * phone, usually while holding something. It has to be one tap, and it must
+     * not require sending back the lines, the customer or the totals — a
+     * mechanic marking a car READY should not be able to change its price by
+     * accident.
+     *
+     * ── Any stage, in any order ─────────────────────────────────────────
+     *
+     * Deliberately not a one-way lifecycle. Cars go backwards: a job marked
+     * ready fails its road test and goes back on the ramp. Software that
+     * refuses that teaches people to keep the real state on a whiteboard, and
+     * then the screen is decoration.
+     *
+     * What IS refused is moving a job that is no longer live. A converted job
+     * card has been paid for and the car has gone; a cancelled one never
+     * happened. Changing either would put a car on the board that is not in
+     * the shop.
+     */
+    public function workStatus(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'work_status' => ['required', Rule::in(SaleDocument::WORK_STATUSES)],
+        ]);
+
+        /** @var SaleDocument $document */
+        $document = SaleDocument::query()->findOrFail($id);
+
+        if (! $document->isJobCard()) {
+            throw DomainException::unprocessable(
+                'Only a job card moves through the workshop.',
+                'NOT_A_JOB_CARD',
+            );
+        }
+
+        if ($document->status !== SaleDocument::STATUS_OPEN) {
+            throw DomainException::conflict(
+                $document->status === SaleDocument::STATUS_CONVERTED
+                    ? 'This job has been billed and the car has gone.'
+                    : 'This job was cancelled.',
+                'JOB_NOT_OPEN',
+            );
+        }
+
+        $document->forceFill(['work_status' => $data['work_status']])->save();
+
+        return ApiResponse::ok($this->present($document->fresh(['items', 'payments'])), 'Updated');
     }
 
     public function cancel(CancelSaleDocumentRequest $request, CancelSaleDocumentAction $action, string $id): JsonResponse
@@ -223,6 +298,15 @@ class SaleDocumentController extends Controller
         return array_merge($document->toArray(), [
             'balance' => $document->balance(),
             'has_lapsed' => $document->hasLapsed(),
+            // The car, when there is one. A job card that named a vehicle id
+            // and nothing else would make the screen fetch every car one at a
+            // time to print a registration.
+            'vehicle' => $document->vehicle === null ? null : [
+                'id' => $document->vehicle->id,
+                'registration' => $document->vehicle->registration,
+                'make' => $document->vehicle->make,
+                'model' => $document->vehicle->model,
+            ],
         ]);
     }
 }

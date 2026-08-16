@@ -144,6 +144,20 @@ class ConvertSaleDocumentAction
                 'payments' => $tenders,
                 'customer_name' => $doc->customer_name,
                 'customer_phone' => $doc->customer_phone,
+                // ── The car, carried onto the invoice ───────────────
+                //
+                // The reason a workshop keeps records at all: a year later
+                // somebody asks what was done to this registration, and the
+                // answer is the SALE, not the job card. A job card that knew
+                // the car while the invoice it became did not would have been
+                // the whole feature failing quietly at the last step.
+                //
+                // The odometer moves across too, and the caller may override
+                // it: the reading when the car GOES OUT is the one a service
+                // interval is counted from, and a week on the ramp with a road
+                // test in the middle makes it a different number.
+                'vehicle_id' => $doc->vehicle_id,
+                'odometer' => $data['odometer'] ?? $doc->odometer_in,
                 'cash_session_id' => $data['cash_session_id'] ?? null,
                 'notes' => $data['notes'] ?? "From {$doc->number}",
                 'idempotency_key' => $data['idempotency_key'] ?? null,

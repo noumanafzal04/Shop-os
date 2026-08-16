@@ -88,6 +88,7 @@ class CreateSaleDocumentAction
         $tenantId = $this->context->id();
         $branchId = $this->branchContext->id();
         $kind = $data['kind'];
+        $isJobCard = $kind === SaleDocument::KIND_JOB_CARD;
         $isLayaway = $kind === SaleDocument::KIND_LAYAWAY;
 
         // ── The customer ────────────────────────────────────────────
@@ -308,6 +309,23 @@ class CreateSaleDocumentAction
             'refunded_amount' => 0,
             'forfeited_amount' => 0,
             'expires_at' => $expiresAt,
+            // ── Job card only ───────────────────────────────────────
+            //
+            // Null on every quotation and layaway, which is most documents.
+            // A job card carries the car and the customer's own account of
+            // what is wrong with it — the field a mechanic reads first, and
+            // the one most likely to be quietly dropped in software because it
+            // is not a line item, a product or a note on the invoice.
+            'vehicle_id' => $isJobCard ? ($data['vehicle_id'] ?? null) : null,
+            'odometer_in' => $isJobCard ? ($data['odometer_in'] ?? null) : null,
+            'complaint' => $isJobCard ? ($data['complaint'] ?? null) : null,
+            'promised_at' => $isJobCard ? ($data['promised_at'] ?? null) : null,
+            // A car that has just arrived is in the bay, not being worked on.
+            // Defaulting to `received` rather than requiring it means nobody
+            // has to answer a question at the moment they are holding keys.
+            'work_status' => $isJobCard
+                ? ($data['work_status'] ?? SaleDocument::WORK_RECEIVED)
+                : null,
             // A quotation reserves nothing; a layaway owns its goods.
             'stock_reserved' => $isLayaway,
             'terms' => $data['terms'] ?? $tenant?->setting('quotation_terms'),

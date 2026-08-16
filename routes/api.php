@@ -599,6 +599,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/{document}/print', [SaleDocumentController::class, 'print']);
                 Route::post('/{document}/deposits', [SaleDocumentController::class, 'deposit']);
                 Route::post('/{document}/convert', [SaleDocumentController::class, 'convert']);
+                // Moving a car along the bay board. Its own route because it is
+                // one tap from a phone twenty times a day, and a mechanic
+                // marking a car READY must not be able to change its price by
+                // sending the whole document back.
+                Route::post('/{document}/work-status', [SaleDocumentController::class, 'workStatus']);
                 // Cancelling a layaway that holds money needs sales.refund —
                 // enforced in the controller, since a quotation cancel moves
                 // nothing and must stay available to a plain cashier.

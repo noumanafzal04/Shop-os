@@ -23,7 +23,35 @@ class SaleDocument extends BaseModel
 
     public const KIND_LAYAWAY = 'layaway';
 
-    public const KINDS = [self::KIND_QUOTATION, self::KIND_LAYAWAY];
+    /**
+     * The car is in the bay and there is no bill yet.
+     *
+     * A third kind rather than a table of its own, because a job card does
+     * exactly what the other two do — accumulate priced lines, take an advance,
+     * become a sale — and `ConvertSaleDocumentAction` is the piece nobody
+     * should write twice.
+     */
+    public const KIND_JOB_CARD = 'job_card';
+
+    public const KINDS = [self::KIND_QUOTATION, self::KIND_LAYAWAY, self::KIND_JOB_CARD];
+
+    /**
+     * Where the CAR is, as against where the paperwork is.
+     *
+     * `status` below answers "is this document still live". This answers the
+     * question a workshop is actually asked twenty times a day: is it ready?
+     * The two are independent — a job card can be `ready` and still `open`
+     * until somebody pays — and folding them would either lose the bay board or
+     * invent statuses like `open_ready`, which is how a status column stops
+     * being readable.
+     */
+    public const WORK_RECEIVED = 'received';
+
+    public const WORK_IN_PROGRESS = 'in_progress';
+
+    public const WORK_READY = 'ready';
+
+    public const WORK_STATUSES = [self::WORK_RECEIVED, self::WORK_IN_PROGRESS, self::WORK_READY];
 
     public const STATUS_OPEN = 'open';
 
@@ -38,6 +66,7 @@ class SaleDocument extends BaseModel
     public const PREFIXES = [
         self::KIND_QUOTATION => 'QUO',
         self::KIND_LAYAWAY => 'LAY',
+        self::KIND_JOB_CARD => 'JOB',
     ];
 
     protected function casts(): array
@@ -53,6 +82,10 @@ class SaleDocument extends BaseModel
             'forfeited_amount' => 'decimal:2',
             'stock_reserved' => 'boolean',
             'expires_at' => 'date',
+            // When the customer was told to come back. A workshop's whole
+            // relationship with its customers runs on this one promise.
+            'promised_at' => 'datetime',
+            'odometer_in' => 'integer',
             'converted_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];
@@ -86,6 +119,23 @@ class SaleDocument extends BaseModel
     public function isQuotation(): bool
     {
         return $this->kind === self::KIND_QUOTATION;
+    }
+
+    /**
+     * Which car this job is on.
+     *
+     * The reason a workshop's records are worth keeping: a year later somebody
+     * asks what was done to this registration, and without it the answer is a
+     * customer's name and a guess.
+     */
+    public function vehicle(): BelongsTo
+    {
+        return $this->belongsTo(CustomerVehicle::class, 'vehicle_id');
+    }
+
+    public function isJobCard(): bool
+    {
+        return $this->kind === self::KIND_JOB_CARD;
     }
 
     public function isLayaway(): bool
