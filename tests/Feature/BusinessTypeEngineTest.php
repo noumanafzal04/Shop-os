@@ -130,4 +130,69 @@ class BusinessTypeEngineTest extends TestCase
         // Its business_category picklist is exposed.
         $this->assertContains('petrol_pump', collect($petroleum['categories'])->pluck('value')->all());
     }
+
+    // ── A restaurant keeps a store room; a juice corner does not ────
+    //
+    // `food` defaults to inventory OFF, and for half of what it covers that is
+    // right: a juice corner buys fruit at the mandi every morning for cash, and
+    // a home kitchen is one person cooking. For the other half it is wrong in
+    // the expensive direction — a restaurant, bakery or cloud kitchen buys on a
+    // running supplier account and lives on food cost, and the inventory module
+    // is what carries Suppliers, Purchases AND recipe costing.
+    //
+    // The two mistakes are not symmetrical. Clutter is noticed and ignored; a
+    // missing capability is never discovered, and the shop concludes ShopOS
+    // cannot cost a menu.
+
+    public function test_a_restaurant_gets_the_stock_chain(): void
+    {
+        $this->assertTrue(BusinessTypes::defaultFeatures('food', 'restaurant')['inventory']);
+    }
+
+    public function test_a_bakery_and_a_cloud_kitchen_get_it_too(): void
+    {
+        // Both live on food cost: a bakery buys flour, sugar and ghee in bulk,
+        // and a cloud kitchen's whole business model is the margin.
+        $this->assertTrue(BusinessTypes::defaultFeatures('food', 'bakery')['inventory']);
+        $this->assertTrue(BusinessTypes::defaultFeatures('food', 'cloud_kitchen')['inventory']);
+    }
+
+    public function test_a_juice_corner_and_a_home_kitchen_do_not(): void
+    {
+        // Handing either of them Suppliers, Purchases and Stocktake is three
+        // sidebar entries they will never open.
+        $this->assertFalse(BusinessTypes::defaultFeatures('food', 'juice_corner')['inventory']);
+        $this->assertFalse(BusinessTypes::defaultFeatures('food', 'home_kitchen')['inventory']);
+    }
+
+    public function test_a_food_shop_that_named_no_sub_type_is_unchanged(): void
+    {
+        // The old behaviour, and it must stay: an existing tenant with no
+        // category recorded cannot silently gain three modules on the next
+        // deploy.
+        $this->assertFalse(BusinessTypes::defaultFeatures('food')['inventory']);
+        $this->assertFalse(BusinessTypes::defaultFeatures('food', null)['inventory']);
+    }
+
+    public function test_a_sub_type_can_only_ever_ad_d_the_module(): void
+    {
+        // A mart already keeps stock. If a sub-type could take a module away,
+        // the type and the sub-type would argue and the type would lose —
+        // which is the wrong way round, since the type is what an admin sees.
+        $this->assertTrue(BusinessTypes::defaultFeatures('mart', 'convenience_store')['inventory']);
+        $this->assertTrue(BusinessTypes::defaultFeatures('mart', 'anything-at-all')['inventory']);
+    }
+
+    public function test_an_unrecognised_sub_type_changes_nothing(): void
+    {
+        // Typos, and categories from a future release reaching an older build.
+        $this->assertFalse(BusinessTypes::defaultFeatures('food', 'not-a-real-category')['inventory']);
+    }
+
+    public function test_a_legacy_restaurant_code_is_treated_as_food(): void
+    {
+        // `restaurant` is an older top-level code that resolves onto `food`.
+        // The map is keyed by the PRIMARY type, so the sub-type still lands.
+        $this->assertTrue(BusinessTypes::defaultFeatures('restaurant', 'bakery')['inventory']);
+    }
 }

@@ -34,7 +34,13 @@ class ApplyBusinessTypeDefaultsAction
         // before anything is saved, so by the time a tenant has features they
         // are a decision someone made, not a default nobody looked at.
         if ($tenant->features === null) {
-            $tenant->applyModules(BusinessTypes::defaultFeatures($businessType), merge: false);
+            $tenant->applyModules(
+                // The sub-type refines the proposal: a restaurant keeps a store
+                // room and a juice corner does not, and the shop already told us
+                // which it is on the onboarding screen.
+                BusinessTypes::defaultFeatures($businessType, $tenant->business_category),
+                merge: false,
+            );
         }
 
         if (! Category::query()->where('tenant_id', $tenant->id)->exists()) {

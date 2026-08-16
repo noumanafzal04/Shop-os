@@ -471,9 +471,62 @@ class BusinessTypes
         ];
     }
 
-    public static function defaultFeatures(string $code): array
+    /**
+     * Sub-types that keep a STORE ROOM, where the parent type does not.
+     *
+     * ── Why `food` needs a second lever ─────────────────────────────────
+     *
+     * `food` defaults to `inventory: false`, and for half of what it covers
+     * that is exactly right: a juice corner buys fruit at the mandi every
+     * morning for cash, and a home kitchen is one person cooking. Handing
+     * either of them Suppliers, Purchase Orders and Stocktake is three sidebar
+     * entries they will never open.
+     *
+     * For the other half it is wrong, and wrong in the expensive direction. A
+     * restaurant, a bakery or a cloud kitchen buys flour, ghee and meat from
+     * suppliers on a running account, keeps a store room, and lives or dies on
+     * food cost. The inventory module is what carries all three — Suppliers,
+     * Purchases, and `SyncRecipeItemsAction::tracksStock()`, which is recipe
+     * costing itself. Off by default, a restaurant concludes that ShopOS cannot
+     * cost a menu, and nobody ever tells them otherwise.
+     *
+     * The two mistakes are NOT symmetrical. Clutter is noticed and ignored; a
+     * missing capability is never discovered. So anything that plausibly buys
+     * from a supplier gets it, and only the two that genuinely do not are left
+     * out.
+     *
+     * ── Why the SUB-type and not the type ───────────────────────────────
+     *
+     * Because the shop already told us. `business_category` is chosen on the
+     * onboarding screen precisely so a type can be tailored — see the note at
+     * the top of this file — and guessing from `food` alone would mean getting
+     * it wrong for one half of restaurants whichever way it was set.
+     *
+     * Deliberately a narrow map rather than a general mechanism: `food` is the
+     * only type with this problem today, and a general one would invite
+     * somebody to encode a preference that belongs on the admin's screen.
+     */
+    private const STOCK_KEEPING_CATEGORIES = [
+        'food' => ['restaurant', 'fast_food', 'cafe', 'bakery', 'cloud_kitchen'],
+    ];
+
+    /**
+     * @param  string|null  $category  the tenant's `business_category`, when known
+     */
+    public static function defaultFeatures(string $code, ?string $category = null): array
     {
         $features = self::get($code)['features'] ?? array_fill_keys(self::FEATURES, false);
+
+        // A restaurant keeps a store room; a juice corner does not. Only ever
+        // turns inventory ON — a sub-type must not take away something the
+        // parent type grants, or the two would argue and the type would lose.
+        // No null guard: `in_array` is strict, so a tenant with no category
+        // recorded matches nothing and falls through untouched. A guard that
+        // cannot be removed without the tests still passing is dead weight, and
+        // a mutation proved this one was exactly that.
+        if (in_array($category, self::STOCK_KEEPING_CATEGORIES[self::primary($code)] ?? [], true)) {
+            $features['inventory'] = true;
+        }
 
         // Expense Manager defaults ON for every type (admin-controlled).
         // Product Images default to whatever the type's marketplace default is:
