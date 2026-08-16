@@ -219,7 +219,43 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-16 (latest) — the year nobody files against
+### 2026-08-16 (latest) — the report credited the person who typed
+
+Found by reading the RETAIL trade. `staffPerformance` groups sales by
+`created_by` and the panel called it **"Staff performance"** — two different
+claims. The service's own docblock was honest ("the staff who rang them up");
+the screen was not.
+
+One-person shop: same person, report correct. Showroom floor: salesmen work the
+customers, one cashier types, and the report credited the cashier with
+everybody's month. **Worse than the forecourt version of this, because a wrong
+name on a performance report reads as a judgement about a person.**
+
+`sales.served_by`, nullable. The till figure is untouched and keeps its own
+heading saying what it actually counts; the seller table sits above it when a
+shop tracks one.
+
+**It is never inferred, and the POS box is never pre-filled with the signed-in
+cashier** — that would reintroduce the same lie while looking like the cashier
+had chosen it. Unattributed sales are reported as unattributed; a test asserts
+the cashier never shows up as a seller for one.
+
+Off by default (`pos_ask_who_served`) and absent rather than disabled: most
+shops here are one counter and one person, and a picker on every sale is a
+slower till bought with nothing.
+
+Worth not re-deriving: the seller list rides `GET /pos/sellers` and the cached
+catalog, **not** `/staff`. A cashier holds `sales.manage`, not `staff.manage`,
+and gating a name list behind the permission that EDITS people is this
+codebase's own documented `*.manage` mistake. One private method feeds both.
+
+Also checked and NOT gaps: exchange is atomic and reachable; serial-on-receive
+and per-serial returns exist on both sides — the memory listing them as
+outstanding was stale.
+
+Backend 1952 · panel 820. 12 tests, 3 mutations caught.
+
+### 2026-08-16 — the year nobody files against
 
 Found by reading the FINANCE trade. Nothing was broken and every figure on
 screen was correct — it just answered a question nobody in Pakistan asks.

@@ -504,6 +504,59 @@ boundary and the year-end day). Backend 1940 green, panel 820 green.
 
 ---
 
+### 17. ✅ FIXED — "Staff performance" measured who typed, not who sold
+
+**Found by reading the RETAIL trade, 2026-08-16.** Third finding from the eight
+trade areas. Same family as #14: a figure computed perfectly and owed by the
+wrong person.
+
+`ReportService::staffPerformance` groups completed sales by `created_by` and the
+panel titled the result **"Staff performance"**. Those are two different claims,
+and the code knew it — the service's own docblock read *"grouped by the staff
+who rang them up"*. Only the screen overclaimed.
+
+In a one-person shop the two are the same person and the report was right. On a
+showroom floor — garments, shoes, electronics — three or four salesmen work the
+customers and one cashier rings everything at the counter. The report credited
+the cashier with the entire month's revenue and the men who did the work
+appeared nowhere on it.
+
+**Worse than the forecourt version, because a wrong name on a performance report
+reads as a judgement about a person.**
+
+**Fixed.** `sales.served_by` — nullable, `nullOnDelete`, indexed
+`['tenant_id','served_by']`. The till figure is untouched and keeps its own
+heading saying plainly what it counts; the seller figure sits above it when the
+shop tracks one.
+
+**It is never inferred.** There is nothing in a sale that says who walked the
+customer round the shop, so an unattributed sale stays unattributed and is
+reported as exactly that. **Falling back to the cashier is the defect** — a test
+asserts the cashier never appears as a seller for a sale nobody was named on.
+The POS control is not pre-filled with the signed-in user for the same reason:
+that would reintroduce the same lie while looking like the cashier chose it.
+
+**Off by default, and absent rather than disabled.** Most shops here are one
+counter and one person; a picker on every sale is a slower till bought with
+nothing. `pos_ask_who_served` switches it on.
+
+**One thing worth not re-deriving:** the seller list rides the POS prefix
+(`GET /pos/sellers`, plus the same list inside the catalog the offline till
+already caches) and NOT `/staff`. A cashier holds `sales.manage`, not
+`staff.manage` — gating a name list behind the permission that edits people is
+this codebase's documented `*.manage` mistake. One private method feeds both
+surfaces so they cannot drift.
+
+12 tests, 3 mutations caught. Backend 1952 green, panel 820 green.
+
+Also checked while reading retail, and NOT gaps: exchange is a first-class
+atomic action (`ProcessExchangeAction`) and reachable from the sales screen;
+serial-on-receive and per-serial returns both exist on the backend AND in the
+panel — **the `shopos-retail-depth` memory listing them as outstanding was
+stale.**
+
+---
+
 ## CLOSED — verified false or already fixed. Do not re-raise.
 
 | Claim | Why it is closed |
