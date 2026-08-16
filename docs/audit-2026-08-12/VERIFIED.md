@@ -120,7 +120,7 @@ dependency CVEs, which want their own pass with its own remediation budget.
 
 ## P2 — worth doing, not urgent
 
-### 5. Automotive has no job card
+### 5. ✅ FIXED — automotive had no job card
 
 `job_card` / `jobcard` / `work_order` / `repair_order` return zero hits across
 backend, panel and migrations.
@@ -130,6 +130,33 @@ What exists covers the ends: `CustomerVehicle` is the car's record, and
 What is missing is the middle — the car is in the bay, parts and labour are
 accumulating, and there is no bill yet. That state is the whole of a workshop's
 day and there is nowhere to record it.
+
+**Fixed 2026-08-16.** A third `kind` of `sale_documents`, not a new table: a job
+card accumulates priced lines, takes an advance and becomes a sale, which is
+exactly what a quotation and a layaway already do through numbering, line
+storage, deposits and `ConvertSaleDocumentAction` — the piece nobody should
+write twice.
+
+Four columns and one new idea. `work_status` is **not** document status: the
+first says whether the paperwork is live, the second says where the CAR is, and
+a job can be `ready` and still `open` until somebody pays. The board moves in
+one tap on its own route, so a mechanic marking a car ready cannot change its
+price, and it moves **backwards** — a job that fails its road test goes back on
+the ramp, and software that refuses that teaches a workshop to keep the real
+state on the wall.
+
+Three things the tests caught, all real: the **car never reached the invoice**
+(the job card knew the registration and the sale it became did not — the whole
+feature failing quietly at the last step, since "what was done to this car" is
+answered by the sale); **a workshop takes an advance** (deposits were fenced to
+layaway, and parts get ordered before work starts); and the `kind` filter was
+spelled out as `in:quotation,layaway`, leaving a third kind unfilterable —
+capability built, one link missing, for the fourth time here.
+
+`JobCardTest`, 17 tests, 4 mutations caught. Screen at **Workshop** in the
+sidebar, automotive only — narrower than Vehicles, because a fuel station keeps
+vehicle records but has no bay and a permanently empty board is a menu item
+people learn to skip.
 
 ### 6. A restaurant's default modules exclude the shelves
 
