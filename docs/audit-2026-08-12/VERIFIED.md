@@ -158,7 +158,7 @@ sidebar, automotive only — narrower than Vehicles, because a fuel station keep
 vehicle records but has no bay and a permanently empty board is a menu item
 people learn to skip.
 
-### 6. A restaurant's default modules exclude the shelves
+### 6. ✅ FIXED — a restaurant's default modules excluded the shelves
 
 `BusinessTypes.php:119` gives `food` the default `'inventory' => false`
 ("menu items are products WITHOUT stock tracking").
@@ -168,9 +168,33 @@ inventory module, and `SyncRecipeItemsAction::tracksStock()` also checks it — 
 a default food tenant gets no supplier, no purchase order **and no recipe / food
 costing**.
 
-This is a default, not a fence: modules are assigned per tenant at creation, so
-turning inventory on fixes all three. Right for a cloud kitchen or a tea stall;
-wrong for any restaurant that costs its food. Worth revisiting the default.
+**Fixed 2026-08-16, by the SUB-type rather than the type.**
+
+Flipping `food` to `inventory: true` would have handed Suppliers, Purchase
+Orders and Stocktake to every juice corner and home kitchen — three sidebar
+entries they will never open. Leaving it off kept restaurants, bakeries and
+cloud kitchens unable to cost a menu, and they would never have found out why.
+
+The shop already told us which it is: `business_category` is chosen on the
+onboarding screen precisely so a type can be tailored. So `restaurant`,
+`fast_food`, `cafe`, `bakery` and `cloud_kitchen` now get the stock chain and
+`juice_corner` and `home_kitchen` do not.
+
+**The two mistakes are not symmetrical**, and that decided the borderline cases:
+clutter is noticed and ignored, while a missing capability is never discovered —
+the shop simply concludes ShopOS cannot cost a menu. So anything that plausibly
+buys on a running supplier account gets it. A chai dhaba does keep a milk khata,
+which is why `cafe` is on the list.
+
+A sub-type can only ever ADD a module, never take one away: otherwise the type
+and the sub-type would argue and the type would lose, which is the wrong way
+round since the type is what an admin sees. A tenant with no category recorded
+is untouched — nobody gains three modules on a deploy.
+
+7 tests. Four mutations run; **one survived and was a finding about my own
+code** — a `$category !== null` guard that could not be killed, because strict
+`in_array` already rejects null. Removed: a line that cannot be deleted without
+a test failing is dead weight.
 
 ### 7. `DEPLOY_SSH_KEY` is still bad
 
