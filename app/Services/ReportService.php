@@ -11,6 +11,7 @@ use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Models\SupplierPayment;
 use App\Models\User;
+use App\Support\TaxYear;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -37,6 +38,10 @@ class ReportService
             'weekly' => ['from' => $today->startOfWeek()->toDateString(), 'to' => $today->endOfWeek()->toDateString(), 'granularity' => 'day'],
             'monthly' => ['from' => $today->startOfMonth()->toDateString(), 'to' => $today->endOfMonth()->toDateString(), 'granularity' => 'day'],
             'yearly' => ['from' => $today->startOfYear()->toDateString(), 'to' => $today->endOfYear()->toDateString(), 'granularity' => 'month'],
+            // July–June: the only twelve months a Pakistani business files
+            // against. Offered ALONGSIDE the calendar year, not instead of it —
+            // see App\Support\TaxYear.
+            'tax_year' => array_merge(TaxYear::containing($today), ['granularity' => 'month']),
             default => [
                 'from' => $from ?? $today->startOfMonth()->toDateString(),
                 'to' => $to ?? $today->toDateString(),

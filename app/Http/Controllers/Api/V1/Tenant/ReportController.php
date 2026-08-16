@@ -24,7 +24,7 @@ class ReportController extends Controller
     public function summary(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
     {
         $data = $request->validate([
-            'period' => ['sometimes', Rule::in(['daily', 'weekly', 'monthly', 'yearly', 'custom'])],
+            'period' => ['sometimes', Rule::in(['daily', 'weekly', 'monthly', 'yearly', 'tax_year', 'custom'])],
             'from' => ['required_if:period,custom', 'date'],
             'to' => ['required_if:period,custom', 'date', 'after_or_equal:from'],
         ]);
@@ -273,7 +273,7 @@ class ReportController extends Controller
     private function period(Request $request, ReportService $reports): array
     {
         $data = $request->validate([
-            'period' => ['sometimes', Rule::in(['daily', 'weekly', 'monthly', 'yearly', 'custom'])],
+            'period' => ['sometimes', Rule::in(['daily', 'weekly', 'monthly', 'yearly', 'tax_year', 'custom'])],
             'from' => ['required_if:period,custom', 'date'],
             'to' => ['required_if:period,custom', 'date', 'after_or_equal:from'],
         ]);
