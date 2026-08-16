@@ -380,6 +380,42 @@ answers that. The two findings already on this list — the automotive job card
 (#5) and `food`'s `inventory: false` default (#6) — came from exactly that kind
 of reading, and they are the shape of what remains.
 
+### 14. ✅ FIXED — the pump's most important figure was owed by nobody
+
+**Found by reading the petroleum trade, which is the kind of finding no script
+produces.** The forecourt close already computes what matters most at a petrol
+pump: `unbilled_litres` — fuel that crossed a meter and was never rung up. The
+arithmetic is excellent: per nozzle, meters against till, test litres taken out
+of both sides, and deliberately kept apart from tank variance so a theft at the
+nozzle cannot be confused with a hole in the ground.
+
+It landed on the SHIFT. An owner read "forty litres unbilled" and could not say
+by whom — nothing on a reading named a person, and `opened_by` / `closed_by` are
+the manager who ran the shift, not the men who worked the hoses.
+
+At a Pakistani pump the attendant IS the control: each works assigned nozzles
+and hands over cash for their litres, and that handover is counted the same
+evening or not at all. A station-wide total is a number an owner can worry about
+and cannot act on.
+
+**Fixed 2026-08-16.** `attendant_id` on the reading — where the litres are, not
+on the shift, because one shift has several nozzles and two men can be short on
+the same night for unrelated reasons. The close now reports what each man's
+nozzles pushed and what it is worth: the figure a handover is counted against.
+
+**It deliberately does NOT split the unbilled litres, and it cannot.** A till
+sale of twenty litres does not record which nozzle it came from, so that gap is
+a station figure and stays one — dividing it by attendant would be inventing an
+accusation, and a report that does that is one nobody can defend to a man who
+says it was not him. There is a test asserting the split is absent.
+
+Unassigned nozzles roll up under nobody rather than vanishing: a shortfall no
+one is named for is still a shortfall. Nullable and staying nullable — a one-man
+pump has no assignment to make, and no station finds its shifts refusing to open
+on a deploy.
+
+5 tests, 3 mutations caught.
+
 ---
 
 ## CLOSED — verified false or already fixed. Do not re-raise.
