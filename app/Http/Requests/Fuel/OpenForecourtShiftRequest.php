@@ -22,7 +22,17 @@ class OpenForecourtShiftRequest extends FormRequest
             // closing number — the only value that keeps the series unbroken.
             'readings' => ['sometimes', 'array'],
             'readings.*.fuel_nozzle_id' => ['required', 'uuid', Rule::exists('fuel_nozzles', 'id')->whereNull('deleted_at')],
-            'readings.*.opening_reading' => ['required', 'numeric', 'min:0', 'max:99999999999'],
+            // Required only when this entry has nothing else to say. Naming the
+            // man on a hose must NOT oblige the caller to restate the meter:
+            // an echoed reading is written back to the nozzle, so a screen that
+            // sent yesterday's cached figure alongside today's attendant would
+            // silently move a totaliser while assigning a person. An entry that
+            // carries neither is refused, which is what catches a mistyped key.
+            'readings.*.opening_reading' => [
+                'nullable',
+                'required_without:readings.*.attendant_id',
+                'numeric', 'min:0', 'max:99999999999',
+            ],
             // Whose nozzle this is for the shift. Optional — a one-man pump has
             // nobody to assign — and scoped to this shop's own staff, because
             // the unbilled figure it produces is a person's shortfall and it

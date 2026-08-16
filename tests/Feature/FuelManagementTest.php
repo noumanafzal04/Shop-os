@@ -701,6 +701,44 @@ class FuelManagementTest extends TestCase
         $this->assertNull(collect($shift['readings'])->first()['attendant_id']);
     }
 
+    public function test_naming_the_man_does_not_require_restating_the_meter(): void
+    {
+        // The case every real screen has: a manager assigns four men to four
+        // hoses and touches no meter, because the meters are already where the
+        // last shift left them.
+        //
+        // If naming somebody obliged the caller to send a reading too, the only
+        // number it could send is one it read a moment ago — and an echoed
+        // reading is WRITTEN BACK to the nozzle. Assigning a person would
+        // quietly move a totaliser.
+        $ali = User::factory()->tenantStaff($this->station, ['sales.manage'])->create(['name' => 'Ali']);
+        $before = $this->nozzleA->fresh()->current_reading;
+
+        $shift = $this->actingAsUser($this->manager)->postJson('/api/v1/fuel/shifts', [
+            'readings' => [
+                ['fuel_nozzle_id' => $this->nozzleA->id, 'attendant_id' => $ali->id],
+            ],
+        ])->assertCreated()->json('data');
+
+        $reading = collect($shift['readings'])->firstWhere('fuel_nozzle_id', $this->nozzleA->id);
+        $this->assertSame($ali->id, $reading['attendant_id']);
+
+        // The meter opened where the equipment already stood, and did not move.
+        $this->assertEqualsWithDelta((float) $before, (float) $reading['opening_reading'], 0.001);
+        $this->assertEqualsWithDelta((float) $before, (float) $this->nozzleA->fresh()->current_reading, 0.001);
+    }
+
+    public function test_an_entry_that_says_nothing_at_all_is_refused(): void
+    {
+        // Neither a meter nor a man. The only way to send this is a mistyped
+        // key, and accepting it would swallow the mistake in silence.
+        $this->actingAsUser($this->manager)->postJson('/api/v1/fuel/shifts', [
+            'readings' => [
+                ['fuel_nozzle_id' => $this->nozzleA->id],
+            ],
+        ])->assertStatus(422)->assertJsonValidationErrors('readings.0.opening_reading');
+    }
+
     public function test_an_attendant_from_another_station_is_refused(): void
     {
         // The figure this produces is a person's shortfall. It has to name

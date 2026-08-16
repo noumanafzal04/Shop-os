@@ -34,7 +34,7 @@ class OpenForecourtShiftAction
     /**
      * @param  array{
      *     branch_id?: ?string,
-     *     readings?: array<int, array{fuel_nozzle_id: string, opening_reading: float|int|string}>,
+     *     readings?: array<int, array{fuel_nozzle_id: string, opening_reading?: float|int|string, attendant_id?: ?string}>,
      *     dips?: array<int, array{fuel_tank_id: string, opening_dip: float|int|string}>,
      *     notes?: ?string
      * }  $data
@@ -94,7 +94,11 @@ class OpenForecourtShiftAction
             ]);
 
             foreach ($nozzles as $nozzle) {
-                $opening = isset($readingOverrides[$nozzle->id])
+                // Keyed on the FIGURE, not on the entry. An entry that only
+                // names an attendant is not a meter override, and treating it
+                // as one would read a missing key as zero and wind every
+                // assigned nozzle back to nothing.
+                $opening = isset($readingOverrides[$nozzle->id]['opening_reading'])
                     ? (float) $readingOverrides[$nozzle->id]['opening_reading']
                     : (float) $nozzle->current_reading;
 
