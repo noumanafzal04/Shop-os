@@ -464,6 +464,46 @@ unbilled litres are not split here.
 
 ---
 
+### 16. ✅ FIXED — "this year" was the wrong twelve months
+
+**Found by reading the FINANCE trade, 2026-08-16.** Second finding from the eight
+trade areas, and the same shape as #14: nothing was broken, nothing was missing
+from the data, and the number on screen was correct. It answered a question
+nobody here asks.
+
+Every "yearly" window on this platform resolved to **1 January – 31 December**
+— `ReportService.php:39`, `reportPeriod.ts:81`, `moneyFilters.ts:150`. Grepping
+`fiscal|tax_year|financial_year` across both apps returned **nothing**.
+
+**FBR's tax year runs 1 July – 30 June.** The annual return, the audited
+accounts and every advance-tax working under s.147 sit inside that window. A
+calendar-year total is a figure that goes nowhere.
+
+It lands hardest on the tenant this platform sells bookkeeping to as the whole
+product: **Finance Manager** has no catalog, no stock and no till, so a date
+shortcut is not a convenience on that tenant — it is the screen. It reaches
+every other trade too, once a year, at exactly the moment it matters most.
+
+**Fixed as an ADDITION, never a substitution.** A shopkeeper asking *"is saal
+kitna kamaya"* usually does mean January to December; replacing that with their
+accountant's year would answer a question they did not ask. Two buttons, because
+they are two questions. `App\Support\TaxYear` holds the rule, mirrored in
+`reportPeriod.ts` — and a test asserts the two mirrors agree to the day, because
+**this exact pair has already drifted once in this codebase** (a week starting
+Sunday in the panel, Monday on the server).
+
+**Not made a setting.** July–June is statutory, the platform is PKR-only and
+Pakistan-only, and a setting 99% of tenants must never touch is one the other 1%
+gets wrong.
+
+**Quarters were checked and need nothing.** Calendar quarters and tax-year
+quarters fall on the same four boundaries — only the numbering differs.
+
+9 backend tests + 7 panel tests, 4 mutations caught (2 per side, both the July
+boundary and the year-end day). Backend 1940 green, panel 820 green.
+
+---
+
 ## CLOSED — verified false or already fixed. Do not re-raise.
 
 | Claim | Why it is closed |

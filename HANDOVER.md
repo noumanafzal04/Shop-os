@@ -219,7 +219,36 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-16 (latest) — whose nozzle it was, and the column nobody could reach
+### 2026-08-16 (latest) — the year nobody files against
+
+Found by reading the FINANCE trade. Nothing was broken and every figure on
+screen was correct — it just answered a question nobody in Pakistan asks.
+
+Every "yearly" window resolved to 1 January – 31 December, in all three places
+that compute one. Grepping `fiscal|tax_year|financial_year` across both apps
+returned nothing at all.
+
+**FBR's tax year runs 1 July – 30 June.** The annual return, the audited
+accounts and every advance-tax working sit inside that window; a calendar-year
+total is a figure that goes nowhere. It bites hardest on the tenant we sell
+bookkeeping to as the entire product — Finance Manager has no catalog, no stock
+and no till, so the date shortcut is not a convenience there, it is the screen.
+
+**Added, never substituted.** A shopkeeper asking "is saal kitna kamaya" usually
+does mean January to December. Two buttons, because they are two questions.
+
+`App\Support\TaxYear` holds the rule and `reportPeriod.ts` mirrors it, with a
+test asserting the two agree to the day — that pair has already drifted once
+here, over which day a week starts.
+
+**Not a setting.** July–June is statutory, this platform is PKR-only and
+Pakistan-only, and a setting 99% of tenants must never touch is one the other 1%
+gets wrong. **Quarters were checked and need nothing:** calendar quarters and
+tax-year quarters fall on the same four boundaries.
+
+Backend 1940 · panel 820. 16 tests, 4 mutations caught.
+
+### 2026-08-16 — whose nozzle it was, and the column nobody could reach
 
 Two entries in one, because the second is the first one's fault.
 
