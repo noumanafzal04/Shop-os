@@ -61,9 +61,39 @@ are not in the projection either — the description deliberately so.
 Nothing pretends otherwise: a field that is not on the device comes back
 undefined and the screen draws what it always draws.
 
+## It was a cluster, not one gap
+
+Running the same check across every export — *what is tested and has no caller
+outside its own test?* — found the rest of it. The offline module was built
+complete and **the POS screen was wired to none of it**:
+
+| Built, tested, uncalled | What it meant offline |
+|---|---|
+| `searchCatalog` / `categoryIndex` | the product pane was empty |
+| **`findByCode`** | **the scanner asked a server nobody could reach** |
+| `withLocalStock` | the shelf showed whatever the last pull said |
+
+Together: **a till could not put a single item in the cart, in any trade.**
+Browsing fixed the kitchen; the scanner is how a mart actually sells; and
+without the stock deltas a mart that shifts forty cartons of milk during
+load-shedding still reads *forty, forty, forty* — and finds out when a customer
+asks for the forty-first.
+
+The stock figure is derived from the outbox rather than stored, which is why it
+cannot drift: it **is** the queue.
+
+### A note on the scan I nearly missed
+
+The first version of the scan that found this had a bug of its own —
+`RegExp.prototype.test` with a `/g` flag is **stateful**, so alternate calls
+returned false and real callers looked absent. It reported `flushVariances` as
+uncalled when `pullNow` calls it directly. Fixed by counting matches with a
+fresh regex instead. Worth remembering: **an audit tool that produces findings
+is a thing to verify, not to believe.**
+
 ## The pattern
 
-**Ninth time**, and the largest: not merely data left unread, but a whole
+**Ninth, tenth and eleventh**, in one cluster, and the largest yet: not merely data left unread, but a whole
 written-and-tested capability with nothing a person touches able to reach it.
 The codebase has recorded that exact sentence six times already.
 

@@ -245,10 +245,23 @@ whole catalog is already there, so "load more" would ask a server nobody can
 reach. Images are honestly absent — not cached, wrong trade — and tiles fall
 back to the placeholder they already draw.
 
-Ninth instance of the pattern and the largest: not data left unread, but a
-whole built-and-tested capability nothing could reach.
+**It was a cluster, not one gap.** Running the same check over every export —
+what is tested and has no caller outside its own test? — found the rest:
+`findByCode` (**the scanner asked a server nobody could reach**) and
+`withLocalStock` (the shelf showed whatever the last pull said). Together with
+the empty pane that meant **a till could not put a single item in the cart, in
+any trade.** All three are wired now.
 
-Panel **897** green · eslint 0/18 · build clean.
+One caution: the first version of that scan had a bug of its own —
+`RegExp.test` with `/g` is stateful, so real callers looked absent and it
+reported `flushVariances` as uncalled when `pullNow` calls it directly. **An
+audit tool that produces findings is a thing to verify, not to believe.**
+
+Ninth, tenth and eleventh instances of the pattern, in one cluster, and the
+largest yet: not data left unread, but whole built-and-tested capabilities
+nothing could reach.
+
+Panel **899** green · eslint 0/18 · build clean.
 
 ### 2026-08-17 — the discount the till was given and never read
 
