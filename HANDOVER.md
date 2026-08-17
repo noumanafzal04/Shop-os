@@ -219,7 +219,41 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-17 (latest) — the shelf the till had and never showed
+### 2026-08-17 (latest) — built, tested, and reachable by nobody
+
+The oldest shape in this codebase is now a rule that runs on every commit.
+`docs/decisions/shopos-reachability-rule.md`, `src/common/reachable.test.ts`.
+
+Eleven instances had been found by hand. The check is one sentence: **an export
+whose own test file is the only thing that uses it.** Tests prove a thing works;
+they do not prove anybody can get to it.
+
+Two exemption lists, deliberately separate. `TEST_ONLY` is scaffolding and
+always will be. **`NOT_SURFACED_YET` is unshipped capability, and each line
+names what must be BUILT for it to leave** — four today (a sync-progress
+indicator, an offline badge on a sale row, a barcode sized by the symbol). That
+second list is the one to watch: past a handful it means the product is
+accumulating work nobody can use.
+
+`code128Svg` was the instructive one — it looked like dead code, and deleting it
+would have thrown away a deliberate decision. Its own file explains why
+`LabelsPage` uses the bars-only variant, and that its XSS escaping was written
+*because* it has no caller. **Read the file before deleting the thing the file
+already explains.**
+
+The rule had three bugs of its own: `RegExp.test` with `/g` is stateful (it
+accused `flushVariances` while `pullNow` was calling it); comments counted as
+callers (**a rule a leftover sentence can satisfy is not a rule**); and it timed
+out until the stripping was done once per file instead of once per lookup.
+
+Also closed my own instance from earlier today: recurring income shipped with a
+backend, a service, hooks, tests and **no screen**. The Income page now has the
+tab — the same three tabs as Expenses, so the two sides of the books read the
+same way.
+
+Panel **902** green · eslint 0/18 · build clean.
+
+### 2026-08-17 — the shelf the till had and never showed
 
 Same question as the last finding, pushed further: what has the till been given
 that it does not read? `docs/decisions/shopos-offline-browse.md`.
