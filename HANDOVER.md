@@ -219,7 +219,54 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-16 (latest) — the report credited the person who typed
+### 2026-08-16 (latest) — expired stock could leave, but not be accounted for
+
+Found by reading the PHARMACY trade. The largest of the four trade findings.
+
+A medical store's money does not mostly leak at the counter — it expires on the
+shelf, and the loss is avoidable, because distributors here take medicine back
+for credit inside a window that closes MONTHS before the printed date.
+
+The platform computed the warning perfectly — batches, FEFO, an expiry fence,
+a dashboard count — and a pharmacist could act on none of it in a way the books
+could see.
+
+**Three parts, compounding.** Removing a batch wrote one movement reading
+"Batch X removed/expired", which covers a write-off (a loss), a return to the
+distributor (money owed back) and a mis-keyed lot (not an event) — then
+hard-deleted the row, taking its cost with it. **No return-to-supplier concept
+existed anywhere** (`purchase_return|debit_note|credit_note` grepped to
+nothing), so the claim had no record at all. And `expiringWithin(30)` was
+hardcoded in three places, so **the one figure built to prevent this loss fired
+after the claim window had already closed.**
+
+`stock_disposals` carries snapshots — batch number, expiry, unit cost —
+*because* the batch row is gone by the time anybody reads it. That
+disappearance was the defect.
+
+**The rule:** a batch with stock in it cannot be removed without saying where
+it went; an empty one needs no explanation. Demanding a reason for housekeeping
+trains somebody to pick whatever clears the dialogue fastest.
+
+**Never summed.** Written-off is money lost; returned is money neither lost nor
+recovered. Adding them overstates the loss by everything the distributor is
+about to pay back. **Unknown is not zero** — a lot with no recorded cost is
+counted but not valued, and the screen says so. **A return does not touch the
+supplier ledger**: it is a claim, and what ARRIVED is recorded separately,
+usually short of what was asked.
+
+The window is now `ShopSettings::expiringSoonDays()` — one place, because the
+tile and the screen it opens must agree. 90 for a pharmacy, 30 otherwise, and
+the shop's own setting always wins.
+
+**A lead checked and found FALSE before building on it:** I suspected
+`destroy()` double-depleted batches. It does not — `reference_type: 'batch'`
+sets `$batchScope = false`, which the code already documents.
+
+Backend 1968 · panel 820. 16 tests, 4 mutations caught. One pre-existing test
+updated: it removed a batch with stock and said nothing, which is now refused.
+
+### 2026-08-16 — the report credited the person who typed
 
 Found by reading the RETAIL trade. `staffPerformance` groups sales by
 `created_by` and the panel called it **"Staff performance"** — two different

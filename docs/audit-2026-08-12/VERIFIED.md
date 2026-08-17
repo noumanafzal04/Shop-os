@@ -557,6 +557,80 @@ stale.**
 
 ---
 
+### 18. ✅ FIXED — the shop could remove expired stock but not account for it
+
+**Found by reading the PHARMACY trade, 2026-08-16.** Fourth finding from the
+eight trade areas, and the largest.
+
+A medical store's money does not mostly leak at the counter — it **expires on
+the shelf**, and the loss is avoidable, because distributors here take medicine
+back for credit inside a window that closes **months** before the printed date.
+
+The platform computed the warning perfectly: batches, FEFO, an expiry fence that
+refuses to dispense past the date, a dashboard count. And a pharmacist could act
+on none of it in a way the books could see.
+
+**Three compounding parts.**
+
+**(a) One reason string for three unrelated events.**
+`BatchController::destroy` wrote a single movement reading
+`"Batch X removed/expired"`. That covers a **write-off** (a loss), a **return to
+the distributor** (money owed back), and a **mis-keyed lot** (not an event at
+all). The batch row was then hard-deleted, taking `cost` with it — so *"what did
+expiry cost me this year"* and *"what has Sunny Traders not credited me for"*
+were both unanswerable, from ingredients that all existed a moment earlier.
+
+**(b) No return-to-supplier concept existed anywhere.** `SaleReturn` covers
+customer returns; grepping `purchase_return|debit_note|credit_note` returned
+nothing. The claim — the part that recovers real money — had no record.
+
+**(c) The warning was timed to be useless.** `expiringWithin(30)`, hardcoded in
+the dashboard, the batches endpoint and the panel hook. A distributor's return
+window is typically 3–6 months, so **the one figure built to prevent this loss
+fired after the claim had already closed.**
+
+**Fixed.** `stock_disposals` — a row per lot that leaves without being sold,
+carrying snapshots (`batch_number`, `expiry_date`, `unit_cost`) precisely
+because the batch row is gone by the time anyone reads it. A `disposition` of
+`written_off` or `returned_to_supplier`, a `reason`, and for a return: the
+supplier, the credit expected, and later what actually arrived.
+
+**The rule that makes it work:** a batch **with stock in it** cannot be removed
+without saying where it went; an **empty** one needs no explanation. Demanding a
+reason for housekeeping trains somebody to pick whatever clears the dialogue
+fastest, and a field answered that way is worse than no field.
+
+**The two totals are never summed.** Written-off is money already lost; returned
+is money neither lost nor recovered. Adding them gives a loss figure overstated
+by everything the distributor is about to pay back — and a shopkeeper would
+price against it.
+
+**Unknown is not zero.** A lot with no recorded cost reports `null`, is counted
+but not valued, and the screen says so.
+
+**A return does not touch the supplier ledger.** It is a CLAIM, not a payment:
+the distributor decides what they credit and when, usually for less than was
+asked. Crediting the shop's books when a box leaves would put money in them
+nobody agreed to. What *arrived* is recorded separately — the gap between the
+two is the figure worth reading.
+
+**The window is now the shop's.** `ShopSettings::expiringSoonDays()` — one
+place, because the tile and the screen it links to must agree. 90 days for a
+pharmacy, 30 for everyone else (a bakery warned ninety days out is warned about
+nothing), and an explicit tenant setting always wins.
+
+**A lead checked and found FALSE before building on it:** I suspected
+`destroy()` double-depleted batches (zero the lot, then an `out` that FEFO would
+take from a *good* lot). It does not — `reference_type: 'batch'` sets
+`$batchScope = false`, which the code already documents. Verified before
+claiming, per the standing rule that two of three leads are bad questions.
+
+16 tests, 4 mutations caught. One pre-existing test had to be updated — it
+removed a batch with stock and said nothing, which is now exactly what is
+refused. Backend 1968 green, panel 820 green.
+
+---
+
 ## CLOSED — verified false or already fixed. Do not re-raise.
 
 | Claim | Why it is closed |
