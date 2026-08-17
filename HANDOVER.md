@@ -219,7 +219,36 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-16 (latest) — a workshop opened the app and was shown low stock
+### 2026-08-16 (latest) — a laundry runs the same board as a workshop
+
+Found by reading the SERVICES trade — the eighth and last.
+
+A job card is work TAKEN IN: lines accumulate, nobody knows the price on
+arrival, it becomes an invoice when the customer collects. That is a workshop,
+and it is exactly a laundry, a tailor, a cobbler and a repair counter.
+
+`StoreSaleDocumentRequest` accepts `job_card` from **any** tenant — no trade
+gate, no setting gate. Only the SCREEN was automotive-only, so a dry cleaner
+could create the document it needs and had nowhere to see it. Sixth time this
+shape has turned up here.
+
+**Fixed as vocabulary, not a second flow.** `boardWords()` moves the nouns and
+nothing else; the registration, the vehicle quick-create and the odometer are
+fenced to `tracksVehicle`, because a form that asks a tailor for an odometer is
+a form a tailor closes.
+
+**This is not booking and must never become it** — booking promises a FUTURE
+slot and owns a diary; this board only holds work already in the shop. Written
+into the code and the Help Centre, because the two are close enough to confuse.
+
+Backend 1996 · panel 827.
+
+**The eight trade areas are now closed.** Eight findings, six of them one shape:
+the answer was already in the database and nothing read it. No script would have
+found any of them — nothing was missing, nothing errored, every figure on screen
+was correct.
+
+### 2026-08-16 — a workshop opened the app and was shown low stock
 
 Found by reading the AUTOMOTIVE trade. The dashboard carries a deliberate
 per-trade block — "what THIS trade needs and nobody else does" — with exactly

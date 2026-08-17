@@ -769,6 +769,61 @@ as a fault in the software. A second mutation confirms the trade gate.
 
 ---
 
+### 22. ✅ FIXED — a laundry could create the record it needs and had nowhere to see it
+
+**Found by reading the SERVICES trade, 2026-08-16.** Eighth and last of the
+trade areas.
+
+A job card is work **TAKEN IN**: lines accumulate over hours or days, nobody
+knows the price when it arrives, and it becomes an invoice when the customer
+collects. That is a workshop — and it is exactly, without a single change of
+shape, a **laundry, a tailor, a cobbler and a phone-repair counter.**
+
+`StoreSaleDocumentRequest` accepts `job_card` from **any tenant**: no trade
+gate, no setting gate. Only the SCREEN was automotive-only. So a dry cleaner
+could create the very document it needs through the API and had nowhere to look
+at it — the "built, one link missing" shape, now the sixth time in this
+codebase.
+
+**Fixed as vocabulary, not as a second flow.** `boardWords()` moves the nouns
+and nothing else: a workshop books a **car** into **the bay** and is asked for a
+**registration**; a services shop takes a **job** in and is never asked for one.
+Same three stages, same order, same screen. Inventing separate flows for two
+trades doing the same thing is how one feature becomes two half-maintained ones.
+
+The registration block, the vehicle quick-create and the odometer are all fenced
+to `tracksVehicle` — a form that asks a tailor for a car's odometer is a form a
+tailor closes.
+
+**This is not booking, and the distinction is written down where somebody will
+read it.** Appointment booking is permanently out of scope and the two are close
+enough to confuse: booking promises a FUTURE slot and owns a diary and a no-show
+problem. This board only ever holds work already in the shop with the goods in
+the back. Nothing here schedules anything.
+
+The dashboard `bay` panel opened to services in the same pass, so the two cannot
+disagree about who runs a board.
+
+7 backend tests + 7 panel tests. Backend 1996 green, panel 827 green.
+
+---
+
+## The eight trade areas — closed
+
+All eight read: mart, services, food, pharmacy, retail, automotive, petroleum,
+finance. **Eight findings** (items 14–22, with 15 the follow-on to 14).
+
+Six of them had one shape: **the answer was already in the database and nothing
+read it.** The unbilled litres owed by nobody; the tax year nobody files
+against; the report crediting whoever typed; the expired stock that could leave
+but not be accounted for; the dish costed from a number nobody maintains; the
+purchase price recorded at every delivery and never propagated.
+
+None of them would have been found by a script, because in every case nothing
+was missing, nothing errored, and every figure on screen was correct.
+
+---
+
 ## CLOSED — verified false or already fixed. Do not re-raise.
 
 | Claim | Why it is closed |
