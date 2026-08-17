@@ -16,8 +16,11 @@ import {
   useIncomeCategoryMutations,
   useIncomeMutations,
   useIncomes,
+  useRecurringIncomes,
 } from "../hooks/useIncome";
 import { CategoryManager } from "../../expenses/components/CategoryManager";
+import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
+import { RecurringIncomeTab } from "../components/RecurringIncomeTab";
 import { MoneyFilterBar } from "../../expenses/components/MoneyFilterBar";
 import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../../expenses/services/moneyFilters";
 import { downloadFile, openAuthedFile } from "../../../common/api/download";
@@ -25,6 +28,14 @@ import type { Income } from "../services/incomeService";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+const TABS = [
+  { key: "entries", label: "Income" },
+  { key: "recurring", label: "Recurring" },
+  { key: "categories", label: "Categories" },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
 
 /**
  * How money arrived. No `credit` — a promise to pay is not money in.
@@ -52,7 +63,11 @@ export default function IncomePage() {
   // The same filter shape as expenses and the ledger — three views of one
   // thing, so a person who learns the bar once has learnt it everywhere.
   const [filters, setFilters] = useState<MoneyFilters>({ page: 1 });
-  const [showCategories, setShowCategories] = useState(false);
+  const [tab, setTab] = useState<TabKey>("entries");
+  // Counted server-side, so the badge never re-derives "due" from a
+  // timezone the panel may not share with the shop.
+  const recurring = useRecurringIncomes();
+  const dueCount = recurring.data?.filter((r) => r.is_due).length ?? 0;
   const debouncedSearch = useDebouncedValue(filters.search ?? "", 350);
   const query = { ...filters, search: debouncedSearch };
   const page = filters.page ?? 1;
@@ -186,18 +201,33 @@ export default function IncomePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowCategories((c) => !c)}
-          >
-            {showCategories ? "Back to income" : "Categories"}
-          </Button>
           <Button size="sm" onClick={openAdd}>+ Add Income</Button>
         </div>
       </div>
 
-      {showCategories ? (
+      {/* The same three tabs the Expenses page has, in the same order.
+          A books module where the two sides are navigated differently is one a
+          shopkeeper learns to trust only half of. The due badge follows you
+          between tabs, because a template that has fallen due is the only
+          time-sensitive thing on this screen. */}
+      <FilterTabs
+        tabs={TABS.map((t) => ({
+          ...t,
+          badge:
+            t.key === "recurring" && dueCount > 0 ? (
+              <span className="rounded-full bg-warning-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                {dueCount}
+              </span>
+            ) : undefined,
+        }))}
+        value={tab}
+        onChange={setTab}
+        className="mb-5"
+      />
+
+      {tab === "recurring" && <RecurringIncomeTab money={money} />}
+
+      {tab === "categories" ? (
         <CategoryManager
           title="Income categories"
           hint="Where money in that isn't a sale gets filed. Yours to change — one with entries under it is turned off rather than deleted."
@@ -207,7 +237,7 @@ export default function IncomePage() {
           loading={categories.isLoading}
           mutations={categoryMutations}
         />
-      ) : (
+      ) : tab === "entries" ? (
       <>
       <MoneyFilterBar
         filters={filters}
@@ -343,7 +373,7 @@ export default function IncomePage() {
         )}
       </div>
       </>
-      )}
+      ) : null}
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">

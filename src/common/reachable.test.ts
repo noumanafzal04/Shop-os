@@ -1,0 +1,199 @@
+import { describe, expect, it } from "vitest";
+
+/**
+ * Is anything built, tested, and unreachable?
+ *
+ * ── The oldest shape in this codebase ───────────────────────────────────
+ *
+ * "A capability is not shipped until something a person touches can reach it"
+ * has been written down here **eleven times**, each after somebody found it by
+ * hand. The reorder list nobody could open. The offline-selling switch with no
+ * admin screen. And the largest: the whole offline module — a barcode index, a
+ * search, a category index, a stock-delta derivation — every piece built and
+ * tested, and the POS screen wired to none of it. Offline, a till could not put
+ * a single item in the cart, in any trade.
+ *
+ * Every one of those was findable mechanically, and this is the check:
+ * **an export that its own test file is the only thing to use.** Tests prove a
+ * thing works. They do not prove anybody can get to it.
+ *
+ * ── What it deliberately allows ─────────────────────────────────────────
+ *
+ * Helpers that exist FOR the tests — `reset…`, `forget…`, `clear…` — are the
+ * honest exception: their whole job is to put a module back to a known state
+ * between cases. They are listed by name rather than by prefix, so adding one
+ * is a decision somebody writes down.
+ *
+ * ── A caution the first version of this earned ──────────────────────────
+ *
+ * It was written with `new RegExp(name, "g").test(text)` and reported real
+ * callers as absent — **`RegExp.prototype.test` with a `/g` flag is stateful**,
+ * advancing `lastIndex` between calls, so alternate lookups returned false. It
+ * accused `flushVariances` of being unreachable while `pullNow` was calling it
+ * directly. Counting matches with a fresh regex is what fixed it.
+ *
+ * An audit that produces findings is a thing to verify, not to believe.
+ */
+
+const SOURCES = import.meta.glob("../**/*.{ts,tsx}", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+const isTest = (path: string) => /\.test\.tsx?$/.test(path);
+
+/**
+ * Comments out before counting.
+ *
+ * The first version of this counted them, and a file that MENTIONED a helper in
+ * a comment looked like a file that called it — so removing the last real call
+ * left the check green. A rule that a leftover sentence can satisfy is not a
+ * rule.
+ *
+ * Imports are deliberately still counted: eslint already fails the build on an
+ * unused one, so an import that survives is an import something uses.
+ */
+const stripComments = (src: string): string =>
+  src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("//"))
+    .join("\n");
+
+/**
+ * Stripped once per file, not once per lookup.
+ *
+ * The first version stripped inside the counter, which runs for every export
+ * against every file — and the check went from milliseconds to a timeout.
+ * Doing the expensive part once is the difference between a rule that runs on
+ * every commit and one somebody switches off.
+ */
+const CODE = new Map(Object.entries(SOURCES).map(([path, text]) => [path, stripComments(text)]));
+
+/** Fresh regex every time — see the caution above. */
+const occurrences = (code: string, name: string): number =>
+  (code.match(new RegExp(`\\b${name}\\b`, "g")) ?? []).length;
+
+/**
+ * Exports whose only caller is a test, legitimately, with why.
+ *
+ * Keyed `file::export`. Every one of these exists so a test can put a module
+ * back to a known state; none of them is a capability a shop is waiting for.
+ */
+const TEST_ONLY: Record<string, string> = {
+  "modules/offline/db/open.ts::resetDbCache": "drops the memoised connection between cases",
+  "modules/offline/db/repo.ts::clearCaches": "empties the stores between cases",
+  "modules/offline/db/schema.ts::DURABLE_STORES": "the list a test asserts the schema against",
+  "modules/offline/contact.ts::forgetServerContact": "resets the last-contact clock",
+  "modules/offline/device/deviceId.ts::hasDeviceId": "asserted rather than called",
+  "modules/offline/device/deviceId.ts::forgetDeviceId": "resets the stored id",
+  "modules/offline/device/touch.ts::resetTouchClock": "resets the touch clock",
+  "modules/offline/sync/applyPull.ts::resetCatalog": "wipes the cache between cases",
+  "modules/offline/outbox/outbox.ts::readRow": "reads one row back to assert on it",
+  "test/routes.ts::TENANT_ROUTES": "the route list the contract tests are built from",
+  // Introspection over the permission map, so the tests can check it from BOTH
+  // directions — a route with no rule, and a rule naming a route that no longer
+  // exists. The file says so itself where `mappedScreens` is declared.
+  "./routing/screenPermissions.ts::permissionForScreen": "map introspection for the coverage test",
+  "./routing/screenPermissions.ts::mappedScreens": "map introspection for the coverage test",
+};
+
+/**
+ * Designed, correct, and not surfaced yet — with the thing that would surface
+ * it.
+ *
+ * A separate list from the one above on purpose. Those are test scaffolding and
+ * always will be. **These are unshipped capability**, and the moment this list
+ * grows past a handful it is telling you something: the product is accumulating
+ * work nobody can use.
+ *
+ * Each line names what has to be BUILT for the entry to leave this list, so
+ * "still exempt" can never quietly mean "still forgotten".
+ */
+const NOT_SURFACED_YET: Record<string, string> = {
+  // The till writes its own status wording, deliberately — "Not 'pending',
+  // which reads as a fault and frightens a shopkeeper". This version also
+  // renders "Sending X of Y", a state nothing currently tracks.
+  // Leaves this list when a sync-progress indicator exists.
+  "modules/offline/offlineStore.ts::pillLabel": "needs a sync-progress indicator",
+  // Its own doc says "Drives the indicator, nothing else." There is no
+  // indicator. Same one as above; they arrive together or not at all.
+  "modules/offline/sync/pullNow.ts::isPulling": "needs a sync-progress indicator",
+  // Tells an OFF- receipt from a real invoice number. Nothing branches on it
+  // today: Reports → Offline already answers "what came in late" at the level a
+  // shop asks it. Leaves this list if a sale row ever needs the badge.
+  "modules/offline/outbox/receiptNumber.ts::isOfflineNumber": "needs a per-sale offline badge",
+  // The fixed-width barcode. `LabelsPage` uses `code128BarsSvg` instead,
+  // because a label is cut to a physical size and this variant "happily
+  // renders 280px of bars into a 50mm sticker and spills over its
+  // neighbours" — its own file says so.
+  //
+  // Kept rather than deleted on the file's own reasoning: it is rendered
+  // through `dangerouslySetInnerHTML`, and its XSS escaping was written
+  // BECAUSE it has no caller — "exactly the argument for escaping it now
+  // rather than the day it gets one". Leaves this list when something sizes a
+  // barcode by the symbol rather than by the label: a full-sheet print, or an
+  // on-screen preview.
+  "modules/catalog/utils/code128.ts::code128Svg": "needs a barcode sized by the symbol, not the label",
+};
+
+interface Unreachable {
+  where: string;
+  name: string;
+}
+
+const unreachable = (): Unreachable[] => {
+  const found: Unreachable[] = [];
+
+  for (const [path, text] of Object.entries(SOURCES)) {
+    if (isTest(path)) continue;
+    const where = path.replace(/^\.\.\//, "");
+    const code = CODE.get(path) ?? "";
+
+    const names = [
+      ...text.matchAll(/^export (?:async )?function (\w+)|^export const (\w+)\s*[:=]|^export class (\w+)/gm),
+    ]
+      .map((m) => m[1] || m[2] || m[3])
+      .filter((n): n is string => !!n);
+
+    for (const name of names) {
+      // Used inside its own file counts as reached.
+      if (occurrences(code, name) > 1) continue;
+      if (`${where}::${name}` in TEST_ONLY) continue;
+      if (`${where}::${name}` in NOT_SURFACED_YET) continue;
+
+      let app = 0;
+      let tests = 0;
+      for (const [other, otherCode] of CODE) {
+        if (other === path || occurrences(otherCode, name) === 0) continue;
+        if (isTest(other)) tests++;
+        else app++;
+      }
+
+      // Untested AND unused is dead code, which is a different problem and not
+      // this rule's business. What this catches is the thing that LOOKS
+      // shipped: proved to work, and reachable by nobody.
+      if (app === 0 && tests > 0) found.push({ where, name });
+    }
+  }
+
+  return found;
+};
+
+describe("a capability is not shipped until something a person touches can reach it", () => {
+  it("reads the whole app, so a silent zero cannot pass as a clean sweep", () => {
+    expect(Object.keys(SOURCES).length).toBeGreaterThan(200);
+  });
+
+  it("catches an export whose only caller is its own test", () => {
+    // Proves the check bites rather than trusting an empty result — and pins
+    // the `/g` statefulness bug that made the first version of it lie.
+    expect(occurrences("a foo b foo", "foo")).toBe(2);
+    expect(occurrences("export function foo() {}", "foo")).toBe(1);
+  });
+
+  it("finds nothing built, tested and unreachable", () => {
+    expect(unreachable().map((u) => `${u.where} → ${u.name}`)).toEqual([]);
+  });
+});
