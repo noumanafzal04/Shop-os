@@ -266,6 +266,27 @@ class CreateSaleAction
                         );
                     }
 
+                    // Eighty-sixed: the kitchen says there is no more of this.
+                    //
+                    // It has to be refused HERE and not only hidden in the
+                    // catalog, for the same reason every price is decided on
+                    // this side: a till that has had the menu in memory since
+                    // opening will happily send an item that went off an hour
+                    // ago, and an offline till certainly will.
+                    //
+                    // Exempt on the trusted path for the same reason the
+                    // serving window is — a dine-in tab, an online order or a
+                    // reservation is food the customer already committed to,
+                    // usually already eaten. Refusing to take their money
+                    // because the kitchen has since run out is not a
+                    // protection, it is a shop that cannot close a bill.
+                    if (! $trusted && $product->sold_out_at !== null) {
+                        throw DomainException::unprocessable(
+                            "{$product->name} is sold out.",
+                            'ITEM_SOLD_OUT',
+                        );
+                    }
+
                     $source = $variant ?? $product;
                     $quantity = (float) $item['quantity'];
 

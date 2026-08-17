@@ -113,6 +113,14 @@ class PosProjection
             'drug_schedule' => $product->drug_schedule,
             'tracks_serial' => (bool) $product->tracks_serial,
             'kitchen_station' => $product->kitchen_station,
+            // Eighty-sixed. Sent rather than filtered out, for the same reason
+            // a switched-off promotion is: the till holds a copy of the menu,
+            // and "gone from the results" is indistinguishable from a tombstone
+            // — a delta that simply omitted the dish would leave yesterday's
+            // copy on the tablet still selling it. The server refuses the line
+            // regardless (CreateSaleAction); this is so the screen can say so
+            // BEFORE a waiter has promised it to a table.
+            'sold_out' => $product->sold_out_at !== null,
 
             'offline_ok' => static::sellableOffline($product),
 

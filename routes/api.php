@@ -71,6 +71,7 @@ use App\Http\Controllers\Api\V1\Tenant\SaleController;
 use App\Http\Controllers\Api\V1\Tenant\SaleDocumentController;
 use App\Http\Controllers\Api\V1\Tenant\SearchController;
 use App\Http\Controllers\Api\V1\Tenant\ShopController;
+use App\Http\Controllers\Api\V1\Tenant\SoldOutController;
 use App\Http\Controllers\Api\V1\Tenant\StaffController as TenantStaffController;
 use App\Http\Controllers\Api\V1\Tenant\StockCountController;
 use App\Http\Controllers\Api\V1\Tenant\StockDisposalController;
@@ -266,6 +267,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('products/{product}/images', [ProductImageController::class, 'store']);
                 Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy']);
                 Route::post('products/{product}/barcode', [ProductController::class, 'generateBarcode']);
+                // Eighty-six: off the menu for now, back on when the delivery
+                // lands. NOT the same as deactivating — that is a catalog
+                // decision made once; this is a service decision made mid-shift
+                // and undone tomorrow. See SoldOutController.
+                Route::post('products/{product}/sold-out', [SoldOutController::class, 'store']);
+                Route::delete('products/{product}/sold-out', [SoldOutController::class, 'destroy']);
                 // branch-stock and serials are reads — they live in the read
                 // group above, because the counter asks both questions.
                 // Per-branch price overrides (effective = override ?? base).

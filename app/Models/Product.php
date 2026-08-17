@@ -6,6 +6,7 @@ use App\Enums\ItemType;
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HidesCostPrice;
 use App\Support\ItemTypes;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -38,6 +39,7 @@ class Product extends BaseModel
             'track_inventory' => 'boolean',
             'duration_minutes' => 'integer',
             'is_active' => 'boolean',
+            'sold_out_at' => 'datetime',
             'visible_in_marketplace' => 'boolean',
             'requires_prescription' => 'boolean',
             'tracks_serial' => 'boolean',
@@ -48,6 +50,25 @@ class Product extends BaseModel
     public function barcodes(): HasMany
     {
         return $this->hasMany(ProductBarcode::class);
+    }
+
+    /**
+     * Is this item eighty-sixed — the kitchen has run out for now?
+     *
+     * Separate from `is_active`, which is a CATALOG decision: a deactivated
+     * product leaves the storefront, the reports and the menu. This is a
+     * SERVICE decision, made mid-shift by whoever is cooking, and undone the
+     * moment the next delivery lands.
+     */
+    public function isSoldOut(): bool
+    {
+        return $this->sold_out_at !== null;
+    }
+
+    /** @param  Builder<Product>  $query */
+    public function scopeSellableToday($query)
+    {
+        return $query->whereNull('sold_out_at');
     }
 
     /** Larger packs this item can be sold in (pack-breaking) — smallest first. */
