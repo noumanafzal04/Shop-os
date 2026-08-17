@@ -27,6 +27,7 @@ use App\Support\BranchContext;
 use App\Support\CashRounding;
 use App\Support\ModifierResolver;
 use App\Support\Permissions;
+use App\Support\RecipeCost;
 use App\Support\RegisterContext;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
@@ -413,7 +414,20 @@ class CreateSaleAction
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                         // Cost tracks the BASE unit; a pack's cost is base cost × factor.
-                        'unit_cost' => $source->cost !== null ? round((float) $source->cost * $factor, 2) : null,
+                        //
+                        // A COOKED DISH has no purchase cost — its cost is what
+                        // its recipe consumed, and every ingredient of that
+                        // answer was already in the database while this line
+                        // used a number somebody typed on the dish months ago.
+                        // Every margin figure on the platform is built from
+                        // this column, so a restaurant's whole Margins report
+                        // was computed perfectly from a figure nobody
+                        // maintains. RecipeCost returns null rather than a
+                        // partial sum, and null falls back to the old figure —
+                        // an incomplete food cost is not a smaller cost, it is
+                        // a wrong one in the direction that makes a kitchen
+                        // underprice.
+                        'unit_cost' => $this->lineCost($source, $factor),
                         'line_discount' => $lineDiscount,
                         'line_total' => $lineTotal,
                         'modifiers' => $modifierSnapshot,
@@ -1437,6 +1451,32 @@ class CreateSaleAction
      * @param  array<int, array{method: string, amount: float|string}>  $payments
      * @return array{0: BankCardOffer|null, 1: float}
      */
+    /**
+     * What one unit of this line cost the shop.
+     *
+     * For anything bought in, that is its purchase cost. For a dish made to
+     * order it is what the recipe consumed — computed, because nobody retypes a
+     * dish's cost when onions double.
+     *
+     * Falls back to the stored figure when the recipe cannot be costed (an
+     * ingredient with no cost of its own), which is the behaviour that existed
+     * before and therefore cannot regress anything. The shop is told WHICH
+     * ingredients are stopping it on the product form, where the price is set.
+     */
+    private function lineCost(Product|ProductVariant $source, float $factor): ?float
+    {
+        // A VARIANT is a size or a colour of something bought in — it carries
+        // its own purchase cost and never a recipe of its own. Only the product
+        // can be a dish.
+        $recipe = $source instanceof Product ? RecipeCost::forDish($source) : null;
+
+        if ($recipe !== null) {
+            return round($recipe * $factor, 2);
+        }
+
+        return $source->cost !== null ? round((float) $source->cost * $factor, 2) : null;
+    }
+
     private function bankOffer(
         array $data,
         array $payments,

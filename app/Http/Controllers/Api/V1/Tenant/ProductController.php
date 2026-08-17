@@ -23,6 +23,7 @@ use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\ItemTypes;
 use App\Support\ProductCsv;
+use App\Support\RecipeCost;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -243,9 +244,25 @@ class ProductController extends Controller
 
     public function show(string $id): JsonResponse
     {
-        return ApiResponse::ok(
-            Product::query()->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])->findOrFail($id),
-        );
+        /** @var Product $product */
+        $product = Product::query()
+            // `cost` on the ingredient, deliberately: a dish's food cost is
+            // computed from these and the selection used to stop at the name,
+            // so the figure could not be produced from the row it was already
+            // loading.
+            ->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name,cost'])
+            ->findOrFail($id);
+
+        return ApiResponse::ok(array_merge($product->toArray(), [
+            // What one portion costs to make. Null where the dish has no
+            // recipe, or where an ingredient under it has no cost — never a
+            // partial sum, which would read as a smaller cost rather than as
+            // an unknown one and make the kitchen underprice.
+            'recipe_cost' => RecipeCost::forDish($product),
+            // The half that makes it actionable: "cannot cost this dish" is a
+            // complaint, "Onions and Cooking oil have no cost" is a job.
+            'recipe_cost_missing' => RecipeCost::missingCosts($product),
+        ]));
     }
 
     /**
