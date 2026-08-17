@@ -153,6 +153,23 @@ class WorkshopBayTest extends TestCase
         $this->assertSame(0, $this->bay()['overdue']);
     }
 
+    public function test_a_services_shop_gets_the_same_board(): void
+    {
+        // A job card is work TAKEN IN, which is a laundry, a tailor and a
+        // repair counter exactly as much as it is a workshop. The document was
+        // never fenced to automotive — only the screen was, so a dry cleaner
+        // could create the very record it needs and had nowhere to see it.
+        $laundry = Tenant::factory()->create([
+            'setup_completed' => true, 'business_type' => 'services',
+            'features' => BusinessTypes::defaultFeatures('services'),
+        ]);
+        $cleaner = User::factory()->shopOwner($laundry)->create();
+
+        $this->assertNotNull(
+            $this->actingAsUser($cleaner)->getJson('/api/v1/dashboard')->assertOk()->json('data.bay'),
+        );
+    }
+
     public function test_every_other_trade_gets_no_bay_panel_at_all(): void
     {
         // Absent, never empty — the rule every block on this dashboard follows.

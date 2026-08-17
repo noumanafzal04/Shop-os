@@ -208,16 +208,20 @@ class DashboardService
                 && BusinessTypes::primary($tenant->business_type) === 'pharmacy'
                 ? $this->dispensingToday($tenant, $branchId, $todayStart)
                 : null,
-            // A workshop's morning question, which no other trade asks: what is
-            // in my bay, and what has been done and not yet charged for.
+            // The morning question of a shop that takes work IN: what is on the
+            // board, and what has been finished and not yet charged for.
             //
-            // The board that answers the first half shipped two days ago and
-            // the owner still had to open it to know anything. The second half
-            // is money: a job card sitting READY is work the shop has finished
-            // and not invoiced, and a car collected without the card being
-            // converted is work it will never be paid for.
+            // Automotive and services both. A job card is work taken in — lines
+            // accumulate, nobody knows the price on arrival, it becomes an
+            // invoice when the customer collects — and that is a workshop
+            // exactly as much as it is a laundry, a tailor or a repair counter.
+            //
+            // The money half is READY: a job marked ready is finished work, and
+            // while its document is open nobody has invoiced it. Work handed
+            // back without converting the card is work the shop will never be
+            // paid for.
             'bay' => $tenant->business_type !== null
-                && BusinessTypes::primary($tenant->business_type) === 'automotive'
+                && in_array(BusinessTypes::primary($tenant->business_type), ['automotive', 'services'], true)
                 ? $this->workshopBay($tenant, $branchId)
                 : null,
             'activity' => $this->tenantActivity($tenant),
