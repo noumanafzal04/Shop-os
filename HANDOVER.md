@@ -219,7 +219,42 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-17 (latest) — the other side of the same page
+### 2026-08-17 (latest) — the discount the till was given and never read
+
+Found by auditing the offline pricing mirror against features that shipped
+after it, not from a backlog.
+`docs/decisions/shopos-member-discount-offline.md`.
+
+The shadow run is the evidence for granting offline selling, and that evidence
+is only worth what the mirror covers: a pricing rule that shipped after the
+mirror was written makes the shadow run report "agreement" on sales that never
+exercised it. Coupons, loyalty and bank offers turned out to be properly
+REFUSED offline. One was not.
+
+**The server sends `customer_group_id` on every cached customer and the groups
+with their `discount_percent`** — its own comment says "the group is here only
+because pricing cannot work without it". The till stored both and **nothing
+ever read them.** `priceCart` omits group discounts deliberately, and
+`canSellOffline` never refused a member, so a customer in a 10%-off group
+served during an outage was charged full price on a printed receipt.
+
+It hid because it is HALF implemented, which is worse than none: a group's
+price LEVEL is honoured, so groups look handled right up until the one carrying
+a percentage.
+
+Fixed the way the same file already fixed the identical case one field away —
+the bank-offer refusal, whose reasoning is *"a receipt wrong by the whole
+discount, which the customer discovers days later with no way to check"*. Only
+groups with a percentage; wholesale groups still sell, because a refusal nobody
+needed is how the feature gets a reputation for not working.
+
+Eighth instance of the pattern, and the sharpest: the data was shipped to the
+device *specifically for this* and the comment saying so was in the controller
+the whole time.
+
+Panel **886** green · eslint 0/18 · build clean.
+
+### 2026-08-17 — the other side of the same page
 
 Recurring income. **The Aug-09 gap list is now closed.**
 `docs/decisions/shopos-recurring-income.md`.
