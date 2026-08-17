@@ -219,7 +219,41 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-16 (latest) — expired stock could leave, but not be accounted for
+### 2026-08-16 (latest) — a restaurant's margins came from a number nobody maintains
+
+Found by reading the FOOD trade. Every margin, profit and COGS figure is built
+from `sale_items.unit_cost`, and that came from `product.cost` — one number
+typed onto the item once. For a tin of paint that is right: it is what the shop
+paid.
+
+**A cooked dish has no such number.** It costs half a kilo of chicken, onions
+and oil, and those move violently here. So the Margins report — the one a
+restaurant opens to decide what to charge — was computed perfectly from a figure
+nobody updates, while **every ingredient of the real answer was already in the
+database**: the recipe held the quantities, the ingredients held their costs,
+and nothing multiplied them.
+
+`App\Support\RecipeCost` now costs a portion from its recipe, and
+`CreateSaleAction` uses it — which corrects COGS, profit and margins at once.
+
+**Unknown is not zero.** One ingredient without a cost makes the dish
+uncostable, not cheaper — a partial food cost is wrong in the direction that
+makes a kitchen underprice. It falls back to the old figure (so nothing
+regresses) and the product form NAMES the ingredients stopping it. Recipes nest,
+because a gravy base is a real thing.
+
+**A mutation survived and was resolved rather than papered over.** The recursion
+carried both a depth cap and a visited-set; each terminates a cycle alone, so no
+test could tell them apart. The cap was removed — it silently answered
+"uncostable" for a legitimate four-deep nest, which is a wrong answer wearing an
+honest refusal's clothes. Same call as M51.
+
+**A real bug the suite caught:** a sale line's `$source` can be a
+`ProductVariant`, not only a `Product`. Six pre-existing tests failed at once.
+
+Backend 1980 · panel 820. 12 tests, 3 mutations caught + 1 survivor resolved.
+
+### 2026-08-16 — expired stock could leave, but not be accounted for
 
 Found by reading the PHARMACY trade. The largest of the four trade findings.
 

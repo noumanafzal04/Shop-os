@@ -631,6 +631,58 @@ refused. Backend 1968 green, panel 820 green.
 
 ---
 
+### 19. ✅ FIXED — a restaurant's margins came from a number nobody maintains
+
+**Found by reading the FOOD trade, 2026-08-16.** Fifth finding from the eight
+trade areas.
+
+Every margin, profit and COGS figure on this platform is built from
+`sale_items.unit_cost`, and that was set from `product.cost` — one number typed
+onto the item's record. For a tin of paint that is exactly right: it is what the
+shop paid.
+
+**A cooked dish has no such number.** Its cost is half a kilo of chicken, two
+onions, oil and spices, and in Pakistan those move violently week to week. A
+karahi priced against last winter's chicken is not priced at all.
+
+So the **Margins report — the report a restaurant opens to decide what to
+charge — was computed perfectly from a figure nobody updates.** And the same
+shape as every other finding this week: **every ingredient of the real answer
+was already in the database.** `recipe_items` holds the quantities, the
+ingredients carry their own `cost`, and nothing multiplied them.
+`recipeCost|recipe_cost|ingredientCost` grepped to zero hits.
+
+**Fixed.** `App\Support\RecipeCost` — one portion's cost from the recipe's own
+ingredients, used by `CreateSaleAction` for `unit_cost`, which corrects COGS,
+profit and margins in one move.
+
+**Unknown is not zero.** If ANY ingredient has no cost, it returns null rather
+than a partial sum. A partial food cost is not a smaller cost, it is a **wrong**
+one, and wrong in the direction that makes a kitchen underprice. Null falls back
+to the stored figure — the behaviour that existed before, so nothing regresses —
+and the product form **names the ingredients that are stopping it**, because "I
+cannot cost this dish" is a complaint and "Spice mix has no cost" is a job.
+
+**Recipes nest.** A gravy base is prepped in the morning and three dishes are
+built on it. A sub-recipe is costed from ITS ingredients, and a prepped item
+with an empty `cost` column is correctly not reported as missing.
+
+**A mutation SURVIVED and was resolved rather than papered over.** The recursion
+had both a depth cap and a visited-set. Removing the cap changed nothing any
+test could see — each terminates a cycle alone. Per the same call made on M51,
+the redundancy was removed, and the cap was the one to go: it silently answered
+"uncostable" for a legitimate four-deep nest, which is a wrong answer wearing
+the same clothes as an honest refusal. A test now pins exactly that.
+
+**A real bug the suite caught:** `$source` on a sale line can be a
+`ProductVariant`, not only a `Product`. Six pre-existing tests failed
+immediately — a variant carries its own purchase cost and never a recipe.
+
+12 tests, 3 mutations caught + 1 survivor resolved. Backend 1980 green, panel
+820 green.
+
+---
+
 ## CLOSED — verified false or already fixed. Do not re-raise.
 
 | Claim | Why it is closed |
