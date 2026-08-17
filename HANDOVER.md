@@ -219,7 +219,50 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-17 (latest) — the screens that looked blank
+### 2026-08-17 (latest) — eighty-six, and the switch nobody could reach
+
+Clearing the pending list turned up two things.
+`docs/decisions/shopos-sold-out-and-reachability.md`.
+
+**A dish could never be out of stock.** `InventoryService` lets recipe
+depletion go negative on purpose — a dish is made to order, and refusing to
+settle a tab for food already eaten is worse than a negative figure. The
+consequence: a sold-out fish went on selling all evening. Now `sold_out_at` —
+a TIMESTAMP, because the failure mode is forgetting to switch it back on, and
+"off since Tuesday" is the sentence that fixes that. It does not clear
+overnight (an item that un-86s itself while the kitchen still has none puts a
+customer in front of a dish that never arrives). Refused server-side
+(`ITEM_SOLD_OUT`), exempt on the trusted path, sent to the till rather than
+filtered out, `products.manage` not `sales.manage`.
+
+**Offline selling could not be granted by anyone.** `offline_selling` has been
+in PlanLimits the whole time — server reads it, till obeys it, outbox refuses
+without it — and **no screen in the admin console could set it**. The limits
+modal lists five countable ceilings and this is not a number you extend, so it
+fell between them. Seventh time this codebase has produced that shape. It has
+its own card now; revoking sends `null`, because `extendLimits` refuses
+anything below 1.
+
+So the answer to "how does a shop set up offline?" is **it doesn't** — the till
+registers itself, caches the catalog and runs shadow pricing on its own. The
+admin's grant is the only decision.
+
+Also: **PWA icons** (all three entries pointed at a 48×48 file while claiming
+192/512 — the second, unfamous blocker on installing the till), an **install
+prompt** that handles Safari by telling a person where to tap (iPadOS reports
+itself as `MacIntel`, so a user-agent check misses the exact device this is
+for), and the **CVE pass**: panel 15 → 1, backend clean, every advisory checked
+against `dist/` rather than assumed.
+
+**Four backlog entries were stale** — the Aug-09 nine were fixed on 08-11,
+kitchen-station typos were already handled, coursing and receivables are built.
+Still open: near-expiry notification, recurring income, reorder → PO.
+
+Backend **2004** green · panel **882** green · eslint 0/18 · build clean.
+Still not rendered by me — Chrome tools stayed disconnected; the shop's
+screenshots caught the two POS bugs.
+
+### 2026-08-17 — the screens that looked blank
 
 A shop pointed at the bank screen: "white white", and edit/delete with no
 colour. Both true; neither was a bank-screen problem.
