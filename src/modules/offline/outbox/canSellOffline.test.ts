@@ -182,3 +182,64 @@ describe("a bank offer", () => {
   });
 });
 
+
+describe("a customer whose group owes them a discount", () => {
+  /**
+   * The hole this closes, and why it hid for so long.
+   *
+   * The server ships `customer_group_id` on every cached customer and the
+   * groups with their `discount_percent`, saying so in as many words: "the
+   * group is here only because pricing cannot work without it". The till
+   * stored both and nothing ever read them.
+   *
+   * It is a PARTIAL implementation, which is worse than none: `priceCart`
+   * honours a group's price LEVEL, so groups look handled right up until the
+   * one carrying a percentage — and that one was rung at full price, on a
+   * printed receipt, silently.
+   */
+  it("is refused, rather than quietly charged full price", () => {
+    const refusals = refusalsFor({
+      lines: [{ name: "Sugar 1kg", offline_ok: true }],
+      paymentMethod: "cash",
+      memberDiscountPct: 10,
+    });
+
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0].reason).toMatch(/10% off/);
+  });
+
+  it("is told they keep the discount by waiting", () => {
+    // A refusal that only says no sends the cashier to argue with the
+    // customer. This one says what waiting buys them.
+    const [refusal] = refusalsFor({
+      lines: [{ name: "Sugar 1kg", offline_ok: true }],
+      paymentMethod: "cash",
+      memberDiscountPct: 5,
+    });
+
+    expect(refusal.fix).toMatch(/wait for the connection/i);
+  });
+
+  it("does not refuse a group that only sets a price level", () => {
+    // Wholesale groups price correctly offline today. Refusing them would take
+    // customers off the till during an outage for no reason at all, and a
+    // refusal nobody needed is how the whole feature gets a reputation for not
+    // working.
+    expect(
+      canSellOffline({
+        lines: [{ name: "Sugar 1kg", offline_ok: true }],
+        paymentMethod: "cash",
+        memberDiscountPct: 0,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not refuse a walk-in", () => {
+    expect(
+      canSellOffline({
+        lines: [{ name: "Sugar 1kg", offline_ok: true }],
+        paymentMethod: "cash",
+      }),
+    ).toBe(true);
+  });
+});

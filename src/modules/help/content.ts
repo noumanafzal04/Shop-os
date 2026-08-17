@@ -1235,7 +1235,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       ]},
       { type: "warn", text: "A disagreement never means a customer was overcharged. They paid the server's price. It means the offline engine is not ready, and it is far better to find that here than on a day the internet is down." },
       { type: "p", text: "Disagreements are grouped by what actually went wrong, not listed one per sale. Nine carts with the same fault are one problem shown once, with the carts folded underneath — fixing one fixes all of them." },
-      { type: "note", text: "Your automatic offers ARE worked out by the till, including buy-one-get-one. If you ever set up an offer of a kind the till does not recognise, it will refuse to sell offline rather than print a wrong price — the shop is told, not the customer." },
+      { type: "note", text: "Your automatic offers ARE worked out by the till, including buy-one-get-one. If you ever set up an offer of a kind the till does not recognise, it will refuse to sell offline rather than print a wrong price — the shop is told, not the customer. The same applies to a customer whose group gets a percentage off, and to a bank card offer: the till says so at the tender screen and the customer keeps the discount if you wait for the connection." },
       { type: "p", text: "If a till's browser data is cleared, its count starts again from zero and the totals here go down. That is deliberate — the evidence really did go with it, and a figure that only ever climbed would claim more than it could show." },
 
       { type: "h", text: "Selling when the internet is down" },

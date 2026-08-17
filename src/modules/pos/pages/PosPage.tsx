@@ -55,6 +55,7 @@ import { useTerminalStore } from "../../../stores/terminalStore";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
 import { promotionsService, type PromoPreview } from "../../promotions/services/promotionsService";
+import { memberDiscountFor } from "../../offline/lookup/memberDiscount";
 
 interface CartLine {
   /**
@@ -862,6 +863,12 @@ export default function PosPage() {
         // Not mirrored on the till yet — a till that took one offline would
         // print a receipt wrong by the whole discount.
         bankId,
+        // …and the same case one field along, which hid for longer because it
+        // is HALF mirrored: `priceCart` honours a group's price level, so
+        // wholesale groups price correctly offline, while a group carrying a
+        // percentage was rung at full price on a printed receipt and nobody
+        // found out. Resolved from the till's own cached customers.
+        memberDiscountPct: await memberDiscountFor(customerPhone),
       },
       registerName: terminalName,
       // What this till was standing at. The server needs this AND the shift to

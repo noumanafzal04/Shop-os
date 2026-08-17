@@ -31,6 +31,12 @@ export interface OfflineCart {
   couponCode?: string | null;
   /** A bank card offer the cashier picked. Not mirrored on the till — yet. */
   bankId?: string | null;
+  /**
+   * The percentage this customer's group owes them, resolved from the till's
+   * own cached customers and groups. Zero for a walk-in, and zero for a group
+   * that only sets a price level — those price correctly offline.
+   */
+  memberDiscountPct?: number;
 }
 
 /** Tenders a single till can settle alone. Mirrors `OfflinePolicy::TENDERS`. */
@@ -105,6 +111,26 @@ export function refusalsFor(cart: OfflineCart): Refusal[] {
     refusals.push({
       reason: "A bank offer has to be worked out by the server, and this till can't reach it.",
       fix: "Ring it without the bank offer, or wait for the connection — the customer keeps the discount either way if you wait.",
+    });
+  }
+
+  // A members' discount the till cannot apply.
+  //
+  // The same case as the bank offer above, and it went unnoticed for longer
+  // because it is half-implemented rather than absent: `priceCart` honours a
+  // group's price LEVEL, so wholesale groups work, right up until the group
+  // that carries a percentage. That one was priced at full price on a printed
+  // receipt, silently — the exact outcome the bank-offer refusal exists to
+  // prevent.
+  //
+  // Only groups with a percentage. Refusing every member would take wholesale
+  // customers off the till during an outage for no reason, and a refusal
+  // nobody needed is how the whole feature gets a reputation for not working.
+  if ((cart.memberDiscountPct ?? 0) > 0) {
+    refusals.push({
+      reason:
+        `This customer's group gets ${cart.memberDiscountPct}% off, and this till can't work that out without the connection.`,
+      fix: "Ring it as a walk-in and the discount is lost, or wait for the connection — they keep it if you wait.",
     });
   }
 
