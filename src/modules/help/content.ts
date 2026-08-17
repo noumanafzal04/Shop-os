@@ -637,7 +637,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "table",
         head: ["Tab", "What it does"],
         rows: [
-          ["Recurring", "Rent, salaries, the internet bill — posts itself on schedule, and a posted row is marked so you can tell it from one you typed."],
+          ["Recurring", "Rent, salaries, the internet bill — and on the income side, the flat upstairs or a let shutter. A template falls DUE and you post it; nothing files itself on a schedule. A posted row is marked so you can tell it from one you typed."],
           ["Budgets", "A ceiling per category per month, warning you when you go past it."],
           ["Categories", "Your own vocabulary, seeded from your business type."],
         ],
