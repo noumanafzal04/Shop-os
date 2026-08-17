@@ -253,13 +253,13 @@ export default function TabPage() {
   };
 
   if (ticketQ.isLoading || !ticket) {
-    return <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
+    return <div className="flex h-dvh items-center justify-center bg-gray-50 dark:bg-gray-950">
       <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
     </div>;
   }
 
   return (
-    <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
+    <div className="flex h-dvh flex-col bg-gray-50 dark:bg-gray-950">
       <PageMeta title={`Tab ${ticket.ticket_number} | ShopOS`} description="Dine-in tab" />
 
       <header className="flex items-center justify-between border-b border-gray-200 bg-white px-5 py-3 dark:border-gray-800 dark:bg-gray-900">
@@ -399,7 +399,7 @@ export default function TabPage() {
       {/* Modifier picker */}
       <Modal isOpen={modModal.isOpen} onClose={modModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">{modProduct?.name}</h3>
-        <div className="max-h-[50vh] space-y-4 overflow-y-auto">
+        <div className="max-h-[50dvh] space-y-4 overflow-y-auto">
           {modProduct?.modifier_groups?.map((g) => {
             const key = g.id ?? g.name;
             const sel = picked[key] ?? [];
@@ -543,7 +543,7 @@ export default function TabPage() {
         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
           Choose how many of each item to settle — leave every line at its full count for the whole tab, or lower one to split part of it.
         </p>
-        <div className="mb-4 max-h-[40vh] space-y-1 overflow-y-auto">
+        <div className="mb-4 max-h-[40dvh] space-y-1 overflow-y-auto">
           {unsettled.map((i) => {
             const lineQty = Number(i.quantity);
             const q = settleQty[i.id] ?? 0;

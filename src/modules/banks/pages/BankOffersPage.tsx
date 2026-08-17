@@ -123,77 +123,124 @@ export default function BankOffersPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {rows.map((bank) => (
-            <div
-              key={bank.id}
-              className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"
-            >
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <h2 className="font-semibold text-gray-800 dark:text-white/90">{bank.name}</h2>
-                  {bank.short_code && (
-                    <span className="text-theme-xs text-gray-400">prints as {bank.short_code}</span>
-                  )}
-                  {!bank.is_active && <Badge color="light">Switched off</Badge>}
+          {rows.map((bank) => {
+            const offers = bank.offers ?? [];
+            // A bank the till will actually offer today. Everything else on
+            // this card is admin; this is the state a cashier meets.
+            const live = offers.filter((o) => o.is_active && !hasEnded(o)).length;
+
+            return (
+              <div
+                key={bank.id}
+                className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+              >
+                {/* Tinted band, so a bank reads as a SECTION rather than the
+                    first paragraph of a page of identical white. Three
+                    banks stacked in plain white cards is the "screen looks
+                    blank" report: nothing tells the eye where one ends. */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.02]">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <h2 className="text-base font-bold text-gray-800 dark:text-white/90">{bank.name}</h2>
+                    {bank.short_code && (
+                      <span className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] text-gray-500 ring-1 ring-inset ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
+                        {bank.short_code}
+                      </span>
+                    )}
+                    {!bank.is_active ? (
+                      <Badge color="light">Switched off</Badge>
+                    ) : live > 0 ? (
+                      <Badge color="success">{live} running</Badge>
+                    ) : null}
+                  </div>
+
+                  {/* Three weights, three meanings. They were one grey. */}
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setEditingOffer({ bank_id: bank.id })}>
+                      Add offer
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingBank(bank)}>Edit</Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => remove("bank", bank.id, bank.name)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setEditingOffer({ bank_id: bank.id })}>
-                    Add offer
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditingBank(bank)}>Edit</Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => remove("bank", bank.id, bank.name)}
-                  >
-                    Remove
-                  </Button>
+                <div className="p-4">
+                {offers.length === 0 ? (
+                  <p className="text-theme-xs text-gray-400">
+                    No campaigns. The till will not offer this bank until one is running.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {offers.map((offer) => {
+                      const ended = hasEnded(offer);
+                      const running = offer.is_active && !ended;
+
+                      return (
+                        <div
+                          key={offer.id}
+                          /* The stripe is the campaign's state, read before a
+                             word of it. A shop scanning for "what is live
+                             right now" should not have to read four badges. */
+                          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 border-l-4 px-3 py-2.5 dark:border-gray-800 ${
+                            running
+                              ? "border-l-success-500"
+                              : offer.is_active && ended
+                                ? "border-l-warning-500"
+                                : "border-l-gray-300 dark:border-l-gray-700"
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-gray-800 dark:text-white/90">{offer.label}</span>
+                              {!offer.is_active && <Badge color="light">Off</Badge>}
+                              {/* The two things a shop actually loses money on. */}
+                              {offer.is_active && ended && (
+                                <Badge color="warning">Ended — still switched on</Badge>
+                              )}
+                              {offer.type === "percent" && offer.max_discount === null && (
+                                <Badge color="warning">No cap</Badge>
+                              )}
+                            </div>
+                            <p className="text-theme-xs text-gray-500 dark:text-gray-400">{terms(offer)}</p>
+                          </div>
+
+                          {/* What the bank pays, as a FIGURE.
+                              It was buried mid-sentence in the grey terms line
+                              — the one number on the row a shop is looking
+                              for, set in the same weight as "Visa only". */}
+                          <div className="ml-auto shrink-0 text-right">
+                            <div className="text-lg font-bold tabular-nums leading-none text-brand-500">
+                              {offer.type === "percent" ? `${Number(offer.value)}%` : money(offer.value)}
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-gray-400">
+                              {offer.max_discount !== null ? `up to ${money(offer.max_discount)}` : "no cap"}
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 gap-2">
+                            <Button size="sm" variant="ghost" onClick={() => setEditingOffer(offer)}>Edit</Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={() => remove("offer", offer.id, offer.label)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 </div>
               </div>
-
-              {(bank.offers ?? []).length === 0 ? (
-                <p className="text-theme-xs text-gray-400">
-                  No campaigns. The till will not offer this bank until one is running.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {(bank.offers ?? []).map((offer) => (
-                    <div
-                      key={offer.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-100 px-3 py-2 dark:border-gray-800"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium text-gray-800 dark:text-white/90">{offer.label}</span>
-                          {!offer.is_active && <Badge color="light">Off</Badge>}
-                          {/* The two things a shop actually loses money on. */}
-                          {offer.is_active && hasEnded(offer) && (
-                            <Badge color="warning">Ended — still switched on</Badge>
-                          )}
-                          {offer.type === "percent" && offer.max_discount === null && (
-                            <Badge color="warning">No cap</Badge>
-                          )}
-                        </div>
-                        <p className="text-theme-xs text-gray-500 dark:text-gray-400">{terms(offer)}</p>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => setEditingOffer(offer)}>Edit</Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => remove("offer", offer.id, offer.label)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -160,9 +160,14 @@ export default function NewSalePage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      {/* 2/1 from `lg` up, not `xl`.
+          A tablet in landscape is 1024-1194 and was getting the phone stack:
+          the cart full width, then the totals a scroll below it. On a screen
+          that fits both, "what am I selling" and "what does it come to" belong
+          in one glance. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left: item search + cart */}
-        <div className="xl:col-span-2">
+        <div className="lg:col-span-2">
           <div className="relative mb-4">
             <Input
               placeholder="Search items to add…"
@@ -207,13 +212,18 @@ export default function NewSalePage() {
             )}
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
             {cart.length === 0 ? (
               <p className="px-6 py-16 text-center text-sm text-gray-500 dark:text-gray-400">
                 Cart is empty — search above to add items.
               </p>
             ) : (
-              <table className="w-full text-left text-theme-sm">
+              /* `min-w` + a scroller rather than `overflow-hidden`.
+                 Five columns, one of them a number box you have to hit with a
+                 finger, do not fit in 320px — and the old wrapper CLIPPED the
+                 overflow rather than letting it scroll, so on a narrow pane
+                 the Total column simply was not there and nothing said so. */
+              <table className="w-full min-w-[34rem] text-left text-theme-sm">
                 <thead>
                   <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                     <th className="px-4 py-3 font-medium">Item</th>

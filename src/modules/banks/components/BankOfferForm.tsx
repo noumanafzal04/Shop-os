@@ -69,7 +69,7 @@ export function BankOfferForm({
         {offer ? "Edit offer" : "Add offer"}
       </h3>
 
-      <div className="max-h-[65vh] space-y-4 overflow-y-auto pr-1">
+      <div className="max-h-[65dvh] space-y-4 overflow-y-auto pr-1">
         <div>
           <Label>What is it called?</Label>
           <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ramadan 10%" />

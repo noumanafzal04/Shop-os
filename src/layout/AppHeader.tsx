@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { Link, useLocation } from "react-router";
-import { useSidebar } from "../context/SidebarContext";
+import { DRAWER_BELOW, useSidebar } from "../context/SidebarContext";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 import NotificationDropdown from "../components/header/NotificationDropdown";
 import UserDropdown from "../components/header/UserDropdown";
@@ -17,8 +17,11 @@ const AppHeader: React.FC = () => {
   // /search endpoint, so the palette is mounted on the tenant side alone.
   const isTenant = useLocation().pathname.startsWith("/tenant");
 
+  // 1024 is `lg`, the width every class in the sidebar and the layout already
+  // splits on. It is stated once, in SidebarContext, and read here — the three
+  // copies of this number at three different values were the tablet bug.
   const handleToggle = () => {
-    if (window.innerWidth >= 1024) {
+    if (window.innerWidth >= DRAWER_BELOW) {
       toggleSidebar();
     } else {
       toggleMobileSidebar();
@@ -46,11 +49,27 @@ const AppHeader: React.FC = () => {
   }, [isTenant]);
 
   return (
-    <header className="sticky top-0 flex w-full bg-white border-gray-200 z-99999 dark:border-gray-800 dark:bg-gray-900 lg:border-b">
-      <div className="flex flex-col items-center justify-between grow lg:flex-row lg:px-6">
-        <div className="flex items-center justify-between w-full gap-2 px-3 py-3 border-b border-gray-200 dark:border-gray-800 sm:gap-4 lg:justify-normal lg:border-b-0 lg:px-0 lg:py-4">
+    /* ── One row, at every width ────────────────────────────────────────
+     *
+     * It used to be a flex COLUMN below `lg`: a top strip with the menu
+     * toggle, and a second row holding branch, theme, notifications and the
+     * account — hidden behind a three-dots button and pushed into the page
+     * flow when opened. Two consequences, both worst on a tablet:
+     *
+     *   · At 820 or 1000px there is ample room for four icons, and all four
+     *     were behind a menu anyway. The dots button is a phone's answer being
+     *     given to a device that never asked the question.
+     *   · Opening it GREW the header from 64px to roughly 140 — and the
+     *     sidebar drawer was positioned against a hard-coded 64. That is where
+     *     the overlap came from.
+     *
+     * Now the header is a fixed-height row that nothing can grow. The actions
+     * sit inline from `sm` up; below that the overflow panel is absolutely
+     * positioned, so even a phone's header keeps its height. */
+    <header className="sticky top-0 z-99999 w-full border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex h-16 items-center gap-2 px-3 sm:gap-3 lg:h-[72px] lg:px-6">
           <button
-            className="items-center justify-center w-10 h-10 text-gray-500 border-gray-200 rounded-lg z-99999 dark:border-gray-800 lg:flex dark:text-gray-400 lg:h-11 lg:w-11 lg:border"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 lg:h-11 lg:w-11 lg:border lg:border-gray-200 dark:text-gray-400 dark:hover:bg-white/5 dark:lg:border-gray-800"
             onClick={handleToggle}
             aria-label="Toggle Sidebar"
           >
@@ -88,38 +107,39 @@ const AppHeader: React.FC = () => {
             {/* Cross Icon */}
           </button>
 
-          <Link to="/" className="lg:hidden">
+          {/* The wordmark, only where the rail isn't showing one. */}
+          <Link to="/" className="shrink-0 lg:hidden">
             <img
-              className="dark:hidden"
+              className="h-8 w-auto dark:hidden"
               src="./images/logo/logo.svg"
               alt="Logo"
             />
             <img
-              className="hidden dark:block"
+              className="hidden h-8 w-auto dark:block"
               src="./images/logo/logo-dark.svg"
               alt="Logo"
             />
           </Link>
 
-          <button
-            onClick={toggleApplicationMenu}
-            className="flex items-center justify-center w-10 h-10 text-gray-700 rounded-lg z-99999 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 lg:hidden"
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
+          {/* Search, as an icon between `sm` and `lg`.
+              The full search box is `lg`-only, which left a tablet with no
+              route to it at all: ⌘K is a keyboard shortcut, and a tablet has
+              no keyboard. A shop of 4,000 products cannot be asked to walk the
+              menu because its screen is 900px wide. */}
+          {isTenant && (
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Search"
+              title="Search or jump to…"
+              className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 sm:flex lg:hidden dark:text-gray-400 dark:hover:bg-white/5"
             >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M5.99902 10.4951C6.82745 10.4951 7.49902 11.1667 7.49902 11.9951V12.0051C7.49902 12.8335 6.82745 13.5051 5.99902 13.5051C5.1706 13.5051 4.49902 12.8335 4.49902 12.0051V11.9951C4.49902 11.1667 5.1706 10.4951 5.99902 10.4951ZM17.999 10.4951C18.8275 10.4951 19.499 11.1667 19.499 11.9951V12.0051C19.499 12.8335 18.8275 13.5051 17.999 13.5051C17.1706 13.5051 16.499 12.8335 16.499 12.0051V11.9951C16.499 11.1667 17.1706 10.4951 17.999 10.4951ZM13.499 11.9951C13.499 11.1667 12.8275 10.4951 11.999 10.4951C11.1706 10.4951 10.499 11.1667 10.499 11.9951V12.0051C10.499 12.8335 11.1706 13.5051 11.999 13.5051C12.8275 13.5051 13.499 12.8335 13.499 12.0051V11.9951Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.7" />
+                <path d="M17 17l-3.4-3.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
 
           {isTenant && (
             <div className="hidden lg:block">
@@ -153,25 +173,54 @@ const AppHeader: React.FC = () => {
               </button>
             </div>
           )}
-        </div>
-        <div
-          className={`${
-            isApplicationMenuOpen ? "flex" : "hidden"
-          } items-center justify-between w-full gap-4 px-5 py-4 lg:flex shadow-theme-md lg:justify-end lg:px-0 lg:shadow-none`}
-        >
-          <div className="flex items-center gap-2 2xsm:gap-3">
+        {/* Everything else lives on the right. `ml-auto` rather than
+            `justify-between`, so the left group can grow without the actions
+            drifting — the till taught us that one. */}
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+          {/* Inline from `sm` up. A tablet has room for all of it and always
+              did; hiding it behind a menu was a phone's answer given to a
+              device that never asked the question. */}
+          <div className="hidden items-center gap-2 sm:flex sm:gap-3">
             {/* Operating-branch switcher (owners, multi-branch shops) */}
             {isTenant && <BranchSwitcher />}
-            {/* <!-- Dark Mode Toggler --> */}
             <ThemeToggleButton />
-            {/* <!-- Dark Mode Toggler --> */}
             <NotificationDropdown />
-            {/* <!-- Notification Menu Area --> */}
           </div>
-          {/* <!-- User Area --> */}
+
+          {/* Phones only. Below 640px four controls plus the account will not
+              fit honestly, so they fold — but into a panel that hangs BELOW
+              the header rather than growing it. */}
+          <button
+            type="button"
+            onClick={toggleApplicationMenu}
+            aria-label="More"
+            aria-expanded={isApplicationMenuOpen}
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-gray-100 sm:hidden dark:text-gray-400 dark:hover:bg-white/5"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M5.99902 10.4951C6.82745 10.4951 7.49902 11.1667 7.49902 11.9951V12.0051C7.49902 12.8335 6.82745 13.5051 5.99902 13.5051C5.1706 13.5051 4.49902 12.8335 4.49902 12.0051V11.9951C4.49902 11.1667 5.1706 10.4951 5.99902 10.4951ZM17.999 10.4951C18.8275 10.4951 19.499 11.1667 19.499 11.9951V12.0051C19.499 12.8335 18.8275 13.5051 17.999 13.5051C17.1706 13.5051 16.499 12.8335 16.499 12.0051V11.9951C16.499 11.1667 17.1706 10.4951 17.999 10.4951ZM13.499 11.9951C13.499 11.1667 12.8275 10.4951 11.999 10.4951C11.1706 10.4951 10.499 11.1667 10.499 11.9951V12.0051C10.499 12.8335 11.1706 13.5051 11.999 13.5051C12.8275 13.5051 13.499 12.8335 13.499 12.0051V11.9951Z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+
           <UserDropdown />
         </div>
       </div>
+
+      {/* The phone overflow. `absolute`, so opening it can never change the
+          header's height — which is what the sidebar drawer used to be
+          measured against, and where the overlap came from. */}
+      {isApplicationMenuOpen && (
+        <div className="absolute inset-x-0 top-full flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 shadow-theme-md sm:hidden dark:border-gray-800 dark:bg-gray-900">
+          {isTenant && <BranchSwitcher />}
+          <ThemeToggleButton />
+          <NotificationDropdown />
+        </div>
+      )}
 
       {isTenant && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
     </header>

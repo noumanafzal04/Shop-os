@@ -16,6 +16,7 @@ import type { ProductUnit } from "../../catalog/types";
 import { useSuppliers } from "../hooks/usePurchases";
 import { usePurchaseOrder, usePurchaseOrders, usePurchaseOrderMutations } from "../hooks/usePurchases";
 import type { PurchaseStatus } from "../types";
+import { useConfirm } from "../../../components/ui/confirm";
 
 
 const STATUS_COLOR: Record<PurchaseStatus, "warning" | "info" | "success" | "error" | "light"> = {
@@ -29,6 +30,7 @@ let lk = 0;
 interface ReorderItem { id: string; name: string; cost: string | number | null; units?: ProductUnit[] }
 
 export default function PurchaseOrdersPage() {
+  const confirm = useConfirm();
   const money = useMoney();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const [statusFilter, setStatusFilter] = useState("");
@@ -189,8 +191,8 @@ export default function PurchaseOrdersPage() {
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <table className="w-full min-w-[48rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
             <tr><th className="px-5 py-3">PO #</th><th className="px-5 py-3">Supplier</th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Payment</th><th className="px-5 py-3 text-right">Total</th></tr>
           </thead>
@@ -296,8 +298,8 @@ export default function PurchaseOrdersPage() {
               <Badge color={STATUS_COLOR[d.status]}>{d.status.replace(/_/g, " ")}</Badge>
             </div>
 
-            <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-              <table className="w-full text-left text-sm">
+            <div className="mb-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+              <table className="w-full min-w-[32rem] text-left text-sm">
                 <thead className="bg-gray-50 text-theme-xs uppercase text-gray-400 dark:bg-white/5"><tr><th className="px-4 py-2">Item</th><th className="px-4 py-2 text-center">Ordered</th><th className="px-4 py-2 text-center">Received</th><th className="px-4 py-2 text-right">Cost</th></tr></thead>
                 <tbody>
                   {(d.items ?? []).map((it) => (
@@ -336,7 +338,9 @@ export default function PurchaseOrdersPage() {
                 </>
               )}
               {(d.status === "draft" || d.status === "ordered" || d.status === "partially_received") && (
-                <Button size="sm" variant="outline" onClick={() => { if (confirm("Cancel this purchase order?")) cancel.mutate({ id: d.id, reason: "Cancelled by user" }); }} disabled={cancel.isPending}>Cancel PO</Button>
+                <Button size="sm" variant="outline" onClick={async () => {
+                  if (await confirm({ title: "Cancel this purchase order?", message: "Nothing is received and the order stops being expected.", confirmLabel: "Cancel PO", cancelLabel: "Keep it", tone: "danger" })) cancel.mutate({ id: d.id, reason: "Cancelled by user" });
+                }} disabled={cancel.isPending}>Cancel PO</Button>
               )}
             </div>
           </>
@@ -349,7 +353,7 @@ export default function PurchaseOrdersPage() {
         <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Confirm quantities. Enter serials for serialized items and a batch/expiry for medicines.</p>
         {receive.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Couldn't receive" message={receive.error.message} /></div>}
 
-        <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+        <div className="max-h-[60dvh] space-y-3 overflow-y-auto pr-1">
           {(detail.data?.items ?? [])
             .filter((it) => Number(it.quantity_ordered) - Number(it.quantity_received) > 0)
             .map((it) => {

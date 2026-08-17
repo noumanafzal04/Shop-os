@@ -12,6 +12,8 @@ import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
 import { useReservationMutations, useReservations } from "../hooks/useReservations";
 import type { Reservation, ReservationStatus } from "../services/reservationsService";
+import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 
 const STATUS_COLOR: Record<ReservationStatus, "success" | "warning" | "error" | "info" | "light"> = {
@@ -24,6 +26,7 @@ const STATUS_COLOR: Record<ReservationStatus, "success" | "warning" | "error" | 
 };
 
 export default function ReservationsPage() {
+  const confirm = useConfirm();
   const money = useMoney();
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
@@ -48,10 +51,20 @@ export default function ReservationsPage() {
     accept.mutate(r.id, { onError: handleError });
   };
 
-  const doReject = (r: Reservation) => {
+  const doReject = async (r: Reservation) => {
     setActionError(null);
-    const reason = window.prompt("Reason (optional):") ?? undefined;
-    reject.mutate({ id: r.id, reason }, { onError: handleError });
+    // null is "changed my mind"; an empty string is "reject it, no reason
+    // given". They are different answers and the dialog is typed to keep them
+    // apart — a native prompt could only ever return one of them clearly.
+    const reason = await confirm({
+      title: `Reject ${r.customer?.name ?? "this booking"}?`,
+      message: "The customer is told it was not accepted.",
+      confirmLabel: "Reject",
+      tone: "danger",
+      input: { label: "Reason", placeholder: "Nothing available that day…" },
+    });
+    if (reason === null) return;
+    reject.mutate({ id: r.id, reason: reason.trim() || undefined }, { onError: handleError });
   };
 
   const openComplete = (r: Reservation) => {
@@ -166,7 +179,7 @@ export default function ReservationsPage() {
                             Accept
                           </button>
                           <button
-                            className="text-error-500 hover:text-error-600"
+                            className={ROW_ACTION_DANGER}
                             onClick={() => doReject(r)}
                           >
                             Reject
@@ -182,7 +195,7 @@ export default function ReservationsPage() {
                             Complete sale
                           </button>
                           <button
-                            className="text-error-500 hover:text-error-600"
+                            className={ROW_ACTION_DANGER}
                             onClick={() => doReject(r)}
                           >
                             Reject

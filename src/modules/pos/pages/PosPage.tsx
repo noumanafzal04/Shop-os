@@ -158,6 +158,13 @@ const SpeakerOnGlyph = () => (
 const SpeakerOffGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4"><path d="M4 8v4h2.5L10 15V5L6.5 8H4z" fill="currentColor" /><path d="M13 8l4 4M17 8l-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
 );
+// Tiles / rows, for the product-pane toggle.
+const TilesGlyph = () => (
+  <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4"><rect x="3" y="3" width="6" height="6" rx="1.4" fill="currentColor" /><rect x="11" y="3" width="6" height="6" rx="1.4" fill="currentColor" /><rect x="3" y="11" width="6" height="6" rx="1.4" fill="currentColor" /><rect x="11" y="11" width="6" height="6" rx="1.4" fill="currentColor" /></svg>
+);
+const RowsGlyph = () => (
+  <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+);
 
 type PayMethod = "cash" | "card" | "credit" | "split";
 const MethodIcon = ({ m }: { m: PayMethod }) =>
@@ -240,7 +247,20 @@ export default function PosPage() {
   // The trades that work on vehicles. A grocery never sees the plate field, and
   // the ones that live by it never have to go looking for it.
   const isAutoTrade = businessType === "automotive" || businessType === "petroleum";
-  const posLayout: "grid" | "list" = isRestaurant ? "grid" : "list";
+  // How this till browses. The trade picks the sensible default — a kitchen
+  // recognises a drink by its picture, a pharmacy of 4,000 SKUs needs rows it
+  // can scan down — but the default was the ONLY answer, and a shop is not
+  // always the shape its business type says. A mart with 60 lines and photos
+  // for all of them wanted tiles; a food court running 300 items off a menu
+  // board wanted rows. Neither could have them.
+  //
+  // The choice lives on the DEVICE (see terminalStore), not the tenant: it is
+  // a fact about this screen and the person at it, and the shop's back-office
+  // desktop and its counter touchscreen are allowed to disagree.
+  const posViewPref = useTerminalStore((s) => s.posView);
+  const setPosView = useTerminalStore((s) => s.setPosView);
+  const tradeDefaultView: "grid" | "list" = isRestaurant ? "grid" : "list";
+  const posLayout: "grid" | "list" = posViewPref ?? tradeDefaultView;
   const canDiscount = hasPermission("discounts.apply");
   const qc = useQueryClient();
 
@@ -1362,7 +1382,13 @@ export default function PosPage() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900">
+    /* `h-dvh`, not `h-screen`.
+     * The till is a flex column ending in the action bar — Reset, Hold,
+     * Drafts, Quote. `100vh` is the height this page would have with the
+     * address bar hidden, and on a tablet it is not hidden, so the column was
+     * laid out taller than the glass and the band that fell past the bottom
+     * edge was the one with the buttons on it. */
+    <div className="flex h-dvh flex-col bg-gray-50 dark:bg-gray-900">
       <PageMeta title="POS | ShopOS" description="Point of sale terminal" />
 
       {/* Covers the till, keeping the cart intact underneath: locking is not
@@ -1698,6 +1724,44 @@ export default function PosPage() {
                 )}
               </div>
               </div>
+              {/* ── Tiles / rows ─────────────────────────────────────────
+                  Present at every width, desktop included. It is not a small
+                  screen's consolation prize: the two views answer different
+                  questions — "which one is it?" from a picture, versus "is it
+                  in stock, and at what price?" from a row — and which one a
+                  counter needs depends on the counter, not the trade.
+                  It changes nothing but what is drawn. Search, scanning,
+                  keyboard selection, quick keys and every price come from the
+                  same `tiles` array either way. */}
+              <div
+                role="group"
+                aria-label="Product view"
+                className="flex shrink-0 items-center gap-1 rounded-xl bg-white p-1 shadow-sm"
+              >
+                {([
+                  { v: "grid", label: "Tiles", icon: <TilesGlyph /> },
+                  { v: "list", label: "Rows", icon: <RowsGlyph /> },
+                ] as const).map((o) => {
+                  const active = posLayout === o.v;
+                  return (
+                    <button
+                      key={o.v}
+                      type="button"
+                      onClick={() => { setPosView(o.v); scanRef.current?.focus(); }}
+                      aria-pressed={active}
+                      title={o.v === "grid" ? "Picture tiles" : "Compact rows"}
+                      className={`flex h-10 w-10 items-center justify-center rounded-lg transition ${
+                        active
+                          ? "bg-brand-500 text-white"
+                          : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      }`}
+                    >
+                      {o.icon}
+                      <span className="sr-only">{o.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             {/* Live hint: how many results + how to add with the keyboard. */}
             {search.trim() && !scanError && (
@@ -1790,12 +1854,23 @@ export default function PosPage() {
                 tiles.map((p, i) => {
                   const img = p.images?.[0]?.url;
                   const sale = onSale(p);
+                  // The same stock rule the rows have always enforced.
+                  //
+                  // Tiles used to be food's alone, and a kitchen mostly sells
+                  // items that count nothing — so a tile that would happily
+                  // add a sold-out product went unnoticed. The moment the view
+                  // became a choice any trade can make, a pharmacy in tile
+                  // view would have been able to sell what a pharmacy in row
+                  // view refuses. A view is a way of LOOKING at the shop; it
+                  // does not get its own idea of what may be sold.
+                  const out = p.type === "product" && p.track_inventory && shownStock(p) <= 0;
                   return (
                     <button
                       key={p.id}
                       ref={i === activeIndex ? activeRef : null}
+                      disabled={out}
                       onClick={() => commitProduct(p)}
-                      className={`group flex flex-col overflow-hidden rounded-xl border bg-white/[0.10] text-left transition hover:border-brand-400 hover:bg-white/[0.16] ${i === activeIndex ? "border-brand-400 bg-brand-500/25 ring-2 ring-brand-400/70" : "border-white/10"}`}
+                      className={`group flex flex-col overflow-hidden rounded-xl border bg-white/[0.10] text-left transition hover:border-brand-400 hover:bg-white/[0.16] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-white/10 disabled:hover:bg-white/[0.10] ${i === activeIndex ? "border-brand-400 bg-brand-500/25 ring-2 ring-brand-400/70" : "border-white/10"}`}
                     >
                       <div className="relative h-24 w-full bg-black/25">
                         {img ? (
@@ -1804,6 +1879,11 @@ export default function PosPage() {
                           <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-white/30">
                             {p.name.charAt(0)}
                           </div>
+                        )}
+                        {out && (
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-[11px] font-bold uppercase tracking-wide text-white/80">
+                            Out of stock
+                          </span>
                         )}
                         {sale && <span className="absolute left-1.5 top-1.5 rounded bg-error-500 px-1.5 py-0.5 text-[10px] font-bold text-white">SALE</span>}
                         {p.item_type === "deal" && <span className="absolute right-1.5 top-1.5 rounded bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white">DEAL</span>}
@@ -1816,6 +1896,16 @@ export default function PosPage() {
                           {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-white/60">/{p.unit}</span> : null}
                           {sale && <span className="ml-1 text-[11px] font-normal text-white/60 line-through">{money(p.price)}</span>}
                         </span>
+                        {/* What the rows have always said. A tile with no
+                            figure was fine for a kitchen, which counts
+                            nothing; a mart that switches to tiles is still a
+                            mart, and "how many are left" is half of why it
+                            looks a product up. */}
+                        {p.type === "product" && p.track_inventory && !out && (
+                          <span className="text-[10px] tabular-nums text-white/50">
+                            {fmtQty(shownStock(p))}{p.unit ? ` ${p.unit}` : ""} left
+                          </span>
+                        )}
                       </div>
                     </button>
                   );
@@ -2402,13 +2492,23 @@ export default function PosPage() {
           ticket actions on the right — a mis-click there loses the basket.
           Hold / Drafts / Quote carry the same colours as their keys in the top
           legend, so "F4" and the amber button are visibly the same thing. */}
-      <div className="no-scrollbar flex shrink-0 items-center gap-3 overflow-x-auto border-t border-white/10 bg-gray-900 px-4 py-2 xl:px-10 2xl:px-16">
+      {/* The same mistake the top bar had, in the same shape: BOTH groups were
+          `shrink-0` inside `overflow-x-auto no-scrollbar`. Nothing could give,
+          so at 768 the row overflowed and scrolled sideways WITH THE SCROLLBAR
+          HIDDEN — the wordmark and the connection pill slid off the left edge
+          and nothing on screen said they were there.
+          Now it wraps instead of scrolling (a phone gets two honest rows), and
+          the half that gives way is the half nobody presses. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/10 bg-gray-900 px-3 py-2 sm:px-4 xl:px-10 2xl:px-16">
         {/* The footer's left half was empty while the top bar was fighting for
             room. The two things that belong here are the ones a cashier never
             acts on and only ever glances at: what this screen is, and whether
             it can still reach the server. */}
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="text-xl font-bold tracking-tight text-white">Point of Sale</span>
+        <div className="flex min-w-0 items-center gap-3">
+          {/* The wordmark is the first thing to go. A cashier standing at the
+              till knows what screen they are on; the connection pill is the
+              one indicator they actually decide anything by, so it stays. */}
+          <span className="hidden text-xl font-bold tracking-tight text-white lg:inline">Point of Sale</span>
           {/* Connection. This used to be a green dot that said "Online" no
               matter what — the one indicator that must never lie, since the
               cashier decides whether to re-ring a sale by looking at it. */}
@@ -2438,7 +2538,7 @@ export default function PosPage() {
           </span>
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center justify-end gap-3">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           {/* Reset lives with the others now, but keeps its own gap and a red
               hover: near enough to reach, far enough that the hand going for
               Hold doesn't land on the one that empties the basket. */}
@@ -2477,7 +2577,7 @@ export default function PosPage() {
             title="Hold this ticket (F4)"
           >
             <PauseGlyph /> Hold
-            <kbd className="rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold">F4</kbd>
+            <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F4</kbd>
           </button>
 
           <button
@@ -2489,7 +2589,7 @@ export default function PosPage() {
             {held.data?.length ? (
               <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{held.data.length}</span>
             ) : null}
-            <kbd className="rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold">F6</kbd>
+            <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F6</kbd>
           </button>
 
           {/* A hold is for the next five minutes; this is for the next five
@@ -2502,7 +2602,7 @@ export default function PosPage() {
             title="Quotation or advance booking (F7)"
           >
             <ListIcon className="h-4 w-4" /> Quote / Advance
-            <kbd className="rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold">F7</kbd>
+            <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F7</kbd>
           </button>
         </div>
       </div>
@@ -3050,7 +3150,7 @@ export default function PosPage() {
       {/* Modifier configurator */}
       {cfg && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 p-4" onClick={() => setCfg(null)}>
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 dark:bg-gray-900" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 dark:bg-gray-900" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-start justify-between">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{cfg.name}</h3>
               <button onClick={() => setCfg(null)} className="text-gray-400 hover:text-gray-700"><CloseIcon className="h-5 w-5" /></button>

@@ -111,7 +111,7 @@ export default function HelpCenterPage() {
 
   if (!article) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white px-6 text-center dark:bg-gray-900">
+      <div className="flex h-dvh items-center justify-center bg-white px-6 text-center dark:bg-gray-900">
         <p className="text-sm text-gray-500 dark:text-gray-400">
           There are no help topics for your account yet.{" "}
           <Link to={portal} className="text-brand-500 hover:underline">Back to the portal</Link>
@@ -126,7 +126,7 @@ export default function HelpCenterPage() {
   const logoUrl = user?.tenant?.logo_url ?? null;
 
   return (
-    <div className="flex h-screen flex-col bg-white dark:bg-gray-900">
+    <div className="flex h-dvh flex-col bg-white dark:bg-gray-900">
       <PageMeta title="Help Centre | ShopOS" description="How every module works" />
 
       {/* ── Header ─────────────────────────────────────────────── */}

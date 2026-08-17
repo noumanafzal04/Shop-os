@@ -60,7 +60,7 @@ export function MarginsTab({ range }: { range: ReportRange }) {
 
   return (
     <>
-      <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4 md:gap-6">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
         {report.isLoading || !data ? (
           Array.from({ length: 4 }).map((_, i) => <MetricCardSkeleton key={i} />)
         ) : (
@@ -170,7 +170,7 @@ export function ValuationTab() {
 
   return (
     <>
-      <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4 md:gap-6">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
         {report.isLoading || !data ? (
           Array.from({ length: 4 }).map((_, i) => <MetricCardSkeleton key={i} />)
         ) : (
@@ -298,7 +298,7 @@ export function DeadStockTab() {
         <ExportButton url="/reports/dead-stock/export" params={{ days }} filename={`dead-stock-${days}days.csv`} />
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4 md:gap-6">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
         {report.isLoading || !data ? (
           Array.from({ length: 4 }).map((_, i) => <MetricCardSkeleton key={i} />)
         ) : (

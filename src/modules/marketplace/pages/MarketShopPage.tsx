@@ -582,7 +582,7 @@ export default function MarketShopPage() {
       {cfg && (
         <div className="fixed inset-0 z-[99999] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={() => setCfg(null)}>
           <div
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl"
+            className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-start justify-between">

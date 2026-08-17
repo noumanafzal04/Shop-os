@@ -47,7 +47,7 @@ export function MarketHeader() {
                     onError: () => toast.error("Couldn't sign you out. Check your connection and try again."),
                   })
                 }
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                className="inline-flex min-h-9 items-center rounded-lg px-2.5 py-1.5 text-theme-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/5"
               >
                 Log out
               </button>

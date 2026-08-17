@@ -224,7 +224,7 @@ export default function AdminTenantCreatePage() {
           picker — the one section whose height depends on the trade — kept
           beside them rather than wedged between them. */}
       <form onSubmit={submit}>
-        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div className="flex flex-col gap-5">
         <FormCard title="Business" description="Who this shop is, and how the platform reaches them.">
           <div className="space-y-4">

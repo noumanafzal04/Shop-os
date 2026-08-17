@@ -22,6 +22,7 @@ import { MoneyFilterBar } from "../../expenses/components/MoneyFilterBar";
 import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../../expenses/services/moneyFilters";
 import { downloadFile, openAuthedFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
+import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -315,7 +316,7 @@ export default function IncomePage() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-3">
                         <button className="text-brand-500 hover:text-brand-600" onClick={() => openEdit(e)}>Edit</button>
-                        <button className="text-error-500 hover:text-error-600" onClick={() => confirmDelete(e)}>Delete</button>
+                        <button className={ROW_ACTION_DANGER} onClick={() => confirmDelete(e)}>Delete</button>
                       </div>
                     </td>
                   </tr>

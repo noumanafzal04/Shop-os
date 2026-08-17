@@ -18,9 +18,12 @@ import { useCustomer, useCustomerMutations, useCustomers } from "../hooks/useCus
 import { useCustomerGroups, useCustomerGroupMutations } from "../hooks/useCustomerGroups";
 import type { Customer } from "../services/customersService";
 import type { CustomerGroup, PriceLevel } from "../services/customerGroupsService";
+import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 
 export default function CustomersPage() {
+  const confirm = useConfirm();
   const money = useMoney();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   // Seed the filter from ?q= so the ⌘K palette can deep-link into a filtered list.
@@ -103,7 +106,16 @@ export default function CustomersPage() {
     else groupMutations.create.mutate(payload, done);
   };
   const editGroup = (g: CustomerGroup) => setGroupDraft({ id: g.id, name: g.name, price_level: g.price_level, discount_percent: g.discount_percent != null ? String(g.discount_percent) : "" });
-  const removeGroup = (g: CustomerGroup) => { if (confirm(`Delete group "${g.name}"? Members fall back to retail.`)) groupMutations.remove.mutate(g.id, { onSuccess: () => toast.success("Group removed") }); };
+  const removeGroup = async (g: CustomerGroup) => {
+    const ok = await confirm({
+      title: `Delete group "${g.name}"?`,
+      message: "Members fall back to retail pricing.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
+    groupMutations.remove.mutate(g.id, { onSuccess: () => toast.success("Group removed") });
+  };
 
   // Record a khata repayment against the open customer, then refresh the detail.
   const doRecordPayment = () => {
@@ -143,8 +155,8 @@ export default function CustomersPage() {
         <Input placeholder="Search name or phone…" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <table className="w-full min-w-[38rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
             <tr><th className="px-5 py-3">Customer</th><th className="px-5 py-3">Phone</th><th className="px-5 py-3 text-center">Sales</th><th className="px-5 py-3 text-right">Spent</th><th className="px-5 py-3 text-right">Actions</th></tr>
           </thead>
@@ -165,8 +177,10 @@ export default function CustomersPage() {
                   <td className="px-5 py-3 text-right font-medium text-gray-800 dark:text-white/90">{money(c.sales_total ?? 0)}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-3" onClick={(e) => e.stopPropagation()}>
-                      <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => openEdit(c)}>Edit</button>
-                      <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm(`Delete "${c.name}"?`)) remove.mutate(c.id); }}>Delete</button>
+                      <button className={ROW_ACTION} onClick={() => openEdit(c)}>Edit</button>
+                      <button className={ROW_ACTION_DANGER} onClick={async () => {
+                        if (await confirm({ title: `Delete "${c.name}"?`, message: "Sales already made keep their record.", confirmLabel: "Delete", tone: "danger" })) remove.mutate(c.id);
+                      }}>Delete</button>
                     </div>
                   </td>
                 </tr>

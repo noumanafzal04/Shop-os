@@ -103,7 +103,7 @@ export default function FuelSetupPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         {/* ── Tanks ────────────────────────────────────────────────── */}
         <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <header className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-800">

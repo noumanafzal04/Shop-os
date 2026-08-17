@@ -264,9 +264,9 @@ export default function LabelsPage() {
         </div>
       </div>
 
-      <div className="no-print grid grid-cols-1 items-start gap-5 xl:grid-cols-12">
+      <div className="no-print grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
         {/* ── Products ─────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] xl:col-span-7">
+        <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] lg:col-span-7">
           <div className="p-4">
             <Input placeholder="Search products…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
@@ -369,7 +369,7 @@ export default function LabelsPage() {
         </section>
 
         {/* ── Label ────────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] xl:col-span-5">
+        <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] lg:col-span-5">
           <div className="flex flex-wrap gap-1.5 p-4">
             {(Object.keys(STOCKS) as StockKey[]).map((k) => {
               const s = STOCKS[k];

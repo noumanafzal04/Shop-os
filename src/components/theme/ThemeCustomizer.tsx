@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router";
+
 import { useTheme } from "../../context/ThemeContext";
 import { useAuthStore } from "../../stores/authStore";
 import { useShopSettings, useUpdateShopSettings } from "../../modules/shop/hooks/useShop";
@@ -138,6 +140,19 @@ export default function ThemeCustomizer() {
   // change", which is the same disguise the empty product grid wore.
   const canConfigure = useAuthStore((s) => s.hasPermission)("settings.manage");
 
+  /**
+   * Not on the till.
+   *
+   * The rail button is `fixed right-0 top-1/2`, which on every other screen
+   * lands on a page margin. The POS has no margin — it is a full-bleed two-pane
+   * till — so the gear sat directly on top of the cart's TOTAL column, which is
+   * the single figure a cashier and a customer are both looking at.
+   *
+   * Nobody restyles their shop halfway through a queue either. Appearance is
+   * one Esc away on the screen the owner sets it from.
+   */
+  const onTill = useLocation().pathname.startsWith("/tenant/pos");
+
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -217,8 +232,9 @@ export default function ThemeCustomizer() {
   return (
     <>
       {/* Rail button — always reachable, never over the content. Hidden while
-          the canvas is open so it can't sit on top of its own panel. */}
-      {!open && (
+          the canvas is open so it can't sit on top of its own panel, and never
+          drawn on the till (see `onTill` above). */}
+      {!open && !onTill && (
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -244,11 +260,24 @@ export default function ThemeCustomizer() {
         role="dialog"
         aria-modal="true"
         aria-label="Appearance"
-        className={`fixed right-0 top-0 z-[80] flex h-screen w-[min(21rem,100vw)] flex-col bg-white transition-transform duration-200 dark:bg-gray-900 ${
+        /* `h-dvh`, never `h-screen`.
+         *
+         * This panel is a flex column: header, a scrolling middle, and a
+         * footer holding Reset and Save. `h-screen` is `100vh`, which on a
+         * tablet or phone browser is the LARGE viewport — the height the page
+         * would have if the address bar were hidden. It isn't hidden. So the
+         * column was laid out taller than the glass, and the part pushed past
+         * the bottom edge was the footer: the merchant could change every
+         * colour in the shop and had no Save to press. Nothing scrolled to
+         * rescue it either — the middle is the only scroller, by design.
+         *
+         * `100dvh` is the height that actually exists right now, which is the
+         * unit the rest of this app already uses. */
+        className={`fixed right-0 top-0 z-[80] flex h-dvh w-[min(21rem,100vw)] flex-col bg-white transition-transform duration-200 dark:bg-gray-900 ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
           <div>
             <h2 className="font-semibold text-gray-800 dark:text-white/90">Appearance</h2>
             <p className="text-theme-xs text-gray-500 dark:text-gray-400">
@@ -359,7 +388,9 @@ export default function ThemeCustomizer() {
           </div>
         </div>
 
-        <footer className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-5 py-4 dark:border-gray-800">
+        {/* shrink-0, so a long list of colour groups can never squeeze Save
+            down to nothing instead of scrolling. */}
+        <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-gray-100 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-gray-800">
           {saveError && (
             <p className="w-full text-theme-xs text-error-500">{saveError}</p>
           )}

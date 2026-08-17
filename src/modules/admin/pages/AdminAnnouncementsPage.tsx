@@ -12,6 +12,8 @@ import { ApiError } from "../../../common/types/api";
 import { useToast } from "../../../components/ui/toast";
 import { useAnnouncements, useAnnouncementMutations } from "../hooks/useAdmin";
 import type { Announcement } from "../services/adminService";
+import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const AUDIENCE_LABEL: Record<string, string> = {
   tenants: "All shops",
@@ -20,6 +22,7 @@ const AUDIENCE_LABEL: Record<string, string> = {
 };
 
 export default function AdminAnnouncementsPage() {
+  const confirm = useConfirm();
   const announcements = useAnnouncements();
   const { create, update, send, remove } = useAnnouncementMutations();
   const editor = useModal();
@@ -76,10 +79,14 @@ export default function AdminAnnouncementsPage() {
     else create.mutate(fd, opts);
   };
 
-  const onSend = (a: Announcement) => {
+  const onSend = async (a: Announcement) => {
     const who = AUDIENCE_LABEL[a.audience] ?? a.audience;
     const verb = a.is_published ? "Re-send" : "Send";
-    if (confirm(`${verb} "${a.title}" to ${who} via push notification?`)) send.mutate(a.id);
+    if (await confirm({
+      title: `${verb} "${a.title}"?`,
+      message: `It goes to ${who} as a push notification. This cannot be unsent.`,
+      confirmLabel: verb,
+    })) send.mutate(a.id);
   };
 
   const rows = announcements.data ?? [];
@@ -123,8 +130,10 @@ export default function AdminAnnouncementsPage() {
                   {a.is_published ? "Re-send" : "Send now"}
                 </button>
                 <div className="flex gap-3">
-                  <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => openEdit(a)}>Edit</button>
-                  <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm("Delete announcement?")) removeWithFeedback(a.id, "Announcement"); }}>Delete</button>
+                  <button className={ROW_ACTION} onClick={() => openEdit(a)}>Edit</button>
+                  <button className={ROW_ACTION_DANGER} onClick={async () => {
+                    if (await confirm({ title: "Delete announcement?", confirmLabel: "Delete", tone: "danger" })) removeWithFeedback(a.id, "Announcement");
+                  }}>Delete</button>
                 </div>
               </div>
             </div>

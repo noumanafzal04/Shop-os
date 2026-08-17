@@ -281,8 +281,8 @@ export function MoneyFilterBar({
         aria-modal="true"
         aria-label="Filters"
         className={`fixed z-[80] flex flex-col bg-white transition-transform duration-200 dark:bg-gray-900
-          inset-x-0 bottom-0 max-h-[85vh] rounded-t-2xl
-          sm:inset-y-0 sm:left-auto sm:right-0 sm:h-screen sm:max-h-none sm:w-[min(24rem,100vw)] sm:rounded-none
+          inset-x-0 bottom-0 max-h-[85dvh] rounded-t-2xl
+          sm:inset-y-0 sm:left-auto sm:right-0 sm:h-dvh sm:max-h-none sm:w-[min(24rem,100vw)] sm:rounded-none
           ${open ? "translate-y-0 sm:translate-x-0" : "translate-y-full sm:translate-y-0 sm:translate-x-full"}`}
       >
         <header className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-800">

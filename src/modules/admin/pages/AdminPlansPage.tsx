@@ -11,6 +11,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
 import { usePlanMutations, usePlans } from "../hooks/useAdmin";
 import type { Plan } from "../services/adminService";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -196,10 +197,10 @@ export default function AdminPlansPage() {
         <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openEdit(plan)}>
           Edit
         </button>
-        <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => toggleActive(plan)}>
+        <button className={ROW_ACTION} onClick={() => toggleActive(plan)}>
           {plan.is_active ? "Deactivate" : "Activate"}
         </button>
-        <button className="text-error-500 hover:text-error-600" onClick={() => deletePlan(plan)}>
+        <button className={ROW_ACTION_DANGER} onClick={() => deletePlan(plan)}>
           Delete
         </button>
       </div>
@@ -252,7 +253,7 @@ export default function AdminPlansPage() {
           Leave a ceiling blank for unlimited.
         </p>
 
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+        <div className="max-h-[70dvh] space-y-4 overflow-y-auto pr-1">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Name <span className="text-error-500">*</span></Label>

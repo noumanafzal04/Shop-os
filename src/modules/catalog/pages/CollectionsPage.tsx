@@ -16,8 +16,11 @@ import {
   useProducts,
 } from "../hooks/useCatalog";
 import type { Collection } from "../types";
+import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 export default function CollectionsPage() {
+  const confirm = useConfirm();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const collections = useCollections();
   const { create, update, remove } = useCollectionMutations();
@@ -137,8 +140,10 @@ export default function CollectionsPage() {
               <div className="flex gap-3 text-sm">
                 <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openEdit(c)}>Edit</button>
                 <button
-                  className="text-error-500 hover:text-error-600"
-                  onClick={() => { if (confirm(`Delete collection "${c.name}"?`)) removeWithFeedback(c.id, c.name); }}
+                  className={ROW_ACTION_DANGER}
+                  onClick={async () => {
+                    if (await confirm({ title: `Delete collection "${c.name}"?`, message: "The products stay; only the grouping goes.", confirmLabel: "Delete", tone: "danger" })) removeWithFeedback(c.id, c.name);
+                  }}
                 >
                   Delete
                 </button>

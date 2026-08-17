@@ -13,9 +13,12 @@ import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useSuppliers, useSupplierMutations } from "../hooks/usePurchases";
 import type { Supplier } from "../types";
+import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 
 export default function SuppliersPage() {
+  const confirm = useConfirm();
   const money = useMoney();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const [search, setSearch] = useState("");
@@ -102,8 +105,8 @@ export default function SuppliersPage() {
         <Input placeholder="Search suppliers…" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <table className="w-full min-w-[38rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
             <tr>
               <th className="px-5 py-3">Supplier</th>
@@ -139,8 +142,10 @@ export default function SuppliersPage() {
                       {(s.outstanding ?? 0) > 0 && (
                         <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openPay(s)}>Pay</button>
                       )}
-                      <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => openEdit(s)}>Edit</button>
-                      <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm(`Delete supplier "${s.name}"?`)) removeWithFeedback(s.id, s.name); }}>Delete</button>
+                      <button className={ROW_ACTION} onClick={() => openEdit(s)}>Edit</button>
+                      <button className={ROW_ACTION_DANGER} onClick={async () => {
+                        if (await confirm({ title: `Delete supplier "${s.name}"?`, message: "Purchase orders already raised keep their record.", confirmLabel: "Delete", tone: "danger" })) removeWithFeedback(s.id, s.name);
+                      }}>Delete</button>
                     </div>
                   </td>
                 </tr>

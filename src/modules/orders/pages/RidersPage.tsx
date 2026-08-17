@@ -7,12 +7,14 @@ import Label from "../../../components/form/Label";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
 import { useRiders, useRiderMutations } from "../hooks/useOrders";
+import { useConfirm } from "../../../components/ui/confirm";
 
 /**
  * The shop's own delivery riders (Model A). Assign them to delivery orders on
  * the Online Orders screen; the customer sees the rider's name while tracking.
  */
 export default function RidersPage() {
+  const confirm = useConfirm();
   const riders = useRiders();
   const { create, update, remove } = useRiderMutations();
   const [name, setName] = useState("");
@@ -63,7 +65,7 @@ export default function RidersPage() {
       </div>
 
       {/* List */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         {riders.isLoading ? (
           <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
         ) : rows.length === 0 ? (
@@ -71,7 +73,7 @@ export default function RidersPage() {
             No riders yet — add your first rider above.
           </p>
         ) : (
-          <table className="w-full text-left text-theme-sm">
+          <table className="w-full min-w-[38rem] text-left text-theme-sm">
             <thead>
               <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 <th className="px-5 py-3 font-medium">Rider</th>
@@ -99,7 +101,9 @@ export default function RidersPage() {
                     </button>
                     <button
                       className="text-theme-xs text-error-500 hover:text-error-600"
-                      onClick={() => { if (confirm(`Remove ${r.name}?`)) { setError(null); remove.mutate(r.id, { onError }); } }}
+                      onClick={async () => {
+                        if (await confirm({ title: `Remove ${r.name}?`, message: "Deliveries already assigned keep their record.", confirmLabel: "Remove", tone: "danger" })) { setError(null); remove.mutate(r.id, { onError }); }
+                      }}
                     >
                       Remove
                     </button>

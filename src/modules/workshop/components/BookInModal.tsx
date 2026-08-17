@@ -122,7 +122,7 @@ export function BookInModal({ onClose, onBooked }: Props) {
         Parts and labour go on as you work. Nothing here is a price.
       </p>
 
-      <div className="max-h-[65vh] space-y-4 overflow-y-auto pr-1">
+      <div className="max-h-[65dvh] space-y-4 overflow-y-auto pr-1">
         {words.tracksVehicle && (
         <div>
           <Label>Registration</Label>

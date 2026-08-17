@@ -261,7 +261,7 @@ export default function VehiclesPage() {
             Nothing done to this vehicle yet.
           </p>
         ) : (
-          <div className="max-h-[60vh] space-y-3 overflow-y-auto">
+          <div className="max-h-[60dvh] space-y-3 overflow-y-auto">
             {(history.data?.visits ?? []).map((visit) => (
               <div key={visit.id} className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
                 <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">

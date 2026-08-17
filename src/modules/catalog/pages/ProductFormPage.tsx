@@ -22,6 +22,7 @@ import { useBusinessTypes, useShopSettings } from "../../shop/hooks/useShop";
 import { useTaxGroups } from "../hooks/useTaxGroups";
 import { catalogService } from "../services/catalogService";
 import type { ItemTypeCode, ModifierGroup, VariantInput } from "../types";
+import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 interface FormVariant extends VariantInput {
   _key: string;
@@ -749,7 +750,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   </select>
                   <span className="text-theme-xs text-gray-400">×</span>
                   <Input type="number" min="0" step={0.001} value={row.quantity} onChange={(e) => setComboRows((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} className="max-w-24" />
-                  <button type="button" className="text-error-500 hover:text-error-600" onClick={() => setComboRows((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                  <button type="button" className={ROW_ACTION_DANGER} onClick={() => setComboRows((arr) => arr.filter((_, j) => j !== i))}>✕</button>
                 </div>
               ))
             )}
@@ -795,7 +796,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   </select>
                   <span className="text-theme-xs text-gray-400">×</span>
                   <Input type="number" min="0" step={0.001} value={row.quantity} onChange={(e) => setRecipeRows((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} className="max-w-24" />
-                  <button type="button" className="text-error-500 hover:text-error-600" onClick={() => setRecipeRows((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                  <button type="button" className={ROW_ACTION_DANGER} onClick={() => setRecipeRows((arr) => arr.filter((_, j) => j !== i))}>✕</button>
                 </div>
               ))
             )}
@@ -1320,7 +1321,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                             />
                             <button
                               type="button"
-                              className="text-error-500 hover:text-error-600"
+                              className={ROW_ACTION_DANGER}
                               onClick={() => setExtraBarcodes((arr) => arr.filter((_, j) => j !== i))}
                             >
                               ✕
@@ -1356,7 +1357,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                             <span className="text-theme-xs text-gray-400">{unit.trim() || "base"}(s)</span>
                             <Input type="number" min="0" step={0.01} value={u.price} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} placeholder="price (optional)" className="max-w-32" />
                             <Input value={u.barcode} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, barcode: e.target.value } : x)))} placeholder="pack barcode (optional)" className="max-w-40" />
-                            <button type="button" className="text-error-500 hover:text-error-600" onClick={() => setUnits((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                            <button type="button" className={ROW_ACTION_DANGER} onClick={() => setUnits((arr) => arr.filter((_, j) => j !== i))}>✕</button>
                           </div>
                         ))
                       )}
@@ -1395,7 +1396,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                         <Input type="number" min="0" step={0.001} value={t.min_qty} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, min_qty: e.target.value } : x)))} className="max-w-28" />
                         <span className="text-theme-xs text-gray-400">price each</span>
                         <Input type="number" min="0" step={0.01} value={t.price} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} className="max-w-28" />
-                        <button type="button" className="text-error-500 hover:text-error-600" onClick={() => setTiers((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                        <button type="button" className={ROW_ACTION_DANGER} onClick={() => setTiers((arr) => arr.filter((_, j) => j !== i))}>✕</button>
                       </div>
                     ))}
                     {marketplaceEnabled && (

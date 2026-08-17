@@ -7,6 +7,8 @@ import { MarketHeader } from "../../marketplace/components/MarketHeader";
 import { MyReservations } from "../../marketplace/components/MyReservations";
 import { useCancelMyOrder, useMyOrders } from "../hooks/useOrders";
 import type { CustomerOrder, OrderStatus } from "../services/ordersService";
+import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
@@ -18,6 +20,7 @@ const STATUS_COLOR: Record<OrderStatus, "success" | "warning" | "info" | "error"
 const STEPS: OrderStatus[] = ["pending", "confirmed", "preparing", "out_for_delivery", "completed"];
 
 export default function MyOrdersPage() {
+  const confirm = useConfirm();
   const orders = useMyOrders();
   const cancel = useCancelMyOrder();
   const toast = useToast();
@@ -85,10 +88,10 @@ export default function MyOrdersPage() {
                         did not is the version of this that costs someone money. */}
                     {canCancel(o) && (
                       <button
-                        className="text-error-500 hover:text-error-600"
+                        className={ROW_ACTION_DANGER}
                         disabled={cancel.isPending}
-                        onClick={() => {
-                          if (!window.confirm("Cancel this order?")) return;
+                        onClick={async () => {
+                          if (!(await confirm({ title: "Cancel this order?", confirmLabel: "Cancel order", cancelLabel: "Keep it", tone: "danger" }))) return;
                           cancel.mutate(o.id, {
                             onSuccess: () => toast.success("Order cancelled"),
                             onError: (e) =>

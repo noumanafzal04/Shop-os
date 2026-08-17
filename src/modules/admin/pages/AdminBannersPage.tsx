@@ -11,10 +11,13 @@ import { ApiError } from "../../../common/types/api";
 import { useToast } from "../../../components/ui/toast";
 import { useAdminTenants, useBanners, useBannerMutations } from "../hooks/useAdmin";
 import type { Banner } from "../services/adminService";
+import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
 export default function AdminBannersPage() {
+  const confirm = useConfirm();
   const banners = useBanners();
   const { create, update, remove } = useBannerMutations();
   const editor = useModal();
@@ -121,8 +124,10 @@ export default function AdminBannersPage() {
                 </div>
               </div>
               <div className="flex shrink-0 gap-3 text-sm">
-                <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => openEdit(b)}>Edit</button>
-                <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm("Delete banner?")) removeWithFeedback(b.id, "Banner"); }}>Delete</button>
+                <button className={ROW_ACTION} onClick={() => openEdit(b)}>Edit</button>
+                <button className={ROW_ACTION_DANGER} onClick={async () => {
+                  if (await confirm({ title: "Delete banner?", confirmLabel: "Delete", tone: "danger" })) removeWithFeedback(b.id, "Banner");
+                }}>Delete</button>
               </div>
             </div>
           ))}

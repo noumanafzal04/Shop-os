@@ -375,7 +375,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
       },
       { type: "p", text: "An X-read counts the drawer mid-shift without closing it." },
       { type: "h", text: "The screen" },
-      { type: "p", text: "The screen is three parts: the product browser on the left with search and category tabs, the cart on the right, and the total with the pay button at the bottom. A barcode scanner types into the search box and adds the item on Enter." },
+      { type: "p", text: "The screen is three parts: the product browser on the left with search and category tabs, the cart on the right, and the total with the pay button running full width along the bottom. A barcode scanner types into the search box and adds the item on Enter." },
+      { type: "p", text: "Two buttons beside the search box switch the browser between picture tiles and compact rows. Tiles answer \"which one is it?\", rows answer \"is it in stock, and at what price?\" — a kitchen usually wants the first, a shop with thousands of lines the second. Your shop starts on whichever suits its trade, and the choice is remembered on this device only, so the touchscreen at the counter and the computer in the back office can each be set the way the person using it works." },
+      { type: "note", text: "It changes nothing but what is drawn. The same products, the same prices, the same search — and an item that is out of stock cannot be added in either view." },
       {
         type: "keys",
         items: [

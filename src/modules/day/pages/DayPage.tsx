@@ -874,7 +874,7 @@ export default function DayPage() {
         {detail.isLoading ? (
           <div className="h-32 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
         ) : detail.data ? (
-          <div className="max-h-[65vh] space-y-5 overflow-y-auto">
+          <div className="max-h-[65dvh] space-y-5 overflow-y-auto">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat label="Rung up" value={money(Number(detail.data.sales_total ?? 0))} tone="accent" />
               <Stat label="Expected" value={money(Number(detail.data.expected_cash ?? 0))} />

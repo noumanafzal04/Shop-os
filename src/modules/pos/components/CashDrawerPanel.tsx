@@ -217,7 +217,7 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift, coverin
 
   return (
     <Modal isOpen={isOpen} onClose={dismiss} className="max-w-2xl p-0" showCloseButton={false}>
-      <div className="max-h-[90vh] overflow-y-auto p-5 sm:p-6">
+      <div className="max-h-[90dvh] overflow-y-auto p-5 sm:p-6">
         {/* Header — the read's own title, or the action being recorded. */}
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">

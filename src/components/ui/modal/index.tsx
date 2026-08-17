@@ -123,6 +123,19 @@ export const Modal: React.FC<ModalProps> = ({
  * Pass it a Modal with no padding: `className="max-w-md"`, not `"max-w-md p-6"`
  * — the padding belongs to the three bands, or the header would scroll its own
  * whitespace.
+ *
+ * ── `dvh`, never `vh` ───────────────────────────────────────────────────
+ *
+ * The cap was `85vh`. `vh` is the LARGE viewport — the height the page would
+ * have if the browser's address bar were hidden. On a phone or tablet it is
+ * not hidden, so 85vh is closer to 100% of the glass, and with the overlay's
+ * own padding around it the band that ends up past the bottom edge is the
+ * FOOTER: the button that saves the work.
+ *
+ * The exact same unit had already done the exact same thing to the Appearance
+ * canvas's Save. That one was reported by a shop. This one is the component
+ * every long form in the app is built on, so it was the same bug with fifteen
+ * more places to appear.
  */
 export function ModalForm({ title, description, footer, children }: {
   title: ReactNode;
@@ -131,7 +144,7 @@ export function ModalForm({ title, description, footer, children }: {
   children: ReactNode;
 }) {
   return (
-    <div className="flex max-h-[85vh] flex-col">
+    <div className="flex max-h-[85dvh] flex-col">
       <header className="shrink-0 border-b border-gray-200 px-6 py-5 pr-16 dark:border-gray-800">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{title}</h3>
         {description && <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">{description}</p>}

@@ -42,7 +42,7 @@ export default function DocumentsPage() {
       </div>
 
       {/* ── What's outstanding ─────────────────────────────────────── */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Tile
           label="Advances held"
           value={money(summary.data?.deposits_held ?? 0)}

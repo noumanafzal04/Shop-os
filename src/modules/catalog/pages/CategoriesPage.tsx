@@ -9,6 +9,7 @@ import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
 import { useCategories, useCategoryMutations } from "../hooks/useCatalog";
 import type { Category } from "../types";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 /** Depth-first flatten for the reassign / delete pickers. */
 function flatten(nodes: Category[], depth = 0): Array<{ node: Category; depth: number }> {
@@ -118,11 +119,11 @@ export default function CategoriesPage() {
                 <button className="text-gray-400 hover:text-gray-700 disabled:opacity-30" disabled={i === 0 || reorder.isPending} onClick={() => move(nodes, i, -1)} aria-label="Move up">↑</button>
                 <button className="text-gray-400 hover:text-gray-700 disabled:opacity-30" disabled={i === nodes.length - 1 || reorder.isPending} onClick={() => move(nodes, i, 1)} aria-label="Move down">↓</button>
                 <button className="text-gray-500 hover:text-brand-500" onClick={() => setAddingUnder(addingUnder === c.id ? null : c.id)}>+ Sub</button>
-                <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => toggleVisible(c)}>
+                <button className={ROW_ACTION} onClick={() => toggleVisible(c)}>
                   {c.is_active ? "Hide" : "Show"}
                 </button>
                 <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => { setRenaming(c.id); setRenameValue(c.name); }}>Rename</button>
-                <button className="text-error-500 hover:text-error-600" onClick={() => askDelete(c)}>Delete</button>
+                <button className={ROW_ACTION_DANGER} onClick={() => askDelete(c)}>Delete</button>
               </div>
             </>
           )}

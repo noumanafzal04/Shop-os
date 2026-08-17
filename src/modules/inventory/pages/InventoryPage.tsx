@@ -16,6 +16,8 @@ import type { Product, ProductVariant } from "../../catalog/types";
 import { useAdjustStock, useBatches, useBatchMutations, useExpiring, useLowStock, useMovements } from "../hooks/useInventory";
 import { useAuthStore } from "../../../stores/authStore";
 import { DisposeBatchModal } from "../components/DisposeBatchModal";
+import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION } from "../../../components/ui/table/rowAction";
 
 type AdjustType = "in" | "out" | "set";
 
@@ -23,6 +25,7 @@ type AdjustType = "in" | "out" | "set";
 const qty = (n: number | string) => String(parseFloat(String(Number(n).toFixed(3))));
 
 export default function InventoryPage() {
+  const confirm = useConfirm();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const debounced = useDebouncedValue(search, 350);
@@ -325,7 +328,7 @@ export default function InventoryPage() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-3">
                         <button
-                          className="text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                          className={ROW_ACTION}
                           onClick={() => openBatches(p)}
                         >
                           Batches
@@ -594,7 +597,7 @@ export default function InventoryPage() {
                               })
                             // An empty lot is housekeeping — a mis-keyed batch
                             // number being tidied away. Nothing to explain.
-                            : confirm("Remove this empty batch?") && removeBatch.mutate({ id: b.id })
+                            : void confirm({ title: "Remove this empty batch?", message: "It holds no stock, so nothing moves.", confirmLabel: "Remove", tone: "danger" }).then((ok) => ok && removeBatch.mutate({ id: b.id }))
                         }
                       >
                         Remove

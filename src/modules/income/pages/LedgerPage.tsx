@@ -117,7 +117,7 @@ export default function LedgerPage() {
       </div>
 
       {/* Opening → in → out → closing, in the order the sentence is read. */}
-      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Figure label="Opening balance" value={money(meta?.opening ?? 0)} />
         <Figure label="Money in" value={money(meta?.totals.in ?? 0)} tone="success" />
         <Figure label="Money out" value={money(meta?.totals.out ?? 0)} tone="error" />

@@ -6,6 +6,7 @@ import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useOfflineStore } from "../offlineStore";
 import { deviceService, type PosDevice } from "./deviceService";
+import { useConfirm } from "../../../components/ui/confirm";
 
 /**
  * The tills this shop actually runs on.
@@ -38,6 +39,7 @@ function lastSeen(device: PosDevice): string {
 }
 
 export default function TillDevicesPanel() {
+  const confirm = useConfirm();
   const toast = useToast();
   const qc = useQueryClient();
   const thisDevice = useOfflineStore((s) => s.deviceId);
@@ -81,15 +83,22 @@ export default function TillDevicesPanel() {
   // opens perhaps twice a year — once when a tablet arrives and once when one
   // goes missing — and an edit affordance on every row would compete for
   // attention with the button that actually matters, which is Sign out.
-  const askName = (device: PosDevice): void => {
-    const next = window.prompt(
-      "What is this till called? Use the name the staff use — \"Counter tablet\", \"Lane 2\".",
-      device.name ?? "",
-    );
+  const askName = async (device: PosDevice): Promise<void> => {
+    const next = await confirm({
+      title: "Name this till",
+      message: "Use the name the staff use — \"Counter tablet\", \"Lane 2\".",
+      confirmLabel: "Save",
+      input: {
+        label: "Till name",
+        placeholder: "Counter tablet",
+        initial: device.name ?? "",
+        // Clearing the box and pressing Rename would put the row back to
+        // "Unnamed till", which is never what somebody renaming it meant.
+        required: true,
+      },
+    });
 
-    // Cancel returns null; an empty box is somebody clearing it, and going back
-    // to "Unnamed till" is never what they meant.
-    if (next === null || next.trim() === "") return;
+    if (next === null) return;
 
     rename.mutate({ id: device.id, name: next.trim() });
   };

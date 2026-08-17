@@ -107,7 +107,7 @@ export default function AdminDashboard() {
           stands alone rather than over a page of skeletons that never resolve. */}
       {(data || isLoading) && (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6 md:gap-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-6">
           {!k ? (
             Array.from({ length: 6 }).map((_, i) => <KpiTileSkeleton key={i} />)
           ) : (
@@ -178,8 +178,8 @@ export default function AdminDashboard() {
             money, so the chart goes and growth takes the full width rather
             than sitting next to an empty panel. */}
         {isLoading || data?.revenue_series ? (
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <div className="xl:col-span-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
               <RevenueTrendPanel series={data?.revenue_series} loading={isLoading} />
             </div>
             <TenantGrowthPanel growth={data?.tenant_growth} loading={isLoading} />
@@ -188,9 +188,9 @@ export default function AdminDashboard() {
           <TenantGrowthPanel growth={data?.tenant_growth} loading={isLoading} />
         )}
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <BusinessTypesPanel types={data?.business_types} loading={isLoading} />
-          <div className="xl:col-span-2">
+          <div className="lg:col-span-2">
             <PlansPanel plans={data?.plans} loading={isLoading} />
           </div>
         </div>
@@ -200,8 +200,8 @@ export default function AdminDashboard() {
             which of them anyone uses. */}
         <ModuleAdoptionPanel modules={data?.modules} loading={isLoading} />
 
-        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-3">
-          <div className="space-y-6 xl:col-span-2">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
             <RecentTenantsPanel tenants={data?.recent_tenants} loading={isLoading} />
             {(isLoading || data?.recent_payments) && (
               <RecentPaymentsPanel payments={data?.recent_payments} loading={isLoading} />

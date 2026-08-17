@@ -13,6 +13,8 @@ import { useDebouncedValue } from "../../common/hooks/useDebouncedValue";
 import type { User } from "../auth/types";
 import { useStaffModule, type StaffInput } from "./hooks/useStaff";
 import { hintFor, labelFor } from "./permissions";
+import { useConfirm } from "../../components/ui/confirm";
+import { ROW_ACTION_DANGER } from "../../components/ui/table/rowAction";
 
 interface Props {
   title: string;
@@ -21,6 +23,7 @@ interface Props {
 }
 
 export default function StaffPage({ title, subtitle, basePath }: Props) {
+  const confirm = useConfirm();
   const staff = useStaffModule(basePath);
   const permissions = staff.usePermissionCatalog();
   const presets = staff.useJobPresets();
@@ -146,8 +149,13 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
     );
   };
 
-  const remove = (u: User) => {
-    if (window.confirm(`Remove ${u.name}? Their sessions end immediately.`)) {
+  const remove = async (u: User) => {
+    if (await confirm({
+      title: `Remove ${u.name}?`,
+      message: "Their sessions end immediately.",
+      confirmLabel: "Remove",
+      tone: "danger",
+    })) {
       staff.remove.mutate(u.id, {
         onSuccess: () => toast.success(`${u.name} removed`),
         onError: (e) => toast.error(e instanceof ApiError ? e.message : `Couldn't remove ${u.name}.`),
@@ -215,7 +223,7 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
                       <button className="mr-3 text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => toggleSuspend(u)}>
                         {u.status === "active" ? "Suspend" : "Activate"}
                       </button>
-                      <button className="text-error-500 hover:text-error-600" onClick={() => remove(u)}>Remove</button>
+                      <button className={ROW_ACTION_DANGER} onClick={() => remove(u)}>Remove</button>
                     </td>
                   </tr>
                 ))

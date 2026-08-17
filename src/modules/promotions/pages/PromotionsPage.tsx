@@ -198,7 +198,7 @@ export default function PromotionsPage() {
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-2xl p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">{isEdit ? "Edit promotion" : "New promotion"}</h3>
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+        <div className="max-h-[70dvh] space-y-4 overflow-y-auto pr-1">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div><Label>Name</Label><Input value={draft.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Eid Weekend Sale" /></div>
             <div className="grid grid-cols-2 gap-2">

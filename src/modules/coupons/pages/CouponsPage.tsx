@@ -12,8 +12,11 @@ import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCouponMutations, useCoupons } from "../hooks/useCoupons";
 import type { Coupon } from "../services/couponsService";
+import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 export default function CouponsPage() {
+  const confirm = useConfirm();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const coupons = useCoupons();
   const { create, update, remove } = useCouponMutations();
@@ -84,8 +87,8 @@ export default function CouponsPage() {
         <Button size="sm" onClick={openCreate}>+ New coupon</Button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <table className="w-full min-w-[42rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
             <tr><th className="px-5 py-3">Code</th><th className="px-5 py-3">Discount</th><th className="px-5 py-3">Min spend</th><th className="px-5 py-3">Used</th><th className="px-5 py-3">Expires</th><th className="px-5 py-3 text-right">Actions</th></tr>
           </thead>
@@ -106,8 +109,10 @@ export default function CouponsPage() {
                   <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{c.expires_at ? c.expires_at.slice(0, 10) : "—"}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-3">
-                      <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => openEdit(c)}>Edit</button>
-                      <button className="text-error-500 hover:text-error-600" onClick={() => { if (confirm(`Delete coupon ${c.code}?`)) removeWithFeedback(c.id, c.code); }}>Delete</button>
+                      <button className={ROW_ACTION} onClick={() => openEdit(c)}>Edit</button>
+                      <button className={ROW_ACTION_DANGER} onClick={async () => {
+                        if (await confirm({ title: `Delete coupon ${c.code}?`, message: "Sales that already used it keep their record.", confirmLabel: "Delete", tone: "danger" })) removeWithFeedback(c.id, c.code);
+                      }}>Delete</button>
                     </div>
                   </td>
                 </tr>

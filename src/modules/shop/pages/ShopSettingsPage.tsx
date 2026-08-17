@@ -157,7 +157,7 @@ function TwoCol({ left, right }: { left: ReactNode; right: ReactNode }) {
   // card is worse than one honest column, so it collapses.
   if (!right) return <div className="flex max-w-3xl flex-col gap-5">{left}</div>;
   return (
-    <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
       <div className="flex flex-col gap-5">{left}</div>
       <div className="flex flex-col gap-5">{right}</div>
     </div>

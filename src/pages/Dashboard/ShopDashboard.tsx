@@ -156,8 +156,8 @@ export default function ShopDashboard() {
         <div className="space-y-5 md:space-y-6">
           {tileCount > 0 && <KpiRowSkeleton count={tileCount} />}
           {!basic && (
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 md:gap-6">
-              <div className="xl:col-span-2">
+            <div className="grid grid-cols-1 gap-5 md:gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
                 <ChartSkeleton />
               </div>
               <ChartSkeleton height="h-[240px]" />
@@ -168,7 +168,7 @@ export default function ShopDashboard() {
               skeleton is what made the page jump on arrival. */}
           <PanelSkeleton />
           {!basic && (
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2 md:gap-6">
+            <div className="grid grid-cols-1 gap-5 md:gap-6 lg:grid-cols-2">
               <TableSkeleton />
               <TableSkeleton />
             </div>
@@ -190,8 +190,8 @@ export default function ShopDashboard() {
           {/* Basic mode is the calm view: what needs doing, and the counters
               behind it. Charts, ledgers and history live in the full menu. */}
           {!basic && (caps.sells || caps.keepsBooks) && (
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 md:gap-6">
-              <div className={caps.keepsBooks ? "xl:col-span-2" : "xl:col-span-3"}>
+            <div className="grid grid-cols-1 gap-5 md:gap-6 lg:grid-cols-3">
+              <div className={caps.keepsBooks ? "lg:col-span-2" : "lg:col-span-3"}>
                 <SalesTrendChart
                   series={data.sales_series}
                   money={money}
@@ -210,7 +210,7 @@ export default function ShopDashboard() {
 
           <div
             className={`grid grid-cols-1 gap-5 md:gap-6 ${
-              hasInventoryTiles(caps) ? "xl:grid-cols-2" : ""
+              hasInventoryTiles(caps) ? "lg:grid-cols-2" : ""
             }`}
           >
             {hasInventoryTiles(caps) && <InventoryTiles data={data} caps={caps} />}
@@ -226,7 +226,7 @@ export default function ShopDashboard() {
           {!basic && (caps.takesOrders || data.branches.length > 0) && (
             <div
               className={`grid grid-cols-1 gap-5 md:gap-6 ${
-                caps.takesOrders && data.branches.length > 0 ? "xl:grid-cols-2" : ""
+                caps.takesOrders && data.branches.length > 0 ? "lg:grid-cols-2" : ""
               }`}
             >
               {caps.takesOrders && (
@@ -251,7 +251,7 @@ export default function ShopDashboard() {
           {!basic && (caps.sells || caps.keepsBooks) && (
             <div
               className={`grid grid-cols-1 gap-5 md:gap-6 ${
-                caps.sells && caps.keepsBooks ? "xl:grid-cols-2" : ""
+                caps.sells && caps.keepsBooks ? "lg:grid-cols-2" : ""
               }`}
             >
               {caps.sells && (

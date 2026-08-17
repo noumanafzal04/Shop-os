@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import TillDevicesPanel from "./TillDevicesPanel";
 import { deviceService, type PosDevice } from "./deviceService";
 import { useOfflineStore } from "../offlineStore";
+import { ConfirmProvider } from "../../../components/ui/confirm";
 
 /**
  * The owner's answer to "which tills are signed in, and how do I stop the one
@@ -41,7 +42,12 @@ function renderPanel() {
 
   return render(
     <QueryClientProvider client={client}>
-      <TillDevicesPanel />
+      {/* Renaming a till asks a question, and questions are asked by the
+          product's own dialog rather than the browser's grey box — so the
+          panel needs the provider that owns it. */}
+      <ConfirmProvider>
+        <TillDevicesPanel />
+      </ConfirmProvider>
     </QueryClientProvider>,
   );
 }
@@ -196,8 +202,28 @@ describe("naming a till", () => {
   // shop — and three tills all reading "Unnamed till" make that column say
   // nothing at all.
 
-  const promptWith = (answer: string | null): void => {
-    vi.spyOn(window, "prompt").mockReturnValue(answer);
+  /**
+   * Open the rename dialog and type into it.
+   *
+   * It used to be `vi.spyOn(window, "prompt")` — which is exactly why the
+   * native box survived so long here. A stubbed global cannot tell you that
+   * the question looks like an operating-system error in the middle of the
+   * product; it answers whatever you tell it to. Driving the real dialog is
+   * both a truer test and the only one that would have noticed.
+   */
+  const openRenameAnd = async (typed: string | null): Promise<void> => {
+    await userEvent.click(await screen.findByRole("button", { name: /rename|name it/i }));
+    const box = await screen.findByLabelText(/till name/i);
+
+    if (typed === null) {
+      await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+      return;
+    }
+
+    await userEvent.clear(box);
+    if (typed) await userEvent.type(box, typed);
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
   };
 
   it("renames through the endpoint that does NOT touch last-seen", async () => {
@@ -209,10 +235,9 @@ describe("naming a till", () => {
     );
     const rename = vi.spyOn(deviceService, "rename").mockResolvedValue(envelope(device()));
     const register = vi.spyOn(deviceService, "register");
-    promptWith("Lane 2");
 
     renderPanel();
-    await userEvent.click(await screen.findByRole("button", { name: /rename/i }));
+    await openRenameAnd("Lane 2");
 
     await waitFor(() => expect(rename).toHaveBeenCalledWith("d1", "Lane 2"));
     expect(register).not.toHaveBeenCalled();
@@ -233,25 +258,27 @@ describe("naming a till", () => {
       envelope({ devices: [device()], offline_days: 3 }),
     );
     const rename = vi.spyOn(deviceService, "rename");
-    promptWith(null);
 
     renderPanel();
-    await userEvent.click(await screen.findByRole("button", { name: /rename/i }));
+    await openRenameAnd(null);
 
     expect(rename).not.toHaveBeenCalled();
   });
 
   it("refuses to blank a name somebody typed", async () => {
     // Emptying the box is a slip, not a request to go back to "Unnamed till".
+    // The dialog now refuses at the button rather than after the fact — an
+    // action that cannot succeed should not look pressable.
     vi.spyOn(deviceService, "list").mockResolvedValue(
       envelope({ devices: [device()], offline_days: 3 }),
     );
     const rename = vi.spyOn(deviceService, "rename");
-    promptWith("   ");
 
     renderPanel();
     await userEvent.click(await screen.findByRole("button", { name: /rename/i }));
+    await userEvent.clear(await screen.findByLabelText(/till name/i));
 
+    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
     expect(rename).not.toHaveBeenCalled();
   });
 });

@@ -334,7 +334,8 @@ export function adminNav(
 const SECTION_ROOTS = ["/tenant", "/admin"];
 
 const AppSidebar: React.FC = () => {
-  const { isExpanded, isMobileOpen, isHovered, setIsHovered, toggleSidebar } = useSidebar();
+  const { isExpanded, isMobileOpen, isHovered, setIsHovered, toggleSidebar, closeMobileSidebar } =
+    useSidebar();
   const location = useLocation();
   const role = useAuthStore((s) => s.user?.role);
   const features = useAuthStore(
@@ -371,6 +372,38 @@ const AppSidebar: React.FC = () => {
   // Labels show when the rail is pinned open, peeked on hover, or drawn over
   // the page on mobile — the one condition that drives every layout choice.
   const showLabels = isExpanded || isHovered || isMobileOpen;
+
+  // Go somewhere, the drawer goes away.
+  //
+  // It never did. On a phone you don't notice, because the next tap is on a
+  // page you can't see anyway. On a tablet you very much do: the drawer is
+  // 290 of 820px, the page loads BEHIND it, and the only way back to what you
+  // just asked for is to find the toggle again. Pinned rails are unaffected —
+  // closing a drawer that was never open is free.
+  useEffect(() => {
+    closeMobileSidebar();
+    // Deliberately keyed on the path alone. Adding the callback would re-run
+    // this on every provider render and shut a drawer nobody navigated with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  // Hover-to-peek is for a mouse, and only a mouse.
+  //
+  // A touch screen fires mouseenter on tap and frequently never fires the
+  // matching mouseleave, so on a tablet the rail latched open at 290px and
+  // stayed there — the page beside it reflowing to a width the shop never
+  // asked for. `hover: hover` is the browser telling us there is a real
+  // pointer; anything else gets the toggle, which is unambiguous.
+  const [canPeek, setCanPeek] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const apply = () => setCanPeek(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   // The Appearance canvas writes data-sidebar on <html> (saved value on load,
   // and again on every keystroke while previewing). Watching the attribute —
@@ -574,13 +607,27 @@ const AppSidebar: React.FC = () => {
         : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800";
 
   return (
+    /* A drawer that owns its own edges.
+     *
+     * It used to start `mt-16` down the page with `h-[calc(100dvh-4rem)]` — a
+     * hard-coded belief that the header is exactly 64px tall. Below `lg` the
+     * header is 64px with the account menu shut and roughly 140 with it open,
+     * and on a tablet that menu is the ONLY route to notifications, branch and
+     * profile, so it is open often. Open it and the header — sitting at
+     * z-99999 against the rail's z-50 — printed itself straight over the top
+     * of the nav.
+     *
+     * Now the drawer is full height and above the header, so no header
+     * measurement can be wrong, and it carries its own close (below). The
+     * pinned rail at `lg` keeps the old stacking, where it sits beside the
+     * header and never meets it. */
     <aside
-      className={`fixed left-0 top-0 z-50 mt-16 flex h-[calc(100dvh-4rem)] flex-col border-r text-gray-900 transition-all duration-300 ease-in-out lg:mt-0 lg:h-dvh ${railClass}
+      className={`fixed inset-y-0 left-0 z-100002 flex h-dvh flex-col border-r text-gray-900 transition-all duration-300 ease-in-out lg:z-50 ${railClass}
         ${showLabels ? "w-[290px]" : "w-[90px]"}
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
-      onMouseEnter={() => !isExpanded && setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => canPeek && !isExpanded && setIsHovered(true)}
+      onMouseLeave={() => canPeek && setIsHovered(false)}
     >
       {/* Pinned header: wordmark, plus the collapse toggle from the reference. */}
       <div
@@ -615,6 +662,28 @@ const AppSidebar: React.FC = () => {
             />
           )}
         </Link>
+        {/* Close, on the drawer itself.
+            The only way out used to be the header's toggle, which the drawer
+            now covers. A drawer you can open and not close is a trap, and it
+            should never have depended on a control living in another
+            component to begin with. */}
+        {isMobileOpen && (
+          <button
+            type="button"
+            onClick={closeMobileSidebar}
+            aria-label="Close menu"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200 lg:hidden"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        )}
         {showLabels && (
           <button
             type="button"

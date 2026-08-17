@@ -67,7 +67,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const hasQuery = q.trim().length >= 2;
 
   return (
-    <div className="fixed inset-0 z-[999999] flex items-start justify-center px-4 pt-[12vh]">
+    <div className="fixed inset-0 z-[999999] flex items-start justify-center px-4 pt-[12dvh]">
       {/* Backdrop — light, no heavy blur (matches the app's modal treatment). */}
       <div className="absolute inset-0 bg-gray-900/30 dark:bg-black/50" onClick={onClose} aria-hidden="true" />
 
@@ -97,7 +97,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         </div>
 
         {/* Results */}
-        <div className="max-h-[52vh] overflow-y-auto py-2">
+        <div className="max-h-[52dvh] overflow-y-auto py-2">
           {!hasQuery ? (
             <Hint>Type at least two characters to search across your shop.</Hint>
           ) : flat.length === 0 && !isFetching ? (

@@ -73,7 +73,7 @@ export function StartShiftModal({ onClose, onStart, busy }: Props) {
         which hose — and that is optional.
       </p>
 
-      <div className="max-h-[55vh] space-y-4 overflow-y-auto pr-1">
+      <div className="max-h-[55dvh] space-y-4 overflow-y-auto pr-1">
         {pumps.isLoading ? (
           <div className="h-32 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
         ) : live.length === 0 ? (
