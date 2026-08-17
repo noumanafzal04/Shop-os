@@ -1422,9 +1422,19 @@ export default function PosPage() {
       )}
 
       {/* Top bar — full-screen POS has no app sidebar/header, so it carries
-          its own: exit, shift status, keyboard legend, shift + online. */}
-      <div className="no-scrollbar flex shrink-0 flex-nowrap items-center justify-between gap-4 overflow-x-auto border-b border-white/10 bg-gray-900 px-4 py-2">
-        <div className="flex shrink-0 items-center gap-4">
+          its own: exit, shift status, keyboard legend, shift + online.
+
+          It used to be `flex-nowrap overflow-x-auto no-scrollbar` with BOTH
+          groups `shrink-0`. On a tablet that is the worst combination there is:
+          nothing can compress, so the row overflows and scrolls sideways — with
+          the scrollbar hidden. Drawer and Close shift simply were not on the
+          screen, and nothing said so.
+
+          Now the left side is the one that gives way. It carries status a
+          cashier GLANCES at; the right side carries the two buttons that move
+          money, and those must never be a swipe away. */}
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-gray-900 px-3 py-2 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
           <Link
             to="/tenant"
             className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-theme-sm text-white/70 hover:bg-white/10"
@@ -1432,7 +1442,7 @@ export default function PosPage() {
           >
             <ChevronLeftIcon className="h-4 w-4" /> Exit
           </Link>
-          <span className={`hidden items-center gap-2 rounded-full border px-3 py-1 text-theme-xs font-medium sm:flex ${open ? "border-success-500/40 bg-success-500/15 text-success-300" : "border-white/15 bg-white/5 text-white/60"}`}>
+          <span className={`hidden min-w-0 items-center gap-2 truncate rounded-full border px-3 py-1 text-theme-xs font-medium xl:flex ${open ? "border-success-500/40 bg-success-500/15 text-success-300" : "border-white/15 bg-white/5 text-white/60"}`}>
             <span className={`h-2 w-2 rounded-full ${open ? "bg-success-500" : "bg-white/40"}`} />
             {open ? `Shift open · float ${money(open.opening_float)}` : "No open shift"}
           </span>
@@ -1443,7 +1453,7 @@ export default function PosPage() {
               type="button"
               onClick={laneModal.openModal}
               title="Which register is this device?"
-              className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 text-theme-xs font-medium sm:flex ${
+              className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 text-theme-xs font-medium xl:flex ${
                 laneLabel
                   ? "border-brand-500/40 bg-brand-500/15 text-brand-300"
                   : "border-warning-500/40 bg-warning-500/15 text-warning-300"
@@ -1456,7 +1466,7 @@ export default function PosPage() {
         </div>
         {/* gap-3 with wrapping: on a 1366 laptop the legend, the status chips
             and three buttons used to jam into one another. */}
-        <div className="flex shrink-0 items-center justify-end gap-4">
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           {/* Keyboard legend. The till is keyboard-first, and a cashier learns
               these by GLANCING at them for the first week — a row of identical
               grey chips is read as decoration and never learned. Each key keeps
@@ -1587,13 +1597,29 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* Full-bleed workspace, split 5/7 in the CART's favour. The picker is
-          scanned and clicked; the cart is read, corrected and argued over with
-          a customer leaning across the counter — it carries more columns
-          (qty, rate, discount, tax, total) and needs the room more. Panes are
-          divided by a hairline rather than a gutter, so no width is wasted at
-          the screen edges. */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12">
+      {/* Full-bleed workspace.
+       *
+       * THREE shapes, because a till is used on three different screens:
+       *
+       *   phone / tablet PORTRAIT (<lg)  one column, catalog over cart, each
+       *                                  half scrolling on its own. Two panes
+       *                                  side by side under 1024px gives each
+       *                                  ~380px, and the cart alone carries
+       *                                  qty, rate, discount, tax and total.
+       *   tablet LANDSCAPE (lg)          6/6. Even halves, because at this
+       *                                  width neither pane can afford to be
+       *                                  the small one — the catalog needs
+       *                                  three tiles across and the cart needs
+       *                                  its columns.
+       *   desktop (xl)                   5/7 in the CART's favour. Once the
+       *                                  catalog has its room, every extra
+       *                                  pixel is worth more to the side a
+       *                                  customer leans across the counter to
+       *                                  argue about.
+       *
+       * Panes are divided by a hairline rather than a gutter, so no width is
+       * wasted at the screen edges. */}
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)_auto]">
         {/* ── Products / scan ─────────────────────────────────────── */}
         {/* The scan side sits on the dark primary. Two-tone is doing the work a
             border cannot: the eye finds "where I look things up" and "where the
@@ -1605,7 +1631,7 @@ export default function PosPage() {
             two-tone split survives whichever theme the shop runs; the cards on
             it still follow the theme, which is why nothing inside had to be
             re-coloured except the few labels that had no card under them. */}
-        <div className="flex min-h-0 flex-col bg-pos-ground p-3 lg:col-span-5">
+        <div className="flex min-h-0 flex-col overflow-hidden bg-pos-ground p-3 lg:col-span-6 xl:col-span-5">
           {/* Everything you type or scan into, in one raised card. Loose
               controls on a dark ground read as floating; a card gives the
               scan box a home and an edge to aim at. */}
@@ -1900,7 +1926,7 @@ export default function PosPage() {
             a plain white card, so every chip, row and figure inside stays
             exactly as legible as it was; colour is doing navigation here, not
             decoration, and it never lands on anything you have to read. */}
-        <div className="flex min-h-0 flex-col bg-pos-ground p-3 lg:col-span-7">
+        <div className="flex min-h-0 flex-col overflow-hidden bg-pos-ground p-3 lg:col-span-6 xl:col-span-7">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white dark:bg-gray-900">
             {/* Cart header — item count, customer, clear */}
             <div className="flex items-center gap-2 border-b border-brand-100 bg-brand-50/60 px-4 py-3 dark:border-brand-500/20 dark:bg-brand-500/10">
@@ -2304,57 +2330,70 @@ export default function PosPage() {
             )}
             </div>
 
-            {/* Totals strip + Grand Total + Tender/Pay (opens the modal) */}
-            <div className="grid shrink-0 grid-cols-1 gap-2.5 rounded-b-2xl border-t border-gray-100 bg-gray-50 p-2.5 sm:grid-cols-3 dark:border-gray-800 dark:bg-gray-900/40">
-              {/* Eight figures used to carry identical weight, so "Charges
-                  Rs 0" shouted as loudly as the subtotal and the eye had to
-                  read all eight to find the two that moved. A zero is now
-                  greyed, money is the only thing set bold, and the customer —
-                  which is not a number — loses the tabular figures it never
-                  should have had. */}
-              <div className="grid grid-cols-4 gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:col-span-2 dark:border-gray-800 dark:bg-white/[0.02]">
-                {(() => {
-                  const discountTotal = cartDiscount + lineDiscountTotal;
-                  const cells: Array<{ k: string; v: string; num?: boolean; tone?: "discount" | "muted" }> = [
-                    { k: "Total Items", v: String(cart.length), num: true, tone: cart.length ? undefined : "muted" },
-                    { k: "Total Qty", v: fmtQty(cart.reduce((s, l) => s + l.quantity, 0)), num: true, tone: cart.length ? undefined : "muted" },
-                    { k: "Sub Total", v: money(grossSubtotal), num: true, tone: grossSubtotal ? undefined : "muted" },
-                    { k: "Discount", v: discountTotal > 0 ? `−${money(discountTotal)}` : money(0), num: true, tone: discountTotal > 0 ? "discount" : "muted" },
-                    { k: "Taxable", v: money(taxableBase), num: true, tone: taxableBase ? undefined : "muted" },
-                    { k: "Tax", v: money(taxAmount), num: true, tone: taxAmount ? undefined : "muted" },
-                    { k: "Charges", v: money(0), num: true, tone: "muted" },
-                    { k: "Customer", v: customer || customerPhone || "Walk-in", tone: (customer || customerPhone) ? undefined : "muted" },
-                  ];
-                  return cells.map((c, i) => (
-                    <div key={i} className="min-w-0">
-                      <div className="truncate text-[10px] font-semibold uppercase leading-tight tracking-wider text-gray-400 dark:text-gray-500">{c.k}</div>
-                      <div
-                        className={`mt-0.5 truncate text-[15px] font-bold leading-tight ${c.num ? "tabular-nums" : ""} ${
-                          c.tone === "discount"
-                            ? "text-warning-600 dark:text-warning-400"
-                            : c.tone === "muted"
-                              ? "text-gray-300 dark:text-gray-600"
-                              : "text-gray-900 dark:text-white/90"
-                        }`}
-                      >
-                        {c.v}
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-              <div className="flex flex-col justify-center rounded-xl border border-brand-200 bg-gradient-to-br from-brand-100 to-brand-50 px-4 py-3 dark:border-brand-500/30 dark:from-brand-500/15 dark:to-brand-500/5">
-                <div className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-brand-600 dark:text-brand-400">Grand Total</div>
-                <div className="mb-2 mt-1 text-4xl font-extrabold leading-none tabular-nums text-gray-900 dark:text-white">{money(total)}</div>
-                <button type="button" disabled={cart.length === 0 || !open}
-                  onClick={() => { setMethod(defaultTender); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40">
-                  <CardGlyph /> Tender / Pay <kbd className="rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px]">F9</kbd>
-                </button>
-                {!open && <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">Open a shift to sell.</p>}
-              </div>
-            </div>
           </div>
+        </div>
+
+        {/* ── The money, along the bottom ──────────────────────────────
+         *
+         * This lived INSIDE the cart pane, which was fine on a wide desktop and
+         * was the single worst thing on the screen on a tablet: eight figures
+         * in four columns inside two-thirds of a half-width pane is about
+         * eighty pixels per figure, and a cashier reads none of them.
+         *
+         * It is a fact about the SALE, not about the cart, so it spans the
+         * whole width under both panes — the totals and the Tender button sit
+         * where a hand rests, and the figures finally have room to be read. */}
+        <div className="grid shrink-0 grid-cols-1 gap-2.5 border-t border-gray-100 bg-gray-50 p-2.5 md:grid-cols-3 lg:col-span-12 lg:grid-cols-4 dark:border-gray-800 dark:bg-gray-900/40">
+            {/* Eight figures used to carry identical weight, so "Charges
+                Rs 0" shouted as loudly as the subtotal and the eye had to
+                read all eight to find the two that moved. A zero is now
+                greyed, money is the only thing set bold, and the customer —
+                which is not a number — loses the tabular figures it never
+                should have had. */}
+            <div className="grid grid-cols-4 gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white px-4 py-3 md:col-span-2 lg:col-span-3 dark:border-gray-800 dark:bg-white/[0.02]">
+              {(() => {
+                const discountTotal = cartDiscount + lineDiscountTotal;
+                const cells: Array<{ k: string; v: string; num?: boolean; tone?: "discount" | "muted" }> = [
+                  { k: "Total Items", v: String(cart.length), num: true, tone: cart.length ? undefined : "muted" },
+                  { k: "Total Qty", v: fmtQty(cart.reduce((s, l) => s + l.quantity, 0)), num: true, tone: cart.length ? undefined : "muted" },
+                  { k: "Sub Total", v: money(grossSubtotal), num: true, tone: grossSubtotal ? undefined : "muted" },
+                  { k: "Discount", v: discountTotal > 0 ? `−${money(discountTotal)}` : money(0), num: true, tone: discountTotal > 0 ? "discount" : "muted" },
+                  { k: "Taxable", v: money(taxableBase), num: true, tone: taxableBase ? undefined : "muted" },
+                  { k: "Tax", v: money(taxAmount), num: true, tone: taxAmount ? undefined : "muted" },
+                  { k: "Charges", v: money(0), num: true, tone: "muted" },
+                  { k: "Customer", v: customer || customerPhone || "Walk-in", tone: (customer || customerPhone) ? undefined : "muted" },
+                ];
+                return cells.map((c, i) => (
+                  <div key={i} className="min-w-0">
+                    <div className="truncate text-[10px] font-semibold uppercase leading-tight tracking-wider text-gray-400 dark:text-gray-500">{c.k}</div>
+                    <div
+                      className={`mt-0.5 truncate text-[15px] font-bold leading-tight ${c.num ? "tabular-nums" : ""} ${
+                        c.tone === "discount"
+                          ? "text-warning-600 dark:text-warning-400"
+                          : c.tone === "muted"
+                            ? "text-gray-300 dark:text-gray-600"
+                            : "text-gray-900 dark:text-white/90"
+                      }`}
+                    >
+                      {c.v}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+            <div className="flex flex-col justify-center rounded-xl border border-brand-200 bg-gradient-to-br from-brand-100 to-brand-50 px-4 py-3 dark:border-brand-500/30 dark:from-brand-500/15 dark:to-brand-500/5">
+              <div className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-brand-600 dark:text-brand-400">Grand Total</div>
+              <div className="mb-2 mt-1 text-4xl font-extrabold leading-none tabular-nums text-gray-900 dark:text-white">{money(total)}</div>
+              <button type="button" disabled={cart.length === 0 || !open}
+                onClick={() => { setMethod(defaultTender); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40">
+                <CardGlyph /> Tender / Pay
+                  {/* Hidden below xl: a counter tablet has no keyboard, and a
+                      key hint nobody can press is a promise the screen breaks. */}
+                  <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px] xl:inline">F9</kbd>
+              </button>
+              {!open && <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">Open a shift to sell.</p>}
+            </div>
         </div>
       </div>
 
