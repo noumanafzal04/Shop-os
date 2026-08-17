@@ -27,6 +27,7 @@ use App\Models\Reservation;
 use App\Models\RestaurantTicket;
 use App\Models\Rider;
 use App\Models\Sale;
+use App\Models\SaleDocument;
 use App\Models\SaleItem;
 use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
@@ -206,6 +207,18 @@ class DashboardService
             'dispensing' => $tenant->business_type !== null
                 && BusinessTypes::primary($tenant->business_type) === 'pharmacy'
                 ? $this->dispensingToday($tenant, $branchId, $todayStart)
+                : null,
+            // A workshop's morning question, which no other trade asks: what is
+            // in my bay, and what has been done and not yet charged for.
+            //
+            // The board that answers the first half shipped two days ago and
+            // the owner still had to open it to know anything. The second half
+            // is money: a job card sitting READY is work the shop has finished
+            // and not invoiced, and a car collected without the card being
+            // converted is work it will never be paid for.
+            'bay' => $tenant->business_type !== null
+                && BusinessTypes::primary($tenant->business_type) === 'automotive'
+                ? $this->workshopBay($tenant, $branchId)
                 : null,
             'activity' => $this->tenantActivity($tenant),
             // HQ comparison: today's sales per branch. Only for multi-branch
@@ -868,6 +881,53 @@ class DashboardService
                 ->where('prescriber_name', '!=', '')
                 ->distinct()
                 ->count('prescriber_name'),
+        ];
+    }
+
+    /**
+     * The cars in the bay, and the work already done that nobody has billed.
+     *
+     * `work_status` says where the CAR is; `status` says whether the paperwork
+     * is live. Every figure here is scoped to OPEN documents, because a
+     * converted job card is an invoice and has left the bay board — folding
+     * those in would count last month's work as outstanding.
+     *
+     * The value on `ready` is the one worth reading. A job marked ready is
+     * finished; if it is still open, nobody has charged for it. That is a
+     * number a workshop owner can act on this afternoon, and it did not exist
+     * anywhere before.
+     */
+    private function workshopBay(Tenant $tenant, ?string $branchId): array
+    {
+        $open = fn () => SaleDocument::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('kind', SaleDocument::KIND_JOB_CARD)
+            ->where('status', SaleDocument::STATUS_OPEN)
+            ->when($branchId, fn (Builder $q) => $q->where('branch_id', $branchId));
+
+        $byStage = (clone $open())
+            ->selectRaw('work_status, COUNT(*) as cars, COALESCE(SUM(total), 0) as value')
+            ->groupBy('work_status')
+            ->get()
+            ->keyBy('work_status');
+
+        $stage = fn (string $key): array => [
+            'cars' => (int) ($byStage[$key]->cars ?? 0),
+            'value' => round((float) ($byStage[$key]->value ?? 0), 2),
+        ];
+
+        return [
+            'received' => $stage(SaleDocument::WORK_RECEIVED),
+            'in_progress' => $stage(SaleDocument::WORK_IN_PROGRESS),
+            // Done, and not yet charged for.
+            'ready' => $stage(SaleDocument::WORK_READY),
+            // Past the time somebody was told. Counted across every stage,
+            // because a car promised for Tuesday is late whether it is on the
+            // ramp or waiting to be collected.
+            'overdue' => (int) (clone $open())
+                ->whereNotNull('promised_at')
+                ->where('promised_at', '<', now())
+                ->count(),
         ];
     }
 
