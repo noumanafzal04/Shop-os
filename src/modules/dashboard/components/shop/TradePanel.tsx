@@ -108,3 +108,59 @@ export function DispensingPanel({
     </SectionCard>
   );
 }
+
+/**
+ * What is in the bay, and what has been done and not billed.
+ *
+ * ── Why a workshop gets its own panel ───────────────────────────────────
+ *
+ * This file already held two: the dining floor for a restaurant, the
+ * dispensing count for a pharmacy. Automotive had none, so a workshop owner
+ * opened the app and was shown low stock — true, and not what anybody runs a
+ * workshop on. The board that answers this shipped two days before the panel
+ * did, and the owner still had to go and open it.
+ *
+ * ── READY is the money ──────────────────────────────────────────────────
+ *
+ * A job marked ready is finished work. If it is still open, nobody has charged
+ * for it — and a car collected without the card being converted is work the
+ * shop will never be paid for. It is given the strongest tone on the panel for
+ * that reason, and it is a figure that existed nowhere before.
+ */
+export function BayPanel({
+  bay,
+  money,
+  canVisit,
+}: {
+  bay: NonNullable<TenantDashboard["bay"]>;
+  money: (n: string | number) => string;
+  canVisit: boolean;
+}) {
+  const inShop = bay.received.cars + bay.in_progress.cars + bay.ready.cars;
+
+  return (
+    <SectionCard
+      title="In the bay"
+      subtitle={inShop === 1 ? "1 car in the shop" : `${inShop} cars in the shop`}
+      icon={<DocsIcon className="size-5" />}
+      to={canVisit ? "/tenant/workshop" : undefined}
+    >
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Booked in" value={bay.received.cars.toLocaleString()} tone="gray" />
+        <Stat label="Being worked on" value={bay.in_progress.cars.toLocaleString()} tone="brand" />
+        {/* Finished, and nobody has charged for it. */}
+        <Stat
+          label="Ready, not billed"
+          value={money(bay.ready.value)}
+          caption={bay.ready.cars === 1 ? "1 car" : `${bay.ready.cars} cars`}
+          tone={bay.ready.cars > 0 ? "warning" : "gray"}
+        />
+        <Stat
+          label="Past promised time"
+          value={bay.overdue.toLocaleString()}
+          tone={bay.overdue > 0 ? "error" : "gray"}
+        />
+      </div>
+    </SectionCard>
+  );
+}

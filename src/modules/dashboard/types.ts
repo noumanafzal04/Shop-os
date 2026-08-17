@@ -168,9 +168,32 @@ export interface TenantDashboard {
     /** Distinct prescribers today. */
     prescribers: number;
   } | null;
+  /**
+   * A workshop's morning question: what is in the bay, and what has been
+   * finished and not yet charged for. Null for every trade that is not
+   * automotive.
+   *
+   * `ready.value` is the one that matters. A job marked ready is finished
+   * work; if the document is still open, nobody has invoiced it — and a car
+   * collected without the card being converted is work the shop will never be
+   * paid for.
+   */
+  bay: {
+    received: BayStage;
+    in_progress: BayStage;
+    ready: BayStage;
+    /** Past the time somebody was told, at any stage. */
+    overdue: number;
+  } | null;
   activity: ActivityRow[];
   // Per-branch today's sales (HQ comparison). Empty for single-branch shops.
   branches: Array<{ branch_id: string; branch: string; sales_count: number; revenue: number }>;
+}
+
+export interface BayStage {
+  cars: number;
+  /** What the open job cards at this stage come to. */
+  value: number;
 }
 
 export interface AdminDashboard {

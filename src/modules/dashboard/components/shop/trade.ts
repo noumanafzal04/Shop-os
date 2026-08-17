@@ -74,7 +74,13 @@ const PROFILES: Record<string, Partial<TradeProfile>> = {
     focus: ["lowStock", "pipeline", "catalog"],
   },
 
-  /** Work booked in, not baskets rung up. */
+  /**
+   * Work booked in, not baskets rung up.
+   *
+   * The bay panel above the tiles is what a workshop actually opens the app
+   * for; parts stock is the sixth tile because it is the next thing a job card
+   * runs out of.
+   */
   automotive: {
     orders: "Jobs Today",
     focus: ["lowStock", "pipeline", "catalog"],

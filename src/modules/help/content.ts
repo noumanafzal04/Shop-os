@@ -1044,6 +1044,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "Workshop, in the sidebar. Three columns — in the bay, being worked on, ready — and every car you have booked in sits in one of them. It is the whiteboard on the wall, in a place the person answering the phone can also see." },
       { type: "note", text: "This screen is for Auto & Tyre shops. Other trades never see it." },
+      { type: "p", text: "Your dashboard now carries the same board as a summary — how many cars are booked in, how many are on the ramp, how many are past the time you promised, and one figure worth checking every evening: Ready, not billed." },
+      { type: "warn", text: "Ready, not billed is finished work nobody has charged for yet. A car handed back without turning its job card into an invoice is work you will not be paid for, and that total is the only place it shows up." },
 
       { type: "h", text: "Booking a car in" },
       { type: "p", text: "Press 'Book a car in' when it arrives. It asks for four things and none of them is a price — nobody knows the price yet, and that is exactly why this is a job card and not a quotation." },

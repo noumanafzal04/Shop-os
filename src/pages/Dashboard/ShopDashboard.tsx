@@ -14,7 +14,7 @@ import { QuickActions } from "../../modules/dashboard/components/shop/QuickActio
 import { RecentExpensesCard, RecentSalesCard, TableSkeleton } from "../../modules/dashboard/components/shop/RecentTables";
 import { ChartSkeleton, SalesTrendChart } from "../../modules/dashboard/components/shop/SalesTrendChart";
 import { EmptyPanel, PanelSkeleton, SectionCard } from "../../modules/dashboard/components/shop/SectionCard";
-import { DispensingPanel, FloorPanel } from "../../modules/dashboard/components/shop/TradePanel";
+import { BayPanel, DispensingPanel, FloorPanel } from "../../modules/dashboard/components/shop/TradePanel";
 import { useCapabilities } from "../../modules/dashboard/components/shop/capabilities";
 import { useMoney } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
@@ -185,6 +185,7 @@ export default function ShopDashboard() {
               sends null for a shop that is not this trade. */}
           {data.floor && <FloorPanel floor={data.floor} caps={caps} />}
           {data.dispensing && <DispensingPanel dispensing={data.dispensing} money={money} />}
+          {data.bay && <BayPanel bay={data.bay} money={money} canVisit={caps.visit("/tenant/workshop")} />}
 
           {/* Basic mode is the calm view: what needs doing, and the counters
               behind it. Charts, ledgers and history live in the full menu. */}
