@@ -8,12 +8,14 @@ use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductSerial;
+use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
 use App\Support\BranchContext;
 use App\Support\ItemTypes;
+use App\Support\MovingCost;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -129,6 +131,13 @@ class ReceivePurchaseOrderAction
                     : null;
 
                 if ($product !== null && $product->track_inventory) {
+                    // What was on the shelf BEFORE this delivery, read now
+                    // because the adjust() below is about to change it. The
+                    // blended cost needs both sides of the shelf.
+                    $target = $item->variant_id !== null
+                        ? ProductVariant::query()->whereKey($item->variant_id)->first()
+                        : $product;
+                    $qtyBefore = (float) ($target?->stock_quantity ?? 0);
                     // Medicines must be received into a DATED lot — FEFO and the
                     // expired-stock fence rely on it, so no expiry, no receipt.
                     if ($product->requiresExpiry() && ($row['expiry_date'] ?? null) === null) {
@@ -172,6 +181,28 @@ class ReceivePurchaseOrderAction
                             'quantity' => $baseQty,
                             'cost' => $item->unit_cost !== null ? round((float) $item->unit_cost / $factor, 2) : null,
                         ]);
+                    }
+
+                    // WHAT IT ACTUALLY COST. Every margin, profit and COGS
+                    // figure on this platform is built from this field, and
+                    // nothing ever wrote to it except a human on the product
+                    // form — while the shop's own receiving recorded the true
+                    // price at every single delivery and nobody read it. A
+                    // kiryana's sugar cost stayed at March's rate all year.
+                    //
+                    // Blended, not overwritten: the shelf holds both the old
+                    // stock and the new. See App\Support\MovingCost.
+                    if ($target !== null && $item->unit_cost !== null) {
+                        $blended = MovingCost::blend(
+                            $target->cost === null ? null : (float) $target->cost,
+                            $qtyBefore,
+                            round((float) $item->unit_cost / $factor, 2),
+                            $baseQty,
+                        );
+
+                        if ($blended !== null) {
+                            $target->forceFill(['cost' => $blended])->save();
+                        }
                     }
 
                     // Serial-on-receive: register each captured IMEI/serial as an
