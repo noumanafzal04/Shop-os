@@ -125,3 +125,22 @@ export function useAdjustStock() {
     },
   });
 }
+
+/**
+ * Turn the reorder list into orders somebody can send.
+ *
+ * Invalidates the purchase-order list AND the low-stock read: the drafts are
+ * new orders, and a buyer who has just raised them should not be looking at
+ * the same "these are running out" list as though nothing happened.
+ */
+export function useRaiseReorderOrders() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (productIds: string[]) => inventoryService.orderReorderList(productIds),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["purchase-orders"] });
+      void qc.invalidateQueries({ queryKey: ["inventory", "low-stock"] });
+    },
+  });
+}

@@ -13,11 +13,12 @@ import { ApiError } from "../../../common/types/api";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import type { Product, ProductVariant } from "../../catalog/types";
-import { useAdjustStock, useBatches, useBatchMutations, useExpiring, useLowStock, useMovements } from "../hooks/useInventory";
+import { useAdjustStock, useBatches, useBatchMutations, useExpiring, useLowStock, useMovements, useRaiseReorderOrders } from "../hooks/useInventory";
 import { useAuthStore } from "../../../stores/authStore";
 import { DisposeBatchModal } from "../components/DisposeBatchModal";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION } from "../../../components/ui/table/rowAction";
+import { useToast } from "../../../components/ui/toast";
 
 type AdjustType = "in" | "out" | "set";
 
@@ -52,7 +53,9 @@ export default function InventoryPage() {
   // Server-computed, and branch-correct: a product with no row on THIS
   // branch's shelf holds none of it, which the endpoint counts as the most
   // urgent case rather than dropping it.
+  const toast = useToast();
   const lowStock = useLowStock();
+  const raiseOrders = useRaiseReorderOrders();
   const adjust = useAdjustStock();
   const modal = useModal();
   const batchModal = useModal();
@@ -125,16 +128,30 @@ export default function InventoryPage() {
    * running low and then had to retype it into a PO by hand, product by
    * product, which is the moment a busy shopkeeper stops using the feature.
    */
+  /**
+   * Raise the orders, rather than half-writing one.
+   *
+   * This used to hand the whole list to Purchase Orders as ONE pre-filled form:
+   * every item a line, quantity 1, priced at the shop's own blended cost, with
+   * the supplier left blank. That saved the typing of names and nothing else —
+   * and it could only ever make one order, while a Monday reorder list holds
+   * lines from four or five different distributors.
+   *
+   * The server knows all three things the form could not: who each item was
+   * last bought FROM, what was last PAID to them (not what the shop's stock is
+   * worth), and how many it takes to get back above the reorder level. So it
+   * creates one DRAFT per supplier and the buyer edits drafts — which is what
+   * a draft is for.
+   */
   const orderTheseItems = () => {
-    navigate("/tenant/purchases", {
-      state: {
-        reorder: lowRows.map((p) => ({
-          id: p.id,
-          name: p.name,
-          cost: p.cost ?? null,
-          units: p.units,
-        })),
+    raiseOrders.mutate(lowRows.map((p) => p.id), {
+      onSuccess: (res) => {
+        // The server's own sentence, because it is the one that names any
+        // items it could not place and says why.
+        toast.success(res.message);
+        navigate("/tenant/purchases");
       },
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Those orders could not be raised."),
     });
   };
 
@@ -292,6 +309,10 @@ export default function InventoryPage() {
                 <th className="px-6 py-3 font-medium">Product</th>
                 <th className="px-6 py-3 font-medium">Stock</th>
                 <th className="px-6 py-3 font-medium">Alert level</th>
+                {/* Reorder view only. The button below raises real orders, and
+                    a buyer pressing it without knowing who each line goes to is
+                    guessing — so the screen says it before they press. */}
+                {reorderOnly && <th className="px-6 py-3 font-medium">Last bought from</th>}
                 <th className="px-6 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -299,14 +320,14 @@ export default function InventoryPage() {
               {products.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={4} className="px-6 py-4">
+                    <td colSpan={reorderOnly ? 5 : 4} className="px-6 py-4">
                       <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
                     </td>
                   </tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={reorderOnly ? 5 : 4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     No tracked products{debounced ? " match your search" : " yet"}.
                   </td>
                 </tr>
@@ -325,6 +346,20 @@ export default function InventoryPage() {
                       )}
                     </td>
                     <td className="px-6 py-4">{p.low_stock_threshold != null ? qty(p.low_stock_threshold) : "—"}</td>
+                    {reorderOnly && (
+                      <td className="px-6 py-4">
+                        {p.last_supplier_name ? (
+                          <span className="text-gray-700 dark:text-gray-300">{p.last_supplier_name}</span>
+                        ) : (
+                          /* Absent, never invented. A product nobody has bought
+                             has no supplier to propose, and guessing one would
+                             send a real order to a stranger. */
+                          <span className="text-theme-xs text-warning-600 dark:text-warning-400">
+                            Never bought — pick a supplier by hand
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-3">
                         <button

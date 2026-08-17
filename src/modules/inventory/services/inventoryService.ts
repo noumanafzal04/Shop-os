@@ -120,6 +120,19 @@ export const inventoryService = {
 
   lowStock: () => apiGet<Product[]>("/inventory/low-stock"),
 
+  /**
+   * Raise draft purchase orders straight off the reorder list.
+   *
+   * Ids only — the server decides the supplier, the quantity and the price from
+   * the shop's own thresholds and purchase history, which is the only place
+   * that knows who each item was last bought from.
+   */
+  orderReorderList: (productIds: string[]) =>
+    apiPost<Array<{ id: string; supplier_id: string }>>(
+      "/purchase-orders/from-reorder-list",
+      { product_ids: productIds },
+    ),
+
   batches: (productId: string) => apiGet<ProductBatch[]>(`/inventory/products/${productId}/batches`),
   addBatch: (
     productId: string,

@@ -109,6 +109,17 @@ export interface Product {
    */
   sold_out?: boolean;
   sold_out_at?: string | null;
+  /**
+   * Who this was last bought from, and what was paid.
+   *
+   * Only present on the reorder list. Derived from the shop's own purchase
+   * history rather than stored on the product: a grocer buys sugar from
+   * whoever was cheapest that week, so a single "preferred supplier" field
+   * would be wrong within a month and wrong silently.
+   */
+  last_supplier_id?: string | null;
+  last_supplier_name?: string | null;
+  last_unit_cost?: number | null;
   duration_minutes: number | null;
   is_active: boolean;
   visible_in_marketplace: boolean;
