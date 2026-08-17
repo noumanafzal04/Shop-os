@@ -219,7 +219,41 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-17 (latest) — the loss that makes no noise
+### 2026-08-17 (latest) — what is running out, turned into orders
+
+`docs/decisions/shopos-reorder-to-po.md`. Second of the three Aug-09 gaps.
+
+It was a HALF link, not a missing one. "Order these 12 items" handed the whole
+list to Purchase Orders as ONE pre-filled form: every item a line, quantity 1,
+priced at the shop's own blended cost, supplier left blank. It saved the typing
+of names and nothing else, and could only ever make one order.
+
+**One draft per SUPPLIER is the whole design.** A grocer's Monday reorder list
+holds twenty lines from five distributors, and one order containing all twenty
+is not an order anybody can send.
+
+Three things the form could not know, and the server does: who each item was
+last bought FROM, what was last PAID to them (not what the shop's stock is
+worth), and how many it takes to get back above the reorder level.
+
+The supplier is DERIVED, not stored. A product carries no `supplier_id` and
+should not: a grocer buys sugar from whoever was cheapest that week, so a
+"preferred supplier" field would be wrong within a month and wrong silently.
+The purchase history already knew — the answer was in the database and nothing
+read it. Last, not cheapest ("quotes a price nobody will honour today") and not
+most frequent ("keeps proposing the distributor they stopped using in March").
+A cancelled order is not a relationship.
+
+The quantity is the shortfall and nothing cleverer — multiplying would be a
+number invented here rather than chosen by the shop. Never placed, only
+drafted. Items never bought before are named rather than guessed, and the list
+now marks them so a buyer knows before pressing.
+
+12 tests, mutation-checked. Load-bearing one is `test_one_order_per_supplier`.
+
+Backend **2027** green · panel **882** green · eslint 0/18.
+
+### 2026-08-17 — the loss that makes no noise
 
 Near-expiry alerts, the most valuable of the three gaps left from the Aug-09
 sweep. `docs/decisions/shopos-expiry-alerts.md`.
