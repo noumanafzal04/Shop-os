@@ -731,6 +731,44 @@ because this changed a core receiving path.
 
 ---
 
+### 21. ✅ FIXED — a workshop opened the app and was shown low stock
+
+**Found by reading the AUTOMOTIVE trade, 2026-08-16.** Seventh finding from the
+eight trade areas.
+
+The dashboard carries a deliberate per-trade block — *"what THIS trade needs and
+nobody else does"* — with exactly two implementations: `floor` for a restaurant
+and `dispensing` for a pharmacy. **Automotive had none**, and its trade profile
+led with low stock: true, and not what anybody runs a workshop on.
+
+The bay board and every figure behind it had shipped **two days earlier**
+(item 5). The owner still had to go and open it to know anything.
+
+**And one number existed nowhere at all.** A job card marked `ready` is finished
+work; while its document is still `open`, nobody has invoiced it. A car handed
+back without the card being converted is **work the shop will never be paid
+for** — the exact shape of every other finding this week, except that here the
+figure had never been computed by anyone.
+
+**Fixed.** `DashboardService::workshopBay()` and a `BayPanel` beside the two
+that already existed: cars booked in, on the ramp, **ready-and-not-billed with
+its value**, and how many are past the time somebody was promised.
+
+**`work_status` is where the CAR is; `status` is whether the paperwork is
+live.** Every figure is scoped to OPEN documents — a converted job card is an
+invoice, and folding those in would report last month's work as outstanding
+forever. A mutation confirms it.
+
+**Overdue counts at every stage**, because a car promised for Tuesday is late
+whether it is on the ramp or waiting to be collected.
+
+**Absent, never empty** — a grocer shown an empty workshop board would read it
+as a fault in the software. A second mutation confirms the trade gate.
+
+6 tests, 2 mutations caught. Backend 1995 green, panel 820 green.
+
+---
+
 ## CLOSED — verified false or already fixed. Do not re-raise.
 
 | Claim | Why it is closed |

@@ -219,7 +219,30 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-16 (latest) — the cost of goods was typed once and never moved
+### 2026-08-16 (latest) — a workshop opened the app and was shown low stock
+
+Found by reading the AUTOMOTIVE trade. The dashboard carries a deliberate
+per-trade block — "what THIS trade needs and nobody else does" — with exactly
+two implementations: the dining floor for food, the dispensing count for a
+pharmacy. **Automotive had none**, and its profile led with low stock.
+
+The bay board shipped two days earlier and the owner still had to open it.
+
+**One number existed nowhere at all:** a job card marked `ready` is finished
+work, and while its document is still `open` nobody has invoiced it. A car
+handed back without converting the card is work the shop will never be paid for.
+
+`workshopBay()` + `BayPanel`: booked in, on the ramp, **ready-and-not-billed
+with its value**, and how many are past the promised time.
+
+`work_status` is where the CAR is; `status` is whether the paperwork is live.
+Every figure is scoped to OPEN documents or last month's work would read as
+outstanding forever. Overdue counts at every stage. Absent, never empty — a
+grocer shown an empty workshop board would read it as a fault.
+
+Backend 1995 · panel 820. 6 tests, 2 mutations caught.
+
+### 2026-08-16 — the cost of goods was typed once and never moved
 
 Found by reading the MART trade. The one that reaches every shop that buys
 stock.
