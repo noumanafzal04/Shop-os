@@ -9,6 +9,7 @@ use App\Models\StockMovement;
 use App\Services\InventoryService;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\LastBoughtFrom;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -76,6 +77,27 @@ class InventoryController extends Controller
             ->with('category:id,name')
             ->orderBy('stock_quantity')
             ->get();
+
+        // …and WHO to buy each one from.
+        //
+        // The list could always say what was running out and never who sells
+        // it, so a buyer read this screen and then typed the entire order again
+        // by hand into Purchase Orders. The answer was in the shop's own
+        // purchase history the whole time — every delivery records the
+        // supplier, the product and what was paid. See LastBoughtFrom for why
+        // it is the LAST supplier rather than the cheapest or the most
+        // frequent.
+        $lastBought = LastBoughtFrom::forProducts($products->pluck('id')->all());
+
+        $products->each(function (Product $p) use ($lastBought): void {
+            $last = $lastBought->get($p->id);
+            // Absent, never invented. A product nobody has ever bought has no
+            // supplier to suggest, and guessing one would put a real order in
+            // front of a stranger.
+            $p->setAttribute('last_supplier_id', $last?->supplier_id);
+            $p->setAttribute('last_supplier_name', $last?->supplier_name);
+            $p->setAttribute('last_unit_cost', $last?->unit_cost);
+        });
 
         return ApiResponse::ok($products);
     }

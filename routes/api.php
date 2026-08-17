@@ -392,6 +392,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 });
                 Route::middleware('permission:purchases.manage')->group(function (): void {
                     Route::post('purchase-orders', [PurchaseOrderController::class, 'store']);
+                    // The link that was missing: what is running out, turned
+                    // into orders somebody can actually send. One DRAFT per
+                    // supplier — a Monday reorder list holds twenty lines from
+                    // five distributors, and one order containing all twenty is
+                    // not an order anybody can send.
+                    // Registered ABOVE the {purchaseOrder} routes above it in
+                    // precedence terms is unnecessary here — this path has its
+                    // own literal segment and cannot be mistaken for an id.
+                    Route::post('purchase-orders/from-reorder-list', [PurchaseOrderController::class, 'fromReorderList']);
                     Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
                     Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
                     Route::post('suppliers/{supplier}/payments', [SupplierPaymentController::class, 'store']);

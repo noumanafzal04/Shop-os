@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Actions\Purchase\CreatePurchaseOrderAction;
+use App\Actions\Purchase\DraftOrdersFromReorderList;
 use App\Actions\Purchase\ReceivePurchaseOrderAction;
 use App\Enums\PurchaseStatus;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Purchase\FromReorderListRequest;
 use App\Http\Requests\Purchase\ReceivePurchaseOrderRequest;
 use App\Http\Requests\Purchase\StorePurchaseOrderRequest;
 use App\Models\PurchaseOrder;
@@ -35,6 +37,34 @@ class PurchaseOrderController extends Controller
         $po = $action->execute($request->validated());
 
         return ApiResponse::created($po, 'Purchase order created');
+    }
+
+    /**
+     * Draft orders straight off the reorder list.
+     *
+     * One per supplier, because a Monday reorder list holds twenty lines from
+     * five distributors and a single order containing all twenty is not an
+     * order anybody can send. See DraftOrdersFromReorderList.
+     */
+    public function fromReorderList(
+        FromReorderListRequest $request,
+        DraftOrdersFromReorderList $action,
+    ): JsonResponse {
+        $result = $action->execute($request->validated('product_ids'));
+        $count = count($result['orders']);
+
+        $message = $count === 1
+            ? '1 draft order raised.'
+            : "{$count} draft orders raised, one per supplier.";
+
+        // Named, not silently dropped. A buyer who selected fifteen items and
+        // got twelve on orders has to be told which three, and why.
+        if ($result['unknown'] !== []) {
+            $names = implode(', ', $result['unknown']);
+            $message .= " Not included, because they have never been bought before and have no supplier to order from: {$names}.";
+        }
+
+        return ApiResponse::created($result['orders'], $message);
     }
 
     public function show(string $id): JsonResponse
