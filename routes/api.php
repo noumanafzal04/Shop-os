@@ -63,6 +63,7 @@ use App\Http\Controllers\Api\V1\Tenant\PromotionController;
 use App\Http\Controllers\Api\V1\Tenant\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\Tenant\ReceiptController;
 use App\Http\Controllers\Api\V1\Tenant\RecurringExpenseController;
+use App\Http\Controllers\Api\V1\Tenant\RecurringIncomeController;
 use App\Http\Controllers\Api\V1\Tenant\ReportController;
 use App\Http\Controllers\Api\V1\Tenant\ReservationController;
 use App\Http\Controllers\Api\V1\Tenant\RestaurantTicketController;
@@ -710,6 +711,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::put('expenses/recurring/{recurring}', [RecurringExpenseController::class, 'update']);
                 Route::delete('expenses/recurring/{recurring}', [RecurringExpenseController::class, 'destroy']);
                 Route::post('expenses/recurring/{recurring}/post', [RecurringExpenseController::class, 'post']);
+
+                // The other side of the same page. Rent received, a let
+                // shutter, a monthly supply contract — every one of them
+                // arrived on the same day each month and had to be typed from
+                // scratch, while the electricity bill three fields away offered
+                // itself. Same shape as the expense routes on purpose.
+                Route::get('incomes/recurring', [RecurringIncomeController::class, 'index']);
+                Route::post('incomes/recurring', [RecurringIncomeController::class, 'store']);
+                Route::put('incomes/recurring/{recurring}', [RecurringIncomeController::class, 'update']);
+                Route::delete('incomes/recurring/{recurring}', [RecurringIncomeController::class, 'destroy']);
+                Route::post('incomes/recurring/{recurring}/post', [RecurringIncomeController::class, 'post']);
 
                 // Category ceilings + how the month is tracking against them.
                 Route::get('expenses/budgets', [ExpenseBudgetController::class, 'index']);
