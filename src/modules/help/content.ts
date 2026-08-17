@@ -1239,7 +1239,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "If a till's browser data is cleared, its count starts again from zero and the totals here go down. That is deliberate — the evidence really did go with it, and a figure that only ever climbed would claim more than it could show." },
 
       { type: "h", text: "Selling when the internet is down" },
-      { type: "p", text: "Once the checks above are clean and support has turned offline selling on for your shop, a till keeps trading through a power cut or a dead connection. Nothing for you to switch on at the counter — the POS notices and carries on." },
+      { type: "p", text: "Once the checks above are clean and support has turned offline selling on for your shop, a till keeps trading through a power cut or a dead connection. Nothing for you to switch on at the counter — the POS notices and carries on. Your whole product list and its categories are already on the tablet, so you can browse and search them exactly as you do online; the only thing missing is product photos, which are not stored on the device." },
       { type: "note", text: "Offline selling is off until it is granted. That is deliberate: it is turned on for your shop once the pricing checks above have run over YOUR OWN sales for long enough to prove the till prices exactly as the server does. Until then the POS will say so at the tender screen rather than at the end." },
       { type: "keys", items: [
         ["The receipt", "Prints a slip numbered OFF-… instead of an invoice number. Keep it: when the connection returns, the sale gets its real invoice number and BOTH are searchable, so a customer holding the slip can always be found."],

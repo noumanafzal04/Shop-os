@@ -53,6 +53,14 @@ export interface CatalogItem {
   kitchen_station: string | null;
   /** May a single till decide this sale alone? Read in Phase 3. */
   offline_ok: boolean;
+  /**
+   * Eighty-sixed — the kitchen has run out for now.
+   *
+   * Sent rather than filtered out, so a till holding yesterday's copy of the
+   * menu learns the dish is off instead of going on selling it. The server
+   * refuses the line regardless; this is so the screen says so first.
+   */
+  sold_out?: boolean;
   variants: Array<{ id: string; name: string; sku: string | null; price: number; stock: number }>;
   units: Array<{ id: string; name: string; factor: number; price: number | null; barcode: string | null }>;
   barcodes: string[];

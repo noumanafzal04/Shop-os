@@ -56,6 +56,7 @@ import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
 import { promotionsService, type PromoPreview } from "../../promotions/services/promotionsService";
 import { memberDiscountFor } from "../../offline/lookup/memberDiscount";
+import { loadShelf, shelfRows } from "../../offline/lookup/browse";
 
 interface CartLine {
   /**
@@ -425,6 +426,31 @@ export default function PosPage() {
   const [categoryId, setCategoryId] = useState("");
   const [page, setPage] = useState(1);
   const categories = useCategories();
+
+  /**
+   * The same shelf, from the till's own copy, when there is no line.
+   *
+   * The pane read `useProducts` and nothing else, so the moment the connection
+   * dropped it went empty and the only way to add anything was to scan a
+   * barcode. For a mart that is a bad afternoon; for a kitchen it is the whole
+   * feature gone, because a dish has no barcode. And it would never have shown
+   * up in the shadow run — a sale that cannot be started produces no variance
+   * to look at.
+   *
+   * Read ONCE and filtered in memory, which is what `searchCatalog` was
+   * written for: at twenty thousand items the projection is a few megabytes,
+   * and scanning it beats a round trip to IndexedDB on every letter typed.
+   * Disabled while connected, so a shop with a line never pays to read its own
+   * storage.
+   */
+  const offlineShelf = useQuery({
+    queryKey: ["pos", "offline-shelf"],
+    queryFn: () => loadShelf(),
+    enabled: !connected,
+    // The cache only changes when a pull lands, and a pull cannot land while
+    // the line is down.
+    staleTime: 60_000,
+  });
   // 20 rather than the API's default 15: three full rows of tiles on a
   // 1366 laptop, so a cashier browsing by category usually finds the item
   // without paging at all.
@@ -450,8 +476,19 @@ export default function PosPage() {
       return [...prev, ...rows.filter((r) => !seen.has(r.id))];
     });
   }, [products.data]);
+  // Offline, the shelf comes from the till's own copy and there is no paging:
+  // the whole catalog is already here, so "load more" would be a button that
+  // asks a server nobody can reach.
+  const offlineRows = useMemo(
+    () => shelfRows(offlineShelf.data, search, categoryId),
+    [offlineShelf.data, search, categoryId],
+  );
+  useEffect(() => {
+    if (!connected) setTiles(offlineRows);
+  }, [connected, offlineRows]);
+
   const pagination = products.data?.meta?.pagination;
-  const hasMore = !!pagination && pagination.current_page < pagination.last_page;
+  const hasMore = connected && !!pagination && pagination.current_page < pagination.last_page;
   // A refused catalog and an empty catalog used to draw the same blank grid.
   // If the till cannot read the product list, say so on the till.
   const productsDenied = deniedReason(products.error);
@@ -1371,7 +1408,12 @@ export default function PosPage() {
     return <Alert variant="error" title="No access" message="You don't have permission to use the POS." />;
   }
 
-  const catList = categories.data ?? [];
+  // Same shelf, same tabs. A category list that empties itself the moment the
+  // line drops is the difference between a kitchen that can sell and one that
+  // cannot — a dish has no barcode to fall back on.
+  const catList = connected
+    ? (categories.data ?? [])
+    : (offlineShelf.data?.categories ?? []);
   // A credit (khata) sale — full or a split tender — needs a named customer.
   const hasCustomer = !!(customer.trim() || customerPhone.trim());
   const cartHasRx = cart.some((l) => l.requires_prescription);
