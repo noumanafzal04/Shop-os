@@ -219,7 +219,107 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-16 (latest) — a laundry runs the same board as a workshop
+### 2026-08-17 (latest) — the screens that looked blank
+
+A shop pointed at the bank screen: "white white", and edit/delete with no
+colour. Both true; neither was a bank-screen problem.
+`docs/decisions/shopos-ui-sweep-aug17.md`.
+
+Five identical grey `outline` buttons on one card, one of which deletes a bank.
+**Undifferentiated reads as blank, and is worse than blank — nothing is
+emphasised, so nothing is warned about either.** The cause was a level down:
+`Button` had `primary` and `outline` and no way to say "this one destroys
+something", so every screen reached for the grey one.
+
+Reading for it across all 64 tenant pages found five things: **15** native
+`window.confirm`/`prompt` boxes, **27** row actions hand-written as bare
+coloured text across 20 files, **8** tables wrapped in `overflow-hidden`,
+**11** layouts splitting at `xl` with no `lg` step, and **23** panels capped
+against `vh`.
+
+The native dialogs were the loudest. One cannot be styled, cannot say what the
+press does, and has **no tone at all** — so the fifteen most dangerous moments
+in the app were exactly the fifteen with no colour in them. `useConfirm` had
+existed the whole time; it gained an optional input (overloaded so `null`
+"dismissed" and `""` "confirmed, left blank" cannot be confused) for the two
+sites that needed text. `TillDevicesPanel`'s test drove `vi.spyOn(window,
+"prompt")` — **which is exactly why the native box survived there.**
+
+**The unit that hid the Appearance Save was everywhere.** `vh` is the LARGE
+viewport; it is not what a tablet has. Reading for it found 23 more — including
+`ModalForm` at `85vh` (**the component every long form in the app is built
+on**, Save in its footer) and the **POS root** at `h-screen`, a column ending
+in the action bar: Reset, Hold, Drafts and Quote laid out past the bottom of
+the glass. Plus Kitchen, the dine-in tab and the Help Centre. One unit, 23
+appearances, one of them reported.
+
+Row actions were not only cosmetic: a line of text is a ~17px tap target on a
+screen held in a hand, with Delete beside Edit and the row itself clickable.
+Now `ROW_ACTION` / `ROW_ACTION_DANGER`, a ~36px padded pill.
+
+`overflow-hidden` was chosen for rounded corners and also cut off anything
+wider than the box, unreachably. **Scrolling is fine, squashed is honest,
+clipped looks finished and is wrong.**
+
+Two the shop photographed: the till's **bottom bar had the top bar's exact
+bug** (both groups `shrink-0` inside `overflow-x-auto no-scrollbar` — at 768
+the wordmark and connection pill slid off the left with no indication), and the
+**Appearance gear sat on the cart's TOTAL** because `fixed right-0 top-1/2`
+lands on a page margin everywhere except the full-bleed till.
+
+Eight guard files, all source-text rules, all mutation-checked. Panel **865**
+green · eslint 0/18 · build clean. **Still not rendered by me** — Chrome tools
+remain disconnected; the shop's own screenshots are what caught the last two.
+
+### 2026-08-17 — the width nobody agreed on, and a Save below the glass
+
+Four complaints off one tablet. Two causes, both "a number written down more
+than once, then drifting". `docs/decisions/shopos-tablet-chrome.md`.
+
+**"Is the rail pinned, or a drawer?" was answered at three different widths** —
+`SidebarContext` at 768, `AppHeader.handleToggle` at 1024, and every class in
+the shell at `lg:` = 1024. Between 768 and 1023 they disagreed, and that band
+is a tablet held upright (iPad 820, Pro 11" 834, 10.2" 810). The rail sat
+off-canvas while the state said "expanded desktop", and `handleResize`
+force-closed the drawer on **every** resize — which on a tablet fires when the
+address bar slides away, i.e. the moment you scroll. Now `DRAWER_BELOW = 1024`
+is exported once and read.
+
+**The drawer measured the header.** `mt-16 h-[calc(100dvh-4rem)]` hard-coded a
+64px header; below `lg` it is 64 shut and ~140 with the account menu open, and
+on a tablet that menu is the only route to notifications, branch and profile.
+Open it and the header (z-99999 vs the rail's z-50) printed over the nav. The
+only close was the header's toggle — a control in another component. Now the
+drawer is `inset-y-0 h-dvh`, stacks above the header, carries its own X, and
+closes on navigation.
+
+**Appearance: `h-screen` on a flex column ending in Reset and Save.**
+`100vh` is the *large* viewport — the height the page would have with the
+address bar hidden. It isn't hidden, so the footer laid out past the bottom
+edge, and the middle is the only scroller by design. A merchant could change
+every colour in their shop and had no Save to press. `h-dvh`.
+
+Also: hover-to-peek gated to `(hover: hover) and (pointer: fine)` (touch fires
+`mouseenter` on tap and often no `mouseleave`, so the rail latched open), and
+the pinned rail starts collapsed below 1280 — a tablet in landscape was giving
+290 of its 1024 to a rail and leaving phone width for the page.
+
+**POS tiles/rows toggle** (`docs/decisions/shopos-pos-view-toggle.md`). The view
+was `isRestaurant ? "grid" : "list"` with no way round it. Now two buttons by
+the search box at every width, stored per DEVICE (`terminalStore.posView`,
+null = follow the trade, which is what every existing till holds). It surfaced a
+real one: rows have always refused an out-of-stock item, tiles never did —
+harmless while tiles were food's alone, a way to sell stock you don't have the
+moment a pharmacy could pick them. Tiles now carry the same rule, plus the stock
+figure the rows always showed.
+
+10 new tests, mutation-checked: revert any of the three fixes and its own
+assertion fails, and only its own. Panel 837 · eslint 0/18 · build clean.
+
+**Not verified visually — Chrome tools were disconnected for this session.**
+Every judgement here is read from the source. The tablet still needs eyes on it.
+
+### 2026-08-16 — a laundry runs the same board as a workshop
 
 Found by reading the SERVICES trade — the eighth and last.
 
