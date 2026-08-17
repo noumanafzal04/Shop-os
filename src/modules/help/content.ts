@@ -1035,16 +1035,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
   },
   {
     id: "workshop",
-    title: "The workshop board",
-    summary: "Every car in the shop, and what stage it is at.",
+    title: "The board of work taken in",
+    summary: "Everything in the shop right now, and what stage it is at.",
     group: "Selling",
     permission: "sales.manage",
     screen: "/tenant/workshop",
-    keywords: ["workshop", "job card", "bay", "board", "car", "vehicle", "repair", "mechanic", "ready"],
+    keywords: ["workshop", "job card", "bay", "board", "car", "vehicle", "repair", "mechanic", "ready", "laundry", "tailor", "job"],
     body: [
-      { type: "p", text: "Workshop, in the sidebar. Three columns — in the bay, being worked on, ready — and every car you have booked in sits in one of them. It is the whiteboard on the wall, in a place the person answering the phone can also see." },
-      { type: "note", text: "This screen is for Auto & Tyre shops. Other trades never see it." },
-      { type: "p", text: "Your dashboard now carries the same board as a summary — how many cars are booked in, how many are on the ramp, how many are past the time you promised, and one figure worth checking every evening: Ready, not billed." },
+      { type: "p", text: "Three columns — taken in, being worked on, ready — and everything you have accepted sits in one of them. It is the whiteboard on the wall, in a place the person answering the phone can also see." },
+      { type: "note", text: "For any shop that takes work IN and hands it back later. An Auto & Tyre shop calls it the Workshop and works in cars; a laundry, tailor, cobbler or repair counter calls it Jobs and is never asked for a registration number. Same board, same three stages — only the words change. Shops that sell off a shelf never see it." },
+      { type: "note", text: "This is not appointment booking and never becomes it. Nothing here schedules a future slot; the board only holds work that is already in your shop." },
+      { type: "p", text: "Your dashboard carries the same board as a summary — how many are taken in, how many are being worked on, how many are past the time you promised, and one figure worth checking every evening: Ready, not billed." },
       { type: "warn", text: "Ready, not billed is finished work nobody has charged for yet. A car handed back without turning its job card into an invoice is work you will not be paid for, and that total is the only place it shows up." },
 
       { type: "h", text: "Booking a car in" },

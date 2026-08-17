@@ -24,6 +24,7 @@ import { homeForRole } from "../common/routing/guards";
 import { canVisit } from "../common/routing/screenPermissions";
 import { canVisitAdmin } from "../common/routing/adminScreenPermissions";
 import { tracksSerials, usePrimaryBusinessType } from "../common/tenant/businessType";
+import { boardWords, hasJobBoard } from "../modules/workshop/words";
 
 type SubItem = { name: string; path: string; pro?: boolean; new?: boolean };
 
@@ -241,13 +242,16 @@ export function shopNav(
         ...(has("products") && (businessType === "automotive" || businessType === "petroleum")
           ? [{ name: "Vehicles", path: "/tenant/vehicles" }]
           : []),
-        // The bay board — every car in the shop and what stage it is at.
-        // AUTOMOTIVE only, and narrower than Vehicles above on purpose: a fuel
-        // station keeps vehicle records for its account customers but has no
-        // bay, and a board that is permanently empty is a menu item people
-        // learn to skip.
-        ...(has("pos") && businessType === "automotive"
-          ? [{ name: "Workshop", path: "/tenant/workshop" }]
+        // The board of work TAKEN IN — every car in the bay, or every job on
+        // the rail. Automotive and services both, because a laundry, a tailor
+        // and a repair counter run exactly this: work arrives, lines
+        // accumulate, it becomes an invoice when the customer collects.
+        //
+        // Narrower than Vehicles above on purpose: a fuel station keeps vehicle
+        // records for its account customers but has no bay, and a board that is
+        // permanently empty is a menu item people learn to skip.
+        ...(has("pos") && hasJobBoard(businessType)
+          ? [{ name: boardWords(businessType).board, path: "/tenant/workshop" }]
           : []),
         // Serialized goods (phones, electronics, batteries) — look up a
         // serial's warranty. The trades that sell a unit somebody brings back;

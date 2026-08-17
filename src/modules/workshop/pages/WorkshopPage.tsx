@@ -11,6 +11,8 @@ import {
   type WorkStatus,
 } from "../../documents/services/documentService";
 import { BookInModal } from "../components/BookInModal";
+import { boardWords } from "../words";
+import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 
 /**
  * What is in the shop right now.
@@ -40,11 +42,11 @@ import { BookInModal } from "../components/BookInModal";
  * teaches a workshop to keep the real state on the wall after all.
  */
 
-const STAGES: Array<{ key: WorkStatus; label: string; hint: string }> = [
-  { key: "received", label: "In the bay", hint: "Booked in, not started" },
-  { key: "in_progress", label: "Being worked on", hint: "On the ramp" },
-  { key: "ready", label: "Ready", hint: "Waiting to be collected" },
-];
+/**
+ * Stage keys are fixed; the words are the trade's. A laundry does not put
+ * shirts "in the bay" — see `../words`.
+ */
+const STAGE_KEYS: WorkStatus[] = ["received", "in_progress", "ready"];
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
@@ -66,6 +68,12 @@ export default function WorkshopPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [booking, setBooking] = useState(false);
+  const words = boardWords(usePrimaryBusinessType());
+  const STAGES = STAGE_KEYS.map((key, i) => ({
+    key,
+    label: words.stages[i],
+    hint: words.hints[i],
+  }));
 
   const jobs = useQuery({
     queryKey: ["workshop", "board"],
@@ -85,16 +93,16 @@ export default function WorkshopPage() {
 
   return (
     <div>
-      <PageMeta title="Workshop | ShopOS" description="Cars in the shop and what stage each is at" />
+      <PageMeta title={`${words.board} | ShopOS`} description="Work taken in, and what stage each piece is at" />
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">Workshop</h1>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">{words.board}</h1>
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-            Every car in the shop, and what stage it is at. Tap a card to move it.
+            Every {words.unit} in the shop, and what stage it is at. Tap a card to move it.
           </p>
         </div>
-        <Button size="sm" onClick={() => setBooking(true)}>Book a car in</Button>
+        <Button size="sm" onClick={() => setBooking(true)}>{words.takeIn}</Button>
       </div>
 
       {jobs.isLoading ? (
@@ -105,12 +113,12 @@ export default function WorkshopPage() {
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-          <p className="text-gray-500 dark:text-gray-400">No cars in the shop.</p>
+          <p className="text-gray-500 dark:text-gray-400">No {words.units} in the shop.</p>
           <p className="mx-auto mt-1 max-w-md text-theme-xs text-gray-400">
-            Book one in when it arrives — the parts and labour go on as you work, and the whole job
-            becomes an invoice when the customer collects.
+            Take one in when it arrives — the parts and labour go on as you work, and the whole
+            job becomes an invoice when the customer collects.
           </p>
-          <Button size="sm" className="mt-3" onClick={() => setBooking(true)}>Book a car in</Button>
+          <Button size="sm" className="mt-3" onClick={() => setBooking(true)}>{words.takeIn}</Button>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-3">
@@ -146,7 +154,7 @@ export default function WorkshopPage() {
                           to={`/tenant/documents/${job.id}`}
                           className="font-semibold text-gray-800 hover:text-brand-500 dark:text-white/90"
                         >
-                          {job.vehicle?.registration ?? job.number}
+                          {(words.tracksVehicle ? job.vehicle?.registration : null) ?? job.number}
                         </Link>
                         <span className="text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
                           {money(job.total)}

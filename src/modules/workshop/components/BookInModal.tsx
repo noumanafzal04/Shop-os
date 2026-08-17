@@ -12,6 +12,8 @@ import { ApiError } from "../../../common/types/api";
 import { catalogService } from "../../catalog/services/catalogService";
 import { vehiclesService } from "../../vehicles/services/vehiclesService";
 import { documentService } from "../../documents/services/documentService";
+import { boardWords } from "../words";
+import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 
 /**
  * A car arriving, in the thirty seconds somebody has while holding its keys.
@@ -45,6 +47,10 @@ interface Props {
 
 export function BookInModal({ onClose, onBooked }: Props) {
   const toast = useToast();
+  // A dry cleaner has no registration plate. The rest of this form — what the
+  // customer said is wrong, when it was promised, the opening line — is
+  // identical for a car and for eight shirts.
+  const words = boardWords(usePrimaryBusinessType());
 
   const [plate, setPlate] = useState("");
   const [vehicleId, setVehicleId] = useState<string | null>(null);
@@ -81,14 +87,14 @@ export function BookInModal({ onClose, onBooked }: Props) {
       // quick-create the till uses, so one car is one record wherever it was
       // first seen.
       let id = vehicleId;
-      if (id === null && plate.trim() !== "") {
+      if (words.tracksVehicle && id === null && plate.trim() !== "") {
         id = (await vehiclesService.quickCreate({ registration: plate.trim().toUpperCase() })).data.id;
       }
 
       return documentService.create({
         kind: "job_card",
-        vehicle_id: id ?? undefined,
-        odometer_in: odometer.trim() === "" ? undefined : Number(odometer),
+        vehicle_id: words.tracksVehicle ? (id ?? undefined) : undefined,
+        odometer_in: words.tracksVehicle && odometer.trim() !== "" ? Number(odometer) : undefined,
         complaint: complaint.trim() || undefined,
         promised_at: promised || undefined,
         customer_name: customer.trim() || undefined,
@@ -105,16 +111,19 @@ export function BookInModal({ onClose, onBooked }: Props) {
       ),
   });
 
-  const ready = plate.trim() !== "" && item !== null;
+  // A plate is required where the plate IS the job. Elsewhere the customer's
+  // name and the instructions are what identify the work.
+  const ready = (!words.tracksVehicle || plate.trim() !== "") && item !== null;
 
   return (
     <Modal isOpen onClose={onClose} className="max-w-lg p-6">
-      <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Book a car in</h3>
+      <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">{words.takeIn}</h3>
       <p className="mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
         Parts and labour go on as you work. Nothing here is a price.
       </p>
 
       <div className="max-h-[65vh] space-y-4 overflow-y-auto pr-1">
+        {words.tracksVehicle && (
         <div>
           <Label>Registration</Label>
           <Input
@@ -165,6 +174,7 @@ export function BookInModal({ onClose, onBooked }: Props) {
             </p>
           )}
         </div>
+        )}
 
         <div>
           <Label>What is wrong, in the customer&rsquo;s words</Label>
@@ -172,10 +182,11 @@ export function BookInModal({ onClose, onBooked }: Props) {
             rows={2}
             value={complaint}
             onChange={(v) => setComplaint(v)}
-            placeholder="Noise from front left when braking"
+            placeholder={words.tracksVehicle ? "Noise from front left when braking" : "8 shirts, starch on collars"}
           />
           <p className="mt-1 text-theme-xs text-gray-400">
-            The first thing the mechanic reads. Write what they said, not what you think it is.
+            The first thing whoever does the work reads. Write what they said, not what you think it
+            is.
           </p>
         </div>
 
@@ -191,10 +202,12 @@ export function BookInModal({ onClose, onBooked }: Props) {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Odometer coming in</Label>
-            <Input value={odometer} onChange={(e) => setOdometer(e.target.value)} placeholder="Optional" />
-          </div>
+          {words.tracksVehicle && (
+            <div>
+              <Label>Odometer coming in</Label>
+              <Input value={odometer} onChange={(e) => setOdometer(e.target.value)} placeholder="Optional" />
+            </div>
+          )}
           <div>
             <Label>Promised back</Label>
             <Input type="datetime-local" value={promised} onChange={(e) => setPromised(e.target.value)} />
