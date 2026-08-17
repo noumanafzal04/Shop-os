@@ -219,7 +219,44 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-17 (latest) — what is running out, turned into orders
+### 2026-08-17 (latest) — the other side of the same page
+
+Recurring income. **The Aug-09 gap list is now closed.**
+`docs/decisions/shopos-recurring-income.md`.
+
+Only half of it existed. The expense manager's second pass gave rent, salaries
+and the internet bill a template that falls due. Income got the same table, the
+same categories, the same drawer link, the same branch scope — and no template
+at all. The flat upstairs, the let shutter, a monthly supply contract: every
+one arrives on the same day each month and had to be typed from scratch, while
+the electricity bill three fields away offered itself.
+
+Copied deliberately, down to the column names. Two screens doing one job in two
+vocabularies is how one of them ends up half-maintained, and this is a books
+module where a shopkeeper reads both sides of the same page.
+
+The rules, restated because they carry more weight on this side: **a template
+falls DUE and never posts itself** (income that appears because a clock ticked
+is income nobody checked against a payment, and rent is exactly what goes
+unpaid quietly); **the amount is overridable at posting** — an expense template
+forcing last month's figure files a wrong one, but an income template forcing
+the agreed figure files a receipt for money nobody received; **the schedule
+advances from the DUE date**, so three unposted months catch up one at a time
+rather than erasing two of them; and it files against **the month it was owed
+for**, not today.
+
+12 tests. `test_nothing_posts_itself` runs `schedule:run` and asserts zero rows
+— the assertion that would notice if somebody ever "helpfully" automated it.
+Mutation-checked: advancing from today fails 6, removing the due fence fails 11.
+Migration rolled back and re-applied per the rollback audit's standing rule.
+
+Worth knowing: test helpers named `run()` and `post()` collide with PHPUnit's
+final `TestCase::run()` and Laravel's `TestCase::post()`, and both fail as
+FATALS rather than assertions.
+
+Backend **2039** green · panel **882** green · eslint 0/18.
+
+### 2026-08-17 — what is running out, turned into orders
 
 `docs/decisions/shopos-reorder-to-po.md`. Second of the three Aug-09 gaps.
 
