@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import ThemeCustomizer from "../../components/theme/ThemeCustomizer";
 import UpdatePrompt from "../../modules/offline/pwa/UpdatePrompt";
+import InstallPrompt from "../../modules/offline/pwa/InstallPrompt";
 import { useKeepInSync } from "../../modules/offline/sync/useKeepInSync";
 import { useOfflineBoot } from "../../modules/offline/useOfflineBoot";
 import { useTenantTheme } from "../../modules/shop/hooks/useShop";
@@ -156,11 +157,17 @@ export function TenantThemed() {
   return (
     <>
       <Outlet />
-      {/* Appearance is reachable from every shop screen, POS included. */}
+      {/* Appearance is reachable from every shop screen except the till — its
+          rail button is `fixed right-0 top-1/2`, which lands on a page margin
+          everywhere but the full-bleed POS, where it sat on the cart's TOTAL. */}
       <ThemeCustomizer />
       {/* A new version waits here until somebody chooses a moment for it —
           never mid-sale, and never while the outbox is being written. */}
       <UpdatePrompt />
+      {/* …and the offer to put the till on the home screen in the first
+          place, which is the difference between a shop that can sell through
+          a dropped line and one that cannot. Fences itself off the POS. */}
+      <InstallPrompt />
     </>
   );
 }

@@ -183,3 +183,23 @@ export function useProductImages(productId: string | undefined) {
 
   return { upload, remove };
 }
+
+/**
+ * Take a dish off the menu, or put it back.
+ *
+ * Invalidates the product list AND the till's catalog: a waiter looking at a
+ * stale menu is the exact failure this feature exists to prevent, so the
+ * screen that sells has to hear about it as fast as the screen that decided.
+ */
+export function useSoldOut() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, off }: { id: string; off: boolean }) =>
+      catalogService.setSoldOut(id, off),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["pos-catalog"] });
+    },
+  });
+}

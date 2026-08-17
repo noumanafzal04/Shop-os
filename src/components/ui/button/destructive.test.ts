@@ -30,8 +30,16 @@ const SOURCES = import.meta.glob("../../../modules/**/*.tsx", {
   eager: true,
 }) as Record<string, string>;
 
-/** Labels that mean "this press takes something away". */
-const DESTRUCTIVE = /^(Remove|Delete|Discard|Void|Cancel shift)\b/i;
+/**
+ * Labels that mean "this press takes something away".
+ *
+ * `Withdraw` and `Revoke` earned their place the honest way: this rule flagged
+ * a Withdraw button that was already coloured as danger, which is the rule
+ * asking whether the VOCABULARY was short rather than the button wrong. Taking
+ * offline selling back off a shop that trades through outages is exactly as
+ * consequential as deleting a row, so it belongs here.
+ */
+const DESTRUCTIVE = /^(Remove|Delete|Discard|Void|Withdraw|Revoke|Cancel shift)\b/i;
 
 /**
  * Buttons whose label reads destructive but whose press is not, with why.

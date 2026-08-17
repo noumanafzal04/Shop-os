@@ -12,7 +12,7 @@ import { useModal } from "../../../hooks/useModal";
 import Select from "../../../components/form/Select";
 import Input from "../../../components/form/input/InputField";
 import { useAuthStore } from "../../../stores/authStore";
-import { useCategories, useProductMutations, useProducts } from "../hooks/useCatalog";
+import { useCategories, useProductMutations, useProducts, useSoldOut } from "../hooks/useCatalog";
 import type { ItemTypeCode, Product } from "../types";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { ApiError } from "../../../common/types/api";
@@ -87,6 +87,7 @@ export default function ProductsPage() {
   const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
   const [lookup, setLookup] = useState<Product | null>(null);
   const [priceEdit, setPriceEdit] = useState<Product | null>(null);
+  const soldOut = useSoldOut();
 
   // ── Export the current (filtered) catalog to CSV ─────────────────
   const toast = useToast();
@@ -364,6 +365,29 @@ export default function ProductsPage() {
                           >
                             <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
                               <path d="M10 3v14M6.5 6.5h5.25a2.25 2.25 0 010 4.5H8.25a2.25 2.25 0 000 4.5h5.25" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        )}
+                        {/* Eighty-six — off the menu tonight, back on tomorrow.
+                            Sits with the row actions rather than inside the
+                            product editor because it is a SERVICE decision made
+                            twice a day, not a catalog edit made once, and a
+                            chef is not opening a thirty-field form to make it. */}
+                        {!p.track_inventory && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); soldOut.mutate({ id: p.id, off: !p.sold_out }); }}
+                            disabled={soldOut.isPending}
+                            className={`rounded-lg p-2 transition disabled:opacity-40 ${
+                              p.sold_out
+                                ? "bg-warning-500/15 text-warning-600 hover:bg-warning-500/25 dark:text-warning-400"
+                                : "text-gray-400 hover:bg-gray-100 hover:text-warning-500 dark:hover:bg-white/[0.06]"
+                            }`}
+                            aria-label={p.sold_out ? `Put ${p.name} back on` : `Mark ${p.name} sold out`}
+                            title={p.sold_out ? "Sold out — press to put it back on" : "Mark sold out for now"}
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+                              <circle cx="10" cy="10" r="7" />
+                              <path d="M5 5l10 10" strokeLinecap="round" />
                             </svg>
                           </button>
                         )}

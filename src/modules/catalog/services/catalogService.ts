@@ -68,6 +68,19 @@ export const catalogService = {
   generateBarcode: (id: string) =>
     apiPost<{ id: string; name: string; barcode: string }>(`/products/${id}/barcode`),
 
+  /**
+   * Eighty-six: off the menu for now, back on when the delivery lands.
+   *
+   * Deliberately not `updateProduct({ sold_out: true })`. A product PUT is a
+   * catalog edit — it validates thirty fields, writes an audit row about a
+   * catalog change, and would let a half-filled form take a dish off. This is
+   * a service call with one meaning and no payload.
+   */
+  setSoldOut: (id: string, off: boolean) =>
+    off
+      ? apiPost<{ id: string; sold_out_at: string | null }>(`/products/${id}/sold-out`)
+      : apiDelete<{ id: string; sold_out_at: string | null }>(`/products/${id}/sold-out`),
+
   syncModifiers: (id: string, groups: ModifierGroup[]) =>
     apiPut<Product>(`/products/${id}/modifier-groups`, { groups }),
 

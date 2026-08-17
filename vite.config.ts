@@ -38,7 +38,7 @@ export default defineConfig({
       // never mid-shift. `autoUpdate` would swap the running app under a
       // cashier's hands between one sale and the next.
       registerType: "prompt",
-      includeAssets: ["favicon.png"],
+      includeAssets: ["favicon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"],
 
       manifest: {
         name: "ShopOS",
@@ -51,10 +51,28 @@ export default defineConfig({
         scope: "/",
         background_color: "#101828",
         theme_color: "#101828",
+        // ── Real files at the sizes they claim ──────────────────────────
+        //
+        // All three entries used to point at `favicon.png`, which is 48x48.
+        // Declaring a 48px file as 192 and 512 does not make it either: the
+        // browser READS the image, finds no icon at the required sizes, and
+        // quietly rules the app not installable. So the answer to "how do we
+        // give the till a desktop icon" had two blockers, not one — HTTPS, and
+        // an icon set that qualifies.
+        //
+        // `maskable` is a SEPARATE drawing, not the same file relabelled.
+        // Android crops a maskable icon to whatever shape the launcher uses —
+        // circle, squircle, teardrop — so the artwork must be full-bleed with
+        // its content inside the middle ~60%. Handing it the rounded-square
+        // logo means the corners of the badge get cut off and the mark inside
+        // it with them.
+        //
+        // Sources kept beside the output as `images/logo/app-icon*.svg`, so
+        // the next size can be re-rendered rather than re-drawn.
         icons: [
-          { src: "/favicon.png", sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: "/favicon.png", sizes: "512x512", type: "image/png", purpose: "any" },
-          { src: "/favicon.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
 

@@ -174,7 +174,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "So a dish with a recipe costs itself. Put a cost price on each ingredient and the recipe section shows what one portion costs and your food cost percentage — the ratio a kitchen is actually run on. Around 30% is healthy here; past 50% the dish is losing money while looking busy." },
       { type: "warn", text: "If any ingredient has no cost price, the dish says it cannot be costed and names which ones — rather than showing a smaller figure. A part-costed dish looks more profitable than it is, and that is how a menu gets underpriced." },
       { type: "note", text: "This is also what your Margins report uses, so fixing an ingredient's cost corrects every report that dish appears in. The figure on the form refreshes when you save and reopen." },
-    ],
+          { type: "h", text: "Sold out for today" },
+      { type: "p", text: "A dish or a counter item that does not count its stock — samosas, the daily curry, anything made to order — can be marked sold out from the circle-and-slash button on its row. The till stops offering it at once and refuses it even if a tablet still has the old menu in memory." },
+      { type: "note", text: "This is not the same as switching a product off. Switching off is a catalog change: it leaves your online shop, your menu and your reports. Sold out is for today — the item keeps everything, and one press puts it back when the delivery lands." },
+      { type: "warn", text: "Nothing turns it back on by itself. That is on purpose: an item that un-sold-out overnight while the kitchen still had none puts a customer in front of a dish that never arrives. The row shows how long it has been off, so a forgotten one is easy to spot." },
+],
   },
   {
     id: "categories-collections",

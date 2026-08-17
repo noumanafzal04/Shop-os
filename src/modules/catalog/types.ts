@@ -99,6 +99,16 @@ export interface Product {
   stock_quantity: number;
   low_stock_threshold: number | null;
   track_inventory: boolean;
+  /**
+   * Eighty-sixed — the kitchen has run out for now.
+   *
+   * Not the same as `is_active`, which is a catalog decision made once. This
+   * one is made mid-shift and undone tomorrow, and the server refuses the line
+   * either way (`ITEM_SOLD_OUT`); the flag is so the screen can say so before
+   * a waiter has promised the dish to a table.
+   */
+  sold_out?: boolean;
+  sold_out_at?: string | null;
   duration_minutes: number | null;
   is_active: boolean;
   visible_in_marketplace: boolean;
@@ -218,6 +228,8 @@ export interface ProductInput {
   tax_rate?: number | string | null;
   tax_group_id?: string | null;
   track_inventory?: boolean;
+  sold_out?: boolean;
+  sold_out_at?: string | null;
   stock_quantity?: number;
   low_stock_threshold?: number;
   // Opening-lot expiry + batch number (medicines with opening stock).

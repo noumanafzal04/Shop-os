@@ -1168,7 +1168,19 @@ export default function PosPage() {
   // choices, blocks out-of-stock, then clears the box so the next scan/search
   // starts fresh (focus never leaves the input, so the cashier keeps typing).
   const commitProduct = (p: CatalogProduct) => {
-    const out = p.type === "product" && p.track_inventory && shownStock(p) <= 0;
+    // Eighty-sixed beats every other reason. A dish that tracks no stock can
+    // never be "out" by quantity — that is deliberate, because food is made to
+    // order — so this is the ONLY thing standing between a sold-out fish and a
+    // table that ordered it. The server refuses it too (ITEM_SOLD_OUT); this is
+    // so the waiter finds out before the customer does.
+    if (p.sold_out) {
+      posSound.error();
+      setPosNotice(`${p.name} is sold out.`);
+      setSearch("");
+
+      return;
+    }
+    const out = !!p.sold_out || (p.type === "product" && p.track_inventory && shownStock(p) <= 0);
     if (out) {
       posSound.error();
       // At a chemist an out-of-stock brand is rarely the end of the sale: the
@@ -1863,7 +1875,7 @@ export default function PosPage() {
                   // view would have been able to sell what a pharmacy in row
                   // view refuses. A view is a way of LOOKING at the shop; it
                   // does not get its own idea of what may be sold.
-                  const out = p.type === "product" && p.track_inventory && shownStock(p) <= 0;
+                  const out = !!p.sold_out || (p.type === "product" && p.track_inventory && shownStock(p) <= 0);
                   return (
                     <button
                       key={p.id}
@@ -1882,7 +1894,12 @@ export default function PosPage() {
                         )}
                         {out && (
                           <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-[11px] font-bold uppercase tracking-wide text-white/80">
-                            Out of stock
+                            {/* Two different sentences. "Out of stock" is a
+                                counting problem somebody fixes in Inventory;
+                                "Sold out" is the kitchen saying not tonight.
+                                Showing one for the other sends the wrong
+                                person to the wrong screen. */}
+                            {p.sold_out ? "Sold out" : "Out of stock"}
                           </span>
                         )}
                         {sale && <span className="absolute left-1.5 top-1.5 rounded bg-error-500 px-1.5 py-0.5 text-[10px] font-bold text-white">SALE</span>}
@@ -1926,7 +1943,7 @@ export default function PosPage() {
               ) : (
                 tiles.map((p, i) => {
                   const sale = onSale(p);
-                  const out = p.type === "product" && p.track_inventory && shownStock(p) <= 0;
+                  const out = !!p.sold_out || (p.type === "product" && p.track_inventory && shownStock(p) <= 0);
                   const active = i === activeIndex;
                   return (
                     <button
@@ -1967,7 +1984,7 @@ export default function PosPage() {
                             <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
                           </svg>
                         )}
-                        {out ? "Out" : "Add"}
+                        {out ? (p.sold_out ? "86" : "Out") : "Add"}
                       </span>
                     </button>
                   );

@@ -36,6 +36,93 @@ const EXTENDABLE: Array<{ key: "products" | "storage_mb" | "branches" | "staff" 
   { key: "registers", label: "Checkout lanes" },
 ];
 
+/**
+ * Offline selling — the one switch that is a POLICY, not a ceiling.
+ *
+ * ── Why it needed its own card ──────────────────────────────────────────
+ *
+ * `offline_selling` has existed in PlanLimits for as long as the offline work
+ * has. The server reads it, the till obeys it, the outbox refuses to sell
+ * without it. **And no screen in this console could set it.** The limits modal
+ * lists five countable ceilings — products, storage, branches, staff, lanes —
+ * and this is not a number you extend, so it fell between them. The only way
+ * to grant offline selling to a shop was to hand-write an HTTP request.
+ *
+ * Seventh time this codebase has produced the same shape: everything built,
+ * nothing a person touches able to reach it.
+ *
+ * ── Why granting is deliberate and not a default ────────────────────────
+ *
+ * A till that sells offline prices the basket ITSELF. Until that engine has
+ * been proved against a shop's OWN catalog — its packs, its promotions, its
+ * tax groups — turning it on means trusting a second pricing implementation
+ * with a real customer's money. Shadow mode runs that comparison on every
+ * online sale, silently, and the shop's own Reports → Offline shows the
+ * disagreements. This switch is what says the evidence has been read.
+ *
+ * ── Why revoking sends null and not 0 ───────────────────────────────────
+ *
+ * `extendLimits` refuses any value below 1 — a sane rule for a ceiling, where
+ * zero products means a broken shop. A policy flag has no such floor, and
+ * clearing to null falls back to the registry default, which is 0 = off. So
+ * null IS the off switch here.
+ */
+function OfflineSellingCard({ tenant }: { tenant: Tenant }) {
+  const extend = useExtendLimits();
+  const toast = useToast();
+  const granted = (tenant.limits?.offline_selling ?? 0) === 1;
+
+  const set = (on: boolean) =>
+    extend.mutate(
+      { id: tenant.id, limits: { offline_selling: on ? 1 : null }, mode: "set" },
+      {
+        onSuccess: () =>
+          toast.success(on ? "Offline selling granted." : "Offline selling withdrawn."),
+        onError: (e) =>
+          toast.error(e instanceof Error ? e.message : "That could not be changed."),
+      },
+    );
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-gray-800 dark:text-white/90">Offline selling</h3>
+          <p className="mt-1 max-w-xl text-theme-sm text-gray-500 dark:text-gray-400">
+            Lets this shop keep trading through a dropped line. The till prices
+            the basket itself while offline, so grant it only once the shop's
+            pricing checks have run over its own sales and agree with the
+            server.
+          </p>
+        </div>
+        <Badge color={granted ? "success" : "light"}>{granted ? "Granted" : "Not granted"}</Badge>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={granted ? "outline" : "primary"}
+          disabled={extend.isPending || granted}
+          onClick={() => set(true)}
+        >
+          Grant offline selling
+        </Button>
+        {granted && (
+          <Button size="sm" variant="danger" disabled={extend.isPending} onClick={() => set(false)}>
+            Withdraw
+          </Button>
+        )}
+      </div>
+
+      <p className="mt-3 text-theme-xs text-gray-400">
+        Everything else about offline needs no setup: a till registers itself,
+        caches the catalog and runs the pricing comparison the first time the
+        shop opens the POS. This switch is the only decision.
+      </p>
+    </div>
+  );
+}
+
 /** Live usage vs this shop's effective ceilings, with an action to change them. */
 function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
   const extend = useExtendLimits();
@@ -599,6 +686,10 @@ export default function AdminTenantDetailPage() {
 
           {/* Plan usage & per-tenant limit extension */}
           <UsageLimitsCard tenant={t} plan={currentPlan} />
+
+          {/* The one policy switch — a grant, not a ceiling, so it is not in
+              the limits modal. It had no screen at all until now. */}
+          <OfflineSellingCard tenant={t} />
 
           {/* Owner accounts */}
           {t.users && t.users.length > 0 && (
