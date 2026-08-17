@@ -79,6 +79,7 @@ const WorkshopPage = lazy(() => import("./modules/workshop/pages/WorkshopPage"))
 const PortfolioPage = lazy(() => import("./modules/shop/pages/PortfolioPage"));
 const PurchaseOrdersPage = lazy(() => import("./modules/purchases/pages/PurchaseOrdersPage"));
 const InventoryPage = lazy(() => import("./modules/inventory/pages/InventoryPage"));
+const DisposalsPage = lazy(() => import("./modules/inventory/pages/DisposalsPage"));
 const SalesPage = lazy(() => import("./modules/sales/pages/SalesPage"));
 const NewSalePage = lazy(() => import("./modules/sales/pages/NewSalePage"));
 const ExpensesPage = lazy(() => import("./modules/expenses/pages/ExpensesPage"));
@@ -248,6 +249,7 @@ export default function App() {
                   <Route element={<RequireFeature feature="inventory" />}>
                     <Route element={<RequirePermission permission="inventory.manage" />}>
                       <Route path="inventory" element={<InventoryPage />} />
+                      <Route path="disposals" element={<DisposalsPage />} />
                       {/* Counting the shelves. Rides the stock module — a shop
                           that doesn't track stock has nothing to count against. */}
                       <Route path="stocktake" element={<StocktakePage />} />

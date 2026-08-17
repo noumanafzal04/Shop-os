@@ -288,6 +288,9 @@ describe("the menu offers nothing the API will refuse", () => {
 
     expect(inventory?.subItems?.map((s) => s.path)).toEqual([
       "/tenant/inventory",
+      // Recording where a removed lot went is batch housekeeping, which is the
+      // same job as adjusting stock — so it rides inventory.manage with it.
+      "/tenant/disposals",
       "/tenant/stocktake",
       "/tenant/suppliers",
       "/tenant/purchases",

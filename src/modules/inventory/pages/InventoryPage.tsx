@@ -15,6 +15,7 @@ import { useProducts } from "../../catalog/hooks/useCatalog";
 import type { Product, ProductVariant } from "../../catalog/types";
 import { useAdjustStock, useBatches, useBatchMutations, useExpiring, useLowStock, useMovements } from "../hooks/useInventory";
 import { useAuthStore } from "../../../stores/authStore";
+import { DisposeBatchModal } from "../components/DisposeBatchModal";
 
 type AdjustType = "in" | "out" | "set";
 
@@ -52,7 +53,7 @@ export default function InventoryPage() {
   const adjust = useAdjustStock();
   const modal = useModal();
   const batchModal = useModal();
-  const expiring = useExpiring(30);
+  const expiring = useExpiring();
   const { add: addBatch, update: updateBatch, remove: removeBatch } = useBatchMutations();
 
   const [target, setTarget] = useState<Product | null>(null);
@@ -70,6 +71,18 @@ export default function InventoryPage() {
   // The four digits off a tyre's sidewall. Optional everywhere; the shops that
   // need it need it badly, and nobody else ever sees the consequence.
   const [bDot, setBDot] = useState("");
+
+  /**
+   * The lot being taken off the shelf, and what it belongs to.
+   *
+   * A lot with stock in it is an event, not a confirmation: forty strips are
+   * binned or they go back to the distributor, and those are opposite facts
+   * about the same money. The server refuses the removal without an answer.
+   */
+  const [disposing, setDisposing] = useState<{
+    batch: { id: string; batch_number: string; quantity: number; expiry_date?: string | null };
+    productName: string;
+  } | null>(null);
   const batches = useBatches(batchTarget?.id ?? null);
 
   const movements = useMovements({ product_id: target?.id });
@@ -172,7 +185,10 @@ export default function InventoryPage() {
         </p>
       </div>
 
-      {/* Expiry alerts — batches expiring within 30 days (pharmacy/perishables) */}
+      {/* Expiry alerts. The window is the SHOP's — 90 days for a pharmacy,
+          30 for everyone else, or whatever it set. A distributor takes medicine
+          back inside a window that closes months before the printed date, so a
+          warning at thirty days arrived after the claim was already lost. */}
       {(expiring.data?.length ?? 0) > 0 && (
         <div className="mb-4 rounded-2xl border border-warning-300 bg-warning-50 p-4 dark:border-warning-500/40 dark:bg-warning-500/10">
           <p className="mb-2 text-sm font-semibold text-warning-700 dark:text-warning-400">
@@ -196,13 +212,23 @@ export default function InventoryPage() {
                     <button
                       className="text-theme-xs font-medium text-error-600 hover:text-error-700 disabled:opacity-50 dark:text-error-400"
                       disabled={removeBatch.isPending}
-                      onClick={() => {
-                        if (confirm(`Write off batch ${b.batch_number}? ${qty(b.quantity)} will be taken out of stock and recorded as wastage.`)) {
-                          removeBatch.mutate(b.id);
-                        }
-                      }}
+                      // Asked properly rather than confirmed away: near-expiry
+                      // stock is exactly the stock a distributor will still
+                      // take back, and this banner is where a pharmacist is
+                      // told about it.
+                      onClick={() =>
+                        setDisposing({
+                          batch: {
+                            id: b.id,
+                            batch_number: b.batch_number,
+                            quantity: Number(b.quantity),
+                            expiry_date: b.expiry_date,
+                          },
+                          productName: b.product?.name ?? "This item",
+                        })
+                      }
                     >
-                      Write off
+                      Remove
                     </button>
                   )}
                 </span>
@@ -555,7 +581,21 @@ export default function InventoryPage() {
                       />
                       <button
                         className="text-theme-xs text-error-500 hover:text-error-600"
-                        onClick={() => { if (confirm("Remove this batch? Remaining quantity will be written out of stock.")) removeBatch.mutate(b.id); }}
+                        onClick={() =>
+                          Number(b.quantity) > 0
+                            ? setDisposing({
+                                batch: {
+                                  id: b.id,
+                                  batch_number: b.batch_number,
+                                  quantity: Number(b.quantity),
+                                  expiry_date: b.expiry_date,
+                                },
+                                productName: batchTarget?.name ?? "This item",
+                              })
+                            // An empty lot is housekeeping — a mis-keyed batch
+                            // number being tidied away. Nothing to explain.
+                            : confirm("Remove this empty batch?") && removeBatch.mutate({ id: b.id })
+                        }
                       >
                         Remove
                       </button>
@@ -567,6 +607,22 @@ export default function InventoryPage() {
           )}
         </div>
       </Modal>
+
+      {/* A lot with stock in it is an event, not a confirmation. */}
+      {disposing && (
+        <DisposeBatchModal
+          batch={disposing.batch}
+          productName={disposing.productName}
+          busy={removeBatch.isPending}
+          onClose={() => setDisposing(null)}
+          onConfirm={(disposal) =>
+            removeBatch.mutate(
+              { id: disposing.batch.id, disposal },
+              { onSuccess: () => setDisposing(null) },
+            )
+          }
+        />
+      )}
     </>
   );
 }

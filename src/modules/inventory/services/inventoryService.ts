@@ -30,6 +30,63 @@ export interface ExpiringBatch {
   expired: boolean;
 }
 
+/**
+ * Where a lot went when it left without being sold.
+ *
+ * The two dispositions must never be summed. `written_off` is money already
+ * lost — it belongs in the year's expiry cost. `returned_to_supplier` is money
+ * neither lost nor recovered, and only recovered if somebody chases it. Adding
+ * them gives a loss figure overstated by everything the distributor is about to
+ * pay back.
+ */
+export type Disposition = "written_off" | "returned_to_supplier";
+
+export type DisposalReason = "expired" | "damaged" | "recall" | "other";
+
+export interface BatchDisposalInput {
+  disposition: Disposition;
+  /** WHY it left — a different question from where it went. */
+  reason: DisposalReason;
+  notes?: string;
+  /** A claim with nobody to claim from is not a claim. Required on a return. */
+  supplier_id?: string;
+  credit_expected?: number;
+}
+
+export interface StockDisposal {
+  id: string;
+  number: string;
+  product_name: string;
+  batch_number: string | null;
+  expiry_date: string | null;
+  quantity: string;
+  unit_cost: string | null;
+  /** Null where the lot never carried a cost — unknown, which is not zero. */
+  total_cost: string | null;
+  disposition: Disposition;
+  reason: DisposalReason;
+  notes: string | null;
+  supplier_id: string | null;
+  supplier?: { id: string; name: string } | null;
+  credit_expected: string | null;
+  credit_received: string | null;
+  credit_received_at: string | null;
+  credit_reference: string | null;
+  disposed_at: string;
+  created_by_user?: { id: string; name: string } | null;
+}
+
+export interface DisposalFilters {
+  disposition?: Disposition;
+  reason?: DisposalReason;
+  supplier_id?: string;
+  /** Sent back, nothing credited — the list somebody works through. */
+  awaiting_credit?: number;
+  from?: string;
+  to?: string;
+  page?: number;
+}
+
 export interface StockMovement {
   id: string;
   product_id: string;
@@ -82,6 +139,32 @@ export const inventoryService = {
     payload: { batch_number?: string; expiry_date?: string | null; dot_code?: string | null; manufactured_on?: string | null },
   ) =>
     apiPatch<ProductBatch>(`/inventory/batches/${id}`, payload),
-  removeBatch: (id: string) => apiDelete<null>(`/inventory/batches/${id}`),
-  expiring: (days = 30) => apiGet<ExpiringBatch[]>("/inventory/expiring", { params: { days } }),
+  /**
+   * Take a lot off the shelf, and say where it went.
+   *
+   * An EMPTY lot is housekeeping and carries no disposition. A lot with stock
+   * in it is an event — forty strips of medicine are binned or they go back to
+   * the distributor, and those are opposite facts about the same money — so the
+   * server refuses that one without an answer.
+   */
+  removeBatch: (id: string, disposal?: BatchDisposalInput) =>
+    apiDelete<StockDisposal | null>(`/inventory/batches/${id}`, { data: disposal ?? {} }),
+
+  /** Omit `days` to get the shop's own window — 90 for a pharmacy, 30 otherwise. */
+  expiring: (days?: number) =>
+    apiGet<ExpiringBatch[]>("/inventory/expiring", { params: days ? { days } : {} }),
+
+  disposals: (params: DisposalFilters = {}) =>
+    apiGet<StockDisposal[]>("/inventory/disposals", { params }),
+
+  /**
+   * The distributor settled a claim — for whatever they decided it was worth,
+   * which is often less than was asked. What ARRIVED is recorded, never
+   * assumed from what was claimed; the gap between the two is the figure worth
+   * reading.
+   */
+  creditDisposal: (
+    id: string,
+    payload: { credit_received: number; credit_received_at: string; credit_reference?: string },
+  ) => apiPost<StockDisposal>(`/inventory/disposals/${id}/credit`, payload),
 };

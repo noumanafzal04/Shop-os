@@ -139,6 +139,13 @@ export interface ShopSettings {
   /** Lock the till after this many idle minutes. 0 = never. */
   pos_idle_lock_minutes: number;
   /**
+   * How far ahead "expiring soon" looks, in days. Null = the trade's own
+   * answer: 90 for a pharmacy, 30 for everyone else. A distributor takes
+   * medicine back inside a window that closes months before the printed date,
+   * so 30 would warn a pharmacy after the claim was already lost.
+   */
+  expiring_soon_days: number | null;
+  /**
    * Ask who SOLD each sale, separately from who rang it. Off for most shops —
    * one counter and one person means the two are the same, and a picker on
    * every sale would slow the till to answer a question they never ask.

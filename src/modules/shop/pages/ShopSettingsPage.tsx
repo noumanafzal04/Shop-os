@@ -645,6 +645,21 @@ export default function ShopSettingsPage() {
                           label="Auto-print receipt"
                           hint="Sends the receipt to the printer the moment a sale is paid, without asking."
                         />
+                        <Field
+                          label="Warn about expiry this many days ahead"
+                          hint="Leave blank for your trade's own answer — 90 days for a medical store, 30 for everyone else. A distributor takes stock back for credit inside a window that closes months before the printed date, so set your own number if theirs is different."
+                        >
+                          <Input
+                            value={prefs.expiring_soon_days == null ? "" : String(prefs.expiring_soon_days)}
+                            placeholder="Your trade's default"
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/\D/g, "");
+                              // Cleared means "hand it back to the trade
+                              // default", not "zero days".
+                              setP("expiring_soon_days", v === "" ? null : Number(v));
+                            }}
+                          />
+                        </Field>
                         <ToggleRow
                           checked={!!prefs.pos_ask_who_served}
                           onChange={(v) => setP("pos_ask_who_served", v)}

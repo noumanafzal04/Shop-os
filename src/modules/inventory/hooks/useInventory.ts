@@ -4,7 +4,12 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { inventoryService, type AdjustPayload } from "../services/inventoryService";
+import {
+  inventoryService,
+  type AdjustPayload,
+  type BatchDisposalInput,
+  type DisposalFilters,
+} from "../services/inventoryService";
 
 export function useMovements(params: { product_id?: string; page?: number }) {
   return useQuery({
@@ -21,9 +26,17 @@ export function useLowStock() {
   });
 }
 
-export function useExpiring(days = 30) {
+/**
+ * Lots inside the expiry window.
+ *
+ * `days` defaults to UNDEFINED, not 30, so the server answers with the shop's
+ * own window — 90 days for a pharmacy, 30 for everyone else. It was hardcoded
+ * to 30 in three places, and a pharmacy warned at thirty days is warned after
+ * the distributor's return window has already closed.
+ */
+export function useExpiring(days?: number) {
   return useQuery({
-    queryKey: ["inventory", "expiring", days],
+    queryKey: ["inventory", "expiring", days ?? "shop"],
     queryFn: async () => (await inventoryService.expiring(days)).data,
   });
 }
@@ -58,8 +71,42 @@ export function useBatchMutations() {
       inventoryService.updateBatch(id, payload),
     onSuccess: invalidate,
   });
-  const remove = useMutation({ mutationFn: (id: string) => inventoryService.removeBatch(id), onSuccess: invalidate });
+  const remove = useMutation({
+    mutationFn: ({ id, disposal }: { id: string; disposal?: BatchDisposalInput }) =>
+      inventoryService.removeBatch(id, disposal),
+    onSuccess: () => {
+      invalidate();
+      // The claims list and the expiry-loss total are both built from this.
+      qc.invalidateQueries({ queryKey: ["disposals"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+
   return { add, update, remove };
+}
+
+/** What left the shelf without being sold. */
+export function useDisposals(filters: DisposalFilters = {}) {
+  return useQuery({
+    queryKey: ["disposals", filters],
+    queryFn: async () => {
+      const res = await inventoryService.disposals(filters);
+
+      return { rows: res.data, pagination: res.meta?.pagination };
+    },
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useCreditDisposal() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, ...payload }: {
+      id: string; credit_received: number; credit_received_at: string; credit_reference?: string;
+    }) => inventoryService.creditDisposal(id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["disposals"] }),
+  });
 }
 
 export function useAdjustStock() {

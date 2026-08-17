@@ -189,6 +189,9 @@ export function shopNav(
             name: "Inventory",
             subItems: [
               { name: "Stock", path: "/tenant/inventory" },
+              // Where stock went when it left without being sold — and what a
+              // distributor still owes for the part that went back.
+              { name: "Disposals", path: "/tenant/disposals" },
               // Counting the shelves against the books. The only way a shop
               // finds out what it is actually losing.
               { name: "Stocktake", path: "/tenant/stocktake" },

@@ -72,6 +72,9 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   "/tenant/labels": "products.manage",
 
   "/tenant/inventory": "inventory.manage",
+  // The record of stock leaving the shelf IS batch housekeeping, so it rides
+  // the same permission the batches themselves do.
+  "/tenant/disposals": "inventory.manage",
   "/tenant/stocktake": "inventory.manage",
   "/tenant/transfers": "inventory.manage",
   // Naming who a delivery came from, and receiving against the order, are
