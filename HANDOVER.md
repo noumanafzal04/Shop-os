@@ -219,7 +219,41 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-17 (latest) — eighty-six, and the switch nobody could reach
+### 2026-08-17 (latest) — the loss that makes no noise
+
+Near-expiry alerts, the most valuable of the three gaps left from the Aug-09
+sweep. `docs/decisions/shopos-expiry-alerts.md`.
+
+Batches carry expiry dates, the dashboard counts what is near, the pharmacy
+screen lists it, Disposals records where it went. **All of it pull-only** — a
+shop learned its stock was dying by going to look, so it learned on the day
+somebody happened to look. Expiry is the only loss in a shop that makes no
+noise at all: nothing breaks, no figure looks wrong, and the stock sits on the
+shelf looking exactly like stock.
+
+**The design question was never whether, it was how often.** A daily "you have
+43 items expiring" is worse than silence — the same sentence every morning
+stops being read within a week, and then the morning it says 44 nobody notices
+either. So it speaks per lot, per stage, exactly ONCE: when the lot crosses the
+shop's own window ("still time to sell it down or agree a return"), and when it
+actually expires ("it cannot be sold — record where it goes in Disposals").
+Twice in a lot's life, never again.
+
+Two stages, not three: the obvious middle one — "return it to the distributor
+now" — needs a number nobody has given us. Supplier terms are per-contract, and
+inventing 30 days would be a guess dressed as advice.
+
+Capped at 20 per shop per run so the first morning against an existing chemist
+is readable, expired lots sent before approaching ones so a capped run spends
+its budget on stock that is already dead. Runs at 07:00, before the shutters go
+up. It enforces nothing — expired stock is already unsellable.
+
+11 tests, mutation-checked. The load-bearing one is
+`test_a_lot_is_mentioned_once`.
+
+Backend **2015** green · panel **882** green · eslint 0/18.
+
+### 2026-08-17 — eighty-six, and the switch nobody could reach
 
 Clearing the pending list turned up two things.
 `docs/decisions/shopos-sold-out-and-reachability.md`.
