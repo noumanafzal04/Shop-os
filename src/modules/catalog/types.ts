@@ -111,6 +111,17 @@ export interface Product {
   units?: ProductUnit[];
   combo_items?: ComboItemLine[];
   recipe_items?: RecipeItemLine[];
+  /**
+   * What one portion costs to make, from the recipe's own ingredients.
+   *
+   * Null means the figure cannot honestly be given — either there is no
+   * recipe, or an ingredient under it has no cost. Never a partial sum: a
+   * partial food cost is not a smaller cost but a wrong one, and it is wrong
+   * in the direction that makes a kitchen underprice.
+   */
+  recipe_cost?: number | null;
+  /** The ingredients stopping `recipe_cost` being computed, by name. */
+  recipe_cost_missing?: string[];
   created_at: string;
 }
 

@@ -165,6 +165,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "note",
         text: "Editing a product never changes its stock. That is deliberate: stock moves for a reason — a sale, a delivery, a count — and every movement is recorded.",
       },
+      { type: "h", text: "What a dish costs to make" },
+      { type: "p", text: "For anything you buy in, Cost is what you paid — type it once and it stays true. A cooked dish has no such number: it costs half a kilo of chicken, some onions and oil, and those prices move every week." },
+      { type: "p", text: "So a dish with a recipe costs itself. Put a cost price on each ingredient and the recipe section shows what one portion costs and your food cost percentage — the ratio a kitchen is actually run on. Around 30% is healthy here; past 50% the dish is losing money while looking busy." },
+      { type: "warn", text: "If any ingredient has no cost price, the dish says it cannot be costed and names which ones — rather than showing a smaller figure. A part-costed dish looks more profitable than it is, and that is how a menu gets underpriced." },
+      { type: "note", text: "This is also what your Margins report uses, so fixing an ingredient's cost corrects every report that dish appears in. The figure on the form refreshes when you save and reopen." },
     ],
   },
   {

@@ -151,6 +151,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [units, setUnits] = useState<Array<{ name: string; factor: string; price: string; barcode: string }>>([]);
   const [comboRows, setComboRows] = useState<Array<{ component_product_id: string; quantity: string }>>([]);
   const [recipeRows, setRecipeRows] = useState<Array<{ ingredient_product_id: string; quantity: string }>>([]);
+  /** What one portion costs to make, as the server computed it on load. */
+  const [recipeCost, setRecipeCost] = useState<number | null>(null);
+  const [recipeMissing, setRecipeMissing] = useState<string[]>([]);
   const [brand, setBrand] = useState("");
   const [genericName, setGenericName] = useState("");
   const [strength, setStrength] = useState("");
@@ -276,6 +279,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setUnits((p.units ?? []).map((u) => ({ name: u.name, factor: String(u.factor), price: u.price != null ? String(u.price) : "", barcode: u.barcode ?? "" })));
       setComboRows((p.combo_items ?? []).map((c) => ({ component_product_id: c.component_product_id, quantity: String(c.quantity) })));
       setRecipeRows((p.recipe_items ?? []).map((r) => ({ ingredient_product_id: r.ingredient_product_id, quantity: String(r.quantity) })));
+      // Computed server-side from the ingredients' own costs — never here. The
+      // browser holds no cost prices (see HidesCostPrice), and a figure the
+      // panel worked out itself would be a second answer to a question the
+      // server already answers for every report.
+      setRecipeCost(p.recipe_cost ?? null);
+      setRecipeMissing(p.recipe_cost_missing ?? []);
       setUnit(p.unit ?? "");
       setPrice(String(p.price));
       setCost(p.cost != null ? String(p.cost) : "");
@@ -791,6 +800,16 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               ))
             )}
             {err("recipe_items") && <p className="mt-1 text-theme-xs text-error-500">{err("recipe_items")}</p>}
+
+            {/* What it costs to make, beside what it sells for.
+                
+                This is the number a kitchen is actually run on, and every
+                margin report on the platform used to take a dish's cost from a
+                figure typed onto its record once — while the recipe below and
+                the ingredients' own costs were sitting in the database. It is
+                shown HERE because this is the screen where somebody decides
+                what to charge. */}
+            {recipeRows.length > 0 && <FoodCost cost={recipeCost} missing={recipeMissing} price={Number(price) || 0} />}
           </Section>
         )}
 
@@ -1424,6 +1443,77 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/**
+ * What a portion costs, beside what it sells for.
+ *
+ * ── Food cost %, and why it is the headline ─────────────────────────────
+ *
+ * A restaurant is run on this one ratio. Thirty per cent is healthy in this
+ * market, fifty is a dish losing money that looks busy. It is the sentence the
+ * whole recipe section exists to produce, so it is the biggest thing on it.
+ *
+ * ── Stale by design, and honest about it ────────────────────────────────
+ *
+ * The figure is whatever the server computed when this screen loaded. Editing a
+ * row below does NOT move it — recalculating in the browser would need every
+ * ingredient's cost price on the page, which this platform deliberately never
+ * sends (see HidesCostPrice), and a figure the panel derived itself would be a
+ * second answer to a question the server already answers for every report.
+ *
+ * ── When it cannot say ──────────────────────────────────────────────────
+ *
+ * It names the ingredients with no cost rather than showing a smaller number.
+ * A partial food cost is not a cheaper dish; it is a wrong one, and wrong in
+ * the direction that makes a kitchen underprice.
+ */
+function FoodCost({ cost, missing, price }: { cost: number | null; missing: string[]; price: number }) {
+  if (cost === null) {
+    return (
+      <div className="mt-4 rounded-xl border border-warning-300 bg-warning-50 px-4 py-3 dark:border-warning-500/40 dark:bg-warning-500/10">
+        <p className="text-theme-sm font-medium text-warning-700 dark:text-warning-400">
+          This dish cannot be costed yet
+        </p>
+        <p className="mt-0.5 text-theme-xs text-warning-700/80 dark:text-warning-400/80">
+          {missing.length > 0
+            ? `No cost price on ${missing.join(", ")}. Add it there and this dish costs itself.`
+            : "Add a cost price to the ingredients and this dish costs itself."}
+        </p>
+      </div>
+    );
+  }
+
+  const pct = price > 0 ? (cost / price) * 100 : null;
+  // 30% is healthy here, 50% is a dish that looks busy and loses money.
+  const tone =
+    pct === null ? "text-gray-800 dark:text-white/90"
+      : pct > 50 ? "text-error-600 dark:text-error-400"
+        : pct > 40 ? "text-warning-600 dark:text-warning-400"
+          : "text-success-600 dark:text-success-500";
+
+  return (
+    <div className="mt-4 rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-700">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <p className="text-theme-xs uppercase tracking-wide text-gray-400">Costs to make</p>
+          <p className="text-lg font-semibold tabular-nums text-gray-800 dark:text-white/90">
+            Rs {cost.toLocaleString()}
+          </p>
+        </div>
+        {pct !== null && (
+          <div className="text-right">
+            <p className="text-theme-xs uppercase tracking-wide text-gray-400">Food cost</p>
+            <p className={`text-lg font-semibold tabular-nums ${tone}`}>{pct.toFixed(0)}%</p>
+          </div>
+        )}
+      </div>
+      <p className="mt-1.5 text-theme-xs text-gray-400">
+        From the ingredients&rsquo; own cost prices. Save and reopen to refresh it after changing the
+        recipe.
+      </p>
     </div>
   );
 }
