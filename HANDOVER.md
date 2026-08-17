@@ -219,7 +219,32 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-16 (latest) — a restaurant's margins came from a number nobody maintains
+### 2026-08-16 (latest) — the cost of goods was typed once and never moved
+
+Found by reading the MART trade. The one that reaches every shop that buys
+stock.
+
+Every margin, profit and COGS figure comes from `products.cost`, and **nothing
+ever wrote to it except a human on the product form**. `ReceivePurchaseOrderAction`
+touched `cost` only to stamp a batch. `weighted|average_cost|moving_average`
+grepped to nothing.
+
+A kiryana bought sugar at 140/kg in March. Every delivery since was 148, 155,
+162, **each recorded at its true price on the PO line** — and the product's cost
+stayed 140 all year. The Margins report told him he was making Rs 22/kg while he
+was making eight.
+
+`MovingCost::blend()` on receive. **Weighted, not last-price:** the shelf holds
+both, and a margin calculated on the newest price gives away what was already
+earned on the old stock. Self-correcting as the old stock sells through, so
+nobody keys anything. **Never blanks a known cost** — a delivery with no price
+is missing information, not free goods. **Per base unit**, or a pack price would
+multiply the error by the pack size. Variants blend against their own shelf.
+
+9 tests, 3 mutations caught. 1989 green **with no regressions**, which is the
+number that matters when a core receiving path changes.
+
+### 2026-08-16 — a restaurant's margins came from a number nobody maintains
 
 Found by reading the FOOD trade. Every margin, profit and COGS figure is built
 from `sale_items.unit_cost`, and that came from `product.cost` — one number

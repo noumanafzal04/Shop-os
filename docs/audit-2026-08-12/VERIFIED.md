@@ -683,6 +683,54 @@ immediately — a variant carries its own purchase cost and never a recipe.
 
 ---
 
+### 20. ✅ FIXED — the cost of goods was typed once and never moved again
+
+**Found by reading the MART trade, 2026-08-16.** Sixth finding from the eight
+trade areas, and the one that reaches every shop that buys stock.
+
+Every margin, profit and COGS figure comes from `products.cost`. **Nothing in
+the codebase ever wrote to that field except a human on the product form.**
+`weighted|average_cost|avg_cost|moving_average` grepped to zero hits, and
+`ReceivePurchaseOrderAction` touched `cost` only to stamp a batch — never the
+product.
+
+A kiryana bought sugar at Rs 140/kg in March. Every delivery since was 148, 155,
+162 — **each recorded at its true price on the purchase order line** — and the
+product's cost stayed 140 all year. So every sale filed `unit_cost` 140, and the
+Margins report told a shopkeeper he was making **Rs 22/kg while he was making
+eight.**
+
+In a country where atta, ghee and sugar move monthly, a cost typed once is not
+a stale figure — it is a fiction that gets further from the truth every week, on
+the report a shop uses to set its prices. And the same shape as items 18 and 19:
+**the real answer was already in the database, written by the shop's own
+receiving, at every single delivery.**
+
+**Fixed.** `App\Support\MovingCost::blend()`, applied on receive.
+
+**Weighted, not last-price.** The shelf holds both: forty kilos at 140 and sixty
+at 160 is not stock worth 160, it is worth 152, and a margin calculated on 160
+gives away the eight rupees of it already earned. A last-price rule is wrong in
+both directions — it overstates while cheap old stock is still selling, then
+understates the moment one odd delivery lands at a discount. The average is
+self-correcting: as the old stock sells through it converges on what the shop is
+really paying, with nobody keying anything.
+
+**It never blanks a cost that exists.** A delivery with no price recorded is
+missing information, not evidence the goods were free.
+
+**Per base unit.** A line ordered in packs receives base units; blending a pack
+price against a per-unit cost would multiply the error by the pack size. A
+mutation confirms it (two 50kg bags at 8,000 → 160/kg, not 8,000/kg).
+
+**Variants too** — a variant carries its own cost and its own stock, so the
+blend is against that variant's shelf and not the product's.
+
+9 tests, 3 mutations caught. **1989 green with no regressions**, which matters
+because this changed a core receiving path.
+
+---
+
 ## CLOSED — verified false or already fixed. Do not re-raise.
 
 | Claim | Why it is closed |
