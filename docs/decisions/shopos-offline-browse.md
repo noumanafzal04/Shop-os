@@ -1,0 +1,79 @@
+# The shelf the till had and never showed
+
+**2026-08-17.** Found by continuing the same question that found the member
+discount: *what has the till been given that it does not read?*
+
+## The mechanical check
+
+Every store the catalog pull WRITES, against everything that READS it, ignoring
+the plumbing:
+
+| Store | Readers |
+|---|---|
+| `CATALOG` | 3 — barcode lookup, checkout pricing, shadow check |
+| `CATEGORIES` | **0** |
+| `CUSTOMERS` / `CUSTOMER_GROUPS` | 0 *(1 each after the member-discount fix)* |
+
+And then the sharper version: `searchCatalog()` and `categoryIndex()` — a pure,
+tested offline search written over that cache — had **exactly one caller
+between them: their own test file.**
+
+## What it meant
+
+The POS product pane read `useProducts`, a plain HTTP query with no fallback,
+and `client.ts` has no cache path of its own. So the moment the line dropped:
+
+> **The pane went empty, and the only way to add anything was to scan a
+> barcode.**
+
+For a mart that is a bad afternoon — most things scan. **For a restaurant it is
+the entire feature gone**, because a dish has no barcode. And FOOD is the first
+of the three daily-revenue trades.
+
+### Why the shadow run would never have caught it
+
+A sale that cannot be started produces **no variance to look at.** Two weeks of
+evidence would have come back clean on a till where half the shop could not
+ring anything at all.
+
+## The fix
+
+`loadShelf()` reads the catalog and categories **once** — not per keystroke,
+which is precisely what `searchCatalog`'s own note argued for: at twenty
+thousand items the projection is a few megabytes, and scanning it in memory
+beats a round trip to IndexedDB on every letter typed. `shelfRows()` then
+filters in memory using the search and category index that already existed.
+
+The POS swaps source on `connected`: online it pages the API as before, offline
+it draws the same shelf from its own copy, with the same category tabs.
+
+Paging is switched off offline rather than left dangling — the whole catalog is
+already on the device, so "load more" would be a button asking a server nobody
+can reach.
+
+### What is honestly missing offline
+
+**Images.** They are not cached, and shipping every product photo to every
+tablet is the wrong trade. Tiles fall back to the letter placeholder they
+already draw for an item with no picture. Brand, generic name and description
+are not in the projection either — the description deliberately so.
+
+Nothing pretends otherwise: a field that is not on the device comes back
+undefined and the screen draws what it always draws.
+
+## The pattern
+
+**Ninth time**, and the largest: not merely data left unread, but a whole
+written-and-tested capability with nothing a person touches able to reach it.
+The codebase has recorded that exact sentence six times already.
+
+> Ask what a mirror was GIVEN and does not use. Then ask what was BUILT for it
+> and never called.
+
+## Guard
+
+11 tests in `browse.test.ts`. The load-bearing one is
+`a kitchen with no barcodes › can still see its menu`. Mutation-checked:
+emptying the no-search shelf fails 4 and only those.
+
+Related: [shopos-member-discount-offline](shopos-member-discount-offline.md), [shopos-offline-plan](shopos-offline-plan.md), [shopos-sold-out-and-reachability](shopos-sold-out-and-reachability.md).

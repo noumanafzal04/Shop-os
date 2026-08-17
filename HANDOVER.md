@@ -219,7 +219,38 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-17 (latest) — the discount the till was given and never read
+### 2026-08-17 (latest) — the shelf the till had and never showed
+
+Same question as the last finding, pushed further: what has the till been given
+that it does not read? `docs/decisions/shopos-offline-browse.md`.
+
+`STORE.CATEGORIES` had **zero readers**. And `searchCatalog()` /
+`categoryIndex()` — a pure, tested offline search written over the cached
+catalog — had **exactly one caller between them: their own test file.**
+
+The POS pane read `useProducts`, a plain HTTP query with no fallback, and
+`client.ts` has no cache path either. So offline **the pane went empty and the
+only way to add anything was to scan a barcode.** A mart mostly scans; **a
+restaurant could ring nothing at all**, because a dish has no barcode — and
+FOOD is the first of the three daily-revenue trades.
+
+**The shadow run would never have caught it**: a sale that cannot be started
+produces no variance to look at, so two weeks of evidence would have come back
+clean on a till where half the shop could not sell.
+
+`loadShelf()` reads catalog + categories ONCE (not per keystroke — exactly what
+`searchCatalog`'s own note argued for), `shelfRows()` filters in memory. The POS
+swaps source on `connected`, same tabs, same search. Paging is off offline: the
+whole catalog is already there, so "load more" would ask a server nobody can
+reach. Images are honestly absent — not cached, wrong trade — and tiles fall
+back to the placeholder they already draw.
+
+Ninth instance of the pattern and the largest: not data left unread, but a
+whole built-and-tested capability nothing could reach.
+
+Panel **897** green · eslint 0/18 · build clean.
+
+### 2026-08-17 — the discount the till was given and never read
 
 Found by auditing the offline pricing mirror against features that shipped
 after it, not from a backlog.
