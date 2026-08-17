@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Actions\Inventory\DisposeBatchAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\DisposeBatchRequest;
 use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\StockDisposal;
 use App\Services\InventoryService;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\DotCode;
+use App\Support\ShopSettings;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -163,34 +167,32 @@ class BatchController extends Controller
         return ApiResponse::ok($batch, 'Batch updated');
     }
 
-    public function destroy(string $id, InventoryService $inventory): JsonResponse
+    /**
+     * Take a batch off the shelf, and say where it went.
+     *
+     * An EMPTY batch is housekeeping — a mis-keyed lot, a line tidied away —
+     * and needs no explanation. A batch with stock in it is an event: forty
+     * strips of medicine do not vanish, they are binned or they go back to the
+     * distributor, and those are opposite facts about the same money. The
+     * request refuses the second case without a disposition, which is why the
+     * year's expiry cost and the distributor's outstanding credit are now
+     * answerable at all.
+     */
+    public function destroy(DisposeBatchRequest $request, string $id, DisposeBatchAction $action): JsonResponse
     {
         /** @var ProductBatch $batch */
         $batch = ProductBatch::query()->with('product')->findOrFail($id);
 
-        DB::transaction(function () use ($batch, $inventory): void {
-            $remaining = (float) $batch->quantity;
-            // Zero the batch FIRST so the FEFO hook can't double-deplete it.
-            $batch->update(['quantity' => 0]);
+        $disposal = $action->execute($request->user(), $batch, $request->validated() + [
+            // An empty batch carries no disposition and needs none; the action
+            // writes no disposal row for it either.
+            'disposition' => $request->input('disposition', StockDisposal::WRITTEN_OFF),
+            'reason' => $request->input('reason', 'other'),
+        ]);
 
-            if ($remaining > 0 && $batch->product->track_inventory) {
-                $inventory->adjust([
-                    'product_id' => $batch->product_id,
-                    'variant_id' => $batch->variant_id,
-                    'branch_id' => $batch->branch_id,
-                    'type' => 'out',
-                    'quantity' => $remaining,
-                    'reason' => "Batch {$batch->batch_number} removed/expired",
-                    'reference_type' => 'batch',
-                    'reference_id' => $batch->id,
-                    'idempotency_key' => "batch-out-{$batch->id}",
-                ]);
-            }
-
-            $batch->delete();
-        });
-
-        return ApiResponse::noContent('Batch removed');
+        return $disposal === null
+            ? ApiResponse::noContent('Batch removed')
+            : ApiResponse::ok($disposal, "Batch removed · {$disposal->number}");
     }
 
     /**
@@ -198,7 +200,14 @@ class BatchController extends Controller
      */
     public function expiring(Request $request, BranchContext $branch): JsonResponse
     {
-        $days = min((int) $request->query('days', 30), 365);
+        // The shop's own window when the caller doesn't name one — a pharmacy's
+        // distributor works in months, and thirty days was a warning that
+        // arrived after the claim had already been lost. See
+        // ShopSettings::expiringSoonDays.
+        $days = min(
+            (int) $request->query('days', ShopSettings::expiringSoonDays(app(TenantContext::class)->get())),
+            365,
+        );
 
         // Scoped to the branch being looked at, because the dashboard tile that
         // links here already is. The two disagreeing is worse than either being

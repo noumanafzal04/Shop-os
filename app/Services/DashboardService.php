@@ -32,6 +32,7 @@ use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
 use App\Support\BusinessTypes;
 use App\Support\Modules;
+use App\Support\ShopSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -151,8 +152,10 @@ class DashboardService
                     ->count()
                 : 0,
             'low_stock_count' => $lowStock,
-            // Batches (medicine/perishable lots) expiring within 30 days —
-            // includes already-expired stock still on hand. Branch-scoped.
+            // Batches (medicine/perishable lots) inside the shop's own expiry
+            // window — 90 days for a pharmacy, 30 for everyone else, or
+            // whatever the shop set. Includes already-expired stock still on
+            // hand. Branch-scoped.
             'expiring_soon_count' => $expiringSoon,
             'products_count' => $hasCatalog
                 ? Product::query()
@@ -457,7 +460,11 @@ class DashboardService
     {
         return ProductBatch::query()
             ->where('tenant_id', $tenant->id)
-            ->expiringWithin(30)
+            // The shop's own window, resolved in ONE place. The tile and the
+            // screen it links to must agree about which lots are urgent — a
+            // tile reading "0 expiring soon" over a list of dying stock is
+            // worse than either being wrong on its own.
+            ->expiringWithin(ShopSettings::expiringSoonDays($tenant))
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->count();
     }

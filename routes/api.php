@@ -73,6 +73,7 @@ use App\Http\Controllers\Api\V1\Tenant\SearchController;
 use App\Http\Controllers\Api\V1\Tenant\ShopController;
 use App\Http\Controllers\Api\V1\Tenant\StaffController as TenantStaffController;
 use App\Http\Controllers\Api\V1\Tenant\StockCountController;
+use App\Http\Controllers\Api\V1\Tenant\StockDisposalController;
 use App\Http\Controllers\Api\V1\Tenant\SubscriptionController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
@@ -657,6 +658,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('/products/{product}/batches', [BatchController::class, 'store']);
                 Route::patch('/batches/{batch}', [BatchController::class, 'update']);
                 Route::delete('/batches/{batch}', [BatchController::class, 'destroy']);
+                // What left the shelf without being sold, and what the
+                // distributor still owes for it. Rides inventory.manage like
+                // the batches themselves — it IS the record of a batch leaving.
+                Route::get('/disposals', [StockDisposalController::class, 'index']);
+                Route::post('/disposals/{id}/credit', [StockDisposalController::class, 'credit']);
 
                 // Branch-to-branch transfers (multi-branch).
                 Route::get('/transfers', [TransferController::class, 'index']);

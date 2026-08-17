@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use Illuminate\Database\Eloquent\Model;
+
 /**
  * Tenant configuration registry — the single source of truth for shop
  * settings, their defaults, and validation. Stored in tenants.settings (JSON);
@@ -176,6 +178,21 @@ class ShopSettings
             // this is a warning, not an expiry fence.
             'stock_age_warn_years' => 5,
             'stock_age_old_years' => 6,
+            // How far ahead "expiring soon" looks, in DAYS.
+            //
+            // This was 30, hardcoded in two places, and 30 is the wrong number
+            // for the trade the whole batch engine was built for. A distributor
+            // here takes medicine back for credit inside a window that closes
+            // MONTHS before the printed date — commonly three, sometimes six.
+            // A warning at thirty days arrives after the claim window has shut,
+            // so the one figure the platform computes to prevent that loss was
+            // timed to be useless against it.
+            //
+            // Null means "use the trade's own answer" — see
+            // ShopSettings::expiringSoonDays(), which gives a pharmacy 90 and
+            // everybody else 30. A shop whose distributor works to six months
+            // sets it here and stops guessing.
+            'expiring_soon_days' => null,
             // "Advance rakh do." Money down, goods set aside, balance later.
             'layaway_enabled' => true,
             // The floor under an advance. A token deposit isn't a commitment —
@@ -280,6 +297,9 @@ class ShopSettings
             'quotation_terms' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'stock_age_warn_years' => ['sometimes', 'integer', 'min:1', 'max:30'],
             'stock_age_old_years' => ['sometimes', 'integer', 'min:1', 'max:30'],
+            // Nullable on purpose: clearing it hands the question back to the
+            // trade default rather than pinning a number the shop didn't choose.
+            'expiring_soon_days' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:365'],
             'layaway_enabled' => ['sometimes', 'boolean'],
             'layaway_min_deposit_percent' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             'layaway_days' => ['sometimes', 'integer', 'min:0', 'max:730'],
@@ -294,5 +314,40 @@ class ShopSettings
             'scale_barcode_prefix' => ['sometimes', 'string', 'regex:/^\d{1,2}$/'],
             'scale_barcode_mode' => ['sometimes', 'in:weight,price'],
         ];
+    }
+
+    /** A pharmacy's distributor works in months, not weeks. */
+    public const EXPIRING_SOON_PHARMACY = 90;
+
+    /** Everyone else. A perishable ninety days out is not news. */
+    public const EXPIRING_SOON_DEFAULT = 30;
+
+    /**
+     * How far ahead "expiring soon" looks for THIS shop.
+     *
+     * One place, because the number was previously written into the dashboard
+     * and the batches screen separately — and two screens disagreeing about
+     * which lots are urgent is worse than either being wrong alone.
+     *
+     * The trade decides the default rather than a single platform-wide number:
+     * a distributor takes medicine back inside a window that closes months
+     * before the printed date, so a pharmacy warned at thirty days is warned
+     * after the claim has already been lost. A bakery warned at ninety is
+     * warned about nothing.
+     *
+     * An explicit tenant setting always wins — the shop knows its own
+     * distributor's terms better than a default can.
+     */
+    public static function expiringSoonDays(?Model $tenant): int
+    {
+        $set = $tenant?->setting('expiring_soon_days');
+
+        if ($set !== null && (int) $set > 0) {
+            return (int) $set;
+        }
+
+        return $tenant?->business_type === 'pharmacy'
+            ? self::EXPIRING_SOON_PHARMACY
+            : self::EXPIRING_SOON_DEFAULT;
     }
 }

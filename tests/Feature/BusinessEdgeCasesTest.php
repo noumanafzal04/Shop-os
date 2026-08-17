@@ -170,7 +170,12 @@ class BusinessEdgeCasesTest extends TestCase
             'batch_number' => 'EXP', 'expiry_date' => now()->subDay()->toDateString(), 'quantity' => 7,
         ])->json('data.id');
 
-        $this->actingAsUser($this->owner)->deleteJson("/api/v1/inventory/batches/{$batchId}")->assertOk();
+        // A lot with stock in it may not vanish unexplained — seven bottles of
+        // syrup are binned or sent back, and those are opposite facts about the
+        // same money. See StockDisposalTest.
+        $this->actingAsUser($this->owner)->deleteJson("/api/v1/inventory/batches/{$batchId}", [
+            'disposition' => 'written_off', 'reason' => 'expired',
+        ])->assertOk();
 
         $this->assertEquals(0, $med->fresh()->stock_quantity);
     }
