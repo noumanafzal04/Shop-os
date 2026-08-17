@@ -56,7 +56,8 @@ import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
 import { promotionsService, type PromoPreview } from "../../promotions/services/promotionsService";
 import { memberDiscountFor } from "../../offline/lookup/memberDiscount";
-import { loadShelf, shelfRows } from "../../offline/lookup/browse";
+import { asProduct, loadShelf, shelfRows } from "../../offline/lookup/browse";
+import { findByCode } from "../../offline/lookup/findByCode";
 
 interface CartLine {
   /**
@@ -1181,6 +1182,39 @@ export default function PosPage() {
 
   const scan = async (code: string) => {
     setScanError(null);
+
+    // ── Scanning with no line ─────────────────────────────────────────
+    //
+    // This asked the server and nothing else. `findByCode` — the till's own
+    // barcode index, written and tested — had no caller at all, so with the
+    // browse pane also empty a till offline could not put a SINGLE item in the
+    // cart, in any trade. Browsing fixed the kitchen; this is how a mart
+    // actually sells.
+    //
+    // A miss is an ordinary event, not an error: a code from another shop, a
+    // damaged label, a fingernail on the glass. It gets the same "not found"
+    // the server would give.
+    if (!connected) {
+      const hit = await findByCode(code.trim());
+      if (hit === null) {
+        posSound.error();
+        setScanError(`Nothing here matches ${code.trim()}.`);
+
+        return;
+      }
+
+      const product = asProduct(hit.item);
+      if (product.modifier_groups?.length) openConfig(product);
+      else {
+        const v = hit.variantId ? product.variants.find((x) => x.id === hit.variantId) : null;
+        addLine(product, v?.id ?? null, v?.name, v?.price, undefined, hit.unitId ?? null);
+      }
+      setSearch("");
+      posSound.success();
+
+      return;
+    }
+
     try {
       const { data } = await posService.lookup(code.trim());
       if (data.scale) {

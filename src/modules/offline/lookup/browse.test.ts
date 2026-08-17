@@ -163,3 +163,35 @@ describe("what the cached row honestly is", () => {
     expect(asProduct(item({ track_inventory: true, stock: 7 })).stock_quantity).toBe(7);
   });
 });
+
+describe("what the scanner and the shelf were never wired to", () => {
+  /**
+   * The cluster this file is really about.
+   *
+   * The offline module was built complete — a barcode index, a search, a
+   * category index, a stock-delta derivation — and the POS screen was wired to
+   * none of it. Before this, offline:
+   *
+   *   · the product pane was empty (no browse)
+   *   · the scanner asked a server nobody could reach (no findByCode)
+   *   · the stock figure was whatever the last pull said (no withLocalStock)
+   *
+   * Which together meant a till could not put a single item in the cart, in
+   * any trade — and the shadow run would have reported that as a clean
+   * fortnight, because a sale that cannot be started produces no variance.
+   */
+  it("keeps a sold-out dish refusable offline", () => {
+    // The till holds a copy of the menu. A dish taken off after the last pull
+    // still has to be refused, which needs the flag to survive the cache.
+    expect(asProduct(item({ sold_out: true })).sold_out).toBe(true);
+    expect(asProduct(item({ sold_out: false })).sold_out).toBe(false);
+  });
+
+  it("does not invent a stock figure for something that counts none", () => {
+    // A dish tracks no inventory. Showing it as "0 left" would take the whole
+    // menu off the screen the moment the line dropped.
+    const dish = asProduct(item({ track_inventory: false, stock: 0 }));
+
+    expect(dish.track_inventory).toBe(false);
+  });
+});

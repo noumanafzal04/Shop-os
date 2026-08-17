@@ -2,6 +2,7 @@ import type { Product as CatalogProduct } from "../../catalog/types";
 import { getAll } from "../db/repo";
 import { STORE } from "../db/schema";
 import type { CatalogCategory, CatalogItem } from "../sync/catalogService";
+import { withLocalStock } from "../outbox/localStock";
 import { categoryIndex, searchCatalog } from "./search";
 
 /**
@@ -97,10 +98,20 @@ export interface Shelf {
  * scanning it in memory beats a round trip to IndexedDB on every letter.
  */
 export async function loadShelf(): Promise<Shelf> {
-  const [items, categories] = await Promise.all([
+  const [raw, categories] = await Promise.all([
     getAll<CatalogItem>(STORE.CATALOG),
     getAll<CatalogCategory>(STORE.CATEGORIES),
   ]);
+
+  // What is ACTUALLY left, not what the server last said.
+  //
+  // `withLocalStock` had no caller either. Without it the shelf shows the
+  // figure from the last pull all evening: a mart shifts forty cartons of milk
+  // during load-shedding and the till still reads forty, forty, forty — and
+  // the cashier finds out when a customer asks for the forty-first. The
+  // deltas are derived from the outbox rather than stored, so they cannot
+  // drift from the queue: they ARE the queue.
+  const items = await withLocalStock(raw);
 
   return {
     items,
