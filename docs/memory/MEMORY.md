@@ -71,3 +71,6 @@
 - [Reply Style](shopos-reply-style.md) — STANDING: user doesn't read long replies; ALWAYS end with short summary bullets (kya kiya / kya next)
 - [Offline Never Reachable](shopos-offline-never-reachable.md) — CRITICAL: react-query PAUSES all work when navigator.onLine is false; offline selling never ran in a browser; jsdom says onLine=true so tests were blind
 - [Secure Context](shopos-secure-context.md) — crypto.randomUUID is undefined over plain http; 4 call sites bypassed uuid(); jsdom IS secure so tests were blind
+- [QA Sweep](shopos-qa-sweep.md) — standing outside-in sweep per business type; mutate.py proves it can fail; 11 harness findings vs 0 product bugs
+- [Forecourt Branch](shopos-forecourt-branch.md) — FIXED: panel-made tanks had branch_id null, shift looked for Main; no station could open a shift; 25 tests missed it
+- [Adjust Wrong Branch](shopos-adjust-wrong-branch.md) — FIXED: hand stock adjustments always hit Main, not the operated branch; the branch test only covered sales

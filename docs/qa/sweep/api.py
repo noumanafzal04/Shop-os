@@ -10,10 +10,26 @@ copying one line rather than by remembering what was clicked.
 """
 
 import json
+import pathlib
+import time
 import urllib.error
 import urllib.request
 
 BASE = "http://localhost:8000/api/v1"
+
+# Tokens survive between runs, and that is the point.
+#
+# `throttle:auth` is 5 logins per minute PER IP, and this sweep drives nine
+# identities — one admin and eight shop owners. The first version logged them
+# all in back to back and reported six failures as bugs; the limit was doing
+# exactly its job. The fix is not a looser limit. It is a sweep that logs in
+# once, keeps what it was given, and only asks again when the token stops
+# working — which is also how the panel behaves, so the sweep now exercises the
+# same path a real client takes.
+TOKENS = pathlib.Path(__file__).with_name(".tokens.json")
+
+# Explicitly nobody. See the note in `call`.
+NOBODY = object()
 
 
 class Api:
@@ -21,24 +37,43 @@ class Api:
         self.base = base
         self.token: str | None = None
         self.calls: list[dict] = []
+        self.headers: dict = {}
+        self._cache: dict = {}
+        if TOKENS.exists():
+            try:
+                self._cache = json.loads(TOKENS.read_text())
+            except json.JSONDecodeError:
+                self._cache = {}
 
     def call(self, method: str, path: str, body: dict | None = None,
-             token: str | None = None) -> tuple[int, dict]:
+             token: str | None = None, _retry: bool = False,
+             headers: dict | None = None) -> tuple[int, dict]:
         url = f"{self.base}{path}"
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header("Accept", "application/json")
         if data is not None:
             req.add_header("Content-Type", "application/json")
-        use = token if token is not None else self.token
+        # `token=NOBODY` means "send no credentials", which is NOT the same as
+        # `token=None` ("use whatever is current"). A permission probe that
+        # falls back to the ambient token when a staff sign-in failed runs as
+        # the WRONG PERSON and reports 401 as though it were 403 — a refusal
+        # that proves nothing, printed as a pass. That happened, and it is the
+        # most dangerous kind of harness bug there is.
+        use = None if token is NOBODY else (token if token is not None else self.token)
         if use:
             req.add_header("Authorization", f"Bearer {use}")
+        # A till identifies its LANE and its DEVICE by header, not by body —
+        # the POS rate limit is keyed on the device id, so a sweep that cannot
+        # send one is not driving the counter the way the counter drives.
+        for name, value in (headers or {}).items():
+            req.add_header(name, value)
 
         try:
             with urllib.request.urlopen(req, timeout=30) as r:
-                status, raw = r.status, r.read()
+                status, raw, self.headers = r.status, r.read(), dict(r.headers)
         except urllib.error.HTTPError as e:
-            status, raw = e.code, e.read()
+            status, raw, self.headers = e.code, e.read(), dict(e.headers)
         except Exception as e:  # connection refused, timeout
             self.calls.append({"method": method, "path": path, "status": 0, "error": str(e)})
             return 0, {"message": str(e)}
@@ -49,6 +84,23 @@ class Api:
             payload = {"raw": raw[:400].decode(errors="ignore")}
 
         self.calls.append({"method": method, "path": path, "status": status})
+
+        # ── 429 is the server pacing us, and it is right ────────────────
+        #
+        # The general limit is 240/min per user. One pass of this sweep does not
+        # come close; five back to back do, and the fourth one died mid-phase
+        # with "Too many requests" — which the mutation harness then reported as
+        # "THE CHECK IS BLIND". It was not blind. It never ran.
+        #
+        # So: wait it out here, once, using the server's own figure. A sweep
+        # that trips a rate limit and calls the result a finding is a sweep that
+        # manufactures bugs, and this one nearly did.
+        if status == 429 and not _retry:
+            wait = min(int(self.headers.get("Retry-After") or 61) + 1, 70)
+            print(f"       … rate limited on {path}, waiting {wait}s", flush=True)
+            time.sleep(wait)
+            return self.call(method, path, body, token, _retry=True, headers=headers)
+
         return status, payload
 
     def get(self, p, **kw): return self.call("GET", p, **kw)
@@ -58,13 +110,44 @@ class Api:
     def delete(self, p, **kw): return self.call("DELETE", p, **kw)
 
     def login(self, email: str, password: str = "password") -> str | None:
+        """A token for this identity, asking the server only when it must."""
+        cached = self._cache.get(email)
+        if cached and self._alive(cached):
+            return cached
+
+        token = self._login_fresh(email, password)
+        if token:
+            self._cache[email] = token
+            TOKENS.write_text(json.dumps(self._cache, indent=2))
+        return token
+
+    def _alive(self, token: str) -> bool:
+        """Cheap and honest: the token works if the server answers as somebody."""
+        status, _ = self.get("/auth/me", token=token)
+        return status == 200
+
+    def _login_fresh(self, email: str, password: str) -> str | None:
         # `identifier`, not `email`: the field takes an email OR a phone, and
         # naming it `email` would be a lie the day a shopkeeper types their
         # number. Worth knowing before writing a client.
-        status, body = self.post("/auth/login", {"identifier": email, "password": password})
-        if status != 200:
-            return None
-        return (body.get("data") or {}).get("access_token")
+        for _ in range(4):
+            status, body = self.post("/auth/login", {"identifier": email, "password": password})
+
+            if status == 200:
+                return (body.get("data") or {}).get("access_token")
+
+            # 429 is the brute-force guard, and it is CORRECT. Wait it out
+            # rather than reporting it, and take the server's own figure —
+            # a hard-coded sleep is a guess that goes stale the day the limit
+            # changes.
+            if status != 429:
+                return None
+
+            wait = int(self.headers.get("Retry-After") or 61)
+            print(f"       … throttled, waiting {wait}s for {email}", flush=True)
+            time.sleep(min(wait + 1, 70))
+
+        return None
 
 
 class Report:

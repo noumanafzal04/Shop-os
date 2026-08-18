@@ -2916,3 +2916,63 @@ Two things that will bite you in the backend tests: decimal columns serialise as
 **strings**, so use `assertEquals`, not `assertSame`; and Eloquent's `create()`
 does not hydrate columns the insert didn't name, so `->refresh()` before you read
 them back.
+
+---
+
+## The QA sweep — driving the product from outside
+
+`docs/qa/sweep/` creates a tenant per business type through the admin console,
+logs in as its owner, and sells things. Nothing is stubbed. It is the answer to
+a question `php artisan test` structurally cannot ask: *does a pharmacy created
+this morning have a shelf, a till, and a way to refund a customer* — because
+every fixture in the suite was built by the same hands that built the feature.
+
+```bash
+cd shopos-backend && php artisan serve --port=8000
+cd docs/qa/sweep
+python3 run.py        # phases A–E, in the order each one needs
+python3 mutate.py     # break the sweep on purpose; every lie must be caught
+```
+
+**Thirteen phases, 891 checks in one run, 15 of 15 mutations caught.** It has found two real defects,
+both the same shape — *one question, two paths, two different answers*:
+
+- [The forecourt nobody could start](docs/decisions/shopos-forecourt-branch.md) —
+  every station that configured its pumps through the panel was permanently
+  unable to open a forecourt shift, past a 25-test suite that never noticed
+  because every fixture supplied the field the panel omits.
+- [The stock correction that landed at the wrong shop](docs/decisions/shopos-adjust-wrong-branch.md) —
+  a hand adjustment always wrote to Main whichever branch you were operating,
+  past a test class named for exactly that question whose every test happened to
+  be about the sale path instead.
+
+Findings and the full argument live in
+[`docs/qa/FINDINGS.md`](docs/qa/FINDINGS.md) and
+[`docs/decisions/shopos-qa-sweep.md`](docs/decisions/shopos-qa-sweep.md).
+
+Three things to know before you touch it:
+
+- **It reports, it does not pass or fail.** `BUG`, `QUERY` and `HARNESS`, and
+  the middle one is why it exists — about half of what surprises the sweep turns
+  out to be correct behaviour nobody had written down. Running total so far:
+  **37 harness findings, 2 product bugs**, and every one of the thirty-seven
+  looked like a defect on first read. Verify before believing; the base rate
+  says it is the sweep. The worst of them was a permission probe that ran as
+  the WRONG IDENTITY: a staff sign-in throttled to `None` fell back to the
+  ambient token, got a 401, and the check read that as the 403 it wanted — a
+  refusal that proves nothing, printed as a pass.
+- **The rate limits are the product working.** `throttle:auth` is 5/min per IP
+  and `throttle:api` 240/min per user. The sweep caches tokens between runs and
+  waits out a 429 using the server's own `Retry-After`. Loosening either would
+  be the wrong fix in a system whose worst failure is a till that cannot take
+  money.
+- **A green run means nothing without `mutate.py`.** It once printed *THE CHECK
+  IS BLIND* about two checks that were fine — the phase had died on a 429, so
+  they never ran. It now needs a `ran_marker` per mutation and has a third
+  verdict, `UNCLEAR`: the check never ran, so fix the run, not the code. A
+  detector with no denominator, inside the tool written to find detectors with
+  no denominators.
+
+It must stay **re-runnable**. The first version reported eight bugs on its second
+run — "a business with this name already exists", the console refusing duplicates
+correctly. A sweep that can only run once is a sweep nobody runs.

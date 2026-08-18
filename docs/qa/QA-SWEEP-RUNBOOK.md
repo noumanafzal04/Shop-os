@@ -23,16 +23,60 @@ Each phase needs what the phase before it built. Running them out of order
 produces failures that are not bugs, which is the fastest way to lose trust in a
 sweep.
 
-| Phase | What it covers | Needs |
-|---|---|---|
-| **A** | Admin side — plans, tenants, modules, limits, billing | nothing |
-| **B** | Per-trade setup — settings, catalog shape, units, item types | A |
-| **C** | Selling — POS, tenders, returns, held tickets, shifts | B |
-| **D** | Stock — receive, adjust, transfer, disposal, and what selling did to it | C |
-| **E** | Money — expenses, income, drawer, ledger, khata, reports | C |
-| **F** | The seams — where two modules meet. **Most bugs live here.** | D + E |
-| **G** | Trade depth — the things only one trade has | F |
-| **H** | Offline — the till with no server | G |
+| Phase | What it covers | Needs | State |
+|---|---|---|---|
+| **A** | Admin side — plans, tenants, modules, limits, billing | nothing | **built · clean** |
+| **B** | Per-trade setup — settings, catalog shape, units, item types | A | **built · clean** |
+| **C** | Selling — POS, tenders, returns, held tickets, shifts | B | **built · clean** |
+| **D** | Stock — receive, adjust, transfer, disposal, and what selling did to it | C | **built · clean** |
+| **E** | Money — expenses, income, drawer, ledger, khata, reports | C | **built · clean** |
+| **F** | The seams — where two modules meet | D + E | **built · clean** |
+| **G** | Trade depth — the things only one trade has | F | **built · clean** |
+| **H** | Offline — the till with no server | G | **built · clean** |
+| **I** | Who is at the counter — job presets, and three lanes at once | C | **built · clean** |
+| **J** | The Expense Manager and its wire to the drawer | C | **built · clean** |
+| **K** | More than one branch — separate shelves, transfers, the HQ view | C | **built · clean** |
+| **L** | The floor — tabs, the pass, split bills, whose table it is | C | **built · clean** |
+| **M** | Money given away on purpose — points, coupons, promotions | C | **built · clean** |
+
+**Thirteen phases built. 891 checks in one run, 15 of 15 mutations caught.**
+
+Phases A–H answer "does the shop work". The rest answer what they could not,
+and two of them are where a real defect turned out to live:
+
+- **I** — every earlier phase ran as the OWNER, who passes every gate. The
+  permission system had never been asked a question it could fail.
+- **J** — a shop's money moves through the ledger *and* the physical drawer, and
+  an entry landing in one but not the other is invisible until the count.
+- **K** — nothing goes wrong with multi-branch except this: a quantity read
+  without asking where it was.
+- **L** — a restaurant's till is the last thing to hear what happened; between
+  the order and the money there is a tab that has to survive everything.
+- **M** — points, coupons and promotions are one thing wearing three hats, and
+  they fail the same two ways: given twice, or not given at all.
+
+Two product defects so far — [the forecourt nobody could
+start](../decisions/shopos-forecourt-branch.md) (phase G) and [the stock
+correction that landed at the wrong shop](../decisions/shopos-adjust-wrong-branch.md)
+(phase K) — against **37** findings that turned out to be the sweep itself. That
+ratio is the most useful thing this document can tell you: **verify before
+believing, because the base rate says it is the tool.**
+See [`FINDINGS.md`](FINDINGS.md).
+
+Both defects are the same shape, which is worth naming: **one question, answered
+differently by two paths.** A tank stored `branch_id: null` while the shift
+looked for Main; a stock adjustment wrote to Main while the panel said which
+branch you were standing in. Neither errored. Both had a thorough test suite
+sitting right next to them that never asked.
+
+**The most dangerous harness bug found so far** is worth reading before you
+trust any refusal this sweep reports. A staff sign-in that failed on the login
+throttle returned `None`, and the client fell back to the *ambient* token — so a
+permission probe ran as the admin, got a **401**, and the check read that as the
+**403** it was hoping for. A refusal that proves nothing, printed as a pass.
+There is now an explicit `NOBODY` sentinel, and a 401 inside a permission probe
+is reported rather than counted. When a check asserts that something is refused,
+make sure it is refused *for the reason you think*.
 
 ---
 
@@ -209,11 +253,26 @@ test suite: it is a **sweep** that reports what it saw, so a surprising answer
 is something to look at rather than a red build.
 
 ```bash
-php artisan migrate:fresh --seed          # staging/local ONLY
-python3 docs/qa/sweep/run.py              # everything
-python3 docs/qa/sweep/run.py --type mart  # one trade
+cd shopos-backend && php artisan serve --port=8000
+cd docs/qa/sweep
+python3 run.py            # every phase, in order
+python3 run.py a b        # just those
+python3 mutate.py         # prove the sweep can still fail
 ```
 
 Anything it finds goes in [`FINDINGS.md`](FINDINGS.md) with the call that
 produced it, and anything confirmed gets a test in the real suite before it is
 fixed.
+
+Two rules the sweep has already had to learn the hard way:
+
+- **It must stay re-runnable.** Its second run reported eight bugs — "a business
+  with this name already exists", the console refusing duplicates correctly. A
+  sweep that can only run once is a sweep nobody runs. Every phase now reuses
+  what it made: tenants, the product, the supplier, an open drawer.
+- **A green run is worthless without `mutate.py`.** It breaks the sweep on
+  purpose — freeze the stock reading, freeze the cost, freeze net profit, make
+  every refusal read as success — and every lie must produce the matching
+  finding. Each mutation names a `ran_marker` so the harness can tell "the check
+  said nothing" (`MISSED`) from "the check never ran" (`UNCLEAR`). It could not,
+  once, and reported two working checks as blind.
