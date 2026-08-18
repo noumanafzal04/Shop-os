@@ -1,0 +1,72 @@
+# Memory Index
+
+- [ShopOS Business-OS Roadmap](shopos-businessos-roadmap.md) — catalog foundation done; phased plan for POS/Suppliers/Food-menu; fresh-migrate OK
+- [ShopOS Mobile Design](shopos-mobile-design.md) — green+ink flat theme (NO shadows), cart-FAB footer, customer app build state
+- [ShopOS Delivery/Rider Flow](shopos-delivery-rider-flow.md) — FUTURE: 3-app model (customer/vendor/rider), assignment engine, live GPS, WebSocket/FCM
+- [ShopOS Business Priority](shopos-business-priority.md) — FOOD/MART/MEDICAL are the 3 daily-revenue types; cover their edge cases FIRST (restaurant/grocery+retail/pharmacy)
+- [ShopOS Images & Riders](shopos-images-and-riders.md) — decisions: images module (online=compulsory), riders tenant-own now/platform later; POS hotkeys done; edge-case backlog
+- [ShopOS POS UX](shopos-pos-ux.md) — POS full-screen (no sidebar) + discount pill done; edit-modal verdict = not needed (server-authoritative pricing) vs Stocky reference
+- [ShopOS Audit Backlog](shopos-audit-backlog.md) — 2026-07-21 4-way audit: P0 stock-loss bugs (combo/pack cancel+return) to fix before offline; P1/gaps list
+- [ShopOS Offline Plan](shopos-offline-plan.md) — Phases 0-2 SHIPPED (device registry, PWA, catalog sync, pricing mirror, shadow mode + denominator); Phases 0-3 ALL shipped (outbox+offline selling verified 2026-08-17); only the 2-week shadow RUN remains
+- [ShopOS Maps & Location](shopos-maps-location.md) — shop location via Geoapify (Google-swappable) on setup+settings; business_type is ADMIN-controlled; settings redesigned; Select made controllable
+- [ShopOS Sale-Shape Features](shopos-sale-shape-features.md) — 2026-07-22 pre-offline: Rx capture, variant-medicine FEFO, sell-on-credit (khata) all shipped + tested (471 green)
+- [ShopOS FOOD Dine-in](shopos-food-dinein.md) — 2026-07-23: dine-in backend (tables/tabs/KOT/settle+split) SHIPPED (480 green); recipe/BOM + POS UI still pending
+- [ShopOS Plans & Revamp Flow](shopos-plans-and-flow.md) — 2026-08-06 REBUILD: plans = payment only (Basic/Premium/Enterprise PKR + custom); modules/branches/staff assigned per tenant at creation
+- [ShopOS Multi-branch](shopos-multi-branch.md) — design locked: branch=sub-unit, default Main, per-branch stock + cross-branch lookup + transfers, HQ dashboard; build is Step ④
+- [ShopOS UI Conventions](shopos-ui-conventions.md) — admin panel standards: toasts, modals for add/edit forms, ONE shared confirm-delete component, clean UI
+- [ShopOS Session Refresh](shopos-session-refresh.md) — auth store persisted to localStorage; refresh via useMe() in AppLayout or admin module-toggles/settings stay stale
+- [ShopOS Pharmacy Edges](shopos-pharmacy-edges.md) — batch/expiry engine done; medicine batches now REQUIRE expiry; dashboard near-expiry count; remaining: opening-stock enforce, dosage, recall, notifications
+- [ShopOS Payments Status](shopos-payments-status.md) — RESOLVED: NO gateway anywhere; manual/recorded model (POS tenders/admin-billing/COD). COD-first launch = no blocker; online prepay = 1 gateway build on existing stub
+- [ShopOS Retail Depth](shopos-retail-depth.md) — serialized selling (IMEI/serial + warranty capture at POS + warranty-desk lookup) SHIPPED; remaining: serial-on-receive, per-serial returns
+- [ShopOS Hardware](shopos-hardware.md) — POS is WEB/PWA → abstraction axis is TRANSPORT not vendor-SDK; hardware_devices registry + Settings→Hardware + receipt-size printing SHIPPED; direct ESC/POS (Web Serial) is next tier
+- [ShopOS Loyalty](shopos-loyalty.md) — points earn/redeem/reverse (khata-ledger model) + POS redeem + settings + customer statement SHIPPED; product search now matches description+category; remaining doc gaps: promo engine, inclusive tax, SMS receipts
+- [ShopOS Deployment](shopos-deployment.md) — staging droplet shopos-dev 159.223.78.102 ($6/1GB); backend live /api/v1/health; panel on :8080 (may need DO cloud firewall port open); change seeded super-admin before use
+- [ShopOS Petroleum Analysis](shopos-petroleum-analysis.md) — ON HOLD: petroleum business type ~85-90% already covered; only Fuel Management net-new; 'departments' = existing Branch dimension
+- [ShopOS Modules Jul31](shopos-modules-jul31.md) — 2026-07-31 sprint: BOGO, petroleum type, inclusive tax+tax groups, customer groups SHIPPED (695 green); --seed fixed; 3 pre-existing bugs fixed; UI+more pending
+- [No claude.ai Artifacts](no-claude-artifacts.md) — user preference: don't publish Artifacts (web-visibility worry); use local files/inline instead
+- [ShopOS Build Sequence](shopos-build-sequence.md) — agreed 2026-08-04 order: gating → module-selling/Finance type → P0 POS fixes → tenant theming → POS roles → vertical depth
+- [ShopOS Invoice & Receipt](shopos-invoice-receipt.md) — invoice must be print-perfect AND live-previewed inside Shop Settings while invoice options are edited
+- [Unit 11 Status](shopos-unit11-status.md) — 11a/11b/11c ALL shipped; forecourt invariants (test litres, meter roll, full-dip rule)
+- [Expense Manager](shopos-expense-manager-gaps.md) — 2nd pass SHIPPED: drawer link (expense_out/income_in), budgets, recurring, receipts; approval skipped
+- [ShopOS Auto Depth](shopos-auto-depth.md) — 2026-08-06 SHIPPED: trade-in is a TENDER not a discount, vehicle record + history, DOT tyre dating = age not expiry
+- [ShopOS Audit Aug-06](shopos-audit-aug06.md) — 3 PROVEN P0s in a green build (itemTypesFor upgrade path, serial fenced to retail, income missing from profit) + 5 dead endpoints
+- [Docs Discipline](shopos-docs-discipline.md) — STANDING: update HANDOVER.md + docs/decisions/ as work happens + `./scripts/sync-memory.sh`; restore from docs/memory/ NOT docs/decisions/
+- [ShopOS Relief Cover](shopos-relief-cover.md) — 2026-08-07 SHIPPED; rule = "a cover moves the queue, not the drawer" (sell yes, reconcile never)
+- [Loose Ends Aug-07](shopos-loose-ends-aug07.md) — all 4 Aug-06 audit loose ends cleared; only deployment + training mode remain
+- [No Roles — Permissions Only](shopos-no-roles.md) — ARCHITECTURE: cashier/waiter/kitchen are permission SETS not roles; job presets shipped
+- [Web Completion](shopos-web-completion.md) — WEB SIDE FEATURE-COMPLETE 2026-08-07 (excl. offline); only deployment/CI-CD left
+- [Training Mode](shopos-training-mode.md) — practice till: the SHIFT is the unit; Sale global scope + null business_day_id fence it
+- [Table Ownership](shopos-table-ownership.md) — a dine-in tab belongs to its waiter; tables.serve_any lifts it; reads stay open
+- [Read vs Manage](shopos-read-vs-manage.md) — the `*.manage` bug class: a write permission gating a read; ANY-of gate + READS_* sets + PresetCanDoItsJobTest
+- [QA Sweep Aug-09](shopos-qa-sweep-aug09.md) — all 9 bugs FIXED + both audits closed; ALL 9 bugs + ALL gaps now closed (last three cleared 2026-08-17). (Index said "none fixed" for days after they were — check the file, not this line.)
+- [CI/CD & Mobile](shopos-cicd-and-mobile.md) — CI gates green, deploy BLOCKED on bad DEPLOY_SSH_KEY; `claude --remote-control` for phone
+- [Workflow Test Rule](shopos-workflow-test-rule.md) — STANDING: delete a step and it must fail; never assert "not empty" on an envelope
+- [Admin Side Backlog](shopos-admin-side-backlog.md) — ALL BUILT 2026-08-15 (password reset, billing filters, security pass); kept as the record that a memory can go stale silently
+- [Security Pass](shopos-security-pass.md) — DONE 2026-08-15 both sides; 4 fixes, biggest = anyone could lock a shop out of its own till; CVE pass still owed
+- [Help Centre](shopos-help-centre.md) — in-app, full-screen, filtered per tenant by module/trade/permission; STANDING: update it whenever a screen changes
+- [Reorder & Labels](shopos-reorder-and-labels.md) — reorder list was built-but-unreachable (fixed); perm labels now server-side; 2 of my 3 findings were WRONG — don't re-raise
+- [Tax Year](shopos-tax-year.md) — PK tax year 1 Jul–30 Jun added beside the calendar year; not a setting, quarters unchanged
+- [Who Sold It](shopos-who-sold-it.md) — sales.served_by vs created_by; never inferred, off by default, seller list is NOT behind staff.manage
+- [Stock Disposals](shopos-stock-disposals.md) — written-off vs returned-to-supplier never summed; expiry window per-trade (pharmacy 90d); destroy() does NOT double-deplete
+- [Recipe Cost](shopos-recipe-cost.md) — a dish's unit_cost comes from its ingredients now; unknown≠zero; don't reintroduce the depth cap
+- [Moving Cost](shopos-moving-cost.md) — products.cost is blended on PO receive (weighted avg, per base unit, never blanked)
+- [Trade Audit DONE](shopos-trade-audit-done.md) — all 8 trade areas read & closed (items 14–22); don't re-run the pass
+- [Tablet Chrome](shopos-tablet-chrome.md) — ONE breakpoint (DRAWER_BELOW=1024); drawer stopped measuring the header; h-dvh never h-screen
+- [Reachability Rule](shopos-reachability-rule.md) — STANDING: reachable.test.ts fails when an export is only used by its own test; watch NOT_SURFACED_YET
+- [Offline Browse](shopos-offline-browse.md) — offline POS pane was EMPTY; searchCatalog had no caller but its test; a restaurant could ring nothing
+- [Member Discount Offline](shopos-member-discount-offline.md) — group % was neither applied nor refused offline = silent full-price charge; ask what a mirror was GIVEN and does not use
+- [Recurring Income](shopos-recurring-income.md) — Aug-09 gap list CLOSED; a template falls DUE and never posts itself
+- [Reorder → PO](shopos-reorder-to-po.md) — ONE DRAFT PER SUPPLIER is the design; supplier derived from purchase history, never a stored field
+- [Expiry Alerts](shopos-expiry-alerts.md) — near-expiry alerts speak per lot per stage EXACTLY ONCE, never daily; a daily alert is worse than silence
+- [Sold Out & Reachability](shopos-sold-out-and-reachability.md) — 86/sold-out shipped; offline_selling had NO admin screen (7th "built but unreachable"); PWA icons + install prompt + CVE pass
+- [UI Sweep Aug-17](shopos-ui-sweep-aug17.md) — "white white" = undifferentiated, not blank; 15 native confirms, 27 bare row actions, 8 clipped tables killed
+- [Item Rule On Sync](shopos-item-rule-on-sync.md) — sync enforced 4 of OfflinePolicy's 5 rules; backend ReachableTest found it; in PHP a route is a STRING, never strip strings
+- [Detector vs Rule](shopos-detector-vs-rule.md) — STANDING: 3 guards passed while blind to their own subject; give every scanner a denominator; suspect the parser before the code
+- [Endpoint Reachability](shopos-endpoint-reachability.md) — dead-endpoints.py now asks 3 questions (dead route / call with no route / wrong verb); mobile "contract drift" warning was NOT true
+- [POS View Toggle](shopos-pos-view-toggle.md) — tiles/rows is a per-DEVICE choice now; a view doesn't get its own idea of what may be sold
+- [Sync Progress Pill](shopos-sync-progress-pill.md) — "Sending X of Y"; pillLabel had 2 drifted copies while exempt; count ANSWERED rows, freeze the denominator, clear in finally
+- [Slip Number Lookup](shopos-slip-number-lookup.md) — OFF- slip matched NO search: offline customer couldn't be found or refunded; Help Centre had promised it worked
+- [Offline Shift Gap](shopos-offline-shift-gap.md) — till that RELOADED offline couldn't sell; FIXED via shiftMirror (only status 0 falls back); shift open/close offline still owed
+- [Cover Cannot Ring](shopos-cover-cannot-ring.md) — reliever couldn't press Tender; `!!open` is null under cover BY DESIGN; ringableSessionId(); a test that names the failure then checks something adjacent
+- [Reply Style](shopos-reply-style.md) — STANDING: user doesn't read long replies; ALWAYS end with short summary bullets (kya kiya / kya next)
+- [Offline Never Reachable](shopos-offline-never-reachable.md) — CRITICAL: react-query PAUSES all work when navigator.onLine is false; offline selling never ran in a browser; jsdom says onLine=true so tests were blind

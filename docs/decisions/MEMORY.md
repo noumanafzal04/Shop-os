@@ -1,45 +1,18 @@
-# Memory Index
+# The index moved
 
-- [ShopOS Business-OS Roadmap](shopos-businessos-roadmap.md) — catalog foundation done; phased plan for POS/Suppliers/Food-menu; fresh-migrate OK
-- [ShopOS Mobile Design](shopos-mobile-design.md) — green+ink flat theme (NO shadows), cart-FAB footer, customer app build state
-- [ShopOS Delivery/Rider Flow](shopos-delivery-rider-flow.md) — FUTURE: 3-app model (customer/vendor/rider), assignment engine, live GPS, WebSocket/FCM
-- [ShopOS Business Priority](shopos-business-priority.md) — FOOD/MART/MEDICAL are the 3 daily-revenue types; cover their edge cases FIRST (restaurant/grocery+retail/pharmacy)
-- [ShopOS Images & Riders](shopos-images-and-riders.md) — decisions: images module (online=compulsory), riders tenant-own now/platform later; POS hotkeys done; edge-case backlog
-- [ShopOS POS UX](shopos-pos-ux.md) — POS full-screen (no sidebar) + discount pill done; edit-modal verdict = not needed (server-authoritative pricing) vs Stocky reference
-- [ShopOS Audit Backlog](shopos-audit-backlog.md) — 2026-07-21 4-way audit: P0 stock-loss bugs (combo/pack cancel+return) to fix before offline; P1/gaps list
-- [ShopOS Offline Plan](shopos-offline-plan.md) — offline POS module structure + phased steps (Phase 0 bug gate → PWA shell → catalog → sync); nothing offline exists yet
-- [ShopOS Maps & Location](shopos-maps-location.md) — shop location via Geoapify (Google-swappable) on setup+settings; business_type is ADMIN-controlled; settings redesigned; Select made controllable
-- [ShopOS Sale-Shape Features](shopos-sale-shape-features.md) — 2026-07-22 pre-offline: Rx capture, variant-medicine FEFO, sell-on-credit (khata) all shipped + tested (471 green)
-- [ShopOS FOOD Dine-in](shopos-food-dinein.md) — 2026-07-23: dine-in backend (tables/tabs/KOT/settle+split) SHIPPED (480 green); recipe/BOM + POS UI still pending
-- [ShopOS Plans & Revamp Flow](shopos-plans-and-flow.md) — 2026-08-06 REBUILD: plans = payment only (Basic/Premium/Enterprise PKR + custom); modules/branches/staff assigned per tenant at creation
-- [ShopOS Multi-branch](shopos-multi-branch.md) — design locked: branch=sub-unit, default Main, per-branch stock + cross-branch lookup + transfers, HQ dashboard; build is Step ④
-- [ShopOS UI Conventions](shopos-ui-conventions.md) — admin panel standards: toasts, modals for add/edit forms, ONE shared confirm-delete component, clean UI
-- [ShopOS Session Refresh](shopos-session-refresh.md) — auth store persisted to localStorage; refresh via useMe() in AppLayout or admin module-toggles/settings stay stale
-- [ShopOS Pharmacy Edges](shopos-pharmacy-edges.md) — batch/expiry engine done; medicine batches now REQUIRE expiry; dashboard near-expiry count; remaining: opening-stock enforce, dosage, recall, notifications
-- [ShopOS Payments Status](shopos-payments-status.md) — RESOLVED: NO gateway anywhere; manual/recorded model (POS tenders/admin-billing/COD). COD-first launch = no blocker; online prepay = 1 gateway build on existing stub
-- [ShopOS Retail Depth](shopos-retail-depth.md) — serialized selling (IMEI/serial + warranty capture at POS + warranty-desk lookup) SHIPPED; remaining: serial-on-receive, per-serial returns
-- [ShopOS Hardware](shopos-hardware.md) — POS is WEB/PWA → abstraction axis is TRANSPORT not vendor-SDK; hardware_devices registry + Settings→Hardware + receipt-size printing SHIPPED; direct ESC/POS (Web Serial) is next tier
-- [ShopOS Loyalty](shopos-loyalty.md) — points earn/redeem/reverse (khata-ledger model) + POS redeem + settings + customer statement SHIPPED; product search now matches description+category; remaining doc gaps: promo engine, inclusive tax, SMS receipts
-- [ShopOS Deployment](shopos-deployment.md) — staging droplet shopos-dev 159.223.78.102 ($6/1GB); backend live /api/v1/health; panel on :8080 (may need DO cloud firewall port open); change seeded super-admin before use
-- [ShopOS Petroleum Analysis](shopos-petroleum-analysis.md) — ON HOLD: petroleum business type ~85-90% already covered; only Fuel Management net-new; 'departments' = existing Branch dimension
-- [ShopOS Modules Jul31](shopos-modules-jul31.md) — 2026-07-31 sprint: BOGO, petroleum type, inclusive tax+tax groups, customer groups SHIPPED (695 green); --seed fixed; 3 pre-existing bugs fixed; UI+more pending
-- [No claude.ai Artifacts](no-claude-artifacts.md) — user preference: don't publish Artifacts (web-visibility worry); use local files/inline instead
-- [ShopOS Build Sequence](shopos-build-sequence.md) — agreed 2026-08-04 order: gating → module-selling/Finance type → P0 POS fixes → tenant theming → POS roles → vertical depth
-- [ShopOS Invoice & Receipt](shopos-invoice-receipt.md) — invoice must be print-perfect AND live-previewed inside Shop Settings while invoice options are edited
-- [Unit 11 Status](shopos-unit11-status.md) — 11a/11b/11c ALL shipped; forecourt invariants (test litres, meter roll, full-dip rule)
-- [Expense Manager](shopos-expense-manager-gaps.md) — 2nd pass SHIPPED: drawer link (expense_out/income_in), budgets, recurring, receipts; approval skipped
-- [ShopOS Auto Depth](shopos-auto-depth.md) — 2026-08-06 SHIPPED: trade-in is a TENDER not a discount, vehicle record + history, DOT tyre dating = age not expiry
-- [ShopOS Audit Aug-06](shopos-audit-aug06.md) — 3 PROVEN P0s in a green build (itemTypesFor upgrade path, serial fenced to retail, income missing from profit) + 5 dead endpoints
-- [Docs Discipline](shopos-docs-discipline.md) — STANDING: update HANDOVER.md + docs/decisions/ as work happens; laptop may be wiped any time
-- [ShopOS Relief Cover](shopos-relief-cover.md) — 2026-08-07 SHIPPED; rule = "a cover moves the queue, not the drawer" (sell yes, reconcile never)
-- [Loose Ends Aug-07](shopos-loose-ends-aug07.md) — all 4 Aug-06 audit loose ends cleared; only deployment + training mode remain
-- [No Roles — Permissions Only](shopos-no-roles.md) — ARCHITECTURE: cashier/waiter/kitchen are permission SETS not roles; job presets shipped
-- [Web Completion](shopos-web-completion.md) — WEB SIDE FEATURE-COMPLETE 2026-08-07 (excl. offline); only deployment/CI-CD left
-- [Training Mode](shopos-training-mode.md) — practice till: the SHIFT is the unit; Sale global scope + null business_day_id fence it
-- [Table Ownership](shopos-table-ownership.md) — a dine-in tab belongs to its waiter; tables.serve_any lifts it; reads stay open
-- [Read vs Manage](shopos-read-vs-manage.md) — the `*.manage` bug class: a write permission gating a read; ANY-of gate + READS_* sets + PresetCanDoItsJobTest
-- [QA Sweep Aug-09](shopos-qa-sweep-aug09.md) — 4-tenant walkthrough: 9 bugs (4 P1) + 20 gaps, NONE fixed; branch-receiving found twice; 2 audits still owed
-- [CI/CD & Mobile](shopos-cicd-and-mobile.md) — CI gates green, deploy BLOCKED on bad DEPLOY_SSH_KEY; `claude --remote-control` for phone
-- [Workflow Test Rule](shopos-workflow-test-rule.md) — STANDING: delete a step and it must fail; never assert "not empty" on an envelope
-- [Admin Side Backlog](shopos-admin-side-backlog.md) — 2026-08-11 REQUESTED, not built: tenant/own password reset, billing dates + paid/unpaid/grace/suspended filters, admin depth, security pass both sides
-- [Help Centre](shopos-help-centre.md) — in-app, full-screen, filtered per tenant by module/trade/permission; STANDING: update it whenever a screen changes
+There is one index, and it is [`../memory/MEMORY.md`](../memory/MEMORY.md) — the
+file Claude Code loads at the start of every session, so it is the copy that
+cannot quietly stop being true.
+
+This file used to be a second, hand-maintained copy of it. It drifted, and not
+merely into staleness: it still described the admin-side backlog as *"REQUESTED,
+not built"* long after it shipped. **Two indexes of the same thing is the bug,
+not the fix.**
+
+Each entry there links to its short memory note. For the long-form reasoning,
+open the **same filename in this directory** — `shopos-tax-year.md` here is the
+full account of what `../memory/shopos-tax-year.md` summarises.
+
+Not every note has a long-form counterpart, and not every document here has a
+note. That is expected: a standing rule needs one line and no essay, and a
+sprint write-up is worth an essay and no rule.

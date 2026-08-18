@@ -9,18 +9,26 @@ only in `~/.claude/` on one laptop until 2026-08-07, which meant a machine
 rebuild would have erased every decision made between July and August 2026.
 They are checked in here so that can't happen.
 
-**Start with [`MEMORY.md`](MEMORY.md)** — it indexes the rest with a one-line
-hook each.
+**Start with [`../memory/MEMORY.md`](../memory/MEMORY.md)** — it indexes
+everything with a one-line hook each, and it is the live index rather than a
+hand-kept copy of one.
 
 ## Restoring them as Claude's memory
 
 ```bash
 mkdir -p ~/.claude/projects/-Users-<you>-PhpstormProjects-shopos/memory
-cp docs/decisions/*.md ~/.claude/projects/-Users-<you>-PhpstormProjects-shopos/memory/
+cp docs/memory/*.md ~/.claude/projects/-Users-<you>-PhpstormProjects-shopos/memory/
 ```
 
 The directory name is the checkout path with `/` replaced by `-`. Adjust it if
 your home directory or folder name differs.
+
+**From `docs/memory/`, not from here.** These documents are the long-form
+reasoning; the memory notes are shorter, differently written, and carry the
+frontmatter the memory system indexes by. Copying this directory over the memory
+directory — which is what this file used to tell you to do — overwrote 24 notes
+with essays and restored nine of them not at all. See
+[`../memory/README.md`](../memory/README.md).
 
 ## Reading them
 

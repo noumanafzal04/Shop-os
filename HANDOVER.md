@@ -70,26 +70,48 @@ anything real.
 
 ## 3. Where the decision history lives
 
-`docs/decisions/` (31 files, on `main`) is the accumulated reasoning behind the
-build — why the POS works the way it does, what was ruled out and why, what each
-sprint shipped. It is not derivable from the code, and it used to exist **only**
-in `~/.claude/` on one laptop. Start with `docs/decisions/MEMORY.md`, which
-indexes the rest.
+Two directories, and they are not the same thing.
+
+`docs/decisions/` (68 files) is the accumulated reasoning behind the build — why
+the POS works the way it does, what was ruled out and why, what each sprint
+shipped. Written for a person to read.
+
+`docs/memory/` is a **verbatim snapshot of Claude Code's memory directory**: the
+short, frontmatter-carrying notes plus `MEMORY.md`, the index loaded into context
+at the start of every session. Written for the tool, and the one place to look
+for what is currently believed to be true.
 
 To give Claude Code its memory back on a new machine:
 
 ```bash
 mkdir -p ~/.claude/projects/-Users-<you>-PhpstormProjects-shopos/memory
-cp docs/decisions/*.md ~/.claude/projects/-Users-<you>-PhpstormProjects-shopos/memory/
+cp docs/memory/*.md ~/.claude/projects/-Users-<you>-PhpstormProjects-shopos/memory/
 ```
 
 The directory name is the project path with `/` replaced by `-`. If your home
 directory or checkout path differs, adjust it to match.
 
+**Keeping the snapshot current is one command**, and it belongs in the same pass
+as writing the memory itself:
+
+```bash
+./scripts/sync-memory.sh          # memory dir → docs/memory/
+./scripts/sync-memory.sh --check  # exits 1 if they have drifted
+```
+
+This section used to say `cp docs/decisions/*.md …`, and that was **lossy in
+both directions**, found on `2026-08-18`: nine notes had no document here at all
+— including two standing rules — and the 24 that did would have been overwritten
+by longer files carrying no frontmatter. The old `docs/decisions/MEMORY.md` had
+also drifted past stale into wrong, still calling the admin-side backlog
+"REQUESTED, not built" months after it shipped, so a restore handed a new machine
+a false index. A backup that has never been restored is a belief, not a backup.
+
 ### The other docs on `main`
 
 | File | What it is |
 |---|---|
+| **`SYSTEM-REQUIREMENTS.md`** | **what a fresh machine needs** — PHP/Node/MySQL versions, PHP extensions, every framework version, setup commands, the gates |
 | `README.md` | product overview, architecture decisions, branch map |
 | `AUDIT-2026-08-06.md` | the 4-way audit: proven P0s, P1/P2 lists, and a record of every fix |
 | `BUSINESS-TYPE-WORKFLOWS.md` | how each trade actually operates through the system — the developer contract: modules, gating, edge cases, tests |
@@ -102,7 +124,7 @@ directory or checkout path differs, adjust it to match.
 
 ## 4. State at handover
 
-**Backend 1898 tests / 8237 assertions green. Panel 813 tests green.** Gates all
+**Backend 2053 tests / 8721 assertions green. Panel 937 tests green (69 files).** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
 long-standing baseline).
 
@@ -144,6 +166,30 @@ middleware, controller `abort_unless`, and service-layer filtering.
 bar the soak. There is no offline coding task left. Everything is committed and
 pushed on `offline/v1/backend` and `offline/v1/admin-panel`; the plan and every
 decision behind it are in `docs/decisions/offline-pos.md`.
+
+**A till that reloads while offline could not sell. Found and half-fixed
+2026-08-18.** The POS disables Tender/Pay without an open shift, and the shift
+came from a live query with nothing behind it — no query persistence anywhere in
+the app, and a service worker that caches product images and no API responses. An
+outage with the page still mounted sold fine, which is the case that was tested.
+A **reload** — a sleeping tablet, a PWA relaunch, or the power cut the Help Centre
+names by name — left the entire offline module behind a gate that needed the
+server it was built to do without. `STORE.SHIFT` had been created for this in the
+first schema, marked durable and covered by a migration test, and **nothing had
+ever written to it**.
+
+Fixed: the session row is mirrored to the device on every answer and handed back
+when the request meets silence. Only silence — a 401 must not hand a drawer to a
+signed-out till, and a 500 is a broken server rather than a dead line. Still
+owed: queued shift open / close / drawer movements, the sync endpoint for them,
+opening a shift with no server at all, and offline hold/recall (still
+server-only, still without a refusal message).
+`docs/decisions/shopos-offline-shift-gap.md`.
+
+Checked 9 of the offline plan's ✅ claims while there: 6 hold, 2 were false in
+the dangerous direction (shift open/close, hold/recall), one false in the safe
+direction — the plan allows unlimited-use coupons offline and `canSellOffline`
+refuses every coupon.
 
 Two gates stand between it and a real shop, and NEITHER IS A CODING TASK:
 
@@ -203,10 +249,20 @@ Two things worth knowing when a supermarket signs:
   place a training shift is visible at all.
 
 Parked deliberately, in order: the offline PWA POS (plan in
-`docs/decisions/shopos-offline-plan.md`); the mobile apps, whose contracts have
-moved under them (`item_types`, `other_income`, `logo_url` all changed shape) —
-plan in `docs/MOBILE-PLAN.md`; the rider backend that the rider app needs; a
-payment gateway (there is none anywhere, and COD launches without one).
+`docs/decisions/shopos-offline-plan.md`); the mobile apps (plan in
+`docs/MOBILE-PLAN.md`); the rider backend that the rider app needs; a payment
+gateway (there is none anywhere, and COD launches without one).
+
+**The mobile contract drift was checked on `2026-08-18` and is not there.** This
+line used to warn that `item_types`, `other_income` and `logo_url` had "moved
+under" the app. `tsc` is clean, its 31 tests pass, all 359 resolvable client
+calls across both apps reach a route that serves that verb, and the mobile
+`Tenant` type matches `TenantResource` on all three named fields (`other_income`
+does not appear in the mobile app at all). The customer app is behind on
+FEATURES, not out of contract — **a stale warning sends the next person hunting
+something that is not there**, which is its own kind of wrong documentation.
+Re-check with `python3 shopos-backend/scripts/dead-endpoints.py`, which now asks
+the reverse question too.
 
 The smaller loose ends from the 2026-08-06 audit are all cleared (see the
 session log).
@@ -219,7 +275,382 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-17 (latest) — built, tested, and reachable by nobody
+### 2026-08-18 (latest) — the offline till was never reachable in a browser
+
+Found by the user, not by a test. Wifi off, press Complete, and the button said
+**"Processing…" for ever**; turn the wifi back on and the sale goes through.
+
+TanStack Query's default `networkMode: "online"` **pauses** every query and
+mutation while `navigator.onLine` is false — it does not fail them, it never
+calls them. So the sale mutation was never invoked. Not the outbox, not the
+pricing mirror, not `canSellOffline` and its refusals: all of them live inside a
+mutation or a query, and with the line down not one was reached.
+
+> Phases 0–5 were built, tested, shadow-checked and shipped. In a real browser,
+> with a real dropped line, a cashier could not ring a single sale.
+
+It had already bitten the same day, quietly: a paused query never calls its
+`queryFn`, so the shift-mirror fallback written that morning was **green in the
+suite and dead in a browser**.
+
+**Why nothing caught it:** every test here runs in jsdom, where `navigator.onLine`
+is true. Nine hundred green tests were exercising code the browser would not
+call. Same shape as the guard tests found earlier this month, one level up —
+**the test environment agreed with the code instead of with the world.**
+
+Fixed with `networkMode: "always"` globally, pinned by a test. The app already
+has a better connection model than the browser's: `connectionStore` is driven by
+real traffic, because a till on a shop router with a dead uplink is "online" by
+`navigator.onLine` and can reach nothing.
+`docs/decisions/shopos-offline-was-never-reachable.md`.
+
+Two more in the same pass. **A shop's drawer-close settings never reached the
+till** — `pos_blind_close`, `pos_denomination_count`, `pos_declare_tenders` were
+not in `TILL_SETTINGS`, so the close screen fell back to hardcoded defaults and a
+shop that must declare its card takings **was never asked**, losing that shift's
+declaration. And **held tickets offline**, parked on the device and deliberately
+never pushed afterwards: a ticket is an intent, not money, and a queue could only
+flush after the line returned, by which time the basket has been rung.
+
+Also shipped: the offline shift queue — open, drawer movements and close with no
+server, `POST /pos/sync/shifts`, flushed **around** the sale queue (opens before
+the sales that name them, the count after them, or a close reports a variance the
+exact size of the day's takings). And `SYSTEM-REQUIREMENTS.md` at the root.
+
+Backend **2070** green (+14) · panel **984** green (+43).
+
+### 2026-08-18 — the power cut the Help Centre promised to survive
+
+Two bugs, one wrong question, both in the gate in front of selling.
+
+**A till that reloaded while offline could not sell.** `PosPage` disables
+Tender/Pay on `!open`, and `open` came from a live `useQuery` with nothing behind
+it — no query persistence anywhere in the app, and a service worker that caches
+product images and no API responses. The shift lived in memory and nowhere else.
+
+An outage with the page still mounted sold fine; that is the case that was
+tested. A **reload** did not — and a reload is a tablet waking up, a PWA
+relaunch, or a power cut. The Help Centre names the power cut by name: *"a till
+keeps trading through a power cut or a dead connection."* After a power cut the
+tablet reboots, the page reloads, and the whole offline module sat behind a gate
+that needed the server it was built to do without.
+
+`STORE.SHIFT` was created for exactly this in the first schema, listed among the
+stores that are never dropped, and covered by a migration test. **Nothing had
+ever written to it.** The store was protected from a migration that would never
+have had anything to destroy.
+
+Fixed by mirroring the session row on every answer and handing it back on
+silence. The fallback is narrow on purpose: `ApiError.status === 0` only — a
+**401 must not** hand a drawer to a signed-out till, and a **500** is a broken
+server, not a dead line. A closed shift is cleared, not remembered. And it is
+tenant-fenced in both directions: shop B must not be offered shop A's drawer, and
+mirroring for shop B must not delete shop A's row — which the tests caught after
+I wrote it.
+
+**And the second: a reliever could not ring at all.** `open` is null under cover
+by design, and both selling gates asked `!!open`. So somebody covering a break
+saw "Open a shift to sell." with Tender greyed out, while `activeSessionId` and
+the sale payload beside it were already built to ring under the cashier's drawer.
+Relief cover exists so the reliever rings.
+
+Two questions that look like one: *do I have a drawer of my own* (right for the
+X-read, the close, the count) and *is there a drawer to ring into* (right for
+selling). `ringableSessionId()` now answers the second and is a named function
+rather than a boolean buried in a 3,000-line component.
+
+`cover.test.ts` opens by saying the narrowing must not *"leave them unable to
+ring at all"* — and then tests only the type predicates, which were never the
+part that was wrong.
+
+> A test file that describes the failure and then checks something adjacent is
+> the most convincing kind of missing test: it reads as covered.
+
+Six mutations, all fired. Help Centre corrected to say what is true — the shift
+survives a restart, and a shift is still opened and closed with a connection.
+`docs/decisions/shopos-offline-shift-gap.md`, `shopos-cover-cannot-ring.md`.
+
+Panel **958** green (+17).
+
+### 2026-08-18 — the slip in the customer's bag matched nothing
+
+An offline till cannot mint an invoice number — the shop's sequence is one
+counter, and two tablets offline would both take `INV-1043`. So it prints
+`OFF-LANE1-A3F2-000042`, and on sync the server keeps BOTH, for the reason
+`receiptNumber.ts` states plainly: **the slip in the customer's bag is the only
+reference they have.**
+
+It was kept, and **searched by nothing.** All three lookups — the sales ledger,
+its CSV export, and the ⌘K palette — matched `invoice_number`, `customer_name`
+and `customer_phone`. Never `offline_number`.
+
+A return is `POST /sales/{id}/returns` and the id comes from that search. **A
+customer who bought during an outage, holding the only paper they were ever
+given, could not be found — so could not be refunded, returned, or have their
+receipt reprinted.** For as long as offline selling has existed.
+
+And the Help Centre had already promised it, in the shopkeeper's own words:
+*"BOTH are searchable, so a customer holding the slip can always be found."*
+Written when the design was decided; never true.
+
+> **Documented as working is the most expensive way for a feature not to exist.**
+> Nobody goes looking, because the documentation says it works. That is a worse
+> shape than the "built but unreachable" one found eleven times before it.
+
+Fixed as `Sale::scopeMatchingSearch()` — **one clause, not three.** The export's
+whole job is to be the same rows as the screen, and it can only stay the same by
+being the same clause; and two copies of a rule do not remain one rule, which the
+till's status pill demonstrated earlier the same day.
+
+Found is not recognised, so the slip travels back: the ledger row prints it under
+the invoice number, the detail says `Slip OFF-… · rung offline`, the palette
+leads its subtitle with it (`saleSubtitle()`, extracted so the rule is testable),
+and the CSV gains an `offline_number` column for reconciling a day that arrived
+three days late.
+
+`isOfflineNumber` stays exempt **on purpose** — every one of those surfaces reads
+the *field*, none has to judge a string, and inventing a caller to empty an
+exemption list is building for a checklist rather than for a shop. Its line now
+names what a real caller would be.
+
+Removing the clause fails all three new tests.
+`docs/decisions/shopos-slip-number-lookup.md`.
+
+Backend **2056** green (+3) · panel **941** green (+4).
+
+### 2026-08-18 — the other direction, and a warning that was not true
+
+`dead-endpoints.py` asked one question — *which routes does no client call?* —
+which finds capability nobody can reach. It never asked the reverse, and **the
+reverse is the one a customer holds**: a call no route serves is a 404 in the
+hand, on a screen that compiles perfectly. It compiles because the clients
+describe the API in their **own hand-written types**, so a path renamed on the
+server changes nothing `tsc` can see. The mobile app's own 31 tests cannot see it
+either — they mock the API, so they agree with whatever the app already believes.
+
+A third question came with it: a real route called with the **wrong verb**. A 405
+reads to a shopkeeper as "the button does nothing", which is the report you get
+and the thing you then cannot reproduce.
+
+What prompted it was a line in section 6 of this file, warning since July that
+the mobile contracts had "moved under them" — `item_types`, `other_income`,
+`logo_url`. **Nothing had ever checked.** It was prose, and prose is not checked.
+
+| | |
+| --- | --- |
+| call sites read across both clients | **359** |
+| reach a route that serves that verb | **359** |
+| hit nothing · wrong verb | 0 · 0 |
+| unresolvable (variable path head) | 4, printed not dropped |
+
+Mobile `tsc` clean, 31 tests pass, `Tenant` matches `TenantResource` on all three
+named fields, and `other_income` does not appear in the mobile app at all. **The
+warning was not true and had not been for some time** — the customer app is
+behind on features, not out of contract. The line is corrected rather than
+deleted, because a stale caution sends the next person hunting a defect that does
+not exist, and teaches them the cautions here are approximate.
+
+The clean result is worth believing only because it was made to fail first: two
+probes planted, both caught (`NO ROUTE GET /marketplace/shoppes/${slug}`,
+`WRONG VERB POST /auth/me`). It aborts if it reads zero calls, for the reason
+this fortnight kept paying for — a checker that silently discards what it cannot
+parse reports a clean sweep it did not earn.
+
+Also checked and **already correct, no change needed**: `CORS_ALLOWED_ORIGINS` is
+env-driven and `shopos:readiness` blocks on `*` in production, so the standing
+"CORS accepts every origin" note was itself stale. Worth knowing that
+`shopos:readiness` is invoked by **nothing** — not CI, not the deploy — and that
+wiring it in as a gate is a decision about the deferred items it would block, not
+a tidy-up.
+
+### 2026-08-18 — the backup that had never been restored
+
+Writing the docs owed for the session above meant opening section 3 of this
+file, which explains how to give a rebuilt laptop its memory back. **The command
+it gave was lossy in both directions**, and had been since it was written.
+
+`docs/decisions/` and Claude Code's memory directory are not two copies of one
+thing. The documents are long-form reasoning for a person; the notes are short,
+carry frontmatter the memory system indexes by description, and are a different
+set of files. The restore said `cp docs/decisions/*.md` **into** the memory
+directory — so it would have overwritten 24 notes with essays that no longer
+index, and **nine notes had no document here at all**, among them two standing
+rules: *a workflow test must fail when a step is deleted*, and *a detector that
+only recognises what was already fixed is not a rule*.
+
+`docs/decisions/MEMORY.md` had drifted past stale into **wrong**: it still called
+the admin-side backlog "REQUESTED, not built" months after it shipped. A restore
+handed a new machine a false index — and an index is precisely the thing nobody
+re-verifies.
+
+`docs/memory/` is now a verbatim snapshot of the directory, `scripts/
+sync-memory.sh` keeps it current in one command (`--check` exits 1 on drift, and
+deletions propagate — a note is sometimes deleted **because it was wrong**, and a
+backup that keeps it is worse than one that lost it), and the two indexes are one
+index. `docs/memory/README.md`.
+
+> A backup that has never been restored is a belief, not a backup.
+
+Same shape as everything else found this fortnight — written, correct in
+isolation, and never once exercised end to end.
+
+### 2026-08-18 — the gap between "47 saved here" and "Online"
+
+The till's offline pill had four things to say and said three. The missing one
+is the one a shopkeeper waits for: **the line came back and my day's takings are
+going up right now.** It jumped from `47 still to send` straight to `Online`
+with a silent stretch in between — and a gap is where somebody starts pressing
+things, during the exact ninety seconds a bad shop connection had to give.
+`docs/decisions/shopos-sync-progress-pill.md`.
+
+The wording existed **twice**. `pillLabel` says of itself *"One place, because
+the wording is the feature"*, and it was sitting on `NOT_SURFACED_YET` while POS
+grew its own inline copy. The two had drifted, each having learned something the
+other never did: the exported one could say `Sending X of Y` and not `No server`;
+the POS one the reverse. `No server` is not a rewording of `Offline` — **"wait
+for the line" and "telephone somebody" are different instructions**, and nothing
+else on the screen distinguishes them.
+
+> An entry on `NOT_SURFACED_YET` is not free. While `pillLabel` sat on it, the
+> screen that should have used it wrote its own, and then the two diverged.
+
+Three decisions inside the progress: the **denominator freezes at round 0**, or a
+sale rung mid-flush makes the bar walk backwards; progress counts **rows that got
+an answer, not rows that went on the wire**, because a round that all came back
+retryable moved nothing; and it is **cleared in `finally`**, because a flush that
+throws must not leave `Sending 12 of 47` frozen for the rest of the shift — a
+worse lie than saying nothing. Nothing owed says nothing at all: `Sending 0 of 0`
+every fifteen minutes teaches a cashier to stop reading the pill.
+
+`isPulling` deliberately did **not** ride along. The pill reports the outbox,
+which is money; a catalog pull is housekeeping, and an indicator that flickers
+for what does not concern a cashier stops being read for what does. Its
+exemption now names what would surface it — a manual **Sync now** — because a
+person who presses a button is owed a different answer than one watching money
+leave.
+
+Both mutations fired: counting wired rows instead of answered ones, and letting
+the total float.
+
+Panel 937 green (+7).
+
+### 2026-08-18 — drag it, and a detector that only found what was fixed
+
+Categories screen rebuilt: drag-to-reorder by **pointer events** (mouse, pen and
+finger with one set of handlers — `react-dnd` is in `package.json`, imported by
+nothing, and its HTML5 backend does not fire on touch anyway), collapse/expand
+that says **"2 inside"** when closed, and the item count turned into a link that
+opens Products filtered to that category. Arrow keys too, because a grip is not
+reachable by keyboard. `docs/decisions/shopos-categories-and-row-actions.md`.
+
+**A bug written and caught in the same hour:** the new search box filters the
+tree, and `sort_order` is written as each row's position from zero — so a drag
+inside a filtered list renumbers the rows the search is hiding. Grips now
+disappear while searching. *The question is not whether the drag works; it is
+what the drag writes.*
+
+Then the third instance of one lesson in a day. `rowAction.test.ts` guarded row
+actions with a detector made of **two literal class strings — the exact two the
+Aug-17 sweep had replaced.** Every other spelling walked past it. **Seventeen
+were sitting in table cells**, several of them rows where Delete had been swept
+and the Edit beside it had not, which is worse than neither because the pair
+stops reading as a pair.
+
+> **A detector that recognises the instances somebody already found is not a
+> rule. It is a record of one afternoon.**
+
+The rule now: any `<button>` inside a `<td>` with no height, padding or size,
+carrying its own denominator so a broken matcher fails instead of reporting a
+clean sweep. Scoped to table cells on purpose — a button inside a sentence is
+legitimately a text link.
+
+Also: `MODAL_CLOSE` / `INLINE_DISMISS` for the till's close buttons, which were
+bare 20px glyphs pressed with a thumb mid-queue; and `autoFocus` + `onKeyDown`
+on the shared `Input`, whose absence is why screens reach past it for a raw
+`<input>`.
+
+48 bare buttons remain, **none in a table cell** — card-list actions and genuine
+prose links, which is reading rather than matching.
+
+Panel 930 green (+27).
+
+### 2026-08-18 — the review nobody could take down
+
+Reachability one level up: not "does anything call this method" but **does any
+client call this endpoint**. `shopos-backend/scripts/dead-endpoints.py` reads
+`route:list` plus every file in the panel and the mobile app — 294 routes.
+`docs/decisions/shopos-endpoint-reachability.md`.
+
+A script rather than a test on purpose: it needs two sibling repos, and a test
+that fails on a missing directory gets switched off within a week.
+
+It found `DELETE /customer/reviews/{id}` — written, tested, correctly scoped,
+called by nothing. **A customer could post a review and never take it back.**
+The reason it was never wired is the better half: the public list carries a
+display name and nothing else, so no screen could tell which review was yours.
+The capability was unreachable because **the data needed to reach it did not
+travel**. `is_mine` on the public payload was rejected — that response is the
+same for every visitor and cacheable, and a body that varies by token is how one
+shopper's view gets served to another. `GET /customer/reviews` instead, beside
+favourites and addresses; the shop page now prefills your own words, badges your
+row **Yours**, and offers **Remove**.
+
+The audit had two bugs of its own: it missed paths built from a variable
+(``apiGet(`${basePath}/presets`)``), and its retry required a tail of 8
+characters — `presets` is 7, so `staff/presets` was reported dead while
+`useJobPresets` was calling it.
+
+Then adding the Remove button failed `destructive.test.ts`, and **the rule was
+right while its parser was not**: the word list is anchored, and a button with a
+pending state labels itself `{busy ? "Removing…" : "Remove review"}`. Every
+destructive button with a spinner was invisible to it. Teaching it to read the
+string literals out of an expression turned up two the Aug-17 sweep had missed —
+the delete confirmations on Products and Categories were rendering the brand
+colour, so **the button that deletes a product was the same button as Save**.
+
+> A guard test that cannot parse the thing it guards reports a clean sweep.
+
+Backend 2053 green (+5) · panel 903 green (+1).
+
+### 2026-08-18 — the item rule the sync endpoint never applied
+
+The panel's reachability rule got a server half, `tests/Unit/ReachableTest.php`,
+and it found something on its first run.
+`docs/decisions/shopos-item-rule-on-sync.md`.
+
+`OfflinePolicy` has five offline rules. Four are about the SALE — tender,
+dine-in table, redeemed points, coupon. One is about the ITEM: a medicine, or
+anything tracked by serial. **`PosSyncController` enforced four.**
+`refusalFor()` was written, tested, and called by nothing, so a medicine synced
+up from a till landed recorded as a clean offline sale — `offline_violations`
+null, nothing in Reports → Offline, nobody ever looking. Proven against the real
+endpoint before it was fixed: `"status": "applied", "violations": []`.
+
+The till refuses all five at the counter, and that refusal is good. But
+`OfflinePolicy`'s own docblock says why the server checks again — *"the outbox
+is a JSON queue in a browser database on a tablet that may have left the shop"*
+— so the layer that exists for a wrong till had a hole exactly the shape of the
+one rule with the worst ending: a medicine out with no batch recorded, or one
+IMEI sold by two tills.
+
+Fixed as a FLAG, never a refusal (the money crossed the counter), with the
+reason **naming the item** because a report read a week later is not a cashier
+holding the box; deduplicated per product; and the catalog asked **once per
+request**, pinned by a test that counts the query — move it into the per-sale
+loop and it reads 12 instead of 1.
+
+The rule's own first version reported nineteen findings, fourteen of them noise:
+it stripped string literals along with comments, and **in Laravel a route names
+its method as a string**. Comments out, strings in. *An audit that produces
+findings is a thing to verify, not to believe* — third time that has earned its
+place. What the rule cannot see is written down in it: private methods, and
+methods whose name is a common word (`for`, `all`, `get`) which self-exempt.
+`Product::isLowStock` was exempted with a warning rather than deleted — it is a
+PHP copy of a SQL rule and **it is branch-blind**.
+
+Backend 2048 green (+9) · panel 902 green.
+
+### 2026-08-17 — built, tested, and reachable by nobody
 
 The oldest shape in this codebase is now a rule that runs on every commit.
 `docs/decisions/shopos-reachability-rule.md`, `src/common/reachable.test.ts`.
