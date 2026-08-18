@@ -1586,6 +1586,24 @@ export default function PosPage() {
           >
             <ChevronLeftIcon className="h-4 w-4" /> Exit
           </Link>
+          {/* The other door.
+           *
+           * The till used to carry its OWN dine-in toggle beside the real Floor
+           * module — two doors to one job, and the till's one wrote a free-text
+           * table number that no tab, no kitchen and no floor board ever saw.
+           * Closing it was right. Closing it without putting up a sign was not:
+           * the POS runs full-screen with no sidebar and exactly one exit, so a
+           * waiter who needed a table had to leave the till, cross the
+           * dashboard, and find the Floor. This is that sign. */}
+          {isRestaurant && has("dine_in") && (
+            <Link
+              to="/tenant/dine-in"
+              className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-theme-sm text-white/70 hover:bg-white/10"
+              title="Tables, tabs and the kitchen board"
+            >
+              Floor
+            </Link>
+          )}
           <span className={`hidden min-w-0 items-center gap-2 truncate rounded-full border px-3 py-1 text-theme-xs font-medium xl:flex ${open ? "border-success-500/40 bg-success-500/15 text-success-300" : "border-white/15 bg-white/5 text-white/60"}`}>
             <span className={`h-2 w-2 rounded-full ${open ? "bg-success-500" : "bg-white/40"}`} />
             {open ? `Shift open · float ${money(open.opening_float)}` : "No open shift"}
@@ -1788,7 +1806,7 @@ export default function PosPage() {
                   onClick={() => setCatMenuOpen((o) => !o)}
                   className={`flex h-12 items-center gap-2 rounded-xl border bg-white px-3.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 ${catMenuOpen ? "border-brand-400 ring-4 ring-brand-400/25" : "border-transparent"}`}
                 >
-                  <span className="max-w-[7rem] truncate">{categoryId === "" ? "All" : (catList.find((c) => c.id === categoryId)?.name ?? "All")}</span>
+                  <span className="max-w-[4.5rem] truncate xl:max-w-[7rem]">{categoryId === "" ? "All" : (catList.find((c) => c.id === categoryId)?.name ?? "All")}</span>
                   <ChevronDownIcon className={`h-4 w-4 shrink-0 text-gray-500 transition ${catMenuOpen ? "rotate-180 text-brand-500" : ""}`} />
                 </button>
                 {catMenuOpen && (
@@ -1815,7 +1833,7 @@ export default function PosPage() {
               <input
                 ref={scanRef}
                 autoFocus
-                placeholder="Scan barcode or search by name / SKU…"
+                placeholder="Scan barcode or search…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setScanError(null); }}
                 onKeyDown={(e) => {
@@ -1823,7 +1841,7 @@ export default function PosPage() {
                   else if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, tiles.length - 1)); }
                   else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)); }
                 }}
-                className="h-12 w-full rounded-xl border border-transparent bg-white pl-11 pr-24 text-sm text-gray-800 shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:outline-hidden focus:ring-4 focus:ring-brand-400/25"
+                className="h-12 w-full rounded-xl border border-transparent bg-white pl-11 pr-14 text-sm xl:pr-24 text-gray-800 shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:outline-hidden focus:ring-4 focus:ring-brand-400/25"
               />
               <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
                 <button
@@ -1838,7 +1856,18 @@ export default function PosPage() {
                 {search ? (
                   <button onClick={() => { setSearch(""); scanRef.current?.focus(); }} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5" title="Clear (Esc)"><CloseIcon className="h-4 w-4" /></button>
                 ) : (
-                  <kbd className="hidden rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[10px] text-gray-400 sm:inline dark:border-gray-700 dark:bg-gray-800">F2</kbd>
+                  /* `xl`, not `sm`.
+                   *
+                   * Every quick-key hint on this screen was moved off the
+                   * tablet because a tablet has no function keys — but this one
+                   * said `sm:inline`, so it reappeared at 640px and rode every
+                   * tablet in the shop. It even passed the rule written to stop
+                   * exactly this, because the rule checked that the class
+                   * STARTS with `hidden` and never asked what un-hid it.
+                   *
+                   * It also cost the search box 40px of right padding it was
+                   * reserving for a hint nobody could act on. */
+                  <kbd className="hidden rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[10px] text-gray-400 xl:inline dark:border-gray-700 dark:bg-gray-800">F2</kbd>
                 )}
               </div>
               </div>
@@ -1977,9 +2006,23 @@ export default function PosPage() {
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {/* FOOD: visual image-tile grid. */}
           {posLayout === "grid" && (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 2xl:grid-cols-4">
+            /* Four across from the tablet up.
+             *
+             * The catalog pane is `lg:col-span-6 xl:col-span-5` — about 500px
+             * wide at EVERY size from a tablet landscape to a shop monitor,
+             * because the split narrows as the screen widens. So the column
+             * count should not keep climbing with the viewport: it was
+             * `sm:grid-cols-3` all the way to 2xl, which put three ~160px
+             * tiles in a pane that comfortably holds four, and the shop read
+             * the result as the card view looking wrong on a tablet.
+             *
+             * Four is the number the pane actually fits, so it starts at `lg`
+             * and stays. Everything inside the tile steps down to match —
+             * shorter image, tighter padding, smaller name — and steps back up
+             * at `xl` where the pane is a little wider. */
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-2 xl:gap-2.5">
               {products.isLoading && tiles.length === 0 ? (
-                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-36 animate-pulse rounded-xl bg-white/[0.16]" />)
+                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-white/[0.16] xl:h-36" />)
               ) : productsDenied ? (
                 <div className="col-span-full"><NoAccess reason={productsDenied} what="the product list" /></div>
               ) : tiles.length === 0 ? (
@@ -2021,7 +2064,7 @@ export default function PosPage() {
                        * is findable rather than inferred. */
                       className={`group flex flex-col overflow-hidden rounded-xl border bg-white/[0.16] text-left transition hover:border-brand-400 hover:bg-white/[0.24] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-white/15 disabled:hover:bg-white/[0.16] ${i === activeIndex ? "border-brand-400 bg-brand-500/30 ring-2 ring-brand-400/70" : "border-white/15"}`}
                     >
-                      <div className="relative h-24 w-full bg-black/25">
+                      <div className="relative h-20 w-full bg-black/25 xl:h-24">
                         {img ? (
                           <img src={img} alt="" className="h-full w-full object-cover" />
                         ) : (
@@ -2043,9 +2086,9 @@ export default function PosPage() {
                         {p.item_type === "deal" && <span className="absolute right-1.5 top-1.5 rounded bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white">DEAL</span>}
                         {p.modifier_groups?.length ? <span className="absolute right-1.5 top-1.5 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">options</span> : null}
                       </div>
-                      <div className="flex flex-1 flex-col justify-between gap-1.5 p-3">
-                        <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-white">{p.name}</span>
-                        <span className="text-[13px] font-bold tabular-nums text-brand-200">
+                      <div className="flex flex-1 flex-col justify-between gap-1 p-2 xl:gap-1.5 xl:p-3">
+                        <span className="line-clamp-2 text-[12px] font-semibold leading-snug text-white xl:text-[13px]">{p.name}</span>
+                        <span className="text-[12px] font-bold tabular-nums text-brand-200 xl:text-[13px]">
                           {money(sellingPrice(p))}
                           {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-white/60">/{p.unit}</span> : null}
                           {sale && <span className="ml-1 text-[11px] font-normal text-white/60 line-through">{money(p.price)}</span>}

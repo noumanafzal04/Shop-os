@@ -408,6 +408,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
           ["Esc", "Clear the search box"],
         ],
       },
+      { type: "note", text: "The grey key hints printed on the buttons only appear on a wide screen. On a tablet there are no function keys to press, so the hints stay off — every one of those actions still has a button you can tap." },
+      { type: "h", text: "If your shop has tables" },
+      { type: "p", text: "A Floor button sits next to Exit at the top of the till. It takes you straight to the tables, the running tabs and the kitchen board without going back through the dashboard. The till itself has no table box — a table's order belongs on the Floor, where it can run a tab, fire to the kitchen and split a bill." },
+      { type: "note", text: "A food shop WITHOUT the Dine-in module sees the opposite: a Takeaway / Dine-in switch on the till with a plain table number to type, because a typed number is genuinely all there is to record." },
       { type: "h", text: "Taking payment" },
       { type: "p", text: "Press F9 to take payment. You can split it across cash, card and credit — add a line for each way the customer pays. Cash amounts are suggested in notes that actually exist." },
       {
