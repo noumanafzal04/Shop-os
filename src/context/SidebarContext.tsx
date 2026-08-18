@@ -45,6 +45,20 @@ type SidebarContextType = {
   isExpanded: boolean;
   isMobileOpen: boolean;
   isHovered: boolean;
+  /**
+   * Is the rail showing its LABELS — i.e. is it 290px rather than 90px?
+   *
+   * One value, because it was two. The sidebar sized itself from
+   * `isExpanded || isHovered || isMobileOpen` and the layout stepped aside by
+   * `isExpanded || isHovered` — the same question, asked with one term of
+   * difference. Whenever `isMobileOpen` was true at `lg` or wider, the rail
+   * drew at 290 while the page moved 90, and the dashboard ran underneath the
+   * sidebar. The shop found it by turning a tablet upright.
+   *
+   * Every width decision now reads this. The two cannot disagree, in any
+   * combination of states or during any transition between them.
+   */
+  railWide: boolean;
   activeItem: string | null;
   openSubmenu: string | null;
   toggleSidebar: () => void;
@@ -122,6 +136,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
         isExpanded: isMobile ? false : isExpanded,
         isMobileOpen,
         isHovered,
+        railWide: (isMobile ? false : isExpanded) || isHovered || isMobileOpen,
         activeItem,
         openSubmenu,
         toggleSidebar,

@@ -334,7 +334,7 @@ export function adminNav(
 const SECTION_ROOTS = ["/tenant", "/admin"];
 
 const AppSidebar: React.FC = () => {
-  const { isExpanded, isMobileOpen, isHovered, setIsHovered, toggleSidebar, closeMobileSidebar } =
+  const { isExpanded, isMobileOpen, railWide, setIsHovered, toggleSidebar, closeMobileSidebar } =
     useSidebar();
   const location = useLocation();
   const role = useAuthStore((s) => s.user?.role);
@@ -371,7 +371,10 @@ const AppSidebar: React.FC = () => {
 
   // Labels show when the rail is pinned open, peeked on hover, or drawn over
   // the page on mobile — the one condition that drives every layout choice.
-  const showLabels = isExpanded || isHovered || isMobileOpen;
+  // The rail's width, and the page's margin, are one decision. Read from the
+  // context so AppLayout cannot answer it differently — see the note on
+  // `railWide` in SidebarContext for what happened when it did.
+  const showLabels = railWide;
 
   // Go somewhere, the drawer goes away.
   //

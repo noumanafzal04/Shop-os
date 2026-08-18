@@ -128,6 +128,28 @@ describe("the drawer does not depend on the header being any particular size", (
   });
 });
 
+describe("the rail's width is one decision, not two", () => {
+  it("the page steps aside by exactly what the rail takes", () => {
+    // The rail sized itself from `isExpanded || isHovered || isMobileOpen`
+    // while the layout stepped aside by `isExpanded || isHovered` — the same
+    // question with one term of difference. With the drawer flag set at `lg`
+    // or wider the rail drew 290 and the page moved 90, so the dashboard ran
+    // underneath the sidebar. A tablet turned upright was how the shop met it.
+    //
+    // Both now read `railWide` off the context. Neither may rebuild the
+    // expression locally, which is the only way they can drift again.
+    const layout = source("AppLayout.tsx");
+    const sidebar = source("AppSidebar.tsx");
+
+    expect(layout).toContain("railWide");
+    expect(sidebar).toContain("railWide");
+
+    for (const file of [layout, sidebar]) {
+      expect(file).not.toMatch(/isExpanded\s*\|\|\s*isHovered/);
+    }
+  });
+});
+
 describe("the header is one row that nothing can grow", () => {
   const header = () => source("AppHeader.tsx");
 

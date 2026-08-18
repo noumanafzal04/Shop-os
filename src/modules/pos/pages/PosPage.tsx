@@ -2855,13 +2855,26 @@ export default function PosPage() {
       </Modal>
 
       {/* Tender / Pay */}
+      {/* Tender — the one modal that must never scroll its own button away.
+       *
+       * It is a header, a body that grows with the tender method (split adds a
+       * row per tender, bank offers add a card, credit adds a customer line),
+       * and a footer holding Complete. Left to grow, the column ran past the
+       * bottom of a tablet and the cashier had to scroll the PAGE to find the
+       * button — mid-sale, with a customer waiting and the goods bagged.
+       *
+       * Capped at the viewport as a flex column: the middle is the only
+       * scroller and the footer cannot leave. `100dvh`, never `100vh` — vh is
+       * the height the page would have if the address bar were hidden, and it
+       * isn't; that unit has already cost this codebase the Appearance canvas's
+       * Save button once. `-2rem` is the wrapper's own p-4. */}
       <Modal isOpen={tenderModal.isOpen} onClose={tenderModal.closeModal} className="max-w-lg p-0">
-        <div onKeyDown={(e) => { if (e.key === "Enter" && canCheckout && !checkout.isPending) { e.preventDefault(); checkout.mutate(); } }}>
-          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+        <div className="flex max-h-[calc(100dvh-2rem)] flex-col" onKeyDown={(e) => { if (e.key === "Enter" && canCheckout && !checkout.isPending) { e.preventDefault(); checkout.mutate(); } }}>
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Tender / Pay</h3>
             <button onClick={tenderModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
           </div>
-          <div className="px-6 py-5">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="mb-5 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10">
               <div className="flex items-baseline justify-between">
                 <span className="text-theme-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
@@ -3083,7 +3096,7 @@ export default function PosPage() {
             {checkout.error instanceof ApiError && <div className="mt-3"><Alert variant="error" title="Sale failed" message={checkout.error.message} /></div>}
             {method === "split" && splitHasCredit && !hasCustomer && <p className="mt-3 text-theme-xs text-error-500">Attach a customer to put part of this sale on credit.</p>}
           </div>
-          <div className="flex gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
+          <div className="flex shrink-0 gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
             <Button size="sm" variant="outline" onClick={tenderModal.closeModal}>Cancel</Button>
             <Button size="sm" className="flex-1" onClick={() => checkout.mutate()} disabled={!canCheckout || checkout.isPending}>
               {checkout.isPending ? "Processing…" : method === "credit" ? `Complete · on credit ${money(total)}` : `Complete sale · ${money(payable)}`}

@@ -82,7 +82,7 @@ export const Modal: React.FC<ModalProps> = ({
           same instant paint. */}
       {!isFullscreen && (
         <div
-          className="fixed inset-0 h-full w-full bg-gray-900/50 dark:bg-black/65"
+          className="fixed inset-0 h-full w-full bg-gray-900/60 dark:bg-black/75"
           onClick={onClose}
         ></div>
       )}
