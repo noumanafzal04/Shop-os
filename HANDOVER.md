@@ -275,7 +275,46 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-18 (latest) — the offline till was never reachable in a browser
+### 2026-08-18 (latest) — the pill is the Sync now button
+
+The last entry on the panel's unreachable-exports list, and the way it left is
+the point.
+
+`isPulling` had sat there for weeks with **"needs a manual Sync now control"**
+written against it. The control exists now: the offline pill IS the button. A
+separate one would be a second thing to find, in the one corner a cashier
+already looks at to answer "is my day safe?" — pressing it asks the same
+question out loud.
+
+**A press gets its own answer**, which the automatic sync deliberately does not.
+The automatic one is silent when there is nothing to send, because narrating
+"Sending 0 of 0" four times an hour teaches a cashier to stop reading the pill.
+A press is the opposite case: the commonest outcome shows nothing at all — an
+empty queue, a zero-row delta, a 300ms request — so without a state of its own
+the control would look broken exactly when everything is fine. `Sync now →
+Syncing… → Up to date`, and the two failures are told apart, because "Sync
+failed" is something to report and "Still no connection" is something to wait
+for. Not "Synced!" — this round finished, which is not a promise that the whole
+day went up, and overclaiming is how a cashier stops believing the next message.
+
+Then the honest part. A helper was written to OR the press state with
+`isPulling()`, and **deleted rather than shipped**: it reads a module variable,
+which React does not subscribe to, so it would have reported a stale answer for
+ever. `pullNow` is single-flight anyway — a press during an automatic pull joins
+the one in progress.
+
+So `isPulling` moved to `TEST_ONLY`, not off the lists. What it genuinely is:
+scaffolding that exposes the single-flight slot so a test can prove the slot
+CLEARS when a pull fails — without which one network blip wedges the till for
+ever.
+
+> An entry leaving `NOT_SURFACED_YET` is not automatically progress. What it
+> waited for was named, the named thing was built, and the honest answer was
+> that it still had no correct caller.
+
+Panel **990** green (+6).
+
+### 2026-08-18 — the offline till was never reachable in a browser
 
 Found by the user, not by a test. Wifi off, press Complete, and the button said
 **"Processing…" for ever**; turn the wifi back on and the sale goes through.

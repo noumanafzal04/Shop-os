@@ -34,3 +34,22 @@ indicator a cashier decides by flicker. It leaves the list when a manual
 **Sync now** exists.
 
 Full reasoning: `docs/decisions/shopos-sync-progress-pill.md`.
+
+**2026-08-18 (later): the pill IS the Sync now button.** `isPulling` left
+`NOT_SURFACED_YET` — but by RECLASSIFICATION, not by being surfaced. The helper
+written to use it (`syncRunning`) was **deleted rather than shipped**: it read a
+module variable React does not subscribe to, so it would have reported a stale
+answer for ever. `isPulling` is now in `TEST_ONLY`, where it honestly belongs —
+it exposes the single-flight slot so a test can prove the slot CLEARS on a
+failed pull (without which one network blip wedges the till for ever).
+
+> **An entry leaving NOT_SURFACED_YET is not automatically progress.** What it
+> waited for was named, was built, and the honest answer was that it still had
+> no correct caller.
+
+A press gets its own state (`Sync now → Syncing… → Up to date`) because the
+automatic sync is deliberately silent on an empty queue — and the two failures
+are worded apart: "Sync failed" is to report, "Still no connection" is to wait
+for. Never "Synced!" — overclaiming is how a cashier stops believing the next
+message.
+
