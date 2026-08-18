@@ -111,6 +111,7 @@ a false index. A backup that has never been restored is a belief, not a backup.
 
 | File | What it is |
 |---|---|
+| **`START-HERE.md`** | **the entry point for a new machine or a cold start** — what the product is, setup for all three apps, the gating model, how to test offline, and the reading order for every other document |
 | **`SYSTEM-REQUIREMENTS.md`** | **what a fresh machine needs** — PHP/Node/MySQL versions, PHP extensions, every framework version, setup commands, the gates |
 | `README.md` | product overview, architecture decisions, branch map |
 | `AUDIT-2026-08-06.md` | the 4-way audit: proven P0s, P1/P2 lists, and a record of every fix |

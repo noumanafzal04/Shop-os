@@ -4,10 +4,16 @@ A cloud business-management platform for local businesses (retail, grocery,
 pharmacy, restaurant, salon, workshop, and more), with an optional customer
 marketplace and mobile apps.
 
-> **Setting up a machine, or picking this up cold?** Read
-> **[HANDOVER.md](HANDOVER.md)** first — restore steps, current state, what's in
-> flight, and the rules that must not be broken. The reasoning behind the build
-> is in **[docs/decisions/](docs/decisions/)**.
+> ## 👉 New machine, or picking this up cold? Read **[START-HERE.md](START-HERE.md)**.
+>
+> It is the only page that assumes you know nothing: what the product is, how to
+> set up all three apps, how to log in, how the gating works, how to test
+> offline, and **which of the other documents to read in what order**. Ten
+> minutes.
+>
+> After that: **[SYSTEM-REQUIREMENTS.md](SYSTEM-REQUIREMENTS.md)** for versions,
+> **[HANDOVER.md](HANDOVER.md)** for current state and the session log, and
+> **[docs/decisions/](docs/decisions/)** for why anything is the way it is.
 
 ## Repository layout — one branch per app
 
