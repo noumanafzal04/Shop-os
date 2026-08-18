@@ -66,3 +66,24 @@ describe("the till's chrome gives way rather than disappearing", () => {
     expect(shown).toEqual([]);
   });
 });
+
+describe("one door to dine-in, not two", () => {
+  it("the till does not offer its own table when the shop has a floor", () => {
+    // A shop with the `dine_in` module has real tables, running tabs, a kitchen
+    // board and split bills on the Floor screen, all keyed to a
+    // `dining_table_id`. The till's own control writes a free-text `table_no`
+    // onto the sale and nothing else: no tab, no KOT, and the floor never
+    // learns the table is occupied. A waiter who reached for it would leave the
+    // kitchen with nothing to cook.
+    //
+    // "5", "Table 5" and "T5" are also three different tables there, none of
+    // which is the one the shop actually named 5.
+    //
+    // The gate was the TRADE, so both doors stood open for every food shop.
+    // It is now the trade AND the absence of a floor — a juice corner or a
+    // takeaway counter, for which a typed number is genuinely all there is.
+    expect(SOURCE).toMatch(/isRestaurant && !has\("dine_in"\)/);
+    expect(SOURCE).not.toMatch(/\{isRestaurant && \(\s*\n\s*<div className="flex items-center gap-2 border-b/);
+  });
+});
+

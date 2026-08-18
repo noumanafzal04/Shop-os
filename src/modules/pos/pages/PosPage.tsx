@@ -2248,8 +2248,29 @@ export default function PosPage() {
               )}
             </div>
 
-            {/* Restaurant: dine-in / takeaway + table */}
-            {isRestaurant && (
+            {/* Dine-in at the TILL, for a food shop that has no floor.
+             *
+             * Two doors to one job, and only one of them does it properly. A
+             * shop with the `dine_in` module has real tables, running tabs, a
+             * kitchen board and split bills on the Floor screen
+             * (/tenant/dine-in), all keyed to a `dining_table_id`. This control
+             * writes a free-text `table_no` onto the sale and nothing else: no
+             * tab, no KOT, and the floor board never learns the table is
+             * occupied. A waiter who reached for it would leave the kitchen
+             * with nothing to cook and the board showing an empty room.
+             *
+             * "5", "Table 5" and "T5" are also three different tables here,
+             * none of which is the table the shop actually named 5.
+             *
+             * So it is offered only where it is the best available answer: a
+             * food shop with no floor module — a juice corner, a takeaway
+             * counter with two tables outside — for which a typed number is
+             * genuinely all there is to record. Where a floor exists, dine-in
+             * belongs on it.
+             *
+             * The gate was the TRADE (`businessType === "food"`), which is why
+             * both doors were open at once. */}
+            {isRestaurant && !has("dine_in") && (
               <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-2.5 dark:border-gray-800">
                 {(["takeaway", "dine_in"] as const).map((t) => (
                   <button
