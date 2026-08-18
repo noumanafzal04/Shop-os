@@ -1255,7 +1255,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "keys", items: [
         ["The receipt", "Prints a slip numbered OFF-… instead of an invoice number. Keep it: when the connection returns, the sale gets its real invoice number and BOTH are searchable, so a customer holding the slip can always be found."],
         ["Stock", "Counts down as you sell, so the shelf figure stays honest through a long outage — not stuck on whatever the server last said."],
-        ["The queue", "The counter at the top shows how many sales are still waiting. They send themselves the moment the line is back."],
+        ["The queue", "The counter at the top shows how many sales are still waiting. They send themselves the moment the line is back — you never have to remember to send them."],
+        ["Sync now", "Tap the green or red badge at the top of the till to sync straight away, instead of waiting for the next automatic one. It tells you what happened: syncing, up to date, or still no connection."],
         ["Holding a sale", "You can still park a basket and pick it up again, but only on this till — a ticket held during an outage cannot be picked up on another counter until the connection is back."],
         ["If the till restarts", "The shift stays. A tablet that sleeps, restarts after a power cut, or has the app closed and reopened comes back knowing which shift it was on, and keeps selling into it."],
         ["A practice shift", "Training a new cashier works offline too, and it still takes nothing off the shelf — neither on the till nor in your books when it syncs. Practice sales keep their own TRN- numbering and stay out of every figure you read."],

@@ -91,6 +91,21 @@ const TEST_ONLY: Record<string, string> = {
   "modules/offline/device/touch.ts::resetTouchClock": "resets the touch clock",
   "modules/offline/sync/applyPull.ts::resetCatalog": "wipes the cache between cases",
   "modules/offline/outbox/outbox.ts::readRow": "reads one row back to assert on it",
+  // Moved here from NOT_SURFACED_YET on 2026-08-18, and the reclassification is
+  // the interesting part. It waited for a manual "Sync now"; that control was
+  // built, and the helper written to use it read a module variable React does
+  // not subscribe to — it would have reported a stale answer for ever, so it
+  // was deleted rather than shipped.
+  //
+  // What is left is genuine scaffolding: it exposes the single-flight slot so a
+  // test can prove the slot is CLEARED when a pull fails. Without that, one
+  // network blip wedges the till — every later pull hands back the same
+  // rejected promise and it never tries again.
+  //
+  // An entry leaving NOT_SURFACED_YET is not automatically progress. Here the
+  // thing it waited for was named, was built, and the honest answer was that it
+  // still had no correct caller.
+  "modules/offline/sync/pullNow.ts::isPulling": "exposes the single-flight slot so a test can prove it clears on failure",
   "test/routes.ts::TENANT_ROUTES": "the route list the contract tests are built from",
   // Introspection over the permission map, so the tests can check it from BOTH
   // directions — a route with no rule, and a rule naming a route that no longer
@@ -118,13 +133,6 @@ const NOT_SURFACED_YET: Record<string, string> = {
   // its own inline copy of the wording, which then drifted. An entry on this
   // list is not free.
   //
-  // `isPulling` did NOT leave with it, and the reason is worth stating rather
-  // than inheriting: the pill now reports the OUTBOX, which is money. A catalog
-  // pull is background housekeeping, and giving it the same indicator would
-  // have the one control a cashier decides by flickering for something that
-  // does not concern them. It leaves this list when a manual "Sync now" exists
-  // — a person who presses a button is owed the answer to "is it working".
-  "modules/offline/sync/pullNow.ts::isPulling": "needs a manual Sync now control",
   // Tells an OFF- receipt from a real invoice number by its SHAPE.
   //
   // The sales ledger, its export and the command palette all surface the slip

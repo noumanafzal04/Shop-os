@@ -16,6 +16,7 @@ import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowA
 import { useModal } from "../../../hooks/useModal";
 import StorageWarning from "../../offline/storage/StorageWarning";
 import { shiftBlocker } from "../../offline/storage/persist";
+import { syncLabel, useManualSync } from "../../offline/sync/useManualSync";
 import { runShadowCheck } from "../../offline/pricing/runShadowCheck";
 import { completeOffline, linesFromCatalog } from "../../offline/outbox/offlineCheckout";
 import { pendingCount } from "../../offline/db/repo";
@@ -296,6 +297,7 @@ export default function PosPage() {
   // Covering is deliberately NOT a session: it carries the shift id to ring
   // against and nothing the cashier will be measured on, so it has to stay a
   // separate value rather than being smuggled in as a CashSession.
+  const manualSync = useManualSync();
   const covering = isCover(session.data ?? null) ? (session.data as ActiveCover) : null;
   const open = covering ? null : ((session.data as CashSession | null) ?? null);
   // The drawer a sale must be rung into — mine, or the one I'm standing at.
@@ -2633,23 +2635,32 @@ export default function PosPage() {
           {/* Connection. This used to be a green dot that said "Online" no
               matter what — the one indicator that must never lie, since the
               cashier decides whether to re-ring a sale by looking at it. */}
-          <span
-            className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-theme-xs font-semibold sm:flex ${
+          {/* The pill is the Sync now control.
+              A separate button would be a second thing to find, in the one
+              corner a cashier already looks at to answer "is my day safe?".
+              Pressing it asks the same question out loud. */}
+          <button
+            type="button"
+            onClick={manualSync.sync}
+            disabled={manualSync.state === "working"}
+            className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-theme-xs font-semibold transition hover:brightness-110 disabled:cursor-progress sm:flex ${
               connected
                 ? "border-success-500/40 bg-success-500/15 text-success-300"
                 : "border-error-500/50 bg-error-500/15 text-error-300"
             }`}
             title={
-              connected
-                ? "The till reached the server on its last request."
-                : offlineOwed > 0
-                  ? `${offlineOwed} ${offlineOwed === 1 ? "sale is" : "sales are"} saved on this device and will send themselves when the connection returns. Nothing is lost.`
-                  : "The last request never reached the server. You can keep selling — sales are saved here and sent when the line is back."
+              manualSync.state !== "idle"
+                ? syncLabel(manualSync.state, connected)
+                : connected
+                  ? "The till reached the server on its last request. Tap to sync now."
+                  : offlineOwed > 0
+                    ? `${offlineOwed} ${offlineOwed === 1 ? "sale is" : "sales are"} saved on this device and will send themselves when the connection returns. Nothing is lost. Tap to try now.`
+                    : "The last request never reached the server. You can keep selling — sales are saved here and sent when the line is back. Tap to try now."
             }
           >
             <span
               className={`h-2 w-2 rounded-full ${
-                syncing
+                syncing || manualSync.state === "working"
                   ? "bg-brand-400 animate-pulse"
                   : connected
                     ? "bg-success-500"
@@ -2664,8 +2675,15 @@ export default function PosPage() {
                 never learned to say anything at all while a queue was going
                 up. Two copies of a sentence whose whole point is that it is
                 the feature. */}
-            {pillLabel(connected, offlineOwed, syncing, online)}
-          </span>
+            {/* A press gets its OWN answer. The automatic sync says nothing
+                when there is nothing to send — correctly, because narrating
+                "Sending 0 of 0" every quarter hour teaches a cashier to stop
+                reading the pill — but a person who pressed a button and saw
+                nothing change will press it again with a queue behind them. */}
+            {manualSync.state === "idle"
+              ? pillLabel(connected, offlineOwed, syncing, online)
+              : syncLabel(manualSync.state, connected)}
+          </button>
         </div>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
