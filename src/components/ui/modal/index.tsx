@@ -49,9 +49,19 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
+  // A modal has to look lifted off the page, not printed on it.
+  //
+  // This panel carried NO shadow: a white sheet on a white page behind a 30%
+  // scrim, with nothing but a corner radius to say it was in front. The shop
+  // reported modals as "not opening properly" — which is what a dialog with no
+  // edge looks like when you cannot tell it from the screen underneath.
+  //
+  // `shadow-2xl` does the lifting in light mode. The ring does it in dark,
+  // where a shadow against a near-black page is invisible and the only thing
+  // that can separate two dark surfaces is a lighter edge.
   const contentClasses = isFullscreen
     ? "w-full h-full"
-    : "relative w-full rounded-3xl bg-white  dark:bg-gray-900";
+    : "relative w-full rounded-3xl bg-white shadow-2xl ring-1 ring-gray-900/5 dark:bg-gray-900 dark:ring-white/10";
 
   return (
     /**
@@ -64,11 +74,15 @@ export const Modal: React.FC<ModalProps> = ({
      * the wrapper past the viewport and scrolls from its true top.
      */
     <div className="modal fixed inset-0 z-99999 overflow-y-auto">
-      {/* Light scrim, NO heavy blur — a 32px backdrop-blur made every modal
-          open feel sluggish and buried the page behind fog. */}
+      {/* Still NO blur — a 32px backdrop-blur made every modal open feel
+          sluggish and buried the page behind fog, and that finding stands.
+          The objection was to the BLUR, not to the opacity: at 30% the page
+          behind stayed bright enough to compete with the dialog in front of
+          it, which is half of why modals read as not-quite-open. Darker scrim,
+          same instant paint. */}
       {!isFullscreen && (
         <div
-          className="fixed inset-0 h-full w-full bg-gray-900/30 dark:bg-black/50"
+          className="fixed inset-0 h-full w-full bg-gray-900/50 dark:bg-black/65"
           onClick={onClose}
         ></div>
       )}

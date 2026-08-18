@@ -1928,8 +1928,17 @@ export default function PosPage() {
               un-scannable items first. Nobody maintains it, and it disappears
               the moment the cashier starts searching — a shortlist is only
               useful when you have not already said what you want. */}
+          {/* `hidden lg:block` — off the tablet and the phone, on the shop's
+              own request: the strip costs a row of vertical space on a screen
+              that has little, above a grid that is the actual subject.
+              Worth stating the trade rather than losing it quietly: a mart's
+              loose lines (tomatoes, rice by the kilo, chai) have no barcode,
+              and this strip was the fast route to them. On a small screen
+              those are now reached through search or the category filter,
+              which is slower per item. If a counter ever asks for them back,
+              this is the one class to remove. */}
           {quickKeys.data && quickKeys.data.length > 0 && search === "" && categoryId === "" && (
-            <div className="mb-3 shrink-0">
+            <div className="mb-3 hidden shrink-0 lg:block">
               <div className="mb-1.5 flex items-center gap-2 px-1">
                 <span className="text-theme-xs font-semibold uppercase tracking-wide text-white/60">Quick keys</span>
                 <span className="text-theme-xs text-white/40">· what sells here</span>
@@ -1963,7 +1972,7 @@ export default function PosPage() {
           {posLayout === "grid" && (
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 2xl:grid-cols-4">
               {products.isLoading && tiles.length === 0 ? (
-                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-36 animate-pulse rounded-xl bg-white/10" />)
+                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-36 animate-pulse rounded-xl bg-white/[0.16]" />)
               ) : productsDenied ? (
                 <div className="col-span-full"><NoAccess reason={productsDenied} what="the product list" /></div>
               ) : tiles.length === 0 ? (
@@ -1988,7 +1997,22 @@ export default function PosPage() {
                       ref={i === activeIndex ? activeRef : null}
                       disabled={out}
                       onClick={() => commitProduct(p)}
-                      className={`group flex flex-col overflow-hidden rounded-xl border bg-white/[0.10] text-left transition hover:border-brand-400 hover:bg-white/[0.16] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-white/10 disabled:hover:bg-white/[0.10] ${i === activeIndex ? "border-brand-400 bg-brand-500/25 ring-2 ring-brand-400/70" : "border-white/10"}`}
+                      /* The tile has to look like an object, not a tint.
+                       *
+                       * It was `bg-white/[0.10]` on the #212a45 ground — about
+                       * four percent of luminance between the card and the
+                       * page. On a desktop panel that reads as a card. On a
+                       * tablet, held at an angle under shop lighting, it does
+                       * not: the shop reported the products list as
+                       * "transparent, text showing through", which is exactly
+                       * what a card you cannot find the edge of looks like.
+                       *
+                       * The comment on the pane above already said what this
+                       * should be — "the tile IS the content, so it should be
+                       * the brightest thing on it" — and at 10% it was not.
+                       * Now it is, with the border raised to match so the edge
+                       * is findable rather than inferred. */
+                      className={`group flex flex-col overflow-hidden rounded-xl border bg-white/[0.16] text-left transition hover:border-brand-400 hover:bg-white/[0.24] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-white/15 disabled:hover:bg-white/[0.16] ${i === activeIndex ? "border-brand-400 bg-brand-500/30 ring-2 ring-brand-400/70" : "border-white/15"}`}
                     >
                       <div className="relative h-24 w-full bg-black/25">
                         {img ? (
@@ -2556,14 +2580,19 @@ export default function PosPage() {
          * It is a fact about the SALE, not about the cart, so it spans the
          * whole width under both panes — the totals and the Tender button sit
          * where a hand rests, and the figures finally have room to be read. */}
-        <div className="grid shrink-0 grid-cols-1 gap-2.5 border-t border-gray-100 bg-gray-50 p-2.5 md:grid-cols-3 lg:col-span-12 lg:grid-cols-4 dark:border-gray-800 dark:bg-gray-900/40">
+        {/* Tighter below `lg`. Eight figures in two rows of four, each with
+            its own label, is a tall block — and on a tablet it was eating the
+            height the cart needs. The padding and the row gap shrink; nothing
+            is dropped, because every one of these numbers is something a
+            cashier is asked to read out. */}
+        <div className="grid shrink-0 grid-cols-1 gap-2 border-t border-gray-100 bg-gray-50 p-2 md:grid-cols-3 lg:col-span-12 lg:grid-cols-4 lg:gap-2.5 lg:p-2.5 dark:border-gray-800 dark:bg-gray-900/40">
             {/* Eight figures used to carry identical weight, so "Charges
                 Rs 0" shouted as loudly as the subtotal and the eye had to
                 read all eight to find the two that moved. A zero is now
                 greyed, money is the only thing set bold, and the customer —
                 which is not a number — loses the tabular figures it never
                 should have had. */}
-            <div className="grid grid-cols-4 gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white px-4 py-3 md:col-span-2 lg:col-span-3 dark:border-gray-800 dark:bg-white/[0.02]">
+            <div className="grid grid-cols-4 gap-x-4 gap-y-1 rounded-xl border border-gray-200 bg-white px-3 py-2 md:col-span-2 lg:col-span-3 lg:gap-y-2 lg:px-4 lg:py-3 dark:border-gray-800 dark:bg-white/[0.02]">
               {(() => {
                 const discountTotal = cartDiscount + lineDiscountTotal;
                 const cells: Array<{ k: string; v: string; num?: boolean; tone?: "discount" | "muted" }> = [

@@ -246,11 +246,27 @@ export default function ThemeCustomizer() {
         </button>
       )}
 
-      {/* Scrim */}
+      {/* Scrim — above the whole shell, not below it.
+       *
+       * This panel used to live at z-60/70/80 while the app chrome sits three
+       * orders of magnitude higher: the header at z-99999, the drawer scrim at
+       * 100001, the sidebar drawer at 100002. On a desktop nothing overlapped
+       * and it looked fine. On a tablet, where the sidebar IS a full-height
+       * drawer and the header is sticky across the top, the canvas opened
+       * UNDERNEATH both — which produced three separate complaints that were
+       * one bug:
+       *
+       *   the close X sat under the top header and could not be tapped;
+       *   the sidebar printed itself over the panel and the page;
+       *   the header ran across the panel from the left edge.
+       *
+       * A modal panel has to outrank the chrome it is covering, or the chrome
+       * stays live and tappable in front of it. Same reasoning, and the same
+       * band, as the drawer that already had to climb above the header. */}
       <div
         onClick={() => setOpen(false)}
         aria-hidden
-        className={`fixed inset-0 z-[70] bg-gray-900/40 transition-opacity duration-200 ${
+        className={`fixed inset-0 z-100003 bg-gray-900/40 transition-opacity duration-200 ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
@@ -273,7 +289,7 @@ export default function ThemeCustomizer() {
          *
          * `100dvh` is the height that actually exists right now, which is the
          * unit the rest of this app already uses. */
-        className={`fixed right-0 top-0 z-[80] flex h-dvh w-[min(21rem,100vw)] flex-col bg-white transition-transform duration-200 dark:bg-gray-900 ${
+        className={`fixed right-0 top-0 z-100004 flex h-dvh w-[min(21rem,100vw)] flex-col bg-white transition-transform duration-200 dark:bg-gray-900 ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -284,11 +300,24 @@ export default function ThemeCustomizer() {
               Changes preview instantly. Save to apply for your shop.
             </p>
           </div>
+          {/* A finger-sized way out.
+           *
+           * This was `p-1` around a 20px glyph — a 28px target, in the top
+           * RIGHT corner of a panel pinned to the right edge of a tablet. Two
+           * things were wrong with it at once: the app header used to print
+           * over it (fixed above, in the z-band), and even uncovered it is well
+           * under the 44px a finger actually lands on. A mouse forgives 28px;
+           * a thumb at the edge of the glass does not.
+           *
+           * `shrink-0` because it shares a flex row with a title and a
+           * sentence of help text — without it the button is the thing that
+           * gives when the text is long, and it gives from 44 back down to
+           * nothing. */}
           <button
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/5"
+            className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/5"
           >
             <CloseGlyph />
           </button>

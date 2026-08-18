@@ -169,4 +169,37 @@ describe("a panel with a footer measures the viewport that exists", () => {
   it("its footer cannot be squeezed instead of the list scrolling", () => {
     expect(THEME_CUSTOMIZER).toMatch(/<footer className="flex shrink-0/);
   });
+
+  it("opens ABOVE the shell, not underneath it", () => {
+    // It sat at z-60/70/80 while the chrome sits three orders of magnitude
+    // higher — header 99999, drawer scrim 100001, drawer 100002. On a desktop
+    // nothing overlapped and it looked fine. On a tablet, where the sidebar is
+    // a full-height drawer and the header is sticky across the top, the canvas
+    // opened underneath both: the close X was under the header and untappable,
+    // the sidebar printed over the panel, and the header ran across it from the
+    // left. Three complaints, one number.
+    //
+    // The panel and its scrim are read separately because a scrim that ranks
+    // below the header leaves the header live and tappable in front of a modal
+    // — which is the same bug wearing the other half's clothes.
+    const canvas = THEME_CUSTOMIZER ?? "";
+    const zOf = (marker: RegExp): number =>
+      Number(canvas.match(marker)?.[1] ?? 0);
+
+    const scrim = zOf(/fixed inset-0 z-(\d{4,}) bg-gray-900\/40/);
+    const panel = zOf(/fixed right-0 top-0 z-(\d{4,}) flex h-dvh/);
+
+    expect(scrim).toBeGreaterThan(100002);
+    expect(panel).toBeGreaterThan(scrim);
+  });
+
+  it("can be closed by a finger, not only a mouse", () => {
+    // The close was `p-1` around a 20px glyph — a 28px target in the top-right
+    // corner of a panel pinned to the right edge of the glass. A mouse
+    // forgives 28px; a thumb at the edge does not. 44px is the floor, and
+    // `size-11` is Tailwind's 44.
+    expect(THEME_CUSTOMIZER).toMatch(
+      /aria-label="Close"\s*\n\s*className="[^"]*\bsize-11\b/,
+    );
+  });
 });
