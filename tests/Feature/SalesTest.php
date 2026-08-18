@@ -282,6 +282,67 @@ class SalesTest extends TestCase
             ->json('meta.pagination.total'));
     }
 
+    /**
+     * The slip in the customer's bag is the only reference they have.
+     *
+     * A till with no server prints `OFF-…` instead of an invoice number, and the
+     * server keeps both on sync FOR THIS — so if the search does not match it,
+     * keeping it bought nothing. And because a return is
+     * `POST /sales/{id}/returns`, a sale that cannot be found is a sale that
+     * cannot be returned.
+     *
+     * The number is set directly rather than through a sync round trip: what is
+     * under test is the lookup, not the queue.
+     */
+    public function test_a_slip_number_finds_the_sale_it_was_printed_for(): void
+    {
+        $sale = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload())
+            ->json('data');
+
+        Sale::withoutGlobalScopes()->find($sale['id'])
+            ->update(['offline_number' => 'OFF-LANE1-A3F2-000042']);
+
+        $this->assertSame(1, $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/sales?search=OFF-LANE1-A3F2-000042')
+            ->assertOk()
+            ->json('meta.pagination.total'));
+
+        // A staff member reads part of a smudged slip.
+        $this->assertSame(1, $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/sales?search=A3F2')
+            ->json('meta.pagination.total'));
+
+        // And it still narrows: another shop's slip number matches nothing.
+        $this->assertSame(0, $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/sales?search=OFF-LANE9-ZZZZ-000999')
+            ->json('meta.pagination.total'));
+    }
+
+    /**
+     * The export is meant to be the same rows as the screen. It shares the
+     * search clause so it cannot drift, and it carries the slip number — a
+     * shop reconciling a day that arrived three days late is matching paper
+     * against rows by hand.
+     */
+    public function test_the_export_carries_the_slip_number_and_shares_the_search(): void
+    {
+        $sale = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload())
+            ->json('data');
+
+        Sale::withoutGlobalScopes()->find($sale['id'])
+            ->update(['offline_number' => 'OFF-LANE1-A3F2-000042']);
+
+        $csv = $this->actingAsUser($this->owner)
+            ->get('/api/v1/sales/export?search=OFF-LANE1-A3F2-000042')
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('offline_number', $csv);
+        $this->assertStringContainsString('OFF-LANE1-A3F2-000042', $csv);
+        // One data row, not the whole ledger — the filter travelled.
+        $this->assertSame(1, substr_count($csv, $sale['invoice_number']));
+    }
+
     public function test_dashboard_today_reflects_sales_and_profit(): void
     {
         $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload());

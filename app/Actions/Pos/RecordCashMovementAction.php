@@ -78,7 +78,7 @@ class RecordCashMovementAction
                 }
             }
 
-            return CashMovement::query()->create([
+            return CashMovement::query()->create(array_filter([
                 'tenant_id' => $user->tenant_id,
                 'branch_id' => $session->branch_id,
                 'register_id' => $session->register_id,
@@ -92,7 +92,17 @@ class RecordCashMovementAction
                 'source_type' => $data['source_type'] ?? null,
                 'source_id' => $data['source_id'] ?? null,
                 'approved_by' => $data['approved_by'] ?? null,
-            ]);
+                // Set only by the offline queue. Two `paid_out` rows of the
+                // same amount on one shift are an ordinary thing for a shop to
+                // do, so nothing else can tell a replay from a real second
+                // payout — and without a key one lost acknowledgement takes the
+                // money out of the drawer twice.
+                'idempotency_key' => $data['idempotency_key'] ?? null,
+                // WHEN the cash moved, when it is being recorded late. Absent
+                // for everything typed at the counter, which is almost all of
+                // them, and then Eloquent stamps it as usual.
+                'created_at' => $data['created_at'] ?? null,
+            ], fn ($value, $key): bool => $value !== null || ! in_array($key, ['idempotency_key', 'created_at'], true), ARRAY_FILTER_USE_BOTH));
         });
     }
 

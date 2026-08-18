@@ -125,6 +125,100 @@ class ReviewsTest extends TestCase
         $this->assertSame(0, Review::withoutTenancy()->count());
     }
 
+    // ── Which one is mine ───────────────────────────────────────────
+    //
+    // The shop page promises "posting again updates it", and until this existed
+    // that was something a customer had to take on trust: the public list
+    // carries a display name and nothing else, so no screen could point at a
+    // row and call it theirs — or offer to take it down. `destroy()` was
+    // written, correct, and reachable by nobody.
+
+    public function test_a_customer_can_find_their_own_review_and_the_shop_it_is_on(): void
+    {
+        $this->review(4, 'Good bread');
+
+        $mine = $this->actingAsUser($this->customer)->getJson('/api/v1/customer/reviews')
+            ->assertOk()->json('data');
+
+        $this->assertCount(1, $mine);
+        $this->assertSame(4, $mine[0]['rating']);
+        $this->assertSame('Good bread', $mine[0]['comment']);
+        // The slug is what the screen matches on, and the name is what a list
+        // of my reviews would show. Neither is derivable from the review row.
+        $this->assertSame($this->shop->slug, $mine[0]['shop_slug']);
+        // Asserted against the literal rather than `$this->shop->…`, because
+        // the first version of this compared the response to a property that
+        // was ALSO null — the column is `business_name` — and passed while the
+        // screen would have shown a nameless shop.
+        $this->assertNotNull($mine[0]['shop_name']);
+        $this->assertSame($this->shop->business_name, $mine[0]['shop_name']);
+    }
+
+    public function test_it_is_only_ever_my_own(): void
+    {
+        // The whole point of the endpoint is that it answers "mine". One that
+        // returned somebody else's would be worse than none: the screen offers
+        // a Remove button beside whatever it gets back.
+        $this->review(5, 'Mine');
+
+        $other = User::factory()->create();
+        $this->actingAsUser($other)->postJson('/api/v1/customer/reviews', [
+            'shop_slug' => $this->shop->slug, 'rating' => 1, 'comment' => 'Theirs',
+        ])->assertCreated();
+
+        $mine = $this->actingAsUser($this->customer)->getJson('/api/v1/customer/reviews')
+            ->assertOk()->json('data');
+
+        $this->assertCount(1, $mine);
+        $this->assertSame('Mine', $mine[0]['comment']);
+    }
+
+    public function test_the_public_list_never_says_whose_review_it_is(): void
+    {
+        // Deliberate, and the reason this is a separate endpoint rather than a
+        // flag: the public payload is the same for every visitor and can be
+        // cached in front of us. A body that changes with whoever holds the
+        // token is how one shopper's view gets served to another.
+        $this->review();
+
+        $public = $this->getJson("/api/v1/marketplace/shops/{$this->shop->slug}/reviews")
+            ->assertOk()->json('data');
+
+        $this->assertArrayNotHasKey('customer_id', $public[0]);
+        $this->assertArrayNotHasKey('is_mine', $public[0]);
+    }
+
+    public function test_a_signed_out_visitor_cannot_ask_whose_reviews_these_are(): void
+    {
+        $this->review();
+
+        // `actingAsUser` sets a bearer header that persists on this test case,
+        // so a plain `getJson` here is still signed in — the first version of
+        // this asserted 401 and was handed the customer's own review with a
+        // 200. Dropping the headers is what makes it a signed-out request.
+        $this->flushHeaders();
+        $this->app['auth']->forgetGuards();
+
+        $this->getJson('/api/v1/customer/reviews')->assertStatus(401);
+    }
+
+    public function test_a_removed_review_stops_being_mine_and_stops_being_public(): void
+    {
+        // The round trip the screen actually performs: find mine, take it down,
+        // and it is gone from both places.
+        $this->review();
+        $id = $this->actingAsUser($this->customer)->getJson('/api/v1/customer/reviews')
+            ->json('data.0.id');
+
+        $this->actingAsUser($this->customer)->deleteJson("/api/v1/customer/reviews/{$id}")
+            ->assertOk();
+
+        $this->assertSame([], $this->actingAsUser($this->customer)
+            ->getJson('/api/v1/customer/reviews')->json('data'));
+        $this->assertSame([], $this->getJson("/api/v1/marketplace/shops/{$this->shop->slug}/reviews")
+            ->json('data'));
+    }
+
     // ── Owner reply ─────────────────────────────────────────────────
 
     public function test_owner_replies_and_reply_shows_publicly(): void

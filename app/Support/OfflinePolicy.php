@@ -86,6 +86,34 @@ class OfflinePolicy
         return null;
     }
 
+    /**
+     * The refusals for a set of products, keyed by id and named.
+     *
+     * Named because this one is read in a REPORT rather than at the counter.
+     * The cashier already has the item in front of them; the owner reading
+     * "Medicines need the live batch and expiry list" a week later has fifty
+     * sales and no idea which box left the shop.
+     *
+     * Takes the products rather than fetching them, so the caller can resolve
+     * a whole sync batch in one query instead of one per sale.
+     *
+     * @param  iterable<Product>  $products
+     * @return array<string, string>
+     */
+    public static function itemRefusals(iterable $products): array
+    {
+        $out = [];
+
+        foreach ($products as $product) {
+            $why = self::refusalFor($product);
+            if ($why !== null) {
+                $out[(string) $product->id] = "{$product->name}: {$why}";
+            }
+        }
+
+        return $out;
+    }
+
     public static function tenderAllowed(?string $method): bool
     {
         return $method !== null && in_array($method, self::TENDERS, true);
@@ -97,8 +125,16 @@ class OfflinePolicy
      * Returns the reasons rather than a boolean: a sale refused for three
      * different things should say all three, because a shop fixing one and
      * hitting the next has been told the truth twice and helped once.
+     *
+     * `$itemRefusals` is the map from `itemRefusals()` — id to reason — for
+     * every product the batch mentions. It is a PARAMETER because this method
+     * is otherwise pure and touches no database, and the caller can then ask
+     * once for a whole batch. Passing nothing keeps the old behaviour, which
+     * is the sale-level rules only.
+     *
+     * @param  array<string, string>  $itemRefusals
      */
-    public static function violations(array $sale): array
+    public static function violations(array $sale, array $itemRefusals = []): array
     {
         $reasons = [];
 
@@ -124,6 +160,29 @@ class OfflinePolicy
         // One code, one use. Two tills offline would each honour it.
         if (! empty($sale['coupon_code'])) {
             $reasons[] = 'A coupon can have a usage limit, which only the server can count.';
+        }
+
+        // The ITEM rule — the one this endpoint used to miss entirely.
+        //
+        // `sellable()` was enforced only on the till, and the till's refusal is
+        // a user interface: it is an outbox in a browser database on a tablet
+        // that may have left the shop. So a sale carrying a medicine or a
+        // serial-tracked handset arrived, applied, and was recorded as a CLEAN
+        // offline sale — no flag, nothing in the report, nobody ever looking.
+        //
+        // Of every rule here it is the one with the worst ending. Selling
+        // expired stock is a regulatory event, and two tills that each sell the
+        // same IMEI is one handset sold twice.
+        //
+        // Deduplicated by product: the same medicine on two lines of one bill
+        // is one thing to tell the owner, not two.
+        $named = [];
+        foreach ($sale['items'] ?? [] as $item) {
+            $id = (string) ($item['product_id'] ?? '');
+            if (isset($itemRefusals[$id]) && ! isset($named[$id])) {
+                $named[$id] = true;
+                $reasons[] = $itemRefusals[$id];
+            }
         }
 
         return $reasons;

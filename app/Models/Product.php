@@ -297,6 +297,19 @@ class Product extends BaseModel
         return (float) $this->stock_quantity;
     }
 
+    /**
+     * Low across the WHOLE SHOP — never for one branch.
+     *
+     * The reachable answer to this question is the `?low_stock=1` filter and
+     * the inventory screen, both of which do it in SQL because a shop with
+     * twenty thousand products cannot load them to ask. This is the same rule
+     * in PHP, kept as a test's second opinion on the variant-sum half of it.
+     *
+     * The trap is the branch: `InventoryController` compares against stock at
+     * ONE branch, and this compares against the total. A caller that wanted the
+     * branch answer would get "fine" for a product that has run out where the
+     * customer is standing.
+     */
     public function isLowStock(): bool
     {
         return $this->track_inventory

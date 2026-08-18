@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Pos\SyncRequest;
 use App\Models\CashSession;
 use App\Models\PosDevice;
+use App\Models\Product;
 use App\Models\Sale;
 use App\Models\User;
 use App\Support\ApiResponse;
@@ -62,9 +63,11 @@ class PosSyncController extends Controller
         $device = $this->device($data['device_id'] ?? null);
         $windowDays = PlanLimits::limit($this->tenant->get(), 'offline_days');
 
+        $itemRefusals = $this->itemRefusals($data['operations']);
+
         $results = [];
         foreach ($data['operations'] as $operation) {
-            $results[] = $this->apply($operation, $device, $windowDays);
+            $results[] = $this->apply($operation, $device, $windowDays, $itemRefusals);
         }
 
         return ApiResponse::ok([
@@ -80,7 +83,7 @@ class PosSyncController extends Controller
      * fifty landed, and an exception here would tell it nothing about the other
      * forty-nine.
      */
-    private function apply(array $operation, ?PosDevice $device, ?int $windowDays): array
+    private function apply(array $operation, ?PosDevice $device, ?int $windowDays, array $itemRefusals = []): array
     {
         $sale = $operation['sale'];
         [$soldAt, $clientSoldAt] = $this->when($operation);
@@ -93,7 +96,7 @@ class PosSyncController extends Controller
             return $this->done('duplicate', $operation['op'], $existing);
         }
 
-        $violations = OfflinePolicy::violations($sale);
+        $violations = OfflinePolicy::violations($sale, $itemRefusals);
 
         $trainingSplit = $this->trainingDisagreement($sale, $operation);
         if ($trainingSplit !== null) {
@@ -308,6 +311,43 @@ class PosSyncController extends Controller
         }
 
         return Carbon::parse($operation['offline_since'])->diffInDays($soldAt) > $windowDays;
+    }
+
+    /**
+     * Which products in this batch were never sellable offline, by id.
+     *
+     * Asked ONCE for the whole request. A tablet that has been dark for a week
+     * arrives with fifty sales, and the answer to "is this a medicine" does not
+     * change between them — resolving it per sale would be fifty round trips
+     * for one query's worth of truth.
+     *
+     * Tenant-scoped by the model, so an id belonging to another shop simply is
+     * not found here. That is not this method's fence to hold: the sale itself
+     * is refused downstream, and inventing a violation for a product that does
+     * not exist would put the wrong sentence in the owner's report.
+     *
+     * @return array<string, string>
+     */
+    private function itemRefusals(array $operations): array
+    {
+        $ids = [];
+        foreach ($operations as $operation) {
+            foreach ($operation['sale']['items'] ?? [] as $item) {
+                if (! empty($item['product_id'])) {
+                    $ids[(string) $item['product_id']] = true;
+                }
+            }
+        }
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return OfflinePolicy::itemRefusals(
+            Product::query()
+                ->whereIn('id', array_keys($ids))
+                ->get(['id', 'name', 'item_type', 'tracks_serial']),
+        );
     }
 
     /** The device that rang these, when we know it. Never fatal. */

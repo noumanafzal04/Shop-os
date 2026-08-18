@@ -130,19 +130,22 @@ class GlobalSearchService
 
     private function sales(string $q): array
     {
-        $like = "%{$q}%";
-
         return Sale::query()
             ->where('status', '!=', SaleStatus::Cancelled->value)
-            ->where(fn ($w) => $w
-                ->where('invoice_number', 'like', $like)
-                ->orWhere('customer_name', 'like', $like))
+            // Shared with the sales ledger and its export, so a slip number
+            // found in one place is found in all three.
+            ->matchingSearch($q)
             ->orderByDesc('sold_at')
             ->limit(self::PER_GROUP)
-            ->get(['id', 'invoice_number', 'customer_name', 'total', 'status', 'sold_at'])
+            ->get(['id', 'invoice_number', 'offline_number', 'customer_name', 'total', 'status', 'sold_at'])
             ->map(fn (Sale $s) => [
                 'id' => $s->id,
                 'invoice_number' => $s->invoice_number,
+                // Carried so the person holding the slip can see their own
+                // number on the row they are about to open. Finding the sale
+                // and not being able to confirm it is the same sale is half a
+                // fix.
+                'offline_number' => $s->offline_number,
                 'customer_name' => $s->customer_name,
                 'total' => $s->total,
                 'status' => $s->status,

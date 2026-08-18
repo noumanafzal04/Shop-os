@@ -69,6 +69,16 @@ class PosCatalogController extends Controller
         'receipt_show_cashier', 'invoice_ntn', 'invoice_strn',
         'scale_barcode_enabled', 'scale_barcode_prefix', 'scale_barcode_mode',
         'pos_require_shift', 'pos_default_payment', 'pos_ask_who_served',
+        // How this shop counts its drawer out. They travel because the close
+        // screen has to look the same with no server as with one: a shop that
+        // counts by note, or that must declare what the card machine took, was
+        // silently given a DIFFERENT close during an outage — and the declared
+        // tenders were simply never collected for that shift.
+        //
+        // `pos_blind_close` rides along for completeness rather than for
+        // safety: offline there is no expected figure to hide, because the
+        // till deliberately does not compute one.
+        'pos_blind_close', 'pos_denomination_count', 'pos_declare_tenders',
     ];
 
     public function __construct(

@@ -39,6 +39,44 @@ class ReviewController extends Controller
     }
 
     /**
+     * CUSTOMER: my own reviews, whichever shop they are on.
+     *
+     * The shop page tells a customer "posting again updates it", and until this
+     * existed that sentence was something they had to take on trust: the public
+     * list carries a display name and nothing else, so the screen could not
+     * point at a row and say "this one is yours". It could not offer to remove
+     * one either — `destroy()` was written, correct, and reachable by nobody.
+     *
+     * Deliberately NOT a flag on the public payload. That response is the same
+     * for every visitor and can be cached in front of us; a body that changes
+     * with whoever holds the token is how one shopper's view ends up served to
+     * another.
+     *
+     * Unpaginated, and that is a real bound rather than an oversight — one
+     * review per shop, and a person reviews the shops they buy from.
+     */
+    public function mine(Request $request): JsonResponse
+    {
+        $reviews = Review::withoutTenancy()
+            ->where('customer_id', $request->user()->id)
+            ->with('tenant:id,business_name,slug')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (Review $r) => [
+                'id' => $r->id,
+                'shop_slug' => $r->tenant?->slug,
+                'shop_name' => $r->tenant?->business_name,
+                'rating' => $r->rating,
+                'comment' => $r->comment,
+                'reply' => $r->reply,
+                'replied_at' => $r->replied_at?->toIso8601String(),
+                'created_at' => $r->created_at?->toIso8601String(),
+            ]);
+
+        return ApiResponse::ok($reviews);
+    }
+
+    /**
      * CUSTOMER: create or update own review (one per shop).
      */
     public function store(Request $request, ReviewService $service): JsonResponse

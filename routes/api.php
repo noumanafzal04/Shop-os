@@ -55,6 +55,7 @@ use App\Http\Controllers\Api\V1\Tenant\PosCatalogController;
 use App\Http\Controllers\Api\V1\Tenant\PosController;
 use App\Http\Controllers\Api\V1\Tenant\PosDeviceController;
 use App\Http\Controllers\Api\V1\Tenant\PosRegisterController;
+use App\Http\Controllers\Api\V1\Tenant\PosShiftSyncController;
 use App\Http\Controllers\Api\V1\Tenant\PosSyncController;
 use App\Http\Controllers\Api\V1\Tenant\PricingVarianceController;
 use App\Http\Controllers\Api\V1\Tenant\ProductController;
@@ -476,6 +477,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // ringing one, because that is what it is — the sale the
                     // cashier already made, catching up.
                     Route::post('/sync', [PosSyncController::class, 'store']);
+                    // Shifts opened, moved and counted with no server. A
+                    // separate endpoint from the sales one because the till
+                    // must flush them AROUND the sale queue — opens first so
+                    // the sales have a shift to name, closes last so the drawer
+                    // is counted against every sale that belongs inside it.
+                    Route::post('/sync/shifts', [PosShiftSyncController::class, 'store']);
                     Route::get('/catalog', [PosCatalogController::class, 'delta']);
                     // Who is at the till. The roster and the PIN handover — the
                     // outgoing cashier's session on this device ends with it.
@@ -1049,6 +1056,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::post('/reservations', [CustomerReservationController::class, 'store']);
             Route::post('/reservations/{id}/cancel', [CustomerReservationController::class, 'cancel']);
 
+            // `mine` is here and NOT on the public shop payload on purpose: a
+            // public marketplace response is cacheable, and a body that varies
+            // by who is holding the token is how one shopper's view reaches
+            // another.
+            Route::get('/reviews', [ReviewController::class, 'mine']);
             Route::post('/reviews', [ReviewController::class, 'store']);
             Route::delete('/reviews/{id}', [ReviewController::class, 'destroy']);
 

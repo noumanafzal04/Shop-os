@@ -8,6 +8,7 @@ use App\Models\City;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -77,6 +78,40 @@ class GlobalSearchTest extends TestCase
     private function groupTypes(array $data): array
     {
         return array_map(fn ($g) => $g['type'], $data['groups']);
+    }
+
+    /**
+     * A customer comes back holding the only paper they were given.
+     *
+     * An offline till prints `OFF-…` because it must not mint an invoice number
+     * it could collide on; the server keeps both numbers on sync precisely so
+     * that slip can be looked up. Global search matched `invoice_number` and
+     * nothing else, so the palette a shop actually uses to find a sale could not
+     * find this one — and there is no return without first finding it.
+     */
+    public function test_search_finds_a_sale_by_the_slip_number_printed_offline(): void
+    {
+        Sale::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id,
+            'invoice_number' => 'INV-1043',
+            'offline_number' => 'OFF-LANE1-A3F2-000042',
+            'status' => 'completed',
+            'channel' => 'pos', 'payment_method' => 'cash',
+            'subtotal' => 500, 'total' => 500, 'amount_paid' => 500,
+            'sold_at' => now(),
+        ]);
+
+        $byInvoice = $this->search($this->owner, 'INV-1043');
+        $this->assertContains('sale', $this->groupTypes($byInvoice));
+
+        $bySlip = $this->search($this->owner, 'OFF-LANE1-A3F2-000042');
+        $this->assertContains('sale', $this->groupTypes($bySlip));
+
+        // And the row carries the slip back, so whoever is holding the paper can
+        // see their own number on the result before opening it.
+        $row = collect($bySlip['groups'])->firstWhere('type', 'sale')['items'][0];
+        $this->assertSame('OFF-LANE1-A3F2-000042', $row['offline_number']);
+        $this->assertSame('INV-1043', $row['invoice_number']);
     }
 
     public function test_search_finds_a_product_by_name(): void

@@ -98,6 +98,48 @@ class Sale extends BaseModel
     }
 
     /**
+     * The one definition of "find me this sale".
+     *
+     * ── Why `offline_number` is in here ─────────────────────────────────
+     *
+     * A till with no server prints `OFF-LANE1-A3F2-000042` instead of an
+     * invoice number, and on sync the server assigns the real number and keeps
+     * BOTH — deliberately, because **the slip in the customer's bag is the only
+     * reference they have.** Keeping it and then not matching on it means that
+     * customer walks in, hands over the only paper they were given, and the
+     * shop cannot find their sale — so it cannot take the return either, since
+     * a return is `POST /sales/{id}/returns` and the id comes from this search.
+     *
+     * The offline number was searchable by nothing for as long as offline
+     * selling has existed.
+     *
+     * ── Why it is a scope and not three copies ──────────────────────────
+     *
+     * There were three: the sales ledger, its CSV export, and global search.
+     * The export's job is to be the same rows as the screen, and it can only
+     * stay the same by being the same clause. Two copies of one rule do not
+     * remain one rule — the till's status pill proved that on the same day this
+     * was written, having grown a second copy of its own wording that then
+     * learned different words.
+     */
+    public function scopeMatchingSearch(Builder $query, ?string $search): Builder
+    {
+        $search = trim((string) $search);
+
+        if ($search === '') {
+            return $query;
+        }
+
+        $like = "%{$search}%";
+
+        return $query->where(fn (Builder $q) => $q
+            ->where('invoice_number', 'like', $like)
+            ->orWhere('offline_number', 'like', $like)
+            ->orWhere('customer_name', 'like', $like)
+            ->orWhere('customer_phone', 'like', $like));
+    }
+
+    /**
      * The lane it was rung on. Null for an online order or a shop that never
      * configured registers — the receipt simply omits the counter line.
      */

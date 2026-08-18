@@ -18,6 +18,7 @@ use App\Support\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -333,6 +334,136 @@ class PosSyncTest extends TestCase
             ->assertOk()->json('data.results.0');
 
         $this->assertNotEmpty($result['violations']);
+    }
+
+    // ── The ITEM was never sellable offline ─────────────────────────
+    //
+    // Of the offline rules this is the only one drawn on the LINE rather than
+    // the sale, and it was enforced only on the till. The till's refusal is a
+    // user interface: the queue behind it is a browser database on a tablet
+    // that may have left the shop. So these arrived, applied, and were recorded
+    // as clean offline sales — nothing flagged, nothing in the report, nobody
+    // ever looking.
+    //
+    // It is also the rule with the worst ending. The other four cost a shop
+    // money or an argument; these two are a regulatory event and one handset
+    // sold twice.
+
+    private function medicine(): Product
+    {
+        return Product::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'type' => 'product',
+            'item_type' => 'medicine',
+            'name' => 'Augmentin 625',
+            'price' => 180,
+            'stock_quantity' => 50,
+            'track_inventory' => true,
+            'is_active' => true,
+        ]);
+    }
+
+    public function test_a_medicine_rung_offline_is_recorded_and_flagged(): void
+    {
+        $med = $this->medicine();
+
+        $result = $this->sync([$this->operation(sale: [
+            'items' => [['product_id' => $med->id, 'quantity' => 2]],
+        ])])->assertOk()->json('data.results.0');
+
+        // The money crossed the counter and the box left the shop. Refusing it
+        // would delete the record of both.
+        $this->assertSame('applied', $result['status']);
+
+        // Named, because this is read in a report a week later rather than at
+        // the counter with the item in hand.
+        $this->assertNotEmpty($result['violations']);
+        $this->assertStringContainsString('Augmentin 625', $result['violations'][0]);
+        $this->assertStringContainsString('expiry', $result['violations'][0]);
+
+        $this->assertNotNull(Sale::withoutTenancy()->find($result['sale_id'])->offline_violations);
+    }
+
+    public function test_a_serial_tracked_item_rung_offline_is_recorded_and_flagged(): void
+    {
+        // Two tills with no line each sell the same IMEI, and each prints a
+        // receipt. The shop owns one handset.
+        $handset = Product::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'type' => 'product',
+            'item_type' => 'physical_product',
+            'tracks_serial' => true,
+            'name' => 'Handset X',
+            'price' => 90000,
+            'stock_quantity' => 5,
+            'track_inventory' => true,
+            'is_active' => true,
+        ]);
+
+        $result = $this->sync([$this->operation(sale: [
+            'items' => [['product_id' => $handset->id, 'quantity' => 1]],
+            'amount_paid' => 90000,
+        ])])->assertOk()->json('data.results.0');
+
+        $this->assertSame('applied', $result['status']);
+        $this->assertStringContainsString('Handset X', $result['violations'][0]);
+        $this->assertStringContainsString('serial', $result['violations'][0]);
+    }
+
+    public function test_the_same_medicine_on_two_lines_is_one_thing_to_tell_the_owner(): void
+    {
+        // A report that says the same sentence twice for one bill trains the
+        // person reading it to skim.
+        $med = $this->medicine();
+
+        $result = $this->sync([$this->operation(sale: [
+            'items' => [
+                ['product_id' => $med->id, 'quantity' => 1],
+                ['product_id' => $med->id, 'quantity' => 3],
+            ],
+            'amount_paid' => 720,
+        ])])->assertOk()->json('data.results.0');
+
+        $this->assertCount(1, $result['violations']);
+    }
+
+    public function test_an_ordinary_item_is_not_flagged_by_the_item_rule(): void
+    {
+        // The half that stops this becoming a check which flags everything. A
+        // report where every sale is flagged is a report nobody reads — and a
+        // mart's whole catalog goes through this path.
+        $result = $this->sync([$this->operation()])->assertOk()->json('data.results.0');
+
+        $this->assertSame([], $result['violations']);
+    }
+
+    public function test_a_week_of_sales_asks_the_catalog_once(): void
+    {
+        // The property that keeps the check affordable. A tablet dark for a
+        // week arrives with a batch, and "is this a medicine" does not change
+        // between its sales — asking per sale would be a round trip each for
+        // one query's worth of truth.
+        $med = $this->medicine();
+
+        $operations = [];
+        for ($i = 0; $i < 12; $i++) {
+            $operations[] = $this->operation(sale: [
+                'items' => [['product_id' => $med->id, 'quantity' => 1]],
+            ]);
+        }
+
+        DB::enableQueryLog();
+        $this->sync($operations)->assertOk();
+        $log = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $lookups = count(array_filter(
+            $log,
+            fn (array $q): bool => str_contains($q['query'], 'from "products"')
+                && str_contains($q['query'], '"id" in ('),
+        ));
+
+        $this->assertSame(1, $lookups, 'the refusal map is resolved once per request, not once per sale');
     }
 
     // ── Out of stock does not refuse ────────────────────────────────

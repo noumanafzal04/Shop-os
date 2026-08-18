@@ -258,6 +258,35 @@ class PosCatalogSyncTest extends TestCase
         $this->assertNotNull($data['server_time']);
     }
 
+    /**
+     * How this shop counts its drawer out has to travel with the catalog.
+     *
+     * The close screen reads these three. With no server it fell back to
+     * hardcoded defaults, so a shop that counts by note — or that must declare
+     * what the card machine took — was silently given a DIFFERENT close during
+     * an outage, and the declared tenders were never collected for that shift
+     * at all.
+     */
+    public function test_the_drawer_close_settings_reach_the_till(): void
+    {
+        // Set on the tenant directly: what is under test is that the till is
+        // TOLD, not the settings screen's own permissions.
+        $this->tenant->update(['settings' => array_merge($this->tenant->settings ?? [], [
+            'pos_denomination_count' => false,
+            'pos_declare_tenders' => true,
+            'pos_blind_close' => true,
+        ])]);
+
+        $settings = $this->bootstrap()['settings'];
+
+        // The VALUES, not just the keys — a list that carried the names and
+        // dropped what the shop chose would pass a key check and still hand
+        // every till the default.
+        $this->assertFalse((bool) $settings['pos_denomination_count']);
+        $this->assertTrue((bool) $settings['pos_declare_tenders']);
+        $this->assertTrue((bool) $settings['pos_blind_close']);
+    }
+
     // ── The kill switch ─────────────────────────────────────────────
     //
     // It rides the catalog because that is the one call a till makes WHILE IT

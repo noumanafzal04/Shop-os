@@ -32,13 +32,10 @@ class SaleController extends Controller
             // Branch scope: a single branch (staff, or an owner focused on one)
             // sees only its sales; an owner's All-Branches view sees them all.
             ->when($branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
-            ->when($request->query('search'), function ($q, $search): void {
-                $q->where(function ($q) use ($search): void {
-                    $q->where('invoice_number', 'like', "%{$search}%")
-                        ->orWhere('customer_name', 'like', "%{$search}%")
-                        ->orWhere('customer_phone', 'like', "%{$search}%");
-                });
-            })
+            // One definition, shared with the export below and with global
+            // search — see Sale::scopeMatchingSearch. It is what makes an
+            // offline slip (`OFF-…`) findable at all.
+            ->matchingSearch($request->query('search'))
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('channel'), fn ($q, $channel) => $q->where('channel', $channel))
             ->when($request->query('from'), fn ($q, $from) => $q->where('sold_at', '>=', $from))
@@ -56,19 +53,16 @@ class SaleController extends Controller
      */
     public function export(Request $request, BranchContext $branch): StreamedResponse
     {
-        $header = ['invoice_number', 'sold_at', 'branch', 'channel', 'status', 'customer_name', 'customer_phone', 'order_type', 'table_no', 'items', 'subtotal', 'discount', 'tax', 'total', 'payment_method', 'amount_paid', 'change_due', 'notes'];
+        $header = ['invoice_number', 'offline_number', 'sold_at', 'branch', 'channel', 'status', 'customer_name', 'customer_phone', 'order_type', 'table_no', 'items', 'subtotal', 'discount', 'tax', 'total', 'payment_method', 'amount_paid', 'change_due', 'notes'];
 
         $rows = Sale::query()
             ->withCount('items')
             ->with('branch:id,name')
             ->when($branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
-            ->when($request->query('search'), function ($q, $search): void {
-                $q->where(function ($q) use ($search): void {
-                    $q->where('invoice_number', 'like', "%{$search}%")
-                        ->orWhere('customer_name', 'like', "%{$search}%")
-                        ->orWhere('customer_phone', 'like', "%{$search}%");
-                });
-            })
+            // One definition, shared with the export below and with global
+            // search — see Sale::scopeMatchingSearch. It is what makes an
+            // offline slip (`OFF-…`) findable at all.
+            ->matchingSearch($request->query('search'))
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('channel'), fn ($q, $channel) => $q->where('channel', $channel))
             ->when($request->query('from'), fn ($q, $from) => $q->where('sold_at', '>=', $from))
@@ -77,6 +71,10 @@ class SaleController extends Controller
             ->get()
             ->map(fn (Sale $s) => [
                 $s->invoice_number,
+                // Blank on almost every row. Present on the ones a shop most
+                // needs to reconcile by hand — a day's takings that arrived
+                // late, against the slips that were printed at the time.
+                $s->offline_number,
                 $s->sold_at?->toDateTimeString(),
                 $s->branch?->name,
                 $s->channel?->value,

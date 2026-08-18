@@ -39,6 +39,14 @@ class CashSession extends Model
             'tender_variances' => 'array',
             'blind_close' => 'boolean',
             'is_training' => 'boolean',
+            // When a shift opened offline reached us — null on every shift
+            // opened online, which is almost all of them.
+            'synced_at' => 'datetime',
+            // Rules this shift broke by existing: the lane was already held,
+            // or its cashier had a shift open elsewhere. Recorded for an owner
+            // to reconcile, never corrected — a counted drawer must not be left
+            // with no shift to belong to.
+            'offline_violations' => 'array',
         ];
     }
 
