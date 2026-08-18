@@ -62,6 +62,26 @@ def _with_prerequisites(want: list[str]) -> set[str]:
     return out
 
 
+# The module each phase is ABOUT, where that is a single flag. The run uses
+# these to say what a phase should have covered and did not — see
+# `Report.summary`. Phases whose subject is not one module (the seams, the
+# money, the offline queue) simply report what they touched.
+GATES = {"i": "pos", "k": "inventory", "l": "dine_in", "m": "pos", "n": "pos"}
+
+
+def _expected(shops: dict, want: set[str]) -> dict[str, set[str]]:
+    """For each gated phase in this run, the shops that have its module on."""
+    out: dict[str, set[str]] = {}
+    for phase, module in GATES.items():
+        if phase not in want:
+            continue
+        out[phase.upper()] = {
+            code for code, shop in shops.items()
+            if (shop.get("features") or {}).get(module)
+        }
+    return out
+
+
 def main() -> int:
     asked = [p.lower() for p in sys.argv[1:]] or PHASES
     unknown = [p for p in asked if p not in PHASES]
@@ -119,7 +139,7 @@ def main() -> int:
     if "n" in want:
         phase_n.run(api, rep, sold)
 
-    return rep.summary()
+    return rep.summary(_expected(shops, want), set(shops))
 
 
 if __name__ == "__main__":

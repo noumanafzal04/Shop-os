@@ -30,9 +30,10 @@ COUPON = "SWEEP10"
 
 
 def run(api: Api, rep: Report, sold: dict) -> dict:
-    for code in ("mart", "retail"):
-        state = sold.get(code)
-        if state is None or not (state.get("features") or {}).get("pos"):
+    # Every shop with a till can give money away — see the note in phase K on
+    # why the gate is the module and never a list of trades.
+    for code, state in sold.items():
+        if not (state.get("features") or {}).get("pos"):
             continue
 
         token = state["token"]
@@ -44,7 +45,7 @@ def run(api: Api, rep: Report, sold: dict) -> dict:
         # stacks: a 10-point redemption on it discounted 110, which reads as
         # points being worth eleven times what the shop set. A phase that
         # measures a discount has to ring something nothing else is discounting.
-        plain = _plain_product(api, token)
+        plain = _plain_product(api, token, state.get("item_types"))
         if plain is None:
             rep.query("M", f"{code} · a product with no promotion on it", "could not make one")
             continue
@@ -240,7 +241,7 @@ def _a_coupon_is_named_never_priced(api: Api, rep: Report, code: str,
 
     # A CLEAN product, so a scheduled promotion on the sweep's usual item does
     # not stack into this figure and make the coupon look wrong.
-    plain = _plain_product(api, token)
+    plain = _plain_product(api, token, state.get("item_types"))
     if plain is None:
         rep.query("M", f"{code} · a product with no promotion on it", "could not make one")
         return
@@ -290,7 +291,7 @@ def _a_discount_needs_the_permission_to_give_it(api: Api, rep: Report, code: str
         rep.query("M", f"{code} · a cashier without discounts.apply", "could not sign one in")
         return
 
-    item = _plain_product(api, token)
+    item = _plain_product(api, token, state.get("item_types"))
     pid = (item or state["product"])["id"]
 
     whole = {
@@ -393,7 +394,7 @@ def _a_promotion_prices_itself(api: Api, rep: Report, code: str,
     # made phase C's server-pricing check charge 800 instead of 1000 on the
     # NEXT run — a phase quietly re-pricing another phase's subject, reported
     # as a pricing bug three phases away from the cause.
-    promo_item = _promo_product(api, token)
+    promo_item = _promo_product(api, token, state.get("item_types"))
     if promo_item is None:
         rep.query("M", f"{code} · a product to promote", "could not make one")
         return
@@ -489,27 +490,51 @@ def _coupon(api: Api, token: str) -> str | None:
     return (body.get("data") or {}).get("id") if status in (200, 201) else None
 
 
-def _promo_product(api: Api, token: str) -> dict | None:
+def _promo_product(api: Api, token: str, item_types: list | None = None) -> dict | None:
     """The one product this phase is allowed to discount."""
-    return _named_product(api, token, "Sweep Promoted Item")
+    return _named_product(api, token, "Sweep Promoted Item", item_types)
 
 
-def _plain_product(api: Api, token: str) -> dict | None:
-    """A product no promotion is scheduled against."""
-    return _named_product(api, token, "Sweep Plain Item")
+def _plain_product(api: Api, token: str, item_types: list | None = None) -> dict | None:
+    """A sellable line no promotion is scheduled against."""
+    return _named_product(api, token, "Sweep Plain Item", item_types)
 
 
-def _named_product(api: Api, token: str, name: str) -> dict | None:
+# A services shop may sell exactly one thing — `service` — and this helper used
+# to post `physical_product` at every trade alike. So a salon or a workshop got
+# a 422, phase M reported "could not make one" and QUIETLY SKIPPED ITS WHOLE
+# SUBJECT: nobody ever checked that a service shop's points, coupons or
+# promotions worked. The shop already publishes what it may sell in
+# `item_types`; the harness was carrying its own second answer, which is the
+# same fault this sweep exists to catch.
+def _named_product(api: Api, token: str, name: str,
+                   item_types: list | None = None) -> dict | None:
     status, body = api.get(f"/products?search={name.replace(' ', '+')}", token=token)
     rows = _rows(body) if status == 200 else []
     found = next((p for p in rows if p.get("name") == name), None)
     if found:
         return found
-    status, body = api.post("/products", {
-        "item_type": "physical_product", "name": name, "price": 500, "cost": 300,
-        "tax_rate": 0, "track_inventory": False,
-    }, token=token)
+
+    kind = _sellable(item_types or [])
+    payload = {"item_type": kind, "name": name, "price": 500, "cost": 300, "tax_rate": 0}
+
+    # `track_inventory` is PROHIBITED on a service, not merely ignored — a
+    # haircut has no shelf, so the field is not a false to be sent but a
+    # question that does not apply. Sending it anyway is a 422, and this harness
+    # read that 422 as "could not make one" and skipped the phase.
+    if kind in ("physical_product", "medicine"):
+        payload["track_inventory"] = False
+
+    status, body = api.post("/products", payload, token=token)
     return (body.get("data") or {}) if status in (200, 201) else None
+
+
+def _sellable(item_types: list) -> str:
+    """The plainest thing this shop may sell, preferring a stockless line."""
+    for t in ("physical_product", "service", "food_item", "medicine"):
+        if t in item_types:
+            return t
+    return item_types[0] if item_types else "physical_product"
 
 
 def _staff(api: Api, owner: str, email: str, name: str, permissions: list) -> str | None:

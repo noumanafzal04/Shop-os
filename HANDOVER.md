@@ -2934,8 +2934,8 @@ python3 run.py        # phases A–E, in the order each one needs
 python3 mutate.py     # break the sweep on purpose; every lie must be caught
 ```
 
-**Fourteen phases, 927 checks in one run, 17 of 17 mutations caught.** It has found two real defects,
-both the same shape — *one question, two paths, two different answers*:
+**Fourteen phases, 1,303 checks in one run, 18 of 18 mutations caught.** It has found three real
+defects, all the same shape — *one question, two paths, two different answers*:
 
 - [The forecourt nobody could start](docs/decisions/shopos-forecourt-branch.md) —
   every station that configured its pumps through the panel was permanently
@@ -2946,6 +2946,11 @@ both the same shape — *one question, two paths, two different answers*:
   past a test class named for exactly that question whose every test happened to
   be about the sale path instead.
 
+- [A job offered must be a job that can be done](docs/decisions/shopos-job-offered-must-be-doable.md) —
+  a restaurant was offered a Purchasing job whose every screen is switched off
+  for it, because the preset was gated on `inventory` **or** `products` while
+  every route it names rides `inventory` alone.
+
 Findings and the full argument live in
 [`docs/qa/FINDINGS.md`](docs/qa/FINDINGS.md) and
 [`docs/decisions/shopos-qa-sweep.md`](docs/decisions/shopos-qa-sweep.md).
@@ -2955,7 +2960,7 @@ Three things to know before you touch it:
 - **It reports, it does not pass or fail.** `BUG`, `QUERY` and `HARNESS`, and
   the middle one is why it exists — about half of what surprises the sweep turns
   out to be correct behaviour nobody had written down. Running total so far:
-  **42 harness findings, 2 product bugs**, and every one of the forty-two
+  **45 harness findings, 3 product bugs**, and every one of the forty-five
   looked like a defect on first read. Verify before believing; the base rate
   says it is the sweep. The worst of them was a permission probe that ran as
   the WRONG IDENTITY: a staff sign-in throttled to `None` fell back to the
@@ -2966,6 +2971,15 @@ Three things to know before you touch it:
   waits out a 429 using the server's own `Retry-After`. Loosening either would
   be the wrong fix in a system whose worst failure is a till that cannot take
   money.
+- **A phase must not choose its own shops.** Three phases picked trades from a
+  hardcoded list sitting beside a `features` check that already knew the answer,
+  and the two copies drifted: five trades' loyalty had never been looked at,
+  and phase M could not even build a sellable line for a salon — it posted
+  `physical_product` at every trade alike, took the 422, gave up, and the run
+  printed a clean green summary anyway. `Report.summary()` now prints which
+  shops each phase actually spoke about, next to the shops whose modules say it
+  should have. **Checks that did not happen do not appear in a list of checks
+  that did.**
 - **A green run means nothing without `mutate.py`.** It once printed *THE CHECK
   IS BLIND* about two checks that were fine — the phase had died on a 429, so
   they never ran. It now needs a `ran_marker` per mutation and has a third

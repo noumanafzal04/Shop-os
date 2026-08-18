@@ -364,10 +364,44 @@ def main() -> int:
         phases=("n",),
     ))
 
+    # 18 · a job the shop cannot do. Report every preset's screens as reachable
+    #      and the offered-job check must fire: the whole point of it is that a
+    #      MODULE_DISABLED answer is not a permission problem but IS a sign the
+    #      job should never have been on the list.
+    #
+    #      This is the mutation that matters most for that check, because the
+    #      check's own first version was blind — it read a module 403 as a
+    #      permission failure and accused the preset of eleven bugs it had not
+    #      committed, on two shops nobody had ever run it against.
+    #      So the mutation switches the buyer's own screens OFF at a shop that
+    #      HAS the inventory module: a mart offered a Purchasing job whose
+    #      suppliers and purchase orders both answer MODULE_DISABLED. That is
+    #      precisely the state a restaurant was in, and the check must say so
+    #      rather than shrug at a 403 it has been taught to forgive.
+    real_get = Api.get
+    results.append(mutation(
+        "a job's own screens are switched off under it",
+        "A JOB OFFERED MUST BE A JOB THAT CAN BE DONE",
+        lambda: setattr(Api, "get", _module_off_for(real_get, ("/suppliers", "/purchase-orders"))),
+        lambda: setattr(Api, "get", real_get),
+        ran_marker="is off for this shop",
+        phases=("i",),
+    ))
+
     print("=" * 70)
     print(f"{sum(results)} of {len(results)} mutations caught")
     print("=" * 70)
     return 0 if all(results) else 1
+
+
+def _module_off_for(real, paths: tuple[str, ...]):
+    """Answer MODULE_DISABLED on these routes, as a shop without the module would."""
+    def faked(self, p, **kw):
+        if any(p == path or p.startswith(path + "?") for path in paths):
+            return 403, {"message": "This module is not enabled for your shop.",
+                         "meta": {"error_code": "MODULE_DISABLED"}}
+        return real(self, p, **kw)
+    return faked
 
 
 def _fill_the_shelf() -> None:

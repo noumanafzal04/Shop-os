@@ -63,6 +63,10 @@ JOBS = {
         "cannot": ["/staff", "/suppliers"],
     },
     "manager": {
+        # `core` — the routes this job's own description names. The rest of
+        # `can` are permissions that came along for the ride, and a job is not
+        # broken just because one of those is switched off for this shop.
+        "core": ["/reports/summary", "/pos/session"],
         # Runs the shop; does not decide who works in it or how it is set up.
         # `/registers` belongs here, not in `cannot`. Which lanes exist is a
         # SUPERVISORY READ — it is the header of every shift report — and the
@@ -75,11 +79,19 @@ JOBS = {
         "cannot": ["/staff"],
     },
     "stock_keeper": {
+        # "Receives goods, counts stock and keeps the catalog straight" — the
+        # catalog half is real work on its own, so a restaurant that keeps a
+        # menu but no stock still has this job.
+        "core": ["/products", "/inventory/low-stock", "/inventory/movements"],
         # The data-entry job: keys the shop's catalog and stock in, touches no money.
         "can": ["/products", "/inventory/low-stock", "/inventory/movements", "/categories"],
         "cannot": ["/reports/summary", "/expenses", "/staff", "/pos/session"],
     },
     "buyer": {
+        # "Deals with suppliers, raises purchase orders and records what was
+        # paid against them." /products rides along on PRODUCTS_MANAGE and is
+        # not what anybody hires a buyer for.
+        "core": ["/suppliers", "/purchase-orders"],
         "can": ["/suppliers", "/purchase-orders", "/products", "/inventory/low-stock"],
         "cannot": ["/reports/summary", "/staff", "/pos/session"],
     },
@@ -140,12 +152,18 @@ LANES = ["Lane 1", "Lane 2", "Lane 3"]
 
 
 def run(api: Api, rep: Report, sold: dict, tenants: dict) -> dict:
-    # One shop per capability profile rather than all eight: a preset matrix is
-    # about the PRESET, and running the same one on seven shops costs seven
-    # logins against a 5/min limit to learn the same fact once.
-    for code in ("mart", "food_restaurant", "pharmacy", "petroleum"):
-        state = sold.get(code)
-        if state is None:
+    # Every shop with a till, because a preset is NOT the same fact everywhere.
+    #
+    # This used to run four shops, on the argument that a preset matrix is about
+    # the preset and seven shops teach it once. Two things were wrong with that.
+    # The cost it was avoiding — seven logins against a 5/min limit — went away
+    # when the client started caching tokens. And the claim itself is only half
+    # true: the preset list is built per TRADE, so a workshop's and a salon's
+    # were never once looked at, and "what may a cashier here do" is exactly the
+    # question that has bitten this codebase before (see the `*.manage` bug
+    # class, where a write permission gated a read).
+    for code, state in sold.items():
+        if not (state.get("features") or {}).get("pos"):
             continue
         _jobs(api, rep, code, state)
 
@@ -182,15 +200,51 @@ def _jobs(api: Api, rep: Report, code: str, state: dict) -> None:
             continue
 
         # 1 · the job's own work must be reachable.
+        #
+        # Two different 403s wear the same number, and calling them one thing
+        # made this check accuse the wrong party. MODULE_DISABLED means the shop
+        # never bought that part of the product — the OWNER gets the same 403 on
+        # the same route — so it says nothing at all about whether the preset
+        # granted the right permissions. Only a permission refusal does.
+        #
+        # What the module 403 DOES mean is tracked below: a job every one of
+        # whose screens is switched off for this shop is a job that should not
+        # have been offered to it.
+        core = matrix.get("core") or matrix["can"]
+        blocked, off = set(), set()
         for path in matrix["can"]:
-            status, _ = api.get(path.replace("{product}", state["product"]["id"]), token=token)
+            status, body = api.get(path.replace("{product}", state["product"]["id"]), token=token)
             if status == 200:
                 rep.ok("I", f"{code} · {job} can reach {path}")
+            elif status == 403 and _module_off(body):
+                off.add(path)
+                if path in core:
+                    blocked.add(path)
+                rep.ok("I", f"{code} · {job} · {path} is off for this shop", "MODULE_DISABLED")
             elif status == 403:
                 rep.bug("I", f"{code} · {job} · A JOB MUST BE ABLE TO DO ITS JOB",
                         f"403 on {path}, which its own description promises")
             else:
                 rep.query("I", f"{code} · {job} · {path}", str(status))
+
+        # A JOB OFFERED IS A JOB THAT CAN BE DONE.
+        #
+        # `stock_keeper` and `buyer` are offered on `inventory` OR `products`,
+        # so a restaurant — menu yes, stock no — is offered "Stock keeper:
+        # receives goods, counts stock" and "Purchasing: deals with suppliers,
+        # raises purchase orders". Every screen either job names is
+        # MODULE_DISABLED there. The owner hires someone into it and they can
+        # open nothing.
+        #
+        # This is not the module gate being wrong; the gate is right. It is the
+        # LIST being wrong about which jobs this shop has.
+        if blocked and blocked == set(core):
+            rep.bug("I", f"{code} · {job} · A JOB OFFERED MUST BE A JOB THAT CAN BE DONE",
+                    f"offered to this shop, but every screen its description names "
+                    f"({', '.join(sorted(blocked))}) is switched off for it")
+        elif off:
+            rep.ok("I", f"{code} · {job} · still has work here",
+                   f"{len(off)} screen(s) off, core intact")
 
         # 2 · somebody else's work must not be.
         for path in matrix["cannot"]:
@@ -202,6 +256,11 @@ def _jobs(api: Api, rep: Report, code: str, state: dict) -> None:
                 rep.ok("I", f"{code} · {job} kept out of {path}", str(status))
 
         _forbidden_writes(api, rep, code, job, token, state)
+
+
+def _module_off(body: dict) -> bool:
+    """A 403 the shop's OWNER would get too — the module, not the person."""
+    return (body.get("meta") or {}).get("error_code") == "MODULE_DISABLED"
 
 
 def _forbidden_writes(api: Api, rep: Report, code: str, job: str,

@@ -10,6 +10,105 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-19 — ninth run · the phases stop choosing their own shops
+
+**927 → 1303 checks. 17 → 18 mutations. One product bug, and it was hiding
+behind a harness that had never asked the question.**
+
+### What was wrong with the sweep
+
+Phases K, M and N picked which shops to run on from a **hardcoded list of
+trades** — `("mart", "retail")`, `("retail", "automotive", "mart")` — sitting
+right beside a `features` check that already knew the answer. Two copies of one
+fact, and they had drifted: pharmacy, automotive and petroleum all have branches
+nobody had ever moved stock between; five trades' loyalty and coupons had never
+been looked at.
+
+The gate is now the module and only the module. Phase L needed no change — it
+had always asked `features.dine_in`, which is why it was right.
+
+Phase I was narrowed on purpose, with a reason that had expired: *"seven logins
+against a 5/min limit to learn the same fact once."* The token cache killed that
+cost months ago, and the claim was only half true — the preset list is built per
+TRADE, so a workshop's and a salon's had never once been looked at.
+
+### The bug that fell out
+
+**A restaurant was offered a Purchasing job it could not do.**
+
+`buyer` — *"Deals with suppliers, raises purchase orders and records what was
+paid against them"* — was offered on `inventory` **OR** `products`. A restaurant
+keeps a menu (`products`) and holds no stock (`inventory`), so it was shown the
+job. Every screen in that description sits behind `feature:inventory`; the route
+file says so in as many words: *"part of the stock chain, so it rides the
+inventory module."* An owner could hire someone into Purchasing and that person
+could open nothing — suppliers, purchase orders and payables all answer
+MODULE_DISABLED.
+
+The module gate was never wrong. **The list was wrong about which jobs this shop
+has.** `'modules' => ['inventory']`, with two tests: a kitchen is not offered
+one, and the five trades that hold stock still are. Red on revert.
+
+`stock_keeper` keeps both modules and correctly so — half of what it describes
+is keeping the catalog straight, which is real work in a kitchen that counts no
+stock. The sweep now says that out loud rather than inferring it.
+
+### The harness bug underneath it
+
+The first widened run reported **eleven bugs**, and every one of them was wrong.
+
+The check read *any* 403 on a job's own screen as "this preset did not grant the
+permission it promised". But **two different refusals wear the same number**:
+the shop's OWNER gets the identical 403 on `/suppliers` in a restaurant, because
+the module is not there. A `MODULE_DISABLED` answer says nothing whatsoever
+about permissions.
+
+So the check now separates them, and the module 403 — which used to be noise —
+became the sharper question: *a job every one of whose named screens is switched
+off is a job that should not have been offered.* That is the rule that found the
+buyer bug, and it only exists because the false accusation was chased instead of
+silenced.
+
+Naming the routes mattered too. A first version asked whether **all** of a job's
+reachable routes were off, and found nothing: `buyer` can still open `/products`
+because `PRODUCTS_MANAGE` rides along in its permission list. The rule had to be
+about the routes the job's **description** names (`core`), not everything its
+permissions happen to touch.
+
+### The denominator
+
+`Report.summary()` now prints which shops each phase actually spoke about,
+derived from the rows themselves so a phase cannot forget to declare, and
+compared against the shops whose modules say it should have run.
+
+This is the guard for the failure that made the whole run worth re-examining:
+phase M could not build a sellable line for a services shop — a salon may sell
+only `service`, and the harness posted `physical_product` at every trade alike —
+so it gave up, and **for the entire life of this sweep nobody ever checked a
+salon's points or coupons.** The run still printed a clean green summary,
+because checks that did not happen do not appear in a list of checks that did.
+
+Narrowing phase K back to mart+retail on purpose now prints:
+
+```
+  K    2  mart, retail   ·  SILENT ON: automotive, food_restaurant, petroleum, pharmacy
+```
+
+### Where the coverage stands
+
+```
+  B C D E F H I J M N   8-9 shops each — every trade with the module
+  G                     5 — trade-specific by design (FEFO, recipes, serials, forecourt)
+  K                     6 — every shop with `inventory`
+  L                     2 — every shop with `dine_in`
+```
+
+**Still true and still the biggest gap:** the sweep drives HTTP only. Every one
+of the tablet defects the shop found by holding the device was invisible to all
+3,078 tests.
+
+---
+
 ## 2026-08-18 — eighth run · phase N, and a dead-endpoint sweep
 
 **All fourteen phases in one run: 927 checks, 0 bugs, 0 queries.**

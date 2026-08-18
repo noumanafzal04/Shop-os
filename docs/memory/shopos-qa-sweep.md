@@ -50,3 +50,9 @@ attributes ride the public `/business-types` catalog, matched on
 `business_type_primary` — the catalog hides legacy codes, so the raw code finds
 nothing). And `business_category` really does have its one behavioural use:
 food + `restaurant` grants the inventory module, food alone does not.
+
+**2026-08-19 — 927 → 1303 checks, 17 → 18 mutations.** Phases K/M/N/I stopped
+picking trades from a hardcoded list and now gate on the module. `summary()`
+prints a per-phase coverage denominator (shops spoken about vs shops with the
+module), because phase M had been silently skipping every salon. Running total:
+**45 harness findings, 3 product bugs.** See [[shopos-job-offered-must-be-doable]].

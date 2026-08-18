@@ -27,9 +27,11 @@ DEPOSIT = 400.0
 
 
 def run(api: Api, rep: Report, sold: dict) -> dict:
-    for code in ("retail", "automotive", "mart"):
-        state = sold.get(code)
-        if state is None or not (state.get("features") or {}).get("pos"):
+    # Gate on the till, not on a list of trades — see phase K. A layaway is a
+    # shape of SALE, so every shop that can ring one can get it wrong; the two
+    # checks that need goods to move stay fenced behind `inventory` below.
+    for code, state in sold.items():
+        if not (state.get("features") or {}).get("pos"):
             continue
 
         token = state["token"]

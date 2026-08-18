@@ -29,9 +29,14 @@ MOVE = 10
 
 
 def run(api: Api, rep: Report, sold: dict) -> dict:
-    for code in ("mart", "retail"):
-        state = sold.get(code)
-        if state is None or not (state.get("features") or {}).get("inventory"):
+    # Which shops get this phase is a question with ONE right answer, and it
+    # lives in `features.inventory` — the same flag the product itself reads.
+    # A hardcoded trade list beside it is a SECOND copy of that answer, and the
+    # two drift the day a trade gains the module: this phase ran on mart and
+    # retail while pharmacy, automotive and petroleum all had branches nobody
+    # ever moved stock between. Ask the shop, don't remember the shop.
+    for code, state in sold.items():
+        if not (state.get("features") or {}).get("inventory"):
             continue
 
         token = state["token"]

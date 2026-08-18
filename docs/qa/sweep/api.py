@@ -184,11 +184,53 @@ class Report:
         self.query(phase, what, detail or f"got {got}, expected {'/'.join(map(str, acceptable))}")
         return False
 
-    def summary(self) -> int:
+    def coverage(self, shops: set[str] | None = None) -> dict[str, set[str]]:
+        """Which shops each phase actually spoke about.
+
+        `shops` is the list of shops that exist. Without it the parse guesses,
+        and a guess in a coverage table is worse than no table — phase A's rows
+        are shaped the other way round ("reuse tenant · food"), so the first
+        version confidently reported that phase A had covered a shop called
+        "category". A denominator you cannot trust is not a denominator.
+        """
+        seen: dict[str, set[str]] = {}
+        for _, phase, what, _d in self.rows:
+            # Every check names its shop first: "retail · sale took 3 off".
+            # Reading the shop back out of the rows rather than asking each
+            # phase to declare it means a phase CANNOT forget to declare.
+            code = what.split(" · ")[0] if " · " in what else None
+            if code and (code in shops if shops is not None else " " not in code):
+                seen.setdefault(phase, set()).add(code)
+        return seen
+
+    def summary(self, expect: dict[str, set[str]] | None = None,
+                shops: set[str] | None = None) -> int:
         n = {"PASS": 0, "QUERY": 0, "BUG": 0}
         for level, *_ in self.rows:
             n[level] += 1
         print(f"\n{'='*70}\n{n['PASS']} ok · {n['QUERY']} to look at · {n['BUG']} bugs\n{'='*70}")
+
+        # ── the denominator ────────────────────────────────────────────
+        #
+        # A count of findings is not evidence without a count of attempts. Phase
+        # M could not build a sellable line for a services shop, gave up, and
+        # for the whole life of this sweep NOBODY EVER CHECKED a salon's points
+        # or coupons — the run still printed a clean green summary, because the
+        # checks that did not happen do not appear in a list of checks that did.
+        #
+        # So the run now says which shops each phase actually spoke about. A
+        # phase that quietly covers three trades instead of seven is visible on
+        # the last screen of the run rather than in nobody's head.
+        seen = self.coverage(shops)
+        if seen:
+            print("\ncoverage — shops each phase actually spoke about")
+            for phase in sorted(seen):
+                shops = sorted(seen[phase])
+                line = f"  {phase:3} {len(shops):2}  {', '.join(shops)}"
+                missing = sorted((expect or {}).get(phase, set()) - seen[phase])
+                print(line + (f"   ·  SILENT ON: {', '.join(missing)}" if missing else ""))
+            print()
+
         for level, phase, what, detail in self.rows:
             if level != "PASS":
                 print(f"{level:6} {phase:10} {what}" + (f"  — {detail}" if detail else ""))
