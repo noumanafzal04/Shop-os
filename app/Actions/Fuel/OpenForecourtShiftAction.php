@@ -42,10 +42,16 @@ class OpenForecourtShiftAction
     public function execute(User $user, array $data): ForecourtShift
     {
         return DB::transaction(function () use ($user, $data): ForecourtShift {
-            // A single-site station never sends a branch. Resolve it to Main
-            // rather than leaving it null, or the shift looks at a forecourt
-            // with no branch and finds no equipment at all.
-            $branchId = $data['branch_id'] ?? Branch::query()->where('is_default', true)->value('id');
+            // A single-site station never sends a branch. Resolve it rather
+            // than leaving it null, or the shift looks at a forecourt with no
+            // branch and finds no equipment at all.
+            //
+            // Through Branch::writeTargetId() and not an inline query, because
+            // the setup side has to answer this identically. When it did not,
+            // tanks were stored with a null branch while the shift looked for
+            // Main, and every panel-configured forecourt was permanently told
+            // to go and set up the equipment it had just set up.
+            $branchId = $data['branch_id'] ?? Branch::writeTargetId();
 
             // One forecourt, one open shift. Two would each hold a claim on the
             // same meters and neither could be reconciled.

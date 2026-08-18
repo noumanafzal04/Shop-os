@@ -17,10 +17,34 @@ class InventoryController extends Controller
 {
     /**
      * Stock in / out / recount ("set"). The ONLY way stock changes by hand.
+     *
+     * It lands on the branch being OPERATED, like every other stock write —
+     * receiving a lot (BatchController) and posting a stocktake
+     * (StockCountController) both already resolve it this way, and a transfer
+     * names both ends explicitly.
+     *
+     * This one did not, and defaulted to Main. The panel sends `X-Branch-Id` on
+     * every request, so an owner who switched to their second branch and
+     * corrected a count — a breakage, a recount, a write-off — had the
+     * correction land on Main's shelf instead. Two shelves wrong from one
+     * correct action, silently, while the screen they were looking at (low
+     * stock, counts) was showing the other branch all along.
+     *
+     * The branch is resolved HERE and never taken from the body: BranchContext
+     * already pins staff to their assignment, and accepting a branch id from
+     * the client would let a cashier at one site adjust another site's stock.
      */
-    public function adjust(AdjustStockRequest $request, InventoryService $inventory): JsonResponse
-    {
-        $movement = $inventory->adjust($request->validated());
+    public function adjust(
+        AdjustStockRequest $request,
+        InventoryService $inventory,
+        BranchContext $branch,
+    ): JsonResponse {
+        $movement = $inventory->adjust([
+            ...$request->validated(),
+            // Null only on headless paths with no request branch; the service
+            // falls back to Main there, which is where it belongs.
+            'branch_id' => $branch->id(),
+        ]);
 
         return ApiResponse::created(
             $movement->load('product:id,name,stock_quantity', 'variant:id,name,stock_quantity'),

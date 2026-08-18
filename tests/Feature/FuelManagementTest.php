@@ -89,6 +89,76 @@ class FuelManagementTest extends TestCase
         $this->dieselNozzle = $this->nozzle($pump, 'B1', $this->dieselTank, reading: 20000);
     }
 
+    // ── Set up the way the panel sets up ────────────────────────────
+
+    /**
+     * The forecourt this test class builds by hand is not the forecourt a
+     * station has.
+     *
+     * Every fixture above attaches `branch_id` explicitly — and the panel's own
+     * setup form does not send it, because a single-site station has nothing to
+     * pick from. So the tank was stored with a null branch, while opening a
+     * shift resolved a missing branch to Main and looked for equipment THERE.
+     * Two halves answering the same question in opposite directions, with the
+     * result that a station which configured its forecourt through the UI was
+     * told to "set up at least one tank and one nozzle" immediately after doing
+     * exactly that, for ever.
+     *
+     * Twenty-five tests passed throughout, because every one of them supplied
+     * the field the real client omits. This one goes through the HTTP endpoints
+     * with the panel's payload and nothing else.
+     */
+    public function test_a_forecourt_built_through_the_api_without_a_branch_can_still_open_a_shift(): void
+    {
+        $petrol = $this->fuelProduct('Panel Petrol', 268.50, litres: 8000);
+
+        // The panel's exact tank payload — note what is absent.
+        $tank = $this->actingAsUser($this->owner)
+            ->postJson('/api/v1/fuel/tanks', [
+                'name' => 'Panel Tank',
+                'product_id' => $petrol->id,
+                'capacity_litres' => 20000,
+                'current_dip_litres' => 8000,
+                'dead_stock_litres' => 0,
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertSame(
+            $this->branchId(),
+            FuelTank::withoutTenancy()->find($tank['id'])->branch_id,
+            'A tank created without a branch must still stand at one, or no shift will ever find it.',
+        );
+
+        $pump = $this->actingAsUser($this->owner)
+            ->postJson('/api/v1/fuel/pumps', ['name' => 'Panel Pump'])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertSame(
+            $this->branchId(),
+            FuelPump::withoutTenancy()->find($pump['id'])->branch_id,
+        );
+
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/fuel/pumps/{$pump['id']}/nozzles", [
+                'name' => 'P1',
+                'fuel_tank_id' => $tank['id'],
+                'current_reading' => 1000,
+            ])
+            ->assertCreated();
+
+        // The equipment built above is enough on its own: this station is
+        // opened with no branch named, exactly as the panel opens it.
+        FuelTank::withoutTenancy()->whereIn('id', [
+            $this->petrolTank->id, $this->dieselTank->id,
+        ])->update(['is_active' => false]);
+
+        $this->actingAsUser($this->manager)
+            ->postJson('/api/v1/fuel/shifts', ['notes' => 'first shift'])
+            ->assertCreated();
+    }
+
     // ── The module gate ─────────────────────────────────────────────
 
     public function test_fuel_is_a_petroleum_module_and_off_for_everyone_else(): void

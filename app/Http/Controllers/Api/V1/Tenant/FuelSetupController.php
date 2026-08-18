@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Fuel\StoreFuelNozzleRequest;
 use App\Http\Requests\Fuel\StoreFuelPumpRequest;
 use App\Http\Requests\Fuel\StoreFuelTankRequest;
+use App\Models\Branch;
 use App\Models\ForecourtShift;
 use App\Models\FuelNozzle;
 use App\Models\FuelPump;
@@ -24,6 +25,21 @@ use Illuminate\Http\JsonResponse;
  */
 class FuelSetupController extends Controller
 {
+    /**
+     * Give a piece of plant the branch it stands at, when the client named none.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function atABranch(array $data): array
+    {
+        if (empty($data['branch_id'])) {
+            $data['branch_id'] = Branch::writeTargetId();
+        }
+
+        return $data;
+    }
+
     // ── Tanks ───────────────────────────────────────────────────────
 
     public function tanks(): JsonResponse
@@ -40,7 +56,13 @@ class FuelSetupController extends Controller
 
     public function storeTank(StoreFuelTankRequest $request): JsonResponse
     {
-        $tank = FuelTank::query()->create($request->validated());
+        // A tank stands somewhere. `branch_id` is nullable on the request
+        // because a single-site station never picks one — and the panel's own
+        // form does not send it — but storing that null made the tank invisible
+        // to the shift, which resolves a missing branch to Main. The two halves
+        // answered the same question in opposite directions, so a station that
+        // set its forecourt up through the panel could never open a shift.
+        $tank = FuelTank::query()->create($this->atABranch($request->validated()));
 
         return ApiResponse::created($this->presentTank($tank->load(['product:id,name,price,unit', 'branch:id,name'])), 'Tank added');
     }
@@ -89,7 +111,8 @@ class FuelSetupController extends Controller
 
     public function storePump(StoreFuelPumpRequest $request): JsonResponse
     {
-        $pump = FuelPump::query()->create($request->validated());
+        // Same reason as the tank above: physical plant belongs to a site.
+        $pump = FuelPump::query()->create($this->atABranch($request->validated()));
 
         return ApiResponse::created($pump->load('branch:id,name'), 'Pump added');
     }

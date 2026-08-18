@@ -78,6 +78,83 @@ class BranchOperatingContextTest extends TestCase
         ];
     }
 
+    /**
+     * Correcting stock lands where the owner is standing.
+     *
+     * Every other stock write already resolved this: receiving a lot takes the
+     * operating branch, a stocktake is drawn and posted against it, a transfer
+     * names both ends. The plain hand-adjustment — the ONE the shop uses for a
+     * breakage, a recount or a write-off — defaulted to Main regardless.
+     *
+     * The panel sends X-Branch-Id on every request, so an owner who switched to
+     * the warehouse and corrected a figure had it applied to Main's shelf while
+     * the screen in front of them showed the warehouse. Two shelves wrong from
+     * one correct action, and no error anywhere.
+     *
+     * This class tested the SALE path per branch and never the adjustment,
+     * which is exactly why it stayed green.
+     */
+    public function test_an_adjustment_lands_on_the_branch_being_operated(): void
+    {
+        $this->actingAsUser($this->owner)
+            ->withHeaders(['X-Branch-Id' => $this->warehouse->id])
+            ->postJson('/api/v1/inventory/adjust', [
+                'product_id' => $this->widget->id,
+                'type' => 'set',
+                'new_quantity' => 40,
+                'reason' => 'Recount at the warehouse',
+            ])
+            ->assertCreated();
+
+        $this->assertEqualsWithDelta(40, $this->onHand($this->warehouse), 0.001,
+            'The recount was entered while operating the warehouse and must land there.');
+        $this->assertEqualsWithDelta(10, $this->onHand($this->main), 0.001,
+            "Main's shelf was not touched and must not move.");
+    }
+
+    /** No header is still Main, as it always was for a single-site shop. */
+    public function test_an_adjustment_with_no_branch_header_lands_on_main(): void
+    {
+        $this->actingAsUser($this->owner)
+            ->postJson('/api/v1/inventory/adjust', [
+                'product_id' => $this->widget->id,
+                'type' => 'in',
+                'quantity' => 3,
+                'reason' => 'Delivery at the counter',
+            ])
+            ->assertCreated();
+
+        $this->assertEqualsWithDelta(13, $this->onHand($this->main), 0.001);
+        $this->assertEqualsWithDelta(5, $this->onHand($this->warehouse), 0.001);
+    }
+
+    /**
+     * And a spoofed header cannot move STAFF, here as anywhere else — otherwise
+     * branch assignment is decoration and one site can write off another's
+     * stock.
+     */
+    public function test_staff_adjust_their_own_branch_whatever_header_they_send(): void
+    {
+        $keeper = User::factory()
+            ->tenantStaff($this->tenant, ['inventory.manage'])
+            ->create(['branch_id' => $this->warehouse->id]);
+
+        $this->actingAsUser($keeper)
+            ->withHeaders(['X-Branch-Id' => $this->main->id])
+            ->postJson('/api/v1/inventory/adjust', [
+                'product_id' => $this->widget->id,
+                'type' => 'out',
+                'quantity' => 2,
+                'reason' => 'Breakage',
+            ])
+            ->assertCreated();
+
+        $this->assertEqualsWithDelta(3, $this->onHand($this->warehouse), 0.001,
+            "The stock keeper is assigned to the warehouse; the breakage is the warehouse's.");
+        $this->assertEqualsWithDelta(10, $this->onHand($this->main), 0.001,
+            'A header must never move staff to another branch.');
+    }
+
     public function test_owner_sale_decrements_the_selected_branch(): void
     {
         $res = $this->actingAsUser($this->owner)
