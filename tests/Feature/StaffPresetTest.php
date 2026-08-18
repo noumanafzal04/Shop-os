@@ -63,6 +63,43 @@ class StaffPresetTest extends TestCase
         $this->assertContains('cashier', $codes);
     }
 
+    /**
+     * A JOB OFFERED IS A JOB THAT CAN BE DONE.
+     *
+     * `buyer` was offered on `inventory` OR `products`, so a restaurant — menu
+     * yes, stock no — was shown "Purchasing: deals with suppliers, raises
+     * purchase orders and records what was paid against them." Every screen in
+     * that sentence sits behind `feature:inventory`, so an owner could hire
+     * someone into the job and that person could open nothing: suppliers,
+     * purchase orders and payables all answer MODULE_DISABLED.
+     *
+     * The module gate was never wrong. The LIST was wrong about which jobs this
+     * shop has.
+     */
+    public function test_a_shop_with_no_stock_is_not_offered_a_purchasing_job(): void
+    {
+        $kitchen = $this->tenantWith(BusinessTypes::defaultFeatures('food'), 'food');
+
+        $this->assertFalse((bool) ($kitchen->features['inventory'] ?? false), 'a restaurant holds no stock');
+        $this->assertTrue((bool) ($kitchen->features['products'] ?? false), 'but it does keep a menu');
+
+        $this->assertNotContains('buyer', $this->codes($kitchen));
+
+        // And the half-job it DOES have stays: keeping the catalog straight is
+        // real work in a kitchen that counts nothing.
+        $this->assertContains('stock_keeper', $this->codes($kitchen));
+    }
+
+    public function test_a_shop_that_holds_stock_is_still_offered_one(): void
+    {
+        // The fix must not close the door on the shops the job is for.
+        foreach (['mart', 'pharmacy', 'retail', 'automotive', 'petroleum'] as $trade) {
+            $shop = $this->tenantWith(BusinessTypes::defaultFeatures($trade), $trade);
+
+            $this->assertContains('buyer', $this->codes($shop), $trade);
+        }
+    }
+
     public function test_a_restaurant_is_offered_its_floor_jobs(): void
     {
         $codes = $this->codes($this->tenantWith(

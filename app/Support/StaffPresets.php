@@ -129,7 +129,21 @@ class StaffPresets
                     Permissions::PRODUCTS_MANAGE,
                     Permissions::INVENTORY_MANAGE,
                 ],
-                'modules' => ['inventory', 'products'],
+                // `inventory` ALONE, not inventory-or-products.
+                //
+                // Every screen this job's description names — suppliers, purchase
+                // orders, what was paid against them — sits behind
+                // `feature:inventory`; the route file says so in as many words
+                // ("part of the stock chain, so it rides the inventory module").
+                // Offering it on `products` too meant a restaurant, which keeps a
+                // menu but no stock, was shown a Purchasing job whose every
+                // screen answers MODULE_DISABLED. An owner could hire someone
+                // into it and that person could open nothing.
+                //
+                // `stock_keeper` keeps both, and correctly: half of what it
+                // describes is keeping the catalog straight, which is real work
+                // in a kitchen that counts no stock.
+                'modules' => ['inventory'],
                 'trades' => [],
             ],
             [
