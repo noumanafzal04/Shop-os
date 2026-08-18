@@ -38,8 +38,9 @@ sweep.
 | **K** | More than one branch — separate shelves, transfers, the HQ view | C | **built · clean** |
 | **L** | The floor — tabs, the pass, split bills, whose table it is | C | **built · clean** |
 | **M** | Money given away on purpose — points, coupons, promotions | C | **built · clean** |
+| **N** | Sales that are not a sale yet — layaway, exchange, trade-in, disposals | C | **built · clean** |
 
-**Thirteen phases built. 891 checks in one run, 15 of 15 mutations caught.**
+**Fourteen phases built. 927 checks in one run, 17 of 17 mutations caught.**
 
 Phases A–H answer "does the shop work". The rest answer what they could not,
 and two of them are where a real defect turned out to live:
@@ -54,11 +55,15 @@ and two of them are where a real defect turned out to live:
   the order and the money there is a tab that has to survive everything.
 - **M** — points, coupons and promotions are one thing wearing three hats, and
   they fail the same two ways: given twice, or not given at all.
+- **N** — every phase before it rang a bill and took the money in one movement.
+  These are the shapes where those two moments come apart: an advance against
+  goods the shop still owns, a return and a sale bolted together, goods handed
+  across the counter as payment, and stock that left without being sold.
 
 Two product defects so far — [the forecourt nobody could
 start](../decisions/shopos-forecourt-branch.md) (phase G) and [the stock
 correction that landed at the wrong shop](../decisions/shopos-adjust-wrong-branch.md)
-(phase K) — against **37** findings that turned out to be the sweep itself. That
+(phase K) — against **42** findings that turned out to be the sweep itself. That
 ratio is the most useful thing this document can tell you: **verify before
 believing, because the base rate says it is the tool.**
 See [`FINDINGS.md`](FINDINGS.md).

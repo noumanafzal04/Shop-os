@@ -11,9 +11,20 @@ stock. Running one alone is possible only because the earlier phases are
 re-runnable and reuse what they find.
 """
 
+import os
 import sys
 
-from api import Api, Report
+# Run from the sweep's own directory, whatever the caller's is.
+#
+# Both this and mutate.py import their phases by bare name, so launching them
+# from anywhere else fails — and when it failed inside a background job the
+# shell had already redirected output, so a STALE log from the previous run sat
+# there looking like a fresh result. A green summary that was never produced is
+# worse than a crash.
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.getcwd())
+
+from api import Api, Report  # noqa: E402
 
 import phase_a
 import phase_b
@@ -28,14 +39,15 @@ import phase_j
 import phase_k
 import phase_l
 import phase_m
+import phase_n
 
-PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"]
+PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n"]
 
 
 # What each phase needs standing before it. Naming a late phase alone runs its
 # prerequisites too — asking for "the seams" and silently getting only the admin
 # side is the kind of quiet no-op that makes a sweep untrustworthy.
-NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"]}
+NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"]}
 
 
 def _with_prerequisites(want: list[str]) -> set[str]:
@@ -103,6 +115,9 @@ def main() -> int:
 
     if "m" in want:
         phase_m.run(api, rep, sold)
+
+    if "n" in want:
+        phase_n.run(api, rep, sold)
 
     return rep.summary()
 

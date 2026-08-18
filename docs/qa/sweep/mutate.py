@@ -14,9 +14,14 @@ that was never checking.
     python3 mutate.py
 """
 
+import os
 import sys
 
-import api as api_mod
+# See the note in run.py: imported by bare name, so it must run from here.
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.getcwd())
+
+import api as api_mod  # noqa: E402
 import phase_a
 import phase_b
 import phase_c
@@ -30,6 +35,7 @@ import phase_j
 import phase_k
 import phase_l
 import phase_m
+import phase_n
 from api import Api, Report
 
 
@@ -66,6 +72,8 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         picked = [c for c in ("pharmacy", "petroleum", "food_restaurant") if c in tenants]
     if "i" in phases or "j" in phases or "k" in phases or "m" in phases:
         picked = ["mart"]
+    if "n" in phases:
+        picked = ["retail"]
     if "l" in phases:
         picked = ["food_restaurant"]
     shops = phase_b.run(api, rep, {c: tenants[c] for c in picked if c in tenants})
@@ -96,6 +104,8 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
             phase_l.run(api, rep, sold)
         if "m" in phases:
             phase_m.run(api, rep, sold)
+        if "n" in phases:
+            phase_n.run(api, rep, sold)
         window = rep.rows[before:]
     finally:
         undo()
@@ -327,6 +337,33 @@ def main() -> int:
         phases=("m",),
     ))
 
+    # 16 · the advance. Freeze the drawer figure so a layaway deposit appears
+    #      to reach nothing. Real cash is handed over and the till never hears:
+    #      the shift closes OVER by exactly the advance, every time, and the
+    #      cashier is the one asked to explain it.
+    real_n_expected = phase_n._expected
+    results.append(mutation(
+        "an advance never reaches the drawer",
+        "AN ADVANCE IS CASH IN THE DRAWER",
+        lambda: setattr(phase_n, "_expected", lambda api, token: 3000.0),
+        lambda: setattr(phase_n, "_expected", real_n_expected),
+        ran_marker="advance",
+        phases=("n",),
+    ))
+
+    # 17 · the exchange. Freeze the shelf so goods can go out without coming
+    #      back. Half an exchange looks like a completed one on the receipt and
+    #      is only ever visible on the shelf.
+    real_n_stock = phase_n._stock
+    results.append(mutation(
+        "only half the exchange happens",
+        "AN EXCHANGE DOES BOTH HALVES",
+        lambda: setattr(phase_n, "_stock", _drifting(real_n_stock)),
+        lambda: setattr(phase_n, "_stock", real_n_stock),
+        ran_marker="exchange",
+        phases=("n",),
+    ))
+
     print("=" * 70)
     print(f"{sum(results)} of {len(results)} mutations caught")
     print("=" * 70)
@@ -345,6 +382,17 @@ def _fill_the_shelf() -> None:
             "product_id": r["id"], "type": "set",
             "new_quantity": 100, "reason": "mutation setup",
         }, token=token)
+
+
+def _drifting(real):
+    """Real, then one short — a shelf that lost a unit it should not have."""
+    seen = {"n": 0}
+
+    def stock(api, token, pid):
+        seen["n"] += 1
+        value = real(api, token, pid)
+        return value if value is None or seen["n"] == 1 else value - 1
+    return stock
 
 
 def _one_shelf_frozen(real):

@@ -10,6 +10,58 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-18 — eighth run · phase N, and a dead-endpoint sweep
+
+**All fourteen phases in one run: 927 checks, 0 bugs, 0 queries.**
+
+### The API surface is fully wired
+
+`scripts/dead-endpoints.py` reads both clients (panel and mobile) and asks three
+questions — a route with no caller, a call with no route, a call with the wrong
+verb:
+
+```
+1 of 295 api/v1 routes have no caller in any client
+360 call sites read · 360 agree with a route · 0 hit nothing · 0 wrong verb
+```
+
+The one hit is `GET /admin/staff/{staff}`, and it is **surplus rather than
+missing**: it returns `UserResource`, which is exactly what the list already
+returns — including `permissions`, which is the only field the edit form needs.
+The panel edits staff from the list, so nothing ever needs to fetch one. Not a
+defect; recorded so the next person does not chase it.
+
+### Phase N · the sales that are not a sale yet — clean
+
+Everything in phases C–M rang a bill and took the money in one movement. These
+are the shapes where those two moments come apart, and each is a place a shop
+loses goods or banks money twice.
+
+| | |
+|---|---|
+| **A layaway holds money, not revenue** | The advance reached the drawer (**+400**) and moved revenue by **zero**. Both halves matter and getting either one alone is the bug: cash not in the drawer means the shift closes over by exactly the advance, every time; revenue booked early overstates the month and is then counted again on collection. |
+| **Collection books the whole sale** | +1000 at the moment the goods leave, and a second collection is refused (**409**). |
+| **An exchange does both halves** | One returned, one taken — shelf ends exactly where it started. Checked on the SHELF, because that is the half a receipt cannot lie about. |
+| **A trade-in is a tender, not a discount** | A 500 item with 150 taken in part-exchange is still booked at **500**. As a discount it would understate what the shop sold, for ever, on every report. |
+| **`trade_in` is not a payment method** | 422. A client that could name its own trade-in figure could settle any bill with nothing changing hands. |
+| **The bin and the claim stay apart** | Written-off absent from the awaiting-credit list, returned-to-supplier present, and a credited claim leaves it. Summing the two tells an owner they lost money they are actually **owed** — and nobody chases a figure already written off. |
+| **Disposing takes the stock off once** | A lot of 4 disposed moves the shelf by 4, not 8. |
+
+### HARNESS · five more, and one of them was contagious
+
+| What | Detail |
+|---|---|
+| **Phase N left a drawer open** | Phase C on the NEXT run inherited it, opened its shift expecting a fresh float, and found this phase's takings still in it — reported as **phase C failing its own drawer arithmetic**, three phases from the cause. A phase must close what it opens. |
+| A layaway takes its deposit at **creation** | "This shop asks for at least 20% down." Opening one with nothing on it would be a promise with no commitment behind it — goods held off the shelf for a customer who has risked nothing. |
+| Returning goods names the **supplier** | Required, and rightly: a claim against nobody is not a claim, and the awaiting-credit list is a list of who owes you. |
+| Crediting takes `credit_received` **and the date** | Not an "amount". A claim is settled by what the distributor actually paid and when, which is what makes it reconcilable against a bank line months later. |
+| **A stale log looked like a fresh green run** | `run.py` and `mutate.py` import their phases by bare name, so launching them from anywhere but the sweep directory fails — and inside a background job the shell had already redirected output, leaving the PREVIOUS run's summary sitting there looking like this one's. It read "891 ok, 0 bugs" for a run that never happened. **A green summary that was never produced is worse than a crash.** Both scripts now `chdir` to their own directory. |
+| The disposals register has no totals block | It is a plain list, and the separation lives in the `awaiting_credit` filter — the screen a shop actually works from. The sweep looked for a totals block and reported its absence; the right question was the filter. |
+
+> Running total: **42 harness findings, 2 product bugs.**
+
+---
+
 ## 2026-08-18 — seventh run · phases L and M
 
 Two phases for the two things a shop does that are neither selling nor

@@ -19,8 +19,8 @@ Its report has **three** levels, and the middle one is the reason it exists:
 | `QUERY` | behaviour that differed from what the sweep expected — **about half turn out to be correct behaviour nobody wrote down**, and finding those is worth as much as finding a defect |
 | `HARNESS` | the sweep itself being wrong, kept on the record because a harness bug that looks like a product bug is the most expensive kind |
 
-**Thirty-seven harness findings, two product bugs**, so far. Every one of the
-thirty-seven was reported as a defect on first read.
+**Forty-two harness findings, two product bugs**, so far. Every one of the
+forty-two was reported as a defect on first read.
 
 Both real defects are the same shape — **one question, answered differently by
 two paths, with no error anywhere**:
@@ -92,7 +92,7 @@ level up.
 
 ## What the sweep has established
 
-**Thirteen phases, 891 checks in one run, 15 of 15 mutations caught — and two real defects.**
+**Fourteen phases, 927 checks in one run, 17 of 17 mutations caught — and two real defects.**
 
 - **Server-authoritative pricing holds.** A sale posted with `unit_price: 1`,
   `line_total: 2` and `tax: 999` against a product priced 500 is charged 1000,
@@ -163,6 +163,12 @@ goes when it is not a sale.
   happened. Between the order and the money there is a tab that has to survive a
   table change, a split bill, and a waiter going home — and a kitchen that must
   see the dish and the note and **no prices at all**.
+- **N · the sales that are not a sale yet.** Every phase before it rang a bill
+  and took the money in one movement. These are the shapes where those two come
+  apart — a layaway advance is real cash against goods the shop still owns, an
+  exchange is a return and a sale bolted together, a trade-in is a TENDER and
+  not a discount, and stock that left without being sold has two fates that
+  must never be summed: one is a loss, the other is a debt somebody owes you.
 - **M · the money given away on purpose.** Points, coupons and promotions are
   one thing wearing three hats, failing the same two ways: given twice, or not
   given at all. Note the distinction the sweep had to learn here: `discount` is

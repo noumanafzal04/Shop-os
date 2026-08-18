@@ -2934,7 +2934,7 @@ python3 run.py        # phases A–E, in the order each one needs
 python3 mutate.py     # break the sweep on purpose; every lie must be caught
 ```
 
-**Thirteen phases, 891 checks in one run, 15 of 15 mutations caught.** It has found two real defects,
+**Fourteen phases, 927 checks in one run, 17 of 17 mutations caught.** It has found two real defects,
 both the same shape — *one question, two paths, two different answers*:
 
 - [The forecourt nobody could start](docs/decisions/shopos-forecourt-branch.md) —
@@ -2955,7 +2955,7 @@ Three things to know before you touch it:
 - **It reports, it does not pass or fail.** `BUG`, `QUERY` and `HARNESS`, and
   the middle one is why it exists — about half of what surprises the sweep turns
   out to be correct behaviour nobody had written down. Running total so far:
-  **37 harness findings, 2 product bugs**, and every one of the thirty-seven
+  **42 harness findings, 2 product bugs**, and every one of the forty-two
   looked like a defect on first read. Verify before believing; the base rate
   says it is the sweep. The worst of them was a permission probe that ran as
   the WRONG IDENTITY: a staff sign-in throttled to `None` fell back to the
