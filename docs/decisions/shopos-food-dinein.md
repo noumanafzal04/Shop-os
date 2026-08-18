@@ -38,3 +38,49 @@ metadata:
 - Frontend: optional "Recipe / ingredients" Section in ProductFormPage for food items (ingredient picker + qty, mirrors the deal editor); `Product.recipe_items` + `ProductInput.recipe_items` + `RecipeItemLine` types.
 
 **FOOD is now feature-complete for daily ops.** Deferred nice-to-haves: KOT status bump (preparing/ready/served), even-split, table merge/transfer, course timing, KOT auto-print on fire, exact-tax dine-in settle quote (avoid the default-rate estimate), recipe COGS rollup into reports.
+
+---
+
+## 2026-08-18 · two doors to dine-in, and one of them was a dead end
+
+Asked for by the shop: *"POS screen mein dine-in hai — usmein table list kaunsi
+aayegi?"* The honest answer was **none**. Choosing Dine-in at the till showed a
+free-text `Table #` box, and the shop's real tables were never offered.
+
+There were two unconnected ideas of "which table":
+
+| | |
+|---|---|
+| **Till** | `sales.order_type` + `sales.table_no` — a typed string, validated against nothing |
+| **Floor** | `restaurant_tickets.dining_table_id` — a foreign key to a real `dining_tables` row |
+
+The POS never imports, calls or knows about the floor module at all. So a
+dine-in sale rung at the till:
+
+- never becomes a tab, so **the Floor board never shows that table occupied**;
+- never fires a KOT, so **the kitchen has nothing to cook**;
+- is invisible to the waiter report, which pays tips off covers per waiter;
+- names a table that is not a table — `5`, `Table 5` and `T5` are three
+  different strings, none of them the row the shop named `5`.
+
+The gate was the **trade** (`businessType === "food"`), not the module — which
+is why both doors stood open for the same shop. The floor UI shipped later, on
+its own full-screen route, and nothing closed the older one behind it.
+
+**Now gated on the trade AND the absence of a floor:** `isRestaurant &&
+!has("dine_in")`. A juice corner or a takeaway counter with two tables outside
+keeps the typed number, which is genuinely all such a shop has to record. Where
+a floor exists, dine-in belongs on it.
+
+The trade-off, stated rather than hidden: a food shop with the dine_in module
+can no longer take a dine-in order from the till in one tap. That was never one
+tap in any useful sense — it produced a record the kitchen and the floor could
+not see. One condition (`!has("dine_in")`) reverses this if a counter ever
+genuinely needs both.
+
+Guarded in `posChrome.test.ts`; removing the condition turns it red, checked.
+
+> Same shape as the two defects the QA sweep turned up, and the four tablet
+> ones: **one question — which table? — answered in two places.** Neither
+> answer errored. They simply never met.
+

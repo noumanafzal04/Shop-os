@@ -74,4 +74,4 @@
 - [QA Sweep](shopos-qa-sweep.md) — standing outside-in sweep per business type; mutate.py proves it can fail; 11 harness findings vs 0 product bugs
 - [Forecourt Branch](shopos-forecourt-branch.md) — FIXED: panel-made tanks had branch_id null, shift looked for Main; no station could open a shift; 25 tests missed it
 - [Adjust Wrong Branch](shopos-adjust-wrong-branch.md) — FIXED: hand stock adjustments always hit Main, not the operated branch; the branch test only covered sales
-- [POS Dine-in Flow — TODO](shopos-pos-dinein-flow-todo.md) — PENDING: verify till-side dine-in/takeaway and WHICH table list appears; do it last
+- [POS Dine-in Flow](shopos-pos-dinein-flow-todo.md) — RESOLVED: the till had its own free-text table beside the real Floor module; now gated to food shops with no dine_in
