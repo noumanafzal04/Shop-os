@@ -230,7 +230,24 @@ export default function ThemeCustomizer() {
   if (!canConfigure) return null;
 
   return (
-    <>
+    /* Not on a tablet, on the shop's own request — and `xl`, not `lg`.
+     *
+     * A tablet in landscape is 1024–1279, which IS `lg`: hiding below `lg`
+     * would have left it on every tablet held the way shops hold them. 1280 is
+     * the number this codebase already uses for "below here is tablet-sized"
+     * (RAIL_STARTS_COLLAPSED_BELOW), so it is read from the same idea rather
+     * than picked again.
+     *
+     * Why it had to go rather than be made bigger: the launcher is
+     * `fixed right-0 top-1/2` — a target on the right edge of the glass, which
+     * is exactly where a thumb rests while scrolling. On a touch screen the
+     * canvas opened by accident, repeatedly, over whatever the shop was doing.
+     * Nothing ever opened it "by default"; `open` has always started false.
+     *
+     * Nothing is lost that a tablet needs: this canvas is the SHOP's look,
+     * owner-only, saved once for everyone — a thing you sit down to do.
+     * Light/dark is a per-device choice and stays on the header toggle. */
+    <div className="hidden xl:block">
       {/* Rail button — always reachable, never over the content. Hidden while
           the canvas is open so it can't sit on top of its own panel, and never
           drawn on the till (see `onTill` above). */}
@@ -440,6 +457,6 @@ export default function ThemeCustomizer() {
           </button>
         </footer>
       </aside>
-    </>
+    </div>
   );
 }

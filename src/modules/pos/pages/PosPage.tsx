@@ -1928,9 +1928,16 @@ export default function PosPage() {
               un-scannable items first. Nobody maintains it, and it disappears
               the moment the cashier starts searching — a shortlist is only
               useful when you have not already said what you want. */}
-          {/* `hidden lg:block` — off the tablet and the phone, on the shop's
+          {/* `hidden xl:block` — off the tablet and the phone, on the shop's
               own request: the strip costs a row of vertical space on a screen
               that has little, above a grid that is the actual subject.
+
+              `xl`, not `lg`, and the first attempt got this wrong: a tablet in
+              LANDSCAPE is 1024–1279, which is `lg`, so hiding below `lg` left
+              the strip on every tablet held the way a counter holds one. 1280
+              is the number this codebase already uses for "below here is
+              tablet-sized" (RAIL_STARTS_COLLAPSED_BELOW), and the POS is
+              full-screen, so it never gets the sidebar's width back to spend.
               Worth stating the trade rather than losing it quietly: a mart's
               loose lines (tomatoes, rice by the kilo, chai) have no barcode,
               and this strip was the fast route to them. On a small screen
@@ -1938,7 +1945,7 @@ export default function PosPage() {
               which is slower per item. If a counter ever asks for them back,
               this is the one class to remove. */}
           {quickKeys.data && quickKeys.data.length > 0 && search === "" && categoryId === "" && (
-            <div className="mb-3 hidden shrink-0 lg:block">
+            <div className="mb-3 hidden shrink-0 xl:block">
               <div className="mb-1.5 flex items-center gap-2 px-1">
                 <span className="text-theme-xs font-semibold uppercase tracking-wide text-white/60">Quick keys</span>
                 <span className="text-theme-xs text-white/40">· what sells here</span>

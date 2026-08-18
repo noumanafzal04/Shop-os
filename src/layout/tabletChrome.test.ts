@@ -193,6 +193,20 @@ describe("a panel with a footer measures the viewport that exists", () => {
     expect(panel).toBeGreaterThan(scrim);
   });
 
+  it("is not offered on a tablet at all", () => {
+    // The launcher is `fixed right-0 top-1/2` — a target on the right edge of
+    // the glass, which is where a thumb rests while scrolling. On a touch
+    // screen the canvas opened by accident, repeatedly, over whatever the shop
+    // was doing. Nothing ever opened it "by default": `open` has always
+    // started false.
+    //
+    // `xl`, not `lg`. A tablet in landscape is 1024–1279, which IS `lg`, so
+    // hiding below `lg` would have left it on every tablet held the way shops
+    // hold them.
+    expect(THEME_CUSTOMIZER).toMatch(/className="hidden xl:block"/);
+    expect(THEME_CUSTOMIZER).toMatch(/useState\(false\)/);
+  });
+
   it("can be closed by a finger, not only a mouse", () => {
     // The close was `p-1` around a 20px glyph — a 28px target in the top-right
     // corner of a panel pinned to the right edge of the glass. A mouse
