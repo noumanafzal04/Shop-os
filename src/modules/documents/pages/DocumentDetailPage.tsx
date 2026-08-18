@@ -14,6 +14,7 @@ import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { receiptService } from "../../receipts/services/receiptService";
 import { useDocument, useDocumentMutations } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
+import { uuid } from "../../../common/uuid";
 
 /**
  * One promise, in full: what was quoted or held, what has been paid against it,
@@ -408,8 +409,8 @@ function CollectModal({
               onClick={() =>
                 onSubmit(
                   due > 0
-                    ? { payment_method: method, amount_paid: paid, idempotency_key: crypto.randomUUID() }
-                    : { idempotency_key: crypto.randomUUID() },
+                    ? { payment_method: method, amount_paid: paid, idempotency_key: uuid() }
+                    : { idempotency_key: uuid() },
                 )
               }
             >

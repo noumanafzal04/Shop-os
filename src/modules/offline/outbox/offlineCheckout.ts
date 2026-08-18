@@ -16,6 +16,7 @@ import {
 } from "./canSellOffline";
 import { enqueue, newRow } from "./outbox";
 import { nextOfflineNumber } from "./receiptNumber";
+import { uuid } from "../../../common/uuid";
 
 /**
  * Completing a sale with no server.
@@ -365,7 +366,11 @@ export async function completeOffline(input: OfflineSaleInput): Promise<OfflineS
   }
 
   const totals = await priceLocally(input.lines, input.cartDiscount);
-  const op = crypto.randomUUID();
+  // `uuid()`, never `crypto.randomUUID()` directly. That API exists only in a
+  // SECURE CONTEXT, so on a shop served over plain http it is undefined and
+  // this line throws — before the sale is queued, with the goods already on the
+  // counter. The helper falls back to `getRandomValues`, which works over http.
+  const op = uuid();
   const offlineNumber = await nextOfflineNumber(input.registerName, deviceId());
 
   // ── The moment, on two clocks ─────────────────────────────────────────

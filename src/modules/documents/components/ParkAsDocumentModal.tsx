@@ -9,6 +9,7 @@ import { useShopSettings, useMoney } from "../../shop/hooks/useShop";
 import { useDocumentMutations } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
 import type { DocumentKind, DocumentLineInput } from "../services/documentService";
+import { uuid } from "../../../common/uuid";
 
 interface Props {
   isOpen: boolean;
@@ -83,7 +84,7 @@ export default function ParkAsDocumentModal({
         customer_phone: phone.trim() || undefined,
         expires_at: expires || undefined,
         deposit: layaway ? { amount: depositValue, method } : undefined,
-        idempotency_key: crypto.randomUUID(),
+        idempotency_key: uuid(),
       },
       {
         onSuccess: (res) => {
