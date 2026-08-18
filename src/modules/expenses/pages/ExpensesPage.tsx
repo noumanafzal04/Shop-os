@@ -30,6 +30,7 @@ import { CategoryManager } from "../components/CategoryManager";
 import { downloadCsv, downloadFile, openAuthedFile } from "../../../common/api/download";
 import { useAuthStore } from "../../../stores/authStore";
 import { useSuppliers } from "../../purchases/hooks/usePurchases";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -432,16 +433,16 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                               storage, so an href would 401. */}
                           <button
                             type="button"
-                            className="text-theme-xs text-brand-600 hover:underline dark:text-brand-400"
+                            className={ROW_ACTION}
                             onClick={() => void openAuthedFile(e.attachment_url!)}
                           >
                             View
                           </button>
-                          <button className="text-theme-xs text-gray-400 hover:text-error-500" onClick={() => detach.mutate(e.id)}>✕</button>
+                          <button className={ROW_ACTION_DANGER} onClick={() => detach.mutate(e.id)}>✕</button>
                         </span>
                       ) : (
                         <button
-                          className="text-theme-xs text-gray-400 hover:text-brand-600"
+                          className={ROW_ACTION}
                           onClick={() => { setAttachTo(e.id); fileRef.current?.click(); }}
                         >
                           Attach
@@ -451,13 +452,13 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                     <td className="px-5 py-3.5 text-right">
                       <span className="inline-flex items-center gap-3">
                         <button
-                          className="text-theme-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                          className={ROW_ACTION}
                           onClick={() => openEdit(e)}
                         >
                           Edit
                         </button>
                         <button
-                          className="text-theme-xs text-gray-400 hover:text-error-500"
+                          className={ROW_ACTION_DANGER}
                           onClick={async () => {
                             if (await confirm({ title: `Delete "${e.description}"?`, tone: "danger" })) {
                               remove.mutate(e.id, {

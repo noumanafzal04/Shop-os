@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Input from "../../../components/form/input/InputField";
@@ -7,14 +7,18 @@ import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
+import { useConfirm } from "../../../components/ui/confirm";
+import { MODAL_CLOSE } from "../../../components/ui/modal/closeButton";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCartStore, cartKeyOf } from "../../../stores/cartStore";
 import { usePlaceOrder } from "../../orders/hooks/useOrders";
 import type { PublicModifierGroup, PublicProduct } from "../services/marketplaceService";
 import {
+  useDeleteReview,
   useFavorites,
   useMarketProducts,
   useMarketShop,
+  useMyReviews,
   useShopReviews,
   useSubmitReview,
   useToggleFavorite,
@@ -60,7 +64,10 @@ export default function MarketShopPage() {
   const toggleFavorite = useToggleFavorite();
   const reviews = useShopReviews(slug);
   const submitReview = useSubmitReview();
+  const myReviews = useMyReviews(isCustomer);
+  const deleteReview = useDeleteReview(slug);
 
+  const confirm = useConfirm();
   const cart = useCartStore();
   const placeOrder = usePlaceOrder();
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("pickup");
@@ -69,6 +76,25 @@ export default function MarketShopPage() {
 
   const [myRating, setMyRating] = useState(0);
   const [myComment, setMyComment] = useState("");
+
+  /** The review I already left here, if I left one. */
+  const mine = myReviews.data?.find((r) => r.shop_slug === slug) ?? null;
+
+  /**
+   * Load my own words back into the box, once.
+   *
+   * The screen has always said "posting again updates it" and then shown an
+   * empty form, which asks somebody to rewrite from memory a review they cannot
+   * see. Keyed on the review id so a fresh answer refills the box, but typing
+   * is never overwritten while the query refetches.
+   */
+  const loadedReview = useRef<string | null>(null);
+  useEffect(() => {
+    if (mine === null || loadedReview.current === mine.id) return;
+    loadedReview.current = mine.id;
+    setMyRating(mine.rating);
+    setMyComment(mine.comment ?? "");
+  }, [mine]);
 
   // Modifier configurator (food items with choices / add-ons)
   const [cfg, setCfg] = useState<PublicProduct | null>(null);
@@ -170,10 +196,33 @@ export default function MarketShopPage() {
 
   const sendReview = () => {
     if (!slug || !myRating || submitReview.isPending) return;
-    submitReview.mutate(
-      { shop_slug: slug, rating: myRating, comment: myComment.trim() || undefined },
-      { onSuccess: () => { setMyRating(0); setMyComment(""); } },
-    );
+    submitReview.mutate({
+      shop_slug: slug,
+      rating: myRating,
+      comment: myComment.trim() || undefined,
+    });
+    // The box is deliberately not emptied any more. What is in it IS my review
+    // now, and clearing it made an update look like it had been discarded.
+  };
+
+  const removeReview = async () => {
+    if (mine === null || deleteReview.isPending) return;
+
+    const ok = await confirm({
+      title: "Remove your review?",
+      message: `Your review of ${shop.data?.business_name ?? "this shop"} will be taken down, and the shop's rating will be worked out without it. You can write a new one any time.`,
+      confirmLabel: "Remove review",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    deleteReview.mutate(mine.id, {
+      onSuccess: () => {
+        loadedReview.current = null;
+        setMyRating(0);
+        setMyComment("");
+      },
+    });
   };
 
   return (
@@ -505,11 +554,24 @@ export default function MarketShopPage() {
                     {reviewRows.map((r) => (
                       <div
                         key={r.id}
-                        className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"
+                        className={
+                          r.id === mine?.id
+                            ? "rounded-2xl border border-brand-300 bg-brand-50/40 p-4 dark:border-brand-500/40 dark:bg-brand-500/[0.06]"
+                            : "rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"
+                        }
                       >
-                        <div className="mb-1 flex items-center justify-between">
-                          <span className="font-medium text-gray-800 dark:text-white/90">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-2 font-medium text-gray-800 dark:text-white/90">
                             {r.customer_name}
+                            {/* Names repeat. Without this a customer scanning
+                                the list has no way to tell which row is theirs,
+                                which is the whole reason Remove had nothing to
+                                point at. */}
+                            {r.id === mine?.id && (
+                              <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-theme-xs font-medium text-brand-600 dark:text-brand-400">
+                                Yours
+                              </span>
+                            )}
                           </span>
                           <Stars value={r.rating} />
                         </div>
@@ -536,7 +598,7 @@ export default function MarketShopPage() {
               {/* Write a review (customers) */}
               <div className="h-fit rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
                 <h3 className="mb-3 font-semibold text-gray-800 dark:text-white/90">
-                  {isCustomer ? "Rate this shop" : "Want to review?"}
+                  {!isCustomer ? "Want to review?" : mine ? "Your review" : "Rate this shop"}
                 </h3>
                 {!isCustomer ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -565,11 +627,40 @@ export default function MarketShopPage() {
                       onClick={sendReview}
                       disabled={submitReview.isPending || !myRating}
                     >
-                      {submitReview.isPending ? "Posting…" : "Post review"}
+                      {submitReview.isPending
+                        ? mine
+                          ? "Saving…"
+                          : "Posting…"
+                        : mine
+                          ? "Update review"
+                          : "Post review"}
                     </Button>
-                    <p className="mt-2 text-theme-xs text-gray-400">
-                      One review per shop — posting again updates it.
-                    </p>
+                    {mine ? (
+                      <>
+                        {/* The endpoint for this existed from the start and no
+                            screen ever called it, so the only way out of a
+                            review posted by mistake was to overwrite it with
+                            something milder. */}
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          className="mt-2 w-full"
+                          onClick={removeReview}
+                          disabled={deleteReview.isPending}
+                        >
+                          {deleteReview.isPending ? "Removing…" : "Remove review"}
+                        </Button>
+                        {mine.reply && (
+                          <p className="mt-2 text-theme-xs text-gray-400">
+                            The shop has replied to this. Changing it clears their reply.
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-2 text-theme-xs text-gray-400">
+                        One review per shop — posting again updates it.
+                      </p>
+                    )}
                   </>
                 )}
               </div>
@@ -590,7 +681,7 @@ export default function MarketShopPage() {
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{cfg.name}</h3>
                 <p className="text-theme-xs text-gray-400">Customize your order</p>
               </div>
-              <button onClick={() => setCfg(null)} className="text-gray-400 hover:text-gray-700">✕</button>
+              <button onClick={() => setCfg(null)} className={MODAL_CLOSE}>✕</button>
             </div>
 
             {cfg.variants.length > 0 && (

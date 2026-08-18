@@ -17,6 +17,7 @@ import type { Product, ModifierGroup } from "../../catalog/types";
 import { useTicket, useDineInMutations, useOpenTickets, useServers, useTables } from "../hooks/useDineIn";
 import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const KOT_BADGE: Record<string, { label: string; cls: string }> = {
   pending: { label: "Pending", cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" },
@@ -284,21 +285,21 @@ export default function TabPage() {
                 be one party. Both used to mean voiding the tab and re-ringing
                 the meal, which loses the KOTs already fired. */}
             <button onClick={() => { setMoveTable(ticket.table?.id ?? ""); moveModal.openModal(); }}
-              className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
+              className={ROW_ACTION}>
               Move table
             </button>
             <button onClick={() => { setMergeSource(""); mergeModal.openModal(); }}
-              className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
+              className={ROW_ACTION}>
               Merge tab
             </button>
             {/* Going off shift with open tabs. Without this the only way to
                 pass a table on was a permanent tables.serve_any — the blunt
                 instrument that permission exists to avoid. */}
             <button onClick={() => { setHandTo(""); handOverModal.openModal(); }}
-              className="text-theme-sm text-gray-600 hover:text-brand-500 dark:text-gray-300">
+              className={ROW_ACTION}>
               Hand over
             </button>
-            <button onClick={onCancel} className="text-theme-sm text-error-500 hover:text-error-600">Cancel tab</button>
+            <button onClick={onCancel} className={ROW_ACTION_DANGER}>Cancel tab</button>
           </div>
         )}
       </header>

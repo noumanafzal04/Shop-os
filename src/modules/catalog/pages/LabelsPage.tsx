@@ -9,6 +9,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import { useGenerateBarcode, useProducts } from "../hooks/useCatalog";
 import { code128BarsSvg, code128ModuleCount } from "../utils/code128";
 import type { Product } from "../types";
+import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 /**
  * Label stock, in millimetres, because a sticker is a physical object. Sizing
@@ -279,7 +280,7 @@ export default function LabelsPage() {
                   {total} label{total > 1 ? "s" : ""} queued
                 </span>
                 <button
-                  className="text-theme-xs font-medium text-gray-400 transition hover:text-error-500"
+                  className={ROW_ACTION_DANGER}
                   onClick={() => { setQtys({}); setPicked({}); setDrafts({}); }}
                 >
                   Clear

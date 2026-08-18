@@ -98,20 +98,20 @@ describe("standing", () => {
 
 describe("what the pill says", () => {
   it("says Online with nothing waiting", () => {
-    expect(pillLabel(true, 0, null)).toBe("Online");
+    expect(pillLabel(true, 0, null, true)).toBe("Online");
   });
 
   it("never hides work that is still owed, even while online", () => {
     // Pending sales stay visible until they are gone. Hiding them the moment a
     // connection returns is how a shop closes up believing everything went.
-    expect(pillLabel(true, 47, null)).toBe("47 still to send");
+    expect(pillLabel(true, 47, null, true)).toBe("47 still to send");
   });
 
   it("says sales are SAVED, not pending", () => {
     // The wording is the feature. "47 pending" reads as a fault; "47 saved
     // here" says the true and reassuring thing — they are on this device,
     // waiting for a line, and they are not lost.
-    const label = pillLabel(false, 47, null);
+    const label = pillLabel(false, 47, null, false);
 
     expect(label).toBe("Offline · 47 saved here");
     expect(label).not.toMatch(/pending/i);
@@ -119,13 +119,23 @@ describe("what the pill says", () => {
   });
 
   it("says plain Offline when there is nothing waiting", () => {
-    expect(pillLabel(false, 0, null)).toBe("Offline");
+    expect(pillLabel(false, 0, null, false)).toBe("Offline");
+  });
+
+  it("tells a dead line apart from a dead server", () => {
+    // Two different situations with two different remedies: "Offline" means
+    // wait for the line to come back, "No server" means telephone somebody.
+    // Selling carries on either way, which is why the pill has to be honest
+    // about which one this is rather than lumping them together.
+    expect(pillLabel(false, 0, null, true)).toBe("No server");
+    expect(pillLabel(false, 3, null, true)).toBe("No server · 3 saved here");
+    expect(pillLabel(false, 3, null, false)).toBe("Offline · 3 saved here");
   });
 
   it("shows progress while sending, and that beats everything else", () => {
     // Mid-sync is the moment a shopkeeper is watching hardest. Progress, not a
     // spinner, and not the state it is on its way out of.
-    expect(pillLabel(true, 47, { sent: 12, total: 47 })).toBe("Sending 12 of 47");
-    expect(pillLabel(false, 47, { sent: 12, total: 47 })).toBe("Sending 12 of 47");
+    expect(pillLabel(true, 47, { sent: 12, total: 47 }, true)).toBe("Sending 12 of 47");
+    expect(pillLabel(false, 47, { sent: 12, total: 47 }, false)).toBe("Sending 12 of 47");
   });
 });

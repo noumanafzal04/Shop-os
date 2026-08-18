@@ -5,6 +5,7 @@ import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useTaxGroups, useTaxGroupMutations } from "../hooks/useTaxGroups";
 import type { TaxGroup } from "../services/taxGroupsService";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 /**
  * Manage reusable tax groups — named rates a product can point at instead of a
@@ -49,8 +50,8 @@ export default function TaxGroupsManager() {
               <span className="ml-2 text-theme-xs text-gray-400">{Number(g.rate)}%{g.products_count != null ? ` · ${g.products_count} product(s)` : ""}</span>
             </div>
             <div className="flex gap-3">
-              <button className="text-theme-xs font-medium text-brand-500 hover:text-brand-600" onClick={() => setDraft({ id: g.id, name: g.name, rate: String(g.rate) })}>Edit</button>
-              <button className="text-theme-xs font-medium text-error-500 hover:text-error-600" onClick={() => del(g)}>Remove</button>
+              <button className={ROW_ACTION} onClick={() => setDraft({ id: g.id, name: g.name, rate: String(g.rate) })}>Edit</button>
+              <button className={ROW_ACTION_DANGER} onClick={() => del(g)}>Remove</button>
             </div>
           </div>
         ))}

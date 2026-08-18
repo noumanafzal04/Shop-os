@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCover, isTraining, type ActiveCover, type CashSession, type SessionState } from "./posService";
+import { isCover, isTraining, ringableSessionId, type ActiveCover, type CashSession, type SessionState } from "./posService";
 
 /**
  * `/pos/session` answers with one of three things: my own drawer, the drawer
@@ -118,5 +118,38 @@ describe("isTraining", () => {
    */
   it("treats a missing flag as a real shift", () => {
     expect(isTraining({ ...drawer, is_training: undefined })).toBe(false);
+  });
+});
+
+describe("which drawer a sale is rung into", () => {
+  it("rings into the covered cashier's drawer, not the reliever's own", () => {
+    // The whole point of relief cover: someone else takes the till and RINGS
+    // under the drawer that is already open on it.
+    expect(ringableSessionId(cover)).toBe("sess-1");
+  });
+
+  it("rings into my own drawer when I have one", () => {
+    expect(ringableSessionId(drawer)).toBe("sess-1");
+  });
+
+  it("refuses when there is no drawer at all", () => {
+    expect(ringableSessionId(null)).toBeNull();
+  });
+
+  it("refuses a drawer that has been closed", () => {
+    // A counted drawer is not a shift to sell into — and this is the case a
+    // remembered shift on the device could produce after a reload.
+    expect(ringableSessionId({ ...drawer, status: "closed" })).toBeNull();
+  });
+
+  it("is not the same question as 'do I have a drawer of my own'", () => {
+    // Asking THAT question is what left a reliever unable to ring: `open` is
+    // null under cover by design, so every selling gate built on it refused.
+    // Reconcile actions must keep asking it — a cover may sell and must never
+    // count the drawer.
+    const isMyOwn = (s: SessionState) => s !== null && !isCover(s);
+
+    expect(isMyOwn(cover)).toBe(false);
+    expect(ringableSessionId(cover)).not.toBeNull();
   });
 });

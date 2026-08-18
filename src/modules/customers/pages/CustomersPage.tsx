@@ -230,8 +230,8 @@ export default function CustomersPage() {
                 <span className="ml-2 text-theme-xs text-gray-400 capitalize">{g.price_level}{g.discount_percent != null && Number(g.discount_percent) > 0 ? ` · ${Number(g.discount_percent)}% off` : ""}{g.customers_count != null ? ` · ${g.customers_count} member(s)` : ""}</span>
               </div>
               <div className="flex gap-3">
-                <button className="text-theme-xs font-medium text-brand-500 hover:text-brand-600" onClick={() => editGroup(g)}>Edit</button>
-                <button className="text-theme-xs font-medium text-error-500 hover:text-error-600" onClick={() => removeGroup(g)}>Remove</button>
+                <button className={ROW_ACTION} onClick={() => editGroup(g)}>Edit</button>
+                <button className={ROW_ACTION_DANGER} onClick={() => removeGroup(g)}>Remove</button>
               </div>
             </div>
           ))}

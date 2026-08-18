@@ -39,6 +39,25 @@ export interface PublicReview {
   created_at: string;
 }
 
+/**
+ * A review of MINE, which the public list cannot tell me about.
+ *
+ * The public payload carries a display name and nothing else — deliberately,
+ * because it is the same for every visitor and cacheable. So "which of these
+ * did I write" is a question only the customer's own endpoint can answer, and
+ * until it did, the Remove button had nothing to point at.
+ */
+export interface MyReview {
+  id: string;
+  shop_slug: string | null;
+  shop_name: string | null;
+  rating: number;
+  comment: string | null;
+  reply: string | null;
+  replied_at: string | null;
+  created_at: string;
+}
+
 export interface PublicModifierOption {
   id: string;
   name: string;
@@ -114,6 +133,10 @@ export const marketplaceService = {
 
   submitReview: (payload: { shop_slug: string; rating: number; comment?: string }) =>
     apiPost<PublicReview>("/customer/reviews", payload),
+
+  myReviews: () => apiGet<MyReview[]>("/customer/reviews"),
+
+  deleteReview: (id: string) => apiDelete(`/customer/reviews/${id}`),
 
   // ── The buyer's own saved places and bookings ─────────────────────
   //

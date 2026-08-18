@@ -19,6 +19,8 @@ export interface CustomerHit {
 export interface SaleHit {
   id: string;
   invoice_number: string;
+  /** The `OFF-…` slip printed at the till when there was no server. */
+  offline_number?: string | null;
   customer_name: string | null;
   total: string | number;
   status: string;

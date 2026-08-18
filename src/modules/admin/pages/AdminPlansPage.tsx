@@ -194,7 +194,7 @@ export default function AdminPlansPage() {
         </dl>
       )}
       <div className="mt-auto flex gap-3 text-sm">
-        <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openEdit(plan)}>
+        <button className={ROW_ACTION} onClick={() => openEdit(plan)}>
           Edit
         </button>
         <button className={ROW_ACTION} onClick={() => toggleActive(plan)}>

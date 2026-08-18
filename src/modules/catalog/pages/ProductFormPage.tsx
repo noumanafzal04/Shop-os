@@ -22,7 +22,7 @@ import { useBusinessTypes, useShopSettings } from "../../shop/hooks/useShop";
 import { useTaxGroups } from "../hooks/useTaxGroups";
 import { catalogService } from "../services/catalogService";
 import type { ItemTypeCode, ModifierGroup, VariantInput } from "../types";
-import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 interface FormVariant extends VariantInput {
   _key: string;
@@ -727,7 +727,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             <div className="mb-2 flex justify-end">
               <button
                 type="button"
-                className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
+                className={ROW_ACTION}
                 onClick={() => setComboRows((r) => [...r, { component_product_id: "", quantity: "1" }])}
               >
                 + Add item
@@ -773,7 +773,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             <div className="mb-2 flex justify-end">
               <button
                 type="button"
-                className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
+                className={ROW_ACTION}
                 onClick={() => setRecipeRows((r) => [...r, { ingredient_product_id: "", quantity: "1" }])}
               >
                 + Add ingredient
@@ -1125,7 +1125,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 </div>
                 <button
                   type="button"
-                  className="col-span-1 text-error-500"
+                  className={`col-span-1 ${ROW_ACTION_DANGER}`}
                   onClick={() => setVariants((list) => list.filter((x) => x._key !== v._key))}
                 >
                   ✕
@@ -1177,17 +1177,17 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       </select>
                       <div className="col-span-2"><Input type="number" min="0" value={String(g.min_select)} onChange={(e) => patch({ min_select: Number(e.target.value) })} /></div>
                       <div className="col-span-1"><Input type="number" min="0" value={String(g.max_select)} onChange={(e) => patch({ max_select: Number(e.target.value) })} /></div>
-                      <button type="button" className="col-span-1 text-error-500" onClick={() => setModifierGroups((list) => list.filter((_, i) => i !== gi))}>✕</button>
+                      <button type="button" className={`col-span-1 ${ROW_ACTION_DANGER}`} onClick={() => setModifierGroups((list) => list.filter((_, i) => i !== gi))}>✕</button>
                       <p className="col-span-12 text-theme-xs text-gray-400">min / max selectable ({g.min_select > 0 ? "required" : "optional"})</p>
                     </div>
                     {g.options.map((o, oi) => (
                       <div key={oi} className="mb-1 grid grid-cols-12 items-center gap-2 pl-3">
                         <div className="col-span-7"><Input placeholder="Option e.g. Stuffed" value={o.name} onChange={(e) => patchOpt(oi, { name: e.target.value })} /></div>
                         <div className="col-span-4"><Input type="number" min="0" placeholder="+ price" value={String(o.price_delta)} onChange={(e) => patchOpt(oi, { price_delta: e.target.value })} /></div>
-                        <button type="button" className="col-span-1 text-error-500" onClick={() => patch({ options: g.options.filter((_, i) => i !== oi) })}>✕</button>
+                        <button type="button" className={`col-span-1 ${ROW_ACTION_DANGER}`} onClick={() => patch({ options: g.options.filter((_, i) => i !== oi) })}>✕</button>
                       </div>
                     ))}
-                    <button type="button" className="ml-3 mt-1 text-theme-xs text-brand-500" onClick={() => patch({ options: [...g.options, { name: "", price_delta: 0 }] })}>+ Option</button>
+                    <button type="button" className={`ml-3 mt-1 ${ROW_ACTION}`} onClick={() => patch({ options: [...g.options, { name: "", price_delta: 0 }] })}>+ Option</button>
                   </div>
                 );
               })}
@@ -1302,7 +1302,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Additional barcodes</p>
                         <button
                           type="button"
-                          className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
+                          className={ROW_ACTION}
                           onClick={() => setExtraBarcodes((b) => [...b, ""])}
                         >
                           + Add barcode
@@ -1337,7 +1337,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Pack sizes</p>
                         <button
                           type="button"
-                          className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
+                          className={ROW_ACTION}
                           onClick={() => setUnits((u) => [...u, { name: "", factor: "", price: "", barcode: "" }])}
                         >
                           + Add pack
@@ -1383,7 +1383,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Bulk pricing (quantity breaks)</p>
                       <button
                         type="button"
-                        className="text-theme-xs font-medium text-brand-500 hover:text-brand-600"
+                        className={ROW_ACTION}
                         onClick={() => setTiers((t) => [...t, { min_qty: "", price: "" }])}
                       >
                         + Add tier

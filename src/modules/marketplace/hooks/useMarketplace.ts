@@ -83,6 +83,24 @@ export function useShopReviews(slug: string | undefined) {
   });
 }
 
+const MY_REVIEWS = ["market", "my-reviews"];
+
+/**
+ * The reviews I wrote — the only way a screen can point at one and call it mine.
+ *
+ * `enabled` rather than an early return, for the same reason as the addresses
+ * below: a signed-out visitor reading a shop page must not fire a call that can
+ * only 401. They see the plain "sign in to review" box and nothing is missing
+ * to them.
+ */
+export function useMyReviews(enabled: boolean) {
+  return useQuery({
+    queryKey: MY_REVIEWS,
+    queryFn: async () => (await marketplaceService.myReviews()).data,
+    enabled,
+  });
+}
+
 export function useSubmitReview() {
   const queryClient = useQueryClient();
 
@@ -92,6 +110,21 @@ export function useSubmitReview() {
     onSuccess: (_, { shop_slug }) => {
       queryClient.invalidateQueries({ queryKey: ["market", "reviews", shop_slug] });
       queryClient.invalidateQueries({ queryKey: ["market", "shop", shop_slug] });
+      queryClient.invalidateQueries({ queryKey: MY_REVIEWS });
+    },
+  });
+}
+
+export function useDeleteReview(shopSlug: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => marketplaceService.deleteReview(id),
+    onSuccess: () => {
+      // The shop's own rating is an average over these, so it moves too.
+      queryClient.invalidateQueries({ queryKey: ["market", "reviews", shopSlug] });
+      queryClient.invalidateQueries({ queryKey: ["market", "shop", shopSlug] });
+      queryClient.invalidateQueries({ queryKey: MY_REVIEWS });
     },
   });
 }

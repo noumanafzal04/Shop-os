@@ -27,13 +27,55 @@ const SOURCES = import.meta.glob("../../../modules/**/*.tsx", {
   eager: true,
 }) as Record<string, string>;
 
-/** The hand-rolled shapes this sweep replaced, and any near relative. */
-const BY_HAND = /className="text-(?:gray-500 hover:text-gray-700|error-500 hover:text-error-600)/;
+/**
+ * A control inside a table cell that is drawn as coloured text.
+ *
+ * ── Why the first detector could only find what was already fixed ───────
+ *
+ * It was two literal class strings:
+ *
+ *     /className="text-(?:gray-500 hover:text-gray-700|error-500 hover:text-error-600)/
+ *
+ * — the exact two shapes the original sweep had replaced. Every other spelling
+ * of the same mistake walked straight past it: `text-brand-500
+ * hover:text-brand-600`, `mr-3 text-success-500 …`, `text-theme-xs
+ * text-error-500 …`. **Seventeen were sitting in table cells when this was
+ * rewritten**, including rows where Delete had been swept and the Edit beside it
+ * had not — which is worse than neither, because the pair no longer reads as a
+ * pair.
+ *
+ * A detector that recognises the instances somebody already found is not a
+ * rule. It is a record of one afternoon.
+ *
+ * ── What it looks for now ───────────────────────────────────────────────
+ *
+ * Any `<button>` inside a `<td>` whose className is a literal with no height,
+ * no padding and no size — i.e. a tap target the height of the font. Scoping it
+ * to table cells is what keeps it honest: a button in a sentence ("Change
+ * register", "Didn't print") is legitimately a text link, and a rule that
+ * flagged those would be argued with until it was deleted.
+ */
+const SIZED = /\b(?:min-h-|h-\d|h-\[|py-|p-\d|p-\[|size-)/;
 
-const offenders = (): string[] =>
-  Object.entries(SOURCES)
-    .filter(([, src]) => BY_HAND.test(src))
-    .map(([path]) => path.replace(/^.*\/modules\//, ""));
+const offenders = (): string[] => {
+  const found: string[] = [];
+
+  for (const [path, src] of Object.entries(SOURCES)) {
+    for (const cell of src.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)) {
+      for (const button of cell[1].matchAll(/<button\b([^>]*)>/g)) {
+        const attrs = button[1];
+        if (attrs.includes("ROW_ACTION")) continue;
+
+        const className = /className="([^"]*)"/.exec(attrs)?.[1];
+        if (className === undefined || className === "" || SIZED.test(className)) continue;
+
+        found.push(`${path.replace(/^.*\/modules\//, "")} → ${className}`);
+      }
+    }
+  }
+
+  return found;
+};
 
 describe("a row action looks like something you can press", () => {
   it("scans the modules at all, so a silent zero cannot pass as a clean sweep", () => {
@@ -69,7 +111,62 @@ describe("a row action looks like something you can press", () => {
     expect(ROW_ACTION_DANGER).toMatch(/hover:bg-error-/);
   });
 
+  it("finds table cells at all, so a silent zero cannot pass as a clean sweep", () => {
+    // The denominator for the detector itself. If the `<td>` match ever breaks,
+    // this fails instead of the sweep silently passing on nothing.
+    const cells = Object.values(SOURCES).reduce(
+      (n, src) => n + [...src.matchAll(/<td\b[^>]*>/g)].length,
+      0,
+    );
+
+    expect(cells).toBeGreaterThan(150);
+  });
+
   it("no screen still writes one by hand", () => {
     expect(offenders()).toEqual([]);
+  });
+
+  it("never leaves half a pair", () => {
+    // The worst version of this defect, and the one that survives every sweep:
+    // Delete gets the shared class and the Edit beside it does not. Two
+    // controls that do different things now LOOK different in kind — one reads
+    // as a button and the other as a caption — so the eye stops treating them
+    // as a set, and the pair exists precisely so a finger can tell them apart.
+    //
+    // Detected by adjacency rather than by container, which is what makes it
+    // work outside a table: a text link in a sentence never sits next to a
+    // ROW_ACTION button, so prose cannot trip it.
+    const halves: string[] = [];
+
+    for (const [path, src] of Object.entries(SOURCES)) {
+      const buttons = [...src.matchAll(/<button\b([^>]*)>/g)];
+
+      buttons.forEach((button, i) => {
+        const attrs = button[1];
+        if (!attrs.includes("ROW_ACTION")) return;
+
+        for (const neighbour of [buttons[i - 1], buttons[i + 1]]) {
+          if (neighbour === undefined) continue;
+
+          // SIBLINGS, not merely the next button along.
+          //
+          // The first version measured distance alone and immediately produced
+          // a false pair: the till's "Gift receipt" row and the "Didn't print"
+          // link in the sentence above it are 300 characters apart and in
+          // different containers. A closing block tag between two buttons means
+          // they are not a pair, whatever the byte count says.
+          const from = Math.min(button.index, neighbour.index);
+          const between = src.slice(from, Math.max(button.index, neighbour.index));
+          if (/<\/(?:div|p|section|li|td)>/.test(between)) continue;
+
+          const className = /className="([^"]*)"/.exec(neighbour[1])?.[1];
+          if (className === undefined || className === "" || SIZED.test(className)) continue;
+
+          halves.push(`${path.replace(/^.*\/modules\//, "")} → ${className}`);
+        }
+      });
+    }
+
+    expect([...new Set(halves)]).toEqual([]);
   });
 });

@@ -8,6 +8,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
 import { useRiders, useRiderMutations } from "../hooks/useOrders";
 import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 /**
  * The shop's own delivery riders (Model A). Assign them to delivery orders on
@@ -94,13 +95,13 @@ export default function RidersPage() {
                   </td>
                   <td className="px-5 py-3 text-right">
                     <button
-                      className="mr-3 text-theme-xs text-brand-500 hover:text-brand-600"
+                      className={ROW_ACTION}
                       onClick={() => { setError(null); update.mutate({ id: r.id, is_active: !r.is_active }, { onError }); }}
                     >
                       {r.is_active ? "Deactivate" : "Activate"}
                     </button>
                     <button
-                      className="text-theme-xs text-error-500 hover:text-error-600"
+                      className={ROW_ACTION_DANGER}
                       onClick={async () => {
                         if (await confirm({ title: `Remove ${r.name}?`, message: "Deliveries already assigned keep their record.", confirmLabel: "Remove", tone: "danger" })) { setError(null); remove.mutate(r.id, { onError }); }
                       }}

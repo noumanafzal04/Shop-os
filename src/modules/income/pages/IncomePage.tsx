@@ -25,7 +25,7 @@ import { MoneyFilterBar } from "../../expenses/components/MoneyFilterBar";
 import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../../expenses/services/moneyFilters";
 import { downloadFile, openAuthedFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
-import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -320,13 +320,13 @@ export default function IncomePage() {
                               now, so it is fetched with the token. */}
                           <button
                             type="button"
-                            className="text-theme-xs text-brand-600 hover:underline dark:text-brand-400"
+                            className={ROW_ACTION}
                             onClick={() => void openAuthedFile(e.attachment_url!)}
                           >
                             View
                           </button>
                           <button
-                            className="text-theme-xs text-gray-400 hover:text-error-500"
+                            className={ROW_ACTION_DANGER}
                             aria-label={`Remove the receipt on ${e.description}`}
                             onClick={() => detach.mutate(e.id)}
                           >
@@ -335,7 +335,7 @@ export default function IncomePage() {
                         </span>
                       ) : (
                         <button
-                          className="text-theme-xs text-gray-400 hover:text-brand-600"
+                          className={ROW_ACTION}
                           aria-label={`Attach a receipt to ${e.description}`}
                           onClick={() => { setAttachTo(e.id); fileRef.current?.click(); }}
                         >
@@ -345,7 +345,7 @@ export default function IncomePage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-3">
-                        <button className="text-brand-500 hover:text-brand-600" onClick={() => openEdit(e)}>Edit</button>
+                        <button className={ROW_ACTION} onClick={() => openEdit(e)}>Edit</button>
                         <button className={ROW_ACTION_DANGER} onClick={() => confirmDelete(e)}>Delete</button>
                       </div>
                     </td>

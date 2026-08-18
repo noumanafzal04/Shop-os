@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import BranchStockModal from "../../transfers/components/BranchStockModal";
 import BranchPriceModal from "../../branches/components/BranchPriceModal";
-import { Link, Outlet, useNavigate } from "react-router";
+import { Link, Outlet, useNavigate, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
@@ -61,9 +61,18 @@ export default function ProductsPage() {
   const servicesEnabled = features?.services ?? false;
   const marketplaceEnabled = features?.marketplace ?? false;
 
+  const [searchParams] = useSearchParams();
+
   const [search, setSearch] = useState("");
   const [type, setType] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  /**
+   * Opened straight onto one category when the URL says so.
+   *
+   * The Categories screen shows an item count per category and, until this
+   * existed, that number was a dead end — the only way to see WHAT those items
+   * were was to come here and find the category in the filter again.
+   */
+  const [categoryId, setCategoryId] = useState(() => searchParams.get("category") ?? "");
   const [lowStock, setLowStock] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -459,9 +468,16 @@ export default function ProductsPage() {
           <Button size="sm" variant="outline" onClick={confirmModal.closeModal}>
             Cancel
           </Button>
-          <Button size="sm" onClick={doDelete} disabled={remove.isPending}>
+          {/* Filled red, matching the shared confirm dialog. This modal
+              predates it and was rendering the brand colour, so the button
+              that deletes a product was the same button as Save. */}
+          <button
+            onClick={doDelete}
+            disabled={remove.isPending}
+            className="rounded-lg bg-error-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-error-600 disabled:cursor-not-allowed disabled:opacity-40"
+          >
             {remove.isPending ? "Deleting…" : "Delete"}
-          </Button>
+          </button>
         </div>
       </Modal>
 

@@ -3,6 +3,7 @@ import { Modal } from "../../../components/ui/modal";
 import Button from "../../../components/ui/button/Button";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useSessionReport } from "../hooks/usePos";
+import { tillFlag, useTillSettings } from "../../offline/tillSettings";
 
 /** Tenders a cashier may be asked to declare. Cash is counted, not declared. */
 const DECLARABLE = [
@@ -48,9 +49,15 @@ export default function CloseShiftModal({
   const [declared, setDeclared] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
 
-  const byNote = report.data?.denomination_count ?? true;
-  const blind = report.data?.blind_close ?? false;
-  const askTenders = report.data?.declare_tenders ?? false;
+  // With no server the report never arrives, and this screen used to fall back
+  // to hardcoded defaults — so a shop that counts by total got the note grid,
+  // and a shop that must declare its card takings was never asked, losing that
+  // shift's declaration. The shop's own answers ride down with the catalog;
+  // they were simply never read. Server first, device second, defaults last.
+  const cached = useTillSettings(isOpen);
+  const byNote = report.data?.denomination_count ?? tillFlag(cached, "pos_denomination_count", true);
+  const blind = report.data?.blind_close ?? tillFlag(cached, "pos_blind_close", false);
+  const askTenders = report.data?.declare_tenders ?? tillFlag(cached, "pos_declare_tenders", false);
   const denominations = report.data?.denominations ?? [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
   const expected = report.data?.drawer?.expected_cash;
 

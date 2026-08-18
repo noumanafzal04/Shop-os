@@ -64,12 +64,22 @@ interface OfflineState {
   storage: StorageHealth | null;
   /** How many sales are sitting in the outbox, unsent. */
   pending: number;
+  /**
+   * A flush in progress, and how far it has got. Null when nothing is sending.
+   *
+   * The one moment a shopkeeper most wants to be told something: the line has
+   * just come back and a day's takings are going up. Without it the pill went
+   * straight from "47 saved here" to "Online" with a silent gap in between —
+   * and a gap is where somebody starts pressing things.
+   */
+  syncing: { sent: number; total: number } | null;
 
   setDevice: (id: string) => void;
   setRegistered: (registered: boolean, refusal?: string | null) => void;
   setPolicy: (offlineDays: number | null) => void;
   setStorage: (storage: StorageHealth) => void;
   setPending: (pending: number) => void;
+  setSyncing: (syncing: { sent: number; total: number } | null) => void;
   /** Re-read the local clock. Called on boot and whenever connectivity flips. */
   refreshHoursOffline: () => void;
 }
@@ -82,12 +92,14 @@ export const useOfflineStore = create<OfflineState>()((set) => ({
   hoursOffline: hoursSinceContact(),
   storage: null,
   pending: 0,
+  syncing: null,
 
   setDevice: (deviceId) => set({ deviceId }),
   setRegistered: (registered, refusal = null) => set({ registered, registrationRefusal: refusal }),
   setPolicy: (offlineDays) => set({ offlineDays }),
   setStorage: (storage) => set({ storage }),
   setPending: (pending) => set({ pending }),
+  setSyncing: (syncing) => set({ syncing }),
   refreshHoursOffline: () => set({ hoursOffline: hoursSinceContact() }),
 }));
 
@@ -145,9 +157,18 @@ export function pillLabel(
   reachable: boolean,
   pending: number,
   syncing: { sent: number; total: number } | null,
+  online: boolean,
 ): string {
   if (syncing) return `Sending ${syncing.sent} of ${syncing.total}`;
   if (reachable) return pending > 0 ? `${pending} still to send` : "Online";
 
-  return pending > 0 ? `Offline · ${pending} saved here` : "Offline";
+  // A network that is up while the server is not answering is a DIFFERENT
+  // sentence, and the till learned it before this function did — it had been
+  // saying "No server" from its own inline copy of this wording for as long as
+  // the pill has existed. It matters because the two have different remedies:
+  // "Offline" means wait for the line, "No server" means telephone somebody.
+  // Selling carries on either way.
+  const dark = online ? "No server" : "Offline";
+
+  return pending > 0 ? `${dark} · ${pending} saved here` : dark;
 }

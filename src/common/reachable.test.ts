@@ -112,18 +112,32 @@ const TEST_ONLY: Record<string, string> = {
  * "still exempt" can never quietly mean "still forgotten".
  */
 const NOT_SURFACED_YET: Record<string, string> = {
-  // The till writes its own status wording, deliberately — "Not 'pending',
-  // which reads as a fault and frightens a shopkeeper". This version also
-  // renders "Sending X of Y", a state nothing currently tracks.
-  // Leaves this list when a sync-progress indicator exists.
-  "modules/offline/offlineStore.ts::pillLabel": "needs a sync-progress indicator",
-  // Its own doc says "Drives the indicator, nothing else." There is no
-  // indicator. Same one as above; they arrive together or not at all.
-  "modules/offline/sync/pullNow.ts::isPulling": "needs a sync-progress indicator",
-  // Tells an OFF- receipt from a real invoice number. Nothing branches on it
-  // today: Reports → Offline already answers "what came in late" at the level a
-  // shop asks it. Leaves this list if a sale row ever needs the badge.
-  "modules/offline/outbox/receiptNumber.ts::isOfflineNumber": "needs a per-sale offline badge",
+  // `pillLabel` left this list when the till's pill was wired to it and the
+  // flush learned to report progress. It had been exempt because "Sending X of
+  // Y" was a state nothing tracked — and while it sat here the POS quietly grew
+  // its own inline copy of the wording, which then drifted. An entry on this
+  // list is not free.
+  //
+  // `isPulling` did NOT leave with it, and the reason is worth stating rather
+  // than inheriting: the pill now reports the OUTBOX, which is money. A catalog
+  // pull is background housekeeping, and giving it the same indicator would
+  // have the one control a cashier decides by flickering for something that
+  // does not concern them. It leaves this list when a manual "Sync now" exists
+  // — a person who presses a button is owed the answer to "is it working".
+  "modules/offline/sync/pullNow.ts::isPulling": "needs a manual Sync now control",
+  // Tells an OFF- receipt from a real invoice number by its SHAPE.
+  //
+  // The sales ledger, its export and the command palette all surface the slip
+  // number now — a customer holding one can be found and the row confirms it
+  // back to them — but every one of those reads the `offline_number` FIELD,
+  // which is either there or it is not. None of them has to recognise a string.
+  //
+  // Deliberately not given a contrived caller to empty this list: the only
+  // honest use is telling what a PERSON TYPED from an invoice number, and
+  // nothing needs to yet. Leaves this list when something has to decide from
+  // the text alone — a scanner reading a slip barcode, or a search box that
+  // wants to say "that looks like a slip number" when it finds nothing.
+  "modules/offline/outbox/receiptNumber.ts::isOfflineNumber": "needs a caller that must judge a string, not read a field",
   // The fixed-width barcode. `LabelsPage` uses `code128BarsSvg` instead,
   // because a label is cut to a physical size and this variant "happily
   // renders 280px of bars into a 50mm sticker and spills over its

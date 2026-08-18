@@ -140,7 +140,7 @@ export default function SuppliersPage() {
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-3">
                       {(s.outstanding ?? 0) > 0 && (
-                        <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openPay(s)}>Pay</button>
+                        <button className={ROW_ACTION} onClick={() => openPay(s)}>Pay</button>
                       )}
                       <button className={ROW_ACTION} onClick={() => openEdit(s)}>Edit</button>
                       <button className={ROW_ACTION_DANGER} onClick={async () => {

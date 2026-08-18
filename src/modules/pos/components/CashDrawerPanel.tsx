@@ -9,6 +9,7 @@ import { useToast } from "../../../components/ui/toast";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { useCashMovementMutation, useSessionReport } from "../hooks/usePos";
 import type { CashMovement, ManualMovementType } from "../services/posService";
+import { INLINE_DISMISS } from "../../../components/ui/modal/closeButton";
 
 /**
  * The X-read, in the cashier's words: what this drawer should hold RIGHT NOW,
@@ -246,7 +247,7 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift, coverin
               </>
             )}
           </div>
-          <button onClick={dismiss} className="shrink-0 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" aria-label="Close">
+          <button onClick={dismiss} className={INLINE_DISMISS} aria-label="Close">
             <CloseIcon className="h-5 w-5" />
           </button>
         </div>

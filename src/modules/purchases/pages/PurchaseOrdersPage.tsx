@@ -17,6 +17,7 @@ import { useSuppliers } from "../hooks/usePurchases";
 import { usePurchaseOrder, usePurchaseOrders, usePurchaseOrderMutations } from "../hooks/usePurchases";
 import type { PurchaseStatus } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
+import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 
 const STATUS_COLOR: Record<PurchaseStatus, "warning" | "info" | "success" | "error" | "light"> = {
@@ -270,7 +271,7 @@ export default function PurchaseOrdersPage() {
               </div>
               <div className="col-span-2"><Input type="number" min="1" value={String(l.quantity)} onChange={(e) => setLine(l.key, { quantity: Number(e.target.value) })} /></div>
               <div className="col-span-3"><Input type="number" min="0" value={String(l.unit_cost)} onChange={(e) => setLine(l.key, { unit_cost: Number(e.target.value) })} /></div>
-              <button type="button" className="col-span-1 text-error-500" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>✕</button>
+              <button type="button" className={`col-span-1 ${ROW_ACTION_DANGER}`} onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>✕</button>
             </div>
           ))}
         </div>

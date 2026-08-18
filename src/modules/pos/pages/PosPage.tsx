@@ -11,6 +11,8 @@ import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
+import { INLINE_DISMISS, MODAL_CLOSE } from "../../../components/ui/modal/closeButton";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { useModal } from "../../../hooks/useModal";
 import StorageWarning from "../../offline/storage/StorageWarning";
 import { shiftBlocker } from "../../offline/storage/persist";
@@ -19,7 +21,7 @@ import { completeOffline, linesFromCatalog } from "../../offline/outbox/offlineC
 import { pendingCount } from "../../offline/db/repo";
 import { onHand, unsyncedDeltas } from "../../offline/outbox/localStock";
 import { lastServerContact } from "../../offline/contact";
-import { useOfflineStore } from "../../offline/offlineStore";
+import { pillLabel, useOfflineStore } from "../../offline/offlineStore";
 import { ApiError } from "../../../common/types/api";
 import { apiGet } from "../../../common/api/client";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
@@ -38,7 +40,7 @@ import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
 import CloseShiftModal from "../components/CloseShiftModal";
 import { useQuickKeys, useCoverMutations, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
-import { isCover, isTraining, type ActiveCover, type CashSession } from "../services/posService";
+import { isCover, isTraining, ringableSessionId, type ActiveCover, type CashSession } from "../services/posService";
 import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
 import { receiptService, type ReceiptKind } from "../../receipts/services/receiptService";
 import { useFailedReceipts } from "../../receipts/hooks/useReceipts";
@@ -297,7 +299,25 @@ export default function PosPage() {
   const covering = isCover(session.data ?? null) ? (session.data as ActiveCover) : null;
   const open = covering ? null : ((session.data as CashSession | null) ?? null);
   // The drawer a sale must be rung into — mine, or the one I'm standing at.
-  const activeSessionId = covering ? covering.session_id : (open?.id ?? null);
+  const activeSessionId = ringableSessionId(session.data ?? null);
+  /**
+   * May this till ring a sale at all?
+   *
+   * "Is there a drawer to ring into", which is NOT "do I have a drawer of my
+   * own". The selling gates used to ask `!!open`, and `open` is null under
+   * cover by design — so a reliever standing at somebody else's till was shown
+   * "Open a shift to sell." with Tender disabled, while `activeSessionId` and
+   * the sale payload were both already built to ring under the cashier's
+   * drawer. The whole point of relief cover is that the reliever rings.
+   *
+   * `cover.test.ts` names this failure in its own opening comment — "leave them
+   * unable to ring at all" — and then tests only the type narrowing, which was
+   * never the part that was wrong.
+   *
+   * Deliberately a separate name from `open`: reconcile actions must keep
+   * asking `open`, because a cover may sell and must never count the drawer.
+   */
+  const canRing = activeSessionId !== null;
   // A practice shift. Server-decided and fixed at open; the till only reports
   // it. A reliever covering a training drawer is training too — the flag
   // belongs to the drawer, not the person standing at it.
@@ -339,6 +359,7 @@ export default function PosPage() {
   const reachable = useConnectionStore((s) => s.reachable);
   const setOfflinePending = useOfflineStore((s) => s.setPending);
   const offlineOwed = useOfflineStore((s) => s.pending);
+  const syncing = useOfflineStore((s) => s.syncing);
 
   /**
    * Out of room, as against running low.
@@ -1456,7 +1477,7 @@ export default function PosPage() {
   // The allowance can never exceed the bill: the shop would owe the customer
   // money for their scrap, which is buying stock, not selling any.
   const tradeInTooBig = tradeInTotal > total;
-  const canCheckout = cart.length > 0 && !!open && !creditNeedsCustomer && !tradeInTooBig && (
+  const canCheckout = cart.length > 0 && canRing && !creditNeedsCustomer && !tradeInTooBig && (
     method === "cash" ? (Number(tendered) || 0) >= payable
       : method === "credit" ? total > 0
       : method === "split" ? total > 0 && splitPaid >= payable
@@ -1869,7 +1890,7 @@ export default function PosPage() {
             {posNotice && (
               <div className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
                 <span className="flex items-center gap-1.5"><AlertIcon className="h-4 w-4 shrink-0" /> {posNotice}</span>
-                <button className="shrink-0 text-warning-500 hover:text-warning-600" onClick={() => setPosNotice(null)}><CloseIcon className="h-4 w-4" /></button>
+                <button className={INLINE_DISMISS} onClick={() => setPosNotice(null)}><CloseIcon className="h-4 w-4" /></button>
               </div>
             )}
             {/* The reprint tray, at the till rather than in a report: a receipt
@@ -2574,7 +2595,7 @@ export default function PosPage() {
             <div className="flex flex-col justify-center rounded-xl border border-brand-200 bg-gradient-to-br from-brand-100 to-brand-50 px-4 py-3 dark:border-brand-500/30 dark:from-brand-500/15 dark:to-brand-500/5">
               <div className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-brand-600 dark:text-brand-400">Grand Total</div>
               <div className="mb-2 mt-1 text-4xl font-extrabold leading-none tabular-nums text-gray-900 dark:text-white">{money(total)}</div>
-              <button type="button" disabled={cart.length === 0 || !open}
+              <button type="button" disabled={cart.length === 0 || !canRing}
                 onClick={() => { setMethod(defaultTender); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40">
                 <CardGlyph /> Tender / Pay
@@ -2582,7 +2603,7 @@ export default function PosPage() {
                       key hint nobody can press is a promise the screen breaks. */}
                   <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px] xl:inline">F9</kbd>
               </button>
-              {!open && <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">Open a shift to sell.</p>}
+              {!canRing && <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">Open a shift to sell.</p>}
             </div>
         </div>
       </div>
@@ -2626,15 +2647,24 @@ export default function PosPage() {
                   : "The last request never reached the server. You can keep selling — sales are saved here and sent when the line is back."
             }
           >
-            <span className={`h-2 w-2 rounded-full ${connected ? "bg-success-500" : "bg-error-500 animate-pulse"}`} />
-            {/* Not "pending", which reads as a fault and frightens a
-                shopkeeper. "Saved here" is what is actually true, and it is
-                the thing they need to know. */}
-            {connected
-              ? "Online"
-              : offlineOwed > 0
-                ? `${offlineOwed} saved here`
-                : online ? "No server" : "Offline"}
+            <span
+              className={`h-2 w-2 rounded-full ${
+                syncing
+                  ? "bg-brand-400 animate-pulse"
+                  : connected
+                    ? "bg-success-500"
+                    : "bg-error-500 animate-pulse"
+              }`}
+            />
+            {/* The wording comes from `pillLabel` and not from here.
+
+                This screen had its own copy of it — the same four states,
+                written out inline — and the two had already drifted: the
+                exported one had never learned "No server", and this one had
+                never learned to say anything at all while a queue was going
+                up. Two copies of a sentence whose whole point is that it is
+                the feature. */}
+            {pillLabel(connected, offlineOwed, syncing, online)}
           </span>
         </div>
 
@@ -2752,7 +2782,7 @@ export default function PosPage() {
             {couponCode ? (
               <div className="flex items-center justify-between rounded-lg bg-success-50 px-3 py-2 text-theme-sm text-success-700 dark:bg-success-500/10">
                 <span>{couponCode} · −{money(couponDiscount)}</span>
-                <button className="text-gray-500 hover:text-error-500" onClick={clearCoupon}><CloseIcon className="h-4 w-4" /></button>
+                <button className={INLINE_DISMISS} onClick={clearCoupon}><CloseIcon className="h-4 w-4" /></button>
               </div>
             ) : (
               <div className="flex gap-2">
@@ -2775,7 +2805,7 @@ export default function PosPage() {
         <div onKeyDown={(e) => { if (e.key === "Enter" && canCheckout && !checkout.isPending) { e.preventDefault(); checkout.mutate(); } }}>
           <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Tender / Pay</h3>
-            <button onClick={tenderModal.closeModal} className="text-gray-400 hover:text-gray-700"><CloseIcon className="h-5 w-5" /></button>
+            <button onClick={tenderModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
           </div>
           <div className="px-6 py-5">
             <div className="mb-5 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10">
@@ -3190,8 +3220,8 @@ export default function PosPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="text-sm text-brand-500 hover:text-brand-600" onClick={() => resume(h)}>Resume</button>
-                  <button className="text-sm text-error-500 hover:text-error-600" onClick={() => heldMut.remove.mutate(h.id)}>Delete</button>
+                  <button className={ROW_ACTION} onClick={() => resume(h)}>Resume</button>
+                  <button className={ROW_ACTION_DANGER} onClick={() => heldMut.remove.mutate(h.id)}>Delete</button>
                 </div>
               </div>
             ))}
@@ -3234,11 +3264,11 @@ export default function PosPage() {
             )}
 
             <div className="mt-3 flex justify-center gap-4 text-theme-xs">
-              <button type="button" className="font-medium text-gray-500 hover:text-brand-500 dark:text-gray-400" disabled={printing}
+              <button type="button" className={ROW_ACTION} disabled={printing}
                 onClick={() => printReceipt(lastSale.id, "gift")}>
                 Gift receipt
               </button>
-              <button type="button" className="font-medium text-gray-500 hover:text-brand-500 dark:text-gray-400"
+              <button type="button" className={ROW_ACTION}
                 onClick={() => void openDrawer()}>
                 Open drawer
               </button>
@@ -3253,7 +3283,7 @@ export default function PosPage() {
           <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 dark:bg-gray-900" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-start justify-between">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{cfg.name}</h3>
-              <button onClick={() => setCfg(null)} className="text-gray-400 hover:text-gray-700"><CloseIcon className="h-5 w-5" /></button>
+              <button onClick={() => setCfg(null)} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
             </div>
             {(cfg.modifier_groups ?? []).map((g) => {
               const sel = cfgSel[g.id!] ?? [];
@@ -3303,7 +3333,7 @@ export default function PosPage() {
             <>
               <div className="mb-5 flex items-start justify-between">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{l.name}</h3>
-                <button onClick={lineEditModal.closeModal} className="text-gray-400 hover:text-gray-700"><CloseIcon className="h-5 w-5" /></button>
+                <button onClick={lineEditModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {/* Product price — server-set; the level dropdown changes it */}
@@ -3413,7 +3443,7 @@ export default function PosPage() {
             <>
               <div className="mb-1 flex items-start justify-between">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Serial / IMEI</h3>
-                <button onClick={serialModal.closeModal} className="text-gray-400 hover:text-gray-700"><CloseIcon className="h-5 w-5" /></button>
+                <button onClick={serialModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
               </div>
               <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">{l.name} — one serial per unit ({units}).</p>
               <div className="space-y-2">
@@ -3477,7 +3507,7 @@ export default function PosPage() {
       <Modal isOpen={customerModal.isOpen} onClose={customerModal.closeModal} className="max-w-sm p-6">
         <div className="mb-4 flex items-start justify-between">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Customer</h3>
-          <button onClick={customerModal.closeModal} className="text-gray-400 hover:text-gray-700"><CloseIcon className="h-5 w-5" /></button>
+          <button onClick={customerModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
         </div>
         <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Leave blank for a walk-in sale. Add a name or phone only if the customer wants it on record.</p>
         <div className="space-y-3">

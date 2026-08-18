@@ -375,3 +375,90 @@ describe("the loop", () => {
     expect(sync).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("telling the till how far it has got", () => {
+  /**
+   * The one moment a shopkeeper is watching hardest: the line has come back and
+   * a day's takings are going up. Without this the pill went straight from
+   * "47 saved here" to "Online" with a silent gap in between, and a gap is
+   * where somebody starts pressing things.
+   */
+
+  it("reports how many are done out of how many were owed", async () => {
+    for (const op of ["1", "2", "3"]) await enqueue(row(op));
+    vi.spyOn(outboxApi, "sync").mockResolvedValue(
+      envelope({ results: [answer("1"), answer("2"), answer("3")], accepted: 3 }) as never,
+    );
+
+    const seen: Array<[number, number]> = [];
+    await flushOutbox(SHOP, (done, total) => seen.push([done, total]));
+
+    expect(seen).toEqual([[3, 3]]);
+  });
+
+  it("counts rows that got an ANSWER, not rows that went on the wire", async () => {
+    // A round where everything came back to PENDING made no progress. Counting
+    // the wire would show a bar marching to the end while nothing was banked —
+    // the reading a shop would act on, and the one that would be wrong.
+    for (const op of ["1", "2"]) await enqueue(row(op));
+    vi.spyOn(outboxApi, "sync").mockResolvedValue(
+      envelope({
+        results: [answer("1"), answer("2", { status: "failed", retryable: true })],
+        accepted: 1,
+      }) as never,
+    );
+
+    const seen: Array<[number, number]> = [];
+    await flushOutbox(SHOP, (done, total) => seen.push([done, total]));
+
+    // Asserted on the VALUES rather than the number of calls: a retryable row
+    // is offered again within the same flush, so this reports more than once —
+    // and every one of those reports must still say one of two. Pinning the
+    // call count instead would have made this a test of the retry schedule.
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every(([done, total]) => done === 1 && total === 2)).toBe(true);
+  });
+
+  it("holds the total still when a sale is rung mid-flush", async () => {
+    // The denominator is what was owed when this started. Letting a new sale
+    // extend it makes the bar walk backwards while the cashier watches it.
+    await enqueue(row("1"));
+    await enqueue(row("2"));
+
+    let round = 0;
+    vi.spyOn(outboxApi, "sync").mockImplementation((async (batch: unknown) => {
+      const ops = (batch as Array<{ op: string }>).map((b) => b.op);
+      // A third sale arrives while the first round is in the air.
+      if (round === 0) await enqueue(row("3"));
+      round += 1;
+
+      return envelope({ results: ops.map((op) => answer(op)), accepted: ops.length });
+    }) as never);
+
+    const totals: number[] = [];
+    await flushOutbox(SHOP, (_done, total) => totals.push(total));
+
+    expect(new Set(totals)).toEqual(new Set([2]));
+  });
+
+  it("says nothing at all when the queue is empty", async () => {
+    // "Sending 0 of 0" every fifteen minutes teaches a cashier to stop reading
+    // the pill.
+    const onProgress = vi.fn();
+
+    await flushOutbox(SHOP, onProgress);
+
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it("still sends when nobody is listening", async () => {
+    // The callback is an extra, never a requirement. Every existing caller
+    // passes nothing.
+    await enqueue(row("1"));
+    vi.spyOn(outboxApi, "sync").mockResolvedValue(
+      envelope({ results: [answer("1")], accepted: 1 }) as never,
+    );
+
+    expect((await flushOutbox(SHOP)).acked).toBe(1);
+  });
+});

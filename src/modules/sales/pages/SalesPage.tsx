@@ -234,7 +234,7 @@ export default function SalesPage() {
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Input
-          placeholder="Search invoice #, customer…"
+          placeholder="Search invoice #, slip #, customer…"
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
         />
@@ -289,6 +289,15 @@ export default function SalesPage() {
                   >
                     <td className="px-6 py-4 font-medium text-gray-800 dark:text-white/90">
                       {s.invoice_number}
+                      {/* The number on the customer's paper. Shown BESIDE the
+                          invoice number rather than instead of it: whoever is
+                          holding the slip has to be able to confirm this is
+                          their sale before it is opened or refunded. */}
+                      {s.offline_number && (
+                        <span className="mt-0.5 block font-mono text-theme-xs font-normal text-gray-500 dark:text-gray-400">
+                          {s.offline_number}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">{new Date(s.sold_at).toLocaleString()}</td>
                     {multiBranch && (
@@ -337,6 +346,11 @@ export default function SalesPage() {
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
                   {detail.data.invoice_number}
                 </h3>
+                {detail.data.offline_number && (
+                  <p className="font-mono text-theme-xs text-gray-500 dark:text-gray-400">
+                    Slip {detail.data.offline_number} · rung offline
+                  </p>
+                )}
                 <p className="text-theme-xs text-gray-500 dark:text-gray-400">
                   {new Date(detail.data.sold_at).toLocaleString()} · {detail.data.channel.replace("_", "-")} ·{" "}
                   {detail.data.payment_method.replace("_", " ")}

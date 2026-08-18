@@ -42,6 +42,28 @@ const SOURCES = import.meta.glob("../../../modules/**/*.tsx", {
 const DESTRUCTIVE = /^(Remove|Delete|Discard|Void|Withdraw|Revoke|Cancel shift)\b/i;
 
 /**
+ * What a person actually reads, out of a label that may be an expression.
+ *
+ * A button with a pending state writes its label as a ternary —
+ * `{busy ? "Removing…" : "Remove review"}` — and the raw chunk therefore starts
+ * with `{busy`, which no anchored word list will ever match. That was a hole in
+ * BOTH directions: a destructive button with a spinner could stay grey
+ * unnoticed, and a correctly-tinted one was reported as a screen whose primary
+ * action destroys something.
+ *
+ * Any branch counts. A button that reads "Remove review" while idle is a remove
+ * button, whatever it says mid-flight.
+ */
+const spoken = (label: string): string[] => {
+  const literals = [...label.matchAll(/"([^"]+)"|'([^']+)'/g)].map((m) => m[1] ?? m[2]);
+
+  return literals.length > 0 ? literals : [label];
+};
+
+const readsDestructive = (label: string): boolean =>
+  spoken(label).some((text) => DESTRUCTIVE.test(text));
+
+/**
  * Buttons whose label reads destructive but whose press is not, with why.
  * Keyed by `file::label`.
  */
@@ -128,7 +150,7 @@ describe("a button that takes something away says so", () => {
 
   it("every Remove / Delete is coloured as one", () => {
     const wrong = buttons()
-      .filter((b) => DESTRUCTIVE.test(b.label))
+      .filter((b) => readsDestructive(b.label))
       .filter((b) => !b.warns)
       .filter((b) => !(`${b.file}::${b.label}` in NOT_ACTUALLY_DESTRUCTIVE))
       .map((b) => `${b.file} → "${b.label}" is ${b.variant ?? "hand-rolled"}`);
@@ -139,8 +161,20 @@ describe("a button that takes something away says so", () => {
   it("danger is never the primary action of a screen", () => {
     // `danger` is a row action. A screen whose main button destroys something
     // is a screen that has misunderstood what it is for.
-    const loud = buttons().filter((b) => b.variant === "danger" && !DESTRUCTIVE.test(b.label));
+    const loud = buttons().filter((b) => b.variant === "danger" && !readsDestructive(b.label));
 
     expect(loud.map((b) => `${b.file} → "${b.label}"`)).toEqual([]);
+  });
+
+  it("reads the label out of a button that has a pending state", () => {
+    // Pins the hole this had. Without `spoken`, the first of these is invisible
+    // to both rules above — it starts with `{busy`, and the word list is
+    // anchored.
+    expect(readsDestructive('{busy ? "Removing…" : "Remove review"}')).toBe(true);
+    expect(readsDestructive('{busy ? "Saving…" : "Save changes"}')).toBe(false);
+    expect(readsDestructive("Remove")).toBe(true);
+    // Only the START of a branch counts, so a sentence that merely mentions the
+    // word is not a destructive button.
+    expect(readsDestructive('{"Undo remove"}')).toBe(false);
   });
 });

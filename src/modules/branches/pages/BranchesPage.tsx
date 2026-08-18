@@ -109,10 +109,13 @@ export default function BranchesPage() {
               {b.phone && <p className="text-theme-xs text-gray-400">{b.phone}</p>}
               <div className="mt-4 flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => openEdit(b)}>Edit</Button>
+                {/* A Button rather than the row-action pill, because the Edit
+                    beside it is a Button. A pair where only one half is a
+                    control reads as a control and a label. */}
                 {!b.is_default && (
-                  <button className="text-theme-sm text-error-500 hover:text-error-600" onClick={() => del(b)}>
+                  <Button size="sm" variant="danger" onClick={() => del(b)}>
                     Delete
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

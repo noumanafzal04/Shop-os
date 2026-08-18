@@ -13,7 +13,7 @@ import { ApiError } from "../../../common/types/api";
 import { useReservationMutations, useReservations } from "../hooks/useReservations";
 import type { Reservation, ReservationStatus } from "../services/reservationsService";
 import { useConfirm } from "../../../components/ui/confirm";
-import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 
 const STATUS_COLOR: Record<ReservationStatus, "success" | "warning" | "error" | "info" | "light"> = {
@@ -172,7 +172,7 @@ export default function ReservationsPage() {
                       {r.status === "pending" && (
                         <>
                           <button
-                            className="mr-3 text-success-500 hover:text-success-600"
+                            className={ROW_ACTION}
                             onClick={() => doAccept(r)}
                             disabled={accept.isPending}
                           >
@@ -189,7 +189,7 @@ export default function ReservationsPage() {
                       {r.status === "accepted" && (
                         <>
                           <button
-                            className="mr-3 text-brand-500 hover:text-brand-600"
+                            className={ROW_ACTION}
                             onClick={() => openComplete(r)}
                           >
                             Complete sale

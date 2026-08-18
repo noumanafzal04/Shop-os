@@ -126,7 +126,7 @@ export default function AdminAnnouncementsPage() {
                 <p className="mt-1 line-clamp-2 text-sm text-gray-500 dark:text-gray-400">{a.body}</p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2 text-sm">
-                <button className="font-medium text-brand-500 hover:text-brand-600" onClick={() => onSend(a)} disabled={send.isPending}>
+                <button className={ROW_ACTION} onClick={() => onSend(a)} disabled={send.isPending}>
                   {a.is_published ? "Re-send" : "Send now"}
                 </button>
                 <div className="flex gap-3">

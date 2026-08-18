@@ -14,7 +14,7 @@ import type { User } from "../auth/types";
 import { useStaffModule, type StaffInput } from "./hooks/useStaff";
 import { hintFor, labelFor } from "./permissions";
 import { useConfirm } from "../../components/ui/confirm";
-import { ROW_ACTION_DANGER } from "../../components/ui/table/rowAction";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../components/ui/table/rowAction";
 
 interface Props {
   title: string;
@@ -219,8 +219,8 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
                       <Badge size="sm" color={u.status === "active" ? "success" : "error"}>{u.status}</Badge>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="mr-3 text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openEdit(u)}>Edit</button>
-                      <button className="mr-3 text-gray-500 hover:text-gray-700 dark:text-gray-400" onClick={() => toggleSuspend(u)}>
+                      <button className={ROW_ACTION} onClick={() => openEdit(u)}>Edit</button>
+                      <button className={ROW_ACTION} onClick={() => toggleSuspend(u)}>
                         {u.status === "active" ? "Suspend" : "Activate"}
                       </button>
                       <button className={ROW_ACTION_DANGER} onClick={() => remove(u)}>Remove</button>

@@ -3,7 +3,9 @@ import { catalogService, PROJECTIONS, type Projection } from "./catalogService";
 import { flushVariances } from "../pricing/varianceService";
 import { touchIfDue } from "../device/touch";
 import { flushOutbox } from "../outbox/flush";
+import { flushShifts } from "../shift/flushShifts";
 import { useAuthStore } from "../../../stores/authStore";
+import { useOfflineStore } from "../offlineStore";
 
 /**
  * Fetching everything the server has for this till, and stopping.
@@ -73,7 +75,40 @@ async function run(): Promise<PullResult> {
   // and without naming the shop here, the boot after switching accounts would
   // post shop A's unsent sales under shop B's token. Rows that do not belong to
   // this shop are held, not sent.
-  await flushOutbox(useAuthStore.getState().user?.tenant?.id ?? null).catch(() => ({}));
+  //
+  // The pill is told how far this got, and told it is finished either way.
+  // `finally` rather than a line after the await: a flush that throws must not
+  // leave "Sending 12 of 47" frozen on the till for the rest of the shift,
+  // which is a worse lie than saying nothing.
+  const { setSyncing } = useOfflineStore.getState();
+  const tenantId = useAuthStore.getState().user?.tenant?.id ?? null;
+
+  // SHIFT OPENS FIRST, and the order is not a preference.
+  //
+  // A sale rung offline names the shift it was rung into, and a shift opened
+  // offline exists only on the device until this lands. Sending the sales first
+  // would have every one of them naming a session the server has never heard
+  // of — each answered "not yet", each retried, and the whole day held behind a
+  // shift that would have gone through in one request.
+  //
+  // It cannot fail the rest: a till must not stop sending money because its
+  // shift would not go, and the queue keeps everything it could not send.
+  await flushShifts(["open"], tenantId).catch(() => ({}));
+
+  await flushOutbox(tenantId, (sent, total) => {
+    // Nothing owed is not a sync worth narrating. Announcing "Sending 0 of 0"
+    // every fifteen minutes teaches a cashier to stop reading the pill.
+    if (total > 0) setSyncing({ sent, total });
+  })
+    .catch(() => ({}))
+    .finally(() => setSyncing(null));
+
+  // AND THE COUNT LAST. A close that overtook its own sales would compare the
+  // counted cash against a drawer the server thinks is empty, and report a
+  // variance the exact size of the day's takings — sending a shop looking all
+  // evening for money that never moved. Drawer movements ride with it: they
+  // only have to follow their own open.
+  await flushShifts(["movement", "close"], tenantId).catch(() => ({}));
 
   const applied = Object.fromEntries(PROJECTIONS.map((p) => [p, 0])) as Record<Projection, number>;
   let rounds = 0;

@@ -25,6 +25,22 @@ interface InputProps {
   success?: boolean;
   error?: boolean;
   hint?: string;
+  /**
+   * Take the caret when the field appears.
+   *
+   * For a field that only exists because somebody just asked for it — an inline
+   * rename, an "add subcategory" box — making them click it as well is a second
+   * step nobody asked for. Not for fields that are simply on the page: stealing
+   * focus on load moves the screen under a reader.
+   */
+  autoFocus?: boolean;
+  /**
+   * Enter to commit, Escape to give up.
+   *
+   * Absent until now, which is part of why screens reach past this component
+   * for a raw `<input>` — a one-field question should never need the mouse.
+   */
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
 const Input: FC<InputProps> = ({
@@ -44,6 +60,8 @@ const Input: FC<InputProps> = ({
   success = false,
   error = false,
   hint,
+  autoFocus = false,
+  onKeyDown,
 }) => {
   // `appearance-none` is what made every date field look like a plain text box:
   // it strips the browser's own calendar affordance, so there was nothing to
@@ -72,6 +90,8 @@ const Input: FC<InputProps> = ({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        onKeyDown={onKeyDown}
+        autoFocus={autoFocus}
         min={min}
         max={max}
         step={step}

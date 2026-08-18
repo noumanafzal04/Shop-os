@@ -10,6 +10,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { useToast } from "../../../components/ui/toast";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import { useFuelMutations, useFuelPumps, useFuelTanks } from "../hooks/useFuel";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const litres = (n: number | string) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 })} L`;
 
@@ -138,7 +139,7 @@ export default function FuelSetupPage() {
                     </div>
                   </div>
                   <button
-                    className="shrink-0 text-theme-xs text-gray-400 transition hover:text-error-500"
+                    className={ROW_ACTION_DANGER}
                     onClick={async () => {
                       if (await confirm({ title: `Remove ${t.name}?`, tone: "danger" })) {
                         run(() => m.deleteTank.mutateAsync(t.id), "Tank removed");
@@ -170,13 +171,13 @@ export default function FuelSetupPage() {
                     <span className="text-sm text-gray-800 dark:text-white/90">{p.name}</span>
                     <div className="flex items-center gap-3">
                       <button
-                        className="text-theme-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                        className={ROW_ACTION}
                         onClick={() => { setNozzleFor(p.id); setNozzleForm({ name: "", fuel_tank_id: "", current_reading: "" }); }}
                       >
                         Add nozzle
                       </button>
                       <button
-                        className="text-theme-xs text-gray-400 transition hover:text-error-500"
+                        className={ROW_ACTION_DANGER}
                         onClick={async () => {
                           if (await confirm({ title: `Remove ${p.name}?`, message: "Its nozzles go with it.", tone: "danger" })) {
                             run(() => m.deletePump.mutateAsync(p.id), "Pump removed");
@@ -198,7 +199,7 @@ export default function FuelSetupPage() {
                               {Number(n.current_reading).toLocaleString()}
                             </span>
                             <button
-                              className="text-gray-400 transition hover:text-error-500"
+                              className={ROW_ACTION_DANGER}
                               onClick={async () => {
                                 if (await confirm({ title: `Remove nozzle ${n.name}?`, tone: "danger" })) {
                                   run(() => m.deleteNozzle.mutateAsync({ pumpId: p.id, id: n.id }), "Nozzle removed");

@@ -5,6 +5,7 @@ import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useGlobalSearch } from "../hooks/useGlobalSearch";
 import type { SearchHit, SearchType } from "../services/searchService";
+import { saleSubtitle } from "../saleSubtitle";
 
 /**
  * ⌘K command palette. One box that jumps to any product, customer, sale, order
@@ -207,7 +208,7 @@ function present(
     }
     case "sale": {
       const s = item as import("../services/searchService").SaleHit;
-      return { primary: s.invoice_number, secondary: s.customer_name ?? "Walk-in", right: money(s.total) };
+      return { primary: s.invoice_number, secondary: saleSubtitle(s), right: money(s.total) };
     }
     case "order": {
       const o = item as import("../services/searchService").OrderHit;

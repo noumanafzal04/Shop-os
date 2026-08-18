@@ -88,9 +88,24 @@ function wire(row: OutboxRow): Record<string, unknown> {
   };
 }
 
-export async function flushOutbox(tenantId: string | null = null): Promise<FlushResult> {
+/**
+ * Told after every round how far this flush has got.
+ *
+ * Per ROUND rather than per row: a shop with fifty queued sales gets one
+ * batch, so a per-row callback would report fifty times and show nothing a
+ * person could read. `done` counts rows that reached a terminal answer —
+ * accepted or refused — not rows that were merely put on the wire, because a
+ * round that all came back to PENDING made no progress and must not look like
+ * it did.
+ */
+export type FlushProgress = (done: number, total: number) => void;
+
+export async function flushOutbox(
+  tenantId: string | null = null,
+  onProgress?: FlushProgress,
+): Promise<FlushResult> {
   const locks = navigator.locks;
-  if (locks === undefined) return runFlush(tenantId);
+  if (locks === undefined) return runFlush(tenantId, onProgress);
 
   let result: FlushResult = { sent: 0, acked: 0, failed: 0, skipped: true };
 
@@ -98,7 +113,7 @@ export async function flushOutbox(tenantId: string | null = null): Promise<Flush
   // wake against rows the first tab had just retired.
   await locks.request(LOCK, { ifAvailable: true }, async (lock) => {
     if (lock === null) return;
-    result = await runFlush(tenantId);
+    result = await runFlush(tenantId, onProgress);
   });
 
   return result;
@@ -111,15 +126,28 @@ export async function flushOutbox(tenantId: string | null = null): Promise<Flush
  */
 const MAX_ROUNDS = 200;
 
-async function runFlush(tenantId: string | null): Promise<FlushResult> {
+async function runFlush(tenantId: string | null, onProgress?: FlushProgress): Promise<FlushResult> {
   const result: FlushResult = { sent: 0, acked: 0, failed: 0, skipped: false };
+
+  /**
+   * How many were owed when this flush started.
+   *
+   * Read from the first round's own query rather than asked for separately —
+   * the rows are already in hand there. Fixed at the start on purpose: a sale
+   * rung DURING the flush must not extend the denominator, or the bar walks
+   * backwards while the cashier watches it.
+   */
+  let total = 0;
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     // Counted per round, not across the flush. Using the running totals would
     // mean one successful batch made every later all-retried batch look like
     // progress, and the loop would never end.
     let moved = 0;
-    const batch = (await dueRows(Date.now(), tenantId)).slice(0, BATCH);
+    const due = await dueRows(Date.now(), tenantId);
+    if (round === 0) total = due.length;
+
+    const batch = due.slice(0, BATCH);
     if (batch.length === 0) return result;
 
     await markSending(batch);
@@ -169,6 +197,7 @@ async function runFlush(tenantId: string | null): Promise<FlushResult> {
     }
 
     result.sent += batch.length;
+    onProgress?.(result.acked + result.failed, total);
 
     // A round where every row went back to PENDING made no progress. Looping
     // on it would spin against the same rows.

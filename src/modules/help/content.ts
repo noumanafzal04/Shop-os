@@ -209,6 +209,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
       },
       { type: "note", text: "If you are not selling online, you do not need collections at all." },
       { type: "p", text: "Deleting a category does not delete the products in it." },
+      { type: "h", text: "Putting them in the right order" },
+      { type: "p", text: "The order on this screen is the order your till and your storefront show — so the things you sell all day belong at the top. Drag a row by the handle on its left, with a finger on a tablet or the mouse on a desk. A category only ever moves among its own brothers and sisters; it never jumps to another parent." },
+      { type: "keys", items: [
+        ["Subcategories", "The arrow beside a name opens and closes what is under it. A closed one still tells you how many are inside, so tidying the list never hides the fact that there is more."],
+        ["The item count", "Press it to see those items — it opens your product list already filtered to that category."],
+        ["Hide", "Takes a category off your storefront and till without deleting it or touching the products in it. Hidden ones stay on this screen with a grey label."],
+      ]},
+      { type: "note", text: "While you are searching this screen, the order is locked and the drag handles disappear. That is on purpose: dragging a row in a filtered list would renumber the ones the search is hiding, and you would not see it happen." },
     ],
   },
   {
@@ -705,6 +713,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "h", text: "Finding a sale" },
       { type: "p", text: "Every completed sale, newest first. Search by receipt number, customer or amount, and filter by date, payment method or who rang it." },
+      { type: "note", text: "A slip printed while the till was offline works in the search box too. Type the OFF-… number the customer is holding and the sale comes up under its real receipt number, with the slip number shown beneath it so you can check it is the right one before you refund anything." },
       { type: "p", text: "Open a sale to see its lines, what was paid and how, and to reprint the receipt." },
       { type: "h", text: "Undoing a sale" },
       {
@@ -1147,6 +1156,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "Ratings and comments customers left on your shop. Replying is the only action here." },
       { type: "warn", text: "A reply is public and permanent. Everyone reading the review will read your answer too." },
+      { type: "note", text: "A review belongs to the customer who wrote it. They can change it or take it down at any time, and your rating is worked out again without it — so a review you replied to can disappear, and your reply goes with it. Editing a review also clears the reply, because an answer to something that has since changed is worse than no answer." },
     ],
   },
   {
@@ -1240,11 +1250,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
 
       { type: "h", text: "Selling when the internet is down" },
       { type: "p", text: "Once the checks above are clean and support has turned offline selling on for your shop, a till keeps trading through a power cut or a dead connection. Nothing for you to switch on at the counter — the POS notices and carries on. Your whole product list and its categories are already on the tablet, so you can browse and search them exactly as you do online; the only thing missing is product photos, which are not stored on the device." },
+      { type: "warn", text: "A shift still has to be OPENED and CLOSED with a connection. If the internet is already down when you arrive in the morning, the till cannot start a shift — and it cannot count the drawer out while it is still down. Selling in between is what works offline." },
       { type: "note", text: "Offline selling is off until it is granted. That is deliberate: it is turned on for your shop once the pricing checks above have run over YOUR OWN sales for long enough to prove the till prices exactly as the server does. Until then the POS will say so at the tender screen rather than at the end." },
       { type: "keys", items: [
         ["The receipt", "Prints a slip numbered OFF-… instead of an invoice number. Keep it: when the connection returns, the sale gets its real invoice number and BOTH are searchable, so a customer holding the slip can always be found."],
         ["Stock", "Counts down as you sell, so the shelf figure stays honest through a long outage — not stuck on whatever the server last said."],
         ["The queue", "The counter at the top shows how many sales are still waiting. They send themselves the moment the line is back."],
+        ["Holding a sale", "You can still park a basket and pick it up again, but only on this till — a ticket held during an outage cannot be picked up on another counter until the connection is back."],
+        ["If the till restarts", "The shift stays. A tablet that sleeps, restarts after a power cut, or has the app closed and reopened comes back knowing which shift it was on, and keeps selling into it."],
         ["A practice shift", "Training a new cashier works offline too, and it still takes nothing off the shelf — neither on the till nor in your books when it syncs. Practice sales keep their own TRN- numbering and stay out of every figure you read."],
       ]},
       { type: "warn", text: "Some things still need the connection, and the till will say so before you take the money — never after. Khata (a customer's balance is shared between tills), spending loyalty points, coupons, dine-in tables, medicines, and anything tracked by serial number. Take cash or card instead, or wait." },
@@ -1258,7 +1271,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Reports → Offline answers one question: what happened while we were out of contact. Open it the morning after a power cut." },
       { type: "keys", items: [
         ["Count these again", "Items whose stock went below zero. Two tills with no connection can each sell the last one and BOTH are telling the truth — the goods really did leave. Nothing here is a mistake; the shelf just needs counting."],
-        ["Need a decision", "Sales that broke one of the offline rules and were recorded anyway. They are never quietly corrected — a credit sale turned into a cash one would leave you thinking you had been paid."],
+        ["Need a decision", "Sales that broke one of the offline rules and were recorded anyway. They are never quietly corrected — a credit sale turned into a cash one would leave you thinking you had been paid. Where the ITEM was the problem, the medicine or the serial-numbered item is named, because that one needs a look on the shelf: check which batch actually went out, or which handset."],
         ["The slip number", "Shown next to the real invoice number, so a customer holding an OFF-… receipt can always be found."],
         ["Arrived after the day was closed", "Sales that reached us after you had already counted the drawer, closed the day and banked the cash. The amount is shown in rupees, because that is exactly how much that day's takings now read short of that day's sales."],
         ["A till with the wrong time", "Named by tablet, not by sale — one tablet three days out is still only one thing to fix. Your figures are already correct; this is telling you to go and set that device's clock before it drifts further. 'Behind' and 'ahead' are both shown, because they go wrong in opposite directions."],

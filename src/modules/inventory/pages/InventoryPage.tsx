@@ -17,7 +17,7 @@ import { useAdjustStock, useBatches, useBatchMutations, useExpiring, useLowStock
 import { useAuthStore } from "../../../stores/authStore";
 import { DisposeBatchModal } from "../components/DisposeBatchModal";
 import { useConfirm } from "../../../components/ui/confirm";
-import { ROW_ACTION } from "../../../components/ui/table/rowAction";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { useToast } from "../../../components/ui/toast";
 
 type AdjustType = "in" | "out" | "set";
@@ -230,7 +230,7 @@ export default function InventoryPage() {
                       batch manager — three steps away from the alert. */}
                   {Number(b.quantity) > 0 && (
                     <button
-                      className="text-theme-xs font-medium text-error-600 hover:text-error-700 disabled:opacity-50 dark:text-error-400"
+                      className={ROW_ACTION_DANGER}
                       disabled={removeBatch.isPending}
                       // Asked properly rather than confirmed away: near-expiry
                       // stock is exactly the stock a distributor will still
@@ -369,7 +369,7 @@ export default function InventoryPage() {
                           Batches
                         </button>
                         <button
-                          className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
+                          className={ROW_ACTION}
                           onClick={() => openAdjust(p)}
                         >
                           Adjust
@@ -393,7 +393,7 @@ export default function InventoryPage() {
                       <td className="px-6 py-3">{v.low_stock_threshold != null ? qty(v.low_stock_threshold) : "—"}</td>
                       <td className="px-6 py-3 text-right">
                         <button
-                          className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
+                          className={ROW_ACTION}
                           onClick={() => openAdjust(p, v)}
                         >
                           Adjust
@@ -618,7 +618,7 @@ export default function InventoryPage() {
                         onChange={(e) => updateBatch.mutate({ id: b.id, expiry_date: e.target.value || null })}
                       />
                       <button
-                        className="text-theme-xs text-error-500 hover:text-error-600"
+                        className={ROW_ACTION_DANGER}
                         onClick={() =>
                           Number(b.quantity) > 0
                             ? setDisposing({

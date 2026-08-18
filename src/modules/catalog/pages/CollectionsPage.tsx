@@ -17,7 +17,7 @@ import {
 } from "../hooks/useCatalog";
 import type { Collection } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
-import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 export default function CollectionsPage() {
   const confirm = useConfirm();
@@ -138,7 +138,7 @@ export default function CollectionsPage() {
               {c.description && <p className="mb-3 line-clamp-2 text-theme-xs text-gray-400">{c.description}</p>}
               <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">{c.items_count ?? 0} item(s)</p>
               <div className="flex gap-3 text-sm">
-                <button className="text-brand-500 hover:text-brand-600 dark:text-brand-400" onClick={() => openEdit(c)}>Edit</button>
+                <button className={ROW_ACTION} onClick={() => openEdit(c)}>Edit</button>
                 <button
                   className={ROW_ACTION_DANGER}
                   onClick={async () => {

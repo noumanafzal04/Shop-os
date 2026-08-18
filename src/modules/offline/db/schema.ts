@@ -39,7 +39,7 @@ export const DB_NAME = "shopos-till";
  *      disagreed. Zero findings means nothing without it
  *   5  the offline receipt counter, so a till can number a slip with no server
  */
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 /** Every object store, by the name used to open a transaction on it. */
 export const STORE = {
@@ -65,8 +65,24 @@ export const STORE = {
    * Key: the operation id (which is also the sale's idempotency key).
    */
   OUTBOX: "outbox",
-  /** Local shift + drawer movements, pushed on reconnect. Append-only. */
+  /**
+   * The shift this till is standing at, as the server last described it.
+   *
+   * A CACHE of server state — but kept among the durable stores, because a
+   * shift OPENED offline exists only here until its queued open is accepted,
+   * and dropping it would leave a till unable to sell into a drawer it is
+   * already selling into. Key: the session id.
+   */
   SHIFT: "shift",
+  /**
+   * Shift events rung with no server: open, drawer movement, close.
+   *
+   * The outbox's sibling, and durable for the same reason — a counted drawer
+   * that never reached the server is a reconciliation that exists nowhere else
+   * in the world. Separate from OUTBOX because it is flushed AROUND it: opens
+   * before the sales that name them, closes after. Key: the operation id.
+   */
+  SHIFT_QUEUE: "shiftQueue",
   /** This device's identity and the policy the server handed it. Key: fixed. */
   DEVICE: "device",
   /** Sync cursor, clock skew, schema version. Key: fixed. */
@@ -98,6 +114,7 @@ export type StoreName = (typeof STORE)[keyof typeof STORE];
 export const DURABLE_STORES: readonly StoreName[] = [
   STORE.OUTBOX,
   STORE.SHIFT,
+  STORE.SHIFT_QUEUE,
   // Not work owed to the server, but destroying it is just as bad: the
   // sequence would restart and two sales on this till would print the same
   // slip. The one counter in the app that cannot be rebuilt from anywhere.
@@ -183,5 +200,15 @@ export function upgrade(db: IDBDatabase, oldVersion: number): void {
   if (oldVersion < 5) {
     // Additive and, unlike everything else added since version 1, DURABLE.
     db.createObjectStore(STORE.RECEIPT_COUNTER);
+  }
+
+  if (oldVersion < 6) {
+    // Also durable. A separate store rather than a `kind` field on SHIFT: one
+    // holds what the server said and the other holds what this till DID, and
+    // sharing a store would mean one index answering two questions whose value
+    // spaces only happen not to collide today.
+    const queue = db.createObjectStore(STORE.SHIFT_QUEUE, { keyPath: "op" });
+    queue.createIndex("by_status", "status");
+    queue.createIndex("by_created", "createdAt");
   }
 }

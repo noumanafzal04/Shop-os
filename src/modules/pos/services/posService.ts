@@ -75,6 +75,27 @@ export const isCover = (s: SessionState): s is ActiveCover =>
   s !== null && (s as ActiveCover).covering === true;
 
 /**
+ * The drawer a sale rung here must be recorded against — mine, or the one I am
+ * covering. Null means this till may not ring at all.
+ *
+ * The distinction `open`/`covering` cannot answer this on its own, and asking
+ * it wrongly costs the whole feature in one direction or the other:
+ *
+ *   "do I have a drawer of my own?"  → a reliever cannot ring. Relief cover
+ *                                      exists SO the reliever rings.
+ *   "is there a drawer to ring into?" → correct, and still leaves reconcile
+ *                                      actions asking the first question,
+ *                                      because a cover may sell and must never
+ *                                      count the drawer.
+ *
+ * The till asked the first one for as long as relief cover has existed: a
+ * reliever saw "Open a shift to sell." with Tender greyed out, while the sale
+ * payload was already built to carry the covered session's id.
+ */
+export const ringableSessionId = (s: SessionState): string | null =>
+  s === null ? null : isCover(s) ? s.session_id : s.status === "open" ? s.id : null;
+
+/**
  * Is this till practising?
  *
  * The flag belongs to the DRAWER, not the person standing at it — so a

@@ -95,6 +95,11 @@ export async function clearCaches(): Promise<void> {
  */
 export async function pendingCount(): Promise<number> {
   const { owedCount } = await import("../outbox/outbox");
+  const { owedShiftOps } = await import("../shift/shiftQueue");
 
-  return owedCount();
+  // Sales AND shift events. A drawer counted with no server is work owed to it
+  // exactly as much as a sale is — leaving it out would show a till "Online"
+  // with an unsent close still sitting on the device, which is the one reading
+  // that would stop somebody chasing it.
+  return (await owedCount()) + (await owedShiftOps());
 }

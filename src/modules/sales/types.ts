@@ -49,6 +49,14 @@ export interface SaleItem {
 export interface Sale {
   id: string;
   invoice_number: string;
+  /**
+   * The `OFF-…` number printed at the till when there was no server.
+   *
+   * Null on almost every sale. When it is set it is the ONLY number the
+   * customer was given — the invoice number was assigned later, on sync — so
+   * it is what they read out at the counter, and what the search matches.
+   */
+  offline_number?: string | null;
   branch_id?: string | null;
   branch?: { id: string; name: string } | null;
   channel: SaleChannel;

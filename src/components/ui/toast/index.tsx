@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { INLINE_DISMISS } from "../modal/closeButton";
 
 type ToastType = "success" | "error" | "info";
 
@@ -77,7 +78,7 @@ function ToastRow({ toast, onClose }: { toast: Toast; onClose: () => void }) {
       <button
         onClick={onClose}
         aria-label="Dismiss"
-        className="mt-0.5 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200"
+        className={INLINE_DISMISS}
       >
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
           <path d="M6 6l8 8m0-8l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />

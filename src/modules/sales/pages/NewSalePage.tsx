@@ -14,6 +14,7 @@ import { useProducts } from "../../catalog/hooks/useCatalog";
 import type { Product, ProductVariant } from "../../catalog/types";
 import { useSaleMutations } from "../hooks/useSales";
 import type { PaymentMethod, SaleChannel } from "../types";
+import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 interface CartLine {
   key: string;
@@ -261,7 +262,7 @@ export default function NewSalePage() {
                         {money(lineUnit(line) * line.quantity)}
                       </td>
                       <td className="px-2 py-3">
-                        <button className="text-error-500" onClick={() => removeLine(line.key)}>✕</button>
+                        <button className={ROW_ACTION_DANGER} onClick={() => removeLine(line.key)}>✕</button>
                       </td>
                     </tr>
                   ))}
