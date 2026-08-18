@@ -275,7 +275,38 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-18 (latest) — the pill is the Sync now button
+### 2026-08-18 (latest) — the same blindness twice in one day
+
+`crypto.randomUUID` exists only in a **secure context**. Over plain http — every
+staging droplet on a bare IP, every shop without a certificate yet — it is
+**undefined**, and calling it throws. It had crashed the POS once already, which
+is why `common/uuid.ts` exists and opens by explaining itself.
+
+**Four call sites went on calling the raw API.** The worst by a distance was the
+offline sale's `op` id, minted *before* the sale is queued — so on a plain-http
+shop, ringing an offline sale would throw with the goods already on the counter
+and nothing recorded. The whole outbox, durable and append-only and tested
+against every failure it could imagine, sat behind one call that could not run.
+
+> A helper written because of a bug does not prevent the bug. Only a rule does.
+
+**Why nothing caught it:** jsdom runs in a secure context and defines
+`crypto.randomUUID`. Every unit test passed against code a shop on http cannot
+execute — the same sentence as the react-query finding hours earlier, where jsdom
+reports `navigator.onLine` as true and so never paused anything.
+
+> Twice in one day: **the test environment agreed with the code instead of with
+> the world.**
+
+So the rule is a source scan, not a runtime guard — reading the source is the
+only check that does not inherit the environment's opinion. It carries its own
+denominator and strips comments, because both the helper and the rule have to be
+able to name the API they guard.
+`docs/decisions/shopos-secure-context.md`.
+
+Panel **994** green (+4).
+
+### 2026-08-18 — the pill is the Sync now button
 
 The last entry on the panel's unreachable-exports list, and the way it left is
 the point.

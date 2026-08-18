@@ -70,3 +70,4 @@
 - [Cover Cannot Ring](shopos-cover-cannot-ring.md) — reliever couldn't press Tender; `!!open` is null under cover BY DESIGN; ringableSessionId(); a test that names the failure then checks something adjacent
 - [Reply Style](shopos-reply-style.md) — STANDING: user doesn't read long replies; ALWAYS end with short summary bullets (kya kiya / kya next)
 - [Offline Never Reachable](shopos-offline-never-reachable.md) — CRITICAL: react-query PAUSES all work when navigator.onLine is false; offline selling never ran in a browser; jsdom says onLine=true so tests were blind
+- [Secure Context](shopos-secure-context.md) — crypto.randomUUID is undefined over plain http; 4 call sites bypassed uuid(); jsdom IS secure so tests were blind
