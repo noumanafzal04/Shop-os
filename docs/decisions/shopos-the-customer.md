@@ -37,7 +37,7 @@ see another person's things is meaningless with one person.*
 
 ## What it found
 
-**Nothing. 164 checks, 0 bugs, 0 queries** — the customer surface holds under
+**Nothing. 185 checks, 0 bugs, 0 queries** — the customer surface holds under
 outside-in driving, including price tampering, the cross-shop smuggle, and every
 ownership probe.
 
@@ -45,7 +45,7 @@ That is a real result and it is worth being explicit about why it is trustworthy
 **both new mutations are caught.** Pretend every order was accepted and the
 sweep reports `AN ORDER REACHED INTO ANOTHER SHOP`; answer 200 to any customer
 asking for any order and it reports `ANOTHER CUSTOMER READ THIS ORDER`. 28 of 28
-mutations across the whole sweep.
+mutations across the whole sweep — 29 of 29 with the chemist's added.
 
 ## What the phase did to itself first
 
@@ -68,22 +68,40 @@ the sweep built, visible or not. **A shop being invisible to shoppers makes its
 products a better probe, not a worse one** — nothing about that request should
 reach them.
 
-## What this phase does NOT cover, and the run says so
+## Widening it, and the question that was waiting there
 
-The coverage table prints `R  1  mart`. **One shop of nine.**
+The first run covered `R  1  mart` — one shop of nine. A shop is orderable only
+when four things are true at once (active, `online_shop_enabled`,
+`setup_completed`, the `marketplace` module), and sweep tenants had never needed
+the last two because no phase before this one was a shopper.
 
-A shop is only orderable when four things are true at once — active,
-`online_shop_enabled`, `setup_completed`, and the `marketplace` module — and the
-sweep's tenants have never needed the last two, because no phase before this one
-was a shopper. So the ordering path is exercised against a grocery and nothing
-else: no restaurant order with modifiers and a kitchen behind it, no pharmacy
-order carrying a prescription item.
+That is not a smaller version of the same test. A grocery order is the *easy*
+path; the interesting ones are a restaurant's and a chemist's. So the phase now
+opens them itself — the platform's switch with the admin token, the shop's own
+switch with the owner's — and says which of the two refused when one does.
+Coverage went **1 → 3**.
 
-It is left that way rather than papered over. Making a second shop visible means
-turning a module on with the admin token, which is state that outlives the run
-and which phase F is simultaneously using to test module walls. The honest thing
-is to report the number every time — which the coverage table now does, without
-anyone having to remember.
+And the chemist had a question waiting that nothing in the sweep had ever asked.
+
+### A prescription-only medicine, ordered by a stranger on a phone
+
+At a counter, a chemist looks at the paper. That is the entire point of
+`requires_prescription`. An online order has nobody standing there, and the
+request carries **no prescription field at all**.
+
+The product refuses it — `RX_IN_PERSON_ONLY`, *"requires a prescription — please
+visit the pharmacy to purchase it."* Good.
+
+**But the first version of this check would have passed either way.** It read
+only the status, and the medicine it created had `stock_quantity: 0.000` — so a
+422 for having none would have read exactly like a 422 for needing a
+prescription, and the check would have gone green having tested the stock rule.
+
+Two fixes, and both are the same lesson: put stock on the shelf first so the
+other rule cannot fire, and then **require the refusal to name the
+prescription**. A refusal is not enough; it has to be a refusal about the thing
+being tested.
+
 
 ## Cost of entry
 

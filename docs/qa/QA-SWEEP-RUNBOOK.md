@@ -347,10 +347,18 @@ Two things to know before changing it:
   with every other login the sweep makes. The two shoppers have stable
   addresses, are registered once, and a 422 on a later run means "already
   there". Do not give them random emails.
-- **Coverage is `R  1  mart`, and that is real.** A shop is orderable only when
-  active, `online_shop_enabled`, `setup_completed` and the `marketplace` module
-  are ALL true. Widening it means turning a module on with the admin token —
-  state that outlives the run, in a flag phase F is using to test module walls.
+- **The phase opens its own shops.** A shop is orderable only when active,
+  `online_shop_enabled`, `setup_completed` and the `marketplace` module are ALL
+  true, and sweep tenants never needed the last two. Phase R flips the module
+  with the admin token and finishes setup with the owner's, for a restaurant and
+  a chemist — a grocery order is the easy path. Coverage is `R  3`. It touches
+  the `marketplace` flag only; phase F's module-wall test uses `inventory`.
+- **A refusal has to be about the thing being tested.** The prescription check
+  asks whether a stranger can order a `requires_prescription` medicine on a
+  phone. Its first version read only the status — and the medicine it made had
+  no stock, so a 422 for having none read exactly like a 422 for needing a
+  prescription. It stocks the shelf first and then requires the refusal to NAME
+  the prescription.
 
 Anything it finds goes in [`FINDINGS.md`](FINDINGS.md) with the call that
 produced it, and anything confirmed gets a test in the real suite before it is

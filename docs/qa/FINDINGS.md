@@ -15,7 +15,7 @@ because a harness bug that looks like a product bug is the most expensive kind.
 Seventeen phases and 1,683 checks, all of them as somebody who **works at the
 shop**. Phase R is the first to hold a `role:customer` token.
 
-### Clean · 164 checks, 0 bugs, 0 queries
+### Clean · 185 checks across three shops, 0 bugs, 0 queries
 
 The customer surface holds: the order prices itself from the shop's catalog, a
 price sent by the customer is ignored, an order naming one shop and carrying
@@ -26,7 +26,28 @@ another customer's order, cancel it, edit their address, delete it — comes bac
 **Why that is trustworthy: both new mutations are caught.** Pretend every order
 was accepted → the sweep reports `AN ORDER REACHED INTO ANOTHER SHOP`. Answer
 200 to any customer asking for any order → `ANOTHER CUSTOMER READ THIS ORDER`.
-**28 of 28 mutations sweep-wide.**
+**29 of 29 mutations sweep-wide**, the third being a prescription-only medicine
+accepted online.
+
+### QUESTION ASKED FOR THE FIRST TIME · a prescription on a phone
+
+Nothing in the sweep had ever set `requires_prescription`, let alone tried to
+buy one. A stranger ordering a scheduled medicine for delivery, with **no
+prescription field anywhere on the request** and nobody at a counter to look at
+the paper, is refused: `RX_IN_PERSON_ONLY`.
+
+**And the first version of that check would have passed either way.** It read
+only the status, and the medicine it created sat at `stock_quantity: 0.000` — so
+a 422 for having none reads exactly like a 422 for needing a prescription, and
+the check would have gone green having tested the stock rule. Fixed by stocking
+the shelf first so the other rule cannot fire, and by requiring the refusal to
+NAME the prescription. **A refusal is not enough; it has to be a refusal about
+the thing being tested.**
+
+Coverage went `R  1` → `R  3` (mart, food_restaurant, pharmacy): the phase now
+opens a shop for shoppers itself — the `marketplace` module with the admin
+token, `setup_completed` with the owner's — and reports which switch refused
+when one does.
 
 ### HARNESS · two, before the phase could say anything true
 

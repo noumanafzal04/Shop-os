@@ -294,11 +294,11 @@ reading them says so, and reading is not proving. Two customers exist in the
 phase on purpose, because a check that one person cannot see another person's
 things is meaningless with one person.
 
-**164 checks, 0 bugs, 0 queries.** Trustworthy because both new mutations are
+**185 checks across three shops, 0 bugs, 0 queries.** Trustworthy because both new mutations are
 caught — pretend every order was accepted and it reports `AN ORDER REACHED INTO
 ANOTHER SHOP`; answer 200 to any customer reading any order and it reports
-`ANOTHER CUSTOMER READ THIS ORDER`. 28 of 28 sweep-wide, and the full run is
-**1546 ok · 0 to look at · 0 bugs**.
+`ANOTHER CUSTOMER READ THIS ORDER`. **29 of 29** sweep-wide, and the full run
+is **1566 ok · 0 to look at · 0 bugs**.
 
 Two harness bugs first, both old friends. A **404 read as access** — the role
 fence pointed at `/reports/sales`, which does not exist, and the check saw "not
@@ -310,11 +310,24 @@ only because the denominator `shops a customer can reach — 1 of 8` was printed
 directly above it. It borrows from any shop the sweep built now, because a shop
 being invisible to shoppers makes its products a better probe, not a worse one.
 
-What it does not cover is printed every run: `R  1  mart`. A shop is orderable
-only when active, `online_shop_enabled`, `setup_completed` and the `marketplace`
-module are all true, and sweep tenants never needed the last two. So no
-restaurant order with modifiers, no pharmacy order with a prescription item.
-Left visible rather than papered over.
+The first run covered `R  1  mart`, because a shop is orderable only when
+active, `online_shop_enabled`, `setup_completed` and the `marketplace` module
+are all true, and sweep tenants had never needed the last two. A grocery order
+is the EASY path, so the phase now opens a restaurant and a chemist itself — the
+platform's switch with the admin token, the shop's own with the owner's — and
+coverage is `R  3`.
+
+The chemist had a question nothing in the sweep had ever asked: **can a stranger
+order a prescription-only medicine on a phone?** There is no prescription field
+anywhere on the request and nobody standing at a counter to look at the paper.
+The product refuses it — `RX_IN_PERSON_ONLY` — which is right.
+
+**But the first version of that check would have passed either way.** It read
+only the status, and the medicine it created had `stock_quantity: 0.000`, so a
+422 for having none reads exactly like a 422 for needing a prescription: green,
+having tested the stock rule. Fixed twice over — stock the shelf first so the
+other rule cannot fire, and require the refusal to NAME the prescription. **A
+refusal is not enough; it has to be a refusal about the thing being tested.**
 
 Full argument: [phase R — the customer](docs/decisions/shopos-the-customer.md).
 

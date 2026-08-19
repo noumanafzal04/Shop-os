@@ -153,7 +153,10 @@ def main() -> int:
         phase_q.run(api, rep, sold)
 
     if "r" in want:
-        phase_r.run(api, rep, sold)
+        # `tenants` because phase R needs the ADMIN call that puts a shop on the
+        # marketplace — until this phase, no sweep tenant had ever needed to be
+        # visible to a shopper.
+        phase_r.run(api, rep, sold, tenants)
 
     return rep.summary(_expected(shops, want), set(shops))
 

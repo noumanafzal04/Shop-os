@@ -92,7 +92,7 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
     # run, which is how the most valuable question in the phase came back
     # UNCLEAR the first time it was asked.
     if "r" in phases:
-        picked = [c for c in ("mart", "retail") if c in tenants]
+        picked = [c for c in ("mart", "retail", "pharmacy") if c in tenants]
     shops = phase_b.run(api, rep, {c: tenants[c] for c in picked if c in tenants})
 
     apply()
@@ -135,7 +135,8 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         if "q" in phases:
             phase_q.run(api, rep, sold)
         if "r" in phases:
-            phase_r.run(api, rep, sold)
+            api.token = api.login(phase_a.ADMIN)
+            phase_r.run(api, rep, sold, tenants)
         window = rep.rows[before:]
     finally:
         undo()
@@ -551,6 +552,20 @@ def main() -> int:
         lambda: setattr(Api, "get", lambda self, p, **k: _customer_reads_anything(real_get_r, self, p, **k)),
         lambda: setattr(Api, "get", real_get_r),
         ran_marker="another customer cannot read this order",
+        phases=("r",),
+    ))
+
+    # 27 · the chemist's counter. The same lie as 25, asked of a different
+    #      check: a prescription-only medicine ordered by a stranger on a phone,
+    #      with no prescription field anywhere on the request. The product
+    #      refuses this itself with RX_IN_PERSON_ONLY, so a sweep that shrugged
+    #      would be reporting a rule it cannot actually see.
+    results.append(mutation(
+        "a prescription-only medicine is accepted online",
+        "A PRESCRIPTION-ONLY MEDICINE WAS ORDERED WITH NOTHING ASKED",
+        lambda: setattr(Api, "post", lambda self, p, b=None, **k: _customer_order_accepted(real_post_r, self, p, b, **k)),
+        lambda: setattr(Api, "post", real_post_r),
+        ran_marker="prescription-only medicine",
         phases=("r",),
     ))
 

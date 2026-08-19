@@ -35,6 +35,7 @@ person's things is meaningless with one person.
 import uuid
 
 from api import Api, Report
+from phase_a import ADMIN
 
 # Stable, so a second run signs in rather than registering — `throttle:auth` is
 # five per minute per IP and the sweep shares it with every other login.
@@ -43,7 +44,7 @@ OTHER = "sweep-shopper-two@qa.test"
 PASSWORD = "password1234"
 
 
-def run(api: Api, rep: Report, sold: dict) -> dict:
+def run(api: Api, rep: Report, sold: dict, tenants: dict | None = None) -> dict:
     mine = _customer(api, rep, SHOPPER, "Sweep Shopper")
     theirs = _customer(api, rep, OTHER, "Sweep Shopper Two")
 
@@ -52,6 +53,17 @@ def run(api: Api, rep: Report, sold: dict) -> dict:
         return sold
 
     _a_customer_is_not_staff(api, rep, mine)
+
+    # A shop is only orderable when FOUR things are true at once — active,
+    # `online_shop_enabled`, `setup_completed` and the `marketplace` module —
+    # and the sweep's tenants have never needed the last two, because no phase
+    # before this one was a shopper. One of nine was listed, so ordering was
+    # driven against a grocery and nothing else: no restaurant order with
+    # modifiers, no pharmacy order carrying a prescription item.
+    #
+    # Those are not variations on the same path. They are where the interesting
+    # questions live.
+    _open_for_shoppers(api, rep, sold, tenants or {})
 
     # Which of the sweep's shops the marketplace will actually show. A shop that
     # is not listed cannot be ordered from, and saying "0 of 8 shops were
@@ -76,6 +88,9 @@ def run(api: Api, rep: Report, sold: dict) -> dict:
 
         _a_price_from_the_customer_is_ignored(api, rep, code, slug, state, mine)
         _an_order_cannot_reach_across_shops(api, rep, code, slug, mine, sold)
+        if state.get("features", {}).get("pharmacy") or code == "pharmacy":
+            _a_prescription_is_not_sold_over_a_counter_nobody_is_at(api, rep, code, slug, state, mine)
+
         _somebody_elses_order_is_not_mine(api, rep, code, order, theirs)
         _my_orders_are_only_mine(api, rep, code, order, mine, theirs)
         _an_order_can_be_cancelled_once(api, rep, code, order, mine)
@@ -141,6 +156,149 @@ def _a_customer_is_not_staff(api: Api, rep: Report, token: str) -> None:
 
 
 # ── what a customer can see ────────────────────────────────────────────
+
+def _open_for_shoppers(api: Api, rep: Report, sold: dict, tenants: dict) -> None:
+    """
+    Put a restaurant and a chemist on the marketplace, so ordering is driven
+    against more than a grocery.
+
+    Two switches, and they belong to two different people. The `marketplace`
+    module is the platform's to grant — the same admin call phase F uses — and
+    finishing setup is the shop's own. A sweep tenant has never needed either,
+    because until this phase nobody ever shopped.
+
+    Nothing here is a check. It is fixture-building, and it says so: a shop that
+    will not open is a QUERY explaining which of the two switches refused, never
+    a bug about the product.
+    """
+    if not tenants:
+        return
+
+    want = [c for c in ("food_restaurant", "pharmacy") if c in sold and c in tenants]
+    if not want:
+        return
+
+    status, body = api.get("/cities")
+    cities = _rows(body)
+    city = cities[0].get("id") if status == 200 and cities else None
+
+    if city is None:
+        rep.query("R", "a city to finish shop setup with", f"/cities → {status}")
+        return
+
+    admin = api.login(ADMIN)
+
+    for code in want:
+        state = sold[code]
+        features = dict(state.get("features") or {})
+
+        if not features.get("marketplace"):
+            status, body = api.put(
+                f"/admin/tenants/{tenants[code]['id']}/modules",
+                {"modules": {**features, "marketplace": True}},
+                token=admin,
+            )
+            if status not in (200, 201):
+                rep.query("R", f"{code} · put on the marketplace", f"{status} · {str(body)[:100]}")
+                continue
+
+        # The shop's own half. Idempotent: a shop already set up simply says so.
+        status, body = api.put("/shop/setup", {"city_id": city}, token=state["token"])
+
+        if status not in (200, 201):
+            rep.query("R", f"{code} · finish shop setup", f"{status} · {str(body)[:100]}")
+
+
+def _a_prescription_is_not_sold_over_a_counter_nobody_is_at(
+    api: Api, rep: Report, code: str, slug: str, state: dict, token: str,
+) -> None:
+    """
+    A PRESCRIPTION-ONLY MEDICINE, ORDERED BY A STRANGER ON A PHONE.
+
+    At the counter a chemist looks at the paper. The whole point of
+    `requires_prescription` is that somebody does. An online order has nobody
+    standing there, and the request carries no prescription field at all — so
+    if this is accepted, the shop is dispensing a scheduled drug to a name and
+    an address on the strength of a tap.
+
+    Nothing in the sweep had ever set this flag on a product, let alone tried to
+    buy one. Recorded as a QUERY rather than a BUG when it goes through: a
+    chemist confirming the prescription before handing the bag over is a
+    legitimate design, and this phase cannot see that far. What it CAN say is
+    whether the order was taken with nothing asked, which is the thing worth
+    knowing either way.
+    """
+    status, body = api.post("/products", {
+        "item_type": "medicine",
+        "name": "Sweep Rx Only",
+        "price": 300,
+        "cost": 150,
+        "tax_rate": 0,
+        "track_inventory": True,
+        "requires_prescription": True,
+    }, token=state["token"])
+
+    rx = (body.get("data") or {}) if status in (200, 201) else {}
+
+    if not rx.get("id"):
+        # Already there from an earlier run.
+        status, body = api.get("/products?search=Sweep+Rx+Only", token=state["token"])
+        rx = next((p for p in _rows(body) if p.get("name") == "Sweep Rx Only"), {})
+
+    if not rx.get("id"):
+        rep.query("R", f"{code} · a prescription-only item to try", "could not make one")
+        return
+
+    if not rx.get("requires_prescription"):
+        rep.query("R", f"{code} · the item is marked prescription-only", "the flag did not stick")
+        return
+
+    # PUT IT ON THE SHELF FIRST.
+    #
+    # Otherwise the order is refused for having none, the check reads "not
+    # ordered — 422" and goes green having tested the stock rule rather than the
+    # prescription rule. The item was sitting at 0.000 the first time this ran,
+    # and only reading the refusal's REASON showed which of the two had fired.
+    api.post("/inventory/adjust", {
+        "product_id": rx["id"], "type": "set", "new_quantity": 25,
+        "reason": "QA sweep · so the refusal cannot be about stock",
+    }, token=state["token"])
+
+    status, body = api.post("/customer/orders", {
+        "shop_slug": slug,
+        "fulfillment_type": "delivery",
+        "delivery_address": "12 Sweep Street",
+        "items": [{"product_id": rx["id"], "quantity": 1}],
+        "idempotency_key": str(uuid.uuid4()),
+    }, token=token)
+
+    if status in (200, 201):
+        # A BUG rather than a query, because the product has declared this rule
+        # itself: the refusal it normally gives carries `RX_IN_PERSON_ONLY` and
+        # the words "please visit the pharmacy". A shop is entitled to decide
+        # that a chemist checks the paper at handover instead — but this
+        # codebase decided the opposite, and a check holds a product to its own
+        # rule.
+        rep.bug(
+            "R", f"{code} · A PRESCRIPTION-ONLY MEDICINE WAS ORDERED WITH NOTHING ASKED",
+            "accepted for delivery — no prescription field exists on the request, "
+            "so the chemist has to catch this by hand or not at all",
+        )
+        return
+
+    # A refusal is not enough. It has to be a refusal ABOUT THE PRESCRIPTION —
+    # "out of stock" and "this shop is closed" are both 422s that would leave
+    # this check green while proving nothing.
+    said = f"{body.get('message') or ''} {(body.get('meta') or {}).get('error_code') or ''}".lower()
+
+    if "prescription" in said or "rx_" in said:
+        rep.ok("R", f"{code} · a prescription-only medicine is refused, and says why", f"{status}")
+    else:
+        rep.query(
+            "R", f"{code} · a prescription-only medicine was refused for another reason",
+            f"{status} · {said.strip()[:110] or 'nothing said'} — the prescription rule was not what stopped it",
+        )
+
 
 def _shops_a_customer_can_see(api: Api, rep: Report, sold: dict) -> dict:
     """
