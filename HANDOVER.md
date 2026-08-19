@@ -276,7 +276,78 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-19 (latest) — the cart that hid its own lines
+### 2026-08-19 (latest) — offline selling, in a browser, for the first time
+
+Two thousand backend tests ring sales over HTTP and a thousand panel tests
+exercise the pieces in jsdom, and between them **no sale had ever been rung
+through the actual screen** — and **no offline sale had ever been rung at all**,
+because jsdom pins `navigator.onLine === true`. Every offline test in this repo
+had exercised the offline path while the app believed it was online.
+`context.setOffline(true)` is the only thing here that can change that.
+
+Three defects, and all three are about what the cashier is TOLD.
+
+**A dead Complete button.** The tender panel showed an error only for
+`checkout.error instanceof ApiError`; `OfflineRefused extends Error`. So a
+refused offline sale did nothing at all — no spinner, no message, no sale — with
+a customer at the counter. The till had a perfectly good sentence ready that
+nobody could see. Every failure shows now, and a refusal is titled as one.
+
+**"1 still to send", for the rest of the shift.** Measured: the row went
+`pending → acked` with an invoice number eight seconds after the line returned,
+and the pill still read "1 still to send" a minute later. `pendingCount()` was
+right; it was never called again. The count was read on `[enabled, connected]`,
+and neither moves when a flush finishes — the till was already connected, which
+is *why* it flushed. So the shop watches "Sending 1 of 1" settle into "1 still to
+send", at the one moment the badge exists for.
+
+**A till that could lock itself out of its own shop.** Unlock is HTTP and the PIN
+lives only on the server — correctly, since a PIN mirrored into IndexedDB is a
+PIN anybody holding the tablet can read. A till that locked during an outage
+could not be opened until the line came back, with offline selling switched on
+and a queue of customers; and the escape hatch under the keypad signs the till
+OUT, through the same server. **A lock nobody can open is not security, it is a
+shutter.** The idle lock no longer fires offline, hand-over is disabled and says
+why, and a till already locked is told which door is shut.
+
+**A dropped line could sign the till out.** Found because a 1.5-hour suite run
+ended on the Sign In page. `refreshTokens()` was a bare `catch { clear(); }`
+carrying the comment "refresh token dead → hard logout" — a cause the code never
+checked. A dropped line, a timeout, a 502 during a restart, a rate limit: all of
+them signed the shop out. On a till that is the worst outcome in this
+application, because the outbox can only be sent WITH a token — sign the till
+out mid-outage and a day's takings are stranded behind a login screen that also
+needs the server. **Only the server may end a session:** `clear()` on 401/403,
+and on nothing else.
+
+**And a phone never said it was offline.** The connection pill was
+`hidden … sm:flex`, and a phone is below `sm`. It is the only thing on the till
+that reflects the connection, so a phone selling through a power cut looked
+exactly like a phone selling normally. Proven in a browser: the offline sale
+went through and not one visible word mentioned it.
+
+One thing is deliberately NOT fixed. The offline slip is
+`OFF-<register>-<4 chars of device id>-<counter>`, and the device id lives in
+localStorage while the counter lives in IndexedDB. Evict IndexedDB, keep
+localStorage, and the counter restarts under the same device segment — every
+later offline sale then collides with one already recorded and can never be
+sent, retried for ever behind "This sale could not be recorded. It is still safe
+on the till." It is safe, and it cannot leave. `DEVICE_SEGMENT = 4` is 65,536
+values, so two tills in one tenant can collide the same way. The slip is
+printed, handed to a customer and is the handle a refund is found by, so
+changing its shape is a decision, not a patch — three options are written up in
+`docs/qa/FINDINGS.md`.
+
+The tests fooled themselves five more ways, the best two being
+`expect(after.length).toBe(before.length + 1)` against a **paged** endpoint —
+fifty rows, so the length can never change again and the check reads "the queue
+never drained" for ever about a queue that drained in eight seconds — and
+`useKeepInSync.test.tsx` mocking `pendingCount: async () => 0`, **a constant, so
+a stale count was unobservable by construction.**
+
+Full argument: [offline selling in a real browser](docs/decisions/shopos-offline-in-a-real-browser.md).
+
+### 2026-08-19 — the cart that hid its own lines
 
 > "i add 8,9 rows cart / on mobile and tablet showing 6,7 / last wali rows hide
 > ho rhi nichee"

@@ -10,6 +10,108 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-19 — offline selling, driven in a real browser
+
+Not a sweep run. `e2e/selling.spec.ts`: a cash sale rung through the screen, and
+the same thing with `context.setOffline(true)`. Neither had ever been done.
+
+### BUG · a refused offline sale showed the cashier nothing
+
+`checkout.error instanceof ApiError` gated the tender panel's only error
+message. `OfflineRefused extends Error`. Pressing **Complete sale** with the line
+down produced no spinner, no message and no sale — a dead button with a customer
+at the counter. The refusal text existed and was good; nothing rendered it.
+
+### BUG · the queue drained and the badge said it had not
+
+Row `pending → acked` with `INV-000918` **8 seconds** after the line returned.
+Pill: **"1 still to send"**, a minute later and onward. `pendingCount()` was
+correct and simply never re-run — deps `[enabled, connected]`, neither of which
+moves when a flush finishes. Recount now hangs off the `syncing` transition.
+
+### BUG · the till could lock itself out of its own shop
+
+Unlock is HTTP; the PIN is only on the server (right — a mirrored PIN is
+readable by whoever holds the tablet). So an idle lock during an outage was a
+shutter, and the "sign in with a password instead" escape signs the till OUT
+through that same server. Idle lock gated on the connection; hand-over disabled
+offline with a reason; an already-locked till told which door is shut; the
+sign-out escape shut while offline.
+
+### BUG · the Reports page scrolled sideways on a tablet held landscape
+
+`1115px of content in a 1080px window; widest is div.apexcharts-canvas`.
+
+ApexCharts writes an **inline pixel width** onto its canvas from whatever the
+parent measured at mount, and re-measures on `window.resize` **and nothing
+else**. This app has several ways for a container to get narrower without the
+window changing — the sidebar rail collapses below `xl`, a drawer opens, a
+filter row wraps — and each leaves the canvas at its old, larger width. The page
+then scrolls sideways to accommodate a chart, which is how a Close button ends
+up somewhere nobody can reach.
+
+Fixed with `useFitsItsBox`: a ResizeObserver on the chart's own box, handing the
+measured width to the chart. The box is watched, not the window.
+
+**Not swept up:** nine other `react-apexcharts` call sites share the pattern and
+are currently passing. The hook is there for them.
+
+### QUERY · two ways an offline slip number can deadlock a till — NOT fixed, needs a decision
+
+Found because the browser suite hit it: the server refused a queued sale with
+`Duplicate entry '<tenant>-OFF-TILL-001D-000001' for key
+'sales_tenant_offline_number_unique'`, and the till retried it for ever behind
+the message *"This sale could not be recorded. It is still safe on the till."*
+It is safe, and it can never leave. **That is money stranded on a device.**
+
+The slip is `OFF-<register>-<4 chars of device id>-<6-digit counter>`, and the
+two halves live in **different storage layers**:
+
+| part | lives in | survives |
+|---|---|---|
+| device id | localStorage | eviction of IndexedDB |
+| counter | IndexedDB (`receiptCounter`) | — |
+
+1. **Eviction resets the counter but not the id.** This codebase already warns
+   about eviction (`StorageWarning`, `persist.ts`). If IndexedDB goes and
+   localStorage stays, the counter restarts at 1 under the same device segment
+   and **every offline sale from then on collides with one already recorded**.
+2. **`DEVICE_SEGMENT = 4`** — 65,536 values. Two tills in one tenant sharing a
+   segment collide from their first sale each. For a 50-till chain that is
+   roughly a 2% chance, and the failure is silent and permanent.
+
+Not fixed here on purpose: the slip is printed, handed to a customer, and is the
+handle a refund is found by (see `shopos-slip-number-lookup`), so changing its
+shape or re-numbering a queued row are both decisions with consequences outside
+this module. Options, cheapest first: seed the counter from the server on the
+next contact; widen the device segment; or have the server's rejection tell the
+till to re-number rather than retry the same number for ever.
+
+### HARNESS · six
+
+1. **`expect(after.length).toBe(before.length + 1)` against a PAGED endpoint.**
+   `/sales` returns 50. Past 50 sales the length never changes, so the check
+   said "the queue never drained" for ever about a queue that drained in 8s.
+2. **A leaf-only text scan** cannot see `<button><span dot/>Offline</button>`.
+   The offline-indicator rule reported silence while "Offline" sat on screen in
+   red. Ask each element for its **own** text nodes.
+3. **`offline_selling` is a platform GRANT**, not a shop setting — a plan limit
+   published on the catalog envelope beside `offline_days`. A fixture that
+   assumed otherwise tests the refusal while claiming to test offline selling.
+4. **`useKeepInSync.test.tsx` mocked `pendingCount: async () => 0`** — a
+   constant. A stale count was **unobservable by construction**.
+5. `reuseExistingServer: true` serves a stale build; and Playwright's `request`
+   fixture is NOT taken offline with the page — which is what proves the server
+   did not receive the sale while the till was offline.
+6. **Four browser projects shared one device id** (it lives in the saved
+   localStorage) while each got a fresh IndexedDB, so every project after the
+   first restarted its slip counter at `000001` and was refused. The fixture now
+   stamps one per project — and, because only FOUR characters of it reach the
+   slip, one whose first four characters differ, or "tablet-landscape" and
+   "tablet-portrait" would both come out `TABL` and collide exactly as before.
+
+---
+
 ## 2026-08-19 — the screens, second pass · the cart that hid its own lines
 
 A shop report, not a sweep finding: **"i add 8,9 rows cart / on mobile and
