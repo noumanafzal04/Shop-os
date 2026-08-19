@@ -56,7 +56,7 @@ measured width to the chart. The box is watched, not the window.
 **Not swept up:** nine other `react-apexcharts` call sites share the pattern and
 are currently passing. The hook is there for them.
 
-### QUERY · two ways an offline slip number can deadlock a till — NOT fixed, needs a decision
+### BUG · two ways an offline slip number could deadlock a till — NOW FIXED
 
 Found because the browser suite hit it: the server refused a queued sale with
 `Duplicate entry '<tenant>-OFF-TILL-001D-000001' for key
@@ -80,12 +80,28 @@ two halves live in **different storage layers**:
    segment collide from their first sale each. For a 50-till chain that is
    roughly a 2% chance, and the failure is silent and permanent.
 
-Not fixed here on purpose: the slip is printed, handed to a customer, and is the
-handle a refund is found by (see `shopos-slip-number-lookup`), so changing its
-shape or re-numbering a queued row are both decisions with consequences outside
-this module. Options, cheapest first: seed the counter from the server on the
-next contact; widen the device segment; or have the server's rejection tell the
-till to re-number rather than retry the same number for ever.
+**Fixed, all three parts, and the slip's SHAPE never changed** — four characters
+in the device segment before and after. Only the guarantee behind them did.
+
+1. **A label may never cost a sale.** The operation id is already the
+   idempotency key and is checked first, so if THAT is new the sale is new.
+   `PosSyncController` now records it under a disambiguated label (`…-D2`) and
+   reports the collision to the shop, instead of dying on the unique index and
+   being caught as "something unexpected, retry later". The printed number stays
+   the stem, so `Sale::search`'s LIKE still finds the sale from what is on the
+   customer's slip.
+2. **The counter cannot go backwards.** New `sales.offline_seq` — the sequence
+   as a NUMBER beside the label, because the label now has a `-D2` form that a
+   SQL parse of the string would get wrong. The catalog pull answers
+   `offline_sequence` for the asking device and `nextSequence()` takes
+   `max(local, server) + 1`.
+3. **The device segment is allocated, not guessed.** New `pos_devices.code`,
+   four characters, unique per tenant, handed out once at registration and never
+   changed under a till that has already printed it. The alphabet omits `O 0 I 1
+   S 5` — somebody reads that code down a phone when they ring about a refund —
+   and it is random rather than sequential, so one slip does not reveal how many
+   tills a shop runs. A till that has never reached the server still falls back
+   to slicing its own id, which is no worse than what it always did.
 
 ### HARNESS · six
 

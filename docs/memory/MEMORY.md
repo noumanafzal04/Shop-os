@@ -81,3 +81,4 @@
 - [Fuel Rate & Receipt Tray](shopos-fuel-rate-and-receipt-tray.md) — FIXED: tomorrow's rate repriced pumps tonight; reprint never left the tray (second-precision tie); the test travelled 1s to hide it
 - [Cart Hid Its Lines](shopos-cart-hid-its-lines.md) — FIXED: min-h inside overflow-hidden put 188px of the cart outside the frame; scrollIntoViewIfNeeded scrolls what a finger cannot
 - [Offline In A Browser](shopos-offline-in-a-browser.md) — FIRST real-browser offline run: 5 bugs, biggest = a dropped line signed the till out and stranded its own outbox
+- [Offline Slip Numbers](shopos-offline-slip-numbers.md) — FIXED: device segment now server-ALLOCATED (was 4 chars of a random UUID); counter high-water seeded; a repeated label never costs a sale

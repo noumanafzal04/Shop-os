@@ -276,7 +276,51 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-19 (latest) — offline selling, in a browser, for the first time
+### 2026-08-20 (latest) — the slip number that could deadlock a till
+
+The browser suite refused a queued sale with `Duplicate entry
+'<tenant>-OFF-TILL-001D-000001'`, and the till offered that same number again
+every few minutes, for ever, behind *"This sale could not be recorded. It is
+still safe on the till."* It was safe. It could not leave.
+
+The slip is `OFF-<lane>-<device>-<counter>`, and the two halves that make it
+unique came from two places that **do not fail together**: the device segment
+lived in localStorage, the counter in IndexedDB. A browser can evict one and
+keep the other — this codebase already warns about eviction — and the counter
+then restarts at 1 under the same segment. Separately, that segment was **the
+first four characters of the random UUID the browser minted for itself**, with
+nothing anywhere checking whether another till had them: 65,536 values, so a
+shop running fifty tills had about a one-in-fifty chance that two of them
+printed identical slip numbers for different customers. A hash where an
+allocation belongs.
+
+Fixed in three parts, and **the slip's shape never changed** — four characters
+in the device segment before and after; only the guarantee behind them is
+different.
+
+**A label may never cost a sale.** The operation id is already the idempotency
+key and is checked first, so if that is new the sale is new. It is filed under
+`…-D2` now, with the collision reported to the shop rather than hidden, and the
+printed number kept as the stem so a refund search still finds it.
+
+**The counter cannot go backwards.** New `sales.offline_seq` — the sequence as a
+number beside the label, because the label now has a `-D2` form a SQL parse of
+the string would misread. The catalog pull answers `offline_sequence` for the
+asking device and the till takes `max(local, server) + 1`.
+
+**The device segment is allocated.** New `pos_devices.code`: four characters,
+unique per tenant, handed out once and never changed under a till that has
+already printed it. The alphabet omits `O 0 I 1 S 5`, because somebody reads
+that code down a phone when they ring about a refund, and it is random rather
+than sequential so one slip does not reveal how many tills a shop runs.
+
+And one test that was lying: `test_a_tills_code_never_changes_under_it` passed
+with the allocation deleted, because `assertSame(null, null)` is true. **Two
+nulls agreeing is not a test.**
+
+Full argument: [the slip number that could deadlock a till](docs/decisions/shopos-offline-slip-numbers.md).
+
+### 2026-08-19 — offline selling, in a browser, for the first time
 
 Two thousand backend tests ring sales over HTTP and a thousand panel tests
 exercise the pieces in jsdom, and between them **no sale had ever been rung
