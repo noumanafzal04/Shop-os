@@ -39,6 +39,7 @@ import phase_n
 import phase_o
 import phase_p
 import phase_q
+import phase_r
 from api import Api, Report
 
 
@@ -85,6 +86,13 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         picked = [c for c in ("petroleum", "retail") if c in tenants]
     if "l" in phases:
         picked = ["food_restaurant"]
+    # Phase R needs a shop the marketplace will show — only the mart is listed —
+    # AND a second shop whose product it can try to smuggle into an order. With
+    # one shop the cross-tenant check has nothing to borrow and quietly does not
+    # run, which is how the most valuable question in the phase came back
+    # UNCLEAR the first time it was asked.
+    if "r" in phases:
+        picked = [c for c in ("mart", "retail") if c in tenants]
     shops = phase_b.run(api, rep, {c: tenants[c] for c in picked if c in tenants})
 
     apply()
@@ -126,6 +134,8 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
             phase_p.run(api, rep, sold)
         if "q" in phases:
             phase_q.run(api, rep, sold)
+        if "r" in phases:
+            phase_r.run(api, rep, sold)
         window = rep.rows[before:]
     finally:
         undo()
@@ -515,6 +525,35 @@ def main() -> int:
         phases=("q",),
     ))
 
+    # ── Phase R · the customer ────────────────────────────────────────────
+    #
+    # 25 · the wall between shops. `shop_slug` and the product ids arrive in one
+    #      body with nothing tying them together, so this is the one request a
+    #      customer could use to make a shop hand over goods it does not stock.
+    #      Pretend every order was accepted and the sweep must object.
+    real_post_r = Api.post
+    results.append(mutation(
+        "an order into another shop is accepted",
+        "AN ORDER REACHED INTO ANOTHER SHOP",
+        lambda: setattr(Api, "post", lambda self, p, b=None, **k: _customer_order_accepted(real_post_r, self, p, b, **k)),
+        lambda: setattr(Api, "post", real_post_r),
+        ran_marker="an order cannot reach across shops",
+        phases=("r",),
+    ))
+
+    # 26 · whose order is it. Answer 200 to any customer asking for any order.
+    #      A sweep that shrugged at that would be reporting "another customer
+    #      cannot read this order" about a check that cannot tell.
+    real_get_r = Api.get
+    results.append(mutation(
+        "any customer may read any order",
+        "ANOTHER CUSTOMER READ THIS ORDER",
+        lambda: setattr(Api, "get", lambda self, p, **k: _customer_reads_anything(real_get_r, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_r),
+        ran_marker="another customer cannot read this order",
+        phases=("r",),
+    ))
+
     print("=" * 70)
     print(f"{sum(results)} of {len(results)} mutations caught")
     print("=" * 70)
@@ -703,6 +742,26 @@ def _far_lot_moves():
 def _frozen(totals: dict) -> dict:
     """Real figures, except the one the report is judged on."""
     return {**totals, "net_profit": 1_000_000.0} if totals else totals
+
+
+def _customer_order_accepted(real_post, self, path, body, **kw):
+    """Every attempt to PLACE an order comes back accepted, whatever happened."""
+    status, payload = real_post(self, path, body, **kw)
+
+    if path == "/customer/orders" and status >= 400:
+        return 201, {"data": {"id": "mutant-order", "total": 0.01}}
+
+    return status, payload
+
+
+def _customer_reads_anything(real_get, self, path, **kw):
+    """Every customer-side read succeeds — including one that is not yours."""
+    status, payload = real_get(self, path, **kw)
+
+    if path.startswith("/customer/orders/") and status >= 400:
+        return 200, {"data": {"id": path.rsplit("/", 1)[-1]}}
+
+    return status, payload
 
 
 def _pretend_ok(real_post, self, path, body, **kw):

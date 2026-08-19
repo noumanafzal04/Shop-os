@@ -321,6 +321,37 @@ python3 run.py a b        # just those
 python3 mutate.py         # prove the sweep can still fail
 ```
 
+## Phase R — the customer
+
+The first phase that is not somebody who works at the shop. It holds a
+`role:customer` token and drives `/marketplace/*` and `/customer/*`.
+
+```bash
+python3 run.py r          # pulls a, b, c in first
+```
+
+It asks three things:
+
+- **The order prices itself.** A customer names products and quantities, never a
+  price. A price sent anyway must be ignored or refused.
+- **The boundary.** `shop_slug` and `items.*.product_id` arrive in one body with
+  nothing tying them together. An order naming one shop and carrying another
+  shop's product must be refused.
+- **Whose is it.** Two shoppers exist on purpose — orders, addresses, reviews
+  and reservations are all "mine", and a check that one person cannot see
+  another's things is meaningless with one person.
+
+Two things to know before changing it:
+
+- **`/auth/register` is under `throttle:auth`** — five per minute per IP, shared
+  with every other login the sweep makes. The two shoppers have stable
+  addresses, are registered once, and a 422 on a later run means "already
+  there". Do not give them random emails.
+- **Coverage is `R  1  mart`, and that is real.** A shop is orderable only when
+  active, `online_shop_enabled`, `setup_completed` and the `marketplace` module
+  are ALL true. Widening it means turning a module on with the admin token —
+  state that outlives the run, in a flag phase F is using to test module walls.
+
 Anything it finds goes in [`FINDINGS.md`](FINDINGS.md) with the call that
 produced it, and anything confirmed gets a test in the real suite before it is
 fixed.

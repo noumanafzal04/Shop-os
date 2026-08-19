@@ -43,14 +43,15 @@ import phase_n
 import phase_o
 import phase_p
 import phase_q
+import phase_r
 
-PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q"]
+PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r"]
 
 
 # What each phase needs standing before it. Naming a late phase alone runs its
 # prerequisites too — asking for "the seams" and silently getting only the admin
 # side is the kind of quiet no-op that makes a sweep untrustworthy.
-NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"]}
+NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"], "r": ["c"]}
 
 
 def _with_prerequisites(want: list[str]) -> set[str]:
@@ -150,6 +151,9 @@ def main() -> int:
 
     if "q" in want:
         phase_q.run(api, rep, sold)
+
+    if "r" in want:
+        phase_r.run(api, rep, sold)
 
     return rep.summary(_expected(shops, want), set(shops))
 

@@ -10,6 +10,41 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-20 — phase R · the customer, driven for the first time
+
+Seventeen phases and 1,683 checks, all of them as somebody who **works at the
+shop**. Phase R is the first to hold a `role:customer` token.
+
+### Clean · 164 checks, 0 bugs, 0 queries
+
+The customer surface holds: the order prices itself from the shop's catalog, a
+price sent by the customer is ignored, an order naming one shop and carrying
+another shop's product is refused (422), and every ownership probe — read
+another customer's order, cancel it, edit their address, delete it — comes back
+404.
+
+**Why that is trustworthy: both new mutations are caught.** Pretend every order
+was accepted → the sweep reports `AN ORDER REACHED INTO ANOTHER SHOP`. Answer
+200 to any customer asking for any order → `ANOTHER CUSTOMER READ THIS ORDER`.
+**28 of 28 mutations sweep-wide.**
+
+### HARNESS · two, before the phase could say anything true
+
+1. **A 404 read as access.** The role fence pointed at `/reports/sales`, which
+   does not exist. The check saw "not 401 or 403" and reported *A CUSTOMER CAN
+   READ THE SHOP'S TAKINGS*. **404 is "no such route", not a refusal** — the
+   same mistake phase I made reading 403 as a permission failure when it was
+   `MODULE_DISABLED`.
+2. **The most valuable check quietly did not run.** The cross-shop probe looked
+   for a second shop among the ones a customer can SEE — one of eight is listed
+   on the marketplace — found none, and reported "no second shop to borrow
+   from". The denominator printed `shops a customer can reach — 1 of 8` directly
+   above it, which is the only reason it was obvious. It borrows from ANY shop
+   the sweep built now: **a shop being invisible to shoppers makes its products
+   a better probe, not a worse one.**
+
+---
+
 ## 2026-08-19 — offline selling, driven in a real browser
 
 Not a sweep run. `e2e/selling.spec.ts`: a cash sale rung through the screen, and

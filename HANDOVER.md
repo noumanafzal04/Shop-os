@@ -276,7 +276,49 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-20 (latest) — the slip number that could deadlock a till
+### 2026-08-20 (latest) — phase R, and the actor nobody had ever been
+
+Seventeen phases and 1,683 checks, every one of them run as somebody who **works
+at the shop**: an owner, a cashier, a stock keeper, a super-admin. Nobody had
+ever been **the person the shop exists for.** Phase R holds a `role:customer`
+token and drives `/marketplace/*` and `/customer/*` — addresses, reviews,
+reservations and orders.
+
+Three questions it exists for. The **order** prices itself from the shop's
+catalog and a price sent by the customer is ignored. The **boundary**:
+`shop_slug` and `items.*.product_id` arrive in one body with nothing tying them
+together, so an order naming one shop and carrying another's product is a single
+request away. And the **owner**: orders, addresses, reviews and reservations are
+all "mine", and every one of those controllers scopes by the signed-in user —
+reading them says so, and reading is not proving. Two customers exist in the
+phase on purpose, because a check that one person cannot see another person's
+things is meaningless with one person.
+
+**164 checks, 0 bugs, 0 queries.** Trustworthy because both new mutations are
+caught — pretend every order was accepted and it reports `AN ORDER REACHED INTO
+ANOTHER SHOP`; answer 200 to any customer reading any order and it reports
+`ANOTHER CUSTOMER READ THIS ORDER`. 28 of 28 sweep-wide, and the full run is
+**1546 ok · 0 to look at · 0 bugs**.
+
+Two harness bugs first, both old friends. A **404 read as access** — the role
+fence pointed at `/reports/sales`, which does not exist, and the check saw "not
+401 or 403" and accused the product; 404 is "no such route", not a refusal,
+which is the same mistake phase I made with 403 and `MODULE_DISABLED`. And **the
+best check quietly did not run**: the cross-shop probe looked for a second shop
+among the ones a customer can SEE, found none of eight, and said so — caught
+only because the denominator `shops a customer can reach — 1 of 8` was printed
+directly above it. It borrows from any shop the sweep built now, because a shop
+being invisible to shoppers makes its products a better probe, not a worse one.
+
+What it does not cover is printed every run: `R  1  mart`. A shop is orderable
+only when active, `online_shop_enabled`, `setup_completed` and the `marketplace`
+module are all true, and sweep tenants never needed the last two. So no
+restaurant order with modifiers, no pharmacy order with a prescription item.
+Left visible rather than papered over.
+
+Full argument: [phase R — the customer](docs/decisions/shopos-the-customer.md).
+
+### 2026-08-20 — the slip number that could deadlock a till
 
 The browser suite refused a queued sale with `Duplicate entry
 '<tenant>-OFF-TILL-001D-000001'`, and the till offered that same number again
