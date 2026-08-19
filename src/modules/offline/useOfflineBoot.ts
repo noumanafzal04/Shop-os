@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 
 import { ApiError } from "../../common/types/api";
-import { pendingCount } from "./db/repo";
+import { pendingCount, putSingleton } from "./db/repo";
+import { STORE } from "./db/schema";
 import { deviceId } from "./device/deviceId";
 import { deviceService } from "./device/deviceService";
 import { markTouched } from "./device/touch";
@@ -109,8 +110,18 @@ export function useOfflineBoot(enabled: boolean): void {
       }
 
       try {
-        await deviceService.register(deviceId());
+        const registered = await deviceService.register(deviceId());
         setRegistered(true);
+
+        // The four characters this till prints in the middle of an offline
+        // slip. Kept on the device so a till with no line can still mint a
+        // number: the allocation happens once, here, and every offline sale
+        // afterwards reads it locally. Null from a server too old to allocate,
+        // in which case the till goes on slicing its own id as it always did.
+        const code = registered?.data?.code ?? null;
+        if (code) {
+          await putSingleton(STORE.DEVICE, { code });
+        }
         // The pull below would otherwise touch a device that announced itself
         // half a second ago — two identical requests at the slowest moment of
         // the app's life.

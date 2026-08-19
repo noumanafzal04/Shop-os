@@ -121,6 +121,11 @@ export async function applyPull(pull: CatalogPull): Promise<{
     // opposite to the switch above, because this one refuses trade and a
     // ceiling invented by a missing field would close a counter for nothing.
     offline_hard_stop_days: pull.offline_hard_stop_days ?? null,
+    // Where the SERVER thinks this till's slip counter had got to. Stored
+    // rather than applied here, because the counter is only ever advanced at
+    // the moment a number is minted — see `nextSequence`. `?? null` so a
+    // server too old to send it leaves the local counter exactly as it is.
+    offline_sequence: pull.offline_sequence ?? null,
     // The SHOP's calendar, which every promotion window is written in. A till
     // judging "Fridays, 6pm to 9pm" against UTC would open a Karachi shop's
     // evening sale five hours early.

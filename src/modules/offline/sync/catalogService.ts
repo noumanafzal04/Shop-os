@@ -1,4 +1,5 @@
 import { apiGet } from "../../../common/api/client";
+import { deviceId } from "../device/deviceId";
 
 /**
  * The wire shape of what the server sends a till.
@@ -179,6 +180,18 @@ export interface CatalogPull {
    * shops a fourth day without internet is not worse than a closed counter.
    */
   offline_hard_stop_days: number | null;
+  /**
+   * How far this device's own offline slip counter had got, as the server
+   * knows it. Null for a device that has never sold offline.
+   *
+   * The counter lives in IndexedDB and the device id it is paired with lives
+   * in localStorage, so a browser can evict one and keep the other — the till
+   * then restarts at one and mints slip numbers the shop already has. This is
+   * the answer that lets it start above the mess instead.
+   */
+  // Optional on purpose: a server too old to send it must leave the till's
+  // own counter exactly as it is, not reset it to null.
+  offline_sequence?: number | null;
   server_time: string;
   /** Only on a first load. */
   branch_id?: string | null;
@@ -191,7 +204,8 @@ export const catalogService = {
    * Also the recovery path: pulling with no cursors rebuilds a device whose
    * local database was cleared, evicted or corrupted.
    */
-  bootstrap: () => apiGet<CatalogPull>("/pos/bootstrap"),
+  bootstrap: () =>
+    apiGet<CatalogPull>("/pos/bootstrap", { params: { device_id: deviceId() } }),
 
   /**
    * Everything changed since these cursors.
@@ -201,8 +215,13 @@ export const catalogService = {
    */
   delta: (cursors: Partial<Record<Projection, string | null>>) =>
     apiGet<CatalogPull>("/pos/catalog", {
-      params: Object.fromEntries(
-        PROJECTIONS.filter((p) => cursors[p]).map((p) => [p, cursors[p]]),
-      ),
+      params: {
+        ...Object.fromEntries(
+          PROJECTIONS.filter((p) => cursors[p]).map((p) => [p, cursors[p]]),
+        ),
+        // Named so the server can answer where THIS till's slip counter had
+        // got to. See `offline_sequence`.
+        device_id: deviceId(),
+      },
     }),
 };

@@ -8,6 +8,16 @@ export interface PosDevice {
   platform: "web" | "android" | "ios" | null;
   branch: { id: string; name: string } | null;
   register: { id: string; name: string } | null;
+  /**
+   * The four characters this till prints in the middle of an offline slip,
+   * allocated by the server so no two tills in one shop can share them.
+   *
+   * Null only from a server too old to allocate one; the till then falls back
+   * to slicing its own id, which is what it always used to do.
+   */
+  // Optional: a server too old to allocate one sends nothing, and the till
+  // falls back to slicing its own id exactly as it always did.
+  code?: string | null;
   last_seen_at: string | null;
   /** Whole days since this till last reached the server. */
   days_offline: number;

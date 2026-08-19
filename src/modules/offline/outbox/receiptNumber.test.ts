@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 
+import { putSingleton } from "../db/repo";
+import { STORE } from "../db/schema";
 import { resetDbCache } from "../db/open";
 import { isOfflineNumber, nextOfflineNumber, nextSequence } from "./receiptNumber";
 
@@ -96,5 +98,83 @@ describe("telling a slip from an invoice", () => {
     expect(isOfflineNumber("INV-1043")).toBe(false);
     expect(isOfflineNumber("OFF")).toBe(false);
     expect(isOfflineNumber("")).toBe(false);
+  });
+});
+
+
+/**
+ * ── WHEN THE TILL FORGETS AND THE SHOP DOES NOT ──────────────────────────
+ *
+ * The counter lives in IndexedDB. The device id it is printed beside lives in
+ * localStorage. Browsers evict those separately — this app carries a whole
+ * StorageWarning about it — so a till can lose the counter and keep the id. It
+ * then restarts at 000001 under the same device segment, and every slip it
+ * mints from then on is one the shop already has.
+ *
+ * Every one of those used to be refused by the server's unique index and
+ * retried for ever behind "This sale could not be recorded. It is still safe on
+ * the till." It was safe, and it could not leave.
+ */
+describe("a counter that was wiped", () => {
+  it("starts above what the shop has already recorded", async () => {
+    // What the catalog pull brought back: this device's slips reached 47.
+    await putSingleton(STORE.SETTINGS, { offline_sequence: 47 });
+
+    expect(
+      await nextSequence(),
+      "a wiped till went back to 1 and started re-minting numbers the shop has",
+    ).toBe(48);
+    expect(await nextSequence()).toBe(49);
+  });
+
+  it("does not go backwards when the shop knows less than the till", async () => {
+    // The ordinary case the moment a till is ahead of its last sync: the
+    // server's answer is old, and an old answer must never rewind a counter.
+    // Starting from the shop's 2, four numbers run 3, 4, 5, 6.
+    await putSingleton(STORE.SETTINGS, { offline_sequence: 2 });
+    await nextSequence();
+    await nextSequence();
+    await nextSequence();
+
+    expect(await nextSequence(), "the server's stale figure pulled the counter back").toBe(6);
+  });
+
+  it("is unaffected by a server too old to answer", async () => {
+    await putSingleton(STORE.SETTINGS, {});
+
+    expect(await nextSequence()).toBe(1);
+    expect(await nextSequence()).toBe(2);
+  });
+});
+
+
+/**
+ * ── WHICH TILL, ALLOCATED RATHER THAN GUESSED ────────────────────────────
+ *
+ * The device segment used to be the first four characters of the random id the
+ * browser minted for itself, with nothing checking whether another till in the
+ * shop already had them. Four characters is 65,536 values: a shop running fifty
+ * tills had roughly a one-in-fifty chance that two shared a segment, and from
+ * their first sale each they printed identical slip numbers for different
+ * customers — and the second one could never be sent.
+ */
+describe("the device segment", () => {
+  it("is the code the server allocated, not a slice of the browser's id", async () => {
+    await putSingleton(STORE.DEVICE, { code: "K7QM" });
+
+    const number = await nextOfflineNumber("Lane 1", "abcdef00-1111-2222-3333-444444444444");
+
+    expect(number, "the slip still carries a guessed segment").toContain("-K7QM-");
+    expect(number).not.toContain("-ABCD-");
+    expect(isOfflineNumber(number), "the allocated code broke the slip's shape").toBe(true);
+  });
+
+  it("falls back to the browser's id for a till that has never reached the server", async () => {
+    // A tablet unboxed during an outage. Its numbers are no worse than they
+    // used to be, and it takes an allocated code the first time it gets a line.
+    const number = await nextOfflineNumber("Lane 1", "abcdef00-1111-2222-3333-444444444444");
+
+    expect(number).toContain("-ABCD-");
+    expect(isOfflineNumber(number)).toBe(true);
   });
 });
