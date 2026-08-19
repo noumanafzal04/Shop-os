@@ -51,7 +51,18 @@ export default function UserDropdown() {
         <span className="mr-3 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-brand-500 text-sm font-semibold text-white">
           {initials(user.name) || "U"}
         </span>
-        <span className="mr-1 block max-w-[120px] truncate font-medium text-theme-sm">
+        {/* The avatar carries the identity; the name is the courtesy.
+         *
+         * On a phone this cost the header 120px it did not have, and the whole
+         * page scrolled sideways — 425px of content in a 390px window — which
+         * on a dashboard means the right-hand edge of every card is off the
+         * screen with no scrollbar to say so.
+         *
+         * The initials are still there, and the name is the first line of the
+         * panel this button opens. Same fault the till's header had, in a
+         * different file: a group that cannot shrink on a device with nothing
+         * to spare. */}
+        <span className="mr-1 hidden max-w-[120px] truncate font-medium text-theme-sm sm:block">
           {user.name}
         </span>
         <svg

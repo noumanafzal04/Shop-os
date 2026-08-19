@@ -409,6 +409,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ],
       },
       { type: "note", text: "The grey key hints printed on the buttons only appear on a wide screen. On a tablet there are no function keys to press, so the hints stay off — every one of those actions still has a button you can tap." },
+      { type: "h", text: "On a phone" },
+      { type: "p", text: "A phone shows one half of the till at a time. Products and Cart sit as two buttons across the top: ring items from Products, then tap Cart to check the lines, change a quantity or take one off. The Cart button carries the number of lines, and the Grand Total and Tender button stay on screen the whole time — you never have to go looking for the money." },
+      { type: "note", text: "On a phone the cart also drops its Discount and Tax columns and prints those on the item's own line instead, but only where they are not zero. Nothing is hidden: a line with a discount still says so. A tablet keeps the full table." },
+
       { type: "h", text: "If your shop has tables" },
       { type: "p", text: "A Floor button sits next to Exit at the top of the till. It takes you straight to the tables, the running tabs and the kitchen board without going back through the dashboard. The till itself has no table box — a table's order belongs on the Floor, where it can run a tab, fire to the kitchen and split a bill." },
       { type: "note", text: "A food shop WITHOUT the Dine-in module sees the opposite: a Takeaway / Dine-in switch on the till with a plain table number to type, because a typed number is genuinely all there is to record." },

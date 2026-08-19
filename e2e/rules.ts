@@ -221,14 +221,35 @@ export async function noSidewaysScroll(page: Page): Promise<Finding[]> {
     if (doc.scrollWidth <= doc.clientWidth + slack) return [];
 
     // Name the widest offender, or the finding is a number nobody can act on.
+    //
+    // CLIPPED, or it names the wrong thing — which it did, twice. A decorative
+    // blur inside an `overflow-hidden` header measured 453px wide and was
+    // reported as the cause of a 425px page; so did a table already sitting in
+    // its own `overflow-x-auto` box. Neither pushes anything: their parents cut
+    // them off. The real culprits were a header group that could not shrink and
+    // a row of filter chips that would not wrap, and both were invisible behind
+    // the wrong name.
+    const clippedRight = (el: Element): number => {
+      let right = el.getBoundingClientRect().right;
+      let p = el.parentElement;
+      while (p) {
+        if (getComputedStyle(p).overflowX !== "visible") {
+          right = Math.min(right, p.getBoundingClientRect().right);
+        }
+        p = p.parentElement;
+      }
+      return right;
+    };
+
     let worst: Element | null = null;
     let worstRight = doc.clientWidth;
     for (const el of Array.from(document.body.querySelectorAll("*"))) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       if (getComputedStyle(el).position === "fixed") continue;
-      if (r.right > worstRight) {
-        worstRight = r.right;
+      const right = clippedRight(el);
+      if (right > worstRight) {
+        worstRight = right;
         worst = el;
       }
     }
@@ -261,6 +282,17 @@ export async function openThingsFit(page: Page): Promise<Finding[]> {
     for (const el of Array.from(panels)) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
+
+      // A CLOSED SHEET IS NOT AN OVERFLOWING ONE.
+      //
+      // A bottom sheet waits parked just below the fold and slides up when
+      // opened, so at rest its top sits exactly on the bottom edge of the
+      // window. Measured naively that reads as a panel running 564px off the
+      // screen — which is what this rule reported on the expenses page, about
+      // a drawer nobody had opened.
+      if (r.top >= innerHeight - 1) continue;
+      if (getComputedStyle(el).visibility === "hidden") continue;
+      if (el.getAttribute("aria-hidden") === "true") continue;
 
       if (r.height > innerHeight + 2) {
         out.push({
@@ -405,6 +437,113 @@ export async function pinnedThingsDoNotSitOnThePage(page: Page): Promise<Finding
 }
 
 /**
+ * A CARD IS A SURFACE, NOT A TINT.
+ *
+ * The till's product tiles were a translucent white on a dark ground. They were
+ * raised once — 10% to 16% — and the shop still reported the list as "simple
+ * text, you cannot tell these are cards". Raising it again would not have
+ * helped, and that is the point: **a translucent panel on a dark ground has no
+ * edge at any opacity.** What makes a card a card is that it is opaque and has
+ * a border, so the eye finds where one product stops and the next begins.
+ *
+ * Measured, not asserted about the source: `getComputedStyle` resolves whatever
+ * the class list actually produced, including the alpha nobody meant to keep.
+ */
+export async function cardsAreSurfaces(
+  page: Page,
+): Promise<{ findings: Finding[]; examined: number }> {
+  return page.evaluate(() => {
+    const out: Finding[] = [];
+    /**
+     * How opaque a computed colour is, in whatever notation the browser used.
+     *
+     * Tailwind v4 emits modern colour syntax, so a 10% white surface computes
+     * to `oklab(1 0 0 / 0.1)` — not `rgba(255, 255, 255, 0.1)`. The first
+     * version of this only understood `rgba()` and returned 1 for everything
+     * else, so it read that translucent list as fully opaque and passed against
+     * the exact design the shop had complained about. Twice.
+     *
+     * Two notations, and both have to be read: the legacy comma form puts alpha
+     * fourth, the modern form puts it after a slash. `transparent` is neither.
+     */
+    const alphaOf = (colour: string): number => {
+      const c = colour.trim().toLowerCase();
+      if (c === "transparent" || c === "") return 0;
+
+      // Modern: oklab(… / .1), oklch(… / 10%), rgb(… / .1), color(srgb … / .1)
+      const slash = c.match(/\/\s*([0-9.]+)(%?)\s*\)/);
+      if (slash) {
+        const n = parseFloat(slash[1]);
+        return slash[2] === "%" ? n / 100 : n;
+      }
+
+      // Legacy: rgba(r, g, b, a) / hsla(h, s, l, a)
+      const legacy = c.match(/^(?:rgba|hsla)\(([^)]+)\)/);
+      if (legacy) {
+        const parts = legacy[1].split(",").map((n) => parseFloat(n));
+        return parts.length > 3 ? parts[3] : 1;
+      }
+
+      return 1;
+    };
+
+    // The product list, whichever view it is drawn in. `data-pos-item` rather
+    // than a guess at class names: the guess ("wider than 80px with `rounded`
+    // in its classes") matched tiles and no rows, so on a shop whose till
+    // defaults to rows this rule examined one element and passed.
+    const cards = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-pos-item]"),
+    ).slice(0, 40);
+
+    /**
+     * What this item is actually drawn ON.
+     *
+     * In tile view each product paints its own background. In ROW view it does
+     * not — the list container is the surface and the rows only tint on hover —
+     * so asking the row about its own background gives `rgba(…, 0)` and tells
+     * you nothing. The first version skipped exactly those, and passed against a
+     * 10%-white list on a dark ground, which is the design the shop complained
+     * about.
+     *
+     * So: walk up until something paints, and judge that.
+     */
+    const surfaceOf = (el: HTMLElement): { el: HTMLElement; colour: string } | null => {
+      let node: HTMLElement | null = el;
+      while (node && node !== document.body) {
+        const colour = getComputedStyle(node).backgroundColor;
+        if (alphaOf(colour) > 0) return { el: node, colour };
+        node = node.parentElement;
+      }
+      return null;
+    };
+
+    for (const card of cards) {
+      const surface = surfaceOf(card);
+      if (surface === null) {
+        out.push({
+          what: "a product sits on nothing",
+          detail: `${(card.textContent ?? "").trim().slice(0, 30)} has no painted surface anywhere above it`,
+        });
+        break;
+      }
+
+      if (alphaOf(surface.colour) >= 0.95) continue;   // opaque: a real surface
+
+      out.push({
+        what: "a card is a tint, not a surface",
+        detail: `${(card.textContent ?? "").trim().slice(0, 30)} is drawn on ${surface.colour} — ` +
+          "translucent over the ground behind it, so it has no findable edge",
+      });
+      break; // one is enough to act on
+    }
+    // THE DENOMINATOR. A till with no shift open draws no product tiles at all,
+    // and this rule then passed against the very design it was written to
+    // reject — it had examined nothing. Again.
+    return { findings: out, examined: cards.length };
+  });
+}
+
+/**
  * DID THIS PAGE ACTUALLY RENDER?
  *
  * Every rule in this file is of the form "nothing here is wrong", and a page
@@ -421,6 +560,111 @@ export async function pinnedThingsDoNotSitOnThePage(page: Page): Promise<Finding
  * So it counts what is on the screen — elements and visible text — because
  * "did this render" is a question about content, not about controls.
  */
+/**
+ * PUT THE PAGE BACK TO WHAT A FINGER CAN REACH.
+ *
+ * `scrollIntoViewIfNeeded` — and `scrollTop = n` generally — will scroll a box
+ * whose `overflow` is `hidden`. A finger will not: `overflow: hidden` means no
+ * touch scrolling, no wheel, no scrollbar. So a check that scrolls an element
+ * into view and then asks "is it visible" can answer YES about content the shop
+ * can never see, which is exactly how the cart test went green while the phone
+ * showed three lines of nine.
+ *
+ * Called before measuring, this undoes any scroll on a box that cannot be
+ * scrolled by hand, and leaves real scrollers exactly where they were.
+ */
+export async function onlyWhatAFingerCanReach(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+      if (el.scrollTop === 0 && el.scrollLeft === 0) continue;
+      const cs = getComputedStyle(el);
+      const scrollable = (v: string) => v === "auto" || v === "scroll";
+      if (!scrollable(cs.overflowY)) el.scrollTop = 0;
+      if (!scrollable(cs.overflowX)) el.scrollLeft = 0;
+    }
+  });
+}
+
+/**
+ * A SCROLLER MUST BE ABLE TO SHOW ITS OWN LAST LINE.
+ *
+ * The shop put nine lines in the cart and saw six. Not because the list would
+ * not scroll — it scrolled fine — but because the scroller's own box was TALLER
+ * THAN THE CARD THAT CLIPS IT. Its bottom 120px lay outside the frame, so the
+ * rows you scrolled down to arrived in a strip nobody can see. The scrollbar
+ * says you have reached the end; the end is behind the edge.
+ *
+ * This is what a `min-height` on a `flex-1` child does inside an
+ * `overflow-hidden` parent: min-height refuses to shrink, the parent refuses to
+ * grow, and the difference is simply cut off. It is invisible on the laptop it
+ * was written on, because there the pane is tall enough for the floor to never
+ * bind. Only a short viewport — a phone, a tablet held upright — makes it show,
+ * and only in a real browser: jsdom has no layout, so `scrollHeight` and
+ * `clientHeight` there are both 0 and every viewport looks identical.
+ *
+ * The rule measures the scroller against every ancestor that clips it, and
+ * reports how many pixels of its own viewport it cannot use.
+ */
+export async function scrollersCanReachTheirEnd(
+  page: Page,
+): Promise<{ findings: Finding[]; examined: number }> {
+  return page.evaluate(() => {
+    const out: Finding[] = [];
+    let examined = 0;
+
+    for (const el of Array.from(document.body.querySelectorAll<HTMLElement>("*"))) {
+      const cs = getComputedStyle(el);
+      const scrolls = cs.overflowY === "auto" || cs.overflowY === "scroll";
+      if (!scrolls) continue;
+
+      const box = el.getBoundingClientRect();
+      if (box.width < 40 || box.height < 40) continue;      // not a reading surface
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+
+      // Only scrollers with something to scroll TO. A short list that fits has
+      // no last line to lose.
+      if (el.scrollHeight <= el.clientHeight + 4) continue;
+
+      // Where the frame actually ends: the nearest ancestor that clips, and the
+      // window itself. Both cut the same way.
+      let bottom = innerHeight;
+      let culprit = "the screen";
+      let p = el.parentElement;
+      while (p) {
+        const ps = getComputedStyle(p);
+        if (ps.overflowY !== "visible") {
+          const c = p.getBoundingClientRect();
+          if (c.bottom < bottom) {
+            bottom = c.bottom;
+            culprit = p.className ? `.${String(p.className).split(/\s+/)[0]}` : `<${p.tagName.toLowerCase()}>`;
+          }
+        }
+        p = p.parentElement;
+      }
+
+      examined += 1;
+
+      const lost = Math.round(box.bottom - bottom);
+      if (lost <= 8) continue;                               // sub-pixel / border rounding
+
+      const label =
+        el.getAttribute("aria-label") ||
+        (el.textContent ?? "").trim().slice(0, 30) ||
+        `<${el.tagName.toLowerCase()}>`;
+
+      out.push({
+        what: `a scrolling list is taller than the frame that clips it`,
+        detail:
+          `"${label}" scrolls, but ${lost}px of its own viewport falls outside ${culprit} — ` +
+          `whatever you scroll into that strip can never be seen ` +
+          `(box ${Math.round(box.height)}px, frame ends at ${Math.round(bottom)}px)`,
+      });
+    }
+
+    return { findings: out, examined };
+  });
+}
+
 export async function renderedSize(page: Page): Promise<{ elements: number; text: number }> {
   return page.evaluate(() => ({
     elements: document.body.querySelectorAll("*").length,

@@ -137,13 +137,50 @@ describe("the tile grid fits the pane it lives in", () => {
     expect(grid).toContain("lg:grid-cols-4");
   });
 
+  it("the cart's list has no height floor to be clipped by", () => {
+    // The cart scroller carried `min-h-[19rem]`. A `min-height` on a `flex-1`
+    // child of an `overflow-hidden` card is a promise the parent cannot keep:
+    // the child refuses to shrink, the parent refuses to grow, and the
+    // difference is simply cut off — with `overflow: hidden` there is no finger
+    // that can scroll to it. On a phone that put 188px of the cart outside the
+    // card: nine lines went in and three could be seen.
+    //
+    // jsdom cannot measure that. It can hold the shape that caused it.
+    const scroller = SOURCE.match(/<div className="[^"]*flex-1 overflow-y-auto"/g) ?? [];
+
+    expect(scroller.length, "the cart's scroll area moved").toBeGreaterThan(0);
+    for (const cls of scroller) {
+      expect(cls, "a scroll area inside a clipped card cannot have a height floor")
+        .not.toMatch(/min-h-\[/);
+    }
+  });
+
+  it("a phone shows one pane at a time, a tablet shows both", () => {
+    // 664px of phone, minus the money bar and the top bar, leaves about 100px
+    // each for the catalog and the cart. Both panes are hidden behind the same
+    // switch below `sm` and both come back at `sm` — if only one of them
+    // carried the switch, the phone would show a blank half.
+    const panes = SOURCE.match(/phonePane === "(catalog|cart)" \? "flex" : "hidden"[^`]*/g) ?? [];
+
+    expect(panes.length, "the phone's pane switch is gone").toBe(2);
+    for (const p of panes) expect(p).toContain("sm:flex");
+  });
+
   it("the skeleton is the height of the tile it stands in for", () => {
     // A placeholder that is taller than the thing it becomes makes the grid
     // jump the moment products arrive — under a cashier's finger.
-    const skeleton = SOURCE.match(/animate-pulse rounded-xl bg-white\/\[0\.16\][^"]*/)?.[0] ?? "";
-    const image = SOURCE.match(/relative h-\d+ w-full bg-black\/25[^"]*/)?.[0] ?? "";
+    // Matched on SHAPE, not on colour. The first version of this pinned the
+    // skeleton by `bg-white/[0.16]` and the image well by `bg-black/25` — the
+    // two tints the tiles wore before they became solid cards. Recolour them
+    // and the regex matches nothing, `?? ""` hands back an empty string, and
+    // the rule reports "no tile skeleton" instead of the thing it is about. A
+    // rule keyed to a colour is a rule that expires the next time anyone
+    // paints.
+    const skeleton = SOURCE.match(/h-\d+ animate-pulse rounded-xl[^"]*/)?.[0] ?? "";
+    const image = SOURCE.match(/relative h-\d+ w-full bg-[^"]*/)?.[0] ?? "";
 
     expect(skeleton, "no tile skeleton").not.toBe("");
+    expect(image, "no tile image well").not.toBe("");
     // Both step at the same breakpoint, so the two never disagree about size.
     expect(skeleton).toContain("xl:h-");
     expect(image).toContain("xl:h-");

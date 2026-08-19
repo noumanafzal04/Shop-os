@@ -183,7 +183,12 @@ export default function PurchaseOrdersPage() {
         <Button size="sm" onClick={openCreate}>+ New purchase order</Button>
       </div>
 
-      <div className="mb-4 flex gap-2">
+      {/* `flex-wrap`. Six status chips — one of them "partially received" — do
+          not fit across a 390px phone, and without wrapping they pushed the
+          whole PAGE 59px wider than the window. A page that scrolls sideways
+          has no scrollbar to say so, so the right-hand column of the table
+          below simply is not there. */}
+      <div className="mb-4 flex flex-wrap gap-2">
         {["", "draft", "ordered", "partially_received", "received", "cancelled"].map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)}
             className={`rounded-full border px-3 py-1 text-theme-xs capitalize transition ${statusFilter === s ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10" : "border-gray-200 text-gray-500 dark:border-gray-700"}`}>

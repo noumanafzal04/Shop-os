@@ -28,3 +28,36 @@ Three viewports, and the middle one is the one that broke:
 it in `package.json`. The unit suite then failed 201 tests with `localStorage is
 not defined` — which reads exactly like a code regression and is not one. If you
 see that, run `npm install` and it comes back.
+
+## Rebuild before you believe a result
+
+`playwright.config.ts` sets `reuseExistingServer: true`. If a preview server from
+an earlier run is still up, **your source changes are not in it** — the suite
+runs the previous build. A newly added test hook simply will not exist, and the
+failure reads like a layout defect.
+
+```bash
+lsof -ti:4173 | xargs -r kill && npm run build
+```
+
+## The shelf is a fixture, and it is built
+
+`shelf.setup.ts` runs between `auth.setup.ts` and the specs. The till correctly
+disables a tracked product it has no stock of, and the sweep's mart has stock on
+five items — so a cart of nine lines was impossible and the full-cart spec passed
+by describing a five-line cart. The setup tops products up (creating its own if
+the catalog is thin) and **fails** if it cannot get enough: a thin shelf must stop
+the suite, not quietly shrink what the suite can see.
+
+## Reach for things the way a person would
+
+`page.scrollIntoViewIfNeeded()` — and `el.scrollTop = n` — **will scroll a box
+whose `overflow` is `hidden`**. A finger will not. A check that scrolls an
+element into view and then asks "is it visible" can answer YES about content the
+shop can never reach; that is exactly how the cart spec went green while a phone
+showed three lines of nine.
+
+Call `onlyWhatAFingerCanReach(page)` before measuring. And when you walk up for a
+scroll container, remember `overflow-x-auto` computes **`overflow-y: auto` too** —
+require `scrollHeight > clientHeight` or you will find a horizontal wrapper and
+scroll nothing.

@@ -562,6 +562,18 @@ export default function PosPage() {
   const [customer, setCustomer] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [orderType, setOrderType] = useState<"takeaway" | "dine_in">("takeaway");
+
+  // WHICH HALF OF THE TILL A PHONE IS SHOWING.
+  //
+  // Only below `sm`. A phone is 664px tall: the money bar wants 188 of it and
+  // the top bar 51, which leaves 425 for the catalog AND the cart together —
+  // about a hundred pixels of list each, or one line of a nine-line sale. Two
+  // panes do not fit on a phone, and shrinking them both until they equally
+  // fail to work is not a layout, it is an apology. So on a phone they take
+  // turns: full height each, and the Grand Total and Tender stay on screen
+  // throughout, because that is the one thing you must never have to go and
+  // look for. A tablet is unaffected — from `sm` up both panes are on at once.
+  const [phonePane, setPhonePane] = useState<"catalog" | "cart">("catalog");
   const [tableNo, setTableNo] = useState("");
   const [discount, setDiscount] = useState("");
   const [method, setMethod] = useState<"cash" | "card" | "credit" | "split">("cash");
@@ -1786,7 +1798,7 @@ export default function PosPage() {
        *
        * Panes are divided by a hairline rather than a gutter, so no width is
        * wasted at the screen edges. */}
-      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)_auto]">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] sm:grid-rows-[minmax(0,1fr)_minmax(0,1.35fr)_auto] lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)_auto]">
         {/* ── Products / scan ─────────────────────────────────────── */}
         {/* The scan side sits on the dark primary. Two-tone is doing the work a
             border cannot: the eye finds "where I look things up" and "where the
@@ -1798,7 +1810,32 @@ export default function PosPage() {
             two-tone split survives whichever theme the shop runs; the cards on
             it still follow the theme, which is why nothing inside had to be
             re-coloured except the few labels that had no card under them. */}
-        <div className="flex min-h-0 flex-col overflow-hidden bg-pos-ground p-3 lg:col-span-6 xl:col-span-5">
+        <div className="flex gap-1 bg-pos-ground px-3 pt-2 sm:hidden">
+          {([["catalog", "Products"], ["cart", "Cart"]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setPhonePane(k)}
+              aria-pressed={phonePane === k}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                phonePane === k
+                  ? "border-brand-400 bg-white text-brand-600 shadow-sm"
+                  : "border-white/15 text-white/70"
+              }`}
+            >
+              {label}
+              {k === "cart" && cart.length > 0 && (
+                <span className={`min-w-5 rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${
+                  phonePane === k ? "bg-brand-500 text-white" : "bg-white/20 text-white"
+                }`}>
+                  {cart.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className={`${phonePane === "catalog" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-pos-ground p-3 sm:flex lg:col-span-6 xl:col-span-5`}>
           {/* Everything you type or scan into, in one raised card. Loose
               controls on a dark ground read as floating; a card gives the
               scan box a home and an edge to aim at. */}
@@ -2032,11 +2069,11 @@ export default function PosPage() {
              * at `xl` where the pane is a little wider. */
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-2 xl:gap-2.5">
               {products.isLoading && tiles.length === 0 ? (
-                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-white/[0.16] xl:h-36" />)
+                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-white/70 xl:h-36 dark:bg-gray-800" />)
               ) : productsDenied ? (
                 <div className="col-span-full"><NoAccess reason={productsDenied} what="the product list" /></div>
               ) : tiles.length === 0 ? (
-                <p className="col-span-full py-8 text-center text-sm text-white/60">No products match.</p>
+                <p className="col-span-full py-8 text-center text-sm text-white/70">No products match.</p>
               ) : (
                 tiles.map((p, i) => {
                   const img = p.images?.[0]?.url;
@@ -2054,6 +2091,13 @@ export default function PosPage() {
                   return (
                     <button
                       key={p.id}
+                      /* A stable hook for the browser tests. They used to find
+                         these by guessing at class names — "a button wider than
+                         80px with `rounded` in its classes" — which matched the
+                         tiles and none of the rows, so the card-surface rule
+                         examined one element and passed against the very design
+                         the shop had complained about. */
+                      data-pos-item="tile"
                       ref={i === activeIndex ? activeRef : null}
                       disabled={out}
                       onClick={() => commitProduct(p)}
@@ -2072,13 +2116,32 @@ export default function PosPage() {
                        * the brightest thing on it" — and at 10% it was not.
                        * Now it is, with the border raised to match so the edge
                        * is findable rather than inferred. */
-                      className={`group flex flex-col overflow-hidden rounded-xl border bg-white/[0.16] text-left transition hover:border-brand-400 hover:bg-white/[0.24] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-white/15 disabled:hover:bg-white/[0.16] ${i === activeIndex ? "border-brand-400 bg-brand-500/30 ring-2 ring-brand-400/70" : "border-white/15"}`}
+                      /* A WHITE CARD ON THE DARK GROUND.
+                       *
+                       * It was a 16% white tint, which is a tint and not a
+                       * card: on a tablet under shop lighting the shop could
+                       * not see where one product ended and the next began —
+                       * "simple text show ho raha, identify nahi ho raha ke ye
+                       * cards hain". Raising the tint had already been tried
+                       * and was not enough, because the problem is not
+                       * brightness but EDGE: a translucent panel on a dark
+                       * ground has no edge at any opacity.
+                       *
+                       * The Floor screen already had the answer — solid white,
+                       * a real grey border, dark text — and the shop said so.
+                       * The ground stays dark: the till is a dark room with lit
+                       * objects on it, and the objects are the products. */
+                      className={`group flex flex-col overflow-hidden rounded-xl border text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                        i === activeIndex
+                          ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
+                          : "border-gray-200 bg-white hover:border-brand-400 hover:shadow-md dark:border-gray-700 dark:bg-gray-900"
+                      }`}
                     >
-                      <div className="relative h-20 w-full bg-black/25 xl:h-24">
+                      <div className="relative h-20 w-full bg-gray-100 xl:h-24 dark:bg-gray-800">
                         {img ? (
                           <img src={img} alt="" className="h-full w-full object-cover" />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-white/30">
+                          <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-gray-300 dark:text-gray-600">
                             {p.name.charAt(0)}
                           </div>
                         )}
@@ -2097,11 +2160,11 @@ export default function PosPage() {
                         {p.modifier_groups?.length ? <span className="absolute right-1.5 top-1.5 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">options</span> : null}
                       </div>
                       <div className="flex flex-1 flex-col justify-between gap-1 p-2 xl:gap-1.5 xl:p-3">
-                        <span className="line-clamp-2 text-[12px] font-semibold leading-snug text-white xl:text-[13px]">{p.name}</span>
-                        <span className="text-[12px] font-bold tabular-nums text-brand-200 xl:text-[13px]">
+                        <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-800 dark:text-white/90">{p.name}</span>
+                        <span className="text-[14px] font-bold tabular-nums text-brand-600 dark:text-brand-400">
                           {money(sellingPrice(p))}
-                          {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-white/60">/{p.unit}</span> : null}
-                          {sale && <span className="ml-1 text-[11px] font-normal text-white/60 line-through">{money(p.price)}</span>}
+                          {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-gray-500 dark:text-gray-400">/{p.unit}</span> : null}
+                          {sale && <span className="ml-1 text-[11px] font-normal text-gray-400 line-through dark:text-gray-500">{money(p.price)}</span>}
                         </span>
                         {/* What the rows have always said. A tile with no
                             figure was fine for a kitchen, which counts
@@ -2109,7 +2172,7 @@ export default function PosPage() {
                             mart, and "how many are left" is half of why it
                             looks a product up. */}
                         {p.type === "product" && p.track_inventory && !out && (
-                          <span className="text-[10px] tabular-nums text-white/50">
+                          <span className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
                             {fmtQty(shownStock(p))}{p.unit ? ` ${p.unit}` : ""} left
                           </span>
                         )}
@@ -2123,13 +2186,16 @@ export default function PosPage() {
 
           {/* GROCERY / PHARMACY / others: dense, scan-first list of rows. */}
           {posLayout === "list" && (
-            <div className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/[0.10]">
+            /* The same white card the tiles became, for the same reason: a
+               10% tint on a dark ground is not a surface, and the shop could
+               not tell a row from the page it sits on. */
+            <div className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:divide-gray-800 dark:border-gray-700 dark:bg-gray-900">
               {products.isLoading && tiles.length === 0 ? (
-                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 animate-pulse bg-white/10" />)
+                Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 animate-pulse bg-gray-100 dark:bg-gray-800" />)
               ) : productsDenied ? (
                 <NoAccess reason={productsDenied} what="the product list" />
               ) : tiles.length === 0 ? (
-                <p className="py-8 text-center text-sm text-white/60">No products match.</p>
+                <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No products match.</p>
               ) : (
                 tiles.map((p, i) => {
                   const sale = onSale(p);
@@ -2138,34 +2204,35 @@ export default function PosPage() {
                   return (
                     <button
                       key={p.id}
+                      data-pos-item="row"
                       ref={active ? activeRef : null}
                       disabled={out}
                       onClick={() => commitProduct(p)}
-                      className={`group relative flex w-full items-center gap-3 px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${active ? "bg-brand-500/25 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-brand-400" : "hover:bg-white/[0.06]"}`}
+                      className={`group relative flex w-full items-center gap-3 px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${active ? "bg-brand-50 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-brand-500 dark:bg-brand-500/15" : "hover:bg-gray-50 dark:hover:bg-white/[0.04]"}`}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[13px] font-semibold text-white">
+                        <div className="truncate text-[14px] font-semibold text-gray-800 dark:text-white/90">
                           {p.name}
-                          {p.brand ? <span className="ml-1.5 text-[11px] font-normal text-white/60">{p.brand}</span> : null}
+                          {p.brand ? <span className="ml-1.5 text-[12px] font-normal text-gray-500 dark:text-gray-400">{p.brand}</span> : null}
                         </div>
-                        <div className="truncate text-[11px] text-white/60">
-                          {p.generic_name ? <span className="text-white/60">{p.generic_name}</span> : null}
+                        <div className="truncate text-[12px] text-gray-500 dark:text-gray-400">
+                          {p.generic_name ? <span>{p.generic_name}</span> : null}
                           {p.generic_name && (p.sku || p.type === "product") ? " · " : null}
                           {p.sku ? `#${p.sku}` : null}
                           {p.item_type === "deal" ? `${p.sku ? " · " : ""}Deal` : p.type === "product" && p.track_inventory ? `${p.sku ? " · " : ""}stock ${fmtQty(shownStock(p))}${p.unit ? " " + p.unit : ""}` : null}
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <div className="text-[12px] font-bold tabular-nums text-brand-200">
+                        <div className="text-[14px] font-bold tabular-nums text-brand-600 dark:text-brand-400">
                           {money(sellingPrice(p))}
-                          {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-white/60">/{p.unit}</span> : null}
+                          {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-gray-500 dark:text-gray-400">/{p.unit}</span> : null}
                         </div>
-                        {sale && <div className="text-[11px] text-white/60 line-through">{money(p.price)}</div>}
+                        {sale && <div className="text-[11px] text-gray-400 line-through dark:text-gray-500">{money(p.price)}</div>}
                       </div>
                       <span
                         className={`flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition ${
                           out
-                            ? "border border-white/15 text-white/40"
+                            ? "border border-gray-300 text-gray-400 dark:border-gray-700 dark:text-gray-500"
                             : "bg-brand-500 text-white group-hover:bg-brand-400 group-active:bg-brand-600"
                         }`}
                       >
@@ -2223,10 +2290,10 @@ export default function PosPage() {
             a plain white card, so every chip, row and figure inside stays
             exactly as legible as it was; colour is doing navigation here, not
             decoration, and it never lands on anything you have to read. */}
-        <div className="flex min-h-0 flex-col overflow-hidden bg-pos-ground p-3 lg:col-span-6 xl:col-span-7">
+        <div className={`${phonePane === "cart" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-pos-ground p-3 sm:flex lg:col-span-6 xl:col-span-7`}>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white dark:bg-gray-900">
             {/* Cart header — item count, customer, clear */}
-            <div className="flex items-center gap-2 border-b border-brand-100 bg-brand-50/60 px-4 py-3 dark:border-brand-500/20 dark:bg-brand-500/10">
+            <div className="flex items-center gap-2 border-b border-brand-100 bg-brand-50/60 px-3 py-2 sm:px-4 sm:py-3 dark:border-brand-500/20 dark:bg-brand-500/10">
               <span className="flex shrink-0 items-center gap-2 text-base font-bold tracking-tight text-gray-900 dark:text-white">
                 Cart
                 {/* The count is the one number in this header, so it gets a
@@ -2348,11 +2415,17 @@ export default function PosPage() {
             {/* Lines + details share ONE scroll area, so the item list keeps the
                 most room on short laptop screens; only the totals/payment bar
                 below stays pinned and always visible.
-                min-h holds room for about seven lines: a basket shorter than
-                that shouldn't make the payment bar jump up the screen, and a
-                cart that resizes under the cashier's hand is how the wrong row
-                gets clicked. */}
-            <div className="min-h-[19rem] flex-1 overflow-y-auto">
+                
+                NO `min-h` HERE. It used to carry `min-h-[19rem]` — room for
+                about seven lines, so a short basket would not make the payment
+                bar jump up the screen. That bar has since moved OUT of this
+                card and along the bottom of the whole till, so the floor was
+                holding nothing up any more; what it still did was refuse to
+                shrink. Inside an `overflow-hidden` card on a phone — where this
+                pane is 128px tall — a 304px floor put 188px of the list
+                OUTSIDE the card, and `overflow: hidden` means no finger can
+                ever scroll to it. Nine lines went in and three could be seen. */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="min-w-full overflow-x-auto">
                 {cart.length === 0 ? (
                   <p className="py-16 text-center text-sm text-gray-400">Cart is empty — scan or tap a product.</p>
@@ -2366,7 +2439,14 @@ export default function PosPage() {
                         <th className="sticky top-0 z-1 w-8 border-b border-brand-100 bg-brand-50 px-2 py-2 text-left font-semibold dark:border-gray-800 dark:bg-gray-900">#</th>
                         <th className="sticky top-0 z-1 border-b border-brand-100 bg-brand-50 px-2 py-2 text-left font-semibold dark:border-gray-800 dark:bg-gray-900">Item</th>
                         <th className="sticky top-0 z-1 border-b border-brand-100 bg-brand-50 px-2 py-2 text-center font-semibold dark:border-gray-800 dark:bg-gray-900">Qty</th>
-                        {["Price","Disc","Tax","Total"].map((h) => (<th key={h} className="sticky top-0 z-1 border-b border-brand-100 bg-brand-50 px-2 py-2 text-right font-semibold dark:border-gray-800 dark:bg-gray-900">{h}</th>))}
+                        {/* Disc and Tax leave the TABLE on a phone and rejoin
+                            the item's own sub-line below — see the row. Eight
+                            columns in 390px wrapped every row onto three lines
+                            (73px each), so a cart of nine showed none of itself
+                            in the 97px the pane had. Nothing is hidden: a line
+                            that HAS a discount or a tax says so, in words, next
+                            to the thing it applies to. */}
+                        {["Price","Disc","Tax","Total"].map((h) => (<th key={h} className={`sticky top-0 z-1 border-b border-brand-100 bg-brand-50 px-2 py-2 text-right font-semibold dark:border-gray-800 dark:bg-gray-900 ${h === "Disc" || h === "Tax" ? "hidden sm:table-cell" : ""}`}>{h}</th>))}
                         <th className="sticky top-0 z-1 w-8 border-b border-brand-100 bg-brand-50 px-2 py-2 dark:border-gray-800 dark:bg-gray-900" />
                       </tr>
                     </thead>
@@ -2386,7 +2466,7 @@ export default function PosPage() {
                           : 0;
                         const hasWholesale = l.wholesale_price != null && Number(l.wholesale_price) > 0;
                         return (
-                          <tr key={l.key} onClick={() => { setEditKey(l.key); lineEditModal.openModal(); }}
+                          <tr key={l.key} data-cart-row onClick={() => { setEditKey(l.key); lineEditModal.openModal(); }}
                             className="cursor-pointer border-b border-gray-100 transition hover:bg-brand-50/40 dark:border-gray-800 dark:hover:bg-brand-500/5">
                             <td className="px-2 py-1.5 text-left font-medium text-gray-400 tabular-nums">{idx + 1}</td>
                             <td className="px-2 py-1.5 text-left">
@@ -2397,6 +2477,15 @@ export default function PosPage() {
                                 {l.unit_name ? <span>{l.unit_name}</span> : null}
                                 {!l.product_unit_id && l.price_level !== "wholesale" && eff < (l.base_price ?? l.unit_price) ? <span className="font-medium text-success-500">bulk</span> : null}
                                 {l.modifiers_label ? <span className="truncate">{l.modifiers_label}</span> : null}
+                                {/* Phone only: the two columns that stood down.
+                                    Shown only when they are not zero, so a
+                                    plain line stays one short line. */}
+                                {disc > 0 && (
+                                  <span className="font-medium text-warning-600 sm:hidden dark:text-warning-400">
+                                    −{money(disc)}{discPct > 0 ? ` (${discPct}%)` : ""}
+                                  </span>
+                                )}
+                                {lineTax > 0 && <span className="sm:hidden">tax {money(lineTax)}</span>}
                               </div>
                               {(l.tracks_serial || hasWholesale) && (
                                 <div className="mt-1 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -2459,7 +2548,7 @@ export default function PosPage() {
                               </div>
                             </td>
                             <td className="px-2 py-1.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{money(eff)}</td>
-                            <td className={`px-2 py-1.5 text-right tabular-nums ${disc > 0 ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-400"}`}>
+                            <td className={`hidden px-2 py-1.5 text-right tabular-nums sm:table-cell ${disc > 0 ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-400"}`}>
                               {disc > 0 ? (
                                 <>
                                   −{money(disc)}
@@ -2467,7 +2556,7 @@ export default function PosPage() {
                                 </>
                               ) : "—"}
                             </td>
-                            <td className="px-2 py-1.5 text-right tabular-nums text-gray-500 dark:text-gray-400">{lineTax > 0 ? money(lineTax) : "—"}</td>
+                            <td className="hidden px-2 py-1.5 text-right tabular-nums text-gray-500 sm:table-cell dark:text-gray-400">{lineTax > 0 ? money(lineTax) : "—"}</td>
                             <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-gray-900 dark:text-white/90">{money(lineNet(l))}</td>
                             <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                               {/* The ONE way a line leaves the cart, so it is
@@ -2673,7 +2762,7 @@ export default function PosPage() {
                 greyed, money is the only thing set bold, and the customer —
                 which is not a number — loses the tabular figures it never
                 should have had. */}
-            <div className="grid grid-cols-4 gap-x-4 gap-y-1 rounded-xl border border-gray-200 bg-white px-3 py-2 md:col-span-2 lg:col-span-3 lg:gap-y-2 lg:px-4 lg:py-3 dark:border-gray-800 dark:bg-white/[0.02]">
+            <div className="grid grid-cols-4 gap-x-3 gap-y-0.5 rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 sm:gap-x-4 sm:gap-y-1 sm:px-3 sm:py-2 md:col-span-2 lg:col-span-3 lg:gap-y-2 lg:px-4 lg:py-3 dark:border-gray-800 dark:bg-white/[0.02]">
               {(() => {
                 const discountTotal = cartDiscount + lineDiscountTotal;
                 const cells: Array<{ k: string; v: string; num?: boolean; tone?: "discount" | "muted" }> = [
@@ -2690,7 +2779,7 @@ export default function PosPage() {
                   <div key={i} className="min-w-0">
                     <div className="truncate text-[10px] font-semibold uppercase leading-tight tracking-wider text-gray-400 dark:text-gray-500">{c.k}</div>
                     <div
-                      className={`mt-0.5 truncate text-[15px] font-bold leading-tight ${c.num ? "tabular-nums" : ""} ${
+                      className={`mt-0.5 truncate text-[13px] font-bold leading-tight sm:text-[15px] ${c.num ? "tabular-nums" : ""} ${
                         c.tone === "discount"
                           ? "text-warning-600 dark:text-warning-400"
                           : c.tone === "muted"
@@ -2704,12 +2793,21 @@ export default function PosPage() {
                 ));
               })()}
             </div>
-            <div className="flex flex-col justify-center rounded-xl border border-brand-200 bg-gradient-to-br from-brand-100 to-brand-50 px-4 py-3 dark:border-brand-500/30 dark:from-brand-500/15 dark:to-brand-500/5">
-              <div className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-brand-600 dark:text-brand-400">Grand Total</div>
-              <div className="mb-2 mt-1 text-4xl font-extrabold leading-none tabular-nums text-gray-900 dark:text-white">{money(total)}</div>
+            {/* One ROW on a phone, a tower from `md` up.
+                Stacked — label, then a 4xl figure, then a full-width button —
+                this block was 150px tall, and on a 664px phone the money bar
+                as a whole took 248px: more than the cart and the catalog put
+                together. Side by side it is half that, and the height goes
+                where a cashier needs it, which is the list of what they are
+                selling. Nothing is dropped or made smaller than a thumb. */}
+            <div className="flex flex-row items-center justify-between gap-3 rounded-xl border border-brand-200 bg-gradient-to-br from-brand-100 to-brand-50 px-4 py-3 md:flex-col md:items-stretch md:justify-center dark:border-brand-500/30 dark:from-brand-500/15 dark:to-brand-500/5">
+              <div className="min-w-0">
+                <div className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-brand-600 dark:text-brand-400">Grand Total</div>
+                <div className="mt-1 truncate text-3xl font-extrabold leading-none tabular-nums text-gray-900 md:mb-2 md:text-4xl dark:text-white">{money(total)}</div>
+              </div>
               <button type="button" disabled={cart.length === 0 || !canRing}
                 onClick={() => { setMethod(defaultTender); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40">
+                className="flex w-auto shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40 md:w-full md:px-0">
                 <CardGlyph /> Tender / Pay
                   {/* Hidden below xl: a counter tablet has no keyboard, and a
                       key hint nobody can press is a promise the screen breaks. */}
