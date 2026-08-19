@@ -8,6 +8,7 @@ use App\Models\FuelNozzle;
 use App\Models\FuelPump;
 use App\Models\FuelTank;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -562,6 +563,80 @@ class FuelManagementTest extends TestCase
         $this->assertEquals(268.50, $change['old_price']);
         $this->assertEquals(275.00, $change['new_price']);
         $this->assertEquals(275.00, $this->petrol->fresh()->price);
+    }
+
+    /**
+     * TOMORROW'S RATE DOES NOT PRICE TONIGHT'S PETROL.
+     *
+     * A price notification arrives in the evening and takes effect at midnight.
+     * Every station enters it when the fax comes, which is hours before it
+     * applies — the request that carries `effective_at` says exactly this where
+     * the field is declared.
+     *
+     * The action wrote the new price onto the product unconditionally, so a
+     * station that entered tomorrow's rate at 8pm sold the whole night at it.
+     * On the one night of the month when rates change, that is the busiest a
+     * forecourt gets, and nothing anywhere errored.
+     */
+    public function test_a_rate_logged_for_tomorrow_does_not_move_the_pumps_tonight(): void
+    {
+        $tonight = (float) $this->petrol->price;
+
+        $change = $this->actingAsUser($this->owner)
+            ->postJson('/api/v1/fuel/prices', [
+                'product_id' => $this->petrol->id,
+                'new_price' => 275.00,
+                'effective_at' => now()->addDay()->startOfDay()->toIso8601String(),
+                'reason' => 'OGRA notification, effective midnight',
+            ])
+            ->assertCreated()->json('data');
+
+        $this->assertEquals(275.00, $change['new_price'], 'the rate is recorded');
+        $this->assertNull($change['applied_at'], 'and not applied yet');
+        $this->assertEquals($tonight, (float) $this->petrol->fresh()->price);
+
+        // A litre sold tonight is still tonight's price. This is the half that
+        // matters to a customer at the pump.
+        $this->ringUpFuel($this->petrol->fresh(), 1);
+        $sale = Sale::query()->latest('sold_at')->with('items')->first();
+        $this->assertEquals($tonight, (float) $sale->items->first()->unit_price);
+    }
+
+    /** And at midnight it does arrive — a rate nobody applies is a rate nobody has. */
+    public function test_a_rate_reaches_the_pumps_once_it_falls_due(): void
+    {
+        $this->actingAsUser($this->owner)
+            ->postJson('/api/v1/fuel/prices', [
+                'product_id' => $this->petrol->id,
+                'new_price' => 275.00,
+                'effective_at' => now()->addHours(4)->toIso8601String(),
+            ])
+            ->assertCreated();
+
+        $this->assertEquals(268.50, (float) $this->petrol->fresh()->price);
+
+        $this->travel(5)->hours();
+        $this->artisan('fuel:apply-rates')->assertExitCode(0);
+
+        $this->assertEquals(275.00, (float) $this->petrol->fresh()->price);
+
+        // Idempotent: running again must not re-apply anything, or a rate that
+        // somebody has since corrected by hand would be silently reinstated
+        // every five minutes for ever.
+        $this->petrol->fresh()->update(['price' => 280.00]);
+        $this->artisan('fuel:apply-rates')->assertExitCode(0);
+        $this->assertEquals(280.00, (float) $this->petrol->fresh()->price);
+    }
+
+    /** The ordinary case, and the one the old behaviour got right: apply now. */
+    public function test_a_rate_with_no_effective_time_applies_at_once(): void
+    {
+        $this->actingAsUser($this->owner)
+            ->postJson('/api/v1/fuel/prices', ['product_id' => $this->petrol->id, 'new_price' => 275.00])
+            ->assertCreated()
+            ->assertJsonPath('data.new_price', '275.00');
+
+        $this->assertEquals(275.00, (float) $this->petrol->fresh()->price);
     }
 
     public function test_only_what_a_tank_holds_can_be_repriced_as_fuel(): void

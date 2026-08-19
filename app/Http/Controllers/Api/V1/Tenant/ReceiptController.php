@@ -274,11 +274,24 @@ class ReceiptController extends Controller
         $failed = ReceiptPrint::query()
             ->with(['sale:id,invoice_number,total,sold_at', 'user:id,name'])
             ->where('status', ReceiptPrint::FAILED)
+            // "Later" is COPY NUMBER, not clock time.
+            //
+            // `printed_at` is a second-precision timestamp, and a reprint that
+            // follows a failure inside the same second — a till retrying, a
+            // fallback to the second printer — ties rather than exceeds it. The
+            // `>` then never matched, so the receipt stayed in the tray after it
+            // had come out, for ever. A tray that never empties buries the one
+            // receipt that really is missing under fifty that were sorted out
+            // hours ago.
+            //
+            // `copy_no` is the sequence itself: monotonic, per sale, assigned by
+            // `nextCopyNo`, and with no precision to lose. The subquery is
+            // already scoped to one sale, which is exactly where copy_no counts.
             ->whereNotExists(function ($q): void {
                 $q->selectRaw(1)
                     ->from('receipt_prints as later')
                     ->whereColumn('later.sale_id', 'receipt_prints.sale_id')
-                    ->whereColumn('later.printed_at', '>', 'receipt_prints.printed_at')
+                    ->whereColumn('later.copy_no', '>', 'receipt_prints.copy_no')
                     ->where('later.status', ReceiptPrint::PRINTED);
             })
             ->orderByDesc('printed_at')

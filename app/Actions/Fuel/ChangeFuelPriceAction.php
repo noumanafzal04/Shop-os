@@ -7,6 +7,7 @@ use App\Models\FuelPriceChange;
 use App\Models\FuelTank;
 use App\Models\Product;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -56,16 +57,36 @@ class ChangeFuelPriceAction
                 );
             }
 
+            $effectiveAt = $data['effective_at'] ?? now();
+            $due = Carbon::parse($effectiveAt)->lessThanOrEqualTo(now());
+
             $change = FuelPriceChange::query()->create([
                 'product_id' => $product->id,
                 'old_price' => $oldPrice,
                 'new_price' => $newPrice,
-                'effective_at' => $data['effective_at'] ?? now(),
+                'effective_at' => $effectiveAt,
+                'applied_at' => $due ? now() : null,
                 'changed_by' => $user->id,
                 'reason' => $data['reason'] ?? null,
             ]);
 
-            $product->update(['price' => $newPrice]);
+            // LOGGING A RATE IS NOT APPLYING IT.
+            //
+            // A notification arrives in the evening and takes effect at
+            // midnight — the request that carries this says so where
+            // `effective_at` is declared, and a station enters tomorrow's rate
+            // before it applies because that is when the fax comes.
+            //
+            // This line used to run unconditionally, so entering tomorrow's
+            // rate at 8pm repriced the pumps at 8pm. Every litre sold that
+            // night went out at the wrong rate, on the one night of the month
+            // when a forecourt is busiest, and nothing anywhere errored.
+            //
+            // A future rate is now recorded and left alone; `fuel:apply-rates`
+            // moves the price when it falls due. See routes/console.php.
+            if ($due) {
+                $product->update(['price' => $newPrice]);
+            }
 
             return $change->fresh('product');
         });

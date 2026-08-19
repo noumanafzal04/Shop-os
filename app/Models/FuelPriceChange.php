@@ -24,6 +24,7 @@ class FuelPriceChange extends Model
             'old_price' => 'decimal:2',
             'new_price' => 'decimal:2',
             'effective_at' => 'datetime',
+            'applied_at' => 'datetime',
         ];
     }
 

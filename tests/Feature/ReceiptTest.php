@@ -337,7 +337,34 @@ class ReceiptTest extends TestCase
             ->assertOk();
 
         // Retry: a second render that nobody reports as failed.
-        $this->travel(1)->seconds();
+        //
+        // NO TIME TRAVEL. This line used to read `$this->travel(1)->seconds()`
+        // before the retry, and that one line was the difference between a
+        // passing test and a working feature: `printed_at` is a second-precision
+        // timestamp, the tray asked for a print with a strictly LATER one, and
+        // the test quietly arranged for there to be one.
+        //
+        // Nothing arranges that at a counter. A till retrying a failed job, or
+        // falling back to the second printer, does it inside the same second —
+        // and the receipt then stayed in the tray after it had come out, for
+        // ever. The tray is keyed on `copy_no` now, which is the sequence
+        // itself and has no precision to lose.
+        $this->fetchReceipt($sale)->assertOk();
+
+        $this->actingAsUser($this->cashier)->getJson('/api/v1/receipts/pending')
+            ->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    /** And a reprint minutes later clears it too — the ordinary case. */
+    public function test_a_good_print_much_later_clears_the_tray_as_well(): void
+    {
+        $sale = $this->ringSale();
+        $printId = $this->fetchReceipt($sale)->assertOk()->headers->get('X-Receipt-Print-Id');
+        $this->actingAsUser($this->cashier)
+            ->postJson("/api/v1/receipt-prints/{$printId}/outcome", ['status' => 'failed'])
+            ->assertOk();
+
+        $this->travel(20)->minutes();
         $this->fetchReceipt($sale)->assertOk();
 
         $this->actingAsUser($this->cashier)->getJson('/api/v1/receipts/pending')

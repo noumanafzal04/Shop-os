@@ -1,9 +1,12 @@
 <?php
 
 use App\Actions\Inventory\NotifyExpiringStock;
+use App\Models\FuelPriceChange;
+use App\Models\Product;
 use App\Services\ReservationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -17,6 +20,51 @@ Artisan::command('reservations:expire', function (ReservationService $service) {
 })->purpose('Expire overdue reservations and release held stock');
 
 Schedule::command('reservations:expire')->everyFiveMinutes();
+
+/**
+ * Rates that have fallen due.
+ *
+ * A price notification is entered the evening before and takes effect at
+ * midnight. Recording it must not move the pumps — that was the bug: a station
+ * that entered tomorrow's rate at 8pm sold the whole night at it.
+ *
+ * So a future rate sits unapplied until this runs. Every five minutes, like the
+ * reservation sweeper: at worst the forecourt keeps last night's rate for five
+ * minutes after midnight, which is a great deal better than charging tomorrow's
+ * for four hours before it.
+ *
+ * Ordered by `effective_at` so two notifications logged out of order still land
+ * in the order the government issued them, and the last one wins.
+ */
+Artisan::command('fuel:apply-rates', function (): void {
+    $due = FuelPriceChange::query()
+        ->withoutGlobalScopes()
+        ->whereNull('applied_at')
+        ->where('effective_at', '<=', now())
+        ->orderBy('effective_at')
+        ->get();
+
+    foreach ($due as $change) {
+        DB::transaction(function () use ($change): void {
+            /** @var Product|null $product */
+            $product = Product::query()->withoutGlobalScopes()
+                ->whereKey($change->product_id)->lockForUpdate()->first();
+
+            // The product may have been deleted since the notification was
+            // logged. The rate stays in the history — it is a record of what
+            // the government said — but there is nothing left to price.
+            if ($product !== null) {
+                $product->update(['price' => $change->new_price]);
+            }
+
+            $change->update(['applied_at' => now()]);
+        });
+    }
+
+    $this->info("Applied {$due->count()} fuel rate(s).");
+})->purpose('Apply fuel price notifications that have reached their effective time');
+
+Schedule::command('fuel:apply-rates')->everyFiveMinutes();
 
 /**
  * Stock that is about to stop being money.
