@@ -78,3 +78,5 @@
 - [Job Offered = Job Doable](shopos-job-offered-must-be-doable.md) — FIXED: restaurant offered a Purchasing job with every screen MODULE_DISABLED; a phase that chose its own shops hid it
 - [Which Day Is Open](shopos-which-day-is-open.md) — FIXED: today's banking landed on yesterday's unclosed day; 3 paths, 3 answers; the first test passed against the bug
 - [Screen Testing](shopos-screen-testing.md) — Playwright e2e/ is the ONLY thing that sees layout; jsdom has no layout engine; the suite tested one page 14x before its denominator caught it
+- [Fuel Rate & Receipt Tray](shopos-fuel-rate-and-receipt-tray.md) — FIXED: tomorrow's rate repriced pumps tonight; reprint never left the tray (second-precision tie); the test travelled 1s to hide it
+- [Cart Hid Its Lines](shopos-cart-hid-its-lines.md) — FIXED: min-h inside overflow-hidden put 188px of the cart outside the frame; scrollIntoViewIfNeeded scrolls what a finger cannot

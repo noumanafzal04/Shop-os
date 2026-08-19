@@ -276,7 +276,44 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-18 (latest) — the same blindness twice in one day
+### 2026-08-19 (latest) — the cart that hid its own lines
+
+> "i add 8,9 rows cart / on mobile and tablet showing 6,7 / last wali rows hide
+> ho rhi nichee"
+
+The cart's scroll area carried `min-h-[19rem]`. **A `min-height` on a `flex-1`
+child of an `overflow-hidden` card is a promise the parent cannot keep:** the
+child will not shrink, the parent will not grow, and the difference is *cut off,
+not scrolled* — and with `overflow: hidden` **no finger can reach it**. On a
+390×664 phone the cart pane is 128px and the floor demanded 304px, so **188px of
+the list lay outside the card**. Nine lines went in and three could be seen.
+
+The floor's own comment said it was there so a short basket would not make the
+payment bar jump. That bar had moved out of the card long before. It was holding
+nothing up.
+
+Two more changes came out of measuring it. On a phone, 664px minus a 51px top bar
+minus a 188px money bar leaves 425px for the catalog **and** the cart, so below
+`sm` the two panes now **take turns** behind a Products / Cart switch, with the
+Grand Total and Tender always on screen. And the cart's eight columns wrapped
+every row onto three lines at 390px — `Disc` and `Tax` now print on the item's
+own sub-line, only when non-zero. Row height 73px → 49px; money bar 248px → 177px.
+
+**The test written to catch this passed against the bug, three times over**, and
+the third is the one to remember: **`scrollIntoViewIfNeeded` will scroll an
+`overflow: hidden` box.** A finger will not. The check scrolled the last row into
+view, asked whether it was visible, and was told *yes* — about content nobody can
+see. A reachability check that reaches by means the user does not have is not a
+reachability check. Also: `overflow-x-auto` computes `overflow-y: auto` too, so
+the row's horizontal wrapper looked like the cart's scroller and swallowed the
+scroll; the fixture had five sellable products so a nine-line cart was
+impossible; and `reuseExistingServer: true` served a stale build in which a
+newly-added test hook did not exist yet. **Rebuild before believing an e2e
+result.**
+
+Full argument: [the cart that hid its own lines](docs/decisions/shopos-cart-that-hides-its-own-lines.md).
+
+### 2026-08-18 — the same blindness twice in one day
 
 `crypto.randomUUID` exists only in a **secure context**. Over plain http — every
 staging droplet on a bare IP, every shop without a certificate yet — it is
@@ -2930,12 +2967,12 @@ every fixture in the suite was built by the same hands that built the feature.
 ```bash
 cd shopos-backend && php artisan serve --port=8000
 cd docs/qa/sweep
-python3 run.py        # phases A–P, in the order each one needs
+python3 run.py        # phases A–Q, in the order each one needs
 python3 mutate.py     # break the sweep on purpose; every lie must be caught
 ```
 
-**Sixteen phases, 1,554 checks in one run, 23 of 23 mutations caught.** It has found four real
-defects, all the same shape — *one question, two paths, two different answers*:
+**Seventeen phases, 1,683 checks in one run, 26 of 26 mutations caught.** It has found six real
+defects, nearly all the same shape — *one question, two paths, two different answers*:
 
 - [The forecourt nobody could start](docs/decisions/shopos-forecourt-branch.md) —
   every station that configured its pumps through the panel was permanently
@@ -2989,6 +3026,14 @@ and everything passed, because an unchanging page has nothing covered and
 nothing off its edge. Only the denominator caught it: 1 tap target where the
 till has fifty.
 
+- [Two things a forecourt loses money on quietly](docs/decisions/shopos-fuel-rate-and-receipt-tray.md) —
+  a price notification entered at 8pm repriced the pumps at 8pm, so a station
+  sold the whole night at a rate that did not start until midnight; and a
+  reprinted receipt never left the till's tray, because the query compared a
+  second-precision timestamp and a same-second reprint ties rather than exceeds.
+  The test for the second one carried `$this->travel(1)->seconds()` — one line
+  that was the whole difference between a passing test and a working feature.
+
 Findings and the full argument live in
 [`docs/qa/FINDINGS.md`](docs/qa/FINDINGS.md) and
 [`docs/decisions/shopos-qa-sweep.md`](docs/decisions/shopos-qa-sweep.md).
@@ -2998,7 +3043,7 @@ Three things to know before you touch it:
 - **It reports, it does not pass or fail.** `BUG`, `QUERY` and `HARNESS`, and
   the middle one is why it exists — about half of what surprises the sweep turns
   out to be correct behaviour nobody had written down. Running total so far:
-  **47 harness findings, 4 product bugs**, and every one of the forty-seven
+  **55 harness findings, 6 product bugs**, and every one of the fifty-five
   looked like a defect on first read. Verify before believing; the base rate
   says it is the sweep. The worst of them was a permission probe that ran as
   the WRONG IDENTITY: a staff sign-in throttled to `None` fell back to the

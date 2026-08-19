@@ -283,7 +283,7 @@ def _the_day_is_the_sum_of_its_shifts(api: Api, rep: Report, code: str,
 # ── helpers ────────────────────────────────────────────────────────────
 
 DAY_BRANCH = "Sweep Day"
-MOST_BRANCHES = 12
+MOST_BRANCHES = 30
 
 
 def _its_own_branch(api: Api, rep: Report, code: str, token: str) -> str | None:
@@ -333,8 +333,13 @@ def _its_own_branch(api: Api, rep: Report, code: str, token: str) -> str | None:
             return None
         # This branch has already had its day closed today. Take the next one.
 
+    # Not a defect, and worth saying so plainly: a day closes once per branch
+    # per calendar day, so running this phase N times in one afternoon needs N
+    # branches. They come back by themselves at midnight.
     rep.query("P", f"{code} · a branch whose day is still open",
-              f"all {MOST_BRANCHES} sweep day branches are closed off for today")
+              f"all {MOST_BRANCHES} sweep day branches have had their day closed "
+              f"already today — they free themselves at midnight, or raise "
+              f"MOST_BRANCHES and the branches ceiling in phase A's ROOM")
     return None
 
 

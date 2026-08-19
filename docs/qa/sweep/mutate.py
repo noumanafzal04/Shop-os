@@ -38,6 +38,7 @@ import phase_m
 import phase_n
 import phase_o
 import phase_p
+import phase_q
 from api import Api, Report
 
 
@@ -76,6 +77,12 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         picked = ["mart"]
     if "n" in phases or "o" in phases or "p" in phases:
         picked = ["retail"]
+    # Phase Q's sharpest checks are a forecourt's, so petroleum has to be one of
+    # them. An earlier edit left the previous branch's `picked = ["retail"]`
+    # dangling INSIDE this one, overwriting the line above it — so the fuel
+    # mutations ran against a shop with no tanks and came back UNCLEAR twice.
+    if "q" in phases:
+        picked = [c for c in ("petroleum", "retail") if c in tenants]
     if "l" in phases:
         picked = ["food_restaurant"]
     shops = phase_b.run(api, rep, {c: tenants[c] for c in picked if c in tenants})
@@ -91,7 +98,12 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         if "f" in phases:
             api.token = api.login(phase_a.ADMIN)
             phase_f.run(api, rep, sold, tenants)
-        if "g" in phases:
+        # Phase Q's fuel checks need a forecourt, and phase G is what builds
+        # one. Without it `/fuel/tanks` is empty, the delivery check reports
+        # "no tank to deliver into" and quietly stops — which this harness then
+        # correctly called UNCLEAR rather than caught. A mutation aimed at a
+        # check that never runs proves nothing about the check.
+        if "g" in phases or "q" in phases:
             phase_g.run(api, rep, sold)
         if "h" in phases:
             phase_h.run(api, rep, sold)
@@ -112,6 +124,8 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
             phase_o.run(api, rep, sold)
         if "p" in phases:
             phase_p.run(api, rep, sold)
+        if "q" in phases:
+            phase_q.run(api, rep, sold)
         window = rep.rows[before:]
     finally:
         undo()
@@ -462,6 +476,45 @@ def main() -> int:
         phases=("p",),
     ))
 
+    # 24 · the receipt that never leaves the tray. A tray that never empties
+    #      buries the one receipt that really is missing under fifty that were
+    #      sorted out hours ago — which is the same as having no tray.
+    real_get_tray = Api.get
+    results.append(mutation(
+        "the tray keeps a receipt that printed",
+        "A REPRINTED RECEIPT LEAVES THE TRAY",
+        lambda: setattr(Api, "get", _tray_never_empties(real_get_tray)),
+        lambda: setattr(Api, "get", real_get_tray),
+        ran_marker="failed receipt is in the reprint tray",
+        phases=("q",),
+    ))
+
+    # 25 · the tanker that was billed for more than it delivered. Booking the
+    #      INVOICE into the tank leaves a station counting fuel that was never
+    #      in the ground, and finding out weeks later as an unexplained loss.
+    real_get_tank = Api.get
+    results.append(mutation(
+        "the tank counts the invoice, not the dip",
+        "THE TANK GAINS WHAT ARRIVED, NOT WHAT WAS BILLED",
+        lambda: setattr(Api, "get", _tank_counts_the_invoice(real_get_tank)),
+        lambda: setattr(Api, "get", real_get_tank),
+        ran_marker="shortage recorded",
+        phases=("q",),
+    ))
+
+    # 26 · tomorrow's rate on tonight's petrol. The bug this phase found, put
+    #      back: a station enters the notification at 8pm and sells the whole
+    #      night at a rate that does not start until midnight.
+    real_post_rate = Api.post
+    results.append(mutation(
+        "a future rate prices a sale made now",
+        "A RATE THAT HAS NOT STARTED DOES NOT PRICE ANYTHING",
+        lambda: setattr(Api, "post", _sale_takes_tomorrows_rate(real_post_rate)),
+        lambda: setattr(Api, "post", real_post_rate),
+        ran_marker="tomorrow's rate logged",
+        phases=("q",),
+    ))
+
     print("=" * 70)
     print(f"{sum(results)} of {len(results)} mutations caught")
     print("=" * 70)
@@ -476,6 +529,64 @@ def _module_off_for(real, paths: tuple[str, ...]):
                          "meta": {"error_code": "MODULE_DISABLED"}}
         return real(self, p, **kw)
     return faked
+
+
+def _tray_never_empties(real):
+    """The reprint tray keeps reporting a receipt that has already come out."""
+    kept = {"rows": None}
+
+    def call(self, p, **kw):
+        status, payload = real(self, p, **kw)
+        if p == "/receipts/pending" and status < 400:
+            rows = payload.get("data") or []
+            if rows:
+                kept["rows"] = rows          # remember it while it is owed
+            elif kept["rows"] is not None:
+                payload["data"] = kept["rows"]   # and never let go
+        return status, payload
+    return call
+
+
+def _tank_counts_the_invoice(real):
+    """
+    After a delivery, report the tank holding the INVOICED litres.
+
+    The first version of this mutation only WATCHED the delivery go past and
+    changed nothing, so the check passed and the harness called it caught —
+    a mutation that does not mutate proves the opposite of what it claims.
+    """
+    state = {"reads": 0}
+    short = 50.0   # phase Q bills 5000 and dips 4950
+
+    def call(self, p, **kw):
+        status, payload = real(self, p, **kw)
+        if p == "/fuel/tanks" and status < 400:
+            state["reads"] += 1
+            # The first read is the "before"; every read after the delivery is
+            # inflated to what the supplier billed for.
+            if state["reads"] > 1:
+                rows = payload.get("data") or []
+                rows = rows if isinstance(rows, list) else rows.get("data", [])
+                for t in rows:
+                    if t.get("current_dip_litres") is not None:
+                        t["current_dip_litres"] = float(t["current_dip_litres"]) + short
+        return status, payload
+    return call
+
+
+def _sale_takes_tomorrows_rate(real):
+    """Price the sale at the rate that has not started yet."""
+    pending = {"price": None}
+
+    def call(self, p, body=None, **kw):
+        if p == "/fuel/prices" and body:
+            pending["price"] = float(body.get("new_price") or 0)
+        status, payload = real(self, p, body, **kw)
+        if p == "/sales" and status < 400 and pending["price"]:
+            for line in (payload.get("data") or {}).get("items") or []:
+                line["unit_price"] = pending["price"]
+        return status, payload
+    return call
 
 
 def _deposit_drifts(real):

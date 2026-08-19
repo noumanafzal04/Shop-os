@@ -81,7 +81,14 @@ class Api:
         try:
             payload = json.loads(raw or b"{}")
         except json.JSONDecodeError:
-            payload = {"raw": raw[:400].decode(errors="ignore")}
+            # Not JSON — a CSV export, an HTML error page, a receipt.
+            #
+            # `raw` is a 400-character PREVIEW, for putting in a finding without
+            # printing a megabyte. It is not the response. A check that read it
+            # as one saw the header line of a catalog export and reported that
+            # every shop had exported zero products.
+            text = raw.decode(errors="ignore")
+            payload = {"raw": text[:400], "text": text}
 
         self.calls.append({"method": method, "path": path, "status": status})
 

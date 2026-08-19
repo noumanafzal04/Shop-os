@@ -131,7 +131,12 @@ def run(api: Api, rep: Report) -> dict:
 # same afternoon needs a branch whose day is still open. Ten is a fortnight of
 # re-runs before the ceiling — which is itself proved to refuse, above, before
 # any of this is raised.
-ROOM = {"staff": 30, "registers": 6, "branches": 12}
+#
+# Thirty, not twelve: a day of active development runs this sweep far more often
+# than a fortnight of ordinary use, and when the branches ran out phase P's day
+# close stopped running and the mutation aimed at it came back UNCLEAR. They
+# cost nothing and free themselves at midnight.
+ROOM = {"staff": 30, "registers": 6, "branches": 30}
 
 
 def _limits_bite_then_move(api: Api, rep: Report, made: dict) -> None:

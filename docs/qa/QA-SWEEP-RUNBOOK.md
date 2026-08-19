@@ -289,6 +289,23 @@ are willing to close off.
 
 ---
 
+## Phase Q — the paper, the tanker and the rate
+
+Three things a shop loses money on without anything erroring.
+
+- [ ] Print a receipt, tell the till it failed → it is in the reprint tray
+- [ ] Reprint it → it **leaves** the tray, immediately, not a minute later
+- [ ] Record a delivery billed 5,000 with a dip showing 4,950 → the tank gains
+      **4,950** and the shortage reads 50
+- [ ] Enter tomorrow's rate this evening → **the pumps do not move**
+- [ ] A litre sold tonight is still tonight's price
+- [ ] After midnight (or `php artisan fuel:apply-rates`) the new rate is live
+- [ ] Correct a fuel price by hand afterwards → the scheduler does **not** undo it
+- [ ] Export the catalog → it opens in Excel with the names readable, and every
+      product is in it
+
+---
+
 ## Running it
 
 The API harness lives at `docs/qa/sweep/` and drives the flows against

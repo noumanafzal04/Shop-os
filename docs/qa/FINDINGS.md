@@ -10,6 +10,134 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-19 — the screens, second pass · the cart that hid its own lines
+
+A shop report, not a sweep finding: **"i add 8,9 rows cart / on mobile and
+tablet showing 6,7 / last wali rows hide ho rhi nichee"**.
+
+### BUG · 188px of the cart lay outside the card, unreachable
+
+`min-h-[19rem]` on the cart's `flex-1 overflow-y-auto` scroller, inside an
+`overflow-hidden` card. The child will not shrink, the parent will not grow, and
+the difference is **cut off rather than scrolled** — with `overflow: hidden`
+there is no gesture that reaches it. Phone (390×664): cart pane **128px**, floor
+**304px**, so **188px outside**. Nine lines in, **three** visible.
+
+The floor existed so a short basket would not make the payment bar jump. **That
+bar had moved out of this card**; the floor was holding nothing up.
+
+### Two layout changes measured out of the same probe
+
+| | before | after |
+|---|---|---|
+| phone money bar | 248px | **177px** (total + Tender side by side below `md`) |
+| phone cart row | 73px (8 cols wrapping onto 3 lines) | **49px** (`Disc`/`Tax` on the item's sub-line when non-zero) |
+| phone panes | catalog + cart, ~100px each | **one at a time**, behind a Products / Cart switch below `sm` |
+| tablet portrait | 7 of 9 lines | **8 of 9**, ninth a flick away, nothing clipped |
+
+### HARNESS · four, and the third is the one that matters
+
+1. **The fixture had 5 sellable products** — a nine-line cart was impossible.
+   Caught only by `expect(available).toBeGreaterThan(7)`. The shelf is now built
+   explicitly in `e2e/shelf.setup.ts`.
+2. **A stale preview server.** `reuseExistingServer: true` served the previous
+   build, so a newly-added `data-cart-row` hook did not exist and the cart read
+   as empty. **Rebuild before believing an e2e result.**
+3. **`scrollIntoViewIfNeeded` scrolls `overflow: hidden` boxes.** A finger does
+   not. The check scrolled the last row into view, asked "visible?", and was
+   told **yes** about content the shop can never see. Fixed with
+   `onlyWhatAFingerCanReach()` — any scroll on a box that cannot be scrolled by
+   hand is put back before measuring. *A reachability check that reaches by
+   means the user does not have is not a reachability check.*
+4. **`overflow-x-auto` computes `overflow-y: auto`.** CSS forces the other axis
+   out of `visible` once either leaves it, so the row's horizontal wrapper
+   looked like the cart's scroller and swallowed the scroll. Ask
+   `scrollHeight > clientHeight` as well.
+
+Plus one stale rule: `posChrome.test.ts` pinned the tile skeleton by
+`bg-white/[0.16]` and `bg-black/25` — tints the tiles stopped wearing when they
+became solid cards — so it reported "no tile skeleton" instead of the thing it
+is about. **A rule keyed to a colour expires the next time anyone paints.**
+
+New browser rules: `scrollersCanReachTheirEnd` (a scroll container clipped by an
+ancestor has content you can scroll to and never see, measured **at rest**) and
+`a full cart shows every line a cashier put in it`.
+
+---
+
+## 2026-08-19 — eleventh run · phase Q, and two things a forecourt loses money on
+
+**Three subjects nothing had ever driven. Two of them were broken.**
+
+### THE RATE — tomorrow's price on tonight's petrol
+
+A price notification takes effect at **midnight**, and every station enters it
+when the fax comes, hours before. The request that carries the field says so
+where it is declared: *"Notifications usually take effect at midnight, so the
+rate may be logged before it applies."*
+
+`ChangeFuelPriceAction` ignored it and wrote the new price onto the product
+unconditionally. A station entering tomorrow's rate at 8pm **repriced its pumps
+at 8pm** — every litre sold that night at the wrong rate, on the one night of
+the month when a forecourt is busiest, with nothing erroring anywhere.
+
+Fixed: recording and applying are two events, so `applied_at` joins
+`effective_at`, and `fuel:apply-rates` moves due prices every five minutes
+beside `reservations:expire`. Three tests; the command is idempotent, so a rate
+somebody has since corrected by hand is not reinstated every five minutes for
+ever.
+
+### THE RECEIPT — a reprint that never left the tray
+
+The tray is *"every failed print with no later successful one for the same
+sale"*, and it compared `printed_at`, which is a **second-precision** timestamp.
+A reprint inside the same second — a till retrying, a fallback to the second
+printer — **ties** rather than exceeds, so the receipt stayed in the tray after
+it had come out. For ever. A tray that never empties buries the one receipt
+that really is missing under fifty that were sorted out hours ago.
+
+Fixed by keying on `copy_no`, which is the sequence itself and has no precision
+to lose.
+
+**And the test was written around it.** `test_a_later_good_print_clears_the_tray_by_itself`
+carried `$this->travel(1)->seconds()` before the retry — one line that was the
+whole difference between a passing test and a working feature. Nothing arranges
+a spare second at a counter. It is gone, and the test now fails against the old
+query.
+
+### THE TANKER — this one was right
+
+A station is billed for what the invoice says and receives what the dip says.
+Billed 5,000, dipped 4,950: the tank gains 4,950 and the shortage is 50. Correct
+on every check.
+
+### What the sweep got wrong first
+
+Four findings; two were the harness, in the same shape as always.
+
+- **"The catalog export contains none of the shop's products."** The file opens
+  with a **BOM**, deliberately — without it Excel reads Pakistani product names
+  as mojibake — so `csv.DictReader` keys the first column `"\ufeffName"` and
+  every lookup for `Name` missed.
+- **`api.py` truncated the body to 400 characters.** That field is a preview for
+  putting in a finding without printing a megabyte; read as the response it
+  showed a header row and nothing else.
+- **The print trail is `orderBy('copy_no')` ASCENDING**, so row zero is the
+  ORIGINAL. Reading it as "the latest print" meant the check marked the original
+  failed, reprinted, and then looked at the original again to see whether the
+  reprint had worked.
+- **The mutation that did not mutate.** The tanker mutation only WATCHED the
+  delivery go past and changed nothing, so the check passed and the harness
+  nearly called it caught. Then the two fuel mutations came back UNCLEAR — the
+  runner never builds a forecourt, so `/fuel/tanks` was empty and the checks
+  never ran at all. Both are the denominator doing its job.
+
+### Where it stands
+
+**17 phases · 1,683 checks · 26 mutations · 55 harness findings, 8 product bugs.**
+
+---
+
 ## 2026-08-19 — the screens, for the first time
 
 **A shop reported seven defects by holding a tablet. Not one was caught by 3,079
