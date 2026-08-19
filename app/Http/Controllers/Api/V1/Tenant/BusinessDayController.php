@@ -29,12 +29,8 @@ class BusinessDayController extends Controller
     /** The day currently trading, with its shifts as they stand right now. */
     public function current(Request $request): JsonResponse
     {
-        $day = BusinessDay::query()
-            ->where('status', BusinessDay::STATUS_OPEN)
-            ->where('branch_id', $this->branch->id())
-            ->with(['openedBy:id,name', 'branch:id,name'])
-            ->latest('trading_date')
-            ->first();
+        $day = BusinessDay::openFor($this->branch->id())
+            ?->load(['openedBy:id,name', 'branch:id,name']);
 
         if ($day === null) {
             return ApiResponse::ok(null, 'No day open');
@@ -197,10 +193,10 @@ class BusinessDayController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $dayId = $data['business_day_id'] ?? BusinessDay::query()
-            ->where('status', BusinessDay::STATUS_OPEN)
-            ->where('branch_id', $this->branch->id())
-            ->value('id');
+        // The same resolver the screen uses. This used to be its own query with
+        // no ordering, so a shop with last night's day still open banked today's
+        // takings against yesterday.
+        $dayId = $data['business_day_id'] ?? BusinessDay::openFor($this->branch->id())?->id;
 
         $deposit = BankDeposit::query()->create([
             'branch_id' => $this->branch->id(),

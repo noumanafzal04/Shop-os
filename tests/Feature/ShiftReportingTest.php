@@ -451,6 +451,58 @@ class ShiftReportingTest extends TestCase
         $this->assertCount(1, $view['deposits']);
     }
 
+    /**
+     * THE SHOP THAT FORGOT TO CLOSE LAST NIGHT.
+     *
+     * "Which day is open?" was asked in three places and answered three ways.
+     * The screen took the open day with the latest trading date;
+     * `storeDeposit` took an open day with **no ordering at all**, so the
+     * database handed back whichever it liked — in practice the oldest.
+     *
+     * With one open day nobody could tell. With two — the ordinary state of an
+     * ordinary shop on a Monday morning — today's takings were banked against
+     * YESTERDAY: today's banking column never moved, and yesterday's day was
+     * eventually closed off carrying money that was never in it.
+     */
+    public function test_banking_lands_on_the_day_the_shop_is_trading_not_the_one_it_forgot_to_close(): void
+    {
+        // YESTERDAY'S ROW EXISTS FIRST, because yesterday came first. That
+        // ordering is the whole test: an unordered `->value('id')` returns rows
+        // in whatever order the table holds them, which is insertion order, so
+        // building today's day first would let the broken query pass by luck.
+        // The first version of this test did exactly that and went green
+        // against the bug it was written for.
+        $branchId = Branch::query()->where('is_default', true)->value('id');
+
+        $yesterday = BusinessDay::query()->create([
+            'tenant_id' => $this->shop->id,
+            'branch_id' => $branchId,
+            'trading_date' => now()->subDay()->toDateString(),
+            'status' => BusinessDay::STATUS_OPEN,
+            'opened_by' => $this->owner->id,
+            'opened_at' => now()->subDay(),
+        ]);
+
+        $today = $this->openShift(5000)['business_day_id'];
+
+        $this->assertNotSame($today, $yesterday->id, 'two days are open at this counter');
+        $this->assertSame($branchId, BusinessDay::query()->whereKey($today)->value('branch_id'),
+            'both days are at the same counter, or there is nothing to confuse');
+
+        $deposit = $this->actingAsUser($this->owner)
+            ->postJson('/api/v1/pos/deposits', ['amount' => 9000, 'bank_name' => 'Meezan'])
+            ->assertCreated()->json('data');
+
+        $this->assertSame($today, $deposit['business_day_id']);
+
+        // And the screen agrees, because both now ask the same question.
+        $view = $this->actingAsUser($this->owner)->getJson('/api/v1/pos/day')
+            ->assertOk()->json('data');
+
+        $this->assertSame($today, $view['day']['id']);
+        $this->assertEquals(9000, $view['banked']);
+    }
+
     public function test_banking_records_the_leg_nothing_else_covers(): void
     {
         $session = $this->openShift(5000);

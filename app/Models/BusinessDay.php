@@ -75,6 +75,33 @@ class BusinessDay extends Model
         return $this->belongsTo(User::class, 'closed_by');
     }
 
+    /**
+     * The day this counter is trading — the ONE answer to that question.
+     *
+     * It was asked in three places and answered three ways. `open()` keys on
+     * branch + today's date, which is what a day actually is. The screen took
+     * the open day with the latest trading date. And recording a bank deposit
+     * took an open day with **no ordering at all**, so the database handed back
+     * whichever it liked.
+     *
+     * On a counter with one open day nobody could tell the difference. On a
+     * shop that forgot to close last night — an ordinary Monday morning — there
+     * are two, and the deposit landed on YESTERDAY: the banking column on
+     * today's screen never moved, and yesterday's day was eventually closed off
+     * carrying money that was never in it.
+     *
+     * Ordering by trading date is not a tie-break here. It is the definition:
+     * of the days still open at this counter, the shop is trading the newest.
+     */
+    public static function openFor(?string $branchId): ?self
+    {
+        return static::query()
+            ->where('status', self::STATUS_OPEN)
+            ->where('branch_id', $branchId)
+            ->latest('trading_date')
+            ->first();
+    }
+
     public function isOpen(): bool
     {
         return $this->status === self::STATUS_OPEN;
