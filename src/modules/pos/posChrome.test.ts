@@ -137,6 +137,18 @@ describe("the tile grid fits the pane it lives in", () => {
     expect(grid).toContain("lg:grid-cols-4");
   });
 
+  it("the till does not lock itself while it cannot unlock", () => {
+    // Unlocking is a server call and the PIN lives only on the server — by
+    // design, since a PIN mirrored to the device is a PIN anybody holding the
+    // tablet can read. So an idle lock that fires during an outage is a shop
+    // standing in front of a working till, with offline selling switched on,
+    // unable to reach it. The auto-lock is therefore gated on the connection.
+    const call = SOURCE.match(/useIdleLock\([^;]*\);/)?.[0] ?? "";
+
+    expect(call, "the idle lock moved").not.toBe("");
+    expect(call, "the idle lock can fire while the till is offline").toContain("connected");
+  });
+
   it("the cart's list has no height floor to be clipped by", () => {
     // The cart scroller carried `min-h-[19rem]`. A `min-height` on a `flex-1`
     // child of an `overflow-hidden` card is a promise the parent cannot keep:

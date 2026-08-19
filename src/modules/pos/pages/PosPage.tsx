@@ -395,7 +395,21 @@ export default function PosPage() {
     onHand(Number(p.stock_quantity ?? 0), stockDeltas, p.id);
   const connected = online && reachable;
   // Auto-lock is off unless the shop turns it on (Settings → POS).
-  useIdleLock(Number(settings.data?.pos_idle_lock_minutes ?? 0), !tillLocked);
+  //
+  // ── AND IT DOES NOT LOCK WHAT IT CANNOT UNLOCK ────────────────────────
+  //
+  // Unlocking is `POST /pos/till/unlock` and the name list beside it is a
+  // plain query — both HTTP, neither with any offline path, and there is no
+  // PIN on this device to check one against. So a till that locked itself
+  // during a power cut could not be opened again until the line came back:
+  // the shop stands in front of a working till, holding a queue of customers,
+  // with offline selling switched on and no way to reach it. That is the exact
+  // failure offline selling exists to prevent, caused by a convenience.
+  //
+  // While the line is down the till therefore stays open. It is the lesser
+  // risk by a long way — the shop is trading, with staff standing at it — and
+  // it is honest: a lock nobody can open is not security, it is a shutter.
+  useIdleLock(Number(settings.data?.pos_idle_lock_minutes ?? 0), !tillLocked && connected);
 
 
   /**
@@ -1672,11 +1686,20 @@ export default function PosPage() {
               Given an avatar because that is the shape people press when they
               are looking for "who am I signed in as" — here the affordance and
               the action happen to be the same thing. */}
+          {/* Offline, the same rule as the idle lock: the PIN is checked by
+              the server, so handing over is a door that only opens one way
+              until the line is back. Disabled and it says why, rather than
+              locking and then refusing every PIN typed at it. */}
           <button
             type="button"
             onClick={() => lockTill("manual")}
-            title={`${me?.name ?? "This till"} — press to lock and hand over (PIN)`}
-            className="hidden items-center gap-2 rounded-full border border-white/30 bg-white/[0.14] py-1 pl-1 pr-3.5 text-theme-xs font-bold text-white shadow-[0_0_0_3px_rgba(255,255,255,0.06)] transition hover:border-brand-400 hover:bg-white/20 sm:flex"
+            disabled={!connected}
+            title={
+              connected
+                ? `${me?.name ?? "This till"} — press to lock and hand over (PIN)`
+                : "Handing over needs the connection — a PIN is checked by the server, so a till locked now could not be opened until the line is back."
+            }
+            className="hidden items-center gap-2 rounded-full border border-white/30 bg-white/[0.14] py-1 pl-1 pr-3.5 text-theme-xs font-bold text-white shadow-[0_0_0_3px_rgba(255,255,255,0.06)] transition hover:border-brand-400 hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-white/30 disabled:hover:bg-white/[0.14] sm:flex"
           >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-500 text-[11px] font-bold uppercase text-white ring-2 ring-white/25">
               {me?.name ? initials(me.name) : <UserCircleIcon className="h-4 w-4" />}
@@ -2854,7 +2877,17 @@ export default function PosPage() {
             /* `py-1` made this 28px tall. It is the control that answers "is
                my day safe?" and the one a cashier jabs at when the line drops
                — 4px short of a finger target on the device most tills are. */
-            className={`hidden min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-theme-xs font-semibold transition hover:brightness-110 disabled:cursor-progress sm:flex ${
+            /* NOT `hidden sm:flex`. This is the only thing on the till that
+               says whether the shop is reaching its server, and below `sm` it
+               was not drawn at all — so a phone selling through a power cut
+               looked exactly like a phone selling normally, with the sales
+               piling up on the device and nothing saying so. Proven in a
+               browser: the offline sale went through on a phone and not one
+               visible word on the screen mentioned it.
+               
+               The label is already short — "Offline", "1 still to send" — and
+               the bar it sits in wraps, so it costs a phone one line at most. */
+            className={`flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-theme-xs font-semibold transition hover:brightness-110 disabled:cursor-progress sm:px-3 ${
               connected
                 ? "border-success-500/40 bg-success-500/15 text-success-300"
                 : "border-error-500/50 bg-error-500/15 text-error-300"
@@ -3268,7 +3301,37 @@ export default function PosPage() {
                 </div>
               </div>
             )}
-            {checkout.error instanceof ApiError && <div className="mt-3"><Alert variant="error" title="Sale failed" message={checkout.error.message} /></div>}
+            {/* ANY failure, not only an ApiError.
+                
+                This read `checkout.error instanceof ApiError`, so a sale that
+                failed anywhere OTHER than the server — and the offline path is
+                entirely other than the server: pricing the cart from the till's
+                own catalog, writing the outbox, issuing a slip number — showed
+                the cashier NOTHING. The button simply stopped working. No
+                spinner, no message, no sale. On the one screen where a person
+                is standing at a counter with a customer waiting, silence is the
+                worst thing this app can do. */}
+            {checkout.error instanceof Error && (
+              <div className="mt-3">
+                <Alert
+                  variant="error"
+                  // A REFUSAL is not a failure. The till has decided this sale
+                  // cannot be rung with the line down — the shop was never
+                  // granted offline selling, the cart holds something that
+                  // cannot be priced here, the outage is past the shop's
+                  // ceiling — and each of those already carries its own
+                  // sentence and its own remedy. Calling it "Sale failed" and
+                  // appending "try again" tells the cashier to keep pressing a
+                  // button that will never work.
+                  title={checkout.error.name === "OfflineRefused" ? "Can't ring this offline" : "Sale failed"}
+                  message={
+                    checkout.error.name === "OfflineRefused" || checkout.error instanceof ApiError
+                      ? checkout.error.message
+                      : `${checkout.error.message} — this sale was not saved. Try again; if it keeps failing, write the sale down and tell the owner.`
+                  }
+                />
+              </div>
+            )}
             {method === "split" && splitHasCredit && !hasCustomer && <p className="mt-3 text-theme-xs text-error-500">Attach a customer to put part of this sale on credit.</p>}
           </div>
           <div className="flex shrink-0 gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
@@ -3477,7 +3540,7 @@ export default function PosPage() {
           <div className="text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-success-50 text-2xl">✓</div>
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Sale complete</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-gray-400" data-sale-invoice={lastSale.invoice_number}>
               {lastSale.invoice_number}
               {lastSale.order_type && ` · ${lastSale.order_type === "dine_in" ? `Dine-in${lastSale.table_no ? ` · Table ${lastSale.table_no}` : ""}` : "Takeaway"}`}
             </p>

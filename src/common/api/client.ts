@@ -61,8 +61,30 @@ async function refreshTokens(): Promise<string | null> {
     );
     setTokens(data.data.access_token, data.data.refresh_token);
     return data.data.access_token;
-  } catch {
-    clear(); // refresh token dead → hard logout
+  } catch (e) {
+    // ── ONLY THE SERVER MAY END A SESSION ──────────────────────────────
+    //
+    // This was a bare `catch { clear(); }` with the comment "refresh token
+    // dead → hard logout" — a cause the code never checked. Every way a
+    // request can fail landed here and signed the shop out: a dropped line, a
+    // timeout, a 502 while the API restarted, a rate limit.
+    //
+    // On a till that is not an inconvenience, it is the worst outcome in the
+    // app. Sales rung during an outage sit in IndexedDB and can only be sent
+    // with a token; sign the till out and the queue is stranded behind a login
+    // screen that ALSO needs the server. The shop is then holding a day's
+    // takings it cannot deliver, on a device that looks like it has been wiped.
+    //
+    // So: clear only when the server ANSWERED and said this refresh token is
+    // no good — 401 or 403. Anything else, including no answer at all, leaves
+    // the session alone. The request fails, the badge says offline, and the
+    // till keeps working; the next attempt with a line will refresh normally.
+    const status = axios.isAxiosError(e) ? (e.response?.status ?? 0) : 0;
+
+    if (status === 401 || status === 403) {
+      clear();
+    }
+
     return null;
   }
 }

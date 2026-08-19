@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { cardsAreSurfaces, everyRule, onlyWhatAFingerCanReach, renderedSize, scrollersCanReachTheirEnd, tapTargetsAreFingerSized, report } from "./rules";
+import { openTill, showPane } from "./till";
 
 /**
  * Walk the shop's screens at a real size and ask what a browser can see.
@@ -78,30 +79,6 @@ test("the till's product cards are surfaces, not tints", async ({ page }) => {
   report(findings, `the till's product list (${examined} cards measured)`);
 });
 
-/**
- * The till, with products actually on it.
- *
- * A till with no shift open draws its shift prompt and nothing else — no
- * catalog, no tiles, no rows. Every rule about the product list then passes
- * against a screen that has no product list, which is how the card-surface rule
- * first went green against the exact design the shop had complained about.
- */
-async function openTill(page: import("@playwright/test").Page): Promise<void> {
-  await page.goto("/tenant/pos");
-  await page.waitForLoadState("networkidle").catch(() => {});
-  await page.waitForTimeout(800);
-
-  const start = page.getByRole("button", { name: /open (the )?(shift|drawer)|start shift/i }).first();
-  if (await start.isVisible().catch(() => false)) {
-    await start.click();
-    // The float dialog, if the shop asks for one.
-    const confirm = page.getByRole("button", { name: /open|start|confirm/i }).last();
-    if (await confirm.isVisible().catch(() => false)) await confirm.click();
-    await page.waitForTimeout(1200);
-  }
-  await page.waitForTimeout(600);
-}
-
 test("a full cart shows every line a cashier put in it", async ({ page }) => {
   // The shop's words: "i add 8,9 rows cart / on mobile and tablet showing 6,7 /
   // last wali rows hide ho rahi". The list scrolled the whole time — its own
@@ -123,11 +100,7 @@ test("a full cart shows every line a cashier put in it", async ({ page }) => {
   // A phone shows ONE pane at a time — the cart is behind its own tab there,
   // and a check that looked for cart rows without pressing it would find none
   // and blame the layout.
-  const cartTab = page.getByRole("button", { name: /^Cart/ }).first();
-  if (await cartTab.isVisible().catch(() => false)) {
-    await cartTab.click();
-    await page.waitForTimeout(400);
-  }
+  await showPane(page, "Cart");
 
   const rows = page.locator("[data-cart-row]");
   const put = await rows.count();

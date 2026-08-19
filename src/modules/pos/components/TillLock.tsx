@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useConnectionStore } from "../../../stores/connectionStore";
 import { useAuthStore } from "../../../stores/authStore";
 import { useTillStore } from "../../../stores/tillStore";
 import { useTerminalStore } from "../../../stores/terminalStore";
@@ -32,6 +33,19 @@ export default function TillLock() {
   const unlockTill = useTillStore((s) => s.unlock);
   const reason = useTillStore((s) => s.reason);
   const laneName = useTerminalStore((s) => s.activeRegisterName);
+
+  // Both halves of this screen are the server's: the list of who may unlock,
+  // and the PIN check itself. There is no PIN on this device to check one
+  // against — deliberately, because a PIN mirrored into IndexedDB is a PIN
+  // anybody with the tablet can read. So while the line is down this screen
+  // cannot do its job, and the honest thing is to say which door is shut
+  // rather than accept six digits and answer "Couldn't unlock. Try again." to
+  // every one of them.
+  //
+  // The till no longer locks itself while offline (see PosPage), so this is
+  // for the till that was ALREADY locked when the line went — a shift change
+  // during a power cut.
+  const connected = useConnectionStore((c) => c.online && c.reachable);
 
   const roster = useQuery({
     queryKey: ["pos", "till-users"],
@@ -76,7 +90,13 @@ export default function TillLock() {
       unlockTill();
     } catch (e) {
       setPin("");
-      setError(e instanceof ApiError ? e.message : "Couldn't unlock. Try again.");
+      setError(
+        connected
+          ? e instanceof ApiError
+            ? e.message
+            : "Couldn't unlock. Try again."
+          : "The till can't check a PIN with the connection down. Wait for the line to come back — the sales already saved on this device are safe and will send themselves.",
+      );
       roster.refetch(); // a freeze may have just happened — refresh the badges
     } finally {
       setBusy(false);
@@ -205,12 +225,23 @@ export default function TillLock() {
           </button>
         </div>
 
+        {/* Offline this is a TRAP, not an escape. It signs the till out — and
+            signing back in is the same server that cannot check the PIN, so
+            the one door left would close behind them. The queue in IndexedDB
+            survives, but nothing can send it without a token. So it is shut
+            while the line is down, and says so. */}
         <button
           type="button"
           onClick={signInInstead}
-          className="mt-5 w-full text-center text-theme-sm text-gray-400 underline-offset-2 hover:text-white hover:underline"
+          disabled={!connected}
+          title={
+            connected
+              ? undefined
+              : "Signing out needs the connection too — you would not be able to sign back in until the line is back."
+          }
+          className="mt-5 w-full text-center text-theme-sm text-gray-400 underline-offset-2 transition hover:text-white hover:underline disabled:cursor-not-allowed disabled:text-gray-600 disabled:no-underline disabled:hover:text-gray-600"
         >
-          Sign in with a password instead
+          {connected ? "Sign in with a password instead" : "Waiting for the connection…"}
         </button>
       </div>
     </div>

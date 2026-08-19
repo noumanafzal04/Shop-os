@@ -79,6 +79,29 @@ export function useKeepInSync(enabled: boolean): void {
 
   // Keep the count the badge shows honest. It is read here rather than written
   // by the outbox itself so there is one place that decides when it refreshes.
+  //
+  // ── AND IT REFRESHES WHEN THE QUEUE DRAINS, which it did not ──────────
+  //
+  // The dependencies were `[enabled, connected]`. Neither of those moves when a
+  // flush finishes — the till was already connected; that is why the flush ran
+  // — so the count was last read BEFORE the sales went, and stayed there.
+  //
+  // What a shop saw: the line comes back, the pill says "Sending 1 of 1", the
+  // sale reaches the server and is acked, and the pill then settles on **"1
+  // still to send"** and stays there for the rest of the shift. The one moment
+  // this badge exists for — the day's takings going up after an outage — ended
+  // with it reporting that they had not. Measured in a browser: the row was
+  // `acked` with an invoice number eight seconds in, and the pill was still
+  // saying "1 still to send" a minute later.
+  //
+  // `syncing` is the transition that means the queue moved: null → {sent,total}
+  // while it sends, back to null in `pullNow`'s `finally`, by which time the
+  // rows are marked. Depending on it recounts at exactly that moment, and
+  // nowhere else — a flush with nothing owed never sets it, so an idle till
+  // still does not re-read IndexedDB every quarter hour for an answer that
+  // cannot have changed.
+  const syncing = useOfflineStore((s) => s.syncing);
+
   useEffect(() => {
     if (!enabled) return;
 
@@ -93,5 +116,5 @@ export function useKeepInSync(enabled: boolean): void {
     return () => {
       cancelled = true;
     };
-  }, [enabled, connected, setPending]);
+  }, [enabled, connected, syncing, setPending]);
 }

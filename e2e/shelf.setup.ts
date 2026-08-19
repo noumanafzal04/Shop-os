@@ -1,8 +1,6 @@
 import { test as setup, expect } from "@playwright/test";
-import fs from "node:fs";
 
-const API = process.env.E2E_API_URL ?? "http://localhost:8000/api/v1";
-const STATE = "e2e/.auth/owner.json";
+import { API, ownerAuth } from "./api";
 
 /** The catalog needs ENOUGH ON THE SHELF to fill a cart. */
 const WANTED = 14;
@@ -26,18 +24,7 @@ const TOP_UP = 60;
  * quietly shrink what the suite is able to see.
  */
 setup("stock the shelf so a cart can be filled", async ({ request }) => {
-  const raw = JSON.parse(fs.readFileSync(STATE, "utf8")) as {
-    origins: Array<{ localStorage: Array<{ name: string; value: string }> }>;
-  };
-  const stored = raw.origins
-    .flatMap((o) => o.localStorage)
-    .find((kv) => kv.name === "shopos-auth")?.value;
-
-  expect(stored, "no saved session — auth.setup.ts did not run").toBeTruthy();
-  const token = (JSON.parse(stored!) as { state: { accessToken?: string } }).state.accessToken;
-  expect(token, "the saved session carries no token").toBeTruthy();
-
-  const auth = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+  const auth = ownerAuth();
 
   // ── what is already on the shelf ─────────────────────────────────────
   const list = await request.get(`${API}/products?per_page=100`, { headers: auth });
@@ -93,4 +80,38 @@ setup("stock the shelf so a cart can be filled", async ({ request }) => {
     `only ${stocked} of ${mine.size} products could be stocked — ` +
       `the till cannot show a cart of ${WANTED} lines`,
   ).toBeGreaterThanOrEqual(WANTED);
+});
+
+/**
+ * OFFLINE SELLING IS A GRANT, NOT A SHOP SETTING.
+ *
+ * `offline_selling` is a plan limit the platform assigns to a tenant — a shop
+ * cannot turn it on for itself, by design. A till whose shop was never granted
+ * it refuses every offline sale, correctly, and `selling.spec.ts` would then be
+ * testing the refusal while claiming to test offline selling.
+ *
+ * So this asserts rather than fixes: the grant is not reachable from the tenant
+ * API, and a setup that silently skipped would leave the offline spec passing
+ * against a shop that cannot sell offline at all.
+ */
+setup("the fixture shop is allowed to sell offline", async ({ request }) => {
+  const auth = ownerAuth();
+
+  const res = await request.get(`${API}/pos/catalog`, { headers: auth });
+  expect(res.ok(), `the till's catalog call failed (${res.status()})`).toBeTruthy();
+
+  // `offline_selling` sits on the catalog envelope itself, beside
+  // `offline_days` — NOT inside `settings`, which carries the shop's own
+  // preferences. A grant is not a preference.
+  const body = (await res.json()) as { data?: { offline_selling?: boolean } };
+  const granted = body.data?.offline_selling;
+
+  expect(
+    granted,
+    "this shop has not been granted offline selling, so every offline sale will be " +
+      "refused. Grant it once, from the repo root:\n\n" +
+      "  cd shopos-backend && php artisan tinker --execute='" +
+      '$t = App\\Models\\User::where("email","sweep-mart@qa.test")->first()->tenant; ' +
+      "$l = $t->limits ?? []; $l[\"offline_selling\"] = 1; $t->limits = $l; $t->save();'\n",
+  ).toBe(true);
 });

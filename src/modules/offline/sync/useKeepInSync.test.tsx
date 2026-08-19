@@ -5,6 +5,8 @@ import { act } from "react";
 import { useConnectionStore } from "../../../stores/connectionStore";
 import { HEARTBEAT_MS, useKeepInSync } from "./useKeepInSync";
 import * as puller from "./pullNow";
+import * as repo from "../db/repo";
+import { useOfflineStore } from "../offlineStore";
 
 /**
  * Keeping the catalog current while the till is open.
@@ -21,7 +23,7 @@ import * as puller from "./pullNow";
  * failed poll on a bad shop wifi is how a cashier learns to ignore toasts.
  */
 
-vi.mock("../db/repo", () => ({ pendingCount: async () => 0 }));
+vi.mock("../db/repo", () => ({ pendingCount: vi.fn(async () => 0) }));
 
 let pull: ReturnType<typeof vi.spyOn>;
 
@@ -187,5 +189,64 @@ describe("silence", () => {
     await act(async () => {
       vi.advanceTimersByTime(HEARTBEAT_MS);
     });
+  });
+});
+
+
+describe("the number on the badge", () => {
+  /**
+   * A shop's own report, reproduced in a browser: the line comes back, the pill
+   * says "Sending 1 of 1", the sale is acked by the server with an invoice
+   * number eight seconds later — and the pill settles on **"1 still to send"**
+   * and stays there.
+   *
+   * The count was read on `[enabled, connected]`. Neither of those moves when a
+   * flush finishes; the till was already connected, which is why the flush ran
+   * at all. So the last number read was the one from BEFORE the sales went, and
+   * the badge kept reporting a queue that was empty — at the one moment it
+   * exists for.
+   */
+  it("is read again when a flush finishes, not only when the line changes", async () => {
+    const counted = vi.mocked(repo.pendingCount);
+    counted.mockResolvedValue(1);
+    useOfflineStore.setState({ pending: 0, syncing: null });
+
+    renderHook(() => useKeepInSync(true));
+    await act(async () => {});
+    expect(useOfflineStore.getState().pending, "the queued sale was never counted").toBe(1);
+
+    // The flush runs. `pullNow` narrates it, then clears `syncing` in its
+    // `finally` — by which point the rows are marked acked and owe nothing.
+    counted.mockResolvedValue(0);
+    await act(async () => {
+      useOfflineStore.getState().setSyncing({ sent: 0, total: 1 });
+    });
+    await act(async () => {
+      useOfflineStore.getState().setSyncing(null);
+    });
+
+    expect(
+      useOfflineStore.getState().pending,
+      "the queue drained and the badge still says sales are waiting",
+    ).toBe(0);
+  });
+
+  it("does not re-read on a quiet heartbeat", async () => {
+    // A flush with nothing owed never sets `syncing`, so an idle till must not
+    // go back to IndexedDB every quarter hour for an answer that cannot have
+    // changed.
+    const counted = vi.mocked(repo.pendingCount);
+    counted.mockResolvedValue(0);
+    useOfflineStore.setState({ pending: 0, syncing: null });
+
+    renderHook(() => useKeepInSync(true));
+    await act(async () => {});
+    counted.mockClear();
+
+    await act(async () => {
+      vi.advanceTimersByTime(HEARTBEAT_MS + 1000);
+    });
+
+    expect(counted, "the badge re-read the queue for no reason").not.toHaveBeenCalled();
   });
 });

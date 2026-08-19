@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useFitsItsBox } from "../../../components/charts/useFitsItsBox";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { useMoney } from "../../shop/hooks/useShop";
 import Chart from "react-apexcharts";
@@ -19,6 +20,10 @@ import { PERIODS, rangeError, resolveReportRange, type PeriodKey, type ReportRan
 
 export default function ReportsPage() {
   const money = useMoney();
+  // The box the chart must fit inside — watched, because the page can get
+  // narrower without the window doing so. See useFitsItsBox.
+  const chartBox = useRef<HTMLDivElement>(null);
+  const chartWidth = useFitsItsBox(chartBox);
   const features = useAuthStore((s) => s.user?.tenant?.features);
   const tracksStock = !!features?.inventory;
   // A books-only business (Finance Manager) sells nothing and stocks nothing.
@@ -205,11 +210,23 @@ export default function ReportsPage() {
         <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">
           {sells ? "Revenue vs Expenses" : "Money in vs money out"}
         </h3>
-        {report.isLoading ? (
-          <div className="h-64 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
-        ) : (
-          <Chart options={chartOptions} series={chartSeries} type="area" height={280} />
-        )}
+        {/* `min-w-0` and a measured width, because ApexCharts writes an inline
+            PIXEL width and only re-measures on window resize. See
+            useFitsItsBox — a tablet held landscape had 1115px of canvas in a
+            1080px window, and the whole page scrolled sideways for it. */}
+        <div ref={chartBox} className="min-w-0">
+          {report.isLoading ? (
+            <div className="h-64 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
+          ) : (
+            <Chart
+              options={chartOptions}
+              series={chartSeries}
+              type="area"
+              height={280}
+              width={chartWidth}
+            />
+          )}
+        </div>
       </div>
 
       <div className={`grid grid-cols-1 gap-6 ${sells ? "lg:grid-cols-2" : ""}`}>
