@@ -126,7 +126,17 @@ export default function HelpCenterPage() {
   const logoUrl = user?.tenant?.logo_url ?? null;
 
   return (
-    <div className="flex h-dvh flex-col bg-white dark:bg-gray-900">
+    /* `h-dvh` minus whatever is pinned to the bottom of the screen.
+     *
+     * The Help Centre runs FULL SCREEN, outside AppLayout, so the room the
+     * layout reserves for the PWA install card never reaches it. A browser
+     * found the card sitting on the last paragraph of every article — the one
+     * place a shop is reading rather than clicking, which is exactly where a
+     * banner in the way is most annoying and least likely to be reported.
+     *
+     * Same fix as the shop setup page, and for the same reason: a full-height
+     * page has to know what is pinned below it. */
+    <div className="flex h-[calc(100dvh-var(--pinned-bottom,0px))] flex-col bg-white dark:bg-gray-900">
       <PageMeta title="Help Centre | ShopOS" description="How every module works" />
 
       {/* ── Header ─────────────────────────────────────────────── */}

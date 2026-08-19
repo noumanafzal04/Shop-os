@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 
 import { installRoute, isInstalled } from "./installable";
+import { useReservesBottomRoom } from "./useReservesBottomRoom";
 
 /**
  * "Put ShopOS on this tablet."
@@ -54,6 +55,10 @@ export default function InstallPrompt() {
 
   const onTill = useLocation().pathname.startsWith("/tenant/pos");
 
+  // The page reserves room for this card, so nothing ends up underneath it.
+  const card = useRef<HTMLDivElement>(null);
+  useReservesBottomRoom(card);
+
   useEffect(() => {
     const onBefore = (e: Event) => {
       // Refusing the browser's own banner is the whole point of catching it:
@@ -98,6 +103,7 @@ export default function InstallPrompt() {
 
   return (
     <div
+      ref={card}
       role="status"
       className="fixed inset-x-3 bottom-3 z-[999998] mx-auto flex max-w-md items-start gap-3 rounded-xl border border-brand-500/30 bg-white p-3 shadow-theme-lg dark:border-brand-500/40 dark:bg-gray-900"
     >

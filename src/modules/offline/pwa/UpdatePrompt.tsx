@@ -1,6 +1,8 @@
+import { useRef } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
 import { useOfflineStore } from "../offlineStore";
+import { useReservesBottomRoom } from "./useReservesBottomRoom";
 
 /**
  * "A new version is ready."
@@ -38,11 +40,17 @@ export default function UpdatePrompt() {
   // rather than leaving them to guess and put it off for a week.
   const owed = useOfflineStore((s) => s.pending);
 
+  // Same as the install card: the page reserves room, so this never lands on
+  // top of a control the shop needs. See useReservesBottomRoom.
+  const card = useRef<HTMLDivElement>(null);
+  useReservesBottomRoom(card);
+
   if (!needRefresh) return null;
 
   return (
     <div
       role="status"
+      ref={card}
       className="fixed inset-x-3 bottom-3 z-[999999] mx-auto flex max-w-md items-center gap-3 rounded-xl border border-brand-500/30 bg-white p-3 shadow-theme-lg dark:border-brand-500/40 dark:bg-gray-900"
     >
       <span className="flex-1 text-theme-sm text-gray-700 dark:text-gray-200">

@@ -25,3 +25,8 @@ dist-ssr
 
 # Local env (secrets/API keys) — commit .env.example instead
 .env
+
+# Playwright — a saved session and its artefacts, never the tests
+e2e/.auth/
+test-results/
+playwright-report/

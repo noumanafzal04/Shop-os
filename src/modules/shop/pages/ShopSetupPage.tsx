@@ -82,7 +82,19 @@ export default function ShopSetupPage() {
   return (
     <>
       <PageMeta title={`${noun.Title} setup | ShopOS`} description={`Complete your ${noun.lower} profile`} />
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6 dark:bg-gray-900">
+      {/* `min-h-dvh` minus whatever is pinned to the bottom of the screen.
+       *
+       * This page is NOT inside AppLayout — it centres its own card in a
+       * full-height box — so the room the layout reserves for the PWA install
+       * card does not reach it. A browser found the card sitting on top of the
+       * "Finish setup" button: the primary action of the first screen a new
+       * shop ever sees, at exactly the moment that banner appears.
+       *
+       * `dvh`, not `vh`: on a phone with the address bar showing, `100vh` is
+       * taller than the window and the bottom of the card is already off the
+       * screen before anything is pinned to it. That one has cost this codebase
+       * a Save button before. */}
+      <div className="flex min-h-dvh items-center justify-center bg-gray-50 p-6 pb-[calc(1.5rem+var(--pinned-bottom,0px))] dark:bg-gray-900">
         <div className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-white/[0.03]">
           <h1 className="mb-1 text-title-sm font-semibold text-gray-800 dark:text-white/90">
             Set up {user?.tenant?.business_name ?? `your ${noun.lower}`}

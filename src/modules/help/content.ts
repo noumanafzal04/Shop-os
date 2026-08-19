@@ -568,6 +568,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "A shift close counts one drawer. This counts the day, across every drawer in the shop, and records what was deposited." },
       { type: "note", text: "Anyone at the till can read the day. Closing it off is a manager's job." },
+      { type: "p", text: "A deposit you record goes against the day the counter is trading — the one shown at the top of this screen. If last night was never closed off, you will see more than one day still open; the money still lands on today, and last night stays open until someone signs it off." },
+      { type: "warn", text: "Close the day every night. A day left open is not just untidy: nothing about it is final, so its variance is never signed off and the figures keep moving." },
       { type: "warn", text: "Once a day is closed off, its figures never change again — not when a correction is made, and not when a sale that was stuck on an offline till finally arrives. That is on purpose: a variance you counted and accepted has to still mean the same thing months later. If late sales do land against a day you have already closed, Reports → Offline names the amount so you can post an adjustment." },
     ],
   },

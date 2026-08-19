@@ -1615,7 +1615,12 @@ export default function PosPage() {
               type="button"
               onClick={laneModal.openModal}
               title="Which register is this device?"
-              className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 text-theme-xs font-medium xl:flex ${
+              /* 28px tall, like the sync pill beside it was. A counter machine
+                 at 1280 and up is still a TOUCH screen in most shops — this is
+                 the button a cashier presses to say which lane they are on,
+                 and getting that wrong puts a shift's takings on the wrong
+                 drawer. */
+              className={`hidden min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-theme-xs font-medium xl:flex ${
                 laneLabel
                   ? "border-brand-500/40 bg-brand-500/15 text-brand-300"
                   : "border-warning-500/40 bg-warning-500/15 text-warning-300"
@@ -1847,7 +1852,12 @@ export default function PosPage() {
                 <button
                   type="button"
                   onClick={() => { const next = !soundMuted; posSound.setMuted(next); setSoundMuted(next); if (!next) posSound.success(); scanRef.current?.focus(); }}
-                  className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
+                  /* 24×24 with `p-1`, which is a mouse target, not a finger
+                     one. A browser measuring the till on a tablet found it at
+                     half the 32px floor — and this is the control a cashier
+                     reaches for in a noisy shop, mid-queue, without looking.
+                     The icon stays the same size; the box around it grows. */
+                  className="flex size-9 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
                   title={soundMuted ? "Scan sounds off — click to enable" : "Scan sounds on — click to mute"}
                   aria-label={soundMuted ? "Enable scan sounds" : "Mute scan sounds"}
                 >
@@ -2743,7 +2753,10 @@ export default function PosPage() {
             type="button"
             onClick={manualSync.sync}
             disabled={manualSync.state === "working"}
-            className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-theme-xs font-semibold transition hover:brightness-110 disabled:cursor-progress sm:flex ${
+            /* `py-1` made this 28px tall. It is the control that answers "is
+               my day safe?" and the one a cashier jabs at when the line drops
+               — 4px short of a finger target on the device most tills are. */
+            className={`hidden min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-theme-xs font-semibold transition hover:brightness-110 disabled:cursor-progress sm:flex ${
               connected
                 ? "border-success-500/40 bg-success-500/15 text-success-300"
                 : "border-error-500/50 bg-error-500/15 text-error-300"

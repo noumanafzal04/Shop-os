@@ -32,7 +32,13 @@ const LayoutContent: React.FC = () => {
         } ${isMobileOpen ? "ml-0" : ""}`}
       >
         <AppHeader />
-        <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
+        {/* `--pinned-bottom` is set by whatever is currently fixed to the
+            bottom of the screen — the PWA install card, the update card — and
+            is 0 when nothing is. Without it those cards sit ON the page at
+            z-999998, on top of whatever the screen drew down there: on a tablet
+            that was the "Shop street address" field. Reachable with a scroll,
+            but a shop should not have to find that out by tapping a banner. */}
+        <div className="p-4 mx-auto max-w-(--breakpoint-2xl) pb-[calc(1rem+var(--pinned-bottom,0px))] md:p-6 md:pb-[calc(1.5rem+var(--pinned-bottom,0px))]">
           <Outlet />
         </div>
       </div>
