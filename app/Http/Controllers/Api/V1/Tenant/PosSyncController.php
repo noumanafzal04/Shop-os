@@ -17,6 +17,7 @@ use App\Support\PlanLimits;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -103,6 +104,40 @@ class PosSyncController extends Controller
             $violations[] = $trainingSplit;
         }
 
+        // ── A LABEL MUST NEVER COST A SALE ────────────────────────────────
+        //
+        // `offline_number` is unique per tenant, and rightly so: it is what a
+        // customer's slip says and what a refund is looked up by. But the
+        // number is MINTED ON THE TILL, from a counter that lives in IndexedDB
+        // while the device id it is paired with lives in localStorage. Evict
+        // one and not the other — which browsers do, and which this app already
+        // warns about — and the counter restarts under the same device segment.
+        // Every sale after that carries a slip the server already has.
+        //
+        // What happened then: the insert died on the unique index, was caught
+        // as "something unexpected, retry later", and the till offered the same
+        // number again every few minutes for ever. The money never arrived, and
+        // the message said "It is still safe on the till." It was safe, and it
+        // could not leave.
+        //
+        // The operation id is the idempotency key and it was checked above. If
+        // THAT is new, this is a different sale, and refusing to record real
+        // money because a label repeats is the wrong way round. So the sale is
+        // recorded under a disambiguated label, and the collision is reported to
+        // the shop rather than hidden: two customers are holding slips with the
+        // same number printed on them, and somebody should know.
+        $offlineNumber = $operation['offline_number'] ?? null;
+        if ($offlineNumber !== null) {
+            $free = $this->freeOfflineNumber($offlineNumber);
+
+            if ($free !== $offlineNumber) {
+                $violations[] = "The slip number {$offlineNumber} had already been recorded, so this sale was filed as {$free}. "
+                    .'A till mints these itself, and this one restarted its counter — most likely its saved data was cleared. '
+                    .'Two customers may be holding slips printed with the same number.';
+                $offlineNumber = $free;
+            }
+        }
+
         try {
             $created = $this->createSale->execute($sale + [
                 'idempotency_key' => $operation['op'],
@@ -114,7 +149,12 @@ class PosSyncController extends Controller
                 // Never a figure — only the evidence that a clock needs setting.
                 'client_sold_at' => $clientSoldAt,
                 'clock_skew_seconds' => (int) round($clientSoldAt->diffInSeconds($soldAt, false)),
-                'offline_number' => $operation['offline_number'] ?? null,
+                'offline_number' => $offlineNumber,
+                // The counter out of that label, kept as a number so the next
+                // catalog pull can tell this till where it had got to. A till
+                // whose IndexedDB was cleared restarts at one otherwise, and
+                // every slip it then mints is one the shop already has.
+                'offline_seq' => $this->sequenceIn($operation['offline_number'] ?? null),
                 'pos_device_id' => $device?->id,
                 // WHERE this till stands, from the device's own registration —
                 // never from the header this request happens to carry. See
@@ -158,6 +198,57 @@ class PosSyncController extends Controller
 
             return $this->failed($operation['op'], 'This sale could not be recorded. It is still safe on the till.', 'SYNC_FAILED', retryable: true);
         }
+    }
+
+    /**
+     * The counter inside a slip number, or null if there isn't one.
+     *
+     * `OFF-<lane>-<device>-<000001>`. The lane is sanitised of dashes when the
+     * till mints it, so the fourth segment is the counter — and it is read from
+     * the number AS PRINTED, before any disambiguating suffix, because what is
+     * wanted is how far the till's own counter had got.
+     */
+    private function sequenceIn(?string $printed): ?int
+    {
+        if ($printed === null) {
+            return null;
+        }
+
+        $parts = explode('-', $printed);
+
+        return isset($parts[3]) && ctype_digit($parts[3]) ? (int) $parts[3] : null;
+    }
+
+    /**
+     * A slip number this tenant does not already have.
+     *
+     * Returns the number itself when it is free — the overwhelmingly normal
+     * case, one indexed lookup. When it is taken, the PRINTED number is kept as
+     * the stem and a marker appended, so a shop searching for what is on the
+     * customer's slip still finds the sale: `Sale::search` matches
+     * `offline_number` with a LIKE, and every disambiguated form starts with
+     * the number that was printed.
+     *
+     * The ceiling is not a limit on how many collisions are tolerable — it is a
+     * refusal to loop for ever. Past it, the operation id makes the label
+     * unique, which is ugly and findable, and both are better than losing the
+     * sale.
+     */
+    private function freeOfflineNumber(string $printed): string
+    {
+        if (! Sale::query()->where('offline_number', $printed)->exists()) {
+            return $printed;
+        }
+
+        for ($n = 2; $n <= 20; $n++) {
+            $candidate = "{$printed}-D{$n}";
+
+            if (! Sale::query()->where('offline_number', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        return "{$printed}-D".substr(str_replace('-', '', (string) Str::uuid()), 0, 8);
     }
 
     /**

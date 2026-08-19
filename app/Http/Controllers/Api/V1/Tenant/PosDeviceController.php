@@ -104,6 +104,16 @@ class PosDeviceController extends Controller
             ]);
         }
 
+        // ── THE SLIP'S DEVICE SEGMENT, ALLOCATED ONCE ─────────────────────
+        //
+        // Allocated here and never again: it is printed on customers' slips, so
+        // a till that changed its code between boots would leave the shop with
+        // two runs of numbers for one device and no way to tell which till a
+        // slip came from.
+        if ($device->code === null) {
+            $device->code = $this->freeDeviceCode($tenantId);
+        }
+
         $device->last_seen_at = now();
         $device->save();
 
@@ -187,11 +197,58 @@ class PosDeviceController extends Controller
         return ApiResponse::ok($this->shape($device->fresh()), 'Till allowed again');
     }
 
+    /**
+     * A four-character code no other till in this shop is using.
+     *
+     * Four characters, because that is what the slip has room for and what it
+     * has always printed — the shape does not change, only the guarantee. The
+     * alphabet leaves out the pairs a person reads wrong off a printed receipt
+     * when they ring up about a refund: no O against 0, no I or 1, no S
+     * against 5.
+     *
+     * Random rather than sequential on purpose: a sequential code would let
+     * anyone holding one slip work out how many tills the shop runs, and a gap
+     * in the run would look like a missing till rather than a retired one.
+     *
+     * The loop is bounded because an unbounded one against a full space is a
+     * hung request; 32 letters over 4 places is a million codes, so a shop that
+     * exhausted it has other problems, and the exception says so plainly.
+     */
+    private function freeDeviceCode(string $tenantId): string
+    {
+        $alphabet = 'ABCDEFGHJKLMNPQRTUVWXYZ2346789';
+
+        for ($attempt = 0; $attempt < 50; $attempt++) {
+            $code = '';
+            for ($i = 0; $i < 4; $i++) {
+                $code .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+            }
+
+            $taken = PosDevice::withoutTenancy()
+                ->where('tenant_id', $tenantId)
+                ->where('code', $code)
+                ->exists();
+
+            if (! $taken) {
+                return $code;
+            }
+        }
+
+        throw DomainException::conflict(
+            'This shop has run out of till codes. Retire a till that is no longer used.',
+            'DEVICE_CODES_EXHAUSTED',
+        );
+    }
+
     private function shape(PosDevice $device): array
     {
         return [
             'id' => $device->id,
             'name' => $device->name,
+            // What this till prints in the middle of an offline slip. The till
+            // needs it back; the shop's device list shows it so a slip can be
+            // traced to a counter.
+            'code' => $device->code,
             'platform' => $device->platform,
             'branch' => $device->branch?->only(['id', 'name']),
             'register' => $device->register?->only(['id', 'name']),

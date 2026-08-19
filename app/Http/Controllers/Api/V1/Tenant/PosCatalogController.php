@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\PosDevice;
 use App\Models\Product;
 use App\Models\Promotion;
+use App\Models\Sale;
 use App\Models\TaxGroup;
 use App\Models\User;
 use App\Support\ApiResponse;
@@ -47,6 +49,36 @@ use Illuminate\Support\Collection;
  */
 class PosCatalogController extends Controller
 {
+    /**
+     * The highest offline sequence this device has ever had recorded.
+     *
+     * Scoped to the DEVICE, not the shop: two tills mint their numbers
+     * independently and each carries its own segment, so a shop-wide maximum
+     * would push every till's counter up to the busiest one's and burn numbers
+     * for no reason.
+     *
+     * Null when the device is unknown or has never sold offline — a new tablet
+     * starts at one, which is correct.
+     */
+    private function offlineHighWater(Request $request): ?int
+    {
+        $deviceId = $request->query('device_id');
+
+        if (! is_string($deviceId) || $deviceId === '') {
+            return null;
+        }
+
+        // The browser's own id IS the row's key — the till generates it and the
+        // server registers it under that key. See PosDeviceController.
+        $device = PosDevice::query()->find($deviceId);
+
+        if ($device === null) {
+            return null;
+        }
+
+        return Sale::query()->where('pos_device_id', $device->id)->max('offline_seq');
+    }
+
     /**
      * Rows per page, per projection.
      *
@@ -192,6 +224,21 @@ class PosCatalogController extends Controller
             // The till's own clock cannot be trusted — a tablet three days slow
             // would file its sales into the wrong trading day. This is what it
             // measures its drift against.
+            // ── WHERE THIS TILL'S OWN COUNTER HAD GOT TO ──────────────────
+            //
+            // A till mints its offline slip numbers from a counter in
+            // IndexedDB, paired with a device id in localStorage. Browsers
+            // evict those separately, so a till can lose the counter and keep
+            // the id: it then restarts at one and every slip it mints is one
+            // the shop already has. The sale is no longer lost over it — see
+            // PosSyncController — but two customers holding the same printed
+            // number is still a mess nobody wants to clean up.
+            //
+            // So the server answers the question on the one call a till makes
+            // while it still has a line, and the till starts above it. Null
+            // when this device has never sold offline, which is also what a
+            // brand new tablet should read.
+            'offline_sequence' => $this->offlineHighWater($request),
             'server_time' => now()->toIso8601String(),
             // The SHOP's calendar, which is not the server's and not the
             // tablet's. A promotion that runs on Fridays, or between 6pm and

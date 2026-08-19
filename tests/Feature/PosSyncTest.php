@@ -124,6 +124,67 @@ class PosSyncTest extends TestCase
         $this->assertSame('OFF-L1-AB-000001', $sale->offline_number);
         $this->assertNotNull($sale->invoice_number);
         $this->assertNotSame($sale->offline_number, $sale->invoice_number);
+
+        // And the counter out of it, as a NUMBER. This is what the next catalog
+        // pull hands back so a till whose saved data was cleared starts above
+        // what the shop already has rather than at one. Parsing it out of the
+        // label instead would break on the disambiguated `…-D2` form.
+        $this->assertSame(1, $sale->offline_seq);
+    }
+
+    /**
+     * ── A LABEL MUST NEVER COST A SALE ──────────────────────────────────
+     *
+     * `offline_number` is unique per tenant, and it must be: it is what the
+     * customer's slip says and what a refund is found by. But the number is
+     * minted ON THE TILL, from a counter kept in IndexedDB while the device id
+     * it pairs with is kept in localStorage. Browsers evict one and not the
+     * other, and this app already warns about it — the counter then restarts
+     * under the same device segment and every sale after that carries a slip
+     * the server already has.
+     *
+     * Before this, the insert died on the unique index, was caught as
+     * "something unexpected, retry later", and the till offered the same number
+     * again every few minutes for ever. The money never arrived, behind the
+     * words "It is still safe on the till." It was safe, and it could not
+     * leave.
+     */
+    public function test_a_slip_number_that_arrives_twice_does_not_cost_the_second_sale(): void
+    {
+        $first = $this->sync([$this->operation()])->assertOk()->json('data.results.0');
+        $this->assertSame('applied', $first['status']);
+
+        // A DIFFERENT sale — its own operation id — wearing a slip number the
+        // till has already used, which is exactly what a reset counter mints.
+        $second = $this->sync([$this->operation()])->assertOk()->json('data.results.0');
+
+        $this->assertSame('applied', $second['status'], 'the second sale was refused over a repeated label');
+        $this->assertNotSame($first['sale_id'], $second['sale_id']);
+
+        $kept = Sale::withoutTenancy()->find($second['sale_id']);
+        $this->assertSame('OFF-L1-AB-000001-D2', $kept->offline_number);
+
+        // The printed number is the STEM, so a shop searching for what is on
+        // the customer's slip still finds it.
+        $this->assertStringStartsWith('OFF-L1-AB-000001', $kept->offline_number);
+    }
+
+    public function test_the_shop_is_told_two_slips_carry_the_same_number(): void
+    {
+        // Silently filing it under another label would leave two customers
+        // holding identical slips and nobody aware of it.
+        $this->sync([$this->operation()])->assertOk();
+        $result = $this->sync([$this->operation()])->assertOk()->json('data.results.0');
+
+        $sale = Sale::withoutTenancy()->find($result['sale_id']);
+        $violations = $sale->offline_violations ?? [];
+
+        $this->assertNotEmpty($violations, 'a repeated slip number was recorded without a word to the shop');
+        $this->assertStringContainsString(
+            'OFF-L1-AB-000001',
+            implode(' ', $violations),
+            'the warning does not name the number that repeated',
+        );
     }
 
     public function test_the_sale_is_filed_on_the_day_it_happened_not_the_day_it_arrived(): void

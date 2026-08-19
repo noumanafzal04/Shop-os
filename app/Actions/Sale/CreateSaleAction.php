@@ -913,6 +913,10 @@ class CreateSaleAction
                     'client_sold_at' => $trustedOffline ? ($data['client_sold_at'] ?? null) : null,
                     'clock_skew_seconds' => $trustedOffline ? ($data['clock_skew_seconds'] ?? null) : null,
                     'offline_number' => $trustedOffline ? ($data['offline_number'] ?? null) : null,
+                    // The same fact as the tail of `offline_number`, kept as a
+                    // NUMBER so the next pull can tell this till where its
+                    // counter had got to. See the migration.
+                    'offline_seq' => $trustedOffline ? ($data['offline_seq'] ?? null) : null,
                     'pos_device_id' => $trustedOffline ? ($data['pos_device_id'] ?? null) : null,
                     'synced_at' => $trustedOffline && ! empty($data['sold_at']) ? now() : null,
                     'beyond_offline_window' => (bool) ($trustedOffline && ! empty($data['beyond_offline_window'])),

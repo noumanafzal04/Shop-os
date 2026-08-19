@@ -85,6 +85,56 @@ class PosDeviceTest extends TestCase
         $this->assertNotNull($data['last_seen_at']);
     }
 
+    /**
+     * ── WHICH TILL, ALLOCATED RATHER THAN GUESSED ───────────────────────
+     *
+     * The offline slip is `OFF-<lane>-<device>-<counter>`, and that device part
+     * was the first four characters of the random id the browser minted for
+     * itself — with nothing anywhere checking whether another till already had
+     * them. Four characters is 65,536 values: a shop running fifty tills had
+     * roughly a one-in-fifty chance that two shared a segment, and from their
+     * first sale each they printed identical slip numbers for different
+     * customers. The second was then refused by the shop's own unique index and
+     * could never be sent.
+     *
+     * A hash where an allocation belongs. The server is the only thing that can
+     * see every till at once.
+     */
+    public function test_a_till_is_given_a_code_no_other_till_in_the_shop_has(): void
+    {
+        $first = $this->register($this->cashier, (string) Str::uuid())->assertOk()->json('data.code');
+        $second = $this->register($this->cashier, (string) Str::uuid())->assertOk()->json('data.code');
+
+        $this->assertNotNull($first, 'the till was registered without a code to print');
+        $this->assertSame(4, strlen($first), 'the slip has room for four characters');
+        $this->assertNotSame($first, $second, 'two tills in one shop were given the same code');
+    }
+
+    public function test_a_tills_code_never_changes_under_it(): void
+    {
+        // It is printed on customers' slips. A till that took a new code on its
+        // next boot would leave the shop with two runs of numbers for one
+        // device and no way to tell which counter a slip came from.
+        $id = Str::uuid()->toString();
+
+        $first = $this->register($this->cashier, $id)->assertOk()->json('data.code');
+        $again = $this->register($this->cashier, $id)->assertOk()->json('data.code');
+
+        // Both null would satisfy `assertSame` and prove nothing — the first
+        // version of this test passed with the allocation deleted.
+        $this->assertNotNull($first, 'the till was never given a code to keep');
+        $this->assertSame($first, $again);
+    }
+
+    public function test_a_code_avoids_the_characters_people_misread_off_a_receipt(): void
+    {
+        // Somebody rings up about a refund and reads the slip down the phone.
+        // O against 0 and I against 1 is where that goes wrong.
+        $code = $this->register($this->cashier, (string) Str::uuid())->assertOk()->json('data.code');
+
+        $this->assertDoesNotMatchRegularExpression('/[O01IS5]/', $code);
+    }
+
     public function test_registering_twice_touches_one_device_rather_than_making_two(): void
     {
         // The id is minted by the browser and sent unchanged forever, so a boot
