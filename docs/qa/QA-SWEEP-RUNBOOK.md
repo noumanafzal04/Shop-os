@@ -250,6 +250,45 @@ Network → Offline**, never by turning wifi off.
 
 ---
 
+## Phase O — the two tickets that are not a sale
+
+A parked basket and a phone order are both a claim on stock nobody has paid for,
+and they fail in **opposite** directions. Do these on a real screen; the API
+sweep covers the arithmetic but never the till in somebody's hands.
+
+- [ ] Park a basket → the shelf figure does not move
+- [ ] The parked ticket is on the held list, with its label
+- [ ] Resume it → the cart comes back with every line
+- [ ] **Two lanes, one ticket**: open the held list on both, resume on lane 1,
+      then resume on lane 2 → lane 2 is refused, and says why
+- [ ] Bin a parked ticket → gone, and still no stock moved
+- [ ] Take a phone order → the shelf drops by what was ordered
+- [ ] Cancel it → the shelf goes back to exactly where it was, once
+- [ ] A cancelled order cannot then be completed
+- [ ] Assign a rider; the order shows who is carrying it
+
+---
+
+## Phase P — the day
+
+A shift close counts one drawer. A **day close** counts the shop, and it is the
+last thing anyone does before going home.
+
+**Closing a day cannot be undone.** Do this on a test shop, or on a branch you
+are willing to close off.
+
+- [ ] The day screen shows every shift, including the ones still open
+- [ ] A cashier cannot close the day
+- [ ] The day refuses to close while any drawer is still open, and names it
+- [ ] Close every drawer, close the day → its float, cash sales and cash in are
+      the shifts' figures added up
+- [ ] Closing again is refused
+- [ ] Record a deposit → it lands on the day the counter is trading
+- [ ] **Leave a day open overnight**, trade the next morning, bank something →
+      the money lands on TODAY, not on the day nobody closed
+
+---
+
 ## Running it
 
 The API harness lives at `docs/qa/sweep/` and drives the flows against

@@ -36,6 +36,8 @@ import phase_k
 import phase_l
 import phase_m
 import phase_n
+import phase_o
+import phase_p
 from api import Api, Report
 
 
@@ -72,7 +74,7 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         picked = [c for c in ("pharmacy", "petroleum", "food_restaurant") if c in tenants]
     if "i" in phases or "j" in phases or "k" in phases or "m" in phases:
         picked = ["mart"]
-    if "n" in phases:
+    if "n" in phases or "o" in phases or "p" in phases:
         picked = ["retail"]
     if "l" in phases:
         picked = ["food_restaurant"]
@@ -106,6 +108,10 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
             phase_m.run(api, rep, sold)
         if "n" in phases:
             phase_n.run(api, rep, sold)
+        if "o" in phases:
+            phase_o.run(api, rep, sold)
+        if "p" in phases:
+            phase_p.run(api, rep, sold)
         window = rep.rows[before:]
     finally:
         undo()
@@ -388,6 +394,74 @@ def main() -> int:
         phases=("i",),
     ))
 
+    # 19 · the parked ticket that sells itself. A held ticket is a note under
+    #      the till, not a sale — if parking one moved stock, a shop that parks
+    #      ten tickets across a Saturday would refuse to sell goods it has, all
+    #      day, without a single error.
+    real_on_hand = phase_o.on_hand
+    results.append(mutation(
+        "parking a ticket takes the stock",
+        "A PARKED TICKET HOLDS NOTHING",
+        lambda: setattr(phase_o, "on_hand", _shrinks_after_first(real_on_hand)),
+        lambda: setattr(phase_o, "on_hand", real_on_hand),
+        ran_marker="ticket parked",
+        phases=("o",),
+    ))
+
+    # 20 · one basket, two bills. The worst thing that can happen at a counter
+    #      with more than one lane: two cashiers open the held list in the same
+    #      second, both load the same cart, both take money, and the stock
+    #      leaves twice. `claim` is atomic precisely to stop it.
+    real_post = Api.post
+    results.append(mutation(
+        "every lane can resume the same ticket",
+        "ONE BASKET CANNOT BE RESUMED TWICE",
+        lambda: setattr(Api, "post", _claims_always_succeed(real_post)),
+        lambda: setattr(Api, "post", real_post),
+        ran_marker="first lane got the basket",
+        phases=("o",),
+    ))
+
+    # 21 · the order that promises what it has not kept. No hold and two
+    #      customers are told the last packet is theirs; one of them is standing
+    #      at a door for nothing.
+    real_on_hand_2 = phase_o.on_hand
+    results.append(mutation(
+        "an order never holds its stock",
+        "AN ORDER HOLDS ITS STOCK",
+        lambda: setattr(phase_o, "on_hand", _never_moves(real_on_hand_2)),
+        lambda: setattr(phase_o, "on_hand", real_on_hand_2),
+        ran_marker="caller's price ignored",
+        phases=("o",),
+    ))
+
+    # 22 · the money banked against the wrong day. The bug this phase was
+    #      written to find, put back on purpose: with last night's day still
+    #      open, today's takings land on yesterday and today's banking column
+    #      never moves.
+    real_post_dep = Api.post
+    results.append(mutation(
+        "a deposit lands on some other open day",
+        "A DEPOSIT BELONGS TO THE DAY THE SHOP IS TRADING",
+        lambda: setattr(Api, "post", _deposit_drifts(real_post_dep)),
+        lambda: setattr(Api, "post", real_post_dep),
+        ran_marker="day(s) open at the counter",
+        phases=("p",),
+    ))
+
+    # 23 · the day that does not add up. Three lanes counted separately must
+    #      total one figure; if they do not, the shop reconciles a number that
+    #      never existed and the difference is somebody's shortfall.
+    real_post_day = Api.post
+    results.append(mutation(
+        "the day's takings do not match its shifts",
+        "THE DAY IS THE SUM OF ITS SHIFTS",
+        lambda: setattr(Api, "post", _day_total_drifts(real_post_day)),
+        lambda: setattr(Api, "post", real_post_day),
+        ran_marker="day closed",
+        phases=("p",),
+    ))
+
     print("=" * 70)
     print(f"{sum(results)} of {len(results)} mutations caught")
     print("=" * 70)
@@ -402,6 +476,60 @@ def _module_off_for(real, paths: tuple[str, ...]):
                          "meta": {"error_code": "MODULE_DISABLED"}}
         return real(self, p, **kw)
     return faked
+
+
+def _deposit_drifts(real):
+    """Bank it against a different day — the shop that forgot to close."""
+    def call(self, path, body=None, **kw):
+        status, payload = real(self, path, body, **kw)
+        if path == "/pos/deposits" and status < 400:
+            data = payload.setdefault("data", {})
+            data["business_day_id"] = "01a00000-0000-7000-8000-000000000000"
+        return status, payload
+    return call
+
+
+def _day_total_drifts(real):
+    """The day closes carrying a cash figure its shifts never took."""
+    def call(self, path, body=None, **kw):
+        status, payload = real(self, path, body, **kw)
+        if path.endswith("/close") and "/days/" in path and status < 400:
+            data = payload.setdefault("data", {})
+            data["cash_sales"] = round(float(data.get("cash_sales") or 0) + 250, 2)
+        return status, payload
+    return call
+
+
+def _shrinks_after_first(real):
+    """First read real; every read after it is short — a shelf that moved when
+    nothing was sold."""
+    seen = {"n": 0}
+
+    def stock(api, token, pid):
+        seen["n"] += 1
+        value = real(api, token, pid)
+        return value if value is None or seen["n"] == 1 else value - 3
+    return stock
+
+
+def _never_moves(real):
+    """Every read returns the FIRST figure — a shelf that notices nothing."""
+    first = {}
+
+    def stock(api, token, pid):
+        value = real(api, token, pid)
+        return first.setdefault(pid, value)
+    return stock
+
+
+def _claims_always_succeed(real):
+    """A claim never refuses — every lane gets the same basket."""
+    def call(self, path, body=None, **kw):
+        status, payload = real(self, path, body, **kw)
+        if path.endswith("/claim") and status >= 400:
+            return 200, {"data": {"cart": {"items": [{"product_id": "x", "quantity": 1}]}}}
+        return status, payload
+    return call
 
 
 def _fill_the_shelf() -> None:

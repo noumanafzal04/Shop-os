@@ -126,7 +126,12 @@ def run(api: Api, rep: Report) -> dict:
 
 # What the sweep needs room for: several jobs at once, three lanes, and a second
 # branch to move stock to. The DEFAULTS are deliberately smaller than that.
-ROOM = {"staff": 30, "registers": 6, "branches": 4}
+# Branches: Main, phase K's second, and one per phase-P run TODAY. Closing a
+# trading day is irreversible and keyed on branch + date, so a second run on the
+# same afternoon needs a branch whose day is still open. Ten is a fortnight of
+# re-runs before the ceiling — which is itself proved to refuse, above, before
+# any of this is raised.
+ROOM = {"staff": 30, "registers": 6, "branches": 12}
 
 
 def _limits_bite_then_move(api: Api, rep: Report, made: dict) -> None:

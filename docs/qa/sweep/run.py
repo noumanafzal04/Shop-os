@@ -40,14 +40,16 @@ import phase_k
 import phase_l
 import phase_m
 import phase_n
+import phase_o
+import phase_p
 
-PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n"]
+PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p"]
 
 
 # What each phase needs standing before it. Naming a late phase alone runs its
 # prerequisites too — asking for "the seams" and silently getting only the admin
 # side is the kind of quiet no-op that makes a sweep untrustworthy.
-NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"]}
+NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"]}
 
 
 def _with_prerequisites(want: list[str]) -> set[str]:
@@ -66,7 +68,7 @@ def _with_prerequisites(want: list[str]) -> set[str]:
 # these to say what a phase should have covered and did not — see
 # `Report.summary`. Phases whose subject is not one module (the seams, the
 # money, the offline queue) simply report what they touched.
-GATES = {"i": "pos", "k": "inventory", "l": "dine_in", "m": "pos", "n": "pos"}
+GATES = {"i": "pos", "o": "pos", "p": "pos", "k": "inventory", "l": "dine_in", "m": "pos", "n": "pos"}
 
 
 def _expected(shops: dict, want: set[str]) -> dict[str, set[str]]:
@@ -138,6 +140,12 @@ def main() -> int:
 
     if "n" in want:
         phase_n.run(api, rep, sold)
+
+    if "o" in want:
+        phase_o.run(api, rep, sold)
+
+    if "p" in want:
+        phase_p.run(api, rep, sold)
 
     return rep.summary(_expected(shops, want), set(shops))
 

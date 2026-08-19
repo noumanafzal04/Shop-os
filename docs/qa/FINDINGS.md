@@ -10,6 +10,155 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-19 — the screens, for the first time
+
+**A shop reported seven defects by holding a tablet. Not one was caught by 3,079
+green tests.** This is what was built about that, and what it found.
+
+### The gap was the tool, not the tests
+
+Everything under `src/**.test.ts` runs in **jsdom, which has no layout engine**:
+`getBoundingClientRect()` returns zeros, no stylesheet is applied, and no media
+query ever matches. A close button under a header, a 28px tap target, a modal
+taller than the screen, content behind the sidebar — **none of those are wrong
+in the source.** They are wrong only once something computes a position.
+
+So: Playwright, real Chromium and real **WebKit** (the engine an iPad runs, and
+the one that taught this codebase `100dvh` never `100vh`), at three viewports.
+Five rules, each generalised from a defect that actually happened:
+
+| Rule | The defect it generalises |
+|---|---|
+| Nothing a finger must press is covered | the close button under the header |
+| Every tap target is ≥ 32px | that button at 28 |
+| The page does not scroll sideways | the till header hiding Drawer and Close |
+| What is open fits the screen | the payment panel taller than the tablet |
+| The page ends above what is pinned to it | the PWA card sitting on the page |
+
+### What it found
+
+**The PWA install card sits on the page.** `fixed bottom-3`, `z-[999998]`, over
+whatever the screen drew down there. On the shop setup page that was the
+**"Finish setup" button** — the primary action of the first screen a new shop
+ever sees, at exactly the moment that banner appears. On the Help Centre it was
+the last paragraph of every article.
+
+Fixed by having the card measure itself into `--pinned-bottom` and each
+full-height page reserve that room. Measured, not hard-coded: the card is two
+lines on Chrome and four on Safari, whose copy explains Share → Add to Home
+Screen.
+
+**Two till controls below the floor**: the scan-sound mute at **24×24** and the
+sync pill at **72×28**. The first is what a cashier reaches for in a noisy shop
+without looking; the second is the one they jab when the line drops.
+
+### Four ways the suite fooled itself first
+
+Every one is the failure this sweep keeps finding, now inside the tool built to
+find it.
+
+**It tested the shop setup form fourteen times.** Sign-in asserted the URL
+matched `/tenant` — and `/tenant/setup` matches `/tenant`. The sweep's tenants
+have never completed setup, because the API does not gate on it and only the
+panel does, so every route redirected there. Fourteen screens reported as
+dashboard, catalog, reports and till were one unchanging form, and **everything
+passed.** Caught only by the denominator: the till measured **1 tap target where
+it has fifty**.
+
+**The covering rule went green against the defect it was written for.** Its
+first version asked "is this covered right now"; scrolling brings the control
+out from under the card, so it passed. The question a shop has is "can I press
+it at all" — so it scrolls each suspect to the middle and asks again, and a
+separate rule asks whether the page ENDS above what is pinned, which is the part
+that cannot be scrolled away.
+
+**It measured boxes nobody can see.** `getBoundingClientRect()` reports the full
+box even when an `overflow: auto` ancestor clipped most of it away. The Help
+Centre's last paragraph ran to y=729 while its scroller cut it at y=700 —
+reported as overlapping a card at y=712 that no reader could see it behind.
+
+**One rule disturbed the next.** `nothingIsCovered` scrolls, including sideways,
+so the sideways-scroll rule fired once and never again. A finding nobody can
+reproduce teaches the reader to ignore findings.
+
+---
+
+## 2026-08-19 — tenth run · phases O and P, and the day nobody had ever driven
+
+**Two new phases. One product bug, and it is money.**
+
+### Phase O — the two tickets that are not a sale
+
+A parked basket and a phone order are both a claim on stock nobody has paid
+for, and they are dangerous in **opposite** directions:
+
+- **A parked ticket holds nothing.** It is a note under the till. If parking one
+  moved stock, a shop that parks ten tickets across a Saturday would spend the
+  day refusing to sell goods it has, and nothing would ever error.
+- **A phone order holds everything.** Two orders for the last packet is a
+  customer standing at a door for nothing, so the hold is taken the moment the
+  order is, and given back on cancel **exactly once**.
+
+Plus the one that costs real goods: **`claim` is atomic.** A ticket belongs to
+the site, so any lane can finish it — and two cashiers who open the held list in
+the same second would otherwise both load the same basket and both take money
+for it. One basket, two bills, stock off the shelf twice.
+
+All green. 241 checks, three new mutations, all caught.
+
+### Phase P — the day
+
+A shift is one person's drawer. A **day** is the shop's, and it is the unit the
+books are actually kept in. Nothing had ever driven it from outside.
+
+**THE BUG: money banked today was recorded against yesterday.**
+
+"Which day is this counter trading?" was asked in three places and answered
+three ways — `open()` by branch + today's date, the screen by
+`latest('trading_date')`, and the deposit **with no ordering at all**. With one
+open day nobody could tell. With two — the ordinary state of a shop that shut
+late — the deposit took the older one.
+
+The shop walks the takings to the bank, today's banking column never moves, and
+yesterday's day is eventually closed off carrying money that was never in it.
+
+Fixed with one resolver, `BusinessDay::openFor()`, used by both. Full argument
+in [`docs/decisions/shopos-which-day-is-open.md`](../decisions/shopos-which-day-is-open.md).
+
+### The test that passed against the bug
+
+The first regression test **went green on the broken code.** An unordered
+`->value('id')` returns rows in insertion order, and the test built today's day
+first, so the broken query found the right row by luck.
+
+The fix was to build the rows in the order reality builds them: **yesterday's
+day exists first, because yesterday came first.**
+
+### Three harness lessons, all from phase P
+
+**Closing a day is irreversible.** It is keyed on branch + date with no re-open
+path. The first version shut the real trading day on all eight shops and every
+phase from C onward went red at once — *"Trading on 2026-08-19 has already been
+closed off"* — for the rest of the day. Correct product behaviour, unrecoverable
+harness. A day belongs to a branch, so the phase now trades on one nobody else
+touches and takes the next one when today's is spent.
+
+**The destructive check must not gate the harmless one.** Banking closes nothing
+and belongs on the counter the shop actually trades from. It was ordered *after*
+the private branch, so when the plan's branch ceiling bit — correctly, at 4 —
+the check that found the defect was the one that silently stopped running.
+
+**`/pos/session` answers 200 whether the drawer is open or shut.** Reading "did
+the call return a body" instead of `status == "open"` meant the open-drawer
+check closed days that had no open drawer and reported the refusal it never got
+as a product bug, on three shops out of seven.
+
+### Where it stands
+
+**16 phases · 1,554 checks · 23 mutations · 47 harness findings, 4 product bugs.**
+
+---
+
 ## 2026-08-19 — ninth run · the phases stop choosing their own shops
 
 **927 → 1303 checks. 17 → 18 mutations. One product bug, and it was hiding

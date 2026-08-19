@@ -2930,11 +2930,11 @@ every fixture in the suite was built by the same hands that built the feature.
 ```bash
 cd shopos-backend && php artisan serve --port=8000
 cd docs/qa/sweep
-python3 run.py        # phases A–E, in the order each one needs
+python3 run.py        # phases A–P, in the order each one needs
 python3 mutate.py     # break the sweep on purpose; every lie must be caught
 ```
 
-**Fourteen phases, 1,303 checks in one run, 18 of 18 mutations caught.** It has found three real
+**Sixteen phases, 1,554 checks in one run, 23 of 23 mutations caught.** It has found four real
 defects, all the same shape — *one question, two paths, two different answers*:
 
 - [The forecourt nobody could start](docs/decisions/shopos-forecourt-branch.md) —
@@ -2951,6 +2951,44 @@ defects, all the same shape — *one question, two paths, two different answers*
   for it, because the preset was gated on `inventory` **or** `products` while
   every route it names rides `inventory` alone.
 
+- [The shop that forgot to close last night](docs/decisions/shopos-which-day-is-open.md) —
+  money banked today was recorded against yesterday, because "which day is this
+  counter trading?" was asked in three places and answered three ways, and the
+  deposit's version had no ordering at all. Two open days is not exotic; it is
+  what every shop that shuts late looks like.
+
+### The tests that need a browser
+
+A shop reported seven defects by holding a tablet, and **not one was caught by
+3,079 green tests.** Everything under `src/**.test.ts` runs in **jsdom, which
+has no layout engine** — `getBoundingClientRect()` returns zeros, no stylesheet
+is applied, no media query matches. A close button under a header, a 28px
+target, a modal taller than the screen: none of those are wrong in the SOURCE.
+
+```bash
+cd shopos-backend && php artisan serve --port=8000
+cd shopos-admin-and-user-panel && npm run test:e2e
+```
+
+Playwright, real Chromium and real **WebKit** — the engine an iPad runs, and the
+one that taught this codebase `100dvh` never `100vh`. Five rules, each
+generalised from a defect that actually happened: nothing pressable is covered ·
+every tap target ≥32px · no sideways page scroll · what is open fits the screen ·
+the page ends above what is pinned to it.
+
+It found [the card that sits on the page](docs/decisions/shopos-screen-testing.md)
+on its first real run — the PWA install prompt at `z-[999998]` over the "Finish
+setup" button, which is the primary action of the first screen a new shop ever
+sees — plus two till controls under the finger floor.
+
+**And it fooled itself four times before that**, in exactly the ways the QA
+sweep keeps finding. The worst: it asserted the URL matched `/tenant`, which
+`/tenant/setup` also matches, so it tested the shop setup form fourteen times
+while reporting it as the dashboard, the catalog, the reports and the till —
+and everything passed, because an unchanging page has nothing covered and
+nothing off its edge. Only the denominator caught it: 1 tap target where the
+till has fifty.
+
 Findings and the full argument live in
 [`docs/qa/FINDINGS.md`](docs/qa/FINDINGS.md) and
 [`docs/decisions/shopos-qa-sweep.md`](docs/decisions/shopos-qa-sweep.md).
@@ -2960,7 +2998,7 @@ Three things to know before you touch it:
 - **It reports, it does not pass or fail.** `BUG`, `QUERY` and `HARNESS`, and
   the middle one is why it exists — about half of what surprises the sweep turns
   out to be correct behaviour nobody had written down. Running total so far:
-  **45 harness findings, 3 product bugs**, and every one of the forty-five
+  **47 harness findings, 4 product bugs**, and every one of the forty-seven
   looked like a defect on first read. Verify before believing; the base rate
   says it is the sweep. The worst of them was a permission probe that ran as
   the WRONG IDENTITY: a staff sign-in throttled to `None` fell back to the
@@ -2971,6 +3009,14 @@ Three things to know before you touch it:
   waits out a 429 using the server's own `Retry-After`. Loosening either would
   be the wrong fix in a system whose worst failure is a till that cannot take
   money.
+- **Some things cannot be run twice.** Closing a trading day is keyed on branch
+  + date with no re-open path, so phase P's first version shut the real day on
+  all eight shops and every phase from C onward went red for the rest of the
+  afternoon. It now trades on a branch nobody else touches and takes the next
+  one when today's is spent. And the destructive check must never gate the
+  harmless one: banking was ordered after that branch, so when the plan's
+  branch ceiling bit — correctly — the check that found the day bug was the one
+  that silently stopped running.
 - **A phase must not choose its own shops.** Three phases picked trades from a
   hardcoded list sitting beside a `features` check that already knew the answer,
   and the two copies drifted: five trades' loyalty had never been looked at,
