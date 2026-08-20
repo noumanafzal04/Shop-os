@@ -41,6 +41,7 @@ import phase_p
 import phase_q
 import phase_r
 import phase_s
+import phase_t
 from api import Api, Report
 
 
@@ -105,6 +106,12 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
     # enough: a mutation proves a check is live, not that it is live eight times.
     if "s" in phases:
         picked = ["mart"]
+    # Phase T needs TWO shops. `AuditLog` is not tenant-scoped as a model — the
+    # platform reads across every shop — so the endpoint's own `where` is the
+    # only wall between one history and another, and a run with one shop cannot
+    # see that wall at all.
+    if "t" in phases:
+        picked = [c for c in ("mart", "retail") if c in tenants]
     shops = phase_b.run(api, rep, {c: tenants[c] for c in picked if c in tenants})
 
     apply()
@@ -151,6 +158,8 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
             phase_r.run(api, rep, sold, tenants)
         if "s" in phases:
             phase_s.run(api, rep, sold)
+        if "t" in phases:
+            phase_t.run(api, rep, sold)
         window = rep.rows[before:]
     finally:
         undo()
@@ -755,6 +764,60 @@ def main() -> int:
         phases=("s",),
     ))
 
+    # ── Phase T · who changed what ───────────────────────────────────────
+    #
+    # 40 · the trail that forgets. The state the product was actually in: a
+    #      credit limit raised from 5,000 to 90,000 and nothing recorded. Empty
+    #      the answer and the sweep must object, or its line about credit limits
+    #      is a sentence about a check that cannot tell.
+    real_get_trail = Api.get
+    results.append(mutation(
+        "the trail has no row for a credit limit",
+        "A CREDIT LIMIT WAS RAISED WITH NOBODY NAMED",
+        lambda: setattr(Api, "get", lambda self, p, **k: _the_trail_forgets(real_get_trail, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_trail),
+        ran_marker="a walk-in customer is not an event",
+        phases=("t",),
+    ))
+
+    # 41 · the row with nobody on it. A trail that records THAT something
+    #      changed and not WHO is not accountability — and it is the shape a
+    #      background job legitimately produces, so it cannot simply be assumed
+    #      away.
+    results.append(mutation(
+        "every row is filed by nobody",
+        "A CREDIT LIMIT WAS RAISED WITH NOBODY NAMED",
+        lambda: setattr(Api, "get", lambda self, p, **k: _the_trail_names_nobody(real_get_trail, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_trail),
+        ran_marker="a walk-in customer is not an event",
+        phases=("t",),
+    ))
+
+    # 42 · the wall. `AuditLog` carries a tenant_id and is deliberately NOT
+    #      tenant-scoped as a model, so one `where` in one controller is the
+    #      whole boundary. Hand both shops the same row and the sweep must say
+    #      so.
+    results.append(mutation(
+        "two shops are shown the same history",
+        "ONE SHOP CAN SEE ANOTHER SHOP'S HISTORY",
+        lambda: setattr(Api, "get", lambda self, p, **k: _both_shops_one_history(real_get_trail, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_trail),
+        ran_marker="a walk-in customer is not an event",
+        phases=("t",),
+    ))
+
+    # 43 · the gate. A cashier reading who changed what is the read-vs-manage
+    #      bug pointed the other way: not a write permission gating a read, but
+    #      a read nobody thought to gate.
+    results.append(mutation(
+        "a cashier is let into the trail",
+        "A CASHIER CAN READ WHO CHANGED WHAT",
+        lambda: setattr(Api, "get", lambda self, p, **k: _the_gate_opens(real_get_trail, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_trail),
+        ran_marker="a walk-in customer is not an event",
+        phases=("t",),
+    ))
+
     print("=" * 70)
     print(f"{sum(results)} of {len(results)} mutations caught")
     print("=" * 70)
@@ -1107,6 +1170,54 @@ def _old_stock_refused(real_post, self, path, body, **kw):
         return 422, {"message": "This lot is too old to sell.", "meta": {"error_code": "LOT_TOO_OLD"}}
 
     return real_post(self, path, body, **kw)
+
+
+# ── Phase T · lying about the trail ───────────────────────────────────────
+
+def _is_trail(path: str) -> bool:
+    return path.startswith("/audit-logs")
+
+
+def _the_trail_forgets(real_get, self, path, **kw):
+    """The trail answers with nothing — the state the product was actually in."""
+    status, payload = real_get(self, path, **kw)
+
+    if _is_trail(path) and status == 200:
+        payload["data"] = []
+
+    return status, payload
+
+
+def _the_trail_names_nobody(real_get, self, path, **kw):
+    """Every row filed by nobody. Recording THAT it changed is not recording WHO."""
+    status, payload = real_get(self, path, **kw)
+
+    if _is_trail(path) and status == 200:
+        for row in payload.get("data") or []:
+            row["actor"] = None
+
+    return status, payload
+
+
+def _both_shops_one_history(real_get, self, path, **kw):
+    """One row id handed to every shop that asks — the wall gone."""
+    status, payload = real_get(self, path, **kw)
+
+    if _is_trail(path) and status == 200:
+        for row in payload.get("data") or []:
+            row["id"] = "the-same-row-for-everybody"
+
+    return status, payload
+
+
+def _the_gate_opens(real_get, self, path, **kw):
+    """A cashier's 403 reads as an answer."""
+    status, payload = real_get(self, path, **kw)
+
+    if _is_trail(path) and status == 403:
+        return 200, {"success": True, "data": [], "meta": {"pagination": {}}}
+
+    return status, payload
 
 
 if __name__ == "__main__":

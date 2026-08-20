@@ -10,6 +10,115 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-21 — who changed what
+
+### BUG · the trail recorded permissions and not the money they move — NOW FIXED
+
+Eight sensitive acts driven through the API as a shop owner, each one **proven
+to have changed something** before its absence from the trail was allowed to
+mean anything. Three left a record.
+
+| act | recorded? |
+|---|---|
+| the discount ceiling on a cashier's discretion | yes |
+| a staff permission granted | yes |
+| a member of staff suspended | yes |
+| a customer's credit limit, Rs 5,000 → Rs 90,000 | **no** |
+| a tax rate, which re-rates every product on it | **no** |
+| a customer group's discount, every member at once | **no** |
+| a coupon — money off every bill quoting it | **no** |
+| a product's price | **no** |
+
+Every line in the second half is a money authority, and every line in the first
+is proof the shop already believed such things were worth recording.
+
+> **A trail that records permissions and not the money those permissions move is
+> a trail about the door, not the room.**
+
+`TaxGroup`'s own docblock states the consequence and has since it was written:
+*"edit the rate once and every product on it re-rates."* The difference between
+the old rate and the new one is money owed to FBR, and nobody's name was on it.
+
+Fixed with `Auditable::auditOnly()`, an allowlist: `Customer` records
+`credit_limit` and nothing else, because a phone number corrected at the counter
+is not an event and auditing the record entire would bury the line that matters.
+A CREATE counts too — a limit given on day one is the same act as raising it on
+day two. `TaxGroup`, `CustomerGroup` and `Coupon` are audited whole; all four are
+low-volume, which is the selection rule rather than a coincidence.
+
+### BUG · the shop could not read its own history — NOW FIXED
+
+The only way in was `GET /admin/audit-logs`, behind `role:super_admin`. A shop
+owner saw eight rows on their dashboard, with no filter, no date range and no way
+to ask a question — while the Help Centre told them, correctly, that the log
+records who entered a figure and when.
+
+> **A record that nobody named in it can read is not accountability. It is a
+> promise about a filing cabinet in somebody else's office.**
+
+Eighth "built but unreachable" in this codebase, and the first where the thing
+out of reach was the shop's own history. `GET /audit-logs` now, tenant-scoped
+with an explicit and commented `where` — `AuditLog` carries a `tenant_id` and is
+deliberately NOT tenant-scoped as a model, so a read that forgets to say which
+shop it wants is the worst possible bug in this particular table.
+
+Gated on `READS_AUDIT` = `settings.manage` **or** `reports.view`. An ANY-of set,
+not a single manage permission: **the person most often being asked about is the
+one holding `settings.manage`**, and a trail only they can open is not a trail.
+
+### GAP · product prices, deliberately left out
+
+A shop importing five thousand rows would bury its own trail in one afternoon,
+and a record nobody can read to the bottom of protects nobody. "Who repriced
+this" is a real question that needs a **price history on the product**, not a
+bigger list. Said out loud in the Help Centre rather than left to be discovered.
+
+### The regression caught before it shipped
+
+Moving the exclusion filter earlier meant an update whose **only** changed field
+is excluded — `password` — would write nothing, where before it wrote a row with
+empty values. **That row is the signal.** Losing "somebody's password changed" to
+a refactor about credit limits would have been a security regression bought with
+a tidier function. The allowlist swallows a values-less change; nothing else
+does, and a test pins it in both directions.
+
+### HARNESS · the probe was wrong twice, each time confidently
+
+1. It read `tenant_id` off `/auth/me`, which nests it under `tenant`. The filter
+   became `?tenant_id=None` — a non-empty string — so the API filtered on a
+   tenant literally called "None" and returned **zero rows**. A probe reporting
+   "nothing is recorded" while looking at the wrong shop.
+2. It keyed the trail on `(entity, event, entity_id)`. A **second** "User
+   updated" for the same user is the same tuple as the first, so it vanished
+   into the set — and the probe reported that a permission change left no record,
+   **having just watched it leave one.** Keyed on the audit row's own id now.
+
+> **Suspect the detector before the code.** Third time this week.
+
+### HARNESS · `Report.expect` reads a collection `want` as ALTERNATIVES
+
+Phase S walked into it yesterday and phase T today, so the API was the problem
+rather than the callers. It turns a comparison of ORDER into nonsense, and makes
+an **empty** `want` unsatisfiable — a check that can only ever query, which is
+exactly how phase T reported eight correct answers.
+
+Two rules added: an empty `want` is always a caller bug and says so in the row;
+and when **both** sides are collections the caller means **equality** ("is this
+list one of the acceptable values" would need a list of lists, which nothing
+here does).
+
+### Phase T · who changed what
+
+**219 ok · 0 to look at · 0 bugs**, 8 shops. **Always two shops:** `AuditLog` is
+not tenant-scoped as a model, so one `where` in one controller is the entire
+boundary between one shop's history and another's, and a run with one shop cannot
+see that boundary at all.
+
+Four mutations (40–43): the trail forgets, the trail names nobody, two shops are
+handed the same row, and the cashier's 403 reads as an answer.
+
+---
+
 ## 2026-08-20 — the other half of a date
 
 ### BUG · a tyre shop sold its newest stock first — NOW FIXED

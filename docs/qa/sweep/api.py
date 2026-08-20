@@ -183,7 +183,40 @@ class Report:
     def bug(self, phase, what, detail=""): self._add("BUG", phase, what, detail)
 
     def expect(self, phase, what, got, want, detail=""):
-        """`want` may be a value or a set of acceptable values."""
+        """
+        `want` may be a value, or a collection of ACCEPTABLE values.
+
+        That second reading is the footgun, and two phases have now walked into
+        it. A list of expected ROWS reads as "any one of these will do", so a
+        check comparing an order — `["OLD", "MID"]` — asked whether the whole
+        list equalled one of its own members, and reported the exactly-right
+        answer as something to look at. An empty list is the same mistake with
+        the volume up: nothing can ever be in it, so the check can only ever
+        query.
+
+        Two rules, both about the CALLER rather than the product:
+
+          · an empty `want` is always a caller bug — it is unsatisfiable, and a
+            check that cannot pass is not a check;
+          · when BOTH sides are collections, the caller means EQUALITY. "Is
+            this list one of the acceptable values" would need `want` to be a
+            list OF lists, which nothing here does.
+        """
+        if isinstance(want, (set, list, tuple)) and len(want) == 0:
+            self.query(phase, what, "HARNESS: expect() was given an empty `want`, "
+                                    "which nothing can satisfy — the check cannot pass")
+            return False
+
+        both_collections = (isinstance(want, (set, list, tuple))
+                            and isinstance(got, (set, list, tuple)))
+
+        if both_collections:
+            if list(got) == list(want):
+                self.ok(phase, what)
+                return True
+            self.query(phase, what, detail or f"got {list(got)}, expected {list(want)}")
+            return False
+
         acceptable = want if isinstance(want, (set, list, tuple)) else {want}
         if got in acceptable:
             self.ok(phase, what)

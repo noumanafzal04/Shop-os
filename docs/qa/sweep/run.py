@@ -45,14 +45,15 @@ import phase_p
 import phase_q
 import phase_r
 import phase_s
+import phase_t
 
-PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s"]
+PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]
 
 
 # What each phase needs standing before it. Naming a late phase alone runs its
 # prerequisites too — asking for "the seams" and silently getting only the admin
 # side is the kind of quiet no-op that makes a sweep untrustworthy.
-NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"], "r": ["c"], "s": ["c"]}
+NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"], "r": ["c"], "s": ["c"], "t": ["c"]}
 
 
 def _with_prerequisites(want: list[str]) -> set[str]:
@@ -164,6 +165,11 @@ def main() -> int:
         # already carries — phase R signed in as a shopper, and a stock question
         # asked with a customer's credentials is a 403 reported as a finding.
         phase_s.run(api, rep, sold)
+
+    if "t" in want:
+        # No module gate: every shop has a history, and the trail is not a
+        # feature a plan turns on.
+        phase_t.run(api, rep, sold)
 
     return rep.summary(_expected(shops, want), set(shops))
 

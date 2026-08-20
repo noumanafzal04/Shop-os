@@ -276,7 +276,74 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-20 (latest) — the other half of a date
+### 2026-08-21 (latest) — who changed what
+
+The audit trail recorded who may DO things and said nothing about what those
+things are WORTH. Eight sensitive acts driven through the API as a shop owner,
+each proven to have changed something first, left three records between them:
+the discount ceiling, a staff permission and a suspension. Not recorded: a
+customer's credit limit raised from Rs 5,000 to Rs 90,000, a tax rate, a
+customer group's discount, a coupon, a price.
+
+Every line in the second half is a MONEY AUTHORITY, and every line in the first
+is proof the shop already believed such things were worth recording.
+`TaxGroup`'s own docblock says the consequence — "edit the rate once and every
+product on it re-rates" — and the difference is owed to FBR.
+
+> A trail that records permissions and not the money those permissions move is
+> a trail about the door, not the room.
+
+**And nobody in the shop could read it.** The only way in was
+`/admin/audit-logs`, behind `role:super_admin`. An owner got eight rows on the
+dashboard, no filter, no dates, no question — while the Help Centre told them,
+correctly, that the log records who entered a figure and when. *A record that
+nobody named in it can read is not accountability; it is a promise about a
+filing cabinet in somebody else's office.* Eighth "built but unreachable", and
+the first where the thing out of reach was the shop's own history.
+
+Fixed in two halves:
+
+- **`Auditable::auditOnly()`** — an allowlist, so a model can be audited in ONE
+  respect. `Customer` records `credit_limit` and nothing else: a phone number
+  corrected at the counter is not an event, and auditing the record entire
+  would bury the line that matters. A create counts too, because a limit given
+  on day one is the same act as raising it on day two. `TaxGroup`,
+  `CustomerGroup` and `Coupon` are audited whole — all low-volume, which is the
+  selection rule, not a coincidence.
+- **`GET /audit-logs`** + an Activity screen in shop words (`TaxGroup` is a
+  class name; "Tax rate" is what changed). Gated on `READS_AUDIT` =
+  `settings.manage` OR `reports.view` — an ANY-of set, because the person most
+  often being ASKED about is the one holding `settings.manage`.
+
+**Deliberately not audited:** product prices (a five-thousand-row import would
+bury the trail in an afternoon — "who repriced this" needs a price history, not
+a bigger list), and supplier/branch contact details, which are not authorities
+and already carry `created_by`/`updated_by`. Both said out loud in the Help
+Centre rather than left to be discovered.
+
+**One regression caught before it shipped.** Moving the exclusion filter earlier
+meant an update whose only changed field is `password` would write nothing,
+where it used to write a row with empty values. That row IS the signal. The
+allowlist swallows a values-less change; nothing else does, and a test pins it
+both ways.
+
+**The probe was wrong twice first**, each time with a confident wrong answer: it
+read `tenant_id` off `/auth/me` (which nests it under `tenant`), so the filter
+became the literal string "None" and returned zero rows; then it keyed the trail
+on `(entity, event, id)`, so a SECOND "User updated" for the same user deduped
+away and it reported no record having just watched one appear. *Suspect the
+detector before the code* — third time this week.
+
+Sweep **phase T**, always two shops: `AuditLog` is not tenant-scoped as a model,
+so one `where` in one controller is the entire boundary. Four mutations (40–43).
+And `Report.expect` was hardened — it reads a collection `want` as
+ALTERNATIVES, which phases S and T both walked into, so the API was the problem
+rather than the callers.
+
+Backend **2110 → 2123** (13 new, 8990 assertions). Panel 1022 + build clean.
+Full record: `docs/decisions/shopos-who-changed-what.md`.
+
+### 2026-08-20 — the other half of a date
 
 Stock can be dated two ways and only one of them was ever read back. An
 `expiry_date` had a shop-wide worklist, a dashboard tile, a counter warning, a

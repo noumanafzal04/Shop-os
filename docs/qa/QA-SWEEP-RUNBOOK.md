@@ -418,10 +418,14 @@ finance has no inventory module and is correctly skipped.
 Two things this phase taught the harness, both worth knowing before writing
 another one:
 
-- **`Report.expect` reads a list `want` as ALTERNATIVES**, not as a sequence.
-  Phase S passed a list of expected rows and it asked whether the whole list
-  equalled one of its own members — **reporting the exactly-right answer as
-  something to look at, 18 times.** Compare an order as a joined string.
+- **`Report.expect` reads a collection `want` as ALTERNATIVES**, not as a
+  sequence. Phase S passed a list of expected rows and it asked whether the
+  whole list equalled one of its own members — **reporting the exactly-right
+  answer as something to look at, 18 times.** Phase T then passed an empty list,
+  which nothing can ever satisfy, and got eight more. Two phases in two days, so
+  `expect` itself was hardened: an empty `want` now says it is a caller bug, and
+  when BOTH sides are collections it compares them for EQUALITY. Prefer being
+  explicit anyway — compare an order as a joined string, a count as a number.
 - **A claim whose failure is a defect must call `rep.bug`, not `rep.expect`.**
   `expect` files a QUERY, which is right for "this behaved differently than I
   guessed" and wrong for "the shop sold the wrong tyre" — and it makes the check
@@ -445,6 +449,30 @@ another one:
   `/fuel/tanks` now, because a tank names its product and that is the only
   authority. *A check that guesses its subject is a check about whatever happens
   to be first.*
+
+## Phase T — who changed what
+
+```bash
+python3 run.py t          # pulls a, b, c in first
+```
+
+The audit trail recorded who may DO things and said nothing about what those
+things are WORTH: a permission granted was recorded, a customer's credit limit
+raised from Rs 5,000 to Rs 90,000 was not. Three questions:
+
+- **Recorded.** An act that grants money authority leaves a row, with the
+  actor's name and the value it had *before* — "it is 90,000 now" is on the
+  customer record already; what a trail adds is what it was.
+- **Quiet.** An act that does not — a phone number corrected at the counter —
+  leaves nothing. *A trail that records everything is a trail nobody reads to
+  the bottom of.*
+- **Readable.** By the shop it is about, not by a cashier, and never by another
+  shop.
+
+**Always two shops.** `AuditLog` carries a `tenant_id` and is deliberately NOT
+tenant-scoped as a model — the platform reads across every shop — so the tenant
+endpoint's own `where` is the entire wall between one history and another, and a
+run with one shop cannot see that wall at all.
 
 Two rules the sweep has already had to learn the hard way:
 
