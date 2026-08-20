@@ -13,10 +13,24 @@ use Illuminate\Http\Request;
 
 class CouponController extends Controller
 {
-    public function index(): JsonResponse
+    /**
+     * The shop's codes, newest first.
+     *
+     * Searchable because a coupon is FOUND BY ITS CODE and by nothing else — a
+     * merchant asked "is EID20 still live?" has a string, not a date. Until
+     * this took one, thirty a page with no filter meant a shop that had run a
+     * season of campaigns could not reach its older codes at all: not to expire
+     * one, not to correct it, not to delete it. The QA sweep found it by
+     * becoming that shop — it created enough coupons over enough runs that the
+     * one it was looking for fell off page one.
+     */
+    public function index(Request $request): JsonResponse
     {
         return ApiResponse::paginated(
-            Coupon::query()->orderByDesc('created_at')->paginate(30),
+            Coupon::query()
+                ->when($request->query('search'), fn ($q, $s) => $q->where('code', 'like', '%'.$s.'%'))
+                ->orderByDesc('created_at')
+                ->paginate(min((int) $request->query('per_page', 30), 100)),
         );
     }
 

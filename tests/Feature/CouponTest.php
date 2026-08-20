@@ -65,6 +65,45 @@ class CouponTest extends TestCase
             ->assertStatus(422)->assertJsonStructure(['errors' => ['code']]);
     }
 
+    public function test_a_code_can_be_found_after_it_falls_off_the_first_page(): void
+    {
+        // A campaign shop passes thirty codes in a season, and a coupon is
+        // found by its code and by nothing else — asked "is EID20 still live?"
+        // a merchant has a string, not a date. Without a filter the older
+        // codes could not be reached to expire, correct or delete them.
+        // The dates are set explicitly. Thirty-five rows created inside the
+        // same second all carry the same `created_at`, so "newest first" put
+        // them in whatever order the database felt like — the test passed
+        // alone and failed in the full suite, which is the worst kind. The
+        // point here is a code that is genuinely OLDER, not one that happened
+        // to sort late.
+        foreach (range(1, 34) as $i) {
+            $this->coupon(['code' => 'BULK'.$i, 'created_at' => now()]);
+        }
+        $this->coupon(['code' => 'EID20', 'created_at' => now()->subMonth()]);
+
+        $first = $this->actingAsUser($this->owner)->getJson('/api/v1/coupons')->assertOk();
+        $this->assertSame(35, $first->json('meta.pagination.total'));
+        $this->assertNotContains('EID20', array_column($first->json('data'), 'code'),
+            'The point of this test is a code that is NOT on page one.');
+
+        $found = $this->actingAsUser($this->owner)->getJson('/api/v1/coupons?search=EID')->assertOk();
+
+        $this->assertSame(['EID20'], array_column($found->json('data'), 'code'));
+    }
+
+    public function test_the_rest_can_be_walked_to(): void
+    {
+        foreach (range(1, 34) as $i) {
+            $this->coupon(['code' => 'BULK'.$i, 'created_at' => now()->subMinutes($i)]);
+        }
+
+        $page2 = $this->actingAsUser($this->owner)->getJson('/api/v1/coupons?page=2')->assertOk();
+
+        $this->assertSame(2, $page2->json('meta.pagination.current_page'));
+        $this->assertCount(4, $page2->json('data'));
+    }
+
     // ── validate preview ────────────────────────────────────────────
 
     public function test_validate_returns_discount(): void
