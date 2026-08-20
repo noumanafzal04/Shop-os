@@ -8,6 +8,8 @@ use App\Exceptions\DomainException;
 use App\Models\RestaurantTicket;
 use App\Models\RestaurantTicketItem;
 use App\Models\Sale;
+use App\Support\DiscountCeiling;
+use App\Support\TenantContext;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -27,7 +29,10 @@ use Illuminate\Support\Facades\DB;
  */
 class SettleTicketAction
 {
-    public function __construct(private readonly CreateSaleAction $createSale) {}
+    public function __construct(
+        private readonly CreateSaleAction $createSale,
+        private readonly TenantContext $context,
+    ) {}
 
     /**
      * @return array{sale: Sale, ticket: RestaurantTicket}
@@ -69,6 +74,23 @@ class SettleTicketAction
             }
 
             $tableNo = $ticket->table !== null ? substr($ticket->table->name, 0, 16) : null;
+
+            // THE CEILING, before the trusted path takes the numbers on faith.
+            //
+            // The sale below is rung with `trusted_prices`, deliberately: the
+            // tab's captured snapshot IS the bill and live menu state must not
+            // reprice food already eaten. The counter's own ceiling check sits
+            // on the untrusted branch, so it does not run here — which left a
+            // whole-tab discount at settlement uncapped for anybody holding
+            // `discounts.apply`. Checked here, against the same bill the sale
+            // is about to be built from.
+            $settling = round(
+                $items->sum(fn ($i) => round((float) $i->unit_price * (float) $i->quantity, 2)),
+                2,
+            );
+            $given = round($settling - (float) $items->sum('line_total') + (float) ($data['discount'] ?? 0), 2);
+
+            DiscountCeiling::assert($this->context, $given, $settling);
 
             /** @var Sale $sale */
             $sale = $this->createSale->execute([

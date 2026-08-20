@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\ProductVariant;
 use App\Models\RestaurantTicket;
+use App\Support\DiscountCeiling;
 use App\Support\ModifierResolver;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
@@ -152,6 +153,23 @@ class AddTicketItemsAction
                     'note' => $item['note'] ?? null,
                 ]);
             }
+
+            // THE CEILING, on the whole tab as it now stands.
+            //
+            // `discounts.apply` was already checked by the request — that is
+            // "may you". This is "how much", and it lived only in
+            // CreateSaleAction, so a cashier capped at the counter was uncapped
+            // the moment the same bill was a table. Read across every open line
+            // rather than per line, exactly as the counter reads the whole
+            // bill: ten lines at ten percent give away as much as one at a
+            // hundred, and a per-line check waves the first through.
+            //
+            // Voided lines are excluded — a line struck off gave nothing away.
+            $open = $ticket->items()->whereNull('voided_at')->get();
+            $gross = $open->sum(fn ($i) => round((float) $i->unit_price * (float) $i->quantity, 2));
+            $given = round($gross - (float) $open->sum('line_total'), 2);
+
+            DiscountCeiling::assert($this->context, $given, $gross);
         });
 
         return $ticket->fresh(['table', 'items']);

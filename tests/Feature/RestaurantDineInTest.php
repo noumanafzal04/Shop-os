@@ -29,6 +29,8 @@ class RestaurantDineInTest extends TestCase
 
     private User $owner;
 
+    private User $senior;
+
     private Product $pizza;   // food, no stock
 
     private Product $water;   // physical, stock-tracked
@@ -48,6 +50,10 @@ class RestaurantDineInTest extends TestCase
             'timezone' => 'UTC',
         ]);
         $this->owner = User::factory()->shopOwner($this->shop)->create();
+        // May discount, may NOT go past the shop's ceiling — the cashier preset.
+        $this->senior = User::factory()
+            ->tenantStaff($this->shop, ['sales.manage', 'discounts.apply', 'tables.serve_any'])
+            ->create(['name' => 'Bilal']);
 
         $this->pizza = Product::withoutTenancy()->create([
             'tenant_id' => $this->shop->id, 'type' => 'product', 'item_type' => 'food_item',
@@ -189,6 +195,93 @@ class RestaurantDineInTest extends TestCase
     }
 
     // ── Settlement ────────────────────────────────────────────────────
+
+    // ── The ceiling the floor used to ignore ────────────────────────────
+    //
+    // `discounts.apply` answers "may you discount", and it was checked here all
+    // along. `max_discount_percent` answers "how much", and it was consulted in
+    // exactly one place: CreateSaleAction. So the cashier preset — which holds
+    // apply and deliberately withholds override — was capped at the counter and
+    // uncapped the moment the same bill was a table.
+
+    private function setCeiling(float $pct): void
+    {
+        $this->actingAsUser($this->owner)
+            ->putJson('/api/v1/shop/settings', ['max_discount_percent' => $pct])
+            ->assertOk();
+    }
+
+    public function test_a_line_discount_on_a_tab_obeys_the_shops_ceiling(): void
+    {
+        $this->setCeiling(10);
+        $tab = $this->openTab();
+
+        $this->actingAsUser($this->senior)
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/items", [
+                'items' => [['product_id' => $this->pizza->id, 'quantity' => 1, 'line_discount_pct' => 50]],
+            ])
+            ->assertStatus(403)
+            ->assertJsonPath('meta.error_code', 'DISCOUNT_LIMIT_EXCEEDED');
+
+        // Inside the ceiling is fine, and the owner may always go past it.
+        $this->actingAsUser($this->senior)
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/items", [
+                'items' => [['product_id' => $this->pizza->id, 'quantity' => 1, 'line_discount_pct' => 10]],
+            ])->assertOk();
+    }
+
+    public function test_the_ceiling_reads_the_whole_tab_not_one_line(): void
+    {
+        // Ten lines at ten percent give away exactly what one line at a hundred
+        // does. The counter judges the whole bill; so does this.
+        $this->setCeiling(10);
+        $tab = $this->openTab();
+
+        // A full-price line first, so the tab has something to hide inside.
+        $this->addItems($tab['id'], [['product_id' => $this->pizza->id, 'quantity' => 1]]);
+
+        // 100% off one 1000 line is 50% of a 2000 tab — over the ceiling even
+        // though no single line looks it from the counter's point of view.
+        $this->actingAsUser($this->senior)
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/items", [
+                'items' => [['product_id' => $this->pizza->id, 'quantity' => 1, 'line_discount_pct' => 100]],
+            ])
+            ->assertStatus(403)
+            ->assertJsonPath('meta.error_code', 'DISCOUNT_LIMIT_EXCEEDED');
+    }
+
+    public function test_a_whole_tab_discount_at_settlement_obeys_it_too(): void
+    {
+        // The sale is rung on the TRUSTED path — deliberately, so live menu
+        // state cannot reprice food already eaten — and the counter's own
+        // ceiling check sits on the untrusted branch. So settlement had to
+        // check for itself or the ceiling was simply absent here.
+        $this->setCeiling(10);
+        $tab = $this->openTab();
+        $this->addItems($tab['id'], [['product_id' => $this->pizza->id, 'quantity' => 1]]);
+
+        $this->actingAsUser($this->senior)
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/settle", [
+                'discount' => 400, 'payment_method' => 'cash', 'amount_paid' => 600,
+            ])
+            ->assertStatus(403)
+            ->assertJsonPath('meta.error_code', 'DISCOUNT_LIMIT_EXCEEDED');
+
+        $this->actingAsUser($this->senior)
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/settle", [
+                'discount' => 100, 'payment_method' => 'cash', 'amount_paid' => 900,
+            ])->assertCreated();
+    }
+
+    public function test_with_no_ceiling_the_floor_is_free_as_it_always_was(): void
+    {
+        $tab = $this->openTab();
+
+        $this->actingAsUser($this->senior)
+            ->postJson("/api/v1/restaurant/tickets/{$tab['id']}/items", [
+                'items' => [['product_id' => $this->pizza->id, 'quantity' => 1, 'line_discount_pct' => 100]],
+            ])->assertOk();
+    }
 
     public function test_full_settlement_rings_a_sale_closes_tab_and_frees_table(): void
     {

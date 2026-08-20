@@ -25,8 +25,8 @@ use App\Services\InventoryService;
 use App\Services\PromotionService;
 use App\Support\BranchContext;
 use App\Support\CashRounding;
+use App\Support\DiscountCeiling;
 use App\Support\ModifierResolver;
-use App\Support\Permissions;
 use App\Support\RecipeCost;
 use App\Support\RegisterContext;
 use App\Support\TenantContext;
@@ -485,7 +485,7 @@ class CreateSaleAction
                 // replaying a total that was already settled, and re-adjudicating
                 // it here would refuse to complete a sale the customer has paid.
                 if (! $trusted) {
-                    $this->assertWithinDiscountCeiling($discount + $discretionaryLineDiscount, $subtotal);
+                    DiscountCeiling::assert($this->context, $discount + $discretionaryLineDiscount, $subtotal);
                 }
 
                 // Coupon: validate + consume, add its discount (clamped to subtotal).
@@ -1639,54 +1639,5 @@ class CreateSaleAction
         // real one on paper — the number itself says which it is.
         return ($training ? 'TRN-' : 'INV-')
             .str_pad((string) $counter->{$column}, 6, '0', STR_PAD_LEFT);
-    }
-
-    /**
-     * Refuse a discount past the shop's ceiling unless the person ringing it
-     * holds discounts.override.
-     *
-     * Both limits are opt-in (null = no ceiling): the control never existed
-     * before, so defaulting to a cap would have stopped shops from selling the
-     * day it shipped. An owner sets them in Settings → POS.
-     */
-    private function assertWithinDiscountCeiling(float $discount, float $subtotal): void
-    {
-        if ($discount <= 0) {
-            return;
-        }
-
-        $settings = $this->context->get();
-        $maxPct = $settings?->setting('max_discount_percent');
-        $maxAmt = $settings?->setting('max_discount_amount');
-
-        if (($maxPct === null || $maxPct === '') && ($maxAmt === null || $maxAmt === '')) {
-            return; // no ceiling configured
-        }
-
-        $user = auth()->user();
-        // No authenticated actor = a backend/headless caller, which is trusted
-        // by definition (the HTTP paths always have one).
-        if ($user === null || $user->hasPermission(Permissions::DISCOUNTS_OVERRIDE)) {
-            return;
-        }
-
-        $pct = $subtotal > 0 ? round(($discount / $subtotal) * 100, 2) : 0.0;
-        $sym = $settings?->currencySymbol() ?? 'Rs';
-
-        if ($maxPct !== null && $maxPct !== '' && $pct > (float) $maxPct + 0.001) {
-            throw DomainException::forbidden(
-                "This discount is {$pct}% — above the {$maxPct}% limit. A manager has to approve it.",
-                'DISCOUNT_LIMIT_EXCEEDED',
-            );
-        }
-
-        if ($maxAmt !== null && $maxAmt !== '' && $discount > (float) $maxAmt + 0.001) {
-            throw DomainException::forbidden(
-                "This discount is {$sym} ".number_format($discount, 2)
-                    ." — above the {$sym} ".number_format((float) $maxAmt, 2)
-                    .' limit. A manager has to approve it.',
-                'DISCOUNT_LIMIT_EXCEEDED',
-            );
-        }
     }
 }
