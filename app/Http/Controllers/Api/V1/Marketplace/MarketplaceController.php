@@ -472,6 +472,12 @@ class MarketplaceController extends Controller
             'images' => $product->images->map(fn ($i) => $i->url)->filter()->values()->all(),
             'in_stock' => $inStock,
             'available_now' => $product->isAvailableNow($timezone),
+            // Off the menu tonight. Published rather than filtered out, for the
+            // same reason the serving window is: the shop HAS this normally,
+            // the customer wants to know it exists, and the flag is undone when
+            // the next delivery lands. Without it the only way to find out is
+            // to build a basket and be refused at checkout.
+            'sold_out' => $product->isSoldOut(),
             'available_from' => $product->available_from,
             'available_until' => $product->available_until,
             'variants' => $product->variants->map(fn ($v) => [

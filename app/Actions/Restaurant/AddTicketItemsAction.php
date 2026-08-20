@@ -66,6 +66,22 @@ class AddTicketItemsAction
                     );
                 }
 
+                // Eighty-six, on the tab. This is the flow the button was
+                // invented for and it was the last one to learn: a waiter could
+                // add the sold-out fish to table six and the kitchen would be
+                // handed a ticket for a dish that does not exist.
+                //
+                // Unconditional, unlike the window above — adding a line to a
+                // tab is always MORE FOOD, never the closing of a bill. What
+                // has already been eaten is settled by SettleTicketAction,
+                // which does not come through here.
+                if ($product->isSoldOut()) {
+                    throw DomainException::unprocessable(
+                        "{$product->name} is sold out.",
+                        'ITEM_SOLD_OUT',
+                    );
+                }
+
                 $quantity = (float) $item['quantity'];
 
                 $unit = null;

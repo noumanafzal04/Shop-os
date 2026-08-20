@@ -188,6 +188,35 @@ class OrderService
                         );
                     }
 
+                    // Eighty-six. Whoever is cooking took this off tonight's
+                    // menu, and the till has refused it since the day that
+                    // button shipped. One question — MAY THIS BE SOLD RIGHT NOW
+                    // — and three places that can start selling an item: this
+                    // one, the counter, and AddTicketItemsAction. Only the
+                    // counter had ever been asked.
+                    //
+                    // What makes it worse than an ordinary omission is that
+                    // CreateSaleAction EXEMPTS the trusted path from this rule,
+                    // and says why: an online order is food the customer
+                    // already committed to, so refusing to bill it because the
+                    // kitchen has since run out is a shop that cannot close its
+                    // own tab. That exemption is only safe if placement
+                    // refused first. Placement never did, so the rule was
+                    // enforced nowhere for an online order — the kitchen
+                    // pressed 86 and the app kept taking orders all evening.
+                    //
+                    // A counter order is stopped too. `visible_in_marketplace`
+                    // is relaxed above for a shopkeeper on the phone because
+                    // publishing is the shop's own business; this is not a
+                    // publishing decision, it is "there is none left", and
+                    // promising it down the phone is the same broken promise.
+                    if ($product->isSoldOut()) {
+                        throw DomainException::unprocessable(
+                            "{$product->name} is sold out.",
+                            'ITEM_SOLD_OUT',
+                        );
+                    }
+
                     $source = $variant ?? $product;
                     $qty = (float) $item['quantity'];
 
