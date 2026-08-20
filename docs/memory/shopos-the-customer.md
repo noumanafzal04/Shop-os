@@ -1,6 +1,6 @@
 ---
 name: shopos-the-customer
-description: "Phase R — the QA sweep finally drives the CUSTOMER (role:customer): orders, addresses, reviews, reservations, Rx-only medicines. 185 checks, 0 bugs, 29/29 mutations"
+description: "Phase R — the QA sweep finally drives the CUSTOMER (role:customer): orders, addresses, reviews, Rx-only medicines, dish modifiers, 86/sold-out. 204 checks, 36/36 mutations"
 metadata:
   type: project
 ---
@@ -61,4 +61,42 @@ refusal about the thing being tested.**
 login), so the two shoppers have stable addresses, register once, and a 422 on a
 later run means "already there".
 
-Related: [[shopos-qa-sweep]], [[shopos-read-vs-manage]], [[shopos-detector-vs-rule]]
+---
+
+**2026-08-20 · the dish that is not only a dish.** Every other order line is
+*this thing, n times*. A modifier is the one place where the customer changes
+both the **price** and the **recipe**, and three things must all be true while
+each fails quietly on its own:
+
+- **SHOWN** — the menu publishes the choice, its `min_select` and its
+  `price_delta`. A required group the shopfront never sends is a dish nobody
+  can order, refused for missing something never offered.
+- **CHARGED** — the delta comes off the shop's own option row. The customer
+  sends option ids and never a number.
+- **REMEMBERED** — the line keeps the snapshot. **The one failure money cannot
+  reveal**: the total is right to the rupee and the kitchen reads a plain pizza.
+
+All three hold, plus the fences (required group, group limit, an option from a
+DIFFERENT dish → `MODIFIER_INVALID`). Every refusal is required to NAME its
+rule — a 422 for no stock and a 422 for no crust are indistinguishable by
+status. The dish is created `track_inventory: false` for the same reason, and
+the option ids are read off the PUBLIC menu, never the owner's catalog.
+
+**The completion hop, which nothing had driven.** A completed order rings its
+sale down the `trusted_prices` branch, carrying the captured `unit_price` and
+`modifiers` forward instead of re-running `ModifierResolver` — re-pricing would
+add the +300 twice, re-validating would reject a required crust on a line whose
+option ids are long gone. Holds: agreed 1100 → till rings 1100, snapshot intact.
+
+`ModifierResolver` is deliberately ONE implementation shared by POS and online
+order. That is why none of these checks test its arithmetic: **shared code
+diverges in what it is HANDED, not in what it does.**
+
+`mutate.py` picks `food_restaurant` for phase R now — without it every dish
+check reports "could not create one" and its mutations come back UNCLEAR.
+
+And asking what else sat on the customer's side of the wall found a real bug:
+[[shopos-sold-out-three-paths]].
+
+Related: [[shopos-qa-sweep]], [[shopos-read-vs-manage]], [[shopos-detector-vs-rule]],
+[[shopos-sold-out-three-paths]]

@@ -40,7 +40,7 @@ sweep.
 | **M** | Money given away on purpose — points, coupons, promotions | C | **built · clean** |
 | **N** | Sales that are not a sale yet — layaway, exchange, trade-in, disposals | C | **built · clean** |
 
-**Fourteen phases built. 927 checks in one run, 17 of 17 mutations caught.**
+**Eighteen phases built. 36 of 36 mutations caught.**
 
 Phases A–H answer "does the shop work". The rest answer what they could not,
 and two of them are where a real defect turned out to live:
@@ -330,7 +330,7 @@ The first phase that is not somebody who works at the shop. It holds a
 python3 run.py r          # pulls a, b, c in first
 ```
 
-It asks three things:
+It asks five things:
 
 - **The order prices itself.** A customer names products and quantities, never a
   price. A price sent anyway must be ignored or refused.
@@ -340,6 +340,20 @@ It asks three things:
 - **Whose is it.** Two shoppers exist on purpose — orders, addresses, reviews
   and reservations are all "mine", and a check that one person cannot see
   another's things is meaningless with one person.
+- **The dish with choices on it.** Restaurant only, because modifiers are a food
+  capability in `ItemTypes`. Three things must all be true and each fails
+  quietly on its own: the menu SHOWS the choice and its price, the bill CHARGES
+  the shop's own delta, and the line REMEMBERS what was chosen — that last one
+  is the failure money cannot reveal, because the total is right. Plus the
+  fences (required group, group limit, an option from another dish) and the
+  completion hop, where the sale must ring what the customer agreed to rather
+  than counting the delta twice.
+- **What the kitchen took off the menu.** Asked of every shop, not just the
+  restaurant: `sold_out_at` is gated on `products.manage` and nothing else, and
+  a mart that runs out of milk at seven has the same evening. The check 86s the
+  item, watches the counter refuse it, watches the app refuse it, **then puts it
+  back and orders it again** — without that last step there is no telling
+  "refused because it is sold out" from "refused because this shop is shut".
 
 Two things to know before changing it:
 
@@ -359,6 +373,15 @@ Two things to know before changing it:
   no stock, so a 422 for having none read exactly like a 422 for needing a
   prescription. It stocks the shelf first and then requires the refusal to NAME
   the prescription.
+- **The dish keeps no stock, deliberately.** `Sweep Pizza` is created with
+  `track_inventory: false` for the same reason: "none left" and "choose a crust"
+  are both 422s.
+- **The option ids come off the PUBLIC menu**, never from the owner's catalog.
+  Reaching behind the counter for them would make every modifier check pass on a
+  shopfront that publishes nothing.
+- **`mutate.py` picks the restaurant for phase R now.** Without it every dish
+  check reports "could not create one" and the mutations aimed at them come back
+  UNCLEAR — a mutation pointed at a check that never runs proves nothing.
 
 Anything it finds goes in [`FINDINGS.md`](FINDINGS.md) with the call that
 produced it, and anything confirmed gets a test in the real suite before it is

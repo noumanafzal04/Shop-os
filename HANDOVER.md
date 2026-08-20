@@ -125,7 +125,7 @@ a false index. A backup that has never been restored is a belief, not a backup.
 
 ## 4. State at handover
 
-**Backend 2053 tests / 8721 assertions green. Panel 937 tests green (69 files).** Gates all
+**Backend 2091 tests / 8883 assertions green. Panel 1017 tests green (80 files).** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
 long-standing baseline).
 
@@ -276,7 +276,82 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-20 (latest) — phase R, and the actor nobody had ever been
+### 2026-08-20 (latest) — the dish, and the button only the till obeyed
+
+Phase R gained the two things a food shop does that nothing had ever driven from
+the customer's side. The first found nothing. The second found a defect in three
+places at once.
+
+**A dish ordered with choices on it.** Every other line on an order is *this
+thing, n times*. A modifier is the one place where the customer changes both the
+**price** and the **recipe**, and three separate things must all be true while
+each fails quietly on its own: the menu SHOWS the choice and what it costs, the
+bill CHARGES the shop's own delta, and the line REMEMBERS what was chosen. That
+last one is **the failure money cannot reveal** — the total is right to the rupee
+and the kitchen reads a plain pizza.
+
+All three hold, along with the fences: a required group cannot be skipped, a
+group's limit holds, an option belonging to a different dish is refused. Each
+refusal is required to NAME the rule it enforced, because a 422 for having no
+stock and a 422 for needing a crust are indistinguishable by status. The
+completion hop was driven too — a completed order rings its sale down the
+`trusted_prices` branch, which carries the captured price forward rather than
+asking the resolver again; re-running it would add the +300 twice or reject an
+order the shop has already cooked. It does neither.
+
+`ModifierResolver` is deliberately one implementation shared by the POS and the
+online order, which is why none of these checks are about its arithmetic:
+**shared code diverges in what it is HANDED, not in what it does.**
+
+**BUG · sold out at the counter, on sale in the app — NOW FIXED.** `sold_out_at`
+— "eighty-six the fish" — has its own column, controller, button and eight
+tests. All eight ask the till. The question is *may this be sold right now*, and
+three places can start selling an item: `CreateSaleAction` refused it,
+`OrderService::place` **took the order**, and `AddTicketItemsAction` **printed
+the kitchen ticket**. So the cook presses 86, the till stops offering the fish,
+and the app keeps taking orders all evening while a waiter puts it on table six.
+
+Worse than an omission: `CreateSaleAction` *deliberately exempts* the trusted
+path and says why — an online order is food the customer already committed to,
+and refusing to bill it because the kitchen has since run out is a shop that
+cannot close its own tab. Right reasoning, safe **only if placement refused
+first**. It never did, so for an online order the rule was enforced at neither
+end. *A comment that assumes another path did the work is a dependency, and an
+unchecked dependency is a hope.*
+
+Fixed in all three, plus `MarketplaceController::publicProduct` now publishes
+`sold_out` so the storefront can grey the item out instead of letting the
+customer find out at checkout. An order placed **before** the press still
+completes — that is the reason the exemption exists, and it now has a test.
+
+**Found by grep, not by a test:** `Product::scopeSellableToday()` had one
+definition and zero callers. *A scope nobody calls is a rule nobody enforces.*
+
+Five tests in `SoldOutTest` beside the eight that only ever asked the till; four
+red before the fix, the fifth green before and required to stay green. Phase R
+asks it from outside of every shop — 86 it, watch both counters refuse, **then
+put it back and order it again**, because without that there is no telling
+"refused because it is sold out" from "refused because this shop is shut".
+
+**The full run also turned up one query, and it was the sweep's own.** Phase M's
+`_coupon()` read the FIRST PAGE of `/coupons` looking for `SWEEP10`. `/coupons`
+paginates at 30 with **no search parameter at all**, newest first; the single-use
+check on the same page creates a fresh random code every run — correctly, since a
+fixed one is spent on run one — and nothing deleted them. Thirty-two piled up,
+`SWEEP10` sank onto page two, the create was refused as a duplicate, and the
+phase reported it could not make a coupon **it had made thirty-two runs
+earlier**. *A lookup that depends on WHERE a row sits is not a lookup.* Fixed at
+both ends: create first, fall back to `/coupons/validate`; and the single-use
+check sweeps up after itself.
+
+That exposed a real gap, recorded and not fixed: the panel's coupon screen
+requests no page and offers no search, so **a shop with more than 30 coupons
+cannot reach the rest** to edit, expire or delete them.
+
+**Backend 2091 green · panel 1017 green · sweep 1583 ok · 0 bugs · 36 of 36
+mutations caught.**
+
+### 2026-08-20 — phase R, and the actor nobody had ever been
 
 Seventeen phases and 1,683 checks, every one of them run as somebody who **works
 at the shop**: an owner, a cashier, a stock keeper, a super-admin. Nobody had

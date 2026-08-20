@@ -351,9 +351,10 @@ def _a_coupon_stops_at_its_limit(api: Api, rep: Report, code: str,
     # being exercised at all, while the sweep still prints a pass for it. The
     # serials in phase G had the same weakness and the same fix.
     once = f"SWEEPONCE{uuid.uuid4().hex[:8].upper()}"
-    api.post("/coupons", {
+    made, body = api.post("/coupons", {
         "code": once, "type": "fixed", "value": 50, "usage_limit": 1, "is_active": True,
     }, token=token)
+    spent = (body.get("data") or {}).get("id") if made in (200, 201) else None
 
     ring = {
         "channel": "pos",
@@ -376,6 +377,14 @@ def _a_coupon_stops_at_its_limit(api: Api, rep: Report, code: str,
     else:
         rep.ok("M", f"{code} · second use of a one-use coupon refused",
                (body.get("meta") or {}).get("error_code") or str(second))
+
+    # SWEEP UP AFTER IT. The new code each run is right and stays; what was
+    # wrong was leaving all of them behind. Thirty-two of these had piled up in
+    # one shop and pushed the coupon THIS phase looks for off the first page of
+    # a list that cannot be searched. The sale keeps `coupon_code` as plain
+    # text, so the record of the redemption survives the delete.
+    if spent:
+        api.delete(f"/coupons/{spent}", token=token)
 
 
 # ── promotions ─────────────────────────────────────────────────────────
@@ -479,15 +488,31 @@ def _points(api: Api, token: str, customer_id: str) -> int | None:
 
 
 def _coupon(api: Api, token: str) -> str | None:
-    status, body = api.get("/coupons", token=token)
-    rows = _rows(body) if status == 200 else []
-    found = next((c for c in rows if c.get("code") == COUPON), None)
-    if found:
-        return found["id"]
+    """
+    THE SWEEP BUILT ITS OWN HAYSTACK AND THEN COULD NOT FIND THE NEEDLE.
+
+    This used to read the first page of `/coupons` and look for `SWEEP10` in it.
+    That worked for thirty-one runs. `/coupons` paginates at 30 with **no search
+    parameter at all**, orders newest first, and the one-use check below adds a
+    fresh code every single run — deliberately, and rightly. So the sweep's own
+    litter pushed `SWEEP10` off page one, the scan came back empty, the create
+    was refused ("a coupon with this code already exists"), and the phase
+    reported it could not make a coupon it had made thirty-two runs earlier.
+
+    A lookup that depends on WHERE a row sits is not a lookup. Create first —
+    the only way to be certain — and when that is refused, ask the one endpoint
+    that takes a code instead of a page.
+    """
     status, body = api.post("/coupons", {
         "code": COUPON, "type": "percent", "value": 10, "is_active": True,
     }, token=token)
-    return (body.get("data") or {}).get("id") if status in (200, 201) else None
+
+    if status in (200, 201):
+        return (body.get("data") or {}).get("id")
+
+    seen, _ = api.post("/coupons/validate", {"code": COUPON, "subtotal": 1000}, token=token)
+
+    return COUPON if seen == 200 else None
 
 
 def _promo_product(api: Api, token: str, item_types: list | None = None) -> dict | None:

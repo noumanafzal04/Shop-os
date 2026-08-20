@@ -10,6 +10,142 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-20 — the dish, and the button only the till obeyed
+
+Phase R gained the two things a food shop does that nothing had ever driven from
+the customer's side: **a dish ordered with choices on it**, and **an item the
+kitchen has taken off tonight's menu**. The first found nothing. The second
+found a defect in three places at once.
+
+### BUG · sold out at the counter, on sale in the app — NOW FIXED
+
+`sold_out_at` — "eighty-six the fish" — has its own column, its own controller,
+its own button and eight tests. **All eight ask the till.**
+
+The question a shop actually asks is *may this be sold right now*, and three
+places can start selling an item:
+
+| path | what it did |
+|---|---|
+| `CreateSaleAction` — the counter | refused, `ITEM_SOLD_OUT` |
+| `OrderService::place` — the app, and the phone | **took the order** |
+| `AddTicketItemsAction` — the dine-in tab | **printed the kitchen ticket** |
+
+So the cook presses 86, the till stops offering the fish, and the delivery app
+keeps taking orders for it all evening while a waiter puts it on table six.
+
+**What makes it worse than an omission.** `CreateSaleAction` *deliberately
+exempts* the trusted path from this rule and says why — an online order is food
+the customer already committed to, and refusing to bill it because the kitchen
+has since run out is a shop that cannot close its own tab. That reasoning is
+right, and it is only safe **if placement refused first**. Placement never did,
+so for an online order the rule was enforced at neither end.
+
+*A comment that assumes another path did the work is a dependency, and an
+unchecked dependency is a hope.*
+
+Fixed in all three: `OrderService::place` refuses (marketplace and phone alike —
+`visible_in_marketplace` is relaxed for a shopkeeper on the phone because
+publishing is their business, but running out is not a publishing decision),
+`AddTicketItemsAction` refuses unconditionally, and
+`MarketplaceController::publicProduct` now publishes `sold_out` so the storefront
+can grey the item out instead of letting the customer find out at checkout.
+An order placed **before** the press still completes, which is the whole reason
+the exemption exists and now has a test holding it down.
+
+### How it was found · a scope with no callers
+
+Not by a test, and not by reading `SoldOutController`. By noticing that
+`Product::scopeSellableToday()` had **one definition and zero callers**.
+
+*A scope nobody calls is a rule nobody enforces.* Worth grepping for on any flag
+that matters.
+
+### Clean · the dish ordered with choices on it
+
+Eight checks, nothing wrong. `ModifierResolver` is deliberately one
+implementation shared by the POS and the online order, and shared code diverges
+in what it is HANDED rather than in what it does — which is why the checks drive
+it from outside rather than testing its arithmetic.
+
+The menu publishes the groups, their `min_select` and each option's
+`price_delta`; a stuffed crust and extra cheese cost the shop's own +200 and
++100 on a customer who sent option ids and never a number; the order line keeps
+the snapshot; a required group cannot be skipped, a group's limit holds, and an
+option belonging to a **different dish** is refused. Each refusal is required to
+name the rule it enforced — a 422 for having no stock reads exactly like a 422
+for needing a crust, which is the mistake the prescription check made first.
+
+The completion hop was driven too, and it was the interesting one: a completed
+order rings its sale down the `trusted_prices` branch, which carries the captured
+price forward instead of asking the resolver again. Re-running it would add the
++300 twice, or reject an order the shop has already cooked. It does neither —
+the customer agreed to 1100 and the till rings 1100, snapshot intact.
+
+### QUERY · the other scope with no callers
+
+Grepping every `scope*` in `app/Models` for callers turned up **two of thirteen**
+with none:
+
+- `Product::sellableToday()` — the bug above.
+- `ProductBatch::agedBeyond($years)` — *"lots at or past the warning age with
+  stock still on them — the shelf sweep a shop does before a customer does it
+  for them."*
+
+The second is a gap rather than a defect: `BatchController` already publishes
+`age` and `age_status` per row, so a tyre shop **can** see which lots are old —
+there is just no way to ask for only those, though the sibling filter
+(`expiringWithin`) is wired and exposed. For a shop with hundreds of lots that
+is the difference between a shelf sweep and scrolling.
+
+Worth more than the one filter: **PHP has no equivalent of the panel's
+`reachable.test.ts`.** That guard exists precisely because this repo has shipped
+"built but unreachable" seven times, and it only watches TypeScript.
+
+### HARNESS · the sweep built its own haystack and then lost the needle
+
+The full run came back **1583 ok · 1 to look at · 0 bugs**, and the one query was
+phase M: *"mart · a coupon to redeem — could not create one."*
+
+`_coupon()` read the **first page** of `/coupons` looking for `SWEEP10` and
+created it if absent. That worked for thirty-one runs. Then:
+
+- `/coupons` paginates at 30 and has **no search parameter at all**, newest
+  first;
+- the single-use check on the same page creates a **fresh random code every
+  run** — deliberately and rightly, because a fixed one is spent on run one and
+  the first-use half stops being exercised;
+- nothing ever deleted them. Thirty-two piled up, `SWEEP10` sank onto page two,
+  the scan found nothing, the create was refused as a duplicate, and the phase
+  reported it could not make a coupon **it had made thirty-two runs earlier**.
+
+> **A lookup that depends on WHERE a row sits is not a lookup.**
+
+Fixed both ends: `_coupon()` now creates first — the only way to be certain —
+and on refusal asks `/coupons/validate`, the one endpoint that takes a code
+instead of a page. And the single-use check deletes its throwaway afterwards, so
+the *new code each run* property stays without the litter that broke it. The
+sale keeps `coupon_code` as plain text, so the record of the redemption survives
+the delete. Phase M: **251 ok, 0 queries**, and the shop's coupon count is flat.
+
+### QUERY · what that exposed on the real screen
+
+`CouponController::index()` is `paginate(30)` with no filter, and the panel's
+`useCoupons()` requests no page and renders whatever comes back — there is no
+search box, no paging control, no "load more".
+
+**A shop with more than 30 coupons cannot reach the rest at all** — cannot
+deactivate one, cannot edit its expiry, cannot delete it. Thirty is not many for
+a shop that runs WhatsApp campaigns. Not fixed here; recorded so it is a
+decision rather than an oversight.
+
+### Where it stands
+
+**18 phases · 1583 ok · 0 bugs · 36 of 36 mutations caught.** Phase R alone is
+204 checks. Backend 2091 green, panel 1017 green.
+
+---
+
 ## 2026-08-20 — phase R · the customer, driven for the first time
 
 Seventeen phases and 1,683 checks, all of them as somebody who **works at the
@@ -1149,7 +1285,7 @@ Both are re-runnable: Phase A reuses the tenants it made, Phase C reuses and
 restocks its product, and a drawer left open from last time is picked up rather
 than fought with.
 
-**All eight phases are built.** What is worth doing next:
+**All phases through R are built.** What is worth doing next:
 
 1. **Depth inside the phases**, not more phases: multi-branch transfers, stock
    disposals (written-off vs returned-to-supplier must never sum), loyalty
@@ -1161,9 +1297,6 @@ than fought with.
 3. **The panel**, which the sweep never touches. It drives HTTP only, so a
    screen that never calls a working endpoint is still invisible to it — the
    "built but unreachable" class this repo has hit seven times.
-
-Still open, unrelated to the sweep: the two-week shadow run, and `code128Svg`
-needing a barcode sized by the symbol.
 
 Still open, unrelated to the sweep: the two-week shadow run, and `code128Svg`
 needing a barcode sized by the symbol.

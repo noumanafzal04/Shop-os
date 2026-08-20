@@ -109,3 +109,56 @@ being tested.
 every other login the sweep makes. So the two shoppers have stable addresses and
 are registered once, then signed in from the token cache, and a 422 on a second
 run means "already there" rather than a failure.
+
+
+---
+
+## The dish that is not only a dish
+
+**2026-08-20.** Every other line in this phase is *this thing, n times*. A
+modifier is the one place where the customer changes both the **price** and the
+**recipe**, and it is the only part of an order where three separate things must
+all be true and each fails quietly on its own.
+
+**SHOWN.** The menu has to publish the choice and what it costs. A group with
+`min_select 1` that the shopfront never sends is a dish nobody can order — the
+order is refused for missing something the customer was never offered, which
+reads to them as a broken shop.
+
+**CHARGED.** The delta comes off the shop's own option row. The customer sends
+option ids and never a number, exactly as they send product ids and never a
+price.
+
+**REMEMBERED.** The line carries what was chosen. If the snapshot is empty the
+customer pays for stuffed crust and extra cheese and the kitchen reads a plain
+pizza — **the one failure money cannot reveal**, because the total is right.
+
+All three hold, along with the fences: a required group cannot be skipped, a
+group's limit holds, and an option belonging to a **different dish** is refused
+(`MODIFIER_INVALID`). Each refusal is required to *name the rule it enforced* —
+a 422 for having no stock and a 422 for needing a crust are indistinguishable by
+status, which is the mistake the prescription check made on its first run.
+
+`ModifierResolver` is deliberately one implementation shared by the POS and the
+online order. That is the right design and is also why none of these checks are
+about its arithmetic: **shared code diverges in what it is HANDED, not in what it
+does**, and nothing had ever handed it anything from outside.
+
+### The hop nobody drove
+
+Completing an order rings a real Sale down the `trusted_prices` branch — the one
+that carries the captured `unit_price` and `modifiers` forward instead of asking
+the resolver again. The branch exists for two reasons written into the code, and
+both are invisible from the customer's side: re-pricing would add the +300 to a
+price that already contains it, and re-validating would reject a required crust
+on a line whose option ids are long gone.
+
+A deliberate branch with a comment explaining itself is worth exactly as much as
+the test that drives it. This one had never been driven by anything. It holds:
+the customer agreed to 1100, the till rings 1100, snapshot intact.
+
+### And a second question, which did not hold
+
+Asking what else was on the customer's side of the wall turned up
+`Product::scopeSellableToday()` — **one definition, zero callers**. See
+[sold out at the counter, on sale in the app](shopos-sold-out-in-three-places.md).

@@ -56,3 +56,21 @@ picking trades from a hardcoded list and now gate on the module. `summary()`
 prints a per-phase coverage denominator (shops spoken about vs shops with the
 module), because phase M had been silently skipping every salon. Running total:
 **45 harness findings, 3 product bugs.** See [[shopos-job-offered-must-be-doable]].
+
+**2026-08-20 — the sweep built its own haystack.** Phase M's `_coupon()` read
+the FIRST PAGE of `/coupons` looking for `SWEEP10`. It worked for thirty-one
+runs. `/coupons` paginates at 30 with **no search parameter at all**, newest
+first; the single-use check on the same page creates a fresh random code every
+run (correctly — a fixed one is spent on run one and the first-use half stops
+being exercised); nothing deleted them. Thirty-two piled up, `SWEEP10` sank onto
+page two, the create was refused as a duplicate, and the phase reported it could
+not make a coupon **it had made thirty-two runs earlier**.
+
+> **A lookup that depends on WHERE a row sits is not a lookup.**
+
+Fixed both ends: create first (the only certain answer) and fall back to
+`/coupons/validate`, the one endpoint that takes a code rather than a page; and
+the single-use check deletes its throwaway, keeping "a new code each run"
+without the litter. Exposed a real gap too — the panel's coupon screen requests
+no page and offers no search, so **a shop with >30 coupons cannot reach the
+rest** to edit, expire or delete them. Recorded, not fixed.

@@ -91,8 +91,14 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
     # one shop the cross-tenant check has nothing to borrow and quietly does not
     # run, which is how the most valuable question in the phase came back
     # UNCLEAR the first time it was asked.
+    #
+    #      The restaurant joined this list when the dish checks did. Modifiers
+    #      are a food capability, so without it every one of them reports
+    #      "could not create one" and the mutations aimed at them come back
+    #      UNCLEAR — a mutation pointed at a check that never runs proves
+    #      nothing about the check.
     if "r" in phases:
-        picked = [c for c in ("mart", "retail", "pharmacy") if c in tenants]
+        picked = [c for c in ("mart", "retail", "pharmacy", "food_restaurant") if c in tenants]
     shops = phase_b.run(api, rep, {c: tenants[c] for c in picked if c in tenants})
 
     apply()
@@ -569,6 +575,108 @@ def main() -> int:
         phases=("r",),
     ))
 
+    # ── Phase R · the dish that is not only a dish ────────────────────────
+    #
+    # A modifier is the one line on an order where the customer changes the
+    # price AND the recipe, so it fails in three separate places and each of
+    # them is silent on its own. One mutation per place.
+    #
+    # 28 · SHOWN. Strip the choices out of the public menu. A group the
+    #      shopfront never sends is a dish nobody can order — the order is
+    #      refused for missing something the customer was never offered.
+    real_get_menu = Api.get
+    results.append(mutation(
+        "the menu publishes no choices",
+        "A DISH SHOWS ITS CHOICES ON THE MENU",
+        lambda: setattr(Api, "get", lambda self, p, **k: _the_menu_hides_its_choices(real_get_menu, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_menu),
+        # The check emits one row and one row only, so there is no green
+        # neighbour to look for — the BUG title is the marker, as in mutation 1.
+        ran_marker="A DISH SHOWS ITS CHOICES ON THE MENU",
+        phases=("r",),
+    ))
+
+    # 29 · CHARGED. Hand back a line priced as though stuffed crust and extra
+    #      cheese were free. The shop giving away 300 on every online order is
+    #      exactly the kind of quiet loss a green total hides.
+    real_post_dish = Api.post
+    results.append(mutation(
+        "the add-ons are given away",
+        "AN ADD-ON IS CHARGED FOR",
+        lambda: setattr(Api, "post", lambda self, p, b=None, **k: _extras_given_away(real_post_dish, self, p, b, **k)),
+        lambda: setattr(Api, "post", real_post_dish),
+        ran_marker="the menu prices each choice",
+        phases=("r",),
+    ))
+
+    # 30 · REMEMBERED. The bill stays right to the rupee and the ticket the
+    #      kitchen reads loses the crust. THE ONE FAILURE MONEY CANNOT REVEAL,
+    #      which is the whole reason the check exists beside the pricing one.
+    results.append(mutation(
+        "the ticket forgets what was chosen",
+        "AN ORDER REMEMBERS WHAT WAS CHOSEN",
+        lambda: setattr(Api, "post", lambda self, p, b=None, **k: _the_ticket_forgets(real_post_dish, self, p, b, **k)),
+        lambda: setattr(Api, "post", real_post_dish),
+        ran_marker="the shop charges for the choices",
+        phases=("r",),
+    ))
+
+    # 31 · the refusals. D, E and F all go through one helper, and a helper that
+    #      cannot fail makes three checks green at once. Same lie as 25 and 27,
+    #      pointed at the required group: order a pizza with no crust chosen and
+    #      pretend it was taken.
+    results.append(mutation(
+        "a dish with no crust chosen is accepted",
+        "A REQUIRED CHOICE WAS SKIPPED",
+        lambda: setattr(Api, "post", lambda self, p, b=None, **k: _customer_order_accepted(real_post_dish, self, p, b, **k)),
+        lambda: setattr(Api, "post", real_post_dish),
+        ran_marker="the order remembers what was chosen",
+        phases=("r",),
+    ))
+
+    # 32 · the hop nobody drives. Completion rings the sale down the
+    #      `trusted_prices` branch, which carries the captured price forward
+    #      rather than asking the resolver again — precisely so the +300 is not
+    #      counted twice. Add it twice and the sweep must object, or that
+    #      branch's comment is the only thing guarding it.
+    results.append(mutation(
+        "the till re-prices a completed order",
+        "A COMPLETED ORDER WAS RE-PRICED UPWARDS",
+        lambda: setattr(Api, "get", lambda self, p, **k: _the_till_rings_more(real_get_menu, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_menu),
+        ran_marker="the order remembers what was chosen",
+        phases=("r",),
+    ))
+
+    # ── Phase R · what the kitchen took off the menu ──────────────────────
+    #
+    # 33 · the 86. One question — may this be sold right now — and this
+    #      codebase had three places answering it, of which only the till had
+    #      ever been asked. Pretend the order went through and the sweep must
+    #      object, or its "a dish taken off the menu is not sold" line is a
+    #      sentence about a check that cannot tell.
+    results.append(mutation(
+        "a dish that is off the menu is ordered anyway",
+        "A DISH TAKEN OFF THE MENU WAS ORDERED ANYWAY",
+        lambda: setattr(Api, "post", lambda self, p, b=None, **k: _customer_order_accepted(real_post_dish, self, p, b, **k)),
+        lambda: setattr(Api, "post", real_post_dish),
+        # Emitted before the order is attempted, so it is there in both worlds.
+        ran_marker="the menu says what is sold out",
+        phases=("r",),
+    ))
+
+    # 34 · the menu that lies. Refusing at checkout is the floor; a customer who
+    #      cannot see the item is off until they have built a basket has been
+    #      told nothing. Publish `sold_out: false` on an item that IS off.
+    results.append(mutation(
+        "the menu says an item that is off is available",
+        "THE MENU SAYS WHAT IS SOLD OUT",
+        lambda: setattr(Api, "get", lambda self, p, **k: _the_menu_says_it_is_on(real_get_menu, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_menu),
+        ran_marker="THE MENU SAYS WHAT IS SOLD OUT",
+        phases=("r",),
+    ))
+
     print("=" * 70)
     print(f"{sum(results)} of {len(results)} mutations caught")
     print("=" * 70)
@@ -775,6 +883,84 @@ def _customer_reads_anything(real_get, self, path, **kw):
 
     if path.startswith("/customer/orders/") and status >= 400:
         return 200, {"data": {"id": path.rsplit("/", 1)[-1]}}
+
+    return status, payload
+
+
+def _dish_rows(payload: dict) -> list:
+    """Rows out of either envelope shape — a bare list or a paginated page."""
+    data = payload.get("data")
+
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and isinstance(data.get("data"), list):
+        return data["data"]
+
+    return []
+
+
+def _chose_something(body: dict | None) -> bool:
+    return any((i or {}).get("modifier_option_ids") for i in (body or {}).get("items") or [])
+
+
+def _the_menu_hides_its_choices(real_get, self, path, **kw):
+    """The public menu comes back with every modifier group stripped off it."""
+    status, payload = real_get(self, path, **kw)
+
+    if "/marketplace/shops/" in path and "/products" in path and status == 200:
+        for row in _dish_rows(payload):
+            row["modifier_groups"] = []
+
+    return status, payload
+
+
+def _extras_given_away(real_post, self, path, body, **kw):
+    """The order is priced as though the chosen add-ons cost nothing."""
+    status, payload = real_post(self, path, body, **kw)
+
+    if path == "/customer/orders" and status in (200, 201) and _chose_something(body):
+        for line in (payload.get("data") or {}).get("items") or []:
+            line["unit_price"] = round(float(line.get("unit_price") or 0) - 300, 2)
+
+    return status, payload
+
+
+def _the_ticket_forgets(real_post, self, path, body, **kw):
+    """Right money, empty ticket — the line arrives with its snapshot removed."""
+    status, payload = real_post(self, path, body, **kw)
+
+    if path == "/customer/orders" and status in (200, 201):
+        for line in (payload.get("data") or {}).get("items") or []:
+            line["modifiers"] = []
+
+    return status, payload
+
+
+def _the_till_rings_more(real_get, self, path, **kw):
+    """
+    The sale behind a completed order comes back 300 dearer, as it would if the
+    modifier delta had been added a second time on the trusted path.
+
+    Narrowed to a sale that actually carries a snapshot, so the sweep's other
+    phases keep reading their own sales untouched.
+    """
+    status, payload = real_get(self, path, **kw)
+
+    if path.startswith("/sales/") and status == 200:
+        sale = payload.get("data") or {}
+        if any((line or {}).get("modifiers") for line in sale.get("items") or []):
+            sale["total"] = round(float(sale.get("total") or 0) + 300, 2)
+
+    return status, payload
+
+
+def _the_menu_says_it_is_on(real_get, self, path, **kw):
+    """Every item on the public menu comes back claiming to be available."""
+    status, payload = real_get(self, path, **kw)
+
+    if "/marketplace/shops/" in path and "/products" in path and status == 200:
+        for row in _dish_rows(payload):
+            row["sold_out"] = False
 
     return status, payload
 
