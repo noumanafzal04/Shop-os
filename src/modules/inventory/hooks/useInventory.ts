@@ -41,6 +41,20 @@ export function useExpiring(days?: number) {
   });
 }
 
+/**
+ * Lots past the shop's ageing threshold.
+ *
+ * Same shape as `useExpiring` and the same reasoning about the default: the
+ * threshold is the SHOP's (five years out of the box, two for a fleet contract),
+ * so the hook does not name a number the server already knows.
+ */
+export function useAgeing(years?: number) {
+  return useQuery({
+    queryKey: ["inventory", "ageing", years ?? "shop"],
+    queryFn: async () => (await inventoryService.ageing(years)).data,
+  });
+}
+
 export function useBatches(productId: string | null) {
   return useQuery({
     queryKey: ["inventory", "batches", productId],

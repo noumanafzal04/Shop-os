@@ -13,7 +13,7 @@ import { ApiError } from "../../../common/types/api";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import type { Product, ProductVariant } from "../../catalog/types";
-import { useAdjustStock, useBatches, useBatchMutations, useExpiring, useLowStock, useMovements, useRaiseReorderOrders } from "../hooks/useInventory";
+import { useAdjustStock, useAgeing, useBatches, useBatchMutations, useExpiring, useLowStock, useMovements, useRaiseReorderOrders } from "../hooks/useInventory";
 import { useAuthStore } from "../../../stores/authStore";
 import { DisposeBatchModal } from "../components/DisposeBatchModal";
 import { useConfirm } from "../../../components/ui/confirm";
@@ -61,6 +61,7 @@ export default function InventoryPage() {
   const modal = useModal();
   const batchModal = useModal();
   const expiring = useExpiring();
+  const ageing = useAgeing();
   const { add: addBatch, update: updateBatch, remove: removeBatch } = useBatchMutations();
 
   const [target, setTarget] = useState<Product | null>(null);
@@ -213,7 +214,11 @@ export default function InventoryPage() {
       {(expiring.data?.length ?? 0) > 0 && (
         <div className="mb-4 rounded-2xl border border-warning-300 bg-warning-50 p-4 dark:border-warning-500/40 dark:bg-warning-500/10">
           <p className="mb-2 text-sm font-semibold text-warning-700 dark:text-warning-400">
-            ⚠ Expiring stock — {expiring.data!.length} batch{expiring.data!.length > 1 ? "es" : ""} within 30 days
+            {/* NOT "within 30 days". The window is the shop's — 90 for a
+                pharmacy — and a pharmacist told "within 30 days" about a
+                90-day sweep reads the urgency wrong in both directions. Each
+                row carries its own date, which is the honest answer. */}
+            ⚠ Expiring stock — {expiring.data!.length} batch{expiring.data!.length > 1 ? "es" : ""} inside your expiry window
           </p>
           <div className="space-y-1 text-theme-sm text-gray-700 dark:text-gray-300">
             {expiring.data!.slice(0, 6).map((b) => (
@@ -257,6 +262,44 @@ export default function InventoryPage() {
             ))}
             {expiring.data!.length > 6 && (
               <p className="text-theme-xs text-gray-500">+{expiring.data!.length - 6} more…</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* The other half of the same sweep. Stock can be dated two ways and only
+          one of them used to be read again: an expiry had this banner, a
+          dashboard tile, a counter warning and an alert, while a manufacture
+          date had a badge inside one product's batch drawer. A tyre shop
+          carrying two hundred sizes was never going to open two hundred
+          drawers.
+
+          Deliberately a different colour from the expiry banner. Expired stock
+          is money already lost and unsellable; an old tyre is saleable stock
+          that should go before the newer pallet. Painting them the same red
+          would teach a shop to ignore both. */}
+      {(ageing.data?.length ?? 0) > 0 && (
+        <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-white/[0.03]">
+          <p className="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-200">
+            Ageing stock — {ageing.data!.length} lot{ageing.data!.length > 1 ? "s" : ""} past your ageing threshold
+          </p>
+          <p className="mb-2 text-theme-xs text-gray-500 dark:text-gray-400">
+            Nothing is blocked from sale. These go before the newer stock — the counter is told when one is scanned.
+          </p>
+          <div className="space-y-1 text-theme-sm text-gray-700 dark:text-gray-300">
+            {ageing.data!.slice(0, 6).map((b) => (
+              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {b.product?.name} · lot <span className="font-mono">{b.batch_number}</span>
+                  {b.dot_code && <> · DOT <span className="font-mono">{b.dot_code}</span></>} · {qty(b.quantity)} left
+                </span>
+                <Badge size="sm" color={b.age_status === "old" ? "warning" : "light"}>
+                  {b.age}{b.age_status === "old" ? " · old" : ""}
+                </Badge>
+              </div>
+            ))}
+            {ageing.data!.length > 6 && (
+              <p className="text-theme-xs text-gray-500">+{ageing.data!.length - 6} more…</p>
             )}
           </div>
         </div>

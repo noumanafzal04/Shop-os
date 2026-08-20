@@ -30,6 +30,18 @@ export interface ExpiringBatch {
   expired: boolean;
 }
 
+export interface AgeingBatch {
+  id: string;
+  product: { id: string; name: string; sku: string | null } | null;
+  batch_number: string;
+  dot_code: string | null;
+  manufactured_on: string | null;
+  quantity: number;
+  /** "7 yr 2 mo" — computed server-side, because it changes every day. */
+  age: string | null;
+  age_status: "fresh" | "ageing" | "old" | null;
+}
+
 /**
  * Where a lot went when it left without being sold.
  *
@@ -166,6 +178,17 @@ export const inventoryService = {
   /** Omit `days` to get the shop's own window — 90 for a pharmacy, 30 otherwise. */
   expiring: (days?: number) =>
     apiGet<ExpiringBatch[]>("/inventory/expiring", { params: days ? { days } : {} }),
+
+  /**
+   * Lots that have AGED past what this shop calls ageing — the other half of
+   * the expiry sweep, and for years the missing half.
+   *
+   * `years` defaults to UNDEFINED so the server answers with the shop's own
+   * threshold (Settings → POS → Stock ageing). Pass one only to ask a stricter
+   * question than the shop's own policy, e.g. for a fleet contract.
+   */
+  ageing: (years?: number) =>
+    apiGet<AgeingBatch[]>("/inventory/ageing", { params: years ? { years } : {} }),
 
   disposals: (params: DisposalFilters = {}) =>
     apiGet<StockDisposal[]>("/inventory/disposals", { params }),

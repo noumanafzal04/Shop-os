@@ -231,6 +231,13 @@ export const posService = {
       product_unit_id?: string | null;
       requires_prescription: boolean;
       near_expiry: { batch_number: string; expiry_date: string; days: number } | null;
+      /**
+       * A lot that has AGED past the shop's threshold — a tyre's sidewall week,
+       * not an expiry. Permanently null for anything the shop dates by expiry,
+       * and `near_expiry` is permanently null for a tyre; the counter needs
+       * whichever of the two its stock actually has.
+       */
+      aged: { batch_number: string; age: string; status: string } | null;
       // Present only when the scanned code was a scale (embedded-weight)
       // barcode: the pre-filled weighed quantity to add.
       scale?: {

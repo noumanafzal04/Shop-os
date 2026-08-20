@@ -1277,11 +1277,17 @@ export default function PosPage() {
         // A scanned pack barcode preselects that pack on the line.
         addLine(data.product, v?.id ?? null, v?.name, v?.price, undefined, data.product_unit_id ?? null);
       }
-      // Cashier warnings (Rx / near-expiry / weighed) — informational, sale continues.
+      // Cashier warnings (Rx / near-expiry / ageing / weighed) — informational,
+      // the sale continues in every case.
       const notices: string[] = [];
       if (data.scale) notices.push(`${data.product.name}: ${data.scale.quantity} ${data.product.unit ?? "kg"} weighed`);
       if (data.requires_prescription) notices.push(`℞ ${data.product.name} requires a prescription`);
       if (data.near_expiry) notices.push(`${data.product.name}: batch ${data.near_expiry.batch_number} expires in ${data.near_expiry.days} day(s) (${data.near_expiry.expiry_date})`);
+      // A warning, never a fence. Settings → Stock ageing promises "the counter
+      // is told, and the decision stays with whoever is standing there" — this
+      // line is the first half of that. It names the lot the customer will
+      // actually be handed, because depletion gives out the oldest lot first.
+      if (data.aged) notices.push(`${data.product.name}: lot ${data.aged.batch_number} is ${data.aged.age} ${data.aged.status === "old" ? "— past what you call old" : "old"}`);
       setPosNotice(notices.length ? notices.join(" · ") : null);
       setSearch("");
       posSound.success();
