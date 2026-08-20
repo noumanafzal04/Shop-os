@@ -106,6 +106,10 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   "/tenant/portfolio": "settings.manage",
   "/tenant/branches": "settings.manage",
   "/tenant/settings": "settings.manage",
+  // The shop's own record of who changed what. An ANY-of list, mirroring the
+  // server's READS_AUDIT: the person most often being ASKED about is the one
+  // holding settings.manage, and a trail only they can open is not a trail.
+  "/tenant/activity": ["settings.manage", "reports.view"],
 };
 
 /**

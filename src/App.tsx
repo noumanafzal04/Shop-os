@@ -44,6 +44,7 @@ const SecurityPage = lazy(() => import("./modules/auth/pages/SecurityPage"));
 // in the navigation they could not work out is not help.
 const HelpCenterPage = lazy(() => import("./modules/help/pages/HelpCenterPage"));
 const ShopSettingsPage = lazy(() => import("./modules/shop/pages/ShopSettingsPage"));
+const ActivityPage = lazy(() => import("./modules/activity/pages/ActivityPage"));
 const BranchesPage = lazy(() => import("./modules/branches/pages/BranchesPage"));
 const TransfersPage = lazy(() => import("./modules/transfers/pages/TransfersPage"));
 const WarrantyLookupPage = lazy(() => import("./modules/warranty/pages/WarrantyLookupPage"));
@@ -338,6 +339,7 @@ export default function App() {
                   <Route element={<RequirePermission permission="settings.manage" />}>
                     <Route path="branches" element={<BranchesPage />} />
                     <Route path="settings" element={<ShopSettingsPage />} />
+                    <Route path="activity" element={<ActivityPage />} />
                   </Route>
                   {/* Vehicles are customer data, so they ride the products
                       gate like the CRM does — the sidebar decides which trades

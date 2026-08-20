@@ -229,6 +229,10 @@ export function shopNav(
       subItems: [
         { name: "Reports", path: "/tenant/reports" },
         { name: "Staff", path: "/tenant/staff" },
+        // Who changed what. Beside Staff because it answers the question Staff
+        // raises — you granted somebody a permission, and later you want to
+        // know what they did with it.
+        { name: "Activity", path: "/tenant/activity" },
         // The chemist's paperwork: the dispensing register and batch recall.
         // Pharmacy-only — a mart that happens to stock paracetamol keeps no
         // register, and the page would be an empty table forever.
