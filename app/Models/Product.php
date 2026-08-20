@@ -6,7 +6,6 @@ use App\Enums\ItemType;
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HidesCostPrice;
 use App\Support\ItemTypes;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -63,12 +62,6 @@ class Product extends BaseModel
     public function isSoldOut(): bool
     {
         return $this->sold_out_at !== null;
-    }
-
-    /** @param  Builder<Product>  $query */
-    public function scopeSellableToday($query)
-    {
-        return $query->whereNull('sold_out_at');
     }
 
     /** Larger packs this item can be sold in (pack-breaking) — smallest first. */
@@ -168,9 +161,9 @@ class Product extends BaseModel
 
     public function batches(): HasMany
     {
-        // FEFO order: earliest expiry first, undated batches last.
-        return $this->hasMany(ProductBatch::class)
-            ->orderByRaw('expiry_date IS NULL, expiry_date');
+        // Oldest risk first: earliest expiry, then earliest manufactured,
+        // then the lots nobody dated. See ProductBatch::scopeOldestFirst.
+        return $this->hasMany(ProductBatch::class)->oldestFirst();
     }
 
     /**

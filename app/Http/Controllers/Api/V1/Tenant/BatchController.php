@@ -196,6 +196,61 @@ class BatchController extends Controller
     }
 
     /**
+     * Lots that have AGED past what this shop calls ageing — the shelf sweep a
+     * tyre shop does before a customer does it for them.
+     *
+     * ── Why this exists beside `expiring` ───────────────────────────────
+     *
+     * Stock can be dated two ways and until now only one of them was ever read
+     * again. An `expiry_date` had a shop-wide worklist, a dashboard tile, a
+     * counter warning and an alert. A `manufactured_on` — the four digits off a
+     * tyre's sidewall — had a badge inside one product's batch drawer, which
+     * answers "how old is THIS lot" and never "which of my lots are old". A
+     * tyre shop with two hundred sizes cannot open two hundred drawers.
+     *
+     * `ProductBatch::scopeAgedBeyond` had been written for exactly this and
+     * called by nothing.
+     *
+     * ── Not a fence ─────────────────────────────────────────────────────
+     *
+     * Nothing here is blocked from sale, unlike expired stock. Rubber ages; it
+     * does not become illegal on a date. The list exists so a shop can price
+     * the age in, move it, or send it back — decisions, not refusals.
+     */
+    public function ageing(Request $request, BranchContext $branch): JsonResponse
+    {
+        ['warn' => $warn, 'old' => $old] = $this->ageSettings();
+
+        // The caller may ask a stricter question than the shop's own setting
+        // (a fleet contract, an insurer). Capped at 30 to match the setting.
+        $years = min(max((int) $request->query('years', $warn), 1), 30);
+
+        // Branch-scoped like `expiring`, and for the same reason: a sweep that
+        // lists lots on a shelf the person reading it cannot reach is a sweep
+        // they cannot act on. `scopeId()` — a null scope is an owner looking at
+        // every branch at once, which is a legitimate question here.
+        $batches = ProductBatch::query()
+            ->agedBeyond($years)
+            ->when($branch->scopeId(), fn ($q, $branchId) => $q->where('branch_id', $branchId))
+            ->with('product:id,name,sku')
+            ->oldestFirst()
+            ->get()
+            ->map(fn (ProductBatch $b) => [
+                'id' => $b->id,
+                'product' => $b->product?->only(['id', 'name', 'sku']),
+                'batch_number' => $b->batch_number,
+                'dot_code' => $b->dot_code,
+                'manufactured_on' => $b->manufactured_on?->toDateString(),
+                'quantity' => (float) $b->quantity,
+                // Computed, never stored — it changes every day on its own.
+                'age' => $b->humanAge(),
+                'age_status' => $b->ageStatus($warn, $old),
+            ]);
+
+        return ApiResponse::ok($batches);
+    }
+
+    /**
      * Batches expiring within N days (default 30) + already-expired stock.
      */
     public function expiring(Request $request, BranchContext $branch): JsonResponse

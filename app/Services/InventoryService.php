@@ -235,7 +235,7 @@ class InventoryService
                         ->where($scopeVariant)
                         ->where('quantity', '>', 0)
                         ->where(fn ($q) => $q->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', today()))
-                        ->orderByRaw('expiry_date IS NULL, expiry_date')
+                        ->oldestFirst()
                         ->lockForUpdate()
                         ->get();
                     foreach ($batches as $batch) {
@@ -266,7 +266,7 @@ class InventoryService
                         ->where('product_id', $product->id)
                         ->where($scopeVariant)
                         ->where(fn ($q) => $q->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', today()))
-                        ->orderByRaw('expiry_date IS NULL, expiry_date')
+                        ->oldestFirst()
                         ->lockForUpdate()
                         ->first();
                     if ($restoreTo !== null) {

@@ -84,12 +84,6 @@ SETTLED: dict[str, str] = {
     "isService": "one-line derivation of type; every call site checks the type directly",
     "isCustomer": "one-line derivation of role; the customer routes gate on the role",
     "isPlatform": "platform access is gated on permissions, not on the role enum",
-    "sellableToday": "the rule it stood for is now enforced in all three selling paths via "
-                     "isSoldOut() — see docs/decisions/shopos-sold-out-in-three-places.md. "
-                     "The scope itself is unused and could go.",
-    "agedBeyond": "a filter never wired to the batches endpoint. A GAP, not a defect: "
-                  "BatchController already publishes age and age_status per row, so a shop can "
-                  "see which lots are old — it just cannot ask for only those.",
 }
 
 
@@ -178,8 +172,10 @@ def report(mutate: str | None = None) -> tuple[list[str], int]:
             print(f"  {kind:9} {name}()   {SETTLED[name]}")
         print()
 
-    # A stale exception is worse than no exception, because it is believed.
-    gone = [n for n in SETTLED if n not in rules]
+    # A stale exception is worse than no exception, because it is believed. A
+    # BLINDED run read no methods at all, so it has nothing to say about which
+    # entries are stale — every one of them would look gone.
+    gone = [n for n in SETTLED if n not in rules] if rules else []
     revived = [n for n in SETTLED if n in rules and callers(n)]
 
     if rules and gone:
@@ -191,7 +187,11 @@ def report(mutate: str | None = None) -> tuple[list[str], int]:
         for n in revived:
             print(f"  · {n}")
 
-    return [n for _k, n, _c in unexamined], len(rules)
+    # A stale exception is worse than no exception, because it is believed —
+    # so it counts as a lead, not a footnote. Both of these have now happened:
+    # `agedBeyond` sat in SETTLED as "never wired to the batches endpoint" on
+    # the morning it was wired to two, and the run still exited 0.
+    return [n for _k, n, _c in unexamined] + [f"stale:{n}" for n in gone + revived], len(rules)
 
 
 def prove() -> int:

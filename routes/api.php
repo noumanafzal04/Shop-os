@@ -678,6 +678,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/low-stock', [InventoryController::class, 'lowStock']);
                 // Batch/lot + expiry tracking (pharmacy, perishables)
                 Route::get('/expiring', [BatchController::class, 'expiring']);
+                // Stock that AGES rather than expires (tyres above all). A
+                // separate list because it is a hint, not a fence: nothing here
+                // is blocked from sale.
+                Route::get('/ageing', [BatchController::class, 'ageing']);
                 Route::get('/products/{product}/batches', [BatchController::class, 'index']);
                 Route::post('/products/{product}/batches', [BatchController::class, 'store']);
                 Route::patch('/batches/{batch}', [BatchController::class, 'update']);

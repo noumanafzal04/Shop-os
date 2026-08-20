@@ -103,10 +103,12 @@ class PosController extends Controller
             'variant_id' => $variantId,
             // Preselected pack when a pack barcode was scanned (else null = base unit).
             'product_unit_id' => $unitId,
-            // POS cashier warnings: Rx items + stock nearing expiry (earliest
-            // non-expired batch within 90 days). Never blocks the sale.
+            // POS cashier warnings: Rx items, stock nearing expiry (earliest
+            // non-expired lot within 90 days), and stock that has AGED past
+            // what this shop calls ageing. None of the three blocks a sale.
             'requires_prescription' => (bool) $product->requires_prescription,
             'near_expiry' => $this->nearExpiry($product),
+            'aged' => $this->agedLot($product),
         ]);
     }
 
@@ -152,6 +154,7 @@ class PosController extends Controller
             'variant_id' => null,
             'requires_prescription' => (bool) $product->requires_prescription,
             'near_expiry' => $this->nearExpiry($product),
+            'aged' => $this->agedLot($product),
             // The pre-filled quantity (weight) for this scanned label.
             'scale' => [
                 'mode' => $scale['mode'],
@@ -163,14 +166,66 @@ class PosController extends Controller
     }
 
     /**
+     * Lots with stock on them, at the branch this till is standing in.
+     *
+     * The branch matters: a cashier in Gulberg being warned about a lot on the
+     * Johar Town shelf is a warning about stock they cannot see, and the lot
+     * they CAN see goes unmentioned. Null scope (an owner's all-branches view,
+     * or a headless caller) still spans everything.
+     */
+    private function lotsOnThisShelf(Product $product)
+    {
+        return $product->batches()
+            ->where('quantity', '>', 0)
+            ->when($this->branch->scopeId(), fn ($q, $id) => $q->where('branch_id', $id));
+    }
+
+    /**
+     * The oldest lot on the shelf that has aged past what this shop calls
+     * ageing — or null.
+     *
+     * ── Why the counter is told at all ──────────────────────────────────
+     *
+     * A tyre carries no expiry, so `near_expiry` is permanently null for one
+     * and the cashier heard nothing. Meanwhile Settings → Stock ageing promised
+     * in as many words that "the counter is told, and the decision stays with
+     * whoever is standing there" — the second half was true and the first was
+     * not. A shop that has set six years as old wants the person holding the
+     * tyre to know it is seven, while it is still their call to sell it.
+     *
+     * OLDEST, not newest: depletion now hands out the oldest lot first
+     * (`ProductBatch::scopeOldestFirst`), so the lot named here is the lot the
+     * customer will actually be given.
+     *
+     * @return array{batch_number: string, age: string, status: string}|null
+     */
+    private function agedLot(Product $product): ?array
+    {
+        $tenant = $this->context->get();
+        $warn = (int) ($tenant?->setting('stock_age_warn_years', 5) ?? 5);
+        $old = (int) ($tenant?->setting('stock_age_old_years', 6) ?? 6);
+
+        $batch = $this->lotsOnThisShelf($product)->agedBeyond($warn)->first();
+
+        if ($batch === null) {
+            return null;
+        }
+
+        return [
+            'batch_number' => $batch->batch_number,
+            'age' => (string) $batch->humanAge(),
+            'status' => (string) $batch->ageStatus($warn, $old),
+        ];
+    }
+
+    /**
      * The soonest-expiring non-expired batch within 90 days, or null.
      *
      * @return array{batch_number: string, expiry_date: string, days: int}|null
      */
     private function nearExpiry(Product $product): ?array
     {
-        $batch = $product->batches()
-            ->where('quantity', '>', 0)
+        $batch = $this->lotsOnThisShelf($product)
             ->whereNotNull('expiry_date')
             ->whereDate('expiry_date', '>=', today())
             ->whereDate('expiry_date', '<=', today()->addDays(90))

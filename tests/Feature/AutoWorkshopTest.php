@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Branch;
 use App\Models\CustomerVehicle;
 use App\Models\Product;
 use App\Models\ProductBatch;
@@ -55,7 +56,7 @@ class AutoWorkshopTest extends TestCase
 
         $this->tyre = Product::withoutTenancy()->create([
             'tenant_id' => $this->shop->id, 'type' => 'product',
-            'name' => 'General 195/65 R15', 'price' => 15800, 'cost' => 12300,
+            'name' => 'General 195/65 R15', 'sku' => 'TYRE-19565R15', 'price' => 15800, 'cost' => 12300,
             'track_inventory' => true, 'stock_quantity' => 20, 'is_active' => true,
         ]);
     }
@@ -234,6 +235,115 @@ class AutoWorkshopTest extends TestCase
         ])->assertCreated();
     }
 
+    public function test_the_oldest_rubber_leaves_the_shelf_first(): void
+    {
+        // The whole point of writing down a sidewall week. `DotCode` says it in
+        // its own docblock — "a shop needs to see the age, sell the oldest stock
+        // first" — and depletion is ordered by expiry alone, which a tyre does
+        // not have. Every lot ties, so the pallet that arrived on Tuesday goes
+        // out while the 2019 set ages on quietly behind it.
+        //
+        // The FRESH lot is created first on purpose: insertion order already
+        // gives the wrong answer, so a passing test has to be the ordering
+        // doing work rather than the database agreeing by luck.
+        $fresh = $this->batchAged('SIDEWALL-2025', months: 3);
+        $old = $this->batchAged('SIDEWALL-2019', months: 84);
+
+        $this->sellTyres(4);
+
+        $this->assertSame(0.0, (float) $old->fresh()->quantity,
+            'the six-year-old lot should have been the one that left');
+        $this->assertSame(4.0, (float) $fresh->fresh()->quantity,
+            'the new pallet should still be untouched');
+    }
+
+    public function test_the_oldest_first_rule_is_not_just_insertion_order(): void
+    {
+        // The same claim with the rows created the other way round, so neither
+        // direction can pass by accident.
+        $old = $this->batchAged('SIDEWALL-2019', months: 84);
+        $this->batchAged('SIDEWALL-2025', months: 3);
+
+        $this->sellTyres(4);
+
+        $this->assertSame(0.0, (float) $old->fresh()->quantity);
+    }
+
+    public function test_a_dated_lot_is_still_sorted_by_its_expiry_first(): void
+    {
+        // Manufacture date is a TIE-BREAK, never a promotion. A pharmacy lot
+        // dying next week outranks an older-made lot with a year left on it,
+        // because one of those two facts is a fence and the other is a hint.
+        $soon = $this->lot('DIES-SOON', [
+            'expiry_date' => now()->addDays(7)->toDateString(),
+            'manufactured_on' => now()->subMonths(6)->toDateString(),
+        ]);
+        $olderMade = $this->lot('MADE-EARLIER', [
+            'expiry_date' => now()->addYear()->toDateString(),
+            'manufactured_on' => now()->subMonths(84)->toDateString(),
+        ]);
+
+        $this->sellTyres(4);
+
+        $this->assertSame(0.0, (float) $soon->fresh()->quantity);
+        $this->assertSame(4.0, (float) $olderMade->fresh()->quantity);
+    }
+
+    public function test_an_undated_lot_goes_after_every_lot_that_has_a_date(): void
+    {
+        // "We don't know when this was made" must not read as "made today" and
+        // jump the queue, nor as "ancient" and be pushed out first. Unknown
+        // sorts last, which is where it sat before manufacture date was read at
+        // all — that part was already right.
+        $unknown = $this->batchNoDate('NO-SIDEWALL');
+        $known = $this->batchAged('SIDEWALL-2025', months: 3);
+
+        $this->sellTyres(4);
+
+        $this->assertSame(0.0, (float) $known->fresh()->quantity);
+        $this->assertSame(4.0, (float) $unknown->fresh()->quantity);
+    }
+
+    public function test_the_counter_is_told_the_tyre_it_is_about_to_sell_is_old(): void
+    {
+        // Settings → Stock ageing promises this in as many words: "the counter
+        // is told, and the decision stays with whoever is standing there." The
+        // second half was true — nothing is blocked — and the first was not.
+        // `near_expiry` is permanently null for a tyre, so the cashier heard
+        // nothing at all.
+        $this->batchAged('SIDEWALL-2019', months: 84);
+
+        $this->login($this->owner)->getJson('/api/v1/pos/lookup?code=TYRE-19565R15')
+            ->assertOk()
+            ->assertJsonPath('data.aged.batch_number', 'SIDEWALL-2019')
+            ->assertJsonPath('data.aged.status', 'old')
+            ->assertJsonPath('data.aged.age', '7 yr')
+            // Still a warning. The line is offered, not refused.
+            ->assertJsonPath('data.near_expiry', null);
+    }
+
+    public function test_a_fresh_tyre_says_nothing_at_the_counter(): void
+    {
+        // A notice that appears on every scan is a notice nobody reads.
+        $this->batchAged('SIDEWALL-2025', months: 3);
+
+        $this->login($this->owner)->getJson('/api/v1/pos/lookup?code=TYRE-19565R15')
+            ->assertOk()->assertJsonPath('data.aged', null);
+    }
+
+    public function test_the_counter_names_the_lot_the_customer_will_get(): void
+    {
+        // Depletion hands out the oldest lot first, so the warning has to name
+        // that one — naming the newest pallet while handing over the 2019 set
+        // is worse than silence.
+        $this->batchAged('SIDEWALL-2025', months: 3);
+        $this->batchAged('SIDEWALL-2018', months: 96);
+        $this->batchAged('SIDEWALL-2020', months: 72);
+
+        $this->login($this->owner)->getJson('/api/v1/pos/lookup?code=TYRE-19565R15')
+            ->assertOk()->assertJsonPath('data.aged.batch_number', 'SIDEWALL-2018');
+    }
+
     public function test_a_lot_with_no_code_reads_as_unknown_not_as_fresh(): void
     {
         $this->login($this->owner)->postJson("/api/v1/inventory/products/{$this->tyre->id}/batches", [
@@ -246,6 +356,82 @@ class AutoWorkshopTest extends TestCase
         // "We don't know" and "it's new" are different facts.
         $this->assertNull($row['age_status']);
         $this->assertNull($row['age']);
+    }
+
+    public function test_the_shop_can_ask_which_lots_are_old_without_opening_each_product(): void
+    {
+        // The badge inside a product's batch drawer answers "how old is THIS
+        // lot". It never answered "which of my lots are old", and a tyre shop
+        // carrying two hundred sizes is not going to open two hundred drawers.
+        $this->batchAged('SIDEWALL-2018', months: 96);
+        $this->batchAged('SIDEWALL-2025', months: 3);
+        $this->batchNoDate('NO-SIDEWALL');
+
+        $rows = $this->login($this->owner)->getJson('/api/v1/inventory/ageing')
+            ->assertOk()->json('data');
+
+        // Only the aged lot. Fresh stock is not a worklist, and a lot nobody
+        // dated is not evidence of age.
+        $this->assertSame(['SIDEWALL-2018'], array_column($rows, 'batch_number'));
+        $this->assertSame('old', $rows[0]['age_status']);
+        $this->assertSame('General 195/65 R15', $rows[0]['product']['name']);
+    }
+
+    public function test_the_sweep_lists_the_oldest_lot_first(): void
+    {
+        $this->batchAged('SIDEWALL-2020', months: 72);
+        $this->batchAged('SIDEWALL-2016', months: 120);
+        $this->batchAged('SIDEWALL-2018', months: 96);
+
+        $rows = $this->login($this->owner)->getJson('/api/v1/inventory/ageing')
+            ->assertOk()->json('data');
+
+        $this->assertSame(
+            ['SIDEWALL-2016', 'SIDEWALL-2018', 'SIDEWALL-2020'],
+            array_column($rows, 'batch_number'),
+        );
+    }
+
+    public function test_the_sweep_follows_the_shop_own_idea_of_old(): void
+    {
+        // Default is five years; this shop says two.
+        $this->batchAged('THREE-YEAR', months: 40);
+
+        $this->assertSame([], $this->login($this->owner)
+            ->getJson('/api/v1/inventory/ageing')->json('data'));
+
+        $this->shop->forceFill([
+            'settings' => ['stock_age_warn_years' => 2, 'stock_age_old_years' => 3],
+        ])->save();
+
+        $this->assertSame(['THREE-YEAR'], array_column(
+            $this->login($this->owner)->getJson('/api/v1/inventory/ageing')->json('data'),
+            'batch_number',
+        ));
+    }
+
+    public function test_a_stricter_question_can_be_asked_of_the_same_shelf(): void
+    {
+        // A fleet contract or an insurer may hold the shop to less than its own
+        // shelf policy, without that becoming the shop's policy.
+        $this->batchAged('SIDEWALL-2022', months: 40);
+
+        $this->assertSame([], $this->login($this->owner)
+            ->getJson('/api/v1/inventory/ageing')->json('data'));
+        $this->assertSame(['SIDEWALL-2022'], array_column(
+            $this->login($this->owner)->getJson('/api/v1/inventory/ageing?years=3')->json('data'),
+            'batch_number',
+        ));
+    }
+
+    public function test_an_empty_aged_lot_is_not_a_worklist_item(): void
+    {
+        // Zero on the shelf is nothing to act on. The row stays for history.
+        $lot = $this->batchAged('SOLD-OUT-2018', months: 96);
+        $lot->update(['quantity' => 0]);
+
+        $this->assertSame([], $this->login($this->owner)
+            ->getJson('/api/v1/inventory/ageing')->json('data'));
     }
 
     public function test_a_mistyped_sidewall_code_is_refused(): void
@@ -292,15 +478,43 @@ class AutoWorkshopTest extends TestCase
         ])->assertCreated()->json('data');
     }
 
+    /** Ring up N tyres over the counter, which is what deplete-oldest-first has to survive. */
+    private function sellTyres(int $qty): void
+    {
+        $this->login($this->owner)->postJson('/api/v1/sales', [
+            'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 15800 * $qty,
+            'items' => [['product_id' => $this->tyre->id, 'quantity' => $qty]],
+        ])->assertCreated();
+    }
+
     private function batchAged(string $number, int $months): ProductBatch
+    {
+        return $this->lot($number, ['manufactured_on' => now()->subMonths($months)->toDateString()]);
+    }
+
+    private function batchNoDate(string $number): ProductBatch
+    {
+        return $this->lot($number, []);
+    }
+
+    /**
+     * A lot on the shelf of the branch the till is standing in.
+     *
+     * The branch is not decoration: FEFO matches lots at THIS branch, so a row
+     * written with branch_id null is invisible to the very depletion these
+     * tests are about. Two bugs have already been shipped by panel code doing
+     * exactly that.
+     */
+    private function lot(string $number, array $attrs): ProductBatch
     {
         return ProductBatch::withoutTenancy()->create([
             'tenant_id' => $this->shop->id,
+            'branch_id' => Branch::withoutTenancy()
+                ->where('tenant_id', $this->shop->id)->where('is_default', true)->value('id'),
             'product_id' => $this->tyre->id,
             'batch_number' => $number,
-            'manufactured_on' => now()->subMonths($months)->toDateString(),
             'quantity' => 4,
-        ]);
+        ] + $attrs);
     }
 
     private function login(User $user): static
