@@ -425,6 +425,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "warn",
         text: "Prices are decided by the server, never by the browser. That is why a discount past your ceiling needs a supervisor, and why nothing on the page can change what a customer is charged.",
       },
+      { type: "note", text: "Your ceiling follows the bill, not the screen. It applies to a line discount on a dine-in tab and to a discount keyed when the tab is settled, exactly as it does at the counter — and it is judged on the whole bill, so ten lines at ten percent are treated as the ten percent they add up to." },
       { type: "h", text: "Served by" },
       { type: "p", text: "If your shop has switched this on, a Served by box sits above the payment methods. Pick the person who actually sold it — which is not necessarily you, if you are the one at the counter. It starts on Nobody and stays there unless you change it." },
       { type: "note", text: "Leaving it on Nobody is fine and is never treated as you. The sale is simply reported as unattributed rather than credited to whoever typed it." },
