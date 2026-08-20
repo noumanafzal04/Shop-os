@@ -125,7 +125,7 @@ a false index. A backup that has never been restored is a belief, not a backup.
 
 ## 4. State at handover
 
-**Backend 2093 tests / 8891 assertions green. Panel 1022 tests green (81 files).** Gates all
+**Backend 2094 tests / 8898 assertions green. Panel 1022 tests green (81 files).** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
 long-standing baseline).
 
@@ -276,7 +276,48 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-20 (latest) — nine screens where page two did not exist
+### 2026-08-20 (latest) — the grep, kept
+
+`Product::scopeSellableToday()` was found by hand. The technique is worth more
+than the finding, so it is now `shopos-backend/scripts/dead-rules.py`: every
+method whose **name is a decision** — `is*`, `has*`, `can*`, `requires*` — that
+nothing anywhere calls. **57 such names, ten uncalled, one a real gap.**
+
+**BUG · a supplier credit could be recorded twice.**
+`POST /inventory/disposals/{id}/credit` records what a distributor actually paid
+for goods sent back. It checked the permission and the disposition and never
+checked whether a credit had already been recorded, so a second call silently
+replaced a settled money figure and the "to claim" worklist did not reopen.
+`StockDisposal::isCredited()` had existed the whole time with no callers — the
+model stated the rule and nothing asked it.
+
+*The screen was already right, which is what hid it:* the "Credit received"
+button disappears once the credit is entered, so nobody clicking through the
+panel could do it twice. The API is the contract, and a retry or a double tap on
+a slow connection is not the panel. Refused (409 `ALREADY_CREDITED`) rather than
+kept-first — pressing 86 twice is the same intent repeated, recording two
+different amounts is not — and the refusal names what is already on the row. A
+khata repayment is append-only so it has no such problem; this is a single slot.
+
+**The other nine were fine, and that is the point.** Seven were one-line
+derivations of a field other code reads directly. Two had the rule enforced in
+the QUERY rather than the predicate — `OtpService::verify` selects
+`whereNull(consumed_at)` under a row lock, so an OTP cannot be replayed even
+though `isConsumed()` is never called. So the tool reports **leads, not
+findings**, and each carries a line saying which, including "redundant".
+
+**The scanner was wrong twice.** It read 62 of 74 rules as uncalled, because its
+pattern excluded `>` to skip declarations — which is how PHP calls a method; it
+reported `isSoldOut()` unused an hour after it was wired into three call sites.
+Then it could not find the bug it was built from: with the guard deliberately
+removed it still reported nothing, because the controller docblock EXPLAINS that
+`isCredited()` had sat unused and the grep counted the explanation.
+**Comments out, code in** — the rule `confirm/native.test.ts` already had to
+learn. `--prove` asserts both by name before it reports anything.
+
+Backend **2094 green**.
+
+### 2026-08-20 — nine screens where page two did not exist
 
 The coupon query the sweep raised turned out not to be about coupons.
 

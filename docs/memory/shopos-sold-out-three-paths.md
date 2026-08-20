@@ -1,6 +1,6 @@
 ---
 name: shopos-sold-out-three-paths
-description: "FIXED 2026-08-20: 'eighty-six' was enforced only by the till — the app AND the dine-in tab both sold what the kitchen had taken off. Found by grepping for a scope with zero callers"
+description: "FIXED 2026-08-20: 'eighty-six' was enforced only by the till — the app AND the dine-in tab both sold what the kitchen had taken off. The grep that found it is now scripts/dead-rules.py, which then found a second bug"
 metadata: 
   node_type: memory
   type: project
@@ -62,5 +62,47 @@ again**. Without that last step there is no telling "refused because it is sold
 out" from "refused because this shop is shut": the refusal has to be *caused by*
 the flag, not merely coincide with it.
 
+---
+
+**THE GREP, KEPT — `shopos-backend/scripts/dead-rules.py`.** Every method whose
+NAME is a decision (`is*` / `has*` / `can*` / `must*` / `requires*`) that
+nothing anywhere calls. **57 names, 10 uncalled, 1 a real gap.**
+
+**BUG FOUND: a supplier credit could be recorded twice.**
+`POST /inventory/disposals/{id}/credit` checked the permission and the
+disposition and **never checked whether a credit was already recorded** — a
+second call silently replaced a settled money figure, and the "to claim"
+worklist did not reopen. `StockDisposal::isCredited()` had existed all along
+with no callers: the model stated the rule and nothing asked it.
+
+*The SCREEN was already right, which is what hid it* — the "Credit received"
+button disappears once `credit_received_at` is set. **The API is the contract**,
+and a retry or a double tap on a slow line is not the panel. Refused 409
+`ALREADY_CREDITED`, not kept-first: 86'ing twice is the same intent repeated,
+recording two different amounts is not. The refusal names what is on the row. A
+khata repayment is append-only so it has no such problem; this is a single slot,
+and a single slot settles once.
+
+**The other 9 were fine, and that is the point.** Seven were one-line
+derivations of a field other code reads directly (`isRequired()` returns
+`min_select > 0` while ModifierResolver reads `min_select`). Two had the rule
+enforced **in the QUERY rather than the predicate** — `OtpService::verify`
+selects `whereNull(consumed_at)` under a row lock, so an OTP cannot be replayed
+even though `isConsumed()` is never asked. So the tool reports **leads, not
+findings**; each carries a line in `SETTLED` answering *does another path
+enforce this, or does nobody?* — including "redundant", the common case.
+
+**THE SCANNER WAS WRONG TWICE:**
+1. Read **62 of 74** rules as uncalled — its pattern excluded `>` to skip
+   declarations, **which is exactly how PHP calls a method**. It reported
+   `isSoldOut()` unused an hour after it was wired into three call sites. *A
+   detector that finds far more than it should has stopped reading the
+   language.*
+2. **It could not find the bug it was built from.** With the guard removed it
+   still reported nothing — the controller docblock EXPLAINS that `isCredited()`
+   had sat unused, the test says the same, and the grep counted the explanation.
+   **Comments out, code in** — the rule `confirm/native.test.ts` already had to
+   learn. `--prove` asserts both by name before it reports anything.
+
 Related: [[shopos-the-customer]], [[shopos-sold-out-and-reachability]],
-[[shopos-detector-vs-rule]], [[shopos-reachability-rule]]
+[[shopos-detector-vs-rule]], [[shopos-reachability-rule]], [[shopos-page-two]]

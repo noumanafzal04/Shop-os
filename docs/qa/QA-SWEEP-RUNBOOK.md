@@ -410,6 +410,8 @@ the gap between them.
 python3 docs/qa/unreachable-pages.py           # rows the shop cannot reach
 python3 docs/qa/unreachable-pages.py --prove   # break it on purpose first
 shopos-backend/scripts/dead-endpoints.py       # routes with no caller, and the reverse
+shopos-backend/scripts/dead-rules.py          # rules the code states and never consults
+shopos-backend/scripts/dead-rules.py --prove
 ```
 
 `unreachable-pages.py` asks whether every panel screen that lists a paginating
@@ -417,6 +419,13 @@ endpoint can reach row 31 — by turning the page or by searching. It found nine
 that could not, one of them capped at ten rows. The panel's own
 `ui/pager/reach.test.ts` keeps the other half true (nobody hand-rolls a pager),
 and deliberately does not duplicate the endpoint list.
+
+`dead-rules.py` lists every method whose NAME is a decision — `is*`, `has*`,
+`can*`, `requires*` — that nothing anywhere calls. It found the sold-out hole
+(`scopeSellableToday`, zero callers, three selling paths disagreeing) and a
+supplier credit that could be recorded twice. Its output is **leads, not
+findings**: of ten uncalled rules, one was a gap and nine were redundant or
+enforced in a query instead. Each carries a line in `SETTLED` saying which.
 
 Read the DENOMINATORS, never the verdict. Both scanners print what they checked
 over what exists, and `--prove` blinds the detector and requires the result to

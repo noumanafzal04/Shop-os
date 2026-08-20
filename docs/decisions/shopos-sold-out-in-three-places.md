@@ -92,3 +92,69 @@ refuse it, **then put it back and order it again**. That last step is the whole
 check — without it there is no telling "refused because it is sold out" from
 "refused because this shop is shut". The refusal has to be *caused by* the flag,
 not merely coincide with it.
+
+---
+
+## The grep, kept
+
+**2026-08-20, later.** `Product::scopeSellableToday()` was found by hand. That
+technique is worth more than the one finding, so it is now
+`shopos-backend/scripts/dead-rules.py`: every method on a model whose **name is
+a decision** — `is*`, `has*`, `can*`, `must*`, `requires*` — and which nothing
+anywhere calls.
+
+Fifty-seven such names. Ten had no caller. **One of the ten was a real gap.**
+
+### `StockDisposal::isCredited()`
+
+`POST /inventory/disposals/{id}/credit` records what a distributor actually paid
+against goods sent back. It checked the permission, checked the disposition was
+a supplier return, and **never checked whether a credit had already been
+recorded** — so a second call silently replaced a settled money figure with a
+different one, and the "to claim" worklist did not reopen.
+
+*The screen was already right, which is what hid it.* The "Credit received"
+button disappears the moment `credit_received_at` is set, so a person clicking
+through the panel could never do this twice. But the API is the contract, and a
+retry, a double tap on a slow connection, or anything that is not this screen
+could do it.
+
+Refused, not kept-first: pressing 86 twice is the same intent repeated, and
+recording two different amounts is not. The refusal names what is already on the
+row, because a bare 409 leaves the shop guessing whether their entry landed. A
+khata repayment is append-only — a new ledger row each time — so it has no such
+problem; this is a single slot, and a single slot is settled once.
+
+### The other nine were fine, and that is the point
+
+Seven were one-line derivations of a field that other code checks directly:
+`isRequired()` returning `min_select > 0` while `ModifierResolver` reads
+`min_select` itself. Two more had the rule enforced **in the query rather than
+the predicate** — `OtpService::verify` selects `whereNull(consumed_at)` under a
+row lock, so an OTP cannot be replayed even though `isConsumed()` is never
+asked.
+
+So these are **leads, not findings**, and the tool says so. Every one carries a
+line in `SETTLED` giving the answer to a single question — *does another path
+enforce this rule, or does nobody?* — including when the answer is "it is
+redundant", because that is the common case. A lead with no line is unexamined;
+an entry whose method has since gained a caller, or vanished, is reported, since
+a stale exception list is worse than none.
+
+### What the tool got wrong, twice
+
+**It read 62 of 74 rules as uncalled.** Its pattern excluded `>` in order to
+skip declarations — which is exactly how PHP calls a method. It reported
+`isSoldOut()` as unused an hour after it was wired into three call sites.
+*Suspect the parser before the code: a detector that finds far more than it
+should has usually stopped reading the language.*
+
+**Then it could not find the bug it was built from.** With the credit guard
+deliberately removed, the scan still reported no lead — because the controller's
+own docblock explains that `isCredited()` had sat unused, and the test beside it
+says the same, and both lines contain `isCredited(`. The grep counted the
+explanation as a call. **Comments out, code in**, the same rule
+`confirm/native.test.ts` had to learn: a file that explains the mistake it
+stopped making is not making it.
+
+`--prove` now asserts both, by name, before it reports anything.

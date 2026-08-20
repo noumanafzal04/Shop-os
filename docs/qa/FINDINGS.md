@@ -10,6 +10,68 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-20 — the grep, kept
+
+`Product::scopeSellableToday()` was found by hand, and the technique is worth
+more than the finding. It is now `shopos-backend/scripts/dead-rules.py`: every
+method whose **name is a decision** — `is*`, `has*`, `can*`, `requires*` — that
+nothing anywhere calls.
+
+**57 such names. Ten uncalled. One a real gap.**
+
+### BUG · a supplier credit could be recorded twice — NOW FIXED
+
+`POST /inventory/disposals/{id}/credit` records what a distributor actually paid
+for goods sent back. It checked the permission and the disposition and **never
+checked whether a credit had already been recorded**, so a second call silently
+replaced a settled money figure and the "to claim" worklist did not reopen.
+`StockDisposal::isCredited()` had existed the whole time with no callers — the
+model stated the rule and nothing asked it.
+
+*The screen was already right, which is what hid it.* The "Credit received"
+button disappears once `credit_received_at` is set, so nobody clicking through
+the panel could do it twice. The API is the contract, and a retry or a double
+tap on a slow connection is not the panel.
+
+Refused (409 `ALREADY_CREDITED`) rather than kept-first: pressing 86 twice is
+the same intent repeated, recording two different amounts is not. The refusal
+names what is already on the row. A khata repayment is append-only — a ledger
+row per payment — so it has no such problem; this is a single slot, and a single
+slot settles once.
+
+### The other nine were fine, and that is the point
+
+Seven were one-line derivations of a field other code reads directly
+(`isRequired()` → `min_select > 0`, while `ModifierResolver` reads `min_select`).
+Two had the rule enforced **in the query rather than the predicate** —
+`OtpService::verify` selects `whereNull(consumed_at)` under a row lock, so an OTP
+cannot be replayed even though `isConsumed()` is never called.
+
+So the tool reports **leads, not findings**, and every one carries a line saying
+which — including "redundant", because that is the common case. A stale entry
+(method gone, or newly called) is reported too, since an exception list that is
+believed and wrong is worse than none.
+
+### HARNESS · the scanner was wrong twice, and the second one is the good one
+
+**It read 62 of 74 rules as uncalled.** Its pattern excluded `>` to skip
+declarations — which is how PHP calls a method. It reported `isSoldOut()` unused
+an hour after it was wired into three call sites. *Suspect the parser before the
+code: a detector that finds far more than it should has usually stopped reading
+the language.*
+
+**Then it could not find the bug it was built from.** With the credit guard
+deliberately removed it still reported nothing — because the controller docblock
+explains that `isCredited()` had sat unused, and the test says the same, and both
+lines contain `isCredited(`. **Comments out, code in**, the rule
+`confirm/native.test.ts` already had to learn: a file that explains the mistake
+it stopped making is not making it. `--prove` asserts both by name now, before
+it reports anything.
+
+Backend **2094 green**.
+
+---
+
 ## 2026-08-20 — nine screens where page two did not exist
 
 The coupon gap recorded below turned out not to be about coupons.

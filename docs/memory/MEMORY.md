@@ -83,5 +83,5 @@
 - [Offline In A Browser](shopos-offline-in-a-browser.md) — FIRST real-browser offline run: 5 bugs, biggest = a dropped line signed the till out and stranded its own outbox
 - [Offline Slip Numbers](shopos-offline-slip-numbers.md) — FIXED: device segment now server-ALLOCATED (was 4 chars of a random UUID); counter high-water seeded; a repeated label never costs a sale
 - [The Customer](shopos-the-customer.md) — Phase R: role:customer (orders/addresses/reviews/Rx + dish modifiers + 86); 204 checks, 36/36 mutations
-- [Sold Out, Three Paths](shopos-sold-out-three-paths.md) — FIXED: 86 was enforced by the till ONLY; app + dine-in tab both sold it; found via a scope with zero callers
+- [Sold Out, Three Paths](shopos-sold-out-three-paths.md) — FIXED: 86 enforced by the till ONLY; app + dine-in tab both sold it. The grep is now scripts/dead-rules.py — it found a 2nd bug (credit recorded twice)
 - [Page Two](shopos-page-two.md) — FIXED: 9 screens could not reach page two AT ALL (reviews capped at 10); one shared <Pager> + 2 guards; scanner was wrong 4 times first
