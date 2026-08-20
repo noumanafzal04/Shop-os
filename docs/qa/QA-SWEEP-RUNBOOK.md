@@ -387,6 +387,65 @@ Anything it finds goes in [`FINDINGS.md`](FINDINGS.md) with the call that
 produced it, and anything confirmed gets a test in the real suite before it is
 fixed.
 
+## Phase S — the shelf that ages
+
+```bash
+python3 run.py s          # pulls a, b, c in first
+```
+
+Stock can be dated two ways and the difference is the whole subject. **An expiry
+is a FENCE** — a medicine past it may not be dispensed and the platform blocks
+it. **An age is a HINT** — four digits on a tyre's sidewall, and rubber ages
+sitting still whether or not anyone drives on it. Nothing becomes illegal on a
+date, so nothing may ever be blocked.
+
+Four claims, and the first has money in it:
+
+- **Oldest first.** Selling takes the oldest lot on the shelf, measured from
+  manufacture when there is no expiry to measure from. The FRESH lot is created
+  first on purpose — insertion order already gives the wrong answer, so a pass
+  has to be the ordering doing work rather than the database agreeing by luck.
+- **Unknown last.** A lot nobody dated is neither new nor ancient; it waits.
+- **Told.** The counter is told, by name, which lot it is handing over.
+- **Never fenced.** And it sells anyway, because that was always the point.
+
+**Not gated on a trade.** `stock_age_warn_years` is a shop setting, `dot_code` is
+accepted on any lot, and `/inventory/ageing` asks the shop rather than the trade
+— so every shop with the inventory module gets asked. A trade list in the phase
+would be a second copy of an answer the product already has. 8 of 9 shops;
+finance has no inventory module and is correctly skipped.
+
+Two things this phase taught the harness, both worth knowing before writing
+another one:
+
+- **`Report.expect` reads a list `want` as ALTERNATIVES**, not as a sequence.
+  Phase S passed a list of expected rows and it asked whether the whole list
+  equalled one of its own members — **reporting the exactly-right answer as
+  something to look at, 18 times.** Compare an order as a joined string.
+- **A claim whose failure is a defect must call `rep.bug`, not `rep.expect`.**
+  `expect` files a QUERY, which is right for "this behaved differently than I
+  guessed" and wrong for "the shop sold the wrong tyre" — and it makes the check
+  **invisible to `mutate.py`**, which looks for BUG rows. A claim that can only
+  ever emit a QUERY cannot be proven to have teeth.
+- **A setup step that can fail silently turns every check after it into an
+  assertion about the wrong world.** Phase S resets the shelf before each check;
+  its first reset zeroed lots with a batch-scoped adjustment (which is **exempt
+  from batch accounting by design**) and then deleted them (**refused, 422**, on
+  any lot still holding stock). The phase stayed green, because the lots each
+  check cared about had usually been depleted by the check before — but the
+  reset could fail and said nothing when it did. It disposes of the lot the way
+  a shop does now, and **files a QUERY when it cannot**. Setup is not exempt from
+  the denominator rule just because it is not the thing being tested.
+- **A phase must not name a product in a way another phase searches for.** Phase
+  S gave its shelf item the SKU `SWEEP-SHELF-PETROLEUM`; product search reads the
+  SKU, so it answered phase Q's search for "Petrol", sorted newest-first ahead of
+  the real fuel, and the forecourt rate check spent its run trying to reprice a
+  tyre. Which exposed the deeper fault: **phase Q was GUESSING which product was
+  fuel** — search for "Petrol", else the first product in the shop. It asks
+  `/fuel/tanks` now, because a tank names its product and that is the only
+  authority. *A check that guesses its subject is a check about whatever happens
+  to be first.*
+
 Two rules the sweep has already had to learn the hard way:
 
 - **It must stay re-runnable.** Its second run reported eight bugs — "a business
@@ -433,6 +492,19 @@ asks, whether the others could be. It is the shape of both of today's product
 bugs: `ITEM_SOLD_OUT` in one column, then `DISCOUNT_LIMIT_EXCEEDED` in one
 column. **Its useful moment is not the clean run** but the day a refusal is added
 to one path and it asks about the other two.
+
+### One scanner deliberately NOT kept
+
+A **"settings nobody reads"** scan was prototyped and thrown away. All **58 keys**
+in `ShopSettings::defaults()` have a real reader outside the form that writes
+them — measured, not assumed, and worth having measured.
+
+It would have reported nothing forever, because the bug it was built from is not
+that shape. `stock_age_warn_years` WAS read — once, for a badge inside one
+product's batch drawer — while its own UI copy promised the counter would be told
+too. **A setting read in one of the several places its screen promised** is not a
+setting nobody reads, and no scanner reads prose. A tool that always says zero is
+false comfort, which is the exact mistake `dead-rules.py` made on its first day.
 
 Read the DENOMINATORS, never the verdict. Both scanners print what they checked
 over what exists, and `--prove` blinds the detector and requires the result to

@@ -276,7 +276,98 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-20 (latest) — the ceiling that stopped at the counter
+### 2026-08-20 (latest) — the other half of a date
+
+Stock can be dated two ways and only one of them was ever read back. An
+`expiry_date` had a shop-wide worklist, a dashboard tile, a counter warning, a
+morning alert and a place in FEFO. A `manufactured_on` — the four digits off a
+tyre's sidewall — had a badge inside one product's batch drawer, and
+`ProductBatch::scopeAgedBeyond` sat with zero callers.
+
+The one with money in it: depletion ordered on `expiry_date IS NULL,
+expiry_date`, and a tyre has no expiry, so **every lot in a tyre shop tied.** The
+database returned them in whatever order it liked — in practice the order they
+arrived — and the newest pallet went out of the door while the 2019 set aged
+quietly behind it. `DotCode`'s own docblock states the requirement ("a shop needs
+to see the age, **sell the oldest stock first**") and nothing implemented it.
+
+> **A requirement written in a comment is a requirement nobody implemented.**
+> The comment is evidence that somebody knew, which is worse than not knowing,
+> because it reads as done.
+
+Three fixes, one root — the column was written and never read:
+
+1. **`ProductBatch::scopeOldestFirst()`** — expiry first (a fence), then oldest
+   manufactured (a hint), then the undated. One implementation, three callers,
+   and the third is why it is shared: the lot a RETURN goes back into has to be
+   the lot the sale took it from.
+2. **The counter is told.** `pos/lookup` carries `aged` beside `near_expiry` —
+   permanently null for a tyre, which is why the cashier heard nothing. Settings
+   → Stock ageing had promised "the counter is told" in as many words. It names
+   the OLDEST lot, because that is now the lot the customer is actually handed.
+   Both notices are branch-scoped through one shared query now.
+3. **`GET /inventory/ageing`** + an Ageing stock panel on Inventory. The badge
+   answered *how old is THIS lot*; nothing answered *which of my lots are old*,
+   and a tyre shop with two hundred sizes was not going to open two hundred
+   drawers. Deliberately a quieter colour than the expiry banner: expired stock
+   is money already lost, an old tyre is saleable stock in the wrong order, and
+   painting them the same red teaches a shop to ignore both.
+
+**Not built, on purpose:** no dashboard tile (an age is not a deadline and a
+figure that moves once a month is a tile nobody reads); no morning alert (a lot
+crosses "ageing" once in five years, so a per-stage alert would fire once and be
+forgotten before it mattered); nothing offline (the sale is correct without the
+warning, and the Help Centre says so rather than hiding it).
+
+**Yesterday's scanners could not have found this.** `dead-rules.py` DID find
+`agedBeyond` and its own `SETTLED` entry called it *"a GAP, not a defect"* —
+wrong, and wrong instructively: it measured a missing FILTER and missed that the
+same unread column meant the wrong tyre left the shelf. A "settings nobody
+reads" scan was prototyped and thrown away: all 58 keys in
+`ShopSettings::defaults()` have a real reader, and `stock_age_warn_years` was
+read — once, for a badge. The shape was never "a setting nobody reads" but **a
+setting read in one of the several places its own UI copy promised**, and no
+scanner reads prose. Measured, recorded as measured, not kept.
+
+**Two of my own tests passed against the bug first.** The insertion-order one
+creates the old lot first, so the database gives the right answer by luck; its
+mirror is the one with teeth, and both are kept. And every lot helper wrote
+`branch_id` null — FEFO matches lots at THIS branch, so none were visible to the
+depletion under test. Third time this repo has shipped that mistake.
+
+Sweep **phase S** (the shelf that ages), gated on `features.inventory` rather
+than a trade list, 8 of 9 shops. Five mutations (35–39); the sharpest hands the
+sweep the exact wrong answer rather than no answer. Two harness fixes on the way
+past: `Report.expect` reads a list `want` as *alternatives*, so phase S reported
+the exactly-right answer as a query 18 times; and phase C's drawer check assumed
+a 1,000 float with no prior takings, so a re-run called the shop's correct
+arithmetic a query — it measures the delta now. `dead-rules.py` fails on a stale
+`SETTLED` entry instead of printing one and exiting 0.
+
+And the new phase found a fault in an old one. Phase S's shelf item carried the
+SKU `SWEEP-SHELF-PETROLEUM`; product search reads the SKU, so it answered phase
+Q's search for "Petrol", sorted newest-first ahead of the real fuel, and the
+forecourt rate check spent its run trying to reprice a tyre. Which exposed the
+deeper fault: **phase Q was GUESSING which product was fuel** — search for
+"Petrol", else the first product in the shop, right by luck for as long as nobody
+else added one. It asks `/fuel/tanks` now, because a tank names its product and
+that is the only authority. *A check that guesses its subject is a check about
+whatever happens to be first.*
+
+One more, in my own new phase: its shelf reset zeroed lots with a batch-scoped
+adjustment — **exempt from batch accounting by design** — and then deleted them,
+which is **refused 422** on any lot still holding stock. The phase was green
+before and after, because the lots each check cared about had usually been
+depleted by the check before. The fault is narrower and worse than a wrong
+answer: **the reset could fail and said nothing.** It disposes of the lot the way
+a shop does now and files a QUERY when it cannot. *Setup is not exempt from the
+denominator rule just because it is not the thing being tested.*
+
+Backend **2098 → 2110** (12 new, 8947 assertions). Panel 1022, unchanged.
+Sweep **233 ok · 0 queries · 0 bugs** on phase S; `mutate.py` **41 of 41**. Full
+record: `docs/decisions/shopos-the-other-half-of-a-date.md`.
+
+### 2026-08-20 — the ceiling that stopped at the counter
 
 Two different questions, and only one of them had travelled.
 `discounts.apply` answers **may you discount at all**, and it was checked on the

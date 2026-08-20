@@ -44,14 +44,15 @@ import phase_o
 import phase_p
 import phase_q
 import phase_r
+import phase_s
 
-PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r"]
+PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s"]
 
 
 # What each phase needs standing before it. Naming a late phase alone runs its
 # prerequisites too — asking for "the seams" and silently getting only the admin
 # side is the kind of quiet no-op that makes a sweep untrustworthy.
-NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"], "r": ["c"]}
+NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"], "r": ["c"], "s": ["c"]}
 
 
 def _with_prerequisites(want: list[str]) -> set[str]:
@@ -70,7 +71,7 @@ def _with_prerequisites(want: list[str]) -> set[str]:
 # these to say what a phase should have covered and did not — see
 # `Report.summary`. Phases whose subject is not one module (the seams, the
 # money, the offline queue) simply report what they touched.
-GATES = {"i": "pos", "o": "pos", "p": "pos", "q": "pos", "k": "inventory", "l": "dine_in", "m": "pos", "n": "pos"}
+GATES = {"i": "pos", "o": "pos", "p": "pos", "q": "pos", "k": "inventory", "s": "inventory", "l": "dine_in", "m": "pos", "n": "pos"}
 
 
 def _expected(shops: dict, want: set[str]) -> dict[str, set[str]]:
@@ -157,6 +158,12 @@ def main() -> int:
         # marketplace — until this phase, no sweep tenant had ever needed to be
         # visible to a shopper.
         phase_r.run(api, rep, sold, tenants)
+
+    if "s" in want:
+        # Phase S asks its questions with each shop's OWN token, which `sold`
+        # already carries — phase R signed in as a shopper, and a stock question
+        # asked with a customer's credentials is a 403 reported as a finding.
+        phase_s.run(api, rep, sold)
 
     return rep.summary(_expected(shops, want), set(shops))
 

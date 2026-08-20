@@ -40,6 +40,7 @@ import phase_o
 import phase_p
 import phase_q
 import phase_r
+import phase_s
 from api import Api, Report
 
 
@@ -99,6 +100,11 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
     #      nothing about the check.
     if "r" in phases:
         picked = [c for c in ("mart", "retail", "pharmacy", "food_restaurant") if c in tenants]
+    # Phase S needs a shop that keeps stock and may create something dated by
+    # MANUFACTURE rather than expiry. The mart is that in one shop, and one is
+    # enough: a mutation proves a check is live, not that it is live eight times.
+    if "s" in phases:
+        picked = ["mart"]
     shops = phase_b.run(api, rep, {c: tenants[c] for c in picked if c in tenants})
 
     apply()
@@ -143,6 +149,8 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         if "r" in phases:
             api.token = api.login(phase_a.ADMIN)
             phase_r.run(api, rep, sold, tenants)
+        if "s" in phases:
+            phase_s.run(api, rep, sold)
         window = rep.rows[before:]
     finally:
         undo()
@@ -677,6 +685,76 @@ def main() -> int:
         phases=("r",),
     ))
 
+    # ── Phase S · the shelf that ages ────────────────────────────────────
+    #
+    # 35 · the order the shelf empties in. THE ONE WITH MONEY IN IT: depletion
+    #      sorted on expiry alone, a tyre has none, so every lot tied and the
+    #      newest pallet went out while the 2019 set aged behind it. The lie is
+    #      not "no lot moved" — that would trip a dozen other checks. It is the
+    #      exact wrong answer: swap which lot the shelf says is empty, so the
+    #      sweep is told the newest one left.
+    real_lots = phase_s._lots
+    results.append(mutation(
+        "the shelf empties newest-first",
+        "THE OLDEST LOT DID NOT LEAVE FIRST",
+        lambda: setattr(phase_s, "_lots", lambda *a, **k: _lots_answered_backwards(real_lots, *a, **k)),
+        lambda: setattr(phase_s, "_lots", real_lots),
+        ran_marker="a sidewall code becomes a date",
+        phases=("s",),
+    ))
+
+    # 36 · the lot nobody dated. Undated must sort LAST — "we don't know when
+    #      this was made" is not "it's new". The same swap catches it, because
+    #      the same two names are involved.
+    results.append(mutation(
+        "an undated lot is handed out first",
+        "AN UNDATED LOT JUMPED THE QUEUE",
+        lambda: setattr(phase_s, "_lots", lambda *a, **k: _lots_answered_backwards(real_lots, *a, **k)),
+        lambda: setattr(phase_s, "_lots", real_lots),
+        ran_marker="a sidewall code becomes a date",
+        phases=("s",),
+    ))
+
+    # 37 · the counter. Settings promises "the counter is told". Strip the notice
+    #      out of the scan and the sweep must object, or its line about the
+    #      counter is a sentence about nothing — which is exactly the state the
+    #      product was in before this phase existed.
+    real_get_lookup = Api.get
+    results.append(mutation(
+        "the till scan carries no age notice",
+        "THE COUNTER IS NOT TOLD THE LOT IS OLD",
+        lambda: setattr(Api, "get", lambda self, p, **k: _the_till_says_nothing(real_get_lookup, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_lookup),
+        ran_marker="a sidewall code becomes a date",
+        phases=("s",),
+    ))
+
+    # 38 · the sweep itself. `scopeAgedBeyond` sat with zero callers for months;
+    #      empty the answer and the check has to notice, or a shop-wide list that
+    #      returns nothing looks the same as a shelf with nothing old on it.
+    results.append(mutation(
+        "the ageing sweep answers with nothing",
+        "THE SHELF CANNOT BE SWEPT FOR OLD STOCK",
+        lambda: setattr(Api, "get", lambda self, p, **k: _the_sweep_finds_nothing(real_get_lookup, self, p, **k)),
+        lambda: setattr(Api, "get", real_get_lookup),
+        ran_marker="a sidewall code becomes a date",
+        phases=("s",),
+    ))
+
+    # 39 · the fence that must not exist. An age is a warning; blocking the sale
+    #      would stop a shopkeeper who has priced the age in. Refuse it and the
+    #      sweep must call that a defect — a platform quietly becoming stricter
+    #      than its own design is the hardest kind of regression to notice.
+    real_post_sale = Api.post
+    results.append(mutation(
+        "the till refuses to sell an old lot",
+        "AN OLD LOT WAS REFUSED RATHER THAN SOLD",
+        lambda: setattr(Api, "post", lambda self, p, b=None, **k: _old_stock_refused(real_post_sale, self, p, b, **k)),
+        lambda: setattr(Api, "post", real_post_sale),
+        ran_marker="a sidewall code becomes a date",
+        phases=("s",),
+    ))
+
     print("=" * 70)
     print(f"{sum(results)} of {len(results)} mutations caught")
     print("=" * 70)
@@ -970,6 +1048,65 @@ def _pretend_ok(real_post, self, path, body, **kw):
     if path.endswith("/cancel") and status >= 400:
         return 200, payload
     return status, payload
+
+
+
+
+# ── Phase S · lying about the shelf ───────────────────────────────────────
+
+def _lots_answered_backwards(real_lots, *a, **kw):
+    """
+    Swap the quantities of the lots the ordering checks compare.
+
+    Not "nothing moved" — that lie trips half the phase and proves little. This
+    one gives the sweep the EXACT WRONG ANSWER: the old lot full, the new one
+    empty, which is precisely what a shelf sorted on expiry alone did to a tyre
+    shop.
+    """
+    rows = real_lots(*a, **kw)
+    pairs = (("SWEEP-OLD", "SWEEP-NEW"), ("SWEEP-DATED", "SWEEP-UNDATED"))
+    by_number = {r.get("batch_number"): r for r in rows}
+
+    for left, right in pairs:
+        a_row, b_row = by_number.get(left), by_number.get(right)
+        if a_row is not None and b_row is not None:
+            a_row["quantity"], b_row["quantity"] = b_row["quantity"], a_row["quantity"]
+
+    return rows
+
+
+def _the_till_says_nothing(real_get, self, path, **kw):
+    """The scan answers without its age notice, as it did before one existed."""
+    status, payload = real_get(self, path, **kw)
+
+    if "/pos/lookup" in path and status == 200:
+        (payload.get("data") or {})["aged"] = None
+
+    return status, payload
+
+
+def _the_sweep_finds_nothing(real_get, self, path, **kw):
+    """An empty shelf sweep — indistinguishable from a shelf with nothing old."""
+    status, payload = real_get(self, path, **kw)
+
+    if "/inventory/ageing" in path and status == 200:
+        payload["data"] = []
+
+    return status, payload
+
+
+def _old_stock_refused(real_post, self, path, body, **kw):
+    """
+    The till turns into a fence.
+
+    Only the one-unit sale, which is the check that an old lot still sells; the
+    rest of the phase rings LOT_QTY and has to keep working, or this mutation
+    would be testing five things at once and proving none of them.
+    """
+    if path == "/sales" and (body or {}).get("items", [{}])[0].get("quantity") == 1.0:
+        return 422, {"message": "This lot is too old to sell.", "meta": {"error_code": "LOT_TOO_OLD"}}
+
+    return real_post(self, path, body, **kw)
 
 
 if __name__ == "__main__":

@@ -275,13 +275,32 @@ def _a_rate_applies_when_it_says_it_does(api: Api, rep: Report, code: str,
 
 
 def _a_fuel_product(api: Api, token: str) -> dict | None:
-    status, body = api.get("/products?search=Petrol", token=token)
-    rows = _rows(body) if status == 200 else []
-    if rows:
-        return rows[0]
-    status, body = api.get("/products", token=token)
-    rows = _rows(body) if status == 200 else []
-    return rows[0] if rows else None
+    """
+    The product a TANK holds — asked of the forecourt, never guessed.
+
+    This used to search for "Petrol" and take the first row, then fall back to
+    the first product in the whole shop. Both are guesses, and both were wrong
+    the day another phase added a product: a SKU reading `SWEEP-SHELF-PETROLEUM`
+    matched the search (product search reads the SKU too), sorted newest-first
+    ahead of the real fuel, and the rate check spent its run trying to reprice a
+    tyre. It reported `422 … isn't held in a tank` — the server telling the
+    sweep, correctly, that it had the wrong product.
+    
+    A tank names its product. That is the only authority here, and asking it
+    makes this check immune to every product any other phase invents.
+    """
+    status, body = api.get("/fuel/tanks", token=token)
+    tanks = _rows(body) if status == 200 else []
+
+    for tank in tanks:
+        pid = tank.get("product_id") or (tank.get("product") or {}).get("id")
+        if not pid:
+            continue
+        status, body = api.get(f"/products/{pid}", token=token)
+        if status == 200 and (body.get("data") or {}).get("id"):
+            return body.get("data")
+
+    return None
 
 
 # ── the catalog a shop can take with it ────────────────────────────────

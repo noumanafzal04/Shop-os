@@ -10,6 +10,189 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-20 — the other half of a date
+
+### BUG · a tyre shop sold its newest stock first — NOW FIXED
+
+Stock can be dated two ways and only one of them was ever read back.
+
+| | expires | ages |
+|---|---|---|
+| the column | `expiry_date` | `manufactured_on` (a tyre's DOT code) |
+| shop-wide worklist | `GET /inventory/expiring` | **nothing** |
+| told at the counter | `near_expiry` on every scan | **nothing** |
+| sold oldest-first | FEFO, `ORDER BY expiry_date` | **no order at all** |
+| the scope for it | `expiringWithin` — two callers | `agedBeyond` — **zero** |
+
+Depletion ordered on `expiry_date IS NULL, expiry_date`. A tyre has no expiry, so
+**every lot in a tyre shop tied** and the database returned them in whatever
+order it liked — in practice the order they were received. The newest pallet went
+out of the door while the 2019 set aged quietly behind it.
+
+`App\Support\DotCode`'s own docblock states the requirement, and has since the
+day it was written: *"a shop needs to see the age, **sell the oldest stock
+first**, and be warned before a customer notices."* Nothing implemented it.
+
+> **A requirement written in a comment is a requirement nobody implemented.** The
+> comment is evidence somebody knew, which is worse than not knowing, because it
+> reads as done.
+
+Fixed with `ProductBatch::scopeOldestFirst()` — expiry first (a fence), then
+oldest manufactured (a hint), then the undated. One implementation, three
+callers, and the third is the reason it is shared rather than fixed in place: the
+lot a RETURN goes back into must be the lot the sale took it from, or batch
+totals stay right while the shelf goes wrong.
+
+Manufacture date is a **tie-break, never a promotion**: a medicine dying next
+week still goes before an older-made lot with a year left on it.
+
+### BUG · the counter was never told, though Settings said it was — NOW FIXED
+
+Settings → POS → Stock ageing: *"Nothing is blocked from sale; **the counter is
+told**, and the decision stays with whoever is standing there."* The second half
+was true and the first was not — `near_expiry` is permanently null for a tyre, so
+the cashier heard nothing at all.
+
+`pos/lookup` now carries `aged` beside it. It names the **oldest** lot, because
+that is now the lot the customer is actually handed; naming the newest pallet
+while handing over the 2019 set would be worse than silence. Both notices are
+branch-scoped through one shared query now — a cashier in Gulberg warned about a
+lot on the Johar Town shelf is warned about stock they cannot see, while the lot
+they can see goes unmentioned.
+
+### GAP · "which of my lots are old" was unanswerable — NOW BUILT
+
+`GET /inventory/ageing`, plus an Ageing stock panel on Inventory. The badge in
+the batch drawer answered *how old is THIS lot*; a tyre shop carrying two hundred
+sizes was never going to open two hundred drawers to find out which were old.
+
+`?years=` asks a stricter question than the shop's own policy — a fleet contract,
+an insurer — **without changing the shop's policy to ask it.**
+
+### HARNESS · `Report.expect` reads a list `want` as ALTERNATIVES
+
+Phase S passed it a list of expected ROWS, so it asked whether the whole list
+equalled one of its own members and **reported the exactly-right answer as
+something to look at — 18 times.** Orders are compared as a joined string now; a
+set of acceptable values is a different question and this was not it.
+
+### HARNESS · phase C's drawer check assumed a virgin shop
+
+`want = 1000 + cash_taken + 200 − 150` — true only on a shop that had never
+traded. This sweep reuses an open shift between runs on purpose, so on a re-run
+the expected figure legitimately included earlier takings and the check reported
+the shop's **correct** arithmetic as a query.
+
+It measures the **delta** across the movements now (+200 in, −150 out, so +50),
+which is the actual claim — *a paid-out must come OFF the expected figure* — and
+is true whatever the drawer already held. **A sweep that cries wolf teaches
+people to ignore it**, which is worse than the check not existing.
+
+### The scanners could not have found this, and one of them said so wrongly
+
+`dead-rules.py` DID surface `agedBeyond`, and its own `SETTLED` entry answered
+the lead: *"a GAP, not a defect: BatchController already publishes age and
+age_status per row, so a shop can see which lots are old — it just cannot ask for
+only those."* **That judgement was wrong.** It measured the gap as a missing
+FILTER and missed that the same unread column meant the wrong tyre left the
+shelf. *A dead scope is not only a missing feature — it is a question the code
+stopped asking.*
+
+A **"settings nobody reads"** scanner was prototyped and thrown away. All **58
+keys** in `ShopSettings::defaults()` have a real reader outside the form that
+writes them — measured, not assumed. `stock_age_warn_years` was read, once, for a
+badge. The shape here was never "a setting nobody reads" but **a setting read in
+one of the several places its own UI copy promised**, and no scanner reads prose.
+A tool that reports 0 forever gives false comfort, which is the exact mistake
+`dead-rules.py` made on its first day.
+
+`dead-rules.py` now **fails on a stale `SETTLED` entry** rather than printing one
+and exiting 0. It had a live entry claiming `agedBeyond` was unwired hours after
+it was wired to two call sites, and a stale exception is worse than none because
+it is believed.
+
+### HARNESS · phase Q's fuel check GUESSED which product was fuel
+
+Found by the new phase, which is the useful part.
+
+`_a_fuel_product` searched `/products?search=Petrol` and took the first row, then
+fell back to **the first product in the whole shop**. Both are guesses. Phase S
+created a shelf item with SKU `SWEEP-SHELF-PETROLEUM`; product search reads the
+SKU, so it matched a search for "Petrol", sorted newest-first ahead of the real
+fuel, and the rate check spent its run trying to reprice a tyre.
+
+The server said so plainly — `422 … isn't held in a tank` — and the harness
+reported `UNCLEAR: the check never ran`, which is the third verdict doing exactly
+its job. **A mutation aimed at a check that never runs proves nothing.**
+
+Fixed on both sides:
+
+- **A tank names its product.** `_a_fuel_product` asks `/fuel/tanks` now. That is
+  the only authority on what fuel is, and asking it makes the check immune to
+  every product any future phase invents.
+- **Phase S's SKU no longer carries a trade name.** SKUs are unique per TENANT,
+  so one neutral name does for every shop.
+
+> **A check that guesses its subject is a check about whatever happens to be
+> first.** It had been right by luck for as long as nobody else added a product.
+
+### HARNESS · phase S's own reset could fail without saying so
+
+Each check in phase S states a WHOLE shelf — *"these two lots, and the older one
+goes first"* — so it resets the shelf first. The reset zeroed each lot with a
+batch-scoped stock adjustment and then deleted the row. **Neither call does what
+it looks like it does:**
+
+- a movement with `reference_type: batch` is **exempt from batch accounting by
+  design** — those movements reconcile stock TO the lots and must not re-deplete
+  them — so the lot kept its quantity;
+- deleting a lot that still has stock in it is **refused, 422**, and correctly:
+  forty strips of medicine do not vanish, they are binned or they go back to the
+  distributor, and `DisposeBatchRequest` makes somebody say which.
+
+Both proven by hand against the live API. **The phase was green before and after
+the fix**, so this is not a claim that it was reading wrong shelves — the lots
+each check cared about had usually been depleted to zero by the check before,
+which is deletable. The point is narrower and worse: **the reset could fail, and
+when it failed it said nothing**, so every assertion after it was conditional on
+luck nobody was measuring.
+
+Fixed by taking the lot off the shelf the way a shop does — `DELETE` with a
+disposition, which writes it off and records the loss. And **the reset now files
+a QUERY when it cannot clear**, naming the lot: silence is no longer one of the
+outcomes.
+
+> **A setup step that can fail silently turns every check after it into an
+> assertion about the wrong world.** Setup is not exempt from the denominator
+> rule just because it is not the thing being tested.
+
+### Phase S · the shelf that ages
+
+**233 ok · 0 to look at · 0 bugs.** 8 of 9 shops (finance has no inventory
+module, correctly skipped). Not gated on a trade: `dot_code` is accepted on any
+lot and `/inventory/ageing` asks the shop rather than the trade, so a trade list
+in the phase would be a second copy of an answer the product already has.
+
+Five mutations (35–39). The sharpest is not "no lot moved" — that lie trips half
+the phase and proves little. `_lots_answered_backwards` hands the sweep **the
+exact wrong answer**: the old lot full and the new one empty, which is precisely
+what a shelf sorted on expiry alone did to a tyre shop.
+
+### And two of my own tests passed against the bug
+
+`test_the_oldest_first_rule_is_not_just_insertion_order` creates the old lot
+first, so the database's own order gives the right answer by luck — it passes
+either way. Its mirror, with the fresh lot created first, is the one with teeth.
+**Both are kept** so neither direction can pass by accident.
+
+Every lot helper also wrote `branch_id` null. FEFO matches lots at THIS branch,
+so none of them were visible to the depletion under test and four tests failed
+for the wrong reason. **Third time this repo has shipped that mistake** — see
+`shopos-forecourt-branch` and `shopos-adjust-wrong-branch` — so the helper now
+carries a comment saying so.
+
+---
+
 ## 2026-08-20 — the ceiling that stopped at the counter
 
 ### BUG · a cashier capped at the till was uncapped on a tab — NOW FIXED

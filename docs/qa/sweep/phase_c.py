@@ -350,6 +350,18 @@ def _drawer_adds_up(api: Api, rep: Report, code: str, token: str, state: dict) -
     against. If a paid-out does not come off it, the honest cashier is short
     every night and nobody can say why.
     """
+    # The drawer BEFORE the movements. Assuming a 1,000 float and no prior cash
+    # was only true on a virgin shop: this sweep reuses an open shift between
+    # runs on purpose, so on the second run the figure legitimately included
+    # yesterday's takings and the check reported the shop's correct arithmetic
+    # as something to look at. A sweep that cries wolf teaches people to ignore
+    # it, which is worse than the check not existing.
+    #
+    # So: measure the DELTA. That is also the actual claim — a paid-out has to
+    # come OFF the expected figure — and it is true whatever the drawer already
+    # held.
+    before_cash = _expected_cash(api, token)
+
     for kind, amount in (("paid_in", 200), ("paid_out", 150), ("no_sale", None)):
         payload = {"type": kind, "reason": f"QA sweep {kind}"}
         if amount is not None:
@@ -382,15 +394,31 @@ def _drawer_adds_up(api: Api, rep: Report, code: str, token: str, state: dict) -
             rep.bug("C", f"{code} · X-read names expected cash", f"drawer keys: {sorted(drawer)}")
         return
 
-    want = 1000 + state.get("cash_taken", 0.0) + 200 - 150
     state["expected_cash"] = float(expected)
 
-    if abs(float(expected) - want) > 0.01:
+    if before_cash is None:
+        rep.query("C", f"{code} · drawer arithmetic", "no expected figure before the movements")
+        return
+
+    # +200 in, −150 out, and a no-sale moves nothing at all.
+    moved = round(float(expected) - before_cash, 2)
+
+    if abs(moved - 50) > 0.01:
         rep.query("C", f"{code} · drawer arithmetic",
-                  f"expected {expected}, sweep computed {want:.2f} "
-                  f"(float 1000 + net sales {state.get('cash_taken', 0):.2f} + 200 − 150)")
+                  f"paid in 200 and out 150, so the expected figure should have moved +50; "
+                  f"it went {before_cash:.2f} → {float(expected):.2f} ({moved:+.2f})")
     else:
-        rep.ok("C", f"{code} · drawer adds up", f"{float(expected):.0f}")
+        rep.ok("C", f"{code} · drawer adds up", f"{before_cash:.0f} +50 → {float(expected):.0f}")
+
+
+def _expected_cash(api: Api, token: str) -> float | None:
+    """What the drawer says it should hold, or None (blind close, or no shift)."""
+    status, body = api.get("/pos/session/report", token=token)
+    if status != 200:
+        return None
+    value = ((body.get("data") or {}).get("drawer") or {}).get("expected_cash")
+
+    return None if value is None else float(value)
 
 
 def _close(api: Api, rep: Report, code: str, token: str, state: dict) -> None:
