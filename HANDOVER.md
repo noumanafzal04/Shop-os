@@ -125,7 +125,7 @@ a false index. A backup that has never been restored is a belief, not a backup.
 
 ## 4. State at handover
 
-**Backend 2094 tests / 8898 assertions green. Panel 1022 tests green (81 files).** Gates all
+**Backend 2098 tests / 8916 assertions green. Panel 1022 tests green (81 files).** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
 long-standing baseline).
 
@@ -276,7 +276,50 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-20 (latest) — the grep, kept
+### 2026-08-20 (latest) — the ceiling that stopped at the counter
+
+Two different questions, and only one of them had travelled.
+`discounts.apply` answers **may you discount at all**, and it was checked on the
+counter, the dine-in tab and the settlement alike. `max_discount_percent` and
+`max_discount_amount` answer **how much**, and they were consulted in exactly one
+place: `CreateSaleAction`.
+
+The **cashier** preset holds `discounts.apply` and deliberately withholds
+`discounts.override`. So a cashier was capped at the till and **uncapped the
+moment the same bill was a table.** The ceiling an owner set in Settings was
+simply absent from the Floor module. And `SettleTicketAction` rings on the
+trusted path — deliberately, since the tab's snapshot IS the bill and live menu
+state must not reprice food already eaten — so the counter's check did not run
+there either, and a whole-tab discount keyed at settlement went through
+untouched.
+
+Fixed with `DiscountCeiling::assert()`: one implementation, the same argument
+that produced one `ModifierResolver`. Judged on the WHOLE bill rather than per
+line, because the counter has always summed every line discount plus the cart
+discount against the subtotal — *ten lines at ten percent give away exactly what
+one line at a hundred does.* Voided lines excluded, and both limits still default
+to null.
+
+**Found by listing what each selling path refuses and reading the difference.**
+`DISCOUNT_LIMIT_EXCEEDED` sat in one column and nowhere else, next to eighteen
+others that legitimately belong to a counter (khata, points, trade-ins, IMEIs) —
+the signal was in a column where most rows are correct. That comparison is now
+`scripts/one-rule-many-paths.py`, beside `dead-rules.py` from the same
+afternoon. Nine rules are asked by all three paths and every difference carries a
+reason. **The useful moment is not the clean run** — it is the day somebody adds a
+refusal to one path and the tool asks whether the other two need it.
+
+The tool was wrong twice. Adding `SettleTicketAction` as a peer collapsed the
+intersection to zero, which is the tool losing its most useful line rather than
+finding anything; settlement shares the giving-away question only, so that is
+asserted by name instead of compared. And extracting the ceiling into a shared
+guard moved the code out of all three path files, so a per-file scan would have
+read the fix as REMOVING the rule from everywhere — a guard has to be credited to
+its callers.
+
+Backend **2098 green**.
+
+### 2026-08-20 — the grep, kept
 
 `Product::scopeSellableToday()` was found by hand. The technique is worth more
 than the finding, so it is now `shopos-backend/scripts/dead-rules.py`: every

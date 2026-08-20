@@ -10,6 +10,68 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-20 — the ceiling that stopped at the counter
+
+### BUG · a cashier capped at the till was uncapped on a tab — NOW FIXED
+
+Two different questions, and only one of them had travelled.
+
+`discounts.apply` answers **may you discount at all**, and it was checked on the
+counter, the dine-in tab and the settlement alike. `max_discount_percent` and
+`max_discount_amount` answer **how much**, and they were consulted in exactly one
+place: `CreateSaleAction`.
+
+The **cashier** preset holds `discounts.apply` and deliberately withholds
+`discounts.override`. So a cashier was capped at the till and **uncapped the
+moment the same bill was a table** — the ceiling an owner had set in Settings was
+absent from the Floor module.
+
+A second door: `SettleTicketAction` rings its sale with `trusted_prices: true`,
+deliberately, because the tab's snapshot *is* the bill and live menu state must
+not reprice food already eaten. The counter's ceiling check sits on the untrusted
+branch, so a whole-tab discount keyed at settlement went through untouched.
+
+Fixed with `DiscountCeiling::assert()` — one implementation, the same argument
+that produced one `ModifierResolver`. Judged on the **whole bill**, not per line:
+the counter has always summed every line discount plus the cart discount against
+the subtotal, and *ten lines at ten percent give away exactly what one line at a
+hundred does*. Voided lines excluded. Still opt-in — both limits default to null.
+
+Four tests in `RestaurantDineInTest`; three were red before the fix, the fourth
+("with no ceiling the floor is free as it always was") green before and required
+to stay green.
+
+### How it was found · list what each path refuses, read the difference
+
+Not by reading the Floor module. Three places can start selling something — the
+counter, an order, a dine-in tab — and each asks a list of questions first.
+Before today five of those questions were asked by all three;
+`DISCOUNT_LIMIT_EXCEEDED` sat in one column and nowhere else, **next to eighteen
+others that legitimately belong to a counter** (khata, points, trade-ins, IMEIs).
+The signal was in a column where most rows are correct.
+
+That comparison is now `scripts/one-rule-many-paths.py`. Nine rules are asked by
+all three paths; every difference carries a line saying why. **The useful moment
+is not the clean run** — it is the day somebody adds a refusal to one path, when
+the tool asks whether the other two need it.
+
+### HARNESS · two ways that tool was wrong
+
+**Settlement is not a peer.** Adding `SettleTicketAction` to the compared set
+collapsed the intersection to zero. It does not decide whether something may be
+sold; it takes money for food already eaten, and re-asking the item rules there
+would refuse a bill the shop has already served. What it *does* share is the
+giving-away question, so that is asserted by name — the guard must be **called**
+by counter, tab and settlement — rather than compared.
+
+**A shared guard must be credited to its callers.** Extracting the ceiling moved
+`DISCOUNT_LIMIT_EXCEEDED` out of all three path files, so a per-file scan would
+have read the fix as *removing* the rule from everywhere.
+
+Backend **2098 green**.
+
+---
+
 ## 2026-08-20 — the grep, kept
 
 `Product::scopeSellableToday()` was found by hand, and the technique is worth

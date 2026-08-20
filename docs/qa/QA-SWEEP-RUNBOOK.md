@@ -411,7 +411,7 @@ python3 docs/qa/unreachable-pages.py           # rows the shop cannot reach
 python3 docs/qa/unreachable-pages.py --prove   # break it on purpose first
 shopos-backend/scripts/dead-endpoints.py       # routes with no caller, and the reverse
 shopos-backend/scripts/dead-rules.py          # rules the code states and never consults
-shopos-backend/scripts/dead-rules.py --prove
+shopos-backend/scripts/one-rule-many-paths.py # rules only SOME selling paths ask
 ```
 
 `unreachable-pages.py` asks whether every panel screen that lists a paginating
@@ -426,6 +426,13 @@ and deliberately does not duplicate the endpoint list.
 supplier credit that could be recorded twice. Its output is **leads, not
 findings**: of ten uncalled rules, one was a gap and nine were redundant or
 enforced in a query instead. Each carries a line in `SETTLED` saying which.
+
+`one-rule-many-paths.py` lists what each of the three selling paths refuses —
+counter, online order, dine-in tab — and asks, of every rule only one of them
+asks, whether the others could be. It is the shape of both of today's product
+bugs: `ITEM_SOLD_OUT` in one column, then `DISCOUNT_LIMIT_EXCEEDED` in one
+column. **Its useful moment is not the clean run** but the day a refusal is added
+to one path and it asks about the other two.
 
 Read the DENOMINATORS, never the verdict. Both scanners print what they checked
 over what exists, and `--prove` blinds the detector and requires the result to
