@@ -286,6 +286,39 @@ class StockDisposalTest extends TestCase
             ])->assertStatus(422);
     }
 
+    public function test_a_credit_is_recorded_once(): void
+    {
+        // Every sibling in this codebase refuses the second one: a sale voids
+        // once, an order cancels once, a coupon stops at its limit. This did
+        // not check, and `StockDisposal::isCredited()` had sat unused since the
+        // day it was written — the model stated the rule and nothing asked it.
+        //
+        // The screen was already right, which is what hid it: the button
+        // disappears once the credit is recorded. The API is the contract, and
+        // a retry or a double tap could replace a settled money figure with a
+        // different one and reopen nothing.
+        $sent = $this->returnBatch();
+
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/inventory/disposals/{$sent['id']}/credit", [
+                'credit_received' => 9500, 'credit_received_at' => now()->toDateString(),
+            ])->assertOk();
+
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/inventory/disposals/{$sent['id']}/credit", [
+                'credit_received' => 3000, 'credit_received_at' => now()->toDateString(),
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('meta.error_code', 'ALREADY_CREDITED');
+
+        // And the first figure is still the one on the row.
+        $row = collect($this->actingAsUser($this->owner)
+            ->getJson('/api/v1/inventory/disposals')->assertOk()->json('data'))
+            ->firstWhere('id', $sent['id']);
+
+        $this->assertEquals(9500, $row['credit_received']);
+    }
+
     // ── The window that was timed to be useless ─────────────────────────
 
     public function test_a_pharmacy_is_warned_in_months_not_weeks(): void

@@ -66,6 +66,28 @@ class StockDisposalController extends Controller
      *
      * The AMOUNT is recorded as what actually came, not as what was expected —
      * the gap between the two is the number worth reading.
+     *
+     * ── Once ────────────────────────────────────────────────────────────
+     *
+     * A settlement is recorded once, like every sibling in this codebase: a
+     * sale voids once, an order cancels once, a coupon stops at its limit, and
+     * eighty-six keeps the FIRST timestamp. This one did not check, and
+     * `StockDisposal::isCredited()` had been sitting there unused since the
+     * day it was written — the model stated the rule and nothing asked it.
+     *
+     * The screen was already right, which is what made it invisible: the
+     * "Credit received" button disappears the moment `credit_received_at` is
+     * set, so a person clicking through the panel could never do this twice.
+     * The API is the contract, though, and a retry, a double tap on a slow
+     * connection or anything that is not this screen could silently replace a
+     * settled money figure with a different one. The audit log would carry it;
+     * the disposals list would show the second number as though it had always
+     * been the first, and the distributor's worklist would not reopen.
+     *
+     * Refused rather than kept-first, unlike sold-out: pressing 86 twice is
+     * the same intent repeated, and recording two DIFFERENT amounts is not.
+     * The refusal names what is already on the row, because "409" alone
+     * leaves the shop guessing whether their entry landed.
      */
     public function credit(Request $request, string $id): JsonResponse
     {
@@ -75,6 +97,16 @@ class StockDisposalController extends Controller
         $disposal = StockDisposal::query()->findOrFail($id);
 
         abort_if($disposal->disposition !== StockDisposal::RETURNED, 422, 'Only a supplier return can be credited.');
+
+        if ($disposal->isCredited()) {
+            return ApiResponse::error(
+                'This return was already credited '
+                .number_format((float) $disposal->credit_received, 2)
+                .' on '.$disposal->credit_received_at->toDateString().'.',
+                409,
+                code: 'ALREADY_CREDITED',
+            );
+        }
 
         $data = $request->validate([
             'credit_received' => ['required', 'numeric', 'min:0', 'max:99999999'],

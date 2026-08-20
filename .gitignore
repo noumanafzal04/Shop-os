@@ -25,3 +25,7 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Any python helper in scripts/ leaves one of these. A path-specific ignore
+# only covers the folder somebody thought of.
+__pycache__/
