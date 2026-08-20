@@ -216,6 +216,23 @@ class Permissions
     public const READS_COST = self::PRODUCTS_MANAGE.','.self::PURCHASES_MANAGE.','
         .self::INVENTORY_MANAGE.','.self::REPORTS_VIEW;
 
+    /**
+     * Who may read the shop's own audit trail.
+     *
+     * The trail existed for the platform and not for the shop it is about: the
+     * only way in was `/admin/audit-logs`, behind `role:super_admin`. A shop
+     * owner got eight rows on the dashboard and no way to ask a question of
+     * them — while the Help Centre told them, correctly, that the log records
+     * who did what. A record nobody named in it can read is not accountability;
+     * it is a promise about a filing cabinet in somebody else's office.
+     *
+     * Same marker as SUPERVISES_TILLS and READS_COST: `reports.view` means "you
+     * may look at how the shop performed", which is what this is, and
+     * `settings.manage` means "you set the shop's rules", which is the person
+     * most often being asked about. A cashier holds neither.
+     */
+    public const READS_AUDIT = self::SETTINGS_MANAGE.','.self::REPORTS_VIEW;
+
     /** The forecourt plant. Tank and pump names are read when receiving fuel or repricing it. */
     public const READS_FORECOURT = self::SETTINGS_MANAGE.','.self::PURCHASES_MANAGE.','
         .self::PRODUCTS_MANAGE.','.self::INVENTORY_MANAGE;

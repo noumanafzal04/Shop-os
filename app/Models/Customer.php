@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Exceptions\DomainException;
+use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,7 +15,23 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Customer extends BaseModel
 {
+    use Auditable;
     use BelongsToTenant;
+
+    /**
+     * A credit limit is a MONEY AUTHORITY, not a detail. It decides how much
+     * this person may walk out with unpaid, which is the same class of act as
+     * granting somebody a permission — and permissions have always been
+     * recorded. Nothing else about a customer is: a phone number corrected at
+     * the counter is not an event, and auditing the whole record would bury
+     * the one line that matters.
+     *
+     * @return string[]
+     */
+    protected function auditOnly(): array
+    {
+        return ['credit_limit'];
+    }
 
     protected function casts(): array
     {

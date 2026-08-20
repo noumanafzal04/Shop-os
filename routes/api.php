@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Marketplace\FavoriteController;
 use App\Http\Controllers\Api\V1\Marketplace\MarketplaceController;
 use App\Http\Controllers\Api\V1\Marketplace\ReviewController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Tenant\AuditLogController as TenantAuditLogController;
 use App\Http\Controllers\Api\V1\Tenant\BankController;
 use App\Http\Controllers\Api\V1\Tenant\BatchController;
 use App\Http\Controllers\Api\V1\Tenant\BranchController;
@@ -672,6 +673,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             });
 
             // Inventory: the single write-path for stock
+            // The shop's own record of who changed what. A read, so it takes a
+            // READS_* set rather than a single manage permission — the person
+            // most often being ASKED about is the one holding settings.manage,
+            // and a trail only they can open is not a trail.
+            Route::get('/audit-logs', [TenantAuditLogController::class, 'index'])
+                ->middleware('permission:'.Permissions::READS_AUDIT);
+
             Route::prefix('inventory')->middleware(['feature:inventory', 'permission:inventory.manage'])->group(function (): void {
                 Route::post('/adjust', [InventoryController::class, 'adjust']);
                 Route::get('/movements', [InventoryController::class, 'movements']);
