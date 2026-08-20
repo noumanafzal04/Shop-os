@@ -10,6 +10,7 @@ import { useGenerateBarcode, useProducts } from "../hooks/useCatalog";
 import { code128BarsSvg, code128ModuleCount } from "../utils/code128";
 import type { Product } from "../types";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import Pager from "../../../components/ui/pager";
 
 /**
  * Label stock, in millimetres, because a sticker is a physical object. Sizing
@@ -346,27 +347,7 @@ export default function LabelsPage() {
             )}
           </div>
 
-          {pagination && pagination.last_page > 1 && (
-            <footer className="flex items-center justify-between gap-2 border-t border-gray-100 px-4 py-2.5 dark:border-gray-800">
-              <span className="text-theme-xs text-gray-400">Page {pagination.current_page} of {pagination.last_page}</span>
-              <div className="flex gap-1">
-                <button
-                  className="rounded-lg border border-gray-200 px-2.5 py-1 text-theme-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
-                  onClick={() => setPage((n) => n - 1)}
-                  disabled={pagination.current_page <= 1}
-                >
-                  Prev
-                </button>
-                <button
-                  className="rounded-lg border border-gray-200 px-2.5 py-1 text-theme-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
-                  onClick={() => setPage((n) => n + 1)}
-                  disabled={pagination.current_page >= pagination.last_page}
-                >
-                  Next
-                </button>
-              </div>
-            </footer>
-          )}
+          <Pager pagination={pagination} onPage={setPage} noun="items" />
         </section>
 
         {/* ── Label ────────────────────────────────────────────── */}

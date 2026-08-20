@@ -7,6 +7,7 @@ import Select from "../../../components/form/Select";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
+import Pager from "../../../components/ui/pager";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useDeliveries, useFuelMutations, useFuelTanks, usePriceChanges } from "../hooks/useFuel";
 
@@ -24,8 +25,10 @@ export default function FuelDeliveriesPage() {
   const money = useMoney();
   const toast = useToast();
   const tanks = useFuelTanks();
-  const deliveries = useDeliveries();
-  const prices = usePriceChanges();
+  const [deliveryPage, setDeliveryPage] = useState(1);
+  const [pricePage, setPricePage] = useState(1);
+  const deliveries = useDeliveries({ page: deliveryPage });
+  const prices = usePriceChanges({ page: pricePage });
   const m = useFuelMutations();
 
   const deliveryModal = useModal();
@@ -144,6 +147,7 @@ export default function FuelDeliveriesPage() {
             </tbody>
           </table>
         </div>
+        <Pager pagination={deliveries.data?.pagination} onPage={setDeliveryPage} noun="deliveries" />
       </section>
 
       <section className="mt-5 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
@@ -172,6 +176,7 @@ export default function FuelDeliveriesPage() {
             ))
           )}
         </div>
+        <Pager pagination={prices.data?.pagination} onPage={setPricePage} noun="rate changes" />
       </section>
 
       {/* ── Record delivery ────────────────────────────────────────── */}

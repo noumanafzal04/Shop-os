@@ -14,6 +14,7 @@ import { useModal } from "../../../hooks/useModal";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { downloadFile } from "../../../common/api/download";
 import { useToast } from "../../../components/ui/toast";
+import Pager from "../../../components/ui/pager";
 import { useSale, useSaleMutations, useSales } from "../hooks/useSales";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import { NoAccess } from "../../../common/ui/NoAccess";
@@ -318,21 +319,7 @@ export default function SalesPage() {
           </table>
         </div>
 
-        {pagination && pagination.last_page > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-6 py-3 text-sm dark:border-gray-800">
-            <span className="text-gray-500 dark:text-gray-400">
-              {pagination.total} sales · page {pagination.current_page} of {pagination.last_page}
-            </span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage((p) => p - 1)}>
-                Previous
-              </Button>
-              <Button size="sm" variant="outline" disabled={pagination.current_page >= pagination.last_page} onClick={() => setPage((p) => p + 1)}>
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
+        <Pager pagination={pagination} onPage={setPage} noun="sales" />
       </div>
 
       {/* Detail modal */}

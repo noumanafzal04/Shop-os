@@ -15,6 +15,7 @@ import { useSuppliers, useSupplierMutations } from "../hooks/usePurchases";
 import type { Supplier } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import Pager from "../../../components/ui/pager";
 
 
 export default function SuppliersPage() {
@@ -22,7 +23,8 @@ export default function SuppliersPage() {
   const money = useMoney();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const [search, setSearch] = useState("");
-  const suppliers = useSuppliers({ search: search || undefined });
+  const [page, setPage] = useState(1);
+  const suppliers = useSuppliers({ search: search || undefined, page });
   const { create, update, remove, pay } = useSupplierMutations();
 
   const editor = useModal();
@@ -102,11 +104,12 @@ export default function SuppliersPage() {
       </div>
 
       <div className="mb-4 max-w-xs">
-        <Input placeholder="Search suppliers…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input placeholder="Search suppliers…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full min-w-[38rem] text-left text-sm">
+      <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[38rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
             <tr>
               <th className="px-5 py-3">Supplier</th>
@@ -153,6 +156,8 @@ export default function SuppliersPage() {
             )}
           </tbody>
         </table>
+        </div>
+        <Pager pagination={suppliers.data?.meta?.pagination} onPage={setPage} noun="suppliers" />
       </div>
 
       {/* Create / edit */}

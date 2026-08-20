@@ -26,6 +26,7 @@ import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type M
 import { downloadFile, openAuthedFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import Pager from "../../../components/ui/pager";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -70,7 +71,6 @@ export default function IncomePage() {
   const dueCount = recurring.data?.filter((r) => r.is_due).length ?? 0;
   const debouncedSearch = useDebouncedValue(filters.search ?? "", 350);
   const query = { ...filters, search: debouncedSearch };
-  const page = filters.page ?? 1;
   const setPage = (p: number) => setFilters((f) => ({ ...f, page: p }));
 
   const incomes = useIncomes(query);
@@ -356,21 +356,7 @@ export default function IncomePage() {
           </table>
         </div>
 
-        {pagination && pagination.last_page > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-6 py-3 text-sm dark:border-gray-800">
-            <span className="text-gray-500 dark:text-gray-400">
-              {pagination.total} entries · page {pagination.current_page} of {pagination.last_page}
-            </span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage(page - 1)}>
-                Previous
-              </Button>
-              <Button size="sm" variant="outline" disabled={pagination.current_page >= pagination.last_page} onClick={() => setPage(page + 1)}>
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
+        <Pager pagination={pagination} onPage={setPage} noun="entries" />
       </div>
       </>
       ) : null}

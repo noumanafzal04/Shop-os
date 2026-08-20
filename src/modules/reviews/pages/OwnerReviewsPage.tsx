@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
 import Input from "../../../components/form/input/InputField";
 import Alert from "../../../components/ui/alert/Alert";
+import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPost } from "../../../common/api/client";
 
@@ -20,12 +21,16 @@ interface OwnerReview {
 
 export default function OwnerReviewsPage() {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
   const [replyFor, setReplyFor] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
 
+  // Ten a page, and until this took a page number a shop with eleven reviews
+  // could never read the first one it ever got — nor reply to it.
   const reviews = useQuery({
-    queryKey: ["owner-reviews"],
-    queryFn: () => apiGet<OwnerReview[]>("/reviews"),
+    queryKey: ["owner-reviews", page],
+    queryFn: () => apiGet<OwnerReview[]>("/reviews", { params: { page } }),
+    placeholderData: keepPreviousData,
   });
 
   const summary = useQuery({
@@ -141,6 +146,7 @@ export default function OwnerReviewsPage() {
               )}
             </div>
           ))}
+          <Pager pagination={reviews.data?.meta?.pagination} onPage={setPage} noun="reviews" />
         </div>
       )}
     </>

@@ -816,6 +816,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "h", text: "Coupons — the customer types a code" },
       { type: "p", text: "A code the customer gives you at the till. Set what it takes off (an amount or a percentage), when it is valid, how many times it can be used, and the smallest basket it works on." },
+      { type: "p", text: "Search the box at the top of the list by code — a season of campaigns leaves more codes than fit on one screen, and the code is the only thing anybody remembers about a coupon. Previous and Next at the foot of the list walk the rest." },
       { type: "h", text: "Promotions — they apply themselves" },
       { type: "p", text: "No code. The offer applies whenever the basket qualifies — buy one get one, a percentage off a category, a price break at a quantity." },
       { type: "note", text: "Both are checked by the server when the sale is rung, so an expired coupon cannot be made to work by anyone at the counter." },

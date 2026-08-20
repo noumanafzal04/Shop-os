@@ -1,6 +1,7 @@
 import { apiGet } from "../../../common/api/client";
 import type { ApiEnvelope } from "../../../common/types/api";
 import { toParams, type MoneyFilters } from "../../expenses/services/moneyFilters";
+import type { Pagination } from "../../../common/types/api";
 
 /**
  * Which way the money went, and where the row came from.
@@ -34,7 +35,7 @@ export interface LedgerMeta {
   opening: number;
   closing: number;
   totals: { in: number; out: number; net: number; count: number };
-  pagination?: { current_page: number; per_page: number; total: number; last_page: number };
+  pagination?: Pagination;
 }
 
 /** The ledger's own filters — the shared money filters plus type/direction. */

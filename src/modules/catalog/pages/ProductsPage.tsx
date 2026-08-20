@@ -19,6 +19,7 @@ import { ApiError } from "../../../common/types/api";
 import { api } from "../../../common/api/client";
 import { downloadFile } from "../../../common/api/download";
 import { useToast } from "../../../components/ui/toast";
+import Pager from "../../../components/ui/pager";
 
 /** Friendly label for each item type (drops the raw product/service split). */
 const TYPE_LABEL: Record<ItemTypeCode, string> = {
@@ -428,31 +429,7 @@ export default function ProductsPage() {
         </div>
 
         {/* Pagination */}
-        {pagination && pagination.last_page > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-6 py-3 text-sm dark:border-gray-800">
-            <span className="text-gray-500 dark:text-gray-400">
-              {pagination.total} items · page {pagination.current_page} of {pagination.last_page}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pagination.current_page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Previous
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pagination.current_page >= pagination.last_page}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
+        <Pager pagination={pagination} onPage={setPage} noun="items" />
       </div>
 
       {/* Delete confirmation */}

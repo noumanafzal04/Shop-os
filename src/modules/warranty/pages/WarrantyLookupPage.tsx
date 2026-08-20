@@ -11,6 +11,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
+import Pager from "../../../components/ui/pager";
 import {
   RESOLUTIONS,
   warrantyService,
@@ -284,9 +285,10 @@ function HoldingTab() {
   const [status, setStatus] = useState<"open" | "resolved" | "all">("open");
   const [search, setSearch] = useState("");
 
+  const [page, setPage] = useState(1);
   const claims = useQuery({
-    queryKey: ["warranty", "claims", status, search],
-    queryFn: async () => (await warrantyService.claims({ status, search: search || undefined })).data,
+    queryKey: ["warranty", "claims", status, search, page],
+    queryFn: () => warrantyService.claims({ status, search: search || undefined, page }),
   });
 
   const [closing, setClosing] = useState<WarrantyClaim | null>(null);
@@ -304,7 +306,7 @@ function HoldingTab() {
     onError: (e) => toast.error(e instanceof ApiError ? e.message : "Could not close it"),
   });
 
-  const rows = claims.data ?? [];
+  const rows = claims.data?.data ?? [];
 
   return (
     <>
@@ -312,7 +314,7 @@ function HoldingTab() {
         <div className="min-w-56 flex-1">
           <Input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Serial, phone, name or item…"
           />
         </div>
@@ -321,7 +323,7 @@ function HoldingTab() {
             <button
               key={s}
               type="button"
-              onClick={() => setStatus(s)}
+              onClick={() => { setStatus(s); setPage(1); }}
               className={`rounded-lg border px-3 py-2 text-theme-xs font-medium capitalize transition-colors ${
                 status === s
                   ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
@@ -358,9 +360,11 @@ function HoldingTab() {
         </ul>
       )}
 
+      <Pager pagination={claims.data?.meta?.pagination} onPage={setPage} noun="claims" />
+
       <Modal isOpen={closing !== null} onClose={() => setClosing(null)} className="max-w-md">
         <ModalForm
-          title="Close {closing?.product_name}"
+          title={`Close ${closing?.product_name ?? "claim"}`}
           footer={
             <>
               <Button size="sm" variant="outline" onClick={() => setClosing(null)}>Cancel</Button>

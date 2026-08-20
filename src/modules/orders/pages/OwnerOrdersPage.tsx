@@ -5,6 +5,7 @@ import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
 import Select from "../../../components/form/Select";
 import Alert from "../../../components/ui/alert/Alert";
+import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
 import { Link } from "react-router";
 import { useOrderActions, useRiders, useShopOrders } from "../hooks/useOrders";
@@ -167,15 +168,7 @@ export default function OwnerOrdersPage() {
         )}
       </div>
 
-      {pagination && pagination.last_page > 1 && (
-        <div className="mt-4 flex items-center justify-between text-sm">
-          <span className="text-gray-500 dark:text-gray-400">{pagination.total} orders · page {pagination.current_page} of {pagination.last_page}</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-            <Button size="sm" variant="outline" disabled={pagination.current_page >= pagination.last_page} onClick={() => setPage((p) => p + 1)}>Next</Button>
-          </div>
-        </div>
-      )}
+      <Pager pagination={pagination} onPage={setPage} noun="orders" />
       <TakeOrderModal isOpen={takeModal.isOpen} onClose={takeModal.closeModal} />
     </>
   );

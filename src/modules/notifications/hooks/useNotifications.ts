@@ -12,12 +12,16 @@ export interface AppNotification {
   created_at: string;
 }
 
-export function useNotifications() {
+export function useNotifications(page = 1) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   return useQuery({
-    queryKey: ["notifications"],
-    queryFn: () => apiGet<AppNotification[]>("/notifications"),
+    // Fifteen a page. Without a page number the bell showed the fifteen newest
+    // and everything older was gone from the product — which matters more here
+    // than on most lists, because an expiry warning is spoken ONCE per lot per
+    // stage and is never repeated. Missing it in the fifteen meant missing it.
+    queryKey: ["notifications", page],
+    queryFn: () => apiGet<AppNotification[]>("/notifications", { params: { page } }),
     enabled: isAuthenticated,
     // Near-real-time bell without websockets.
     refetchInterval: 30_000,

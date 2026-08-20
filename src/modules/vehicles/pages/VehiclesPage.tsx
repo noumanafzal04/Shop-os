@@ -8,6 +8,7 @@ import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
+import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useVehicleHistory, useVehicleMutations, useVehicles } from "../hooks/useVehicles";
@@ -43,7 +44,8 @@ export default function VehiclesPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const vehicles = useVehicles({ search: query || undefined });
+  const [page, setPage] = useState(1);
+  const vehicles = useVehicles({ search: query || undefined, page });
   const { create, update, remove } = useVehicleMutations();
 
   const [editing, setEditing] = useState<Vehicle | null>(null);
@@ -119,7 +121,7 @@ export default function VehiclesPage() {
     });
   };
 
-  const rows = vehicles.data ?? [];
+  const rows = vehicles.data?.data ?? [];
 
   return (
     <>
@@ -133,7 +135,7 @@ export default function VehiclesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Registration, make or model…" />
+          <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Registration, make or model…" />
           <Button size="sm" onClick={openCreate}>+ Add vehicle</Button>
         </div>
       </div>
@@ -195,6 +197,7 @@ export default function VehiclesPage() {
             </table>
           </div>
         )}
+        <Pager pagination={vehicles.data?.meta?.pagination} onPage={setPage} noun="vehicles" />
       </div>
 
       {/* Add / edit ─────────────────────────────────────────────────── */}

@@ -20,6 +20,7 @@ import type { Customer } from "../services/customersService";
 import type { CustomerGroup, PriceLevel } from "../services/customerGroupsService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import Pager from "../../../components/ui/pager";
 
 
 export default function CustomersPage() {
@@ -33,7 +34,8 @@ export default function CustomersPage() {
   useEffect(() => {
     if (qParam) setSearch(qParam);
   }, [qParam]);
-  const customers = useCustomers({ search: search || undefined });
+  const [page, setPage] = useState(1);
+  const customers = useCustomers({ search: search || undefined, page });
   const { create, update, remove, recordPayment } = useCustomerMutations();
 
   const toast = useToast();
@@ -152,11 +154,12 @@ export default function CustomersPage() {
       </div>
 
       <div className="mb-4 max-w-xs">
-        <Input placeholder="Search name or phone…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input placeholder="Search name or phone…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full min-w-[38rem] text-left text-sm">
+      <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[38rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
             <tr><th className="px-5 py-3">Customer</th><th className="px-5 py-3">Phone</th><th className="px-5 py-3 text-center">Sales</th><th className="px-5 py-3 text-right">Spent</th><th className="px-5 py-3 text-right">Actions</th></tr>
           </thead>
@@ -188,6 +191,8 @@ export default function CustomersPage() {
             )}
           </tbody>
         </table>
+        </div>
+        <Pager pagination={customers.data?.meta?.pagination} onPage={setPage} noun="customers" />
       </div>
 
       {/* Create / edit */}

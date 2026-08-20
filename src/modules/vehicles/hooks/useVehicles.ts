@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { vehiclesService, type VehicleInput } from "../services/vehiclesService";
 
-export function useVehicles(params: { search?: string; customer_id?: string } = {}, enabled = true) {
+export function useVehicles(params: { search?: string; customer_id?: string; page?: number } = {}, enabled = true) {
   return useQuery({
     queryKey: ["vehicles", params],
-    queryFn: async () => (await vehiclesService.list(params)).data,
+    // The ENVELOPE, not just its data: `meta.pagination` is how the screen
+    // knows there is a page two. Unwrapping here is what made 25 vehicles the
+    // most a workshop could ever see.
+    queryFn: () => vehiclesService.list(params),
     enabled,
   });
 }

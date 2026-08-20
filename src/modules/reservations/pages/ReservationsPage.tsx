@@ -14,6 +14,7 @@ import { useReservationMutations, useReservations } from "../hooks/useReservatio
 import type { Reservation, ReservationStatus } from "../services/reservationsService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import Pager from "../../../components/ui/pager";
 
 
 const STATUS_COLOR: Record<ReservationStatus, "success" | "warning" | "error" | "info" | "light"> = {
@@ -210,21 +211,7 @@ export default function ReservationsPage() {
           </table>
         </div>
 
-        {pagination && pagination.last_page > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-6 py-3 text-sm dark:border-gray-800">
-            <span className="text-gray-500 dark:text-gray-400">
-              {pagination.total} reservations · page {pagination.current_page} of {pagination.last_page}
-            </span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage((p) => p - 1)}>
-                Previous
-              </Button>
-              <Button size="sm" variant="outline" disabled={pagination.current_page >= pagination.last_page} onClick={() => setPage((p) => p + 1)}>
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
+        <Pager pagination={pagination} onPage={setPage} noun="reservations" />
       </div>
 
       {/* Complete → sale */}

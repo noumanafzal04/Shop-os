@@ -4,6 +4,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { useToast } from "../../../components/ui/toast";
+import Pager from "../../../components/ui/pager";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useCurrentShift, useFuelMutations, useShifts } from "../hooks/useFuel";
 import { StartShiftModal } from "../components/StartShiftModal";
@@ -34,7 +35,8 @@ export default function ForecourtPage() {
   const money = useMoney();
   const toast = useToast();
   const current = useCurrentShift();
-  const history = useShifts({ status: "closed" });
+  const [historyPage, setHistoryPage] = useState(1);
+  const history = useShifts({ status: "closed", page: historyPage });
   const { openShift, closeShift } = useFuelMutations();
 
   const shift = current.data ?? null;
@@ -165,6 +167,7 @@ export default function ForecourtPage() {
             </tbody>
           </table>
         </div>
+        <Pager pagination={history.data?.pagination} onPage={setHistoryPage} noun="shifts" />
       </section>
     </>
   );

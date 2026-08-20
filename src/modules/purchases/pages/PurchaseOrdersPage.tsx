@@ -18,6 +18,7 @@ import { usePurchaseOrder, usePurchaseOrders, usePurchaseOrderMutations } from "
 import type { PurchaseStatus } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import Pager from "../../../components/ui/pager";
 
 
 const STATUS_COLOR: Record<PurchaseStatus, "warning" | "info" | "success" | "error" | "light"> = {
@@ -35,7 +36,8 @@ export default function PurchaseOrdersPage() {
   const money = useMoney();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const [statusFilter, setStatusFilter] = useState("");
-  const orders = usePurchaseOrders({ status: statusFilter || undefined });
+  const [page, setPage] = useState(1);
+  const orders = usePurchaseOrders({ status: statusFilter || undefined, page });
   const suppliers = useSuppliers({ is_active: true });
   const { create, place, receive, cancel } = usePurchaseOrderMutations();
 
@@ -190,15 +192,16 @@ export default function PurchaseOrdersPage() {
           below simply is not there. */}
       <div className="mb-4 flex flex-wrap gap-2">
         {["", "draft", "ordered", "partially_received", "received", "cancelled"].map((s) => (
-          <button key={s} onClick={() => setStatusFilter(s)}
+          <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }}
             className={`rounded-full border px-3 py-1 text-theme-xs capitalize transition ${statusFilter === s ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10" : "border-gray-200 text-gray-500 dark:border-gray-700"}`}>
             {s === "" ? "All" : s.replace(/_/g, " ")}
           </button>
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full min-w-[48rem] text-left text-sm">
+      <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[48rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
             <tr><th className="px-5 py-3">PO #</th><th className="px-5 py-3">Supplier</th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Payment</th><th className="px-5 py-3 text-right">Total</th></tr>
           </thead>
@@ -221,6 +224,8 @@ export default function PurchaseOrdersPage() {
             )}
           </tbody>
         </table>
+        </div>
+        <Pager pagination={orders.data?.meta?.pagination} onPage={setPage} noun="purchase orders" />
       </div>
 
       {/* Create PO */}

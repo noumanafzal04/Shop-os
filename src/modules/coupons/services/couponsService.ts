@@ -27,7 +27,7 @@ export interface CouponInput {
 }
 
 export const couponsService = {
-  list: (params?: { page?: number }) => apiGet<Coupon[]>("/coupons", { params }),
+  list: (params?: { page?: number; search?: string }) => apiGet<Coupon[]>("/coupons", { params }),
   create: (payload: CouponInput) => apiPost<Coupon>("/coupons", payload),
   update: (id: string, payload: Partial<CouponInput>) => apiPut<Coupon>(`/coupons/${id}`, payload),
   remove: (id: string) => apiDelete<null>(`/coupons/${id}`),

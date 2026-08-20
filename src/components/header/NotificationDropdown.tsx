@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
+import Pager from "../ui/pager";
 import {
   useNotifications,
   useNotificationActions,
@@ -26,7 +27,8 @@ const DOT_COLOR: Record<string, string> = {
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-  const { data } = useNotifications();
+  const [page, setPage] = useState(1);
+  const { data } = useNotifications(page);
   const { markRead, markAllRead } = useNotificationActions();
 
   const notifications = data?.data ?? [];
@@ -111,6 +113,7 @@ export default function NotificationDropdown() {
             ))
           )}
         </ul>
+        <Pager pagination={data?.meta?.pagination} onPage={setPage} noun="notifications" />
       </Dropdown>
     </div>
   );

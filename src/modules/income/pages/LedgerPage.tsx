@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router";
 
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
-import Button from "../../../components/ui/button/Button";
+import Pager from "../../../components/ui/pager";
 import { downloadFile } from "../../../common/api/download";
 import { MoneyFilterBar } from "../../expenses/components/MoneyFilterBar";
 import { useExpenseCategories } from "../../expenses/hooks/useExpenses";
@@ -262,31 +262,11 @@ export default function LedgerPage() {
           </table>
         </div>
 
-        {pagination && pagination.last_page > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3 text-sm dark:border-gray-800">
-            <span className="text-gray-500 dark:text-gray-400">
-              {meta?.totals.count} entries · page {pagination.current_page} of {pagination.last_page}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pagination.current_page <= 1}
-                onClick={() => setFilters({ ...filters, page: page - 1 })}
-              >
-                Previous
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pagination.current_page >= pagination.last_page}
-                onClick={() => setFilters({ ...filters, page: page + 1 })}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
+        <Pager
+            pagination={pagination}
+            onPage={(next) => setFilters({ ...filters, page: next })}
+            noun="entries"
+          />
       </div>
     </>
   );

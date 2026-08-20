@@ -1,10 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { couponsService, type CouponInput } from "../services/couponsService";
 
-export function useCoupons() {
+export function useCoupons(page = 1, search = "") {
   return useQuery({
-    queryKey: ["coupons"],
-    queryFn: () => couponsService.list(),
+    queryKey: ["coupons", page, search],
+    queryFn: () => couponsService.list({ page, search: search || undefined }),
     placeholderData: keepPreviousData,
   });
 }

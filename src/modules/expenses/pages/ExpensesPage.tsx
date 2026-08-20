@@ -31,6 +31,7 @@ import { downloadCsv, downloadFile, openAuthedFile } from "../../../common/api/d
 import { useAuthStore } from "../../../stores/authStore";
 import { useSuppliers } from "../../purchases/hooks/usePurchases";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import Pager from "../../../components/ui/pager";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -181,7 +182,6 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
   // deliberate click and should answer at once.
   const debouncedSearch = useDebouncedValue(filters.search ?? "", 350);
   const query = { ...filters, search: debouncedSearch };
-  const page = filters.page ?? 1;
   const setPage = (p: number) => setFilters((f) => ({ ...f, page: p }));
 
   const expenses = useExpenses(query);
@@ -479,17 +479,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
           </table>
         </div>
 
-        {pagination && pagination.last_page > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3 text-sm dark:border-gray-800">
-            <span className="text-theme-xs text-gray-400">
-              {pagination.total} expenses · page {pagination.current_page} of {pagination.last_page}
-            </span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-              <Button size="sm" variant="outline" disabled={pagination.current_page >= pagination.last_page} onClick={() => setPage(page + 1)}>Next</Button>
-            </div>
-          </div>
-        )}
+        <Pager pagination={pagination} onPage={setPage} noun="expenses" />
       </div>
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md">

@@ -11,6 +11,7 @@ import Select from "../../../components/form/Select";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
+import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
 import { useBranches } from "../../branches/hooks/useBranches";
 import { catalogService } from "../../catalog/services/catalogService";
@@ -24,7 +25,8 @@ interface Line {
 
 export default function TransfersPage() {
   const branches = useBranches();
-  const transfers = useTransfers();
+  const [page, setPage] = useState(1);
+  const transfers = useTransfers(page);
   const create = useCreateTransfer();
   const modal = useModal();
   const toast = useToast();
@@ -143,6 +145,7 @@ export default function TransfersPage() {
             </tbody>
           </table>
         </div>
+        <Pager pagination={transfers.data?.meta?.pagination} onPage={setPage} noun="transfers" />
       </div>
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-2xl p-6">

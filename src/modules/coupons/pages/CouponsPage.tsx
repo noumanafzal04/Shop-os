@@ -14,11 +14,14 @@ import { useCouponMutations, useCoupons } from "../hooks/useCoupons";
 import type { Coupon } from "../services/couponsService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import Pager from "../../../components/ui/pager";
 
 export default function CouponsPage() {
   const confirm = useConfirm();
   const hasPermission = useAuthStore((s) => s.hasPermission);
-  const coupons = useCoupons();
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const coupons = useCoupons(page, search);
   const { create, update, remove } = useCouponMutations();
   const editor = useModal();
   const toast = useToast();
@@ -87,7 +90,16 @@ export default function CouponsPage() {
         <Button size="sm" onClick={openCreate}>+ New coupon</Button>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="mb-4 max-w-xs">
+        <Input
+          placeholder="Search a code…"
+          value={search}
+          onChange={(e) => { setSearch(e.target.value.toUpperCase()); setPage(1); }}
+        />
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[42rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
             <tr><th className="px-5 py-3">Code</th><th className="px-5 py-3">Discount</th><th className="px-5 py-3">Min spend</th><th className="px-5 py-3">Used</th><th className="px-5 py-3">Expires</th><th className="px-5 py-3 text-right">Actions</th></tr>
@@ -120,6 +132,8 @@ export default function CouponsPage() {
             )}
           </tbody>
         </table>
+        </div>
+        <Pager pagination={coupons.data?.meta?.pagination} onPage={setPage} noun="coupons" />
       </div>
 
       <Modal isOpen={editor.isOpen} onClose={editor.closeModal} className="max-w-lg p-6">

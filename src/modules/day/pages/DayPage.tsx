@@ -8,6 +8,7 @@ import TextArea from "../../../components/form/input/TextArea";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
+import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -747,26 +748,12 @@ export default function DayPage() {
         </div>
       )}
 
-      {tab !== "today" && pagination && pagination.last_page > 1 && (
-        <div className="mt-4 flex items-center justify-between">
-          <p className="text-theme-xs text-gray-400">
-            {pagination.total} {tab === "history" ? "days" : "deposits"} · page {pagination.current_page} of{" "}
-            {pagination.last_page}
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={pagination.current_page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pagination.current_page >= pagination.last_page}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {tab !== "today" && (
+        <Pager
+          pagination={pagination}
+          onPage={setPage}
+          noun={tab === "history" ? "days" : "deposits"}
+        />
       )}
 
       {/* Record a deposit ───────────────────────────────────────────── */}
