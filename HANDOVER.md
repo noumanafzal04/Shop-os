@@ -125,7 +125,7 @@ a false index. A backup that has never been restored is a belief, not a backup.
 
 ## 4. State at handover
 
-**Backend 2091 tests / 8883 assertions green. Panel 1017 tests green (80 files).** Gates all
+**Backend 2093 tests / 8891 assertions green. Panel 1022 tests green (81 files).** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
 long-standing baseline).
 
@@ -276,7 +276,64 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-20 (latest) — the dish, and the button only the till obeyed
+### 2026-08-20 (latest) — nine screens where page two did not exist
+
+The coupon query the sweep raised turned out not to be about coupons.
+
+**Thirty-seven endpoints paginate.** Fifteen screens had hand-written the same
+fifteen lines of Previous/Next. **Nine had written nothing** — and on those the
+rows past the first page were not awkward to reach, they could not be reached at
+all. Owner reviews hold **ten a page**: a shop with eleven could never read the
+first review it ever got, or reply to it. Coupons thirty, purchase orders
+fifteen, notifications fifteen, transfers twenty, the three fuel lists 15–25.
+
+Three of them had the plumbing built the whole way down and were one argument
+short at the top — `useTransfers()` called with nothing, and the fuel hooks
+already returning `{ rows, pagination }`. That is the argument for a component
+rather than a snippet: **paging is fifteen lines every screen has to remember,
+and a screen that forgot looks exactly like a screen with no rows to show.**
+
+Fixed with one `<Pager>` in `components/ui/pager`, now on 24 screens. The
+fifteen copies are gone and they had already drifted — `px-5` against `px-6`,
+`setPage(page - 1)` against `setPage((p) => p - 1)`, several counting "items"
+whatever the rows were. Filters reset to page one, or a search run from page
+three of the old results shows an empty table that reads as "no matches".
+`CouponController::index` gained a search, because a coupon is found by its code
+and by nothing else.
+
+Two smaller things fell out: three cards were their own horizontal scroller, so
+a pager inside them scrolled sideways out of view with the table; and
+`WarrantyLookupPage` carried `title="Close {closing?.product_name}"` — a quoted
+JSX attribute is a STRING, so the merchant was shown that text literally.
+
+**Two guards, in two places on purpose.** `ui/pager/reach.test.ts` keeps the
+panel's half true — nobody writes their own, and the shared one is in use on at
+least twenty screens (without that second assertion, "nobody writes their own"
+is satisfied by an app with no paging at all, which is where this started).
+`docs/qa/unreachable-pages.py` answers the question the panel cannot — *does
+every list have one?* — because that needs the set of paginating endpoints,
+which lives in the backend, and a copy inside the panel would be a second answer
+to one question.
+
+**The scanner reported a clean number four times before it was right.** It
+believed a type (`{ page?: number }` with nothing passing one — *page state that
+never changes is not paging*); it lost every `Route::prefix(...)` when parsing
+`routes/api.php`, so eight routes matched nothing and the report said "1 of 12"
+and looked healthy; it matched path prefixes, so `/products/{id}/branch-prices`
+counted as listing `/products`; and it could not tell `to="/admin/tenants"` — a
+link — from a fetch. And judging each folder on its own text called the
+notification bell broken *after* it was fixed, because the bell fetches in one
+folder and renders in another. Two texts for two questions: what a folder LISTS
+from its own source, whether it can REACH from its source plus one hop of
+importers.
+
+`--prove` blinds it and requires the result to look blind — zero folders judged,
+every route unplaced. **A scan that reads nothing reports "0 problems", which is
+character for character what a clean sweep reports.**
+
+`0 of 23` stuck. Backend **2093 green**, panel **1022 green**.
+
+### 2026-08-20 — the dish, and the button only the till obeyed
 
 Phase R gained the two things a food shop does that nothing had ever driven from
 the customer's side. The first found nothing. The second found a defect in three

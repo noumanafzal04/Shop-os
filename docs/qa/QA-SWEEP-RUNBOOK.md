@@ -399,3 +399,27 @@ Two rules the sweep has already had to learn the hard way:
   finding. Each mutation names a `ran_marker` so the harness can tell "the check
   said nothing" (`MISSED`) from "the check never ran" (`UNCLEAR`). It could not,
   once, and reported two working checks as blind.
+
+## The scanners next door
+
+The sweep drives HTTP. Two things it therefore cannot see live beside it, and
+both read **both repositories**, because the questions they answer only exist in
+the gap between them.
+
+```bash
+python3 docs/qa/unreachable-pages.py           # rows the shop cannot reach
+python3 docs/qa/unreachable-pages.py --prove   # break it on purpose first
+shopos-backend/scripts/dead-endpoints.py       # routes with no caller, and the reverse
+```
+
+`unreachable-pages.py` asks whether every panel screen that lists a paginating
+endpoint can reach row 31 — by turning the page or by searching. It found nine
+that could not, one of them capped at ten rows. The panel's own
+`ui/pager/reach.test.ts` keeps the other half true (nobody hand-rolls a pager),
+and deliberately does not duplicate the endpoint list.
+
+Read the DENOMINATORS, never the verdict. Both scanners print what they checked
+over what exists, and `--prove` blinds the detector and requires the result to
+*look* blind — zero folders judged, every route unplaced. A scan that reads
+nothing reports "0 problems", which is character for character what a clean
+sweep reports.

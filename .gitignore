@@ -16,4 +16,4 @@ node_modules/
 # QA sweep keeps its tokens between runs so it does not fight the login
 # throttle. They are credentials — they never belong in the repo.
 docs/qa/sweep/.tokens.json
-docs/qa/sweep/__pycache__/
+__pycache__/

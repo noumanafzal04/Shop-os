@@ -10,6 +10,89 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-20 — nine screens where page two did not exist
+
+The coupon gap recorded below turned out not to be about coupons.
+
+### BUG · thirty-seven endpoints paginate, nine screens could not turn the page — NOW FIXED
+
+Fifteen screens had hand-written the same fifteen lines of Previous/Next. Nine
+had written nothing, and on those the rows past the first page were not awkward
+to reach — **they could not be reached at all.**
+
+| screen | a page holds | how you reached row 31 |
+|---|---|---|
+| Owner reviews | **10** | you didn't |
+| Notifications | 15 | you didn't |
+| Purchase orders | 15 | you didn't |
+| Coupons | 30 | you didn't |
+| Stock transfers | 20 | you didn't — and the hook took a page, and the service took a page |
+| Fuel deliveries / rates / shifts | 15–25 | you didn't — and the hooks already returned `{ rows, pagination }` |
+| Customers, suppliers, vehicles, warranty claims | 20–25 | only by knowing the name to search |
+
+Ten a page means a shop with eleven reviews can never read the first one it ever
+got, or reply to it. Three screens had the plumbing built the whole way down and
+were one argument short at the top — which is the argument for a component:
+paging is fifteen lines every screen has to remember, and **a screen that forgot
+looks exactly like a screen with no rows to show.**
+
+Fixed with one `<Pager>` (`components/ui/pager`), now used by 24 screens; the
+fifteen copies are gone, and they had drifted — `px-5` against `px-6`,
+`setPage(page - 1)` against `setPage((p) => p - 1)`, several counting "items"
+whatever the rows were. Filters reset to page one, because searching from page
+three of the old results shows an empty table that reads as "no matches".
+`CouponController::index` gained a search, since a coupon is found by its code
+and by nothing else.
+
+### Two smaller things that fell out
+
+Three cards were their own horizontal scroller, so a pager inside them scrolled
+sideways out of view with the table — split into a card holding a scroller and a
+pager. And `WarrantyLookupPage` carried `title="Close {closing?.product_name}"`;
+a quoted JSX attribute is a **string**, so the merchant was shown that text
+literally.
+
+### HARNESS · four ways the scanner reported a clean number first
+
+Every one of these produced a plausible report.
+
+1. **It believed a type.** A screen counted as safe if its module mentioned
+   `page` anywhere — and `couponsService.list` is typed `{ page?: number }` with
+   nothing ever passing one. *Page state that never changes is not paging.*
+2. **It lost the route prefixes.** Parsing `routes/api.php` by regex dropped
+   every `Route::prefix(...)`, storing `transfers` where the URI is
+   `inventory/transfers`. Eight routes matched nothing, their screens were never
+   checked, and the report said "1 of 12" and looked healthy. Fixed by asking
+   Laravel: `php artisan route:list --json`.
+3. **It matched prefixes, not paths.** `/products/{id}/branch-prices` counted as
+   listing `/products`.
+4. **It could not tell a link from a fetch.** `to="/admin/tenants"` is
+   navigation; matching any slash-string accused the dashboard of failing to
+   page lists it merely links to.
+
+And one about its own unit: judging each folder alone reported the notification
+bell broken **after it was fixed**, because the bell fetches in
+`modules/notifications` and renders in `components/header`. The fix is two texts
+for two questions — *what a folder lists* from its own source, *whether it can
+reach* from its source plus one hop of importers. Fold importers into the first
+and `components/ui` gets credited with listing the tenant directory, because
+every admin page imports a Button from it.
+
+`--prove` blinds the detector and requires the result to LOOK blind: zero
+folders judged, every route unplaced. **A scan that reads nothing reports "0
+problems", which is character for character what a clean sweep reports.**
+
+### Where it stands
+
+`0 of 23` folders stuck. Two paginating routes are named by no panel screen —
+both the public storefront, consumed by the customer app; printed rather than
+filtered, because a route nothing lists is either an unbuilt screen or a path
+the scan failed to recognise and those look identical from inside.
+
+Backend **2093 green**, panel **1022 green**.
+
+---
+
 ## 2026-08-20 — the dish, and the button only the till obeyed
 
 Phase R gained the two things a food shop does that nothing had ever driven from
