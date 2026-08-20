@@ -332,6 +332,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
           "Add the credit note number if there is one, and it leaves the list.",
         ],
       },
+      { type: "warn", text: "A credit is recorded once. The button goes as soon as it is entered, and a second attempt is refused rather than quietly replacing the first — the figure on that row is what you said the distributor actually paid, and it has to stay provable. So check the amount before you save it: there is no editing it afterwards, and the audit log records who entered it and when." },
       { type: "note", text: "A lot with no cost recorded against it is counted but not valued, and the screen says so — because unknown is not the same as zero." },
     ],
   },
