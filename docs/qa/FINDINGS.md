@@ -10,6 +10,169 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-21 — three agents, and a workflow that mislabelled its own failures
+
+Ran three read-only subagents on three lenses — the pharmacy's paths,
+accessibility as a class, and the API areas the sweep has never driven — each
+finding to be attacked by a skeptic before being believed.
+
+**The verification pass never ran.** The session hit its usage limit: 23 of 25
+agents died, including every verifier. And the workflow script **reported the 22
+surviving claims as `refuted`**, because a failed agent returns null and the
+script read `!verdict?.real` as a refutation.
+
+> **A failed check is not a passed check, and it is not a failed subject
+> either.** The same class as `HARNESS_NO_TOKEN` earlier the same day: a tool
+> that cannot do its job must say so, not answer anyway. Fix the shape, not the
+> label — three verdicts, never two.
+
+So the 22 claims are **unverified leads**, and were treated as such: four were
+verified by hand and fixed, two were verified and downgraded, one was verified
+and referred to the owner, and the rest are recorded untouched.
+
+### VERIFIED BY MEASUREMENT · the shared form controls had no route to a name
+
+Not "many fields are unlabelled" — counted:
+
+| | |
+|---|---|
+| `<Input>` usages | **360** |
+| …passing an `id` | **2** |
+| `<Label htmlFor>` | **5** |
+| `aria-label` prop on the component | **none** |
+
+So a field's name was its placeholder, and **a placeholder is not a name: it
+disappears the moment somebody types.** `Input` and `Select` accept and forward
+`aria-label` / `aria-labelledby` now — the route exists as of today, which is
+why the backlog below has a number rather than a promise.
+
+### VERIFIED · `Alert` had no role and no live region
+
+"Sale failed" appearing after a button press was announced to nobody — while the
+till blocker ten lines away in `PosPage` does carry `role="alert"`. The app knew
+the pattern; the shared component did not use it.
+
+### VERIFIED · this morning's Modal fix was half a fix
+
+`role="dialog"` + `aria-modal="true"` with **no accessible name and no focus
+management**. An unnamed dialog announces as "dialog", and `aria-modal` tells a
+reader the rest of the page is inert **while the focus is still out there in
+it** — stranded in a page it has just been told to ignore.
+
+Named from the dialog's own heading rather than a new prop: 107 call sites, every
+one already renders one. Nothing to pass, nothing to forget.
+
+> A fix reviewed by somebody who did not write it found the half that was
+> missing. That is the whole argument for the verify lane, and it is the lane
+> that died.
+
+### VERIFIED · the same two fields, one component, two paths
+
+`MoneyFilterBar` ties its From/To dates with `useId` + `sr-only` + `htmlFor` in
+the desktop bar, and the mobile drawer had a **visible** label associated with
+nothing. A sighted user read it; a screen reader met a nameless date box.
+
+**This codebase's oldest bug shape, wearing an accessibility hat.**
+
+### VERIFIED, THEN DOWNGRADED · the advance the API threw away
+
+Claimed as "money vanishes with a 201". True that `deposit` is validated and
+then read only inside `if ($isLayaway)` — but **the panel never sends it** (the
+workshop screen has no deposit field) and `POST /{document}/deposits` works and
+always has. So no shop has lost anything.
+
+Still refused rather than swallowed: an API that eats a figure it was given is
+worse than one that says no. `prohibited_unless:kind,layaway`, with a test
+proving the real door still opens.
+
+### VERIFIED, THEN REFERRED · the subscription payment history
+
+`GET /shop/subscription` carries no permission and returns 24 payment rows.
+**Deliberate, and documented** — the sidebar says *"what the shop pays is not a
+secret from the people who work in it"*. But a payment LIST with dates and
+references is more than "what we pay per month", and where that line falls is
+the owner's call, not mine. Raised, not changed.
+
+### The measured backlog
+
+**245 form fields still have no accessible name.** Recorded with the number
+because a count is auditable and "we should improve accessibility" is not.
+Remaining unverified leads, listed rather than acted on: the other two
+CloseShiftModal inputs, seven hand-rolled close buttons on the till, the POS
+payment-method selector conveying state by colour alone, two of three toggle
+switches, toast politeness, and nine backend claims about announcements,
+billing buckets, deep links and the workshop board.
+
+---
+
+## 2026-08-21 — two doors, one drug
+
+### BUG · a controlled medicine left by the phone-order door — NOW FIXED
+
+Proven with a throwaway probe rather than reasoned. One product, one shop, one
+shopkeeper:
+
+```
+  drug_schedule='G'  requires_prescription=false
+  PHONE order  →  201  (ACCEPTED)          ← no prescription, no refusal
+  TILL  sale   →  422  PRESCRIPTION_REQUIRED
+```
+
+| path | what it asks |
+|---|---|
+| the till — `CreateSaleAction` | `drug_schedule` filled? then prescription number AND prescriber required |
+| an order — `OrderService::place` | `requires_prescription` true? then `RX_IN_PERSON_ONLY` |
+
+Two rules about the same thing reading two different columns — and on the
+product form those columns were **free-standing fields with nothing tying them
+together**, so a medicine could be marked Schedule G with the prescription box
+unticked and each fence gave a different answer about it.
+
+The till's check carries a comment saying the online case *"is the order, not
+the till"*. Right instinct, safe **only if the order path refused**. It didn't.
+
+> **A comment that assumes another path did the work is a dependency, and an
+> unchecked dependency is a hope.** Third time this month.
+
+**What it cost:** a controlled drug dispensed with no prescriber recorded, and
+therefore **no line in the dispensing register** — the list a regulator asks to
+see. The register was never broken; this door told it nothing.
+
+Fixed at the root (`Product::booted()` — a controlled drug that needs no
+prescription is not a thing, and the model will not hold that state) and at the
+fence (`OrderService::place` asks the schedule too, because the hook fires on
+`save()` and a raw query or an old import slips past it). A migration backfills
+the drifted rows, deliberately irreversible.
+
+### HARNESS · the mutation that PASSED is the useful one
+
+Removing the order-door check left **every test green** — the model hook was
+answering for it. The fence was real and *nothing pinned it*.
+
+`test_the_order_door_refuses_a_drifted_row_on_its_own` writes the drifted state
+past the model with a raw update, **asserts the drift actually exists** (or the
+test proves nothing), and then orders. Both halves of the fix now go red under
+their own mutation.
+
+> **A mutation that passes is not reassurance. It is the check telling you it is
+> not there.**
+
+### The scanner had said this was fine, in writing
+
+`scripts/one-rule-many-paths.py` lists rules only one selling path asks, with a
+reason beside each. `PRESCRIPTION_REQUIRED` carried *"the order path has its own,
+stronger RX_IN_PERSON_ONLY"*.
+
+**That line was believed and it was false** — the order path had a fence with a
+similar name reading a different column. It was written by somebody reading two
+error codes and inferring the rest.
+
+> **An exception on a list of exceptions is a claim. Check it; do not admire
+> it.** The same lesson `dead-rules.py` learned yesterday, arriving from the
+> other direction.
+
+---
+
 ## 2026-08-21 — the offline drawer, driven in a browser
 
 The offline shift gap's "still owed" list named five things. **Three were

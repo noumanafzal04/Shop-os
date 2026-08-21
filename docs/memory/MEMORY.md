@@ -90,3 +90,5 @@
 - [Who Changed What](shopos-who-changed-what.md) — FIXED: audit trail recorded permissions but not the money they move (credit limit 5k→90k = no row); shop couldn't read its own history
 - [Asked As Nobody](shopos-asked-as-nobody.md) — STANDING: a sweep call with no token went out bare and faked 96 bugs; a throwaway probe that mutates sweep shops leaves the sweep lying
 - [Offline Drawer In A Browser](shopos-offline-drawer-in-a-browser.md) — the 'still owed' list was 3/5 stale; the real gap was that none of it had run in a browser; 4 fixes incl. Modal had no role=dialog
+- [Two Doors One Drug](shopos-two-doors-one-drug.md) — FIXED: schedule-controlled medicine left by the PHONE-ORDER door with no prescription while the till refused it; two fences, two columns
+- [Failed Check Is Not A Verdict](shopos-failed-check-is-not-a-verdict.md) — STANDING: my workflow reported 22 UNVERIFIED claims as refuted because a dead agent returns null; three verdicts, never two
