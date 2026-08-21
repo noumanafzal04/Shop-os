@@ -276,7 +276,75 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-21 (latest) — three agents, and a harness that mislabelled its own failure
+### 2026-08-21 (latest) — the estimate that hid the work
+
+Finished the verification lane that died mid-run, this time with three agents
+told to answer **CONFIRMED / REFUTED / COULD_NOT_CHECK** — three verdicts, because
+the previous run's two-value bucketing reported 22 unchecked claims as refuted.
+Eleven confirmed, two refuted, and both refutations were of my own claims.
+
+Full write-up: `docs/decisions/shopos-the-estimate-that-hid-the-work.md`.
+
+**The measurement, which is the part worth reading.** The a11y backlog had been
+recorded as "245 form fields with no accessible name" — a static grep of
+`<Input>` usages without an `id`. Asked in a browser instead, across the fourteen
+screens the layout suite already walks: **34 of 367 visible controls**, of which
+**24 were two buttons in the shared header** counted once per screen. Two
+`aria-label`s took it to 10; three more took it to 0.
+
+245 reads as a migration. 34 reads as an afternoon. The estimate was the only
+thing between them. A count can be precise, auditable and quotable and still be
+taken at the wrong layer — a static count of *code* answering a question about
+*what a cashier hears*.
+
+And the fix was not 465 edits: `<Label>` is rendered 327 times and `htmlFor`
+passed 5 times, so the fields were labelled and *unattached*.
+`src/common/a11y/useFieldName.ts` joins them at runtime and **gives up rather
+than guesses** — two controls under one label, a label already spoken for, a
+label below the field all end with no name, because a field announced as
+"Opening float" that holds the closing count lies to the one person who cannot
+check it. The 27 label-less search boxes take their placeholder as a real
+`aria-label`, stamped `data-name-from-placeholder` and counted **separately** in
+the browser rule, so the second-best category cannot hide behind a green tick.
+
+**The scanner with the bug it was written to find.**
+`docs/qa/unreachable-pages.py` judges a folder by its own API calls, so
+`src/modules/workshop/` — which fetches through `modules/documents`' service —
+produced no endpoints, hit `continue`, and was never judged. Behind it, the bay
+board read `page: 1` of 25 newest-first job cards: a workshop with 26 open jobs
+lost the *oldest* car, the one the board colours amber as overdue, and if the 25
+newest were all `received` the Ready column said "Nothing here." while finished
+cars waited for collection. The board's whole job is answering *"is my car
+ready?"*. It now drains its pages, and the scanner learned a third verdict,
+`drains all`, beside "pages" and "search only".
+
+Ten minutes later, the same reasoning found the combo and recipe pickers: a plain
+`<select>` fed by `useProducts({ page: 1 })` against an endpoint that pages at
+**fifteen**. A restaurant writing a burger recipe could choose from fifteen
+possible ingredients.
+
+**The rest, briefly.**
+
+| | |
+|---|---|
+| "Everyone" excluded a whole role | `all` resolved to owners + customers; `UserRole::Staff` in no branch. "Till offline Sunday 2am" reached every owner and no cashier. `tenants` relabelled "Shop owners" rather than widened, so writing to owners alone survives |
+| An alert with nowhere to go | `$type === 'stock.low'` is an exact test standing in for a family, so both expiry stages shipped `data.link` null — while `NotifyExpiringStock`'s own docblock said it "Links to Disposals". Third comment-as-implementation this month |
+| The panel dropped a link the phone uses | `NotificationDropdown`'s handler only marked read. The resolver now refuses a screen that does not exist and a screen this person may not open |
+| The drawer was right, the headline read zero | `deposits_held` summed layaways; a job-card advance is cash in the till that nothing said was the customer's. `balance_outstanding` split out, or the fix would have broken its neighbour |
+| A car in the bay with 15 days to live | A two-way ternary over three kinds gave job cards `quotation_valid_days`. It printed "Expired on" and joined the chase list. Billing was never affected — that guard was already fenced |
+| Four buckets that swore they added up | Comment said "Mutually exclusive (no double counting)". `suspended` is a status among three date questions; null end dates were in no bucket. Two errors cancelling, so the dashboard stayed plausible. `Tenant::scopePaymentStatus` had it right all along |
+| A ledger that outlived its names | Soft-deleting a shop blanked every payment it ever made, while `DeleteTenantAction` promises history survives for auditing |
+| A switch no keyboard could reach | `Switch.tsx` was a `<label>` with `onClick` — no input, no role, no tabIndex. A shop without a mouse could not take a till lane out of service |
+
+Also: the POS tender selector carried its selection in hue alone; five till modals
+rendered two close buttons in one corner (the shared named one and a hand-rolled
+anonymous one); the dish-modifier sheet was the only till overlay never announced
+as a dialog.
+
+Gates: backend **2140 / 9039**, panel **1042 / 83 files**, browser **91** across
+four viewports, a11y **0 of 367** unnamed. Every fix mutation-tested.
+
+### 2026-08-21 — three agents, and a harness that mislabelled its own failure
 
 Ran three read-only subagents — the pharmacy's paths, accessibility as a class,
 the API areas the sweep has never driven — each claim to be attacked by a

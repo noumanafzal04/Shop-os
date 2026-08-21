@@ -103,6 +103,118 @@ payment-method selector conveying state by colour alone, two of three toggle
 switches, toast politeness, and nine backend claims about announcements,
 billing buckets, deep links and the workshop board.
 
+> **CORRECTED 2026-08-21 — the number above is wrong, and wrongly framed.**
+> 245 came from a static grep of `<Input>` usages without an `id`, which counts
+> code rather than what anybody hears. A browser, over the same fourteen screens
+> the layout suite walks, says **34 of 367 visible controls** — and 24 of those
+> were two buttons in the shared header, counted once per screen. All of it is
+> now closed and measured every run; see the entry at the top of this file.
+>
+> Left standing rather than edited away, because it is the clearest example in
+> here of a count that was auditable, quotable, and taken at the wrong layer —
+> and of how a bad estimate can make an afternoon's work look like a migration
+> for four days. Every lead beside it was verified: eleven confirmed, two
+> refuted.
+
+---
+
+## 2026-08-21 (later) — the estimate that hid the work
+
+The verification lane, re-run properly. Three agents, three verdicts —
+CONFIRMED / REFUTED / **COULD_NOT_CHECK** — because the run that died reported 22
+unchecked claims as refuted, and absence of evidence is not evidence.
+
+**Eleven confirmed. Two refuted, and both were mine.**
+
+### The refutations, so they are not raised again
+
+- **"Announcement re-send has no dedupe."** Wrong on three layers: a
+  per-recipient dedupe key, `unique(user_id, dedupe_key)` on the table, a
+  `QueryException` catch for the concurrent-insert race — and a passing
+  `test_resend_is_idempotent` that sends twice and asserts one row.
+  `recipients_count` is safe too: it only increments where `notify()` returned
+  non-null.
+- **"There is no workshop job preset."** The label is missing; the consequence
+  is not. The whole workshop surface — board, book-in, work-status, billing —
+  sits behind `sales.manage`, which the `cashier` preset carries, and
+  `StaffPresets::for()` offers it to any automotive tenant with POS. No
+  "job offered that isn't doable" violation. What is real is a test gap:
+  `PresetCanDoItsJobTest` has no bay-board case.
+
+### The measurement that was wrong in the expensive direction
+
+The standing backlog line said **245 form fields have no accessible name**. That
+was a static grep — `<Input>` with no `id` — counting code, when the question was
+what a person hears. Asked in a browser across the fourteen screens the layout
+suite already walks:
+
+```
+34 of 367 visible controls unnamed — of which 24 were TWO buttons
+                                     in the shared header, per screen
+```
+
+Two `aria-label`s → 10. Three more → **0**. The estimate had made an afternoon's
+work look like a migration, and it had been sitting there for four days looking
+responsible because it had a number in it.
+
+`e2e/rules.ts` now carries `everythingHasAName`, and `chrome.spec.ts` walks every
+screen with a per-screen budget (all zero) plus a denominator assertion — because
+zero findings on a screen that rendered nothing looks identical to a pass. Seven
+controls named only by their own placeholder are counted and printed
+**separately**; folding them in would have made the total read zero while 27
+fields answered to something nobody chose as a name.
+
+### CONFIRMED and fixed
+
+| what | the shop-floor version |
+|---|---|
+| `all` audience excluded `UserRole::Staff` | "Till offline Sunday 2am" reached every owner and no cashier. There was a bell, and nothing could ever go in it |
+| `stock.expiry.*` had no deep link | Exact test on `stock.low` standing in for a family. `NotifyExpiringStock`'s own docblock had already named Disposals as the destination |
+| The panel discarded `data.link` | Handler only marked read. Mobile has consumed the same field all along, so only the panel ignored it |
+| `deposits_held` excluded job cards | Drawer right, headline zero — the line that says "this cash is not yours" read 0 while a workshop advance sat in the till |
+| Job cards took `quotation_valid_days` | Printed "Expired on" on day 16, joined the lapsed chase list, counted in `summary.overdue`. Billing was never blocked |
+| Billing buckets double-counted suspended shops | Comment claimed mutual exclusivity. Sum was 2 against a tenant count of 1 — and null end dates were in no bucket, so the two errors partly cancelled |
+| Billing ledger lost a closed shop's name | Soft-delete scope on the `belongsTo`, against an action that promises history survives for auditing |
+| The bay board read page one only | 26 open jobs lost the oldest car; a Ready column saying "Nothing here." with cars waiting to be collected |
+| Combo/recipe picker offered 15 items | Products page at fifteen, no search, no pager, nothing saying a catalogue of 400 existed |
+| `Switch.tsx` unreachable by keyboard | `<label>` + `onClick`, no input/role/tabIndex. A mouse-less shop could not take a till lane out of service |
+| Tender selector: state by colour alone | Four buttons a reader announces identically, in front of the step that decides how the sale posts |
+| Two close buttons in one corner | Five till modals rendered the shared named ✕ **and** a hand-rolled anonymous one |
+
+### The scanner that had the bug it hunts
+
+`unreachable-pages.py` judges a folder by its own API calls — right, so that
+`components/ui` is not credited with every list that imports a Button. But
+`src/modules/workshop/` fetches through `modules/documents`' service, so it
+produced no endpoints, hit `continue`, and **had never been judged at all**. It
+now folds in a service a folder imports *and calls*, and knows a third honest
+verdict, `drains all`.
+
+The residual is written into its docstring rather than glossed: the escape hatch
+is credited to a **folder**, not a **list**. Workshop's first-ever verdict was
+"search only" on the strength of a product lookup in the book-in modal — a search
+over a different list. Per-list attribution needs a unit smaller than a folder.
+
+### Gates
+
+```
+backend  2140 / 9039     panel  1042 / 83 files     browser  91 (4 viewports)
+a11y     0 of 367 unnamed (7 named by hint)
+scanner  unreachable-pages: 0 of 27 stuck, --prove passes
+```
+
+Every fix mutation-tested — reverted, red, with a message naming the defect.
+
+### Still open
+
+- Nothing notifies tenant STAFF operationally. `notifyTenantOwners` filters to
+  owners by construction, so a cashier's bell only ever carries a platform
+  announcement. Whether a cashier should hear about low stock is the shop's call,
+  raised rather than decided.
+- `review.*` and `subscription.*` deep-link branches have no producer — a product
+  gap, not dead code.
+- Per-list attribution in `unreachable-pages.py`.
+
 ---
 
 ## 2026-08-21 — two doors, one drug

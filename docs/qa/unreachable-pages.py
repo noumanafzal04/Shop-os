@@ -25,6 +25,19 @@ question — the fault this whole file exists to catch.
 
 So this reads both repositories, like `dead-endpoints.py` next door.
 
+── What it still cannot tell you ───────────────────────────────────────────
+
+The escape hatch is credited to a FOLDER, not to a LIST. A folder that shows
+two paginated lists and puts a search box on one of them reads as covered for
+both. That is how `modules/workshop` came back "search only" the first time it
+was ever judged: the search it was credited for is a product lookup inside the
+book-in modal, and the list actually at risk was the job-card board beside it.
+
+Fixing that properly needs per-list attribution — which call feeds which
+screen — and the folder is the wrong unit for it. Left as a known limit rather
+than papered over, because a scanner whose limits are written down can be
+trusted about the rest.
+
 ── The denominator ─────────────────────────────────────────────────────────
 
 Every count here is printed over its total, and `--prove` breaks the detector
@@ -52,6 +65,11 @@ API_CALL = re.compile(
 
 TURNS_THE_PAGE = re.compile(r"<Pager\b")
 ASKS_BY_NAME = re.compile(r"\bsearch\s*[:=]|placeholder=\"Search")
+# A third honest answer: don't page it, DRAIN it. A working surface — a kanban
+# board, a floor plan — is not a list you browse, and paging one splits its
+# columns arbitrarily. Reading `last_page` inside a loop reaches every row, so
+# it is not stuck; it just gets there a different way.
+DRAINS_EVERY_PAGE = re.compile(r"last_page\b[\s\S]{0,400}?\bfor\s*\(|\bfor\s*\([\s\S]{0,400}?last_page\b")
 
 
 def paginating_routes() -> set[str]:
@@ -132,9 +150,53 @@ def screens() -> list[tuple[str, str, str]]:
     everything = [(f, f.read_text()) for f in (PANEL / "src").rglob("*.tsx")
                   if ".test." not in f.name]
 
+    # ── Every service in the panel, by file name ────────────────────────
+    #
+    # A THIRD case, and the one that hid a real bug for as long as this scanner
+    # has existed. "What it lists" reads a folder's OWN source, which is right
+    # for keeping `components/ui` from being credited with every list that
+    # imports a Button from it — and wrong for a folder that lists through
+    # SOMEBODY ELSE'S service.
+    #
+    # `modules/workshop` is exactly that. The bay board fetches
+    # `documentService.list({ kind: "job_card" })`, and `documentService` lives
+    # in `modules/documents`. So the workshop folder contains no `apiGet` at
+    # all, `lists` came back empty, `continue` fired, and the folder was never
+    # judged — while the credit for `/sale-documents` went to
+    # `modules/documents`, which passes on its search box.
+    #
+    # The board was reading page one of 25 newest-first job cards and bucketing
+    # them into three columns, so a workshop with 26 open jobs lost the oldest
+    # car — the one the board itself colours amber as overdue. A page-two defect,
+    # inside the blind spot of the scanner written to find page-two defects.
+    #
+    # Narrow on purpose, so the `components/ui` lesson is not undone: only files
+    # under a `services/` directory, and only when the folder actually CALLS the
+    # symbol it imported. A Button is not a service and is never called with a
+    # dot after it.
+    services = {f.stem: f.read_text()
+                for f in (PANEL / "src").rglob("services/*.ts")
+                if ".test." not in f.name}
+    borrows = re.compile(r'import\s*\{([^}]*)\}\s*from\s*"[^"]*services/([\w.-]+)"')
+
+    def borrowed(own: str, d: Path) -> str:
+        """Sources of services this folder imports from elsewhere AND calls."""
+        mine = {f.stem for f in d.rglob("services/*.ts")}
+        out = []
+        for symbols, module in borrows.findall(own):
+            if module in mine or module not in services:
+                continue
+            # Called, not merely imported. `documentService.list(` counts;
+            # a type-only import of `SaleDocument` does not.
+            if any(re.search(rf"\b{re.escape(sym.strip())}\s*\.", own)
+                   for sym in symbols.split(",") if sym.strip()):
+                out.append(services[module])
+        return "\n".join(out)
+
     out = []
     for name, d in folders:
         own = body(d)
+        own += "\n" + borrowed(own, d)
         needle = f"/{d.parent.name}/{d.name}/"
         importers = "\n".join(
             src for f, src in everything
@@ -182,8 +244,9 @@ def report(mutate: str | None = None) -> int:
         listed.update(lists)
         pages = bool(TURNS_THE_PAGE.search(reach))
         finds = bool(ASKS_BY_NAME.search(reach))
-        if pages or finds:
-            how = "pages" if pages else "search only"
+        drains = bool(DRAINS_EVERY_PAGE.search(reach))
+        if pages or finds or drains:
+            how = "pages" if pages else "drains all" if drains else "search only"
             print(f"  ok    {name:14} {how:12} {','.join(lists[:3])}")
         else:
             stuck.append((name, lists))

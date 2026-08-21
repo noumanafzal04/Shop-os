@@ -92,3 +92,9 @@
 - [Offline Drawer In A Browser](shopos-offline-drawer-in-a-browser.md) — the 'still owed' list was 3/5 stale; the real gap was that none of it had run in a browser; 4 fixes incl. Modal had no role=dialog
 - [Two Doors One Drug](shopos-two-doors-one-drug.md) — FIXED: schedule-controlled medicine left by the PHONE-ORDER door with no prescription while the till refused it; two fences, two columns
 - [Failed Check Is Not A Verdict](shopos-failed-check-is-not-a-verdict.md) — STANDING: my workflow reported 22 UNVERIFIED claims as refuted because a dead agent returns null; three verdicts, never two
+- [Estimate At Wrong Layer](shopos-estimate-at-wrong-layer.md) — STANDING: "245 unnamed fields" was really 34 (24 of them ONE header pair); a precise count taken at the wrong layer funds the wrong decision
+- [Scanner's Own Blind Spot](shopos-scanner-own-blind-spot.md) — unreachable-pages.py never judged modules/workshop; bay board read page one; combo/recipe picker offered 15 of the catalogue
+- [Label Not Attached](shopos-label-not-attached.md) — 327 <Label> vs 5 htmlFor: labelled and UNATTACHED; runtime fix that gives up rather than guesses; 0 of 367 unnamed
+- [Everyone Minus One Role](shopos-everyone-minus-one-role.md) — "Everyone" excluded UserRole::Staff; the cashier's bell could never be filled; staff still get NO operational notification
+- [Promise In Another File](shopos-promise-in-another-file.md) — STANDING: a comment/label stating a rule implemented nowhere; 4 in one day; a comment reads as DONE
+- [Three Verdicts Paid Off](shopos-three-verdicts-paid-off.md) — 11 confirmed / 2 refuted, both refutations MINE; don't re-raise announcement dedupe or workshop preset
