@@ -129,22 +129,86 @@ A **cover is deliberately not mirrored.** It is a live arrangement only the
 server can start or end; a remembered one would leave a reliever holding
 somebody else's drawer after a reload with no way to hand it back.
 
-## What is still owed
+## What was owed — closed 2026-08-21
 
-2. **Queued open / close / movements**, append-only beside the outbox, same
-   tenant fence, and a close that can never reach the server before the sales
-   that belong inside it.
-3. **A sync endpoint that accepts them**, validated the way `PosSyncController`
-   validates a sale.
-4. **Opening a shift with no server at all.** A client-minted session id has the
-   same collision problem the offline receipt number solves with `OFF-…`, and
-   the same answer is available.
-5. **Hold / recall offline** — still server-only, and still without even a
-   refusal message.
-6. **Z-read stays provisional offline**, as the plan already says.
+**Three of the five were already built and this document did not know it.**
+`shiftQueue.ts`, `offlineShift.ts`, `flushShifts.ts` and
+`PosShiftSyncController` all shipped in the days after it was written, wired
+into `usePos` and `pullNow`, with 13 backend tests green. The list below is what
+was true on the morning of the 21st, checked rather than remembered.
 
-The Help Centre now says what is true rather than what was intended: the shift
-survives a restart, and a shift is still **opened and closed with a connection**.
+> **A "still owed" list is a claim, and a claim goes stale.** Read the code
+> before believing your own notes — twice this week a document has been more
+> pessimistic than the repository.
+
+1. ~~**Queued open / close / movements.**~~ Built. The flush order is the
+   designed part: `open`, then the sales, then `movement` and `close`, so a
+   close can never overtake the sales that belong inside it.
+2. ~~**A sync endpoint that accepts them.**~~ Built — `POST /pos/sync/shifts`.
+3. ~~**Opening a shift with no server at all.**~~ Built. `openShiftOffline`
+   mints a local session shaped exactly like the server's, stamped with
+   `shopNow()` — this device's clock with its measured drift applied, because a
+   tablet three days slow would file a day's takings into a day already banked.
+4. **Hold / recall offline** — was still server-only and still silent. **Now
+   refused in words** (below).
+5. **Z-read provisional offline** — the plan always said it and the till never
+   did. **Now said on the close screen** (below).
+
+## And none of it had ever run in a browser
+
+That is the part that mattered. jsdom reports `navigator.onLine === true` no
+matter what, so every offline unit test in the suite is an online test wearing
+an offline test's name — a distinction that has cost this repo five bugs once
+already. `e2e/offline-shift.spec.ts` drives the whole loop the way a shop does
+after a power cut: reboot with no line, open a drawer, sell, count it out, and
+only then ask the SERVER what it thinks happened.
+
+**It passes on all four viewports** — and finding that out cost four fixes.
+
+### The shared `Modal` had no `role="dialog"`
+
+Every modal in the app was an anonymous div. A screen reader announced nothing
+when one opened; nothing said the page behind was inert; the close button was an
+icon with no accessible name, announced as "button". It also made the app
+untestable by role — **a browser test asking for the dialog it had just opened
+waited five minutes and timed out, which is how this was found.**
+
+### A notice raised in the Cart was invisible on a phone
+
+The till's one way of speaking lived inside the **Products** pane. A phone shows
+one pane at a time, so every notice raised while the cashier was in the Cart —
+the Hold refusal above, anything a cart action says — rendered into a pane they
+were not looking at. Not hidden by a breakpoint, not missing: **somewhere else**,
+which from the counter is the same thing.
+
+Drawn once per layout now, with CSS choosing, and carrying `data-pos-notice` so
+a test can ask for the one actually on screen. Found by the 390-point project
+and by nothing else: on every wider screen both panes are visible at once and
+the strip has always been fine.
+
+### Ten identical boxes, all called "0"
+
+The close-drawer grid is one input per denomination, and every one of them was
+announced as its placeholder. The row is legible only to somebody who can see
+the figure printed to its left — on the screen where a shop counts its own cash.
+Each carries `aria-label="How many 500 notes"` now.
+
+### "No held sales" is a false statement offline
+
+The worse of the two hold bugs. A shop may have ten parked tickets; a cashier
+told there are none rings one again from scratch. The list is the server's — the
+till says that now, rather than answering a question it cannot answer. Pressing
+Hold refuses in words rather than failing in silence, and refuses with words
+rather than a dead button, **because a disabled control on a touch screen tells
+nobody why.**
+
+## Still not built, deliberately
+
+**Holding a ticket offline.** A held ticket is site-wide and claiming one is a
+locked server step precisely so two lanes cannot ring the same basket. Offline,
+two devices could each hold and each claim. That is a design question with money
+in it, not a missing feature, and it is not being answered by accident.
 
 > A capability is not shipped until something a person touches can reach it. The
-> gate in front of this one needed the server it was built to do without.
+> gate in front of this one needed the server it was built to do without — and
+> then, once the gate was gone, nobody had walked through it in a browser.

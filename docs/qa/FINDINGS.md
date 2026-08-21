@@ -10,6 +10,85 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-21 — the offline drawer, driven in a browser
+
+The offline shift gap's "still owed" list named five things. **Three were
+already built and the document did not know it** — `shiftQueue`,
+`offlineShift`, `flushShifts` and `PosShiftSyncController` had all shipped,
+wired into `usePos` and `pullNow`, with 13 backend tests green.
+
+> **A "still owed" list is a claim, and a claim goes stale.**
+
+What was actually missing: **none of it had ever run in a browser.** jsdom
+reports `navigator.onLine === true` no matter what, so every offline unit test
+in the suite is an online test wearing an offline test's name — the distinction
+that cost this repo five bugs the last time it was tried.
+
+`e2e/offline-shift.spec.ts` drives the loop the way a shop does after a power
+cut. **It passes on all four viewports.** Getting there cost four fixes, every
+one in a shared component:
+
+### BUG · the shared `Modal` had no `role="dialog"` — NOW FIXED
+
+Every modal in the app was an anonymous div. Nothing announced when one opened,
+nothing said the page behind was inert, and the close button was an icon
+announced as "button".
+
+It also made the app untestable by role: **a browser test asking for the dialog
+it had just opened waited five minutes and timed out**, which is how this was
+found. `role="dialog"`, `aria-modal="true"`, and a named close button now.
+
+### BUG · a notice raised in the Cart was invisible on a phone — NOW FIXED
+
+The till's one way of speaking lived inside the **Products** pane, and a phone
+shows one pane at a time. So every notice raised while the cashier was in the
+Cart — the Hold refusal below, anything a cart action says — rendered into a
+pane they were not looking at.
+
+Not hidden by a breakpoint and not missing: **somewhere else, which from the
+counter is the same thing.** Drawn once per layout now, with CSS choosing, and
+carrying `data-pos-notice` so a test can ask for the one on screen.
+
+**Found by the 390-point project and by nothing else** — on every wider screen
+both panes are visible at once and the strip has always been fine.
+
+### BUG · ten identical boxes, all announced as "0" — NOW FIXED
+
+The close-drawer denomination grid is one input per note, and every one was
+announced as its placeholder. The row is legible only to somebody who can see
+the figure printed to its left — on the screen where a shop counts its own cash.
+
+### BUG · "No held sales" is a false statement offline — NOW FIXED
+
+The worse of the two hold bugs. A shop may have ten parked tickets; a cashier
+told there are none rings one again from scratch. The list is the server's, and
+the till says so now rather than answering a question it cannot answer.
+
+Pressing Hold used to fail in silence, leaving a cashier looking at a ticket they
+believed was parked. It refuses in words now — **words rather than a dead
+button, because a disabled control on a touch screen tells nobody why.**
+
+### GAP closed · the Z-read says it is provisional
+
+The plan always said the Z is provisional offline and the till never did. The
+close screen now says it, naming how many sales are still on the device.
+
+### Not built, deliberately · holding a ticket offline
+
+A held ticket is site-wide and claiming one is a **locked server step**, so two
+lanes cannot ring the same basket. Offline, two devices could each hold and each
+claim. That is a design question with money in it, not a missing feature.
+
+### And the Help Centre had promised the opposite
+
+*"You can still park a basket and pick it up again, but only on this till."*
+Never true — nothing is parked offline at all. Corrected, along with the two
+things that ARE now true: a drawer can be opened and counted out with no line.
+
+Browser suite **83 → 87**.
+
+---
+
 ## 2026-08-21 — the type made entirely of money screens, never driven
 
 The per-type table below turned up one real gap, and this closes it.

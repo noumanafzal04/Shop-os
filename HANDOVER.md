@@ -276,7 +276,63 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-21 (latest) — the type made entirely of money screens
+### 2026-08-21 (latest) — the offline drawer, driven in a browser
+
+The "still owed" list on the offline shift gap named five things. **Three were
+already built and the document did not know it** — `shiftQueue`, `offlineShift`,
+`flushShifts` and `PosShiftSyncController` had all shipped, wired into `usePos`
+and `pullNow`, with 13 backend tests green.
+
+> **A "still owed" list is a claim, and a claim goes stale.** Read the code
+> before believing your own notes; twice this week a document has been more
+> pessimistic than the repository.
+
+What was actually missing was that **none of it had ever run in a browser**.
+jsdom reports `navigator.onLine === true` no matter what, so every offline unit
+test in the suite is an online test wearing an offline test's name — the
+distinction that cost this repo five bugs the last time it was tried.
+
+`e2e/offline-shift.spec.ts` drives the loop the way a shop does after a power
+cut: reboot with no line, open a drawer, sell, count it out, and only then ask
+the SERVER what it thinks happened. **Passes on all four viewports.** Getting
+there cost four fixes:
+
+- **The shared `Modal` had no `role="dialog"`.** Every modal in the app was an
+  anonymous div — nothing announced when one opened, nothing said the page
+  behind was inert, and the close button was an icon announced as "button". It
+  also made the app untestable by role: a browser test asking for the dialog it
+  had just opened waited five minutes and timed out, which is how this was
+  found.
+- **A notice raised in the Cart was invisible on a phone.** The till's one way
+  of speaking lived inside the PRODUCTS pane, and a phone shows one pane at a
+  time. Not hidden by a breakpoint, not missing — *somewhere else*, which from
+  the counter is the same thing. Drawn once per layout now, carrying
+  `data-pos-notice`. Found by the 390-point project and by nothing else.
+- **Ten identical boxes, all announced as "0"** — the close-drawer denomination
+  grid, on the screen where a shop counts its own cash. Labelled now.
+- **"No held sales" is a false statement offline.** A shop may have ten parked
+  tickets; a cashier told there are none rings one again from scratch. Holding
+  is server-only by design (the list is site-wide and claiming is a locked step
+  so two lanes cannot ring the same basket) — so the till now REFUSES in words
+  and the list says it cannot be read, rather than pretending to be empty.
+  Refused with words rather than a dead button: *a disabled control on a touch
+  screen tells nobody why.*
+
+Also: the **Z-read is provisional offline** — the plan always said so and the
+till never did. The close screen now says it, naming how many sales are still on
+the device.
+
+**Still not built, deliberately:** holding a ticket offline. Two devices could
+each hold and each claim the same basket. That is a design question with money
+in it, not a missing feature.
+
+The Help Centre was corrected: it had promised *"you can still park a basket…
+but only on this till"*, which was never true.
+
+Browser suite **83 → 87**. Panel 1022 + build clean. The four fixes are all in
+shared components, so they land on every modal and every notice in the app.
+
+### 2026-08-21 — the type made entirely of money screens
 
 The per-type coverage table turned up one real gap, and this closes it.
 
