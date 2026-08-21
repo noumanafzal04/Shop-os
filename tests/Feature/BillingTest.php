@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TenantStatus;
 use App\Models\Plan;
 use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
@@ -137,6 +138,82 @@ class BillingTest extends TestCase
         $this->assertSame(1, $summary['subscriptions']['expiring_soon']);
         $this->assertSame(1, $summary['subscriptions']['expired']);
         $this->assertCount(1, $summary['recent_payments']);
+    }
+
+    /**
+     * THE DENOMINATOR. Four buckets, one platform, and they have to agree.
+     *
+     * The old test created three tenants in three date states and asserted
+     * 1/1/1. It could not have failed, because it never made a shop that was in
+     * two buckets at once and never made one that was in none — and both were
+     * possible. `suspended` was a status question sitting among three date
+     * questions, and a null end date fell out of the count entirely.
+     *
+     * So this stops checking individual figures and checks the property that
+     * makes a set of buckets mean anything: every shop is in exactly one.
+     */
+    public function test_the_subscription_buckets_account_for_every_shop_exactly_once(): void
+    {
+        Tenant::factory()->create(['subscription_ends_at' => now()->addMonth()]);
+        Tenant::factory()->create(['subscription_ends_at' => now()->addDays(3)]);
+        Tenant::factory()->create(['subscription_ends_at' => now()->subDay()]);
+        // Never given an end date. Owes nothing, and used to be in no bucket.
+        Tenant::factory()->create(['subscription_ends_at' => null]);
+        // The one that was counted twice: suspended, with a live date still on
+        // it, because suspending a shop does not clear its subscription.
+        Tenant::factory()->create([
+            'status' => TenantStatus::Suspended,
+            'subscription_ends_at' => now()->addMonth(),
+        ]);
+
+        $buckets = $this->asAdmin()->getJson('/api/v1/admin/billing/summary')
+            ->assertOk()
+            ->json('data.subscriptions');
+
+        $this->assertSame(
+            Tenant::query()->count(),
+            array_sum($buckets),
+            'the buckets do not add up to the number of shops: '.json_encode($buckets),
+        );
+
+        // And the suspended shop is in the SUSPENDED one, not merely in one of
+        // them — a partition can be arithmetically right and still say the
+        // wrong thing about a particular shop.
+        $this->assertSame(1, $buckets['suspended']);
+        $this->assertSame(2, $buckets['active'], 'the live-date shop and the no-date shop');
+    }
+
+    /**
+     * A closed shop's payments still say whose they were.
+     *
+     * DeleteTenantAction soft-deletes and promises that "reports, invoices and
+     * history survive for auditing". They did survive — with the name stripped
+     * off, because the `belongsTo` carried the soft-delete scope. Every payment
+     * the shop had ever made rendered as a blank cell, and the only moment
+     * anybody reads this ledger is after the shop has gone.
+     */
+    public function test_a_closed_shops_payments_still_name_the_shop(): void
+    {
+        $tenant = Tenant::factory()->create(['business_name' => 'Closed Down Traders']);
+        SubscriptionPayment::query()->create([
+            'tenant_id' => $tenant->id, 'plan_name' => 'Premium', 'amount' => 5000,
+            'period_start' => now()->toDateString(), 'period_end' => now()->addMonth()->toDateString(),
+            'paid_at' => now(),
+        ]);
+
+        $tenant->delete();
+
+        $row = $this->asAdmin()->getJson('/api/v1/admin/billing/payments')
+            ->assertOk()
+            ->json('data.0');
+
+        $this->assertSame('Closed Down Traders', $row['tenant']['business_name']);
+        $this->assertSame($tenant->id, $row['tenant']['id']);
+
+        $this->assertSame(
+            'Closed Down Traders',
+            $this->asAdmin()->getJson('/api/v1/admin/billing/summary')->json('data.recent_payments.0.tenant'),
+        );
     }
 
     public function test_payments_list_and_tenant_filter(): void

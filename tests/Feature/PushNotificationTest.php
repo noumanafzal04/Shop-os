@@ -75,6 +75,54 @@ class PushNotificationTest extends TestCase
         $this->assertNull(DeepLinks::routeFor('something.else', []));
     }
 
+    /**
+     * EVERY type this system emits gets asked the question.
+     *
+     * The old test named four types and passed. It could not have failed for the
+     * two expiry alerts, because it did not know they existed — a check with no
+     * denominator, green against a real gap for as long as the gap existed.
+     *
+     * So this drives the list from the emitters instead. Add a producer without
+     * a destination and this is what says so.
+     */
+    public function test_every_notification_type_this_app_emits_resolves_to_a_screen(): void
+    {
+        $emitted = [
+            'announcement' => ['announcement_id' => 'a1'],
+            'order.placed' => ['order_id' => 'o1'],
+            'order.confirmed' => ['order_id' => 'o1'],
+            'order.rider_assigned' => ['order_id' => 'o1'],
+            'order.cancelled' => ['order_id' => 'o1'],
+            'order.completed' => ['order_id' => 'o1'],
+            'reservation.created' => ['reservation_id' => 'r1'],
+            'reservation.accepted' => ['reservation_id' => 'r1'],
+            'reservation.rejected' => ['reservation_id' => 'r1'],
+            'stock.low' => ['product_id' => 'p1'],
+            'stock.expiry.approaching' => ['batch_id' => 'b1'],
+            'stock.expiry.expired' => ['batch_id' => 'b1'],
+        ];
+
+        $homeless = [];
+        foreach ($emitted as $type => $data) {
+            if (DeepLinks::routeFor($type, $data) === null) {
+                $homeless[] = $type;
+            }
+        }
+
+        $this->assertSame([], $homeless, 'these notification types are sent with nowhere to go: '.implode(', ', $homeless));
+    }
+
+    /** Both expiry stages land on Disposals, which is what raises them says. */
+    public function test_an_expiring_lot_links_to_disposals(): void
+    {
+        $this->assertSame('disposals', DeepLinks::routeFor('stock.expiry.expired', ['batch_id' => 'b1']));
+        $this->assertSame('disposals', DeepLinks::routeFor('stock.expiry.approaching', ['batch_id' => 'b1']));
+
+        // And the neighbour it used to be confused with keeps its own screen:
+        // low stock is a reorder decision, not a disposal one.
+        $this->assertSame('inventory', DeepLinks::routeFor('stock.low', ['product_id' => 'p1']));
+    }
+
     public function test_notification_stores_deep_link_in_data(): void
     {
         $user = User::factory()->create();

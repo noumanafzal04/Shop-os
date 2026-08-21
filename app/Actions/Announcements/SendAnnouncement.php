@@ -64,10 +64,32 @@ class SendAnnouncement
      */
     private function recipients(string $audience): Builder
     {
+        /**
+         * "Everyone" has to mean everyone.
+         *
+         * `all` is labelled **"Everyone"** on the admin's own dropdown, and it
+         * resolved to owners and customers — leaving out `Staff` entirely. So
+         * "Scheduled maintenance Sunday 2am, the till will be offline" reached
+         * every shop OWNER and not one of the cashiers who would be standing at
+         * that till on Sunday. The people the message is actually about were the
+         * only role it could not reach.
+         *
+         * Staff are addressable, which is what makes this a bug rather than a
+         * missing feature: `/notifications` is behind no role gate, and the bell
+         * renders for every signed-in role. There was a bell, and nothing could
+         * ever be put in it.
+         *
+         * `tenants` is deliberately LEFT as owners-only. It is labelled "Shop
+         * owners" (it used to say "All shops", which was the same class of lie
+         * this fixes), and keeping it narrow is what preserves the admin's
+         * ability to write to owners alone — billing, plan changes, anything a
+         * cashier has no part in. Widening both would have fixed one label by
+         * removing a capability.
+         */
         $roles = match ($audience) {
             'customers' => [UserRole::Customer],
-            'all' => [UserRole::ShopOwner, UserRole::Customer],
-            default => [UserRole::ShopOwner], // tenants
+            'all' => [UserRole::ShopOwner, UserRole::Staff, UserRole::Customer],
+            default => [UserRole::ShopOwner], // tenants — owners only, on purpose
         };
 
         return User::query()->whereIn('role', $roles);

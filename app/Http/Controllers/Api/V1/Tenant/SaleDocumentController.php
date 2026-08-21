@@ -94,8 +94,27 @@ class SaleDocumentController extends Controller
         $open = SaleDocument::query()->where('status', SaleDocument::STATUS_OPEN);
 
         $layaways = (clone $open)->where('kind', SaleDocument::KIND_LAYAWAY);
-        $held = round((float) (clone $layaways)->sum('deposit_paid'), 2);
         $committed = round((float) (clone $layaways)->sum('total'), 2);
+        $layawayDeposits = round((float) (clone $layaways)->sum('deposit_paid'), 2);
+
+        /**
+         * TWO kinds can hold a customer's money, and this counted one.
+         *
+         * RecordDepositAction admits a layaway and a job card and refuses only a
+         * quotation — so a workshop taking Rs 2,000 up front against a gearbox
+         * job is doing something the API explicitly supports. The summary then
+         * reported `deposits_held` from layaways alone.
+         *
+         * The direction of the error is what makes it worth fixing carefully:
+         * the DRAWER was always right, because RecordDepositAction writes a
+         * `deposit_in` cash movement whatever the kind. So the till reconciled,
+         * the cash was really there, and the line that exists to tell the shop
+         * "this money in your drawer is not yours" read zero. A shop that trusts
+         * that line banks a customer's advance as its own takings.
+         */
+        $held = round((float) (clone $open)
+            ->whereIn('kind', [SaleDocument::KIND_LAYAWAY, SaleDocument::KIND_JOB_CARD])
+            ->sum('deposit_paid'), 2);
 
         return ApiResponse::ok([
             'open_quotations' => (int) (clone $open)->where('kind', SaleDocument::KIND_QUOTATION)->count(),
@@ -106,7 +125,13 @@ class SaleDocumentController extends Controller
             // What those goods are worth in total, and therefore what is still
             // to be collected.
             'layaway_value' => $committed,
-            'balance_outstanding' => round($committed - $held, 2),
+            // Layaway deposits, NOT $held. These three numbers are one
+            // sentence about the back room — value, paid, still to collect —
+            // and mixing a workshop advance into the last of them would make
+            // the arithmetic stop closing. Widening $held above without
+            // splitting this out is exactly how a correct fix breaks a
+            // neighbouring figure.
+            'balance_outstanding' => round($committed - $layawayDeposits, 2),
             'overdue' => (int) (clone $open)
                 ->whereNotNull('expires_at')
                 ->whereDate('expires_at', '<', today())

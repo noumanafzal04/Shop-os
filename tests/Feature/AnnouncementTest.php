@@ -80,6 +80,70 @@ class AnnouncementTest extends TestCase
         $this->assertSame(1, AppNotification::query()->where('type', 'announcement')->count());
     }
 
+    /**
+     * "Everyone" reaches the cashier, because the cashier is somebody.
+     *
+     * The message this exists for is the one about the till: maintenance, an
+     * outage, a change to how a sale is rung. It is addressed to the person
+     * holding the tablet, and that person is the one role the fan-out used to
+     * skip.
+     */
+    public function test_everyone_reaches_staff_and_not_only_owners(): void
+    {
+        Queue::fake();
+
+        $shop = Tenant::factory()->create();
+        $owner = User::factory()->shopOwner($shop)->create();
+        $cashier = User::factory()->tenantStaff($shop)->create();
+        $customer = User::factory()->create();
+
+        $announcement = Announcement::query()->create([
+            'title' => 'Maintenance Sunday',
+            'body' => 'The till will be offline from 2am.',
+            'audience' => 'all',
+        ]);
+
+        $this->asAdmin()->postJson("/api/v1/admin/announcements/{$announcement->id}/send")->assertOk();
+
+        foreach ([$owner, $cashier, $customer] as $person) {
+            $this->assertDatabaseHas('app_notifications', [
+                'user_id' => $person->id,
+                'type' => 'announcement',
+            ]);
+        }
+
+        // Three people, three notifications — the count the admin is shown has
+        // to agree with the fan-out, or "Everyone" is still not everyone.
+        $this->assertSame(3, $announcement->fresh()->recipients_count);
+    }
+
+    /**
+     * And "Shop owners" still means only the owners.
+     *
+     * This test exists to protect a DECISION rather than to catch a mistake.
+     * Widening `all` was the fix; widening `tenants` alongside it would have
+     * quietly removed the admin's only way to write to owners without writing
+     * to every cashier in the country. If somebody later "makes the audiences
+     * consistent", this is the check that asks them to mean it.
+     */
+    public function test_shop_owners_audience_deliberately_excludes_staff(): void
+    {
+        Queue::fake();
+
+        $shop = Tenant::factory()->create();
+        $owner = User::factory()->shopOwner($shop)->create();
+        $cashier = User::factory()->tenantStaff($shop)->create();
+
+        $announcement = Announcement::query()->create([
+            'title' => 'Your invoice', 'body' => 'Due Friday.', 'audience' => 'tenants',
+        ]);
+
+        $this->asAdmin()->postJson("/api/v1/admin/announcements/{$announcement->id}/send")->assertOk();
+
+        $this->assertDatabaseHas('app_notifications', ['user_id' => $owner->id, 'type' => 'announcement']);
+        $this->assertDatabaseMissing('app_notifications', ['user_id' => $cashier->id, 'type' => 'announcement']);
+    }
+
     public function test_non_admin_cannot_manage_announcements(): void
     {
         $shop = Tenant::factory()->create();

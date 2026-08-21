@@ -22,9 +22,23 @@ class SubscriptionPayment extends Model
         ];
     }
 
+    /**
+     * `withTrashed`, because a closed shop still paid these invoices.
+     *
+     * Tenant soft-deletes (BaseModel applies SoftDeletes), and DeleteTenantAction
+     * promises in as many words that "reports, invoices and history survive for
+     * auditing". They survived — anonymously. The default `belongsTo` carries the
+     * soft-delete scope, so the moment a shop was closed every payment it had
+     * ever made rendered with a BLANK name in the platform's ledger: the rows
+     * were all still there, and nothing on them said whose they were.
+     *
+     * That is the worst version of keeping a record. A ledger you cannot read is
+     * not an audit trail, and the one time anybody goes looking is after the
+     * shop is gone.
+     */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(Tenant::class);
+        return $this->belongsTo(Tenant::class)->withTrashed();
     }
 
     public function plan(): BelongsTo

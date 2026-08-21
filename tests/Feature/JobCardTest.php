@@ -147,6 +147,68 @@ class JobCardTest extends TestCase
         $this->assertSame(84000, $doc['odometer_in']);
     }
 
+    /**
+     * The advance shows up as money the shop is HOLDING.
+     *
+     * The deposit door worked, the drawer was right, and the counter's summary
+     * still read zero: `deposits_held` summed layaways only, so a workshop
+     * advance was cash in the till that nothing identified as the customer's.
+     * A shop reading that line and banking the day's takings banks somebody
+     * else's money.
+     */
+    public function test_a_workshop_advance_counts_as_money_the_shop_is_holding(): void
+    {
+        $id = $this->open()->assertCreated()->json('data.id');
+
+        $this->actingAsUser($this->cashier)
+            ->postJson("/api/v1/sale-documents/{$id}/deposits", ['amount' => 2000, 'method' => 'cash'])
+            ->assertCreated();
+
+        $summary = $this->actingAsUser($this->cashier)
+            ->getJson('/api/v1/sale-documents/summary')->assertOk()->json('data');
+
+        $this->assertEquals(2000, $summary['deposits_held']);
+
+        // And it has NOT leaked into the layaway arithmetic, which is a separate
+        // sentence about the back room: value, paid, still to collect. Widening
+        // the first figure without splitting the third is how this fix would
+        // have broken the neighbour it was meant to leave alone.
+        $this->assertEquals(0, $summary['layaway_value']);
+        $this->assertEquals(0, $summary['balance_outstanding']);
+    }
+
+    /**
+     * A CAR IN THE BAY DOES NOT EXPIRE.
+     *
+     * `expires_at` was defaulted by a two-way ternary over three kinds, so a job
+     * card took `quotation_valid_days` — a setting the shop is told governs "how
+     * long a quoted price is honoured". Fifteen days after booking a gearbox
+     * rebuild in, the job card printed "Expired on", joined the lapsed-document
+     * chase list, and counted towards `overdue` on the counter's summary.
+     */
+    public function test_a_job_card_is_not_given_an_expiry_it_was_never_offered(): void
+    {
+        $doc = $this->open()->assertCreated()->json('data');
+
+        $this->assertNull($doc['expires_at'], 'a job card was stamped with a quotation window');
+
+        // The consequence, not just the field: nothing about a car in the bay
+        // should reach a list of things that have gone stale.
+        $summary = $this->actingAsUser($this->cashier)
+            ->getJson('/api/v1/sale-documents/summary')->assertOk()->json('data');
+        $this->assertSame(0, $summary['overdue']);
+    }
+
+    /** A date somebody TYPED is still honoured — this removes a guess, not a feature. */
+    public function test_an_explicit_date_on_a_job_card_is_kept(): void
+    {
+        $asked = now()->addDays(3)->toDateString();
+
+        $doc = $this->open(['expires_at' => $asked])->assertCreated()->json('data');
+
+        $this->assertStringStartsWith($asked, (string) $doc['expires_at']);
+    }
+
     public function test_a_job_card_is_numbered_as_one(): void
     {
         // JOB-, not QUO-. A workshop hands this number over the counter and

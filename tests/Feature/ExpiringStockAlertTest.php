@@ -92,6 +92,39 @@ class ExpiringStockAlertTest extends TestCase
             ->get();
     }
 
+    /**
+     * The alert arrives KNOWING where it is sending the chemist.
+     *
+     * This class's own docblock has always said the expired alert "Links to
+     * Disposals". It did not: `DeepLinks` tested `stock.low` for exact equality,
+     * so both expiry types fell through to null and the whole point of the
+     * alert — routing somebody to the screen that records where the stock went —
+     * was the one thing it could not do. Tapping the push opened the app to
+     * whatever screen it was already on.
+     *
+     * Asserted here, on the real sweep, rather than only against the mapping in
+     * isolation: the link is stamped on the way through `NotificationService`,
+     * and a mapping that is right while the plumbing drops it is no better.
+     */
+    public function test_an_alert_carries_the_screen_it_wants_opened(): void
+    {
+        $this->lot('B1', 40);
+        $this->lot('B2', -5); // already past its date
+
+        $this->sweep();
+
+        $alerts = $this->alerts();
+        $this->assertCount(2, $alerts, 'expected one approaching and one expired alert');
+
+        foreach ($alerts as $alert) {
+            $this->assertSame(
+                'disposals',
+                $alert->data['link'] ?? null,
+                "the {$alert->type} alert was raised with nowhere to go",
+            );
+        }
+    }
+
     public function test_a_lot_inside_the_window_is_reported(): void
     {
         $this->lot('B1', 40);

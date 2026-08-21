@@ -278,9 +278,36 @@ class CreateSaleDocumentAction
             SaleDocument::PREFIXES[$kind],
         );
 
-        $defaultDays = $isLayaway
-            ? (int) ($tenant?->setting('layaway_days', 30) ?? 30)
-            : (int) ($tenant?->setting('quotation_valid_days', 15) ?? 15);
+        /**
+         * Three kinds, and this was a two-way ternary.
+         *
+         * `$isLayaway ? layaway_days : quotation_valid_days` reads as if there
+         * were only two sorts of document, so a JOB CARD fell into the else and
+         * took the QUOTATION's window — 15 days by default, from a setting
+         * described to the shop as "how long a quoted price is honoured".
+         *
+         * What that did to a workshop: a car booked into the bay was stamped
+         * with an expiry it was never given, and on day 16 it started printing
+         * "Expired on", appearing in the shop's lapsed-document chase list, and
+         * counting towards the `overdue` figure on the counter's own summary. A
+         * car in for a gearbox rebuild is not a stale price.
+         *
+         * A job card has no clock of its own, so it gets none. Deliberately not
+         * a new `job_card_days` setting: nobody asked for a job to expire, and
+         * the honest default for a window nobody defined is no window. A shop
+         * that wants a date can still pass `expires_at` explicitly — an answer
+         * somebody gave beats one this code invented.
+         *
+         * The one thing this does NOT change is whether the job can be billed.
+         * That guard was already right: ConvertSaleDocumentAction only refuses a
+         * lapsed QUOTATION, so an "expired" job card always converted. The
+         * damage was to what the shop was told, not to what it could do.
+         */
+        $defaultDays = match ($kind) {
+            SaleDocument::KIND_LAYAWAY => (int) ($tenant?->setting('layaway_days', 30) ?? 30),
+            SaleDocument::KIND_QUOTATION => (int) ($tenant?->setting('quotation_valid_days', 15) ?? 15),
+            default => 0,
+        };
 
         $expiresAt = array_key_exists('expires_at', $data) && $data['expires_at'] !== null
             ? $data['expires_at']
