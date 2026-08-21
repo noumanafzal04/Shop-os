@@ -1435,7 +1435,7 @@ export default function PosPage() {
       data-pos-notice
       className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
       <span className="flex items-center gap-1.5"><AlertIcon className="h-4 w-4 shrink-0" /> {posNotice}</span>
-      <button className={INLINE_DISMISS} onClick={() => setPosNotice(null)}><CloseIcon className="h-4 w-4" /></button>
+      <button aria-label="Dismiss this message" className={INLINE_DISMISS} onClick={() => setPosNotice(null)}><CloseIcon className="h-4 w-4" /></button>
     </div>
   );
 
@@ -3098,7 +3098,7 @@ export default function PosPage() {
             {couponCode ? (
               <div className="flex items-center justify-between rounded-lg bg-success-50 px-3 py-2 text-theme-sm text-success-700 dark:bg-success-500/10">
                 <span>{couponCode} · −{money(couponDiscount)}</span>
-                <button className={INLINE_DISMISS} onClick={clearCoupon}><CloseIcon className="h-4 w-4" /></button>
+                <button aria-label="Remove this coupon" className={INLINE_DISMISS} onClick={clearCoupon}><CloseIcon className="h-4 w-4" /></button>
               </div>
             ) : (
               <div className="flex gap-2">
@@ -3130,11 +3130,11 @@ export default function PosPage() {
        * the height the page would have if the address bar were hidden, and it
        * isn't; that unit has already cost this codebase the Appearance canvas's
        * Save button once. `-2rem` is the wrapper's own p-4. */}
-      <Modal isOpen={tenderModal.isOpen} onClose={tenderModal.closeModal} className="max-w-lg p-0">
+      <Modal isOpen={tenderModal.isOpen} onClose={tenderModal.closeModal} showCloseButton={false} className="max-w-lg p-0">
         <div className="flex max-h-[calc(100dvh-2rem)] flex-col" onKeyDown={(e) => { if (e.key === "Enter" && canCheckout && !checkout.isPending) { e.preventDefault(); checkout.mutate(); } }}>
           <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Tender / Pay</h3>
-            <button onClick={tenderModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
+            <button aria-label="Close" onClick={tenderModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="mb-5 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10">
@@ -3260,10 +3260,21 @@ export default function PosPage() {
               value={servedBy}
               onChange={setServedBy}
             />
-            <div className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Payment method</div>
-            <div className="mb-5 grid grid-cols-4 gap-2">
+            {/* WHICH TENDER IS SELECTED, SAID OUT LOUD.
+                Selection was carried by hue alone — same border width, same
+                icon, no state on the control. Four buttons that a reader
+                announces identically, in front of the step that decides how the
+                sale posts. `aria-pressed` names the state; `role=group` with a
+                label ties the four together so they are heard as one question
+                rather than four unrelated buttons. Colour still does the work
+                for everyone else, it is just no longer doing it alone —
+                including in high-contrast mode, where author backgrounds are
+                dropped and the selection used to vanish for sighted users too. */}
+            <div id="tender-method-label" className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Payment method</div>
+            <div role="group" aria-labelledby="tender-method-label" className="mb-5 grid grid-cols-4 gap-2">
               {(["cash", "card", "credit", "split"] as const).map((m) => (
                 <button key={m} type="button" onClick={() => setMethod(m)}
+                  aria-pressed={method === m}
                   className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-theme-sm font-medium transition ${method === m ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
                   <MethodIcon m={m} />
                   {m === "credit" ? "Khata" : m === "split" ? "Split" : m === "card" ? "Card" : "Cash"}
@@ -3649,10 +3660,20 @@ export default function PosPage() {
       {/* Modifier configurator */}
       {cfg && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 p-4" onClick={() => setCfg(null)}>
-          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 dark:bg-gray-900" onClick={(e) => e.stopPropagation()}>
+          {/* Hand-rolled rather than the shared Modal, so it never got that
+              component's `role="dialog"` — the one overlay in the till that a
+              reader was not told had opened. Named from the dish, which is the
+              only thing that makes "choose your options" mean anything. */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Options for ${cfg.name}`}
+            className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 dark:bg-gray-900"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="mb-3 flex items-start justify-between">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{cfg.name}</h3>
-              <button onClick={() => setCfg(null)} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
+              <button aria-label="Close" onClick={() => setCfg(null)} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
             </div>
             {(cfg.modifier_groups ?? []).map((g) => {
               const sel = cfgSel[g.id!] ?? [];
@@ -3692,7 +3713,7 @@ export default function PosPage() {
       )}
 
       {/* Per-line edit — price level, sale unit, discount (server prices the sale) */}
-      <Modal isOpen={lineEditModal.isOpen} onClose={lineEditModal.closeModal} className="max-w-lg p-6">
+      <Modal isOpen={lineEditModal.isOpen} onClose={lineEditModal.closeModal} showCloseButton={false} className="max-w-lg p-6">
         {(() => {
           const l = editKey ? cart.find((x) => x.key === editKey) : null;
           if (!l) return null;
@@ -3702,7 +3723,7 @@ export default function PosPage() {
             <>
               <div className="mb-5 flex items-start justify-between">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{l.name}</h3>
-                <button onClick={lineEditModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
+                <button aria-label="Close" onClick={lineEditModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {/* Product price — server-set; the level dropdown changes it */}
@@ -3803,7 +3824,7 @@ export default function PosPage() {
       </Modal>
 
       {/* Serial / IMEI capture — one serial per unit + optional warranty override. */}
-      <Modal isOpen={serialModal.isOpen} onClose={serialModal.closeModal} className="max-w-md p-6">
+      <Modal isOpen={serialModal.isOpen} onClose={serialModal.closeModal} showCloseButton={false} className="max-w-md p-6">
         {(() => {
           const l = serialKey ? cart.find((x) => x.key === serialKey) : null;
           if (!l) return null;
@@ -3812,7 +3833,7 @@ export default function PosPage() {
             <>
               <div className="mb-1 flex items-start justify-between">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Serial / IMEI</h3>
-                <button onClick={serialModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
+                <button aria-label="Close" onClick={serialModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
               </div>
               <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">{l.name} — one serial per unit ({units}).</p>
               <div className="space-y-2">
@@ -3873,10 +3894,10 @@ export default function PosPage() {
       </Modal>
 
       {/* Customer — optional; blank = walk-in. Phone links the CRM record. */}
-      <Modal isOpen={customerModal.isOpen} onClose={customerModal.closeModal} className="max-w-sm p-6">
+      <Modal isOpen={customerModal.isOpen} onClose={customerModal.closeModal} showCloseButton={false} className="max-w-sm p-6">
         <div className="mb-4 flex items-start justify-between">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Customer</h3>
-          <button onClick={customerModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
+          <button aria-label="Close" onClick={customerModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
         </div>
         <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Leave blank for a walk-in sale. Add a name or phone only if the customer wants it on record.</p>
         <div className="space-y-3">

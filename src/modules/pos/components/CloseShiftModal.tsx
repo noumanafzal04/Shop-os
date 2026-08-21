@@ -162,8 +162,9 @@ export default function CloseShiftModal({
         </div>
       ) : (
         <div>
-          <label className="text-sm text-gray-500 dark:text-gray-400">Counted cash</label>
+          <label className="text-sm text-gray-500 dark:text-gray-400" htmlFor="counted-cash">Counted cash</label>
           <input
+            id="counted-cash"
             type="number"
             min="0"
             className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90"
@@ -206,8 +207,14 @@ export default function CloseShiftModal({
           <div className="grid grid-cols-3 gap-2">
             {DECLARABLE.map((t) => (
               <div key={t.key}>
-                <label className="text-theme-xs text-gray-500 dark:text-gray-400">{t.label}</label>
+                <label className="text-theme-xs text-gray-500 dark:text-gray-400" htmlFor={`declared-${t.key}`}>{t.label}</label>
                 <input
+                  id={`declared-${t.key}`}
+                  // Three boxes in a row, and the label above each was a
+                  // dangling sibling. A cashier using a reader heard "edit text,
+                  // blank" three times and declared the card machine's takings
+                  // into whichever one they guessed — and a wrong declaration is
+                  // a variance somebody gets asked about.
                   inputMode="decimal"
                   className="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-right text-sm tabular-nums text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                   value={declared[t.key] ?? ""}
@@ -222,6 +229,9 @@ export default function CloseShiftModal({
 
       <input
         className="mt-4 h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90"
+        // Its only name was the placeholder, which is the one thing that
+        // disappears as soon as somebody starts typing into it.
+        aria-label="Notes explaining any difference"
         placeholder="Notes (optional) — anything that explains a difference"
         value={notes}
         onChange={(e) => setNotes(e.target.value)}

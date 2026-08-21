@@ -665,6 +665,139 @@ export async function scrollersCanReachTheirEnd(
   });
 }
 
+/**
+ * EVERY CONTROL ON SCREEN CAN BE CALLED BY NAME.
+ *
+ * A field with no accessible name is announced as "edit text, blank". The label
+ * is usually right there on the glass — this app renders `<Label>` 327 times —
+ * but a label is only a name once something joins the two, and 322 of those
+ * were joined to nothing. So a cashier using a screen reader met a shift-count
+ * dialog of four anonymous boxes, in front of the step where a wrong figure
+ * becomes a variance somebody gets asked about.
+ *
+ * Why this rule lives in the BROWSER and not in jsdom, which is where the rest
+ * of the naming tests are: the name is COMPUTED. `aria-labelledby` chases ids
+ * across the document, a wrapping label contributes its text, `title` is a
+ * last resort — and whether a control is on screen at all depends on layout,
+ * which jsdom has none of. jsdom can prove the mechanism works on markup it was
+ * handed. Only a browser can count the controls a shop is actually looking at.
+ *
+ * `placeholder` is deliberately NOT a name here, matching
+ * `src/common/a11y/useFieldName.ts`: it disappears the moment somebody types,
+ * so the field being filled in is exactly the field that has stopped saying
+ * what it is. Reporting it as named would make the count agree with axe's
+ * laxer check and disagree with the shop.
+ *
+ * What it implements is the practical subset of accname this app can produce —
+ * aria-label, aria-labelledby, label[for], a wrapping label, title, and a
+ * button's own text. Not the full specification: `aria-describedby` fallbacks,
+ * `<fieldset><legend>` inheritance and slot-assigned text are not modelled.
+ * Written down because a scanner whose limits are stated can be trusted about
+ * the rest.
+ */
+export async function everythingHasAName(
+  page: Page,
+): Promise<{ findings: Finding[]; examined: number; hinted: number }> {
+  const result = await page.evaluate(() => {
+    const NAMEABLE = 'input:not([type="hidden"]), select, textarea, button, [role="switch"], [role="button"], [role="combobox"], [role="checkbox"], [role="radio"]';
+
+    const text = (el: Element): string => (el.textContent ?? "").replace(/\s+/g, " ").trim();
+
+    const nameOf = (el: HTMLElement): string => {
+      const label = el.getAttribute("aria-label");
+      if (label !== null && label.trim() !== "") return label.trim();
+
+      const ids = (el.getAttribute("aria-labelledby") ?? "").split(/\s+/).filter(Boolean);
+      if (ids.length > 0) {
+        const joined = ids
+          .map((id) => document.getElementById(id))
+          .filter((n): n is HTMLElement => n !== null)
+          .map(text)
+          .join(" ")
+          .trim();
+        if (joined !== "") return joined;
+      }
+
+      if (el.id !== "") {
+        for (const l of Array.from(document.querySelectorAll("label[for]"))) {
+          if (l.getAttribute("for") === el.id && text(l) !== "") return text(l);
+        }
+      }
+
+      const wrapping = el.closest("label");
+      if (wrapping !== null && text(wrapping) !== "") return text(wrapping);
+
+      // A button names itself with its own content — including an <img alt>.
+      if (el.tagName === "BUTTON" || el.getAttribute("role") === "button") {
+        if (text(el) !== "") return text(el);
+        const alt = el.querySelector("img[alt]")?.getAttribute("alt") ?? "";
+        if (alt.trim() !== "") return alt.trim();
+      }
+
+      const title = el.getAttribute("title");
+      if (title !== null && title.trim() !== "") return title.trim();
+
+      return "";
+    };
+
+    const nameless: Array<{ tag: string; where: string; hint: string; classes: string }> = [];
+    let examined = 0;
+    // Named, but only by its own placeholder text — see nameFromOwnHint in
+    // src/common/a11y/useFieldName.ts. Counted apart from the rest because a
+    // name borrowed from a hint is second best, and folding it into the pass
+    // column would make the total read zero while 27 fields still answer to
+    // something nobody chose as their name.
+    let hinted = 0;
+
+    for (const el of Array.from(document.querySelectorAll(NAMEABLE)) as HTMLElement[]) {
+      const r = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+
+      // Only what is on screen and meant to be used. An off-screen control is
+      // not something the shop is looking at, and counting it would inflate the
+      // denominator with markup nobody can reach.
+      if (r.width === 0 || r.height === 0) continue;
+      if (style.visibility === "hidden" || style.display === "none") continue;
+      if (Number(style.opacity) === 0) continue;
+      if (r.bottom <= 0 || r.right <= 0 || r.top >= innerHeight || r.left >= innerWidth) continue;
+      if (el.getAttribute("aria-hidden") === "true" || el.closest('[aria-hidden="true"]') !== null) continue;
+      if ((el as HTMLInputElement).disabled) continue;
+
+      examined++;
+      if (el.hasAttribute("data-name-from-placeholder")) hinted++;
+      if (nameOf(el) !== "") continue;
+
+      // Enough to find it again: the tag, the type, and the nearest heading or
+      // labelled ancestor. A CSS selector would rot; a description does not.
+      const section = el.closest("section, form, [role='dialog'], div[class*='rounded']");
+      const heading = section?.querySelector("h1, h2, h3, h4, h5, h6");
+      nameless.push({
+        tag: el.tagName.toLowerCase() + ((el as HTMLInputElement).type ? `[${(el as HTMLInputElement).type}]` : ""),
+        where: heading !== null && heading !== undefined ? text(heading).slice(0, 40) : "no nearby heading",
+        // Enough to grep for. "a text input somewhere on the catalog screen" is
+        // a finding nobody can act on, and the first version of this rule
+        // produced exactly that for three of them.
+        hint: (el as HTMLInputElement).placeholder ?? "",
+        classes: String(el.className ?? "").split(/\s+/).slice(0, 4).join(" "),
+      });
+    }
+
+    return { nameless, examined, hinted };
+  });
+
+  return {
+    examined: result.examined,
+    hinted: result.hinted,
+    findings: result.nameless.map((n) => ({
+      what: `a ${n.tag} has no accessible name`,
+      detail: `near "${n.where}"`
+        + (n.hint !== "" ? ` · placeholder "${n.hint}"` : "")
+        + (n.classes !== "" ? ` · class "${n.classes}"` : "")
+        + ` — announced as "${n.tag.startsWith("button") ? "button" : "edit text, blank"}"`,
+    })),
+  };
+}
+
 export async function renderedSize(page: Page): Promise<{ elements: number; text: number }> {
   return page.evaluate(() => ({
     elements: document.body.querySelectorAll("*").length,

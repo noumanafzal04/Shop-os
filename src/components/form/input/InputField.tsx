@@ -1,6 +1,8 @@
 import type React from "react";
 import type { FC } from "react";
 
+import { useFieldName } from "../../../common/a11y/useFieldName";
+
 interface InputProps {
   type?: "text" | "number" | "email" | "password" | "date" | "time" | string;
   id?: string;
@@ -80,6 +82,10 @@ const Input: FC<InputProps> = ({
   autoFocus = false,
   onKeyDown,
 }) => {
+  // Falls back to the <Label> already sitting above this field. Does nothing
+  // when the field is named properly — see useFieldName for why.
+  const nameRef = useFieldName();
+
   // `appearance-none` is what made every date field look like a plain text box:
   // it strips the browser's own calendar affordance, so there was nothing to
   // click and no sign the field was a date at all. Native pickers are kept for
@@ -101,6 +107,7 @@ const Input: FC<InputProps> = ({
   return (
     <div className="relative">
       <input
+        ref={nameRef}
         type={type}
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}

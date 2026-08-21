@@ -144,6 +144,8 @@ export const documentService = {
     search?: string;
     customer_id?: string;
     page?: number;
+    /** Up to 100 (the server's cap). The bay board pulls in big pages. */
+    per_page?: number;
   }) =>
     apiGet<SaleDocument[]>("/sale-documents", {
       params: {
@@ -153,6 +155,7 @@ export const documentService = {
         search: params.search || undefined,
         customer_id: params.customer_id || undefined,
         page: params.page ?? 1,
+        per_page: params.per_page || undefined,
       },
     }),
 

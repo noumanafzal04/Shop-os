@@ -15,10 +15,19 @@ import type { Announcement } from "../services/adminService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
+/**
+ * Each label now describes who actually receives it.
+ *
+ * `tenants` said "All shops" and delivered to shop OWNERS only — a cashier at
+ * one of those shops got nothing. Rather than widen it (which would remove the
+ * admin's only way to write to owners alone, about billing and the like), the
+ * label is corrected and `all` was fixed on the server to include staff, which
+ * is what "Everyone" had always claimed.
+ */
 const AUDIENCE_LABEL: Record<string, string> = {
-  tenants: "All shops",
+  tenants: "Shop owners",
   customers: "All customers",
-  all: "Everyone",
+  all: "Everyone (owners, staff and customers)",
 };
 
 export default function AdminAnnouncementsPage() {
@@ -149,7 +158,11 @@ export default function AdminAnnouncementsPage() {
           <TextArea placeholder="Message body" rows={4} value={form.body ?? ""} onChange={(v) => set("body", v)} />
           <div>
             <label className="mb-1 block text-theme-xs text-gray-400">Audience</label>
-            <Select defaultValue={form.audience} options={[{ value: "tenants", label: "All shops" }, { value: "customers", label: "All customers" }, { value: "all", label: "Everyone" }]} placeholder="Audience" onChange={(v) => set("audience", v)} />
+            {/* Driven from AUDIENCE_LABEL, because these had DRIFTED: the picker
+                said "All shops" while the badge on the list said the same thing
+                and both were wrong, and correcting one copy would have left the
+                other lying. One map, three readers. */}
+            <Select defaultValue={form.audience} options={Object.entries(AUDIENCE_LABEL).map(([value, label]) => ({ value, label }))} placeholder="Audience" onChange={(v) => set("audience", v)} />
           </div>
           <Input placeholder="Deep-link or URL on tap (optional)" value={form.link ?? ""} onChange={(e) => set("link", e.target.value)} />
           <div>

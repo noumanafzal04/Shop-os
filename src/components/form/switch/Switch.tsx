@@ -45,12 +45,32 @@ const Switch: React.FC<SwitchProps> = ({
             : "translate-x-0 bg-white",
         };
 
+  /**
+   * A BUTTON, BECAUSE THIS IS A CONTROL.
+   *
+   * This was a `<label>` with an `onClick` wrapped round two decorative divs:
+   * no `<input>`, no `role`, no `tabIndex`. So it was not merely unnamed to a
+   * screen reader — it was **unreachable by keyboard entirely**. Its one real
+   * use in the app is the Active switch on a till register
+   * (modules/registers/components/RegistersPanel), which means a shop that runs
+   * without a mouse could not take a lane out of service. Not "could not do it
+   * conveniently": there was no key sequence that reached the control.
+   *
+   * `role="switch"` with `aria-checked` is the pairing that makes on/off
+   * audible; before this the state was the pill's colour and nothing else.
+   * `type="button"` matters too — this sits inside a form on the registers
+   * panel, and a bare <button> there submits it.
+   */
   return (
-    <label
-      className={`flex cursor-pointer select-none items-center gap-3 text-sm font-medium ${
+    <button
+      type="button"
+      role="switch"
+      aria-checked={isChecked}
+      disabled={disabled}
+      className={`flex cursor-pointer select-none items-center gap-3 text-left text-sm font-medium disabled:cursor-not-allowed ${
         disabled ? "text-gray-400" : "text-gray-700 dark:text-gray-400"
       }`}
-      onClick={handleToggle} // Toggle when the label itself is clicked
+      onClick={handleToggle}
     >
       <div className="relative">
         <div
@@ -65,7 +85,7 @@ const Switch: React.FC<SwitchProps> = ({
         ></div>
       </div>
       {label}
-    </label>
+    </button>
   );
 };
 

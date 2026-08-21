@@ -79,7 +79,15 @@ export default function AdminPaymentsPage() {
                 rows.map((p) => (
                   <tr key={p.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
                     <td className="px-6 py-4">{new Date(p.paid_at).toLocaleDateString()}</td>
-                    <td className="px-6 py-4 font-medium text-gray-800 dark:text-white/90">{p.tenant.business_name}</td>
+                    <td className="px-6 py-4 font-medium text-gray-800 dark:text-white/90">
+                      {p.tenant?.business_name ?? (
+                        // The relation is `withTrashed` now, so a closed shop
+                        // keeps its name here. This is the belt-and-braces case:
+                        // a row whose shop is gone for good should say so, not
+                        // render an empty cell that reads as a bug.
+                        <span className="text-gray-400">Shop no longer on record</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4">{p.plan_name}</td>
                     <td className="px-6 py-4 text-theme-xs text-gray-400">{p.period_start} → {p.period_end}</td>
                     <td className="px-6 py-4"><Badge size="sm" color="light">{p.method.replace("_", " ")}</Badge></td>

@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import PageMeta from "../../../components/common/PageMeta";
+import Alert from "../../../components/ui/alert/Alert";
 import Button from "../../../components/ui/button/Button";
 import { useToast } from "../../../components/ui/toast";
 import {
@@ -75,10 +76,50 @@ export default function WorkshopPage() {
     hint: words.hints[i],
   }));
 
+  /**
+   * A BOARD SHOWS THE WHOLE BOARD.
+   *
+   * This asked for `page: 1` of a paginated list, took `.data`, threw the
+   * pagination away, and then bucketed whatever came back into the three
+   * columns. The server's default page is 25 and the order is newest-first, so
+   * a shop with 26 open jobs lost the OLDEST car — which is precisely the one
+   * this board colours amber as overdue. No count, no indicator, no page two: it
+   * simply was not there.
+   *
+   * The sharper failure is the columns. Because the fetch is not per stage, if
+   * the 25 newest happen to all be `received`, the Ready column renders
+   * "Nothing here." while finished cars sit waiting for collection. The board's
+   * whole job is answering "is this car ready?" and it answered "nothing is".
+   *
+   * A pager would be the wrong fix — page two of a kanban splits the stages
+   * arbitrarily. The other boards in this app agree: the kitchen board and the
+   * dine-in floor both return unpaginated, because a working surface is not a
+   * list you browse. So this drains the pages and assembles the real board.
+   *
+   * The cap is deliberate and it is LOUD (see `capped` below). A silent cap is
+   * how this bug worked in the first place.
+   */
   const jobs = useQuery({
     queryKey: ["workshop", "board"],
-    queryFn: async () =>
-      (await documentService.list({ kind: "job_card", status: "open", page: 1 })).data,
+    queryFn: async () => {
+      const PER_PAGE = 100; // the server's own maximum
+      const MAX_PAGES = 5;  // 500 open jobs; a safety valve, not a limit anyone should meet
+
+      const first = await documentService.list({
+        kind: "job_card", status: "open", page: 1, per_page: PER_PAGE,
+      });
+
+      const pages = first.meta?.pagination?.last_page ?? 1;
+      const rows = [...first.data];
+
+      for (let page = 2; page <= Math.min(pages, MAX_PAGES); page++) {
+        rows.push(...(await documentService.list({
+          kind: "job_card", status: "open", page, per_page: PER_PAGE,
+        })).data);
+      }
+
+      return { rows, missing: pages > MAX_PAGES ? (pages - MAX_PAGES) * PER_PAGE : 0 };
+    },
   });
 
   const move = useMutation({
@@ -88,7 +129,8 @@ export default function WorkshopPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "That could not be moved."),
   });
 
-  const rows = jobs.data ?? [];
+  const rows = jobs.data?.rows ?? [];
+  const missing = jobs.data?.missing ?? 0;
   const at = (stage: WorkStatus) => rows.filter((j) => j.work_status === stage);
 
   return (
@@ -104,6 +146,18 @@ export default function WorkshopPage() {
         </div>
         <Button size="sm" onClick={() => setBooking(true)}>{words.takeIn}</Button>
       </div>
+
+      {/* NO SILENT CAPS. If the board genuinely could not fit, it says how many
+          it is not showing — because a column reading "Nothing here." when cars
+          are waiting is exactly the failure this page was fixed for, and a cap
+          that hides itself recreates it at a higher number. */}
+      {missing > 0 && (
+        <Alert
+          variant="warning"
+          title={`Showing the first 500 ${words.units}`}
+          message={`About ${missing} more are open and not on this board. Close off finished work, or ask for the list by stage.`}
+        />
+      )}
 
       {jobs.isLoading ? (
         <div className="grid gap-4 md:grid-cols-3">

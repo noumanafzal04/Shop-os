@@ -153,7 +153,11 @@ export interface ModuleInfo {
 
 export interface Payment {
   id: string;
-  tenant: { id: string; business_name: string };
+  // Nullable, because the API can return it null and this type said otherwise.
+  // A force-deleted shop cascades its payment rows away, but the FK is only
+  // guaranteed while the tenant row exists at all — so the honest shape admits
+  // the gap and the table renders a fallback instead of a blank cell.
+  tenant: { id: string | null; business_name: string | null } | null;
   plan_name: string;
   amount: string;
   currency: string;

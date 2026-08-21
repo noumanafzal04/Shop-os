@@ -1,5 +1,7 @@
 import React from "react";
 
+import { useFieldName } from "../../../common/a11y/useFieldName";
+
 interface TextareaProps {
   placeholder?: string; // Placeholder text
   rows?: number; // Number of rows
@@ -21,6 +23,9 @@ const TextArea: React.FC<TextareaProps> = ({
   error = false, // Error state
   hint = "", // Default hint text
 }) => {
+  // The label above it, when nothing better names it. See useFieldName.
+  const nameRef = useFieldName();
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (onChange) {
       onChange(e.target.value);
@@ -40,6 +45,7 @@ const TextArea: React.FC<TextareaProps> = ({
   return (
     <div className="relative">
       <textarea
+        ref={nameRef}
         placeholder={placeholder}
         rows={rows}
         value={value}

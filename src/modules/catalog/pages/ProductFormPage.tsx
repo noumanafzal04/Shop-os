@@ -13,7 +13,7 @@ import {
   useCollections,
   useItemTypes,
   useProduct,
-  useProducts,
+  usePickableProducts,
   useProductImages,
   useProductMutations,
   useSyncModifiers,
@@ -237,10 +237,20 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   // a description + photo before it reads well to customers.
   const onlineRequired = visibleOnline && marketplaceEnabled;
 
-  // Products this deal can bundle — everything sellable except other deals and
-  // the deal itself. Fetched only while editing a combo.
-  const comboPickerQ = useProducts({ search: undefined, page: 1 });
-  const pickable = (comboPickerQ.data?.data ?? []).filter((p) => p.item_type !== "deal" && p.id !== id);
+  // Products this deal can bundle, or this dish consumes — everything sellable
+  // except other deals and the item itself.
+  //
+  // This used to be `useProducts({ page: 1 })`, which is the endpoint's default
+  // page of FIFTEEN. The picker is a plain <select> with no search and no pager,
+  // so fifteen was the entire choice: a recipe could name fifteen possible
+  // ingredients and a deal could bundle fifteen products, with nothing on screen
+  // saying a catalogue of four hundred existed. See usePickableProducts.
+  //
+  // And the comment above it used to claim it was "fetched only while editing a
+  // combo" while the call ran on every product form. Now that is true.
+  const needsPicker = isCombo || (isFood && inventoryEnabled);
+  const comboPickerQ = usePickableProducts(needsPicker);
+  const pickable = (comboPickerQ.data?.rows ?? []).filter((p) => p.item_type !== "deal" && p.id !== id);
   // When switching type on create, reset the stock-tracking default sensibly.
   useEffect(() => {
     if (!isEdit && typeInfo) setTrackStock(typeInfo.inventory === "required");
@@ -756,6 +766,14 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             )}
             {comboPickerQ.data && pickable.length === 0 && (
               <p className="mt-1 text-theme-xs text-warning-500">Create some products first — a deal bundles existing items.</p>
+            )}
+            {/* No silent caps: the picker drains the catalogue, and if it ever
+                could not, it says so rather than quietly offering a subset —
+                which is the exact shape of the bug this replaced. */}
+            {(comboPickerQ.data?.missing ?? 0) > 0 && (
+              <p className="mt-1 text-theme-xs text-warning-500">
+                Showing the first 1,000 items — about {comboPickerQ.data?.missing} more are not in this list.
+              </p>
             )}
             {err("combo_items") && <p className="mt-1 text-theme-xs text-error-500">{err("combo_items")}</p>}
           </Section>

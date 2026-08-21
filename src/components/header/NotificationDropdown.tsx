@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useNavigate } from "react-router";
+
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import Pager from "../ui/pager";
 import {
@@ -6,6 +8,8 @@ import {
   useNotificationActions,
   type AppNotification,
 } from "../../modules/notifications/hooks/useNotifications";
+import { screenForLink } from "../../modules/notifications/deepLink";
+import { useAuthStore } from "../../stores/authStore";
 
 /** Relative "time ago" without pulling in a date library. */
 function timeAgo(iso: string): string {
@@ -20,6 +24,10 @@ function timeAgo(iso: string): string {
 
 const DOT_COLOR: Record<string, string> = {
   "stock.low": "bg-warning-500",
+  // Both expiry stages, which had no colour of their own and fell back to the
+  // same grey as everything unrecognised. Expired stock is not neutral news.
+  "stock.expiry.approaching": "bg-warning-500",
+  "stock.expiry.expired": "bg-error-500",
   "reservation.created": "bg-brand-500",
   "reservation.accepted": "bg-success-500",
   "reservation.rejected": "bg-error-500",
@@ -28,6 +36,7 @@ const DOT_COLOR: Record<string, string> = {
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const navigate = useNavigate();
   const { data } = useNotifications(page);
   const { markRead, markAllRead } = useNotificationActions();
 
@@ -36,13 +45,40 @@ export default function NotificationDropdown() {
 
   const closeDropdown = () => setIsOpen(false);
 
+  // Mirrors authStore.hasPermission, the same way the sidebar does it: an owner
+  // holds everything, a staff member holds what they were given.
+  const role = useAuthStore((s) => s.user?.role);
+  const permissions = useAuthStore((s) => s.user?.permissions);
+  const can = useCallback(
+    (permission: string) => role === "shop_owner" || (permissions?.includes(permission) ?? false),
+    [role, permissions],
+  );
+
+  /**
+   * Read it, and go where it points.
+   *
+   * Marking read is unconditional — pressing a notification is reading it,
+   * whether or not it leads anywhere. Navigation only happens when the link
+   * resolves to a screen this person can actually open; see deepLink.ts for why
+   * a dead destination is worse than none.
+   */
   const onItem = (n: AppNotification) => {
     if (!n.read_at) markRead.mutate(n.id);
+
+    const path = screenForLink(n.data?.link, can);
+    if (path !== null) {
+      closeDropdown();
+      navigate(path);
+    }
   };
 
   return (
     <div className="relative">
       <button
+        // The unread COUNT, not just "Notifications". The orange dot is the
+        // only thing that says there is something to read, and a dot is not
+        // available to a reader — so the number goes in the name.
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
         className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -90,6 +126,14 @@ export default function NotificationDropdown() {
               <li key={n.id}>
                 <button
                   onClick={() => onItem(n)}
+                  // Says out loud whether this leads anywhere, so a reader who
+                  // cannot see the chevron is not left guessing which of fifteen
+                  // notifications is worth pressing.
+                  aria-label={
+                    screenForLink(n.data?.link, can) !== null
+                      ? `${n.title}. ${n.body} — opens the relevant screen`
+                      : undefined
+                  }
                   className={`flex w-full gap-3 rounded-lg border-b border-gray-100 p-3 text-left hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5 ${
                     n.read_at ? "opacity-60" : ""
                   }`}
@@ -108,6 +152,14 @@ export default function NotificationDropdown() {
                       {timeAgo(n.created_at)}
                     </span>
                   </span>
+                  {/* Only where there is somewhere to go. A chevron on every row
+                      would promise a destination the announcement rows do not
+                      have. */}
+                  {screenForLink(n.data?.link, can) !== null && (
+                    <span aria-hidden="true" className="ml-auto self-center text-gray-400">
+                      ›
+                    </span>
+                  )}
                 </button>
               </li>
             ))

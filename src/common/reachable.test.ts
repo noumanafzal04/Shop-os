@@ -215,7 +215,19 @@ describe("a capability is not shipped until something a person touches can reach
     expect(occurrences("export function foo() {}", "foo")).toBe(1);
   });
 
+  /**
+   * 30s, not the default 5s.
+   *
+   * This scan is CPU-bound over every source file in the panel, and it went red
+   * once inside the full 83-file suite while passing in 1.2 seconds on its own —
+   * a loaded machine with parallel workers, not a real finding. A guard that
+   * fails for reasons nobody can act on is a guard people learn to re-run
+   * instead of read, and this file's own docblock is about exactly that.
+   *
+   * Still a ceiling, not a removal: 1.2s to 30s is twenty-five times the honest
+   * cost, so a change that makes this pathological still shows up as red.
+   */
   it("finds nothing built, tested and unreachable", () => {
     expect(unreachable().map((u) => `${u.where} → ${u.name}`)).toEqual([]);
-  });
+  }, 30_000);
 });

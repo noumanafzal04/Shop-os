@@ -240,6 +240,7 @@ export default function SalesPage() {
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
         />
         <Select
+          aria-label="Filter by sale status"
           options={[
             { value: "", label: "All statuses" },
             { value: "completed", label: "Completed" },

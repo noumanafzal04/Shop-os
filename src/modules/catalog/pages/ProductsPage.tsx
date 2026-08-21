@@ -197,6 +197,7 @@ export default function ProductsPage() {
         {/* Product vs service only matters for shops that offer services. */}
         {servicesEnabled && (
           <Select
+            aria-label="Filter by item type"
             options={[
               { value: "", label: "All types" },
               { value: "product", label: "Products" },
@@ -210,6 +211,7 @@ export default function ProductsPage() {
           />
         )}
         <Select
+          aria-label="Filter by category"
           options={[
             { value: "", label: "All categories" },
             ...(categories.data ?? []).flatMap((c) => [

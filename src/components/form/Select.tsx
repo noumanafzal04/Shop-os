@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useFieldName } from "../../common/a11y/useFieldName";
+
 interface Option {
   value: string;
   label: string;
@@ -38,6 +40,9 @@ const Select: React.FC<SelectProps> = ({
   const isControlled = value !== undefined;
   const selectedValue = isControlled ? value : internal;
 
+  // Same fallback as Input: the label above it, when nothing better exists.
+  const nameRef = useFieldName();
+
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (!isControlled) setInternal(e.target.value);
     onChange(e.target.value);
@@ -45,6 +50,7 @@ const Select: React.FC<SelectProps> = ({
 
   return (
     <select
+      ref={nameRef}
       aria-label={ariaLabel}
       aria-labelledby={ariaLabelledBy}
       className={`h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 pr-11 text-sm shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 ${

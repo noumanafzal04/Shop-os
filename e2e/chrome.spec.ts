@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { cardsAreSurfaces, everyRule, onlyWhatAFingerCanReach, renderedSize, scrollersCanReachTheirEnd, tapTargetsAreFingerSized, report } from "./rules";
+import { cardsAreSurfaces, everyRule, everythingHasAName, onlyWhatAFingerCanReach, renderedSize, scrollersCanReachTheirEnd, tapTargetsAreFingerSized, report } from "./rules";
 import { openTill, showPane } from "./till";
 
 /**
@@ -62,6 +62,75 @@ for (const screen of SCREENS) {
     );
   });
 }
+
+/**
+ * How many controls on each screen cannot be called by name.
+ *
+ * Built as a ratchet — each screen allowed the debt it already had — and then
+ * the debt turned out to be payable in an afternoon, so **the budget is empty
+ * and every screen is at zero**. It is a gate now, not a ratchet.
+ *
+ * The measurement is the reason it was payable at all. The backlog had been
+ * recorded from a static grep as "245 form fields with no accessible name",
+ * which was wrong in a way that mattered: it made the job sound like writing
+ * 245 names, so it stayed a backlog item. Asking a browser instead:
+ *
+ *     34 of 367 visible controls, of which 24 were TWO buttons
+ *                                 in the shared header, on every screen
+ *
+ * The ratchet machinery stays because a screen can legitimately arrive with
+ * debt — a big new module, mid-migration — and blocking that is how a rule gets
+ * switched off. Per screen rather than one total, so a fix on the dashboard
+ * cannot pay for a regression on the till.
+ *
+ * It has failed honestly four times while being written — at 34, at 10, at 3,
+ * and once for a screen that rendered nothing — so the denominator assertion
+ * below is doing its job too.
+ */
+const NAMELESS_BUDGET: Record<string, number> = {};
+
+test("every control on screen can be called by name", async ({ page }) => {
+  const worse: string[] = [];
+  let total = 0;
+  let measured = 0;
+  let borrowed = 0;
+
+  for (const screen of SCREENS) {
+    await page.goto(screen.path);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(600);
+
+    const { findings, examined, hinted } = await everythingHasAName(page);
+
+    // THE DENOMINATOR. Zero findings on a screen that rendered no controls is
+    // not a pass, it is a screen that did not load — and it looks identical.
+    expect(examined, `${screen.name} rendered no usable controls at all`).toBeGreaterThan(0);
+
+    total += findings.length;
+    measured += examined;
+    borrowed += hinted;
+
+    const allowed = NAMELESS_BUDGET[screen.name] ?? 0;
+    const mark = findings.length > allowed ? "WORSE" : findings.length < allowed ? "better" : "same";
+    console.log(`  ${mark.padEnd(6)} ${screen.name.padEnd(14)} ${findings.length}/${examined} unnamed, ${hinted} named by hint (budget ${allowed})`);
+
+    if (findings.length > allowed) {
+      worse.push(
+        `${screen.name}: ${findings.length} unnamed, budget ${allowed}\n`
+        + findings.slice(0, 8).map((f) => `      · ${f.what} — ${f.detail}`).join("\n"),
+      );
+    }
+  }
+
+  console.log(`\n  ${total} of ${measured} visible controls across ${SCREENS.length} screens have no accessible name`);
+  // Reported, never asserted on. These are named — just not by a name anybody
+  // chose. Printing it keeps the second-best category from disappearing behind
+  // a green tick; asserting on it would block the build over a real
+  // improvement.
+  console.log(`  ${borrowed} more are named only by their own placeholder text`);
+
+  expect(worse, worse.length ? `\n${worse.join("\n")}\n` : "no screen got worse").toEqual([]);
+});
 
 test("the till's product cards are surfaces, not tints", async ({ page }) => {
   // The shop's own words, twice: "background transparent type, text show ho

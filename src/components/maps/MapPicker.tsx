@@ -198,6 +198,10 @@ export default function MapPicker({ value, onChange, heightClass = "h-72" }: Map
       <div className="flex gap-2">
         <div className="relative flex-1">
           <input
+            // A raw input rather than the shared <Input>, so the automatic
+            // label fallback never runs on it — and there is no visible label
+            // either, only the placeholder.
+            aria-label="Search for your shop address"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => results.length && setOpen(true)}

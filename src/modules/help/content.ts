@@ -174,6 +174,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "So a dish with a recipe costs itself. Put a cost price on each ingredient and the recipe section shows what one portion costs and your food cost percentage — the ratio a kitchen is actually run on. Around 30% is healthy here; past 50% the dish is losing money while looking busy." },
       { type: "warn", text: "If any ingredient has no cost price, the dish says it cannot be costed and names which ones — rather than showing a smaller figure. A part-costed dish looks more profitable than it is, and that is how a menu gets underpriced." },
       { type: "note", text: "This is also what your Margins report uses, so fixing an ingredient's cost corrects every report that dish appears in. The figure on the form refreshes when you save and reopen." },
+      { type: "note", text: "The ingredient list — and the item list on a deal — offers your WHOLE catalog, not the first screenful. Start typing while the dropdown is open and it jumps to what you want." },
           { type: "h", text: "Ordering what is running out" },
       { type: "p", text: "The reorder view lists everything at or below the level you set, and next to each one it shows who you last bought it from. Press Order these items and the shop raises the purchase orders for you — one per supplier, because a Monday list usually holds lines from three or four different distributors and a single order containing all of them is not something you can send to anybody." },
       { type: "p", text: "Each order arrives as a DRAFT: the quantity is enough to get you back above your reorder level, and the price is what you last actually paid that supplier — not what your own stock is valued at. Both are starting points. Nothing is placed until you place it." },
@@ -284,6 +285,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Your dashboard warns on near-expiry stock while it is still sellable, rather than after it becomes a write-off." },
       { type: "p", text: "You are also told without having to look. Each morning, any lot that has just crossed your expiry window sends the owner a notification, and any lot that has actually expired sends another. A lot speaks exactly twice in its life — once while there is still time to sell it down or agree a return, and once when it can no longer be sold." },
       { type: "note", text: "Twice, and never again, on purpose. A message that arrives every morning saying the same thing stops being read within a week — and then the morning the number changes, nobody notices that either." },
+      { type: "note", text: "Press either message and it opens Disposals, which is where you record whether the stock was binned or went back to the supplier. Most notifications work this way now — a low-stock warning opens Inventory, an order update opens Orders. If pressing one does nothing but mark it read, there is no screen on this side for it." },
       { type: "p", text: "How far ahead the first warning looks is your own setting: Settings → Inventory → expiring-soon window. A chemist starts at 90 days, everyone else at 30, and a shop whose distributor works to six months sets it there and stops guessing." },
       { type: "h", text: "How far ahead you are warned" },
       { type: "p", text: "A medical store is warned 90 days ahead; every other shop, 30. That is not a guess: your distributor takes medicine back for credit inside a window that closes months before the printed date, so a warning at thirty days would reach you after the claim was already lost. A bakery warned ninety days ahead is warned about nothing." },
@@ -811,6 +813,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "warn",
         text: "An advance is a customer's money you are holding. It sits with the daily screens rather than in a reports folder for exactly that reason — you should see it every day until it is settled.",
       },
+      {
+        type: "note",
+        text: "'Money you are holding' at the top of this screen counts every advance you have taken — on goods held for a customer AND on a job in the workshop. The two are the same thing from your drawer's point of view: cash that is in the till and is not yours yet.",
+      },
+      {
+        type: "note",
+        text: "Only a quote goes out of date. A quote carries the number of days you set in Settings and shows as expired after that; goods on advance carry your collect-by window. A workshop job card has neither — it has the time you promised the car back, and nothing else.",
+      },
     ],
   },
   {
@@ -1121,7 +1131,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "keys", items: [
         ["The registration", "Start typing and pick the car if you have seen it before. That is what keeps its history together — 'what did we do last time' is only answerable if the same car is one record. A new plate is registered for you."],
         ["What is wrong", "In the customer's words. 'Noise from front left when braking' — not your diagnosis. It is the first thing the mechanic reads and the thing most likely to get lost."],
-        ["Promised back", "When you told them to come and collect. The board turns the card amber once that time has passed, which is the one thing on it worth a colour."],
+        ["Promised back", "When you told them to come and collect. The board turns the card amber once that time has passed, which is the one thing on it worth a colour. This is the ONLY date on a job card — a job does not go out of date the way a quoted price does, so it will never show as expired or turn up on the list of documents you are chasing."],
         ["One opening item", "The diagnostic hour, or the part you already know it needs. Everything else goes on afterwards."],
       ]},
 
@@ -1129,8 +1139,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Open the job from the board to add parts and labour as you fit them. Prices come from your catalog — you cannot type a price on a job, for the same reason you cannot type one at the till." },
       { type: "keys", items: [
         ["Moving it along", "One tap on the card. Cars go backwards too — a job you marked ready that fails its road test goes straight back to 'being worked on'. Nothing is one-way."],
-        ["Taking money up front", "You can record an advance against a job, the same as goods held on advance. Useful when you are about to order a part."],
+        ["Taking money up front", "You can record an advance against a job, the same as goods held on advance. Useful when you are about to order a part. It shows in the 'money you are holding' figure on Documents — that cash is in your drawer and it is not yours yet."],
       ]},
+      { type: "note", text: "The board shows every job in the shop, however many there are — not the newest screenful. If a shop ever passes 500 open jobs it says so at the top rather than quietly leaving some off." },
 
       { type: "h", text: "When they collect" },
       { type: "p", text: "'Bill it' turns the whole job into a real invoice — every part, every hour, the advance already paid deducted. Stock comes off then, not before." },

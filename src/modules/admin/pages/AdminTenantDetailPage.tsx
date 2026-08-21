@@ -496,6 +496,17 @@ function ModulesCard({ tenantId, features, defaults }: {
                     </div>
                     <button
                       type="button"
+                      // The module's name sits OUTSIDE this button, so the
+                      // control itself announced as "button" and nothing else —
+                      // twenty identical buttons down the module list with no
+                      // way to hear which one you were on, or whether it was
+                      // currently granted. The "granted/removed" badge only
+                      // renders when the value differs from the trade default,
+                      // so most rows had no state signal at all beyond the pill
+                      // colour.
+                      role="switch"
+                      aria-checked={on}
+                      aria-label={m.label}
                       disabled={blockedBy.length > 0}
                       onClick={() => toggle(m.key, !on)}
                       className={`mt-0.5 h-6 w-11 shrink-0 rounded-full p-0.5 transition ${

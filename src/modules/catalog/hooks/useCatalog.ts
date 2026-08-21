@@ -124,6 +124,52 @@ export function useProducts(filters: ProductFilters) {
   });
 }
 
+/**
+ * EVERY product a deal or a recipe could name — not the first fifteen.
+ *
+ * The combo picker and the ingredient picker are both a plain `<select>` fed
+ * from `useProducts({ search: undefined, page: 1 })`, and the products endpoint
+ * pages at **fifteen** by default. So the dropdown offered fifteen items with no
+ * search box, no pager, and nothing saying there were more: a restaurant writing
+ * a burger recipe could pick from fifteen possible ingredients, and a shop
+ * building a deal could bundle fifteen products. Everything else in the
+ * catalogue was simply not in the list.
+ *
+ * That is the same defect class this repo has now hit nine times — a list that
+ * can only ever show page one — and the pickers were invisible to the scanner
+ * that hunts it, because a `<select>` full of `<option>`s is not a table with a
+ * missing pager.
+ *
+ * A native select is the right control to keep: browsers give it type-ahead for
+ * free, so a few hundred options stay navigable by keyboard. What it needed was
+ * the whole list behind it.
+ *
+ * `enabled` is deliberate. The old call ran on every product form — its comment
+ * claimed "fetched only while editing a combo" and nothing implemented that —
+ * so every shopkeeper editing a plain tin of beans paid for a catalogue fetch
+ * they had no use for. Now the picker's data is fetched when there is a picker.
+ */
+export function usePickableProducts(enabled: boolean) {
+  return useQuery({
+    queryKey: ["products", "pickable"],
+    enabled,
+    queryFn: async () => {
+      const PER_PAGE = 100; // the endpoint's own ceiling
+      const MAX_PAGES = 10; // 1,000 items; loud if ever reached, see below
+
+      const first = await catalogService.products({ page: 1, per_page: PER_PAGE });
+      const pages = first.meta?.pagination?.last_page ?? 1;
+      const rows = [...first.data];
+
+      for (let page = 2; page <= Math.min(pages, MAX_PAGES); page++) {
+        rows.push(...(await catalogService.products({ page, per_page: PER_PAGE })).data);
+      }
+
+      return { rows, missing: pages > MAX_PAGES ? (pages - MAX_PAGES) * PER_PAGE : 0 };
+    },
+  });
+}
+
 export function useProduct(id: string | undefined) {
   return useQuery({
     queryKey: ["products", "detail", id],
