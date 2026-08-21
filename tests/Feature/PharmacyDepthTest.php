@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -67,6 +68,94 @@ class PharmacyDepthTest extends TestCase
         $this->calpol = $this->drug('Calpol 500mg', 'paracetamol', '500 MG', 'tablet', 45, stock: 60);
         $this->paraSyrup = $this->drug('Para Syrup', 'Paracetamol', '120mg/5ml', 'Syrup', 90, stock: 20);
         $this->morphine = $this->drug('Morphine 10mg', 'Morphine', '10mg', 'Tablet', 300, stock: 30, schedule: 'G');
+    }
+
+    // ── the two doors a medicine can leave by ────────────────────────
+
+    public function test_a_controlled_drug_is_prescription_only_however_it_was_marked(): void
+    {
+        // The two fields were free-standing on the same form, and nothing tied
+        // them. A controlled drug that does not need a prescription is not a
+        // thing, so the model refuses to hold that state at all.
+        $sneaked = Product::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id, 'type' => 'product', 'item_type' => 'medicine',
+            'name' => 'Marked Schedule Only', 'price' => 200,
+            'track_inventory' => true, 'stock_quantity' => 10, 'is_active' => true,
+            'drug_schedule' => 'G',
+            'requires_prescription' => false,
+        ]);
+
+        $this->assertTrue((bool) $sneaked->fresh()->requires_prescription,
+            'a schedule-controlled drug was saved as not needing a prescription');
+    }
+
+    public function test_a_controlled_drug_cannot_go_out_of_the_phone_order_door(): void
+    {
+        // THE BUG. The till refused this exact product and the phone order took
+        // it — same shop, same shopkeeper, same medicine. A shopkeeper writing
+        // down a telephone order dispensed a Schedule-G drug with no
+        // prescription recorded and no line in the register a regulator reads.
+        $this->actingAsUser($this->owner)->postJson('/api/v1/orders', [
+            'customer_name' => 'Phone Caller', 'customer_phone' => '03001234567',
+            'fulfillment_type' => 'delivery', 'delivery_address' => '12 Main St',
+            'items' => [['product_id' => $this->morphine->id, 'quantity' => 1]],
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'RX_IN_PERSON_ONLY');
+    }
+
+    public function test_both_doors_say_the_same_thing_about_the_same_drug(): void
+    {
+        // Not that each refuses — that they AGREE. Two fences reading two
+        // different fields is how they drifted apart in the first place.
+        $order = $this->actingAsUser($this->owner)->postJson('/api/v1/orders', [
+            'customer_name' => 'Phone Caller', 'customer_phone' => '03001234568',
+            'fulfillment_type' => 'delivery', 'delivery_address' => '12 Main St',
+            'items' => [['product_id' => $this->morphine->id, 'quantity' => 1]],
+        ]);
+
+        $till = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', [
+            'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 300,
+            'items' => [['product_id' => $this->morphine->id, 'quantity' => 1]],
+        ]);
+
+        $this->assertSame(422, $order->status(), 'the order door took a controlled drug');
+        $this->assertSame(422, $till->status(), 'the till took a controlled drug');
+    }
+
+    public function test_the_order_door_refuses_a_drifted_row_on_its_own(): void
+    {
+        // Written past the model, the way a raw query, an old import or the
+        // rows this fix had to migrate were written. `Product::booted()` never
+        // ran for them, so the pairing it guarantees is absent — which is
+        // precisely the state the order door has to be able to refuse BY
+        // ITSELF, or it is a line no test holds down.
+        //
+        // Found by mutation: removing the schedule check from OrderService left
+        // every test green, because the model hook was answering for it.
+        DB::table('products')->where('id', $this->morphine->id)
+            ->update(['requires_prescription' => false]);
+
+        $this->assertFalse(
+            (bool) Product::withoutTenancy()->find($this->morphine->id)->requires_prescription,
+            'the drifted state could not be created, so this test proves nothing',
+        );
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/orders', [
+            'customer_name' => 'Phone Caller', 'customer_phone' => '03001234570',
+            'fulfillment_type' => 'delivery', 'delivery_address' => '12 Main St',
+            'items' => [['product_id' => $this->morphine->id, 'quantity' => 1]],
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'RX_IN_PERSON_ONLY');
+    }
+
+    public function test_an_ordinary_medicine_still_goes_out_of_that_door(): void
+    {
+        // The denominator. A fence that refuses everything proves nothing about
+        // the one thing it was built for — a chemist takes telephone orders for
+        // paracetamol all day and must go on doing so.
+        $this->actingAsUser($this->owner)->postJson('/api/v1/orders', [
+            'customer_name' => 'Phone Caller', 'customer_phone' => '03001234569',
+            'fulfillment_type' => 'delivery', 'delivery_address' => '12 Main St',
+            'items' => [['product_id' => $this->panadol->id, 'quantity' => 2]],
+        ])->assertCreated();
     }
 
     private function drug(

@@ -159,6 +159,34 @@ class Product extends BaseModel
         return $this->hasMany(ModifierGroup::class)->orderBy('sort_order');
     }
 
+    /**
+     * A schedule-controlled drug is prescription-only. Always.
+     *
+     * `drug_schedule` and `requires_prescription` were two free-standing fields
+     * on the same form, and nothing tied them together — so a medicine could be
+     * marked Schedule G with the prescription flag left off, and the two fences
+     * built on those fields then disagreed about the same product:
+     *
+     *   the till   refused it — PRESCRIPTION_REQUIRED, on `drug_schedule`
+     *   an order   took it — OrderService only ever read `requires_prescription`
+     *
+     * A shopkeeper taking that order on the telephone dispensed a controlled
+     * drug with no prescription recorded and no line in the register a regulator
+     * asks to see.
+     *
+     * Fixed in the MODEL rather than in the form, because there are four writers
+     * — the create action, the update action, the CSV importer and the seeders —
+     * and a rule enforced in three of them is the bug this one came from.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $product): void {
+            if (filled($product->drug_schedule)) {
+                $product->requires_prescription = true;
+            }
+        });
+    }
+
     public function batches(): HasMany
     {
         // Oldest risk first: earliest expiry, then earliest manufactured,

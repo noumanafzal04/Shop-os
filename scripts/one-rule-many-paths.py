@@ -109,7 +109,16 @@ EXPECTED: dict[str, str] = {
     "SERIAL_DUPLICATE_IN_SALE": "an IMEI is captured at handover",
     "PAYMENT_INSUFFICIENT": "only the counter takes the money in the same breath",
     "TRAINING_NOT_AVAILABLE": "a practice till is a counter idea",
-    "PRESCRIPTION_REQUIRED": "the order path has its own, stronger RX_IN_PERSON_ONLY",
+    # This line was BELIEVED and was FALSE. The order path's RX_IN_PERSON_ONLY
+    # read `requires_prescription`; the counter's PRESCRIPTION_REQUIRED reads
+    # `drug_schedule`. Two fences, two fields, and a Schedule-G medicine went
+    # out of the phone-order door while the counter three feet away refused the
+    # very same product. Fixed 2026-08-21: the order path asks about the
+    # schedule too, and `Product::booted()` stops the two fields drifting at
+    # all. An exception on this list is a claim — check it, do not admire it.
+    "PRESCRIPTION_REQUIRED": "the order path refuses controlled drugs OUTRIGHT "
+                             "(RX_IN_PERSON_ONLY), so there is nowhere to record a "
+                             "prescription against; the counter is where one is taken",
     "DISCOUNT_EXCEEDS_SUBTOTAL": "arithmetic on a hand-keyed discount; the tab clamps instead",
 
     # Fulfilment and shopfront rules, which only exist for a stranger ordering.

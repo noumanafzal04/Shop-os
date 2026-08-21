@@ -171,7 +171,19 @@ class OrderService
                     // Prescription items are dispensed in person — a pharmacist
                     // must sight the script. They can be BROWSED online (so the
                     // customer knows the shop stocks them) but never checked out.
-                    if ($product->requires_prescription) {
+                    //
+                    // `drug_schedule` is asked too, and not because the flag
+                    // above should ever be false on a controlled drug — the
+                    // model now guarantees it is not. It is asked because the
+                    // TILL refuses on `drug_schedule` and this path refused on
+                    // `requires_prescription`, and for as long as those were two
+                    // different questions a Schedule-G medicine went out of the
+                    // phone-order door with no prescription recorded while the
+                    // counter three feet away refused the very same product.
+                    //
+                    // One question, every path. Two fences reading two fields is
+                    // how they drifted in the first place.
+                    if ($product->requires_prescription || filled($product->drug_schedule)) {
                         throw DomainException::unprocessable(
                             "{$product->name} requires a prescription — please visit the pharmacy to purchase it.",
                             'RX_IN_PERSON_ONLY',
