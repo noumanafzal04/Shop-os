@@ -56,11 +56,21 @@ with zero throttle waits and zero calls made as nobody.
 
 ## Per-type coverage, measured
 
-8 trading types + `food_restaurant`. **`finance` is thin BY CONSTRUCTION** — its
-only module is `expenses`, so phase C (needs a till) skips it and every later
-phase reads phase C's output: **17 of 19 phases never touch it.** The money
-screens are covered, but on other shops. *The one type whose entire product IS
-the money screens has never been driven end to end.* Recorded, not fixed.
+8 trading types + `food_restaurant`. **`finance` was thin BY CONSTRUCTION** —
+its only module is `expenses`, so phase C (needs a till) skipped it and every
+later phase reads phase C's output: **17 of 19 phases never touched it.** *The
+one type whose entire product IS the money screens had never been driven end to
+end.*
+
+**FIXED the same day.** It could not go into `sold` — that dict means "a shop
+that can ring a sale" and **13 phases index `state["product"]` without asking**
+— so `phase_c.BOOKS_ONLY` carries no-till shops and `run.py` hands it to phase E
+alone. Everything there but the khata needs only a token (a khata charge is a
+SALE on credit). Phase E is gated on `expenses` **not** `pos` in `GATES`, so
+cutting the route now prints `SILENT ON: finance` rather than a clean green.
+
+> **A coverage gate tests REACH; a mutation tests a CHECK.** A check that never
+> ran cannot be caught by breaking it.
 
 The 9 legacy codes are deliberately not swept — *a sweep of an alias is a sweep
 of its target with a different label* — and `EveryTradeLoadsTest` runs every

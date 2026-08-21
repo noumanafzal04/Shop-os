@@ -72,7 +72,12 @@ def _with_prerequisites(want: list[str]) -> set[str]:
 # these to say what a phase should have covered and did not — see
 # `Report.summary`. Phases whose subject is not one module (the seams, the
 # money, the offline queue) simply report what they touched.
-GATES = {"i": "pos", "o": "pos", "p": "pos", "q": "pos", "k": "inventory", "s": "inventory", "l": "dine_in", "m": "pos", "n": "pos"}
+# Phase E is gated on `expenses` and NOT on `pos`, deliberately. That is the
+# whole point of the books-only route: a shop with no till still has expenses,
+# income, a cashbook and a profit figure, and `finance` is a business type made
+# of nothing else. Naming the gate here means the run says so out loud if the
+# route ever silently stops reaching it again.
+GATES = {"i": "pos", "o": "pos", "p": "pos", "q": "pos", "k": "inventory", "s": "inventory", "l": "dine_in", "m": "pos", "n": "pos", "e": "expenses"}
 
 
 def _expected(shops: dict, want: set[str]) -> dict[str, set[str]]:
@@ -113,7 +118,10 @@ def main() -> int:
         phase_d.run(api, rep, sold)
 
     if "e" in want:
-        phase_e.run(api, rep, sold)
+        # `phase_c.BOOKS_ONLY` — the shops that keep books and have no till.
+        # `finance` is the whole reason: its only module is `expenses`, so it
+        # never enters `sold` and 17 of 19 phases had never spoken about it.
+        phase_e.run(api, rep, sold, phase_c.BOOKS_ONLY)
 
     if "f" in want:
         # Phase F needs the ADMIN token back to move a tenant's modules, and the

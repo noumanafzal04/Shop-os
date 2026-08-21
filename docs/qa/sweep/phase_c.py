@@ -27,8 +27,24 @@ STOCK_QTY = 100
 PRICE = 500.0
 
 
+# Shops that keep BOOKS but have no till.
+#
+# `sold` means "a shop that can ring a sale", and thirteen phases index
+# `state["product"]` without asking — so a product-less state cannot go in it.
+# But a shop with no till still has expenses, income, a cashbook and a profit
+# figure, and `finance` is a whole business type made of exactly those: its only
+# module is `expenses`.
+#
+# Because phase C skipped it outright, every phase after C read phase C's output
+# and 17 of 19 never touched it. **The one type whose entire product IS the
+# money screens had never been driven end to end.** This dict is how phase E
+# reaches it, and nothing else has to change.
+BOOKS_ONLY: dict[str, dict] = {}
+
+
 def run(api: Api, rep: Report, shops: dict) -> dict:
     out: dict[str, dict] = {}
+    BOOKS_ONLY.clear()
 
     for code, shop in shops.items():
         token = shop["token"]
@@ -36,6 +52,11 @@ def run(api: Api, rep: Report, shops: dict) -> dict:
         # No till, no phase. An online-only shop is not broken for lacking one.
         if not shop.get("features", {}).get("pos"):
             rep.ok("C", f"{code} · no till module", "skipped, correctly")
+            BOOKS_ONLY[code] = {
+                "token": token,
+                "features": shop.get("features") or {},
+                "primary": shop.get("primary") or code,
+            }
             continue
 
         item_type = _sellable_type(shop.get("item_types") or [])

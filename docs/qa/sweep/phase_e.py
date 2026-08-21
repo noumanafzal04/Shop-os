@@ -24,26 +24,46 @@ INCOME = 777.0
 KHATA_PHONE = "03009998877"
 
 
-def run(api: Api, rep: Report, sold: dict) -> dict:
+def run(api: Api, rep: Report, sold: dict, books_only: dict | None = None) -> dict:
     out: dict[str, dict] = {}
 
     for code, state in sold.items():
         token = state["token"]
         feats = state.get("features") or {}
 
-        if feats.get("expenses"):
-            _expense_reaches_the_books(api, rep, code, token)
-            _income_reaches_the_profit(api, rep, code, token)
-            _cashbook_balances(api, rep, code, token)
-        else:
-            rep.ok("E", f"{code} · no expense module", "skipped, correctly")
-
+        _the_books(api, rep, code, token, feats)
         _profit_is_arithmetic(api, rep, code, token)
+        # A khata charge is a SALE on credit, so it needs something to sell.
         _khata(api, rep, code, token, state)
 
         out[code] = state
 
+    # ── the shops with books and no till ────────────────────────────────
+    #
+    # `finance` is a whole business type whose only module is `expenses`, and
+    # phase C skips anything without a till — so every phase after C, this one
+    # included, had never once spoken about it. The money screens were covered,
+    # on other shops; the type made ENTIRELY of money screens was not.
+    #
+    # Everything below the khata line needs only a token, so it runs here too.
+    for code, state in (books_only or {}).items():
+        token = state["token"]
+        _the_books(api, rep, code, token, state.get("features") or {})
+        _profit_is_arithmetic(api, rep, code, token)
+        rep.ok("E", f"{code} · books without a till", "no sale to make, so no khata")
+
     return out
+
+
+def _the_books(api: Api, rep: Report, code: str, token: str, feats: dict) -> None:
+    """The three that need nothing but a token and the expense module."""
+    if not feats.get("expenses"):
+        rep.ok("E", f"{code} · no expense module", "skipped, correctly")
+        return
+
+    _expense_reaches_the_books(api, rep, code, token)
+    _income_reaches_the_profit(api, rep, code, token)
+    _cashbook_balances(api, rep, code, token)
 
 
 # ── the quiet half ─────────────────────────────────────────────────────

@@ -10,6 +10,51 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-21 — the type made entirely of money screens, never driven
+
+The per-type table below turned up one real gap, and this closes it.
+
+**`finance` has one module: `expenses`.** No till, no catalog. Phase C needs a
+till, so it skipped the shop outright — and every phase after C reads phase C's
+output, so **17 of 19 phases had never once spoken about it.** The money screens
+themselves were covered, on other shops. *The one business type made entirely of
+money screens had never been driven end to end.*
+
+### Why it could not simply be added to `sold`
+
+`sold` means "a shop that can ring a sale", and **thirteen phases index
+`state["product"]` without asking**. A product-less state in that dict breaks
+them. So the fix is a second, smaller mapping — `phase_c.BOOKS_ONLY` — handed
+only to the phase that can use it, and nothing else changes.
+
+Everything in phase E except the khata needs nothing but a token: an expense
+reaching the summary and the cashbook, income reaching net profit, the cashbook
+balancing, and profit being arithmetic. A khata charge is a SALE on credit, so
+it stays behind the till gate and the run says so rather than skipping quietly.
+
+**`finance` now answers all nine**, and the full run went 1743 → **1752 ok ·
+0 to look at · 0 bugs**. Real figures, not a no-op: expense +1234
+through summary, cashbook and net profit; income +777; `cashbook balances — in
+1554 − out 2468 = -914`; `net = gross + income − expenses`.
+
+### And the gap cannot silently reopen
+
+Phase E joins `GATES` as `expenses` — deliberately not `pos`, which is the whole
+point of the books-only route. The run now compares what phase E covered against
+every shop whose modules say it should have.
+
+Proven by cutting the route: the summary answers
+
+```
+  E    8  automotive, food, food_restaurant, mart, …   ·  SILENT ON: finance
+```
+
+*A coverage gate tests REACH; a mutation tests a CHECK.* This gap was never a
+check that could not fail — it was a check that never ran, and only the
+denominator could ever have shown it.
+
+---
+
 ## 2026-08-21 — the sweep asked as nobody, and reported 96 bugs
 
 Asked a plain question — *has every business type been driven?* — and ran the

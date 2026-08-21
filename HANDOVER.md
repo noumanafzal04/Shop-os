@@ -276,7 +276,38 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-21 (latest) — the sweep asked as nobody
+### 2026-08-21 (latest) — the type made entirely of money screens
+
+The per-type coverage table turned up one real gap, and this closes it.
+
+**`finance` has one module: `expenses`.** No till, no catalog. Phase C needs a
+till, so it skipped the shop outright — and every phase after C reads phase C's
+output, so **17 of 19 phases had never once spoken about it.** The money screens
+were covered, on other shops. *The one business type made entirely of money
+screens had never been driven end to end.*
+
+It could not simply be added to `sold`: that dict means "a shop that can ring a
+sale", and **thirteen phases index `state["product"]` without asking**. So the
+fix is a second, smaller mapping — `phase_c.BOOKS_ONLY` — handed only to phase
+E, and nothing else changes. Everything there except the khata needs nothing but
+a token; a khata charge is a SALE on credit and stays behind the till gate,
+which the run says out loud rather than skipping quietly.
+
+`finance` now answers all nine — the full run went 1743 → **1752 ok · 0 to
+look at · 0 bugs** — with real figures rather than a no-op: expense
++1234 through summary, cashbook and net profit; income +777; `cashbook balances
+— in 1554 − out 2468 = -914`.
+
+**And the gap cannot silently reopen.** Phase E joins `GATES` as `expenses` —
+deliberately not `pos` — so the run compares what it covered against every shop
+whose modules say it should have. Proven by cutting the route: the summary
+answers `E 8 … · SILENT ON: finance`.
+
+> **A coverage gate tests REACH; a mutation tests a CHECK.** This was never a
+> check that could not fail — it was a check that never ran, and only the
+> denominator could have shown it.
+
+### 2026-08-21 — the sweep asked as nobody
 
 Asked a plain question — *has every business type actually been driven?* — and
 ran the whole sweep to answer it. It printed **96 bugs**. Eighty-eight said

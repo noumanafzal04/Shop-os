@@ -474,6 +474,24 @@ tenant-scoped as a model — the platform reads across every shop — so the ten
 endpoint's own `where` is the entire wall between one history and another, and a
 run with one shop cannot see that wall at all.
 
+## Shops with books and no till
+
+`sold` means "a shop that can ring a sale" — **thirteen phases index
+`state["product"]` without asking** — so a shop with no till cannot go in it.
+
+But `finance` is a whole business type whose only module is `expenses`, and
+phase C skipped it outright, so **17 of 19 phases had never spoken about it**.
+`phase_c.BOOKS_ONLY` carries those shops, and `run.py` hands it to phase E
+alone. Everything there except the khata needs nothing but a token; a khata
+charge is a SALE on credit and stays behind the till gate.
+
+Phase E is therefore gated on `expenses`, **not** `pos`, in `GATES` — so if the
+route ever silently stops reaching a books-only shop the run prints
+`SILENT ON: finance` instead of a clean green summary.
+
+> **A coverage gate tests REACH; a mutation tests a CHECK.** A check that never
+> ran cannot be caught by breaking it.
+
 ## Asking as nobody — the failure that fakes 96 bugs
 
 `Api.login()` returns `None` when a sign-in cannot be had: `throttle:auth` is
