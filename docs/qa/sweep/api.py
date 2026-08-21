@@ -38,6 +38,10 @@ class Api:
         self.token: str | None = None
         self.calls: list[dict] = []
         self.headers: dict = {}
+        # What the server actually said the last time a sign-in failed. A phase
+        # reporting "refused — is the seeder run?" with no status hid the real
+        # answer behind a guess about the seeder, and cost a run to find out.
+        self.last_login_error: tuple[int, str] | None = None
         self._cache: dict = {}
         if TOKENS.exists():
             try:
@@ -61,6 +65,34 @@ class Api:
         # that proves nothing, printed as a pass. That happened, and it is the
         # most dangerous kind of harness bug there is.
         use = None if token is NOBODY else (token if token is not None else self.token)
+
+        # ── A request with NO credentials at all is a harness fault ──────
+        #
+        # The sibling of the bug the note above describes, and it cost a whole
+        # run. `login()` returns None when a sign-in could not be had — a cold
+        # token cache plus `throttle:auth` at 5/min per IP, and a full sweep
+        # drives about a hundred identities. The phase then called on with
+        # `token=None`, which falls through to an ambient token that was also
+        # None, so the request went out bare and the server said 401.
+        #
+        # Every one of those 401s was then reported as a PRODUCT BUG: one run
+        # printed 96 of them, including "the shop has a Main branch — 0
+        # branches" about a shop that has eighteen. The server was answering
+        # correctly and the sweep was asking as nobody.
+        #
+        # `NOBODY` stays the way to ask anonymously ON PURPOSE. Arriving here
+        # with nothing by accident is a different thing and now says so, in a
+        # status no route ever returns, so a caller cannot mistake it for a
+        # refusal.
+        if use is None and token is not NOBODY:
+            self.calls.append({"method": method, "path": path, "status": 0,
+                               "error": "no credentials"})
+            return 0, {
+                "message": "HARNESS: no token — the sign-in failed and this "
+                           "call was about to run as nobody",
+                "meta": {"error_code": "HARNESS_NO_TOKEN"},
+            }
+
         if use:
             req.add_header("Authorization", f"Bearer {use}")
         # A till identifies its LANE and its DEVICE by header, not by body —
@@ -128,6 +160,14 @@ class Api:
             TOKENS.write_text(json.dumps(self._cache, indent=2))
         return token
 
+    def why_login_failed(self) -> str:
+        """The server's own words, for a phase that has to report a refusal."""
+        if self.last_login_error is None:
+            return "no answer recorded"
+        status, message = self.last_login_error
+
+        return f"{status} {message}"
+
     def _alive(self, token: str) -> bool:
         """Cheap and honest: the token works if the server answers as somebody."""
         status, _ = self.get("/auth/me", token=token)
@@ -137,11 +177,26 @@ class Api:
         # `identifier`, not `email`: the field takes an email OR a phone, and
         # naming it `email` would be a lie the day a shopkeeper types their
         # number. Worth knowing before writing a client.
-        for _ in range(4):
-            status, body = self.post("/auth/login", {"identifier": email, "password": password})
+        # Ten, not four. `throttle:auth` is 5/min per IP and this sweep drives
+        # about a hundred identities, so a cold cache needs minutes of pure
+        # waiting. Giving up early returns None, and a None token used to send
+        # the call anyway — bare, as nobody, collecting a 401 that got printed
+        # as a product bug. A slow run beats a wrong one.
+        for _ in range(10):
+            # `NOBODY`, explicitly. A sign-in is the one call that is SUPPOSED
+            # to carry no credentials, and the guard in `call()` — which refuses
+            # to run a check as nobody — would otherwise block the very request
+            # that fetches the token. It did, on its first run.
+            status, body = self.post("/auth/login",
+                                     {"identifier": email, "password": password},
+                                     token=NOBODY)
 
             if status == 200:
+                self.last_login_error = None
+
                 return (body.get("data") or {}).get("access_token")
+
+            self.last_login_error = (status, str(body.get("message") or body)[:120])
 
             # 429 is the brute-force guard, and it is CORRECT. Wait it out
             # rather than reporting it, and take the server's own figure —

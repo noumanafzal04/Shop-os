@@ -276,7 +276,57 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-21 (latest) — who changed what
+### 2026-08-21 (latest) — the sweep asked as nobody
+
+Asked a plain question — *has every business type actually been driven?* — and
+ran the whole sweep to answer it. It printed **96 bugs**. Eighty-eight said
+`401 Unauthenticated`, and one said "the shop has a Main branch — 0 branches"
+about a shop with **eighteen**. None were about the product.
+
+`Api.login()` returns None when a sign-in cannot be had — `throttle:auth` is
+5/min per IP and a full run drives about a hundred identities. The phase then
+called on with `token=None`, which falls through to an ambient token that was
+ALSO None, so the request went out **bare** and the server correctly said 401.
+The sibling of the bug `api.py` already carried a long comment about: `NOBODY`
+guarded the deliberate anonymous call, and asking as nobody BY ACCIDENT had
+nothing in front of it.
+
+- A request that would carry no credentials **does not go out** — status `0`,
+  `HARNESS_NO_TOKEN`, a status no route ever returns. `run.py` **fails the whole
+  run** if one happens: *a summary that cannot be trusted must not read like one
+  that can.*
+- A sign-in is the one call that MUST carry nothing, and the new guard promptly
+  blocked it. `_login_fresh` says `NOBODY` explicitly now.
+- A failed sign-in reports the **server's own answer**. Phase A said "is the
+  seeder run?" about an account that logs in fine, throwing away the status that
+  explained it. Retries 4 → 10: **a slow run beats a wrong one.**
+
+**Two of the surviving three bugs were mine.** The throwaway probe written that
+morning to measure the audit trail had suspended a sweep cashier and set
+retail's discount ceiling to 12%, and left both — so the standing sweep reported
+`cashier can sign in` and `DISCOUNTS.APPLY ACTUALLY GRANTS IT — 403 above the
+12% limit` for the rest of the day. *A probe that mutates a sweep shop leaves the
+sweep lying, and the lie outlives the probe.* Restored.
+
+The third: phase G's serialized product is created with fifty units and **never
+restocked**, so every run ate one until `Insufficient stock: only 0 in stock`
+was reported as a defect. The server was right; the sweep had emptied its own
+shelf. "It must stay re-runnable" is this sweep's oldest rule.
+
+**Final: 1743 ok · 0 to look at · 0 bugs**, 19 phases, zero throttle waits, zero
+calls made as nobody.
+
+**Per-type coverage, measured rather than remembered.** All 8 trading types plus
+`food_restaurant` in 13 of 19 phases; the rest gate correctly on modules (K
+needs `inventory`, L `dine_in`, R a listed shopfront, G trade specials).
+**`finance` is thin by construction** — its only module is `expenses`, so phase C
+needs a till it does not have and every later phase reads phase C's output:
+**17 of 19 phases never touch it.** The money screens are covered, but on other
+shops. Recorded as a gap, not fixed. The nine legacy codes are deliberately not
+swept (*a sweep of an alias is a sweep of its target with a different label*);
+`EveryTradeLoadsTest` runs every screen for all 17.
+
+### 2026-08-21 — who changed what
 
 The audit trail recorded who may DO things and said nothing about what those
 things are WORTH. Eight sensitive acts driven through the API as a shop owner,

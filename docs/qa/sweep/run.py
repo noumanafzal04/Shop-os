@@ -171,7 +171,29 @@ def main() -> int:
         # feature a plan turns on.
         phase_t.run(api, rep, sold)
 
-    return rep.summary(_expected(shops, want), set(shops))
+    code = rep.summary(_expected(shops, want), set(shops))
+
+    # ── was this run trustworthy at all? ────────────────────────────────
+    #
+    # A call that went out with no credentials is a check that asked as nobody,
+    # and the server's 401 is not an answer about the product. One run printed
+    # 96 "bugs" that were all this — including "the shop has a Main branch — 0
+    # branches" about a shop with eighteen. So it is said out loud, and the run
+    # fails: a summary that cannot be trusted must not read like one that can.
+    bare = [c for c in api.calls if c.get("error") == "no credentials"]
+    if bare:
+        print(f"\n{'!' * 70}")
+        print(f"{len(bare)} call(s) ran with NO TOKEN — the sweep could not sign in.")
+        print("Nothing above is evidence about the product. `throttle:auth` is")
+        print("5/min per IP; wait a few minutes and run it again.")
+        for c in bare[:5]:
+            print(f"  · {c['method']} {c['path']}")
+        if len(bare) > 5:
+            print(f"  · … and {len(bare) - 5} more")
+        print("!" * 70)
+        return 1
+
+    return code
 
 
 if __name__ == "__main__":

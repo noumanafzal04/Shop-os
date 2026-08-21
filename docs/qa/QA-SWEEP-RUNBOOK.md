@@ -474,6 +474,41 @@ tenant-scoped as a model — the platform reads across every shop — so the ten
 endpoint's own `where` is the entire wall between one history and another, and a
 run with one shop cannot see that wall at all.
 
+## Asking as nobody — the failure that fakes 96 bugs
+
+`Api.login()` returns `None` when a sign-in cannot be had: `throttle:auth` is
+**5/min per IP** and a full run drives about a hundred identities, so a cold
+token cache means minutes of pure waiting. A phase then called on with
+`token=None`, which falls through to an ambient token that was **also** None,
+the request went out **bare**, and the server's 401 was printed as a product
+bug. One run produced **96 of them**, including *"the shop has a Main branch —
+0 branches"* about a shop with eighteen.
+
+- **A request that would carry no credentials does not go out.** It returns
+  status `0` / `HARNESS_NO_TOKEN` — a status no route ever returns — and
+  `run.py` **fails the whole run** if even one happens. *A summary that cannot
+  be trusted must not read like one that can.*
+- **`NOBODY` is still how you ask anonymously on purpose**, and `_login_fresh`
+  uses it: a sign-in is the one call that must carry nothing, and the new guard
+  blocked it on its first run.
+- **A failed sign-in reports the server's own answer** (`why_login_failed()`),
+  never a guess. Phase A used to say "is the seeder run?" about an account that
+  logs in fine.
+
+> **Read the throttle waits before reading the verdict.** If a run says
+> anything surprising, `grep -c 'rate limited\|throttled'` first.
+
+## Two rules for anything that touches a sweep shop
+
+- **A throwaway probe must restore what it touched, or use a shop of its own.**
+  A one-off script written to measure the audit trail suspended a cashier and
+  set a discount ceiling, and left both — so the standing sweep reported two
+  false bugs for days afterwards. *The lie outlives the probe.*
+- **Every reusable fixture restocks.** Phase G's serialized product was created
+  with fifty units and never topped up: each run ate one, and eventually the run
+  reported `Insufficient stock: only 0 in stock` as a defect. The server was
+  right — the sweep had emptied the shelf itself.
+
 Two rules the sweep has already had to learn the hard way:
 
 - **It must stay re-runnable.** Its second run reported eight bugs — "a business

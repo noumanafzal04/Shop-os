@@ -483,11 +483,31 @@ def _first_number(d: dict, keys: tuple) -> float | None:
 # ── plumbing ───────────────────────────────────────────────────────────
 
 def _product(api: Api, token: str, name: str, payload: dict) -> dict | None:
-    """The sweep's own product of this shape, made once and reused."""
+    """
+    The sweep's own product of this shape, made once, reused — and RESTOCKED.
+
+    It was created with fifty units and never topped up, so every run ate one
+    and the fiftieth run onwards reported `sell a serialized unit — 422
+    Insufficient stock: only 0 in stock` as a product bug. The server was
+    right; the shelf really was empty, because the sweep had emptied it.
+
+    "It must stay re-runnable" is this sweep's oldest rule, and phase C's own
+    product helper has restocked since the day it was written. This one had
+    not.
+    """
     status, body = api.get(f"/products?search={name.replace(' ', '+')}", token=token)
     rows = _rows(body) if status == 200 else []
     found = next((r for r in rows if r.get("name") == name), None)
+
     if found:
+        want = float(payload.get("stock_quantity") or 0)
+        if want > 0 and float(found.get("stock_quantity") or 0) < 5:
+            api.post("/inventory/adjust", {
+                "product_id": found["id"], "type": "set", "new_quantity": want,
+                "reason": "sweep phase G restock",
+            }, token=token)
+            found = _read(api, token, found["id"]) or found
+
         return found
 
     status, body = api.post("/products", {"name": name, **payload}, token=token)

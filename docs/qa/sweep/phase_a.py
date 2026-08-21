@@ -26,7 +26,10 @@ def run(api: Api, rep: Report) -> dict:
 
     token = api.login(ADMIN)
     if token is None:
-        rep.bug("A", "admin can log in", f"{ADMIN} refused — is the seeder run?")
+        # The server's own answer, never a guess about the seeder. This line
+        # said "is the seeder run?" about an account that logs in fine, and the
+        # real reason was thrown away with it.
+        rep.bug("A", "admin can log in", f"{ADMIN} refused · {api.why_login_failed()}")
         return {}
     api.token = token
     rep.ok("A", "admin can log in")

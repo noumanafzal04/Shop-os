@@ -88,3 +88,4 @@
 - [Page Two](shopos-page-two.md) — FIXED: 9 screens could not reach page two AT ALL (reviews capped at 10); one shared <Pager> + 2 guards; scanner was wrong 4 times first
 - [Other Half Of A Date](shopos-other-half-of-a-date.md) — FIXED: a tyre shop sold its NEWEST stock first; `manufactured_on` was written and never read (no order, no counter notice, no sweep); DotCode's own docblock had stated the rule
 - [Who Changed What](shopos-who-changed-what.md) — FIXED: audit trail recorded permissions but not the money they move (credit limit 5k→90k = no row); shop couldn't read its own history
+- [Asked As Nobody](shopos-asked-as-nobody.md) — STANDING: a sweep call with no token went out bare and faked 96 bugs; a throwaway probe that mutates sweep shops leaves the sweep lying

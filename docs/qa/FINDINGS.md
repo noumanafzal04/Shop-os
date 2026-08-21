@@ -10,6 +10,104 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-21 — the sweep asked as nobody, and reported 96 bugs
+
+Asked a plain question — *has every business type been driven?* — and ran the
+whole sweep to answer it. It printed **96 bugs**. Eighty-eight of them said
+`401 Unauthenticated`, and one said *"the shop has a Main branch — 0 branches"*
+about a shop with **eighteen**.
+
+None of them were about the product.
+
+### HARNESS · a call with no credentials is not an answer
+
+`Api.login()` returns `None` when a sign-in cannot be had — a cold token cache
+plus `throttle:auth` at 5/min per IP, and a full sweep drives about a hundred
+identities. The phase then called on with `token=None`, which falls through to
+an ambient token that was **also** None, so the request went out **bare** and the
+server correctly said 401. The sweep printed each one as a defect.
+
+This is the sibling of the bug `api.py` already carried a long comment about —
+*"a permission probe that ran as the WRONG IDENTITY"* — and the existing
+`NOBODY` sentinel guarded only the deliberate case. Asking as nobody **by
+accident** had nothing standing in front of it.
+
+Three fixes, and the second is the interesting one:
+
+1. **A request that would go out with no credentials does not go out.** It
+   returns status `0` and `HARNESS_NO_TOKEN` — a status no route ever returns,
+   so no caller can mistake it for a refusal. And `run.py` **fails the whole
+   run** when even one occurs, with the line *"nothing above is evidence about
+   the product"*. A summary that cannot be trusted must not read like one that
+   can.
+2. **A sign-in is the one call that is SUPPOSED to be anonymous** — and the new
+   guard promptly blocked it, so the first run after the fix reported *"admin
+   can log in — refused"*. `_login_fresh` now says `NOBODY` explicitly, which is
+   what it always meant.
+3. **A failed sign-in reports the server's own answer.** Phase A said
+   `"admin@shopos.test refused — is the seeder run?"` about an account that logs
+   in fine, throwing away the status that would have explained it in one glance.
+   It carries `why_login_failed()` now.
+
+Login retries also went from 4 to 10: `throttle:auth` is 5/min and a cold cache
+needs minutes of pure waiting. **A slow run beats a wrong one.**
+
+**96 bugs → 3.** And 0 calls made as nobody.
+
+### HARNESS · a throwaway probe left the sweep lying
+
+Two of the surviving three were **mine**. The ad-hoc probe written that morning
+to measure the audit trail had suspended a sweep cashier and set the retail
+shop's discount ceiling to 12% — and left both that way. The standing sweep then
+reported, correctly and uselessly:
+
+- `I retail · cashier can sign in` — because the cashier was suspended;
+- `M retail · DISCOUNTS.APPLY ACTUALLY GRANTS IT — 403 This discount is 80%,
+  above the 12% limit` — because the shop now had a ceiling, which is the
+  feature shipped the day before.
+
+> **A throwaway probe that mutates the sweep's shops leaves the standing sweep
+> lying, and the lie outlives the probe by days.** A probe either restores what
+> it touched or works on a shop of its own.
+
+### HARNESS · phase G never restocked, so the shelf ran dry
+
+The third: `G petroleum · sell a serialized unit — 422 Insufficient stock: only
+0 in stock`. The serialized product is created with fifty units and **never
+topped up**, so every run ate one and eventually the run reported the empty
+shelf as a defect. The server was right; the sweep had emptied it.
+
+"It must stay re-runnable" is this sweep's oldest rule, and phase C's own
+product helper has restocked since the day it was written. This one had not.
+
+### The answer to the question that started it
+
+**1743 ok · 0 to look at · 0 bugs** once all three were closed, across **19
+phases** — with zero throttle waits and zero calls made as nobody. Per-type coverage, from the run's own table rather than from memory:
+
+| shops covered | phases |
+|---|---|
+| all 8 trading types + `food_restaurant` | B, C |
+| 8 (finance has no till) | D E F H I J M N O P Q S T |
+| 6 — needs `inventory` | K |
+| 5 — trade specials | G |
+| 3 — needs a listed shopfront | R |
+| 2 — needs `dine_in` | L |
+
+**`finance` is the thin one, and it is thin by construction.** Its only module
+is `expenses`, so phase C — which needs a till — skips it, and every phase after
+C reads phase C's output. **17 of 19 phases never touch it.** The money screens
+themselves are covered, but on other shops; the one type whose entire product IS
+the money screens has never been driven end to end. Recorded as a gap, not
+fixed.
+
+The nine legacy codes (`restaurant`, `grocery`, `clinic`, `salon`, `workshop`,
+`service`, `wholesale`, `books`, `hardware`) are deliberately not swept — *a
+sweep of an alias is a sweep of its target with a different label* — and are
+covered by `EveryTradeLoadsTest`, which runs every screen for **all 17** codes.
+
+---
+
 ## 2026-08-21 — who changed what
 
 ### BUG · the trail recorded permissions and not the money they move — NOW FIXED
