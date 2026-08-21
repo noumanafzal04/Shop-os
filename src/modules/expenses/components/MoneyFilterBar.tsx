@@ -93,6 +93,14 @@ export function MoneyFilterBar({
   // them says what they are — so they get real labels a screen reader can read.
   const fromId = useId();
   const toId = useId();
+  // The drawer draws the SAME two fields again, and needs its own ids: two
+  // elements cannot share one. The desktop bar has always tied its labels with
+  // sr-only + htmlFor; the drawer had a VISIBLE label that was never associated
+  // with anything, so a sighted user read it and a screen reader met a nameless
+  // date box. Same two fields, one component, two paths — and only one of them
+  // answering, which is this codebase's oldest bug shape wearing a new hat.
+  const drawerFromId = useId();
+  const drawerToId = useId();
 
   const set = (patch: Partial<MoneyFilters>) => onChange({ ...filters, ...patch, page: 1 });
   const clearAll = () => onChange({ page: 1, sort: filters.sort, dir: filters.dir });
@@ -328,8 +336,9 @@ export function MoneyFilterBar({
             </div>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <div>
-                <Label>From</Label>
+                <Label htmlFor={drawerFromId}>From</Label>
                 <Input
+                  id={drawerFromId}
                   type="date"
                   value={filters.from ?? ""}
                   max={filters.to || undefined}
@@ -337,8 +346,9 @@ export function MoneyFilterBar({
                 />
               </div>
               <div>
-                <Label>To</Label>
+                <Label htmlFor={drawerToId}>To</Label>
                 <Input
+                  id={drawerToId}
                   type="date"
                   value={filters.to ?? ""}
                   min={filters.from || undefined}

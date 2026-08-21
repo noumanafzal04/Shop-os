@@ -533,6 +533,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Sell as normal, and capture the doctor and the prescription against the ticket. Both stay with the sale." },
       { type: "p", text: "Search finds a medicine by its brand name or by its salt, so a customer asking for the generic still gets served." },
       { type: "p", text: "The batch nearest expiry is picked automatically." },
+      { type: "h", text: "Schedule-controlled medicines" },
+      { type: "p", text: "Give a medicine a drug schedule on its product page and it becomes prescription-only automatically — you cannot mark something Schedule G and leave the prescription box unticked, because a controlled drug that needs no prescription is not a thing." },
+      { type: "warn", text: "A controlled medicine is dispensed in person, over your counter, and nowhere else. The till will not ring one until you have recorded the prescription number and the prescriber — and it cannot be put on a delivery or a telephone order at all, for anyone. That is deliberate: a pharmacist has to sight the script." },
+      { type: "note", text: "Everything you dispense against a prescription lands in Pharmacy → Dispensing register, with the lot it came from, the patient and the prescriber. That is the list a regulator asks to see, so the two rules above exist to keep it complete." },
     ],
   },
   {

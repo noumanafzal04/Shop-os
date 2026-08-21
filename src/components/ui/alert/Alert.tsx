@@ -113,6 +113,19 @@ const Alert: React.FC<AlertProps> = ({
 
   return (
     <div
+      /**
+       * An alert nobody hears is not an alert.
+       *
+       * This component carried no role and no live region, so "Sale failed"
+       * appearing after a button press was announced to nobody — while the till
+       * blocker ten lines away in PosPage does carry role="alert". The app knew
+       * the pattern; the shared component did not use it.
+       *
+       * `alert` for the two that mean something went wrong (assertive: it
+       * interrupts, which is the point), `status` for the two that are news
+       * (polite: it waits for a gap).
+       */
+      role={variant === "error" || variant === "warning" ? "alert" : "status"}
       className={`rounded-xl border p-4 ${variantClasses[variant].container}`}
     >
       <div className="flex items-start gap-3">

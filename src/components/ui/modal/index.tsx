@@ -1,4 +1,4 @@
-import { useRef, useEffect, type ReactNode } from "react";
+import { useRef, useEffect, useId, useState, type ReactNode } from "react";
 
 interface ModalProps {
   isOpen: boolean;
@@ -18,6 +18,47 @@ export const Modal: React.FC<ModalProps> = ({
   isFullscreen = false,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const labelId = useId();
+  const [named, setNamed] = useState(false);
+
+  /**
+   * A dialog needs a NAME, and the focus needs to be inside it.
+   *
+   * `role="dialog"` and `aria-modal="true"` were added first and on their own
+   * they are half a fix: an unnamed dialog is announced as "dialog", and
+   * `aria-modal` tells a reader the rest of the page is inert while the focus
+   * is still standing out there in it — stranded in a page it has just been
+   * told to ignore.
+   *
+   * The name is taken from the dialog's own heading rather than from a new prop,
+   * because there are 107 call sites and every one of them already renders one.
+   * Nothing to pass, nothing to forget.
+   */
+  useEffect(() => {
+    if (!isOpen) {
+      setNamed(false);
+
+      return;
+    }
+
+    const panel = modalRef.current;
+    if (panel === null) {
+      return;
+    }
+
+    const heading = panel.querySelector("h1, h2, h3, h4, h5, h6");
+    if (heading !== null) {
+      if (heading.id === "") {
+        heading.id = labelId;
+      }
+      setNamed(true);
+    }
+
+    // The panel itself, not the first control: landing on a control skips the
+    // title, and a cashier using a keyboard should hear what opened before
+    // being asked to fill it in.
+    panel.focus({ preventScroll: true });
+  }, [isOpen, labelId]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -102,6 +143,8 @@ export const Modal: React.FC<ModalProps> = ({
         ref={modalRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={named ? labelId : undefined}
+        tabIndex={-1}
         className={`${contentClasses}  ${className}`}
         onClick={(e) => e.stopPropagation()}
       >

@@ -41,10 +41,27 @@ interface InputProps {
    * for a raw `<input>` — a one-field question should never need the mouse.
    */
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  /**
+   * What this field is CALLED, for anyone who cannot see the label beside it.
+   *
+   * There was no route to a name at all. Of 360 uses of this component, two
+   * passed an `id` and five `<Label>`s passed a matching `htmlFor` — so in
+   * practice a field's name was its placeholder, and a placeholder is not a
+   * name: it disappears the moment somebody types.
+   *
+   * Prefer a real `<Label htmlFor>` tied to an `id` where there is a visible
+   * label. Use this where there is not — a search box, a date range, a cell in
+   * a grid of identical inputs.
+   */
+  "aria-label"?: string;
+  /** id of the element that already names this field, if one is on screen. */
+  "aria-labelledby"?: string;
 }
 
 const Input: FC<InputProps> = ({
   type = "text",
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
   id,
   name,
   placeholder,
@@ -85,6 +102,8 @@ const Input: FC<InputProps> = ({
     <div className="relative">
       <input
         type={type}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         id={id}
         name={name}
         placeholder={placeholder}

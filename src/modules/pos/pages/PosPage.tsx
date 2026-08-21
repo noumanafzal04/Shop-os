@@ -1951,6 +1951,10 @@ export default function PosPage() {
               <input
                 ref={scanRef}
                 autoFocus
+                // The one control on the till that has no visible label — the
+                // magnifier beside it is decorative. A placeholder is not a
+                // name: it goes the moment the cashier starts typing.
+                aria-label="Scan a barcode or search the catalog"
                 placeholder="Scan barcode or search…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setScanError(null); }}
