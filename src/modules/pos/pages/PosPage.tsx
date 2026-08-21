@@ -1414,8 +1414,52 @@ export default function PosPage() {
     holdModal.openModal();
   };
 
+  /**
+   * The till's one way of speaking, drawn in two places.
+   *
+   * It lived inside the PRODUCTS pane. On a phone the till shows ONE pane at a
+   * time, so every notice raised while the cashier was in the Cart — the Hold
+   * refusal, anything a cart action says — was rendered into a pane they were
+   * not looking at. It was not hidden by a breakpoint and not missing; it was
+   * simply somewhere else, which from the counter is the same thing.
+   *
+   * Found by a browser test on the 390-point project, and by nothing else: on
+   * every wider screen both panes are on screen at once and the strip has
+   * always been visible.
+   */
+  const noticeStrip = posNotice && (
+    <div
+      // Drawn twice, once per layout, with CSS deciding which. `data-pos-notice`
+      // is how a test asks for the one actually on screen — the same hook
+      // `data-pos-item` and `data-cart-row` already are.
+      data-pos-notice
+      className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
+      <span className="flex items-center gap-1.5"><AlertIcon className="h-4 w-4 shrink-0" /> {posNotice}</span>
+      <button className={INLINE_DISMISS} onClick={() => setPosNotice(null)}><CloseIcon className="h-4 w-4" /></button>
+    </div>
+  );
+
   const doHold = () => {
     if (cart.length === 0) return;
+
+    // A parked ticket lives on the SERVER, on purpose: the list is site-wide,
+    // and resuming one is a locked step so two lanes cannot ring the same
+    // basket twice. Neither is available with no line — and until now the
+    // button simply failed in silence, leaving the cashier looking at a ticket
+    // they believed was parked.
+    //
+    // Refused with words rather than a dead button: a disabled control on a
+    // touch screen tells nobody why.
+    if (!connected) {
+      setPosNotice(
+        "Held tickets need the line — the list is shared across every lane. " +
+        "Complete this sale, or leave it on screen until the connection is back.",
+      );
+      holdModal.closeModal();
+
+      return;
+    }
+
     heldMut.hold.mutate(
       {
         label: holdLabel.trim() || undefined, total_estimate: total,
@@ -1864,6 +1908,9 @@ export default function PosPage() {
           ))}
         </div>
 
+        {/* Above the pane switch, so a phone sees it whichever pane is open. */}
+        {posNotice && <div className="bg-pos-ground px-3 sm:hidden">{noticeStrip}</div>}
+
         <div className={`${phonePane === "catalog" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-pos-ground p-3 sm:flex lg:col-span-6 xl:col-span-5`}>
           {/* Everything you type or scan into, in one raised card. Loose
               controls on a dark ground read as floating; a card gives the
@@ -1994,12 +2041,9 @@ export default function PosPage() {
               </p>
             )}
             {scanError && <p className="mt-1 text-theme-xs text-error-500">{scanError}</p>}
-            {posNotice && (
-              <div className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
-                <span className="flex items-center gap-1.5"><AlertIcon className="h-4 w-4 shrink-0" /> {posNotice}</span>
-                <button className={INLINE_DISMISS} onClick={() => setPosNotice(null)}><CloseIcon className="h-4 w-4" /></button>
-              </div>
-            )}
+            {/* Hidden on a phone, where it is drawn above the pane switch
+                instead — see the note there. */}
+            {posNotice && <div className="hidden sm:block">{noticeStrip}</div>}
             {/* The reprint tray, at the till rather than in a report: a receipt
                 that never came out is a customer still standing there. */}
             {(failedReceipts.data?.length ?? 0) > 0 && (
@@ -3505,7 +3549,17 @@ export default function PosPage() {
       {/* Held sales */}
       <Modal isOpen={heldModal.isOpen} onClose={heldModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Held sales</h3>
-        {(held.data ?? []).length === 0 ? (
+        {/* "No held sales" is a FALSE statement with no line, and the worst
+            possible one here: the shop may have ten parked tickets, and a
+            cashier told there are none rings one of them again from scratch.
+            The list is the server's — say that, rather than answering a
+            question this till cannot answer. */}
+        {!connected ? (
+          <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+            Held tickets are shared across every lane, so this list needs the
+            line. It is not empty — it cannot be read from here.
+          </p>
+        ) : (held.data ?? []).length === 0 ? (
           <p className="py-6 text-center text-sm text-gray-400">No held sales.</p>
         ) : (
           <div className="space-y-2">

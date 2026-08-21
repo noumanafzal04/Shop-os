@@ -92,14 +92,26 @@ export const Modal: React.FC<ModalProps> = ({
         className={`relative flex min-h-full justify-center ${isFullscreen ? "items-stretch" : "items-center p-4"}`}
         onClick={onClose}
       >
+      {/* `role="dialog"` + `aria-modal`, which this component had neither of.
+          Every modal in the app was an anonymous div: a screen reader announced
+          nothing when one opened, and nothing told it that the page behind was
+          inert. It also made the whole app untestable by role — a browser test
+          asking for the dialog it had just opened waited five minutes and
+          timed out, which is how this was found. */}
       <div
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
         className={`${contentClasses}  ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {showCloseButton && (
           <button
             onClick={onClose}
+            // Icon-only, so without this it is announced as "button" and
+            // nothing else — the one control every modal has, and the one a
+            // person who cannot see the ✕ most needs named.
+            aria-label="Close"
             className="absolute right-3 top-3 z-999 flex h-9.5 w-9.5 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white sm:right-6 sm:top-6 sm:h-11 sm:w-11"
           >
             <svg
