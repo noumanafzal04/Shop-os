@@ -100,6 +100,38 @@ class JobCardTest extends TestCase
         ], $over));
     }
 
+    // ── The advance, and the door it must go through ─────────────────
+
+    public function test_an_advance_sent_with_the_job_card_is_refused_not_swallowed(): void
+    {
+        // "Layaway only" was a comment and nothing else. The create action reads
+        // `deposit` inside `if ($isLayaway)`, so an advance sent with a job card
+        // was validated, accepted, answered 201 — and dropped. Money a client
+        // believed it had recorded.
+        //
+        // Nothing in the panel sends it, so no shop has lost anything. But an
+        // API that swallows a figure it was given is worse than one that
+        // refuses it.
+        $this->open(['deposit' => ['amount' => 5000, 'method' => 'cash']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('deposit');
+    }
+
+    public function test_the_advance_still_goes_in_through_its_own_door(): void
+    {
+        // The denominator. A workshop DOES take money up front — the Help Centre
+        // says so — and this is where it goes. A refusal above would be a
+        // regression if this stopped working.
+        $id = $this->open()->assertCreated()->json('data.id');
+
+        $this->actingAsUser($this->cashier)
+            ->postJson("/api/v1/sale-documents/{$id}/deposits", [
+                // Under the job's total — an advance is money toward the bill,
+                // not more than it.
+                'amount' => 1000, 'method' => 'cash',
+            ])->assertCreated();
+    }
+
     // ── Booking a car in ────────────────────────────────────────────
 
     public function test_a_car_can_be_booked_in_with_what_the_customer_said(): void

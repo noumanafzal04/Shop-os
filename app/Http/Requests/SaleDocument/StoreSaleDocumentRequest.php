@@ -57,7 +57,19 @@ class StoreSaleDocumentRequest extends FormRequest
             'terms' => ['nullable', 'string', 'max:1000'],
             'notes' => ['nullable', 'string', 'max:1000'],
             // Layaway only — the opening advance.
-            'deposit' => ['nullable', 'array'],
+            //
+            // `prohibited_unless` rather than `nullable`, because "layaway only"
+            // was a comment and nothing else: CreateSaleDocumentAction reads
+            // `deposit` only inside `if ($isLayaway)`, so an advance sent with a
+            // job card or a quotation was validated, accepted, answered 201 —
+            // and dropped. Money a client believed it had recorded.
+            //
+            // Nothing in the panel sends it, so no shop has lost anything. But
+            // an API that swallows a figure it was given is worse than one that
+            // refuses it, and the right door exists: POST
+            // /sale-documents/{document}/deposits, which is where the workshop
+            // records an advance against a car.
+            'deposit' => ['nullable', 'array', 'prohibited_unless:kind,'.SaleDocument::KIND_LAYAWAY],
             'deposit.amount' => ['required_with:deposit', 'numeric', 'min:0.01'],
             'deposit.method' => ['nullable', Rule::in(SaleDocument::DEPOSIT_METHODS)],
             'deposit.reference' => ['nullable', 'string', 'max:120'],
