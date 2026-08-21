@@ -98,3 +98,4 @@
 - [Everyone Minus One Role](shopos-everyone-minus-one-role.md) — "Everyone" excluded UserRole::Staff; the cashier's bell could never be filled; staff still get NO operational notification
 - [Promise In Another File](shopos-promise-in-another-file.md) — STANDING: a comment/label stating a rule implemented nowhere; 4 in one day; a comment reads as DONE
 - [Three Verdicts Paid Off](shopos-three-verdicts-paid-off.md) — 11 confirmed / 2 refuted, both refutations MINE; don't re-raise announcement dedupe or workshop preset
+- [Size Picker Gap](shopos-size-picker-gap.md) — REQUESTED not built: variants (S/M/L, own price+stock) fully exist but NO screen can pick one; till + dine-in both send variant_id null; modifier group is today's workaround
