@@ -46,7 +46,27 @@ interface ButtonProps {
   onClick?: () => void; // Click handler
   disabled?: boolean; // Disabled state
   className?: string; // Disabled state
-  type?: "button" | "submit" | "reset"; // native button type (default: submit inside a form)
+  /**
+   * Native button type. **Defaults to `"button"`, not `"submit"`.**
+   *
+   * It used to have no default, which means the HTML default — and the HTML
+   * default for a button inside a form is SUBMIT. Of 305 uses of this component
+   * exactly one asked for `submit`, so every other one was relying on not being
+   * inside a form. Three were, and the damage was invisible:
+   *
+   *   "+ Add variant"    submitted the product form, so the item was created
+   *                      with ZERO variants and the drawer closed. Reopening it
+   *                      is edit mode, where the section is hidden — so the
+   *                      variant editor could never be used, and every variant
+   *                      in the system had come in through the API.
+   *   "+ Group"          the same, for modifier groups.
+   *   "Save modifiers"   fired its own mutation AND created the product.
+   *
+   * A shared control whose default silently submits its surrounding form is a
+   * trap that fires once per form somebody writes. The safe default is the inert
+   * one; the nine buttons that really are a form's submit now say so.
+   */
+  type?: "button" | "submit" | "reset";
   title?: string; // native tooltip, for icon-only actions
   "aria-label"?: string; // required when the button has no text
 }
@@ -60,7 +80,7 @@ const Button: React.FC<ButtonProps> = ({
   onClick,
   className = "",
   disabled = false,
-  type,
+  type = "button",
   title,
   "aria-label": ariaLabel,
 }) => {

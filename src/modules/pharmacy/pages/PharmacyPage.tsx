@@ -181,7 +181,7 @@ function RecallTab() {
           <Label>Batch / lot number</Label>
           <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="As printed on the recall notice" />
         </div>
-        <Button size="sm" disabled={!input.trim()}>Find it</Button>
+        <Button type="submit" size="sm" disabled={!input.trim()}>Find it</Button>
       </form>
 
       {batch && recall.isLoading && (

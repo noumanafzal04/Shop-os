@@ -110,7 +110,7 @@ export default function CategoriesPage() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
-            <Button size="sm" className="w-full" disabled={create.isPending || !newName.trim()}>
+            <Button type="submit" size="sm" className="w-full" disabled={create.isPending || !newName.trim()}>
               {create.isPending ? "Adding…" : "Add category"}
             </Button>
             <p className="text-theme-xs text-gray-400">

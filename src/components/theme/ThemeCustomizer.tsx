@@ -293,6 +293,22 @@ export default function ThemeCustomizer() {
         role="dialog"
         aria-modal="true"
         aria-label="Appearance"
+        /**
+         * HIDDEN MEANS HIDDEN, not merely slid off the edge.
+         *
+         * This panel is always mounted and animates in and out with
+         * `translate-x-full`, so when it is closed it is off-screen and still
+         * fully present in the accessibility tree — an `aria-modal="true"`
+         * dialog that never goes away. To a screen reader that says the rest of
+         * the page is inert, on every screen in the app, all the time. Its
+         * controls were also still in the tab order, so a keyboard user tabbing
+         * through the shop fell into a panel nobody had opened.
+         *
+         * Found by a browser test that asked for "the dialog" and was handed
+         * two — the one it had just opened, and this.
+         */
+        aria-hidden={!open}
+        inert={!open}
         /* `h-dvh`, never `h-screen`.
          *
          * This panel is a flex column: header, a scrolling middle, and a

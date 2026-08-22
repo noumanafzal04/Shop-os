@@ -62,7 +62,23 @@ export interface CatalogItem {
    * refuses the line regardless; this is so the screen says so first.
    */
   sold_out?: boolean;
-  variants: Array<{ id: string; name: string; sku: string | null; price: number; stock: number }>;
+  /**
+   * The device's own variant shape, and NOT the catalog's `ProductVariant`.
+   *
+   * `stock` here, `stock_quantity` there; no `cost` here, because the projection
+   * deliberately withholds it. `browse.ts` translates between the two — it used
+   * to pass this array straight through behind an `as unknown as` cast, so the
+   * till read `v.stock_quantity` off an object that has `stock` and got
+   * undefined, and read `v.is_active` off an object that had never carried it.
+   */
+  variants: Array<{
+    id: string;
+    name: string;
+    sku: string | null;
+    price: number;
+    stock: number;
+    is_active: boolean;
+  }>;
   units: Array<{ id: string; name: string; factor: number; price: number | null; barcode: string | null }>;
   barcodes: string[];
   modifier_groups: Array<{

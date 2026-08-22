@@ -21,15 +21,10 @@ import {
 import { useBusinessTypes, useShopSettings } from "../../shop/hooks/useShop";
 import { useTaxGroups } from "../hooks/useTaxGroups";
 import { catalogService } from "../services/catalogService";
-import type { ItemTypeCode, ModifierGroup, VariantInput } from "../types";
+import type { ItemTypeCode, ModifierGroup } from "../types";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
-
-interface FormVariant extends VariantInput {
-  _key: string;
-}
-
-let keyCounter = 0;
-const nextKey = () => `v${++keyCounter}`;
+import VariantMatrixEditor from "../components/VariantMatrixEditor";
+import { axesFromRows, toPayload, type Axis, type MatrixRow } from "../variantMatrix";
 
 /** A compact labelled on/off switch used for stock + marketplace flags. */
 function Toggle({
@@ -195,7 +190,15 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [isActive, setIsActive] = useState(true);
   const [visibleOnline, setVisibleOnline] = useState(true);
   const [collectionIds, setCollectionIds] = useState<string[]>([]);
-  const [variants, setVariants] = useState<FormVariant[]>([]);
+  const [variants, setVariants] = useState<MatrixRow[]>([]);
+  /**
+   * The axes those rows were generated from.
+   *
+   * Kept in the product's own `attributes` json on save, so opening an existing
+   * item shows the GRID a shop typed rather than twelve rows called "Red / S"
+   * through "Blue / XL" with no clue where they came from.
+   */
+  const [axes, setAxes] = useState<Axis[]>([]);
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [tab, setTab] = useState<"details" | "media" | "options" | "advanced">("details");
@@ -281,6 +284,39 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setGenericName(p.generic_name ?? "");
       setStrength(p.strength ?? "");
       setDosageForm(p.dosage_form ?? "");
+
+      // ── the sizes, and the grid they came from ────────────────────
+      //
+      // Variants used to be create-only, so opening an item showed nothing at
+      // all. Now the rows come back with their ids — which is what lets one
+      // save mean edit, add and retire — and the AXES come back from the
+      // product's own `attributes`, so the shop sees the grid it typed.
+      //
+      // For an item made before axes were kept (or through the API), the axes
+      // are recovered from the row names. `axesFromRows` refuses to guess when
+      // the rows are not a full grid, and then this shows the flat list, which
+      // is the honest fallback rather than a grid that would silently put a
+      // deleted combination back.
+      const rows: MatrixRow[] = (p.variants ?? []).map((v) => ({
+        id: v.id,
+        name: v.name,
+        sku: v.sku ?? undefined,
+        // `Number`, not the raw string: the server answers `"1499.00"` and a box
+        // reading 1499.00 is not what the shop typed. Coercing keeps 1499.50
+        // intact and turns 1499.00 back into 1499.
+        price: Number(v.price),
+        cost: v.cost === null || v.cost === undefined ? undefined : Number(v.cost),
+        stock_quantity: v.stock_quantity,
+        is_active: v.is_active,
+      }));
+      setVariants(rows);
+
+      const saved = (p.attributes as { variant_axes?: Axis[] } | null)?.variant_axes;
+      setAxes(
+        Array.isArray(saved) && saved.length > 0
+          ? saved
+          : axesFromRows(rows, (typeCfg?.variant_attributes ?? [])) ?? [],
+      );
       setRequiresRx(p.requires_prescription ?? false);
       setDrugSchedule(p.drug_schedule ?? "");
       setKitchenStation(p.kitchen_station ?? "");
@@ -322,6 +358,13 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         })),
       );
     }
+    // `existing.data` ALONE, deliberately.
+    //
+    // The axis-name fallback reads `typeCfg`, which arrives from its own query —
+    // so listing it here would re-run the whole hydration the moment that query
+    // resolves, throwing away whatever the shop had typed in between. Hydration
+    // is a one-shot: it happens when the item arrives and never again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing.data]);
 
   const fieldErrors = mutation.error instanceof ApiError ? mutation.error.errors : {};
@@ -409,7 +452,17 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
     if (isEdit) {
       update.mutate(
-        { id: id!, ...base, duration_minutes: duration ? Number(duration) : undefined },
+        {
+          id: id!,
+          ...base,
+          duration_minutes: duration ? Number(duration) : undefined,
+          // Sizes go on the EDIT path too, which is the whole point of the
+          // change. They used to be sent only on create, and the server used to
+          // drop them on update anyway — so a mis-priced Large was permanent.
+          // Sent only when this item type has sizes at all, so a bare field edit
+          // on something else cannot wipe a collection it never showed.
+          ...(showVariants ? { variants: toPayload(variants), variant_axes: axes } : {}),
+        },
         { onSuccess: (res) => finish(warningsOf(res)) },
       );
     } else {
@@ -428,15 +481,14 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           ...(isMedicine && expiryDate ? { expiry_date: expiryDate } : {}),
           ...(isMedicine && openingBatch.trim() ? { opening_batch_number: openingBatch.trim() } : {}),
           ...(isService ? { duration_minutes: duration ? Number(duration) : undefined } : {}),
-          ...(showVariants && variants.length
-            ? {
-                variants: variants.map(({ _key, ...v }) => ({
-                  ...v,
-                  sku: v.sku || undefined,
-                  cost: v.cost || undefined,
-                })),
-              }
-            : {}),
+          // Sizes ride BOTH paths now. On create they are new rows; on edit
+          // each row carries its id, so the server can tell an edit from an
+          // addition and a vanished row from a retirement. `toPayload` decides
+          // what each row sends — notably NOT a quantity for a row that already
+          // exists, because stock has one write path and an edit form must not
+          // become a second door onto the shelf.
+          ...(showVariants && variants.length ? { variants: toPayload(variants) } : {}),
+          ...(showVariants && axes.length ? { variant_axes: axes } : {}),
         },
         {
           onSuccess: async (res) => {
@@ -470,8 +522,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
     { key: "details", label: "Details" },
     ...(imagesEnabled || marketplaceEnabled || (collectionsQ.data ?? []).length
       ? [{ key: "media", label: "Media & online" }] : []),
-    ...((showVariants && !isEdit) || (supportsModifiers && isEdit)
-      ? [{ key: "options", label: "Variants & options" }] : []),
+    // Sizes are editable now, so the tab no longer disappears on edit. It used
+    // to reappear carrying ONLY the modifier block, which is how a shopkeeper who
+    // had just created three sizes came back and found the tab present and the
+    // sizes gone.
+    ...(showVariants || supportsModifiers
+      ? [{ key: "options", label: "Sizes & options" }] : []),
     ...(isGood || !isService ? [{ key: "advanced", label: "Codes & packs" }] : []),
   ] as const;
   const activeTab = tabs.some((t) => t.key === tab) ? tab : "details";
@@ -922,7 +978,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     </div>
                     <div>
                       <Label>
-                        Opening batch expiry{Number(stock) > 0 && <span className="text-error-500"> *</span>}
+                        {/* `needsExpiry`, not the product-level stock alone.
+                  A pharmacy that puts its whole opening quantity on the SIZES saw
+                  an unmarked, apparently-optional date here, a dead Save button
+                  on another tab, and a hint telling it to come back to this one.
+                  One expression, both places. */}
+              Opening batch expiry{needsExpiry && <span className="text-error-500"> *</span>}
                       </Label>
                       <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
                       <p className="mt-1 text-theme-xs text-gray-400">
@@ -1081,81 +1142,22 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             {/* ═══════════════ TAB: Variants & options ═══════════════ */}
             <div className={activeTab === "options" ? "space-y-5" : "hidden"}>
         {/* Variants — products, creation only */}
-        {showVariants && !isEdit && (
-          <Section title="Variants (optional)" hint="e.g. sizes or colors — each with its own SKU, price and stock.">
-            {variantAttrs.length > 0 && (
-              <p className="mb-2 text-theme-xs text-gray-400">
-                Common for your business: {variantAttrs.join(" · ")}
-              </p>
-            )}
-            <div className="mb-2 flex justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  setVariants((v) => [...v, { _key: nextKey(), name: "", price: "", stock_quantity: 0 }])
-                }
-              >
-                + Add variant
-              </Button>
-            </div>
-            {variants.map((v, i) => (
-              <div key={v._key} className="mb-2 grid grid-cols-12 items-center gap-2">
-                <div className="col-span-4">
-                  <Input
-                    placeholder="Name e.g. Red / L"
-                    value={v.name}
-                    onChange={(e) =>
-                      setVariants((list) => list.map((x) => (x._key === v._key ? { ...x, name: e.target.value } : x)))
-                    }
-                  />
-                </div>
-                <div className="col-span-3">
-                  <Input
-                    placeholder="SKU"
-                    value={v.sku ?? ""}
-                    onChange={(e) =>
-                      setVariants((list) => list.map((x) => (x._key === v._key ? { ...x, sku: e.target.value } : x)))
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Input
-                    type="number"
-                    placeholder="Price"
-                    value={String(v.price)}
-                    onChange={(e) =>
-                      setVariants((list) => list.map((x) => (x._key === v._key ? { ...x, price: e.target.value } : x)))
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Input
-                    type="number"
-                    placeholder="Stock"
-                    value={String(v.stock_quantity ?? 0)}
-                    onChange={(e) =>
-                      setVariants((list) =>
-                        list.map((x) => (x._key === v._key ? { ...x, stock_quantity: Number(e.target.value) } : x)),
-                      )
-                    }
-                  />
-                </div>
-                <button
-                  type="button"
-                  className={`col-span-1 ${ROW_ACTION_DANGER}`}
-                  onClick={() => setVariants((list) => list.filter((x) => x._key !== v._key))}
-                >
-                  ✕
-                </button>
-                {err(`variants.${i}.name`) && (
-                  <p className="col-span-12 text-theme-xs text-error-500">{err(`variants.${i}.name`)}</p>
-                )}
-                {err(`variants.${i}.sku`) && (
-                  <p className="col-span-12 text-theme-xs text-error-500">{err(`variants.${i}.sku`)}</p>
-                )}
-              </div>
-            ))}
+        {showVariants && (
+          <Section
+            title="Sizes, colours and options"
+            hint="One item, several things on the shelf — each with its own price and its own stock."
+          >
+            <VariantMatrixEditor
+              axes={axes}
+              onAxes={setAxes}
+              rows={variants}
+              onRows={setVariants}
+              suggestedNames={variantAttrs}
+              basePrice={price}
+              tracksStock={stockManaged}
+              isFood={isFood}
+              err={err}
+            />
           </Section>
         )}
 
@@ -1442,7 +1444,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
           {/* Footer — always visible; submits the form from any tab */}
           <div className="flex items-center gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
-            <Button size="sm" disabled={mutation.isPending || uploadingNew || !name.trim() || !price || needsExpiry}>
+            <Button type="submit" size="sm" disabled={mutation.isPending || uploadingNew || !name.trim() || !price || needsExpiry}>
               {uploadingNew
                 ? "Uploading photos…"
                 : mutation.isPending

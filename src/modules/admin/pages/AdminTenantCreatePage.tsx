@@ -506,7 +506,7 @@ export default function AdminTenantCreatePage() {
             </span>
             <div className="ml-auto flex gap-3">
               <Link to="/admin/tenants"><Button type="button" size="sm" variant="outline">Cancel</Button></Link>
-              <Button size="sm" disabled={create.isPending || !ready}>
+              <Button type="submit" size="sm" disabled={create.isPending || !ready}>
                 {create.isPending ? "Creating…" : "Create business"}
               </Button>
             </div>

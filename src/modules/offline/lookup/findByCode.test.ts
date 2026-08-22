@@ -84,7 +84,7 @@ describe("every shape the online lookup resolves", () => {
           sku: "MLK-1",
           plu_code: "4011",
           barcodes: ["8964000000002"],
-          variants: [{ id: "v1", name: "Large", sku: "MLK-L", price: 400, stock: 3 }],
+          variants: [{ id: "v1", name: "Large", sku: "MLK-L", price: 400, stock: 3, is_active: true }],
           units: [{ id: "u1", name: "Carton", factor: 12, price: 2800, barcode: "8964000000003" }],
         }),
       ]),

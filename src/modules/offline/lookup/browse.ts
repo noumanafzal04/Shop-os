@@ -74,7 +74,29 @@ export function asProduct(item: CatalogItem): CatalogProduct {
     tracks_serial: item.tracks_serial,
     kitchen_station: item.kitchen_station,
     sold_out: item.sold_out ?? false,
-    variants: item.variants,
+    // TRANSLATED, not passed through. The device stores `stock` and no `cost`;
+    // the till's `ProductVariant` wants `stock_quantity` and `is_active`. The
+    // `as unknown as` cast at the bottom of this function hid that mismatch, so
+    // every variant read offline had `stock_quantity: undefined` — which is how
+    // a size chip would have rendered its stock as NaN. The product-level fields
+    // above have always been renamed properly; the variants were the one thing
+    // handed over unconverted.
+    variants: item.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      price: v.price,
+      // Not on the device on purpose — see PosProjection.
+      cost: null,
+      stock_quantity: v.stock,
+      low_stock_threshold: null,
+      // Older devices synced before the projection carried this. Treating a
+      // missing flag as ACTIVE keeps a till that has not re-pulled selling its
+      // sizes, which is the safer of the two wrong answers: the server refuses a
+      // retired variant regardless, so the worst case is a refusal the shop can
+      // see, not a silent one.
+      is_active: v.is_active ?? true,
+    })),
     units: item.units,
     modifier_groups: item.modifier_groups,
     // Not on the device, and not invented. The tile already knows how to draw

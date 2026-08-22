@@ -165,6 +165,29 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "note",
         text: "Editing a product never changes its stock. That is deliberate: stock moves for a reason — a sale, a delivery, a count — and every movement is recorded.",
       },
+      { type: "h", text: "Selling the same item in sizes and colours" },
+      { type: "p", text: "A shirt in three colours and four sizes. A pizza in Small, Medium and Large. A drink in 500ml and 1 litre. On the item form, open Sizes & options and name what varies — then list the values, and the combinations are made for you." },
+      {
+        type: "steps",
+        items: [
+          "Press 'Add sizes or colours' and name what varies — Colour, Size, Volume, Strength, whatever your trade calls it. The form suggests the ones shops like yours use.",
+          "Type the values. One per press of Enter, or paste them all at once: Red, Blue, Black.",
+          "For common ones — S/M/L, 500ml, 250mg — tap the suggestion instead of typing.",
+          "Add a second one if you need it. Three colours and four sizes makes twelve rows, and you did not type any of them.",
+          "Fill 'Same price for all', press Apply to all, then change only the rows that differ.",
+        ],
+      },
+      { type: "keys", items: [
+        ["Its own price", "A size's price replaces the item's price — it is not an amount added on top. Large at 900 means 900."],
+        ["Its own stock", "Selling a Large takes one off Large. The item's own stock figure stops being used the moment it has sizes, and every count you see is the sizes added together."],
+        ["Its own code", "Whatever you put in the Code column is what a scanner reads. If each size has its own barcode, put it there and scanning goes straight to that size."],
+        ["Changing your mind", "Open the item again and the grid comes back exactly as you built it. Correct a price, add a colour, or remove a combination you never stocked."],
+        ["Removing a size", "It is retired, never erased. Sales that already went out keep it, so last month's figures do not change under you."],
+      ]},
+      { type: "warn", text: "One size must always stay switched on. An item with sizes has no price of its own, so an item with none of them left would sit on the till looking available and refuse every tap." },
+      { type: "note", text: "Sizes or add-ons? A size is a different THING on your shelf — it has its own stock and its own code, like a large bottle beside a small one. An add-on (extra cheese, no ice) changes the price of the same thing and counts nothing. A cooked dish's half and full portion can be either; if you count portions in stock, make them sizes." },
+      { type: "note", text: "An existing size's quantity is changed in Inventory, not here — that way every unit that moves is written down and your counts stay explainable." },
+
       { type: "h", text: "Cost keeps itself up to date" },
       { type: "p", text: "Type a cost when you first add an item. After that, every delivery you receive on a purchase order corrects it for you — you never have to remember to edit it when your wholesaler's rate moves." },
       { type: "p", text: "It is blended, not replaced. Forty kilos already on the shelf at Rs 140 plus sixty new at Rs 160 makes the cost Rs 152, because that is what the stock you are holding actually cost you. As the old stock sells through, the figure settles on what you are paying now." },
@@ -428,6 +451,18 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "The screen" },
       { type: "p", text: "The screen is three parts: the product browser on the left with search and category tabs, the cart on the right, and the total with the pay button running full width along the bottom. A barcode scanner types into the search box and adds the item on Enter." },
       { type: "p", text: "Two buttons beside the search box switch the browser between picture tiles and compact rows. Tiles answer \"which one is it?\", rows answer \"is it in stock, and at what price?\" — a kitchen usually wants the first, a shop with thousands of lines the second. Your shop starts on whichever suits its trade, and the choice is remembered on this device only, so the touchscreen at the counter and the computer in the back office can each be set the way the person using it works." },
+
+      { type: "h", text: "Items that come in sizes" },
+      { type: "p", text: "Small, Medium, Large. A 250mg and a 500mg. A half plate and a full plate. If an item was set up with sizes, the till asks which one before it puts anything in the cart — it never guesses, because each size has its own price and its own stock." },
+      { type: "keys", items: [
+        ["Where it asks", "In a small window, in both views. Tap the item and the sizes come up with their prices — pick one and it goes straight in the cart."],
+        ["Reading the tile", "An item with sizes shows \"from\" in front of its price, because the price you see is the cheapest size, not the one you are about to sell."],
+        ["A size that has run out", "Still listed, struck through, and cannot be picked. You need to see that it is the LARGE that has gone, not wonder whether you ever stocked one."],
+        ["Sizes and extras together", "Size first, then the extras — a large karahi with extra naan is two questions and they have an order."],
+        ["Scanning a size", "A size with its own barcode goes straight in — no window, nothing to pick. That is the fastest route and it always was."],
+      ]},
+      { type: "note", text: "The number beside each size is what is on the shelf AT THIS BRANCH, not across the whole business. A size stacked high at your other shop is not something this counter can hand over." },
+      { type: "note", text: "Sizes are set up on the item itself — see Products. You can go back and change a price, add a colour or retire one whenever you need to." },
       { type: "note", text: "It changes nothing but what is drawn. The same products, the same prices, the same search — and an item that is out of stock cannot be added in either view." },
       {
         type: "keys",
@@ -474,7 +509,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "steps",
         items: [
           "The guest sits down. Tap the table — a tab opens on it.",
-          "Add what they ordered, with any modifiers (extra cheese, no ice).",
+          "Add what they ordered. If a dish comes in sizes, the tab asks which — half or full, small or large — and each one has its own price.",
+          "Then any modifiers (extra cheese, no ice). Size first, extras second.",
           "Press Fire. The order appears on the Kitchen board immediately — nobody needs to refresh anything.",
           "The kitchen marks it ready, and your floor screen updates on its own.",
           "Settle: the whole bill, split evenly, or split by item. A partial settlement leaves the rest open on the table.",
@@ -483,6 +519,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "note",
         text: "A tab belongs to the waiter who opened it. A cashier can settle anyone's tab so payment can be taken at the counter; another waiter cannot, unless you tick 'Serve any table' on them.",
+      },
+      {
+        type: "note",
+        text: "The size travels with the order: the kitchen ticket and the kitchen screen both say Half or Full, so nobody cooks the wrong one, and the bill carries it too.",
+      },
+      {
+        type: "warn",
+        text: "A dish that is off tonight, or one that has run out, is now marked on the menu grid and cannot be tapped — the kitchen refused it before, but only after a waiter had already promised it to a table.",
       },
       { type: "h", text: "Going off shift with open tables" },
       {

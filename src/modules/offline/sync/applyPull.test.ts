@@ -247,7 +247,7 @@ describe("the barcode index", () => {
             sku: "SKU-1",
             plu_code: "4011",
             barcodes: ["222"],
-            variants: [{ id: "v1", name: "Large", sku: "SKU-1-L", price: 400, stock: 3 }],
+            variants: [{ id: "v1", name: "Large", sku: "SKU-1-L", price: 400, stock: 3, is_active: true }],
             units: [{ id: "u1", name: "Carton", factor: 12, price: 2800, barcode: "333" }],
           }),
         ]),
@@ -267,7 +267,7 @@ describe("the barcode index", () => {
       pull({
         products: page([
           item({
-            variants: [{ id: "v1", name: "Large", sku: "SKU-L", price: 400, stock: 3 }],
+            variants: [{ id: "v1", name: "Large", sku: "SKU-L", price: 400, stock: 3, is_active: true }],
             units: [{ id: "u1", name: "Carton", factor: 12, price: 2800, barcode: "333" }],
           }),
         ]),

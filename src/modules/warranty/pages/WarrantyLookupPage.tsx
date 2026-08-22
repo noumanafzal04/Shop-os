@@ -146,7 +146,7 @@ function LookupTab() {
             placeholder="Scan or type the serial / IMEI"
           />
         </div>
-        <Button disabled={lookup.isPending || !serial.trim()}>
+        <Button type="submit" disabled={lookup.isPending || !serial.trim()}>
           {lookup.isPending ? "Looking up…" : "Look up"}
         </Button>
       </form>

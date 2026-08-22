@@ -8,6 +8,21 @@ import { expect, type Page } from "@playwright/test";
  * against a screen that has no product list, which is how the card-surface rule
  * first went green against the exact design the shop had complained about.
  */
+/**
+ * A tile or row that adds a line when you press it.
+ *
+ * Exported because it was written twice — here and in `chrome.spec` — and the
+ * copy that did not know about `data-pos-sized` clicked a sized product, opened
+ * the size sheet, and then spent its whole five-minute timeout being blocked by
+ * an overlay it never asked for. Same fault as the product code it tests: one
+ * question, two implementations, only one of them current.
+ *
+ * `:not([data-pos-sized])` because a product with sizes ASKS before it adds, so
+ * it is not a plain tile. `size-picker.spec` is the one place that wants those,
+ * and it reaches them by name.
+ */
+export const PLAIN_ITEM = "[data-pos-item]:not([disabled]):not([data-pos-sized])";
+
 export async function openTill(page: Page): Promise<void> {
   await page.goto("/tenant/pos");
   await page.waitForLoadState("networkidle").catch(() => {});
@@ -36,13 +51,42 @@ export async function openTill(page: Page): Promise<void> {
 export async function fillCart(page: Page, want: number): Promise<number> {
   await showPane(page, "Products");
 
-  const items = page.locator("[data-pos-item]:not([disabled])");
+  /**
+   * PLAIN products only.
+   *
+   * A product with sizes adds nothing when you tap it — it asks which size
+   * first. This helper exists to get N lines into a cart for specs that are
+   * about something else entirely (a cash sale reaching the server, a full cart
+   * showing every line), and the moment the shelf fixture gained a sized product
+   * those specs started answering size sheets. One of them then met a sheet whose
+   * every size was out of stock, could not dismiss it, and spent its full
+   * five-minute timeout being blocked by a modal.
+   *
+   * A fixture addition must not change what other specs exercise. `data-pos-sized`
+   * is on the tile and the row for exactly this, and `size-picker.spec` reaches
+   * the sized product by name.
+   */
+  const items = page.locator(PLAIN_ITEM);
   const available = await items.count();
   expect(available, "the till listed no sellable products").toBeGreaterThanOrEqual(want);
 
   for (let i = 0; i < want; i++) {
     await items.nth(i).click();
     await page.waitForTimeout(120);
+
+    // A safety net, not the plan. The selector above should mean no sheet ever
+    // opens here; if one does, it must be cleared or every later click in this
+    // loop is intercepted by the overlay. Escape AND the dialog's own Close,
+    // because a sheet whose sizes are all out of stock has nothing to click.
+    const sheet = page.getByRole("dialog");
+    if (await sheet.isVisible().catch(() => false)) {
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(150);
+      if (await sheet.isVisible().catch(() => false)) {
+        await sheet.getByRole("button", { name: "Close" }).first().click().catch(() => {});
+      }
+      await page.waitForTimeout(150);
+    }
   }
 
   await showPane(page, "Cart");

@@ -75,8 +75,25 @@ async function stockTotal(
   auth: Record<string, string>,
 ): Promise<number> {
   const res = await request.get(`${API}/products?per_page=100`, { headers: auth });
-  const body = (await res.json()) as { data: Array<{ stock_quantity?: string | number }> };
-  return body.data.reduce((s, p) => s + Number(p.stock_quantity ?? 0), 0);
+  const body = (await res.json()) as {
+    data: Array<{ stock_quantity?: string | number; variants?: Array<{ stock_quantity?: string | number }> }>;
+  };
+
+  // SIZES COUNT. A product with variants holds no stock of its own — the real
+  // rows live on the sizes — so summing the parent figure alone made a variant
+  // sale invisible here, and this helper reported "the sale posted but the shelf
+  // did not move" about a sale that had moved a shelf perfectly well.
+  //
+  // Worth naming as what it is: the harness had the same blind spot as the app it
+  // was written to check. `Product::effectiveStock()` warns about this exact
+  // figure, and a test helper reading it is no more exempt than the till was.
+  return body.data.reduce((total, p) => {
+    const sizes = p.variants ?? [];
+
+    return total + (sizes.length > 0
+      ? sizes.reduce((n, v) => n + Number(v.stock_quantity ?? 0), 0)
+      : Number(p.stock_quantity ?? 0));
+  }, 0);
 }
 
 /** "Grand Total Rs 1,234.00" → 1234 */

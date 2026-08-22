@@ -98,7 +98,7 @@ describe("agreement", () => {
         id: "p1",
         price: 100,
         discount_price: 80,
-        variants: [{ id: "v1", name: "Large", sku: null, price: 250, stock: 3 }],
+        variants: [{ id: "v1", name: "Large", sku: null, price: 250, stock: 3, is_active: true }],
       }),
     ]);
 

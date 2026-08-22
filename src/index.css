@@ -825,3 +825,33 @@ span.flatpickr-weekday,
 .date-field:focus::-webkit-calendar-picker-indicator {
   opacity: 1;
 }
+
+
+/**
+ * A card that arrives, rather than one that was always there.
+ *
+ * The update strip is deliberately NOT a modal — it must never block a till
+ * mid-sale — and the cost of that decision is that a quiet strip at the bottom
+ * of a busy screen is a strip nobody notices. Movement is what buys attention
+ * back without taking the screen: it enters once, settles, and then sits still.
+ *
+ * `prefers-reduced-motion` removes the travel and keeps the fade. Somebody who
+ * has asked their device to stop moving things has asked for that everywhere,
+ * and a POS is exactly where a person means it.
+ */
+@keyframes rise-into-view {
+  from { opacity: 0; transform: translateY(0.75rem) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.rise-into-view {
+  animation: rise-into-view 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes rise-into-view {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .rise-into-view { animation-duration: 120ms; }
+}

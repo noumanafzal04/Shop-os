@@ -99,7 +99,7 @@ export default function SignInForm() {
                   </Link>
                 </div>
                 <div>
-                  <Button className="w-full" size="sm" disabled={login.isPending}>
+                  <Button type="submit" className="w-full" size="sm" disabled={login.isPending}>
                     {login.isPending ? "Signing in…" : "Sign in"}
                   </Button>
                 </div>

@@ -13,7 +13,9 @@ import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useConfirm } from "../../../components/ui/confirm";
 import { catalogService } from "../../catalog/services/catalogService";
-import type { Product, ModifierGroup } from "../../catalog/types";
+import type { Product, ModifierGroup, ProductVariant } from "../../catalog/types";
+import { usePickableProducts } from "../../catalog/hooks/useCatalog";
+import { sizesOf, whyNotSellable } from "../../pos/availability";
 import { useTicket, useDineInMutations, useOpenTickets, useServers, useTables } from "../hooks/useDineIn";
 import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
@@ -44,11 +46,21 @@ export default function TabPage() {
   const taxRate = Number(settings.data?.default_tax_rate ?? 0);
   const { addItems, voidItem, fire, settle, move, merge, cancel, assignWaiter } = useDineInMutations(id);
 
-  const products = useQuery({
-    queryKey: ["catalog", "menu"],
-    queryFn: async () => (await catalogService.products({})).data,
-    staleTime: 60_000,
-  });
+  /**
+   * THE WHOLE MENU, not the first fifteen.
+   *
+   * `catalogService.products({})` sends no `per_page`, and the endpoint's own
+   * default is fifteen. So a waiter filtering to "Curries" saw whatever fifteen
+   * items came back newest-first across the entire menu, and a kitchen with
+   * forty dishes simply could not be ordered from — the category filter and the
+   * search box were narrowing a list that had already been cut.
+   *
+   * A menu is a working surface, like the bay board and unlike a ledger, so it
+   * drains its pages rather than growing a pager. `usePickableProducts` is the
+   * shared hook that already does exactly this, and reusing it means the two
+   * screens cannot drift on how much of the catalogue they can see.
+   */
+  const products = usePickableProducts(true);
   const categories = useQuery({
     queryKey: ["categories"],
     queryFn: async () => (await catalogService.categories()).data,
@@ -61,6 +73,10 @@ export default function TabPage() {
   // Modifier picker
   const modModal = useModal();
   const [modProduct, setModProduct] = useState<Product | null>(null);
+  /** The size the options sheet was opened for — carried into fireAdd. */
+  const [modSize, setModSize] = useState<ProductVariant | null>(null);
+  /** The dish whose sizes are being asked about. */
+  const [sizeFor, setSizeFor] = useState<Product | null>(null);
   const [picked, setPicked] = useState<Record<string, string[]>>({}); // groupId -> optionIds
 
   // Move / merge — the floor's two structural changes.
@@ -94,31 +110,97 @@ export default function TabPage() {
   const unsettled = liveItems.filter((i) => !i.sale_id);
   const firable = unsettled.filter((i) => i.kot_status === "pending");
 
-  const menu = (products.data ?? []).filter((p) => {
+  const menu = (products.data?.rows ?? []).filter((p) => {
     if (catFilter && p.category_id !== catFilter) return false;
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const addProduct = (p: Product) => {
+  /**
+   * Why this dish cannot be ordered, or null — the screen's half of a fence the
+   * server has always had.
+   *
+   * `AddTicketItemsAction` refuses a sold-out dish and an empty shelf, and this
+   * tile read neither, so a waiter promised a table something the server was
+   * about to refuse and `fireAdd` reported it as "Couldn't add the item."
+   *
+   * The rule itself is `../../pos/availability`, shared with the till. It was
+   * written twice — once here and once there — within twenty minutes of each
+   * other, which is precisely how the 86 rule and the discount ceiling came to
+   * disagree between these same two screens. There is no offline queue behind a
+   * tab (offline refuses dine-in outright), so this reads the catalogue plainly.
+   */
+  const whyNot = (p: Product, v: ProductVariant | null = null): string | null =>
+    whyNotSellable(p, v);
+
+  const addProduct = (p: Product, size: ProductVariant | null = null) => {
+    const refused = whyNot(p, size);
+    if (refused !== null) {
+      toast.error(refused);
+
+      return;
+    }
+
+    // Size first, then the extras — a Large Karahi with extra naan is two
+    // questions and they have an order.
+    if (size === null && sizesOf(p).length > 0) {
+      setSizeFor(p);
+
+      return;
+    }
+
     if (p.modifier_groups && p.modifier_groups.length > 0) {
       const seed: Record<string, string[]> = {};
       p.modifier_groups.forEach((g) => {
         seed[g.id ?? g.name] = g.options.filter((o) => o.is_default && o.id).map((o) => o.id as string);
       });
+      setModSize(size);
       setModProduct(p);
       setPicked(seed);
       modModal.openModal();
+
       return;
     }
-    fireAdd(p.id, []);
+    fireAdd(p.id, [], undefined, size?.id ?? null);
   };
 
-  const fireAdd = (productId: string, modifierOptionIds: string[], note?: string) => {
+  /**
+   * `variant_id` was the one field this never sent.
+   *
+   * The server has been complete for this the whole time — it validates the
+   * variant fenced to the product, prices the line from the variant's own price,
+   * snapshots the name onto the tab row, prints "Half"/"Large" on the KOT and
+   * the kitchen display, and carries it into the sale on settle. There is even
+   * an end-to-end test asserting 800 + 1400 = 2200 through all of it.
+   *
+   * And this function built `{product_id, quantity, modifier_option_ids, note}`,
+   * so every one of those capabilities was unreachable: a Half was rung, cooked
+   * and billed as a Full at the parent's price.
+   */
+  const fireAdd = (
+    productId: string,
+    modifierOptionIds: string[],
+    note?: string,
+    variantId: string | null = null,
+  ) => {
     if (!id) return;
     addItems.mutate(
-      { id, items: [{ product_id: productId, quantity: 1, modifier_option_ids: modifierOptionIds, note }] },
-      { onError: () => toast.error("Couldn't add the item.") },
+      {
+        id,
+        items: [{
+          product_id: productId,
+          variant_id: variantId,
+          quantity: 1,
+          modifier_option_ids: modifierOptionIds,
+          note,
+        }],
+      },
+      {
+        // The server's own sentence, not a shrug. It refuses for reasons a
+        // waiter can act on — sold out, not enough left, a retired size — and
+        // "Couldn't add the item." threw every one of them away.
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't add the item."),
+      },
     );
   };
 
@@ -142,8 +224,9 @@ export default function TabPage() {
   const confirmModifiers = () => {
     if (!modProduct || !modValid) return;
     const ids = Object.values(picked).flat();
-    fireAdd(modProduct.id, ids);
+    fireAdd(modProduct.id, ids, undefined, modSize?.id ?? null);
     modModal.closeModal();
+    setModSize(null);
   };
 
   const onVoid = async (item: TicketItem) => {
@@ -329,17 +412,38 @@ export default function TabPage() {
             ) : menu.length === 0 ? (
               <p className="col-span-full py-10 text-center text-sm text-gray-400">No menu items match.</p>
             ) : (
-              menu.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => addProduct(p)}
-                  disabled={addItems.isPending || !mine}
-                  className="flex h-24 flex-col justify-between rounded-xl border border-gray-200 bg-white p-3 text-left transition-colors hover:border-brand-400 disabled:opacity-50 dark:border-gray-800 dark:bg-white/[0.03]"
-                >
-                  <span className="line-clamp-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">{p.name}</span>
-                  <span className="text-theme-sm font-semibold text-brand-500">{money(p.price)}</span>
-                </button>
-              ))
+              menu.map((p) => {
+                const off = whyNot(p);
+                // Sizes are asked for in the sheet, never shown on the tile —
+                // see the note on `sizeFor`.
+                const asks = sizesOf(p).length > 0;
+                return (
+                  <button
+                    key={p.id}
+                      onClick={() => addProduct(p)}
+                      disabled={addItems.isPending || !mine || off !== null}
+                      /* `min-h-24`, not `h-24`. The fixed height was the only one
+                         of the three product grids that physically could not
+                         absorb anything new: a chip row underneath it would have
+                         been clipped by its own tile. */
+                      className="flex min-h-24 w-full flex-col justify-between rounded-xl border border-gray-200 bg-white p-3 text-left transition-colors hover:border-brand-400 disabled:opacity-50 dark:border-gray-800 dark:bg-white/[0.03]"
+                    >
+                      <span className="line-clamp-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">{p.name}</span>
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="text-theme-sm font-semibold text-brand-500">
+                          {asks ? "from " : ""}{money(p.price)}
+                        </span>
+                        {/* What the server already refuses, said before a waiter
+                            promises it to a table. */}
+                        {off !== null && (
+                          <span className="text-theme-xs font-semibold uppercase text-error-500">
+                            {p.sold_out ? "off" : "none left"}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                );
+              })
             )}
           </div>
         </div>
@@ -398,6 +502,37 @@ export default function TabPage() {
       </div>
 
       {/* Modifier picker */}
+      {/* Which size — for a waiter who taps the dish rather than a size chip.
+          The chips on the tile are the fast path; this is the same question in
+          the shape the till's rows view uses, so the two screens answer it the
+          same way. */}
+      <Modal isOpen={sizeFor !== null} onClose={() => setSizeFor(null)} className="max-w-sm p-6">
+        {sizeFor && (
+          <div>
+            <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">{sizeFor.name}</h3>
+            <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Which size?</p>
+            <div className="space-y-2">
+              {sizesOf(sizeFor).map((v) => {
+                const gone = whyNot(sizeFor, v) !== null;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    data-tab-size={v.name}
+                    disabled={gone}
+                    onClick={() => { const dish = sizeFor; setSizeFor(null); addProduct(dish, v); }}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border-2 border-gray-200 px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-brand-300 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-white/90"
+                  >
+                    <span>{v.name}</span>
+                    <span className="tabular-nums text-brand-600 dark:text-brand-400">{money(Number(v.price))}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <Modal isOpen={modModal.isOpen} onClose={modModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">{modProduct?.name}</h3>
         <div className="max-h-[50dvh] space-y-4 overflow-y-auto">

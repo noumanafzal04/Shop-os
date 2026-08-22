@@ -65,6 +65,71 @@ setup("stock the shelf so a cart can be filled", async ({ request }) => {
     mine.set(name, created.data.id);
   }
 
+  // ── one product with SIZES ───────────────────────────────────────────
+  //
+  // The size picker is the one feature on the till whose whole risk is layout:
+  // a row of chips inside a tile that is about 120 points wide on a shop
+  // monitor and shares a 390-point screen with the cart on a phone. jsdom has
+  // no layout engine and cannot see any of that, so a sized product has to be
+  // ON the shelf for the browser suite to have something to measure.
+  //
+  // Created here rather than inside a spec because a fixture belongs in a
+  // fixture — a spec that makes its own catalogue is a spec that fails for
+  // reasons about setup.
+  const SIZED = "E2E Sized Item";
+  if (!mine.has(SIZED)) {
+    const made = await request.post(`${API}/products`, {
+      headers: auth,
+      data: {
+        item_type: "physical_product",
+        name: SIZED,
+        price: 500,
+        cost: 300,
+        tax_rate: 0,
+        track_inventory: true,
+        // Three prices that are obviously different, so a test asserting the
+        // cart total cannot pass on the parent's price by coincidence.
+        variants: [
+          { name: "Small", price: 500, stock_quantity: TOP_UP },
+          { name: "Medium", price: 750, stock_quantity: TOP_UP },
+          { name: "Large", price: 900, stock_quantity: TOP_UP },
+        ],
+      },
+    });
+    if (made.ok()) {
+      const created = (await made.json()) as { data: { id: string } };
+      mine.set(SIZED, created.data.id);
+    }
+  }
+
+  // ── and its sizes are topped up, EVERY run ───────────────────────────
+  //
+  // Creating them once was not enough, and the way that failed is why this block
+  // exists. Each of the four viewport projects sells one Large, the sweep's own
+  // phase U sells more, and the sizes started at five — so a later project met a
+  // struck-through chip and Playwright sat on the click for its full five-minute
+  // timeout before failing. Four of those is most of an hour, which is how a
+  // missing top-up reads from the outside: not obviously wrong, just slow, and
+  // then wrong.
+  //
+  // The product-level loop below cannot do this job. A varianted product's own
+  // stock row is the orphan this whole feature is about, and setting it moves
+  // nothing a size chip can see.
+  const sizedId = mine.get(SIZED);
+  if (sizedId !== undefined) {
+    const res = await request.get(`${API}/products?search=${encodeURIComponent(SIZED)}`, { headers: auth });
+    const rows = ((await res.json()) as { data: Array<{ id: string; variants?: Array<{ id: string }> }> }).data;
+    for (const v of rows.find((r) => r.id === sizedId)?.variants ?? []) {
+      await request.post(`${API}/inventory/adjust`, {
+        headers: auth,
+        data: {
+          product_id: sizedId, variant_id: v.id,
+          type: "set", new_quantity: TOP_UP, reason: "e2e shelf sizes",
+        },
+      });
+    }
+  }
+
   // ── stock ────────────────────────────────────────────────────────────
   let stocked = 0;
   for (const id of mine.values()) {

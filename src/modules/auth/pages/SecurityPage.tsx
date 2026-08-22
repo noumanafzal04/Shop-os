@@ -140,7 +140,7 @@ export default function SecurityPage() {
               </p>
             )}
 
-            <Button size="sm" disabled={!canSubmit}>
+            <Button type="submit" size="sm" disabled={!canSubmit}>
               {changePassword.isPending ? "Changing…" : "Change password"}
             </Button>
           </div>

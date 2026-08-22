@@ -159,7 +159,7 @@ export default function ShopSetupPage() {
               <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder={`${noun.Title} street address`} />
             </div>
 
-            <Button className="w-full" size="sm" disabled={setup.isPending || !cityId}>
+            <Button type="submit" className="w-full" size="sm" disabled={setup.isPending || !cityId}>
               {setup.isPending ? "Saving…" : "Finish setup"}
             </Button>
           </form>

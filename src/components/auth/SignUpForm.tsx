@@ -128,7 +128,7 @@ export default function SignUpForm() {
                 )}
               </div>
 
-              <Button
+              <Button type="submit"
                 className="w-full"
                 size="sm"
                 disabled={register.isPending || !name.trim() || !password || (!email.trim() && !phone.trim())}

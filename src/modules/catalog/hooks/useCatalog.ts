@@ -153,6 +153,10 @@ export function usePickableProducts(enabled: boolean) {
   return useQuery({
     queryKey: ["products", "pickable"],
     enabled,
+    // This drains pages, so a remount that refetches costs several round trips
+    // rather than one. The dine-in tab mounts it every time a waiter opens a
+    // table, which is the busiest thing in the building.
+    staleTime: 60_000,
     queryFn: async () => {
       const PER_PAGE = 100; // the endpoint's own ceiling
       const MAX_PAGES = 10; // 1,000 items; loud if ever reached, see below

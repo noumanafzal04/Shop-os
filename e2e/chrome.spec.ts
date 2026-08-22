@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { cardsAreSurfaces, everyRule, everythingHasAName, onlyWhatAFingerCanReach, renderedSize, scrollersCanReachTheirEnd, tapTargetsAreFingerSized, report } from "./rules";
-import { openTill, showPane } from "./till";
+import { PLAIN_ITEM, openTill, showPane } from "./till";
 
 /**
  * Walk the shop's screens at a real size and ask what a browser can see.
@@ -155,7 +155,8 @@ test("a full cart shows every line a cashier put in it", async ({ page }) => {
   // a strip outside the frame.
   await openTill(page);
 
-  const items = page.locator("[data-pos-item]:not([disabled])");
+  // The shared definition, not a second copy of it — see PLAIN_ITEM.
+  const items = page.locator(PLAIN_ITEM);
   const available = await items.count();
   expect(available, "the till listed no sellable products").toBeGreaterThan(7);
 

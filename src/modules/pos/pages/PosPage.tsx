@@ -33,7 +33,8 @@ import { deniedReason } from "../../../common/api/denied";
 import { useVehicleLookup, useVehicleMutations } from "../../vehicles/hooks/useVehicles";
 import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { catalogService } from "../../catalog/services/catalogService";
-import type { Product as CatalogProduct, ProductUnit } from "../../catalog/types";
+import { catalogSizeStock, sizesOf, whyNotSellable as sellableRule } from "../availability";
+import type { Product as CatalogProduct, ProductUnit, ProductVariant } from "../../catalog/types";
 import { salesService } from "../../sales/services/salesService";
 import type { PaymentMethod, Sale, SaleInput, SaleStatus } from "../../sales/types";
 import { posService, type HeldSale } from "../services/posService";
@@ -390,9 +391,33 @@ export default function PosPage() {
     void unsyncedDeltas().then(setStockDeltas).catch(() => {});
   };
   useEffect(refreshStockDeltas, []);
-  /** The catalog's figure, less what this till has sold and not yet sent. */
-  const shownStock = (p: { id: string; stock_quantity?: number | string | null }) =>
-    onHand(Number(p.stock_quantity ?? 0), stockDeltas, p.id);
+  /**
+   * The till's own reading: the catalogue's figure, less what this device has
+   * sold and not yet sent.
+   *
+   * The rules themselves live in `../availability` — see the note at the top of
+   * that file for why they are not written here. This supplies the one thing
+   * only the till knows, which is its unsent queue.
+   */
+  const sizeStock = (p: { id: string }, v: ProductVariant) =>
+    onHand(catalogSizeStock(v), stockDeltas, p.id, v.id);
+
+  const shownStock = (p: {
+    id: string;
+    stock_quantity?: number | string | null;
+    variants?: ProductVariant[] | null;
+  }) => {
+    const sizes = sizesOf(p);
+    if (sizes.length > 0) {
+      return sizes.reduce((n, v) => n + sizeStock(p, v), 0);
+    }
+
+    return onHand(Number(p.stock_quantity ?? 0), stockDeltas, p.id);
+  };
+
+  /** The till's stock reader, handed to the shared rule. */
+  const tillStock = (product: { id: string }, variant: ProductVariant | null) =>
+    variant !== null ? sizeStock(product, variant) : shownStock(product as Parameters<typeof shownStock>[0]);
   const connected = online && reachable;
   // Auto-lock is off unless the shop turns it on (Settings → POS).
   //
@@ -497,6 +522,26 @@ export default function PosPage() {
   // The counter's shortlist — derived, never curated. See useQuickKeys.
   const quickKeys = useQuickKeys();
   const [tiles, setTiles] = useState<CatalogProduct[]>([]);
+  /**
+   * DOES THIS SHOP ACTUALLY HAVE PHOTOS?
+   *
+   * The tile view exists to answer "which one is it?", and a photograph answers
+   * that. A 96px grey square with one big grey letter in it answers nothing — and
+   * that is what a mart, a chemist and a hardware shop saw on every tile, because
+   * the image well was reserved whether or not there was an image to put in it.
+   * Reported as "why GRID cards like this?", with a screenshot of twelve grey
+   * boxes captioned C, S, W, T, R.
+   *
+   * So the grid asks once, for the whole shelf, rather than per tile. Per tile
+   * would give a ragged wall of tall and short cards in the same row; one
+   * decision keeps them uniform. A shop that photographs its menu keeps its
+   * pictures, and a shop that never will gets the space back for the two things
+   * it actually reads: the price and how many are left.
+   *
+   * Deliberately NOT a setting. Nobody should have to find a switch to stop being
+   * shown empty boxes, and the answer is already in the data.
+   */
+  const shelfHasPhotos = tiles.some((t) => (t.images ?? []).some((im) => im?.url));
   const scanRef = useRef<HTMLInputElement>(null);
   // Keyboard-first result navigation: ↑/↓ move the highlight, Enter adds it.
   // activeRef points at the highlighted result so it scrolls into view.
@@ -747,13 +792,32 @@ export default function PosPage() {
   // Modifier configurator (food items with choices / add-ons)
   const [cfg, setCfg] = useState<CatalogProduct | null>(null);
   const [cfgSel, setCfgSel] = useState<Record<string, string[]>>({});
+  /**
+   * The size the configurator was opened for, if any.
+   *
+   * A dish can have both — a Large Karahi with extra naan — and the two
+   * questions are asked in order: size first, then the extras. This is what
+   * carries the answer to the first question through the second, and it is why
+   * `addConfigured` no longer hard-codes `variant_id: null`.
+   */
+  const [cfgSize, setCfgSize] = useState<ProductVariant | null>(null);
+  /**
+   * The product whose sizes are being asked about, in the ROWS view.
+   *
+   * Tiles do not use this — their sizes are buttons on the tile, because a tile
+   * has room and one tap beats two. A row is a single line of text with a price
+   * at the end and nowhere to put five chips, so it asks in a sheet instead.
+   * Same question, two shapes, because the two views are shaped differently.
+   */
+  const [sizeFor, setSizeFor] = useState<CatalogProduct | null>(null);
 
-  const openConfig = (p: CatalogProduct) => {
+  const openConfig = (p: CatalogProduct, size: ProductVariant | null = null) => {
     const sel: Record<string, string[]> = {};
     (p.modifier_groups ?? []).forEach((g) => {
       sel[g.id!] = g.min_select > 0 && g.options[0]?.id ? [g.options[0].id] : [];
     });
     setCfgSel(sel);
+    setCfgSize(size);
     setCfg(p);
   };
   const toggleOpt = (g: NonNullable<CatalogProduct["modifier_groups"]>[number], oid: string) =>
@@ -765,8 +829,14 @@ export default function PosPage() {
       return { ...s, [g.id!]: [...cur, oid] };
     });
   const cfgDelta = cfg ? (cfg.modifier_groups ?? []).reduce((sum, g) => sum + (cfgSel[g.id!] ?? []).reduce((s, oid) => s + Number(g.options.find((o) => o.id === oid)?.price_delta ?? 0), 0), 0) : 0;
-  const cfgPrice = cfg ? sellingPrice(cfg) + cfgDelta : 0;
+  // A size's price is absolute and replaces the parent's; the modifier deltas
+  // then apply on top of it. Reading the parent here would charge Small's price
+  // for a Large with extras.
+  const cfgPrice = cfg ? (cfgSize ? Number(cfgSize.price) : sellingPrice(cfg)) + cfgDelta : 0;
   const cfgValid = cfg ? (cfg.modifier_groups ?? []).every((g) => { const n = (cfgSel[g.id!] ?? []).length; return n >= g.min_select && (g.max_select === 0 || n <= g.max_select); }) : false;
+
+  /** Always both, or the next dish opened inherits the last one's size. */
+  const closeConfig = () => { setCfg(null); setCfgSize(null); };
 
   const addConfigured = () => {
     if (!cfg || !cfgValid) return;
@@ -775,11 +845,12 @@ export default function PosPage() {
       .flatMap((g) => (cfgSel[g.id!] ?? []).map((oid) => g.options.find((o) => o.id === oid)?.name))
       .filter(Boolean) as string[];
     setCart((c) => [...c, {
-      key: `c${++ck}`, product_id: cfg.id, variant_id: null, name: cfg.name,
+      key: `c${++ck}`, product_id: cfg.id, variant_id: cfgSize?.id ?? null,
+      name: cfgSize ? `${cfg.name} / ${cfgSize.name}` : cfg.name,
       unit_price: cfgPrice, quantity: 1, modifier_option_ids: optionIds,
       modifiers_label: chosen.join(", ") || undefined,
     }]);
-    setCfg(null);
+    closeConfig();
   };
 
   const grossSubtotal = useMemo(() => cart.reduce((s, l) => s + lineGross(l), 0), [cart]);
@@ -1253,11 +1324,23 @@ export default function PosPage() {
       }
 
       const product = asProduct(hit.item);
-      if (product.modifier_groups?.length) openConfig(product);
-      else {
-        const v = hit.variantId ? product.variants.find((x) => x.id === hit.variantId) : null;
-        addLine(product, v?.id ?? null, v?.name, v?.price, undefined, hit.unitId ?? null);
+      const scanned = hit.variantId ? product.variants.find((x) => x.id === hit.variantId) ?? null : null;
+
+      // The scanner used to be the one door with no fence at all — it would ring
+      // a sold-out dish and an empty shelf without a word. See whyNotSellable.
+      const refused = whyNotSellable(product, scanned);
+      if (refused !== null) {
+        posSound.error();
+        setScanError(refused);
+
+        return;
       }
+
+      // A scanned size is CARRIED into the options sheet. Without it, scanning a
+      // Large and then choosing toppings rang a Small: openConfig was called
+      // with the product and the variant was dropped on the floor.
+      if (product.modifier_groups?.length) openConfig(product, scanned);
+      else addLine(product, scanned?.id ?? null, scanned?.name, scanned?.price, undefined, hit.unitId ?? null);
       setSearch("");
       posSound.success();
 
@@ -1266,16 +1349,29 @@ export default function PosPage() {
 
     try {
       const { data } = await posService.lookup(code.trim());
+      const scanned = data.variant_id
+        ? data.product.variants.find((x) => x.id === data.variant_id) ?? null
+        : null;
+
+      // Same fence as every other door, online as well as off.
+      const refused = whyNotSellable(data.product, scanned);
+      if (refused !== null) {
+        posSound.error();
+        setScanError(refused);
+
+        return;
+      }
+
       if (data.scale) {
         // Scale (embedded-weight) label: add the item with the weighed quantity
         // already filled in — no modifiers path for weighed groceries.
         addLine(data.product, null, undefined, undefined, data.scale.quantity);
       } else if (data.product.modifier_groups?.length) {
-        openConfig(data.product);
+        // Carrying the scanned size, for the same reason as the offline branch.
+        openConfig(data.product, scanned);
       } else {
-        const v = data.variant_id ? data.product.variants.find((x) => x.id === data.variant_id) : null;
         // A scanned pack barcode preselects that pack on the line.
-        addLine(data.product, v?.id ?? null, v?.name, v?.price, undefined, data.product_unit_id ?? null);
+        addLine(data.product, scanned?.id ?? null, scanned?.name, scanned?.price, undefined, data.product_unit_id ?? null);
       }
       // Cashier warnings (Rx / near-expiry / ageing / weighed) — informational,
       // the sale continues in every case.
@@ -1297,6 +1393,25 @@ export default function PosPage() {
     }
   };
 
+  /**
+   * WHY THIS LINE CANNOT BE RUNG — or null if it can. One rule, every door.
+   *
+   * There are five ways a line gets into this cart: a tile, a row, a size chip,
+   * a quick key and the barcode scanner. The stock and sold-out fences lived on
+   * the first four and the SCANNER had neither — so the one door a mart uses all
+   * day was the one that would ring a sold-out dish and a shelf with nothing on
+   * it. That is the shape this repo has found five times now (the 86 rule, the
+   * discount ceiling, the prescription fence), and the fix each time is the
+   * same: put the question in one function and make every door call it.
+   *
+   * Asked per SIZE when there is one, because that is where the stock lives. A
+   * rail with twelve Smalls and no Larges is not "in stock" to somebody who
+   * wants a Large, and the parent figure — the sum of the sizes — would say it
+   * was.
+   */
+  const whyNotSellable = (p: CatalogProduct, v: ProductVariant | null = null): string | null =>
+    sellableRule(p, v, tillStock);
+
   // Add a product from the results — opens the modifier config if it has
   // choices, blocks out-of-stock, then clears the box so the next scan/search
   // starts fresh (focus never leaves the input, so the cashier keeps typing).
@@ -1313,8 +1428,9 @@ export default function PosPage() {
 
       return;
     }
-    const out = !!p.sold_out || (p.type === "product" && p.track_inventory && shownStock(p) <= 0);
-    if (out) {
+    // The whole product, not one size: if EVERY size has run out this refuses,
+    // and if only some have, the chips say which. See whyNotSellable.
+    if (whyNotSellable(p) !== null) {
       posSound.error();
       // At a chemist an out-of-stock brand is rarely the end of the sale: the
       // customer needs the SALT, and something else on the shelf usually has
@@ -1327,7 +1443,56 @@ export default function PosPage() {
       }
       return;
     }
+    // WHICH SIZE? Asked before anything is added, never guessed.
+    //
+    // Until now a tap always added the parent with `variant_id: null`, so a shop
+    // that had created Small, Medium and Large — each with its own price and its
+    // own stock — sold every one of them at the parent's price, and a cashier had
+    // no way to say which. The only path that ever produced a variant line was
+    // the barcode scanner.
+    //
+    // In tiles the sizes are on the tile itself and this branch is only reached
+    // from the keyboard (Enter on the highlighted result), where there is nothing
+    // to tap — so it opens the same sheet the rows view uses. A cashier working
+    // by keyboard must not silently get Small.
+    const sizes = sizesOf(p);
+    if (sizes.length > 0) {
+      setSizeFor(p);
+      setSearch("");
+      setActiveIndex(0);
+
+      return;
+    }
     if (p.modifier_groups?.length) openConfig(p); else addLine(p);
+    posSound.success();
+    setSearch("");
+    setActiveIndex(0);
+  };
+
+  /**
+   * A size was chosen: price the line from it, and ask about extras if there are
+   * any.
+   *
+   * The stock question is asked per SIZE, because that is where the stock lives.
+   * A rail with twelve Smalls and no Larges is not "in stock" for somebody who
+   * wants a Large, and the parent figure — the sum — would have said it was.
+   */
+  const commitSize = (p: CatalogProduct, v: ProductVariant) => {
+    setSizeFor(null);
+
+    const refused = whyNotSellable(p, v);
+    if (refused !== null) {
+      posSound.error();
+      setPosNotice(refused);
+
+      return;
+    }
+
+    if (p.modifier_groups?.length) {
+      openConfig(p, v);
+    } else {
+      addLine(p, v.id, v.name, v.price);
+    }
     posSound.success();
     setSearch("");
     setActiveIndex(0);
@@ -1595,9 +1760,35 @@ export default function PosPage() {
         onClose={() => setSubstituteFor(null)}
         productId={substituteFor}
         onPick={(alt) => {
-          addLine({ id: alt.id, name: alt.name, price: alt.price });
-          setPosNotice(`Substituted with ${alt.name}`);
-          posSound.success();
+          /**
+           * A substitute can have sizes too, and a strength IS a size.
+           *
+           * `Alternative` is a deliberately small drug reference — id, name,
+           * price — with no variants on it, so this used to add the parent
+           * straight to the cart. For a medicine stocked as 250mg and 500mg that
+           * is the wrong price charged silently, which is the worst way to be
+           * wrong: nobody sees it happen.
+           *
+           * So the real product is fetched and, if it has sizes, the same sheet
+           * is opened. If the fetch fails — offline, or the item has since gone —
+           * it falls back to the old behaviour rather than refusing a sale the
+           * chemist is in the middle of.
+           */
+          void catalogService
+            .product(alt.id)
+            .then((r) => r.data)
+            .catch(() => null)
+            .then((full) => {
+              if (full && sizesOf(full).length > 0) {
+                setSizeFor(full);
+                setPosNotice(`${alt.name} — which strength?`);
+
+                return;
+              }
+              addLine({ id: alt.id, name: alt.name, price: alt.price });
+              setPosNotice(`Substituted with ${alt.name}`);
+              posSound.success();
+            });
         }}
       />
 
@@ -2165,7 +2356,24 @@ export default function PosPage() {
                   // view refuses. A view is a way of LOOKING at the shop; it
                   // does not get its own idea of what may be sold.
                   const out = !!p.sold_out || (p.type === "product" && p.track_inventory && shownStock(p) <= 0);
+                  const sizes = sizesOf(p);
                   return (
+                    /**
+                     * A CELL, not just a tile, once a product has sizes.
+                     *
+                     * The size buttons cannot live inside the tile: the tile IS a
+                     * button, and a button inside a button is invalid HTML — the
+                     * inner one is not reliably clickable and neither is reliably
+                     * announced. So the tile keeps its own element and the sizes
+                     * become its siblings inside this cell.
+                     *
+                     * Three things fall out of that, all of them wanted: the
+                     * chips are real buttons and therefore in the tab order, so a
+                     * keyboard reaches them; one tap on a chip IS the add, with no
+                     * dialog in between; and the tile itself still does something
+                     * useful — it opens the same sheet the rows view uses, for
+                     * anyone who taps the picture rather than a size.
+                     */
                     <button
                       key={p.id}
                       /* A stable hook for the browser tests. They used to find
@@ -2175,6 +2383,13 @@ export default function PosPage() {
                          examined one element and passed against the very design
                          the shop had complained about. */
                       data-pos-item="tile"
+                      /* A product with sizes ADDS NOTHING on its own — it asks a
+                         question first. Marked so a suite that just wants to fill
+                         a cart can steer around it: `selling.spec` is about a cash
+                         sale and `chrome.spec` about a full cart, and neither
+                         should start answering size sheets because a fixture
+                         gained a sized product. */
+                      data-pos-sized={sizes.length > 0 ? "1" : undefined}
                       ref={i === activeIndex ? activeRef : null}
                       disabled={out}
                       onClick={() => commitProduct(p)}
@@ -2208,16 +2423,34 @@ export default function PosPage() {
                        * a real grey border, dark text — and the shop said so.
                        * The ground stays dark: the till is a dark room with lit
                        * objects on it, and the objects are the products. */
-                      className={`group flex flex-col overflow-hidden rounded-xl border text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                      /* `w-full` is load-bearing, and it was missing.
+                       *
+                       * This button used to BE the grid item, and a grid item is
+                       * stretched to its column by default — so it filled its
+                       * cell without being asked. Wrapping it in a cell div for
+                       * the size chips took that away, and a `<button>` sizes to
+                       * its CONTENT even as a block-level flex container. The
+                       * result was tiles 123, 126 and 129 pixels wide inside
+                       * identical 136-pixel columns: the width tracked the length
+                       * of the product's name, which is why the shop saw a ragged
+                       * grid and said so.
+                       *
+                       * Measured, not guessed — the cells were always equal. */
+                      className={`group flex w-full flex-col overflow-hidden rounded-xl border text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
                         i === activeIndex
                           ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
                           : "border-gray-200 bg-white hover:border-brand-400 hover:shadow-md dark:border-gray-700 dark:bg-gray-900"
                       }`}
                     >
+                      {shelfHasPhotos && (
                       <div className="relative h-20 w-full bg-gray-100 xl:h-24 dark:bg-gray-800">
                         {img ? (
                           <img src={img} alt="" className="h-full w-full object-cover" />
                         ) : (
+                          /* One product in a photographed shelf that nobody has
+                             photographed yet. Its initial is a placeholder in the
+                             true sense — it is holding a place next to tiles that
+                             DO have pictures. */
                           <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-gray-300 dark:text-gray-600">
                             {p.name.charAt(0)}
                           </div>
@@ -2236,9 +2469,36 @@ export default function PosPage() {
                         {p.item_type === "deal" && <span className="absolute right-1.5 top-1.5 rounded bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white">DEAL</span>}
                         {p.modifier_groups?.length ? <span className="absolute right-1.5 top-1.5 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">options</span> : null}
                       </div>
+                      )}
                       <div className="flex flex-1 flex-col justify-between gap-1 p-2 xl:gap-1.5 xl:p-3">
+                        {/* With no image well there is nowhere to hang a corner
+                            badge, and these are not decoration — SALE changes the
+                            price, DEAL changes what the line IS, and "out of
+                            stock" is the difference between a counting problem and
+                            the kitchen saying not tonight. So on a photo-less
+                            shelf they become a row of pills above the name, which
+                            is where the eye already is. */}
+                        {!shelfHasPhotos && (sale || out || p.item_type === "deal" || p.modifier_groups?.length) ? (
+                          <span className="mb-0.5 flex flex-wrap items-center gap-1">
+                            {out && (
+                              <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-gray-700">
+                                {p.sold_out ? "Sold out" : "Out of stock"}
+                              </span>
+                            )}
+                            {sale && <span className="rounded bg-error-500 px-1.5 py-0.5 text-[10px] font-bold text-white">SALE</span>}
+                            {p.item_type === "deal" && <span className="rounded bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white">DEAL</span>}
+                            {p.modifier_groups?.length ? <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">options</span> : null}
+                          </span>
+                        ) : null}
                         <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-800 dark:text-white/90">{p.name}</span>
                         <span className="text-[14px] font-bold tabular-nums text-brand-600 dark:text-brand-400">
+                          {/* "from" when the tap will ask which size.
+                              The sizes are NOT drawn on the tile — the shop asked
+                              for them in the sheet only, and a wall of chips under
+                              every card is a wall. But a price with no hint in
+                              front of it promises THIS price, and the sheet then
+                              charges a different one. One word closes that. */}
+                          {sizes.length > 0 ? <span className="text-[11px] font-normal text-gray-500 dark:text-gray-400">from </span> : null}
                           {money(sellingPrice(p))}
                           {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-gray-500 dark:text-gray-400">/{p.unit}</span> : null}
                           {sale && <span className="ml-1 text-[11px] font-normal text-gray-400 line-through dark:text-gray-500">{money(p.price)}</span>}
@@ -2282,6 +2542,8 @@ export default function PosPage() {
                     <button
                       key={p.id}
                       data-pos-item="row"
+                      // Same marker as the tile — see the note there.
+                      data-pos-sized={sizesOf(p).length > 0 ? "1" : undefined}
                       ref={active ? activeRef : null}
                       disabled={out}
                       onClick={() => commitProduct(p)}
@@ -3657,9 +3919,53 @@ export default function PosPage() {
         )}
       </Modal>
 
+      {/* WHICH SIZE — the rows view's shape of the same question.
+          A row is one line of text with a price at the end; there is nowhere on
+          it for five chips, so it asks in a sheet. Built on the shared Modal
+          rather than hand-rolled, so it gets `role="dialog"`, a name taken from
+          its own heading, and the focus moved inside it. The buttons carry name
+          on the left and price on the right, which is how the customer-facing
+          shop has shipped this same choice for months. */}
+      <Modal isOpen={sizeFor !== null} onClose={() => setSizeFor(null)} className="max-w-sm p-6">
+        {sizeFor && (
+          <div>
+            <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">{sizeFor.name}</h3>
+            <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
+              Which size? Each one has its own price.
+            </p>
+            <div className="space-y-2">
+              {sizesOf(sizeFor).map((v) => {
+                const gone = sizeFor.type === "product" && sizeFor.track_inventory && sizeStock(sizeFor, v) <= 0;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    data-pos-size={v.name}
+                    disabled={gone || !!sizeFor.sold_out}
+                    onClick={() => commitSize(sizeFor, v)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border-2 border-gray-200 px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-brand-300 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-white/90"
+                  >
+                    <span>{v.name}</span>
+                    <span className="flex items-center gap-2">
+                      {/* The figure a cashier is about to promise somebody. */}
+                      {sizeFor.type === "product" && sizeFor.track_inventory && (
+                        <span className="text-theme-xs font-normal tabular-nums text-gray-400">
+                          {gone ? "none left" : `${fmtQty(sizeStock(sizeFor, v))} left`}
+                        </span>
+                      )}
+                      <span className="tabular-nums text-brand-600 dark:text-brand-400">{money(Number(v.price))}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* Modifier configurator */}
       {cfg && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 p-4" onClick={() => setCfg(null)}>
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 p-4" onClick={() => closeConfig()}>
           {/* Hand-rolled rather than the shared Modal, so it never got that
               component's `role="dialog"` — the one overlay in the till that a
               reader was not told had opened. Named from the dish, which is the
@@ -3673,7 +3979,7 @@ export default function PosPage() {
           >
             <div className="mb-3 flex items-start justify-between">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{cfg.name}</h3>
-              <button aria-label="Close" onClick={() => setCfg(null)} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
+              <button aria-label="Close" onClick={() => closeConfig()} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
             </div>
             {(cfg.modifier_groups ?? []).map((g) => {
               const sel = cfgSel[g.id!] ?? [];

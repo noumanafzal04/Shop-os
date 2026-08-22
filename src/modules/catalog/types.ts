@@ -84,7 +84,16 @@ export interface Product {
   warranty_months?: number | null;
   barcodes?: Array<{ id: string; barcode: string }>;
   unit: string | null;
-  attributes: Record<string, string> | null;
+  /**
+   * Free-form specs, plus one structured key this app writes itself.
+   *
+   * `attributes.variant_axes` holds the axes a shop typed to generate its sizes
+   * — `[{name:"Colour",values:["Red","Blue"]}, …]` — so the grid can be reopened
+   * on edit rather than showing twelve unexplained rows. Widened from
+   * `Record<string,string>` for exactly that: the value is no longer always a
+   * string.
+   */
+  attributes: Record<string, unknown> | null;
   price: string | number;
   // Per-branch override for the active operating branch (null = catalog price).
   branch_price?: string | null;
@@ -195,6 +204,17 @@ export interface ProductImage {
 }
 
 export interface VariantInput {
+  /**
+   * Present when the server already knows about this size.
+   *
+   * It is what lets one payload mean three things: a row WITH an id is an edit, a
+   * row without is an addition, and an id that stops appearing is a retirement.
+   * Before this existed variants were create-only, and `PUT /products/{id}`
+   * carrying them answered 200 while discarding every one.
+   */
+  id?: string;
+  /** Switched off = not sellable anywhere, but still countable and returnable. */
+  is_active?: boolean;
   name: string;
   sku?: string;
   price: number | string;
@@ -252,6 +272,8 @@ export interface ProductInput {
   is_active?: boolean;
   visible_in_marketplace?: boolean;
   variants?: VariantInput[];
+  /** The axes those variants came from. Stored inside `attributes` by the server. */
+  variant_axes?: Array<{ name: string; values: string[] }>;
   collection_ids?: string[];
 }
 
