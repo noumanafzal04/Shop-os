@@ -71,5 +71,42 @@ Build it in BOTH places or neither: [[shopos-sold-out-three-paths]] and
 [[shopos-ceiling-follows-the-bill]] are the same shape — the till obeyed a rule
 and the dine-in tab did not.
 
+## The UI, as specified (2026-08-22)
+
+**The shape follows the view, and the views already exist.** `posLayout` is
+`"grid" | "list"`, a per-DEVICE preference ([[shopos-pos-view-toggle]]), and both
+branches already render from the same `tiles` array — `PosPage` ~2132 for grid,
+~2265 for list.
+
+| view | size picker |
+|---|---|
+| **grid** (Tiles) | **inline on the tile** — size buttons on the card itself, one tap adds that size at that size's price. No dialog at all |
+| **list** (Rows) | **popup** — a row is too narrow for chips, so tapping opens a sheet of size buttons |
+| **dine-in tab** | tiles ONLY (`TabPage` ~326 is `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4`, no toggle), so it takes the **inline** treatment |
+
+**The defaults line up with the request by luck, and it is worth knowing.**
+`tradeDefaultView` (PosPage ~268) is `grid` for a restaurant and `list` for
+everyone else. So FOOD gets the inline-chips-on-tile experience by default —
+which is exactly where this was asked for — and a retail counter gets the popup,
+which is right for a shop that works by scanning and typing rather than looking
+at pictures.
+
+Design notes for when it is built:
+
+- One tap, never two. On a tile the size button IS the add — do not make the
+  cashier select a size and then press Add.
+- The tile needs somewhere for 2–5 buttons without becoming taller than its
+  neighbours. `lg:grid-cols-4` is already the settled tile count and the tile
+  steps its own padding down at `lg` — the chip row has to live inside that, not
+  stretch it.
+- If a product has BOTH sizes and modifiers, size comes first, then the modifier
+  sheet.
+- A sold-out size must refuse like a sold-out product does
+  ([[shopos-sold-out-three-paths]]) — per variant, since a variant has its own
+  `stock_quantity`.
+- Whatever is built has to be driven in a real browser at all four viewports; a
+  chip row on a 390pt phone is the case that will break
+  ([[shopos-screen-testing]], [[shopos-cart-hid-its-lines]]).
+
 Related: [[shopos-food-dinein]], [[shopos-the-customer]] (dish modifiers),
 [[shopos-reachability-rule]], [[shopos-business-priority]].
