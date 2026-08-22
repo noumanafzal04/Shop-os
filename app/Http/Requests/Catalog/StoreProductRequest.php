@@ -178,6 +178,20 @@ class StoreProductRequest extends FormRequest
             'variants.*.cost' => ['nullable', 'numeric', 'min:0'],
             'variants.*.stock_quantity' => ['sometimes', 'numeric', 'min:0'],
             'variants.*.low_stock_threshold' => ['nullable', 'numeric', 'min:0'],
+
+            // ── Sizes, and the axes they were generated from ─────────────
+            //
+            // `variants` is the flat list the rest of the system reads. The AXES
+            // are what a shopkeeper actually typed — Colour: Red, Blue / Size: S,
+            // M, L — and they are kept so the matrix can be reopened on edit
+            // rather than presenting twelve unexplained rows. Stored inside the
+            // product's existing `attributes` JSON, so no migration and no new
+            // column; accepted at the top level here because `attributes.*` is
+            // rules as a flat string bag and a nested array would fail it.
+            'variant_axes' => ['sometimes', 'nullable', 'array', 'max:3'],
+            'variant_axes.*.name' => ['required_with:variant_axes', 'string', 'max:40'],
+            'variant_axes.*.values' => ['required_with:variant_axes', 'array', 'min:1', 'max:40'],
+            'variant_axes.*.values.*' => ['string', 'max:60'],
         ];
     }
 

@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\BranchPrice;
 use App\Models\BranchStock;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -139,5 +140,60 @@ class BranchPricingTest extends TestCase
             ->getJson('/api/v1/products')->assertOk()->json('data.0');
 
         $this->assertSame('120.00', $row['branch_price']);
+    }
+
+    /**
+     * A SIZE'S STOCK IS THIS BRANCH'S STOCK.
+     *
+     * `product_variants.stock_quantity` is the shop-wide rollup, and it was the
+     * only variant stock figure the online product list carried. A till standing
+     * in Gulberg reading it is being told about a rail in Main — so the size
+     * picker would offer a size this branch does not have, and refuse one it
+     * does.
+     *
+     * The offline projection has always answered per branch, which made this
+     * worse than merely wrong: the same size read online and offline gave two
+     * different numbers, and a shop cannot tell which of its own screens to
+     * believe.
+     *
+     * `branch_stock` is additive. The rollup stays exactly where it was, because
+     * the catalog and inventory screens legitimately want the shop-wide figure.
+     */
+    public function test_product_list_shows_each_size_stock_at_the_operating_branch(): void
+    {
+        $large = ProductVariant::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'product_id' => $this->widget->id,
+            'name' => 'Large', 'price' => 140, 'stock_quantity' => 60,
+        ]);
+
+        BranchStock::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->main->id,
+            'product_id' => $this->widget->id, 'variant_id' => $large->id, 'quantity' => 55,
+        ]);
+        BranchStock::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->other->id,
+            'product_id' => $this->widget->id, 'variant_id' => $large->id, 'quantity' => 5,
+        ]);
+
+        $variant = $this->login($this->owner)->withHeaders(['X-Branch-Id' => $this->other->id])
+            ->getJson('/api/v1/products')->assertOk()->json('data.0.variants.0');
+
+        $this->assertEquals(5, $variant['branch_stock'], 'the till was told about another branch\'s rail');
+        // And the shop-wide figure is still there for the screens that want it.
+        $this->assertEquals(60, $variant['stock_quantity']);
+    }
+
+    /** A size with no row at this branch has none of it, not all of it. */
+    public function test_a_size_never_stocked_here_reads_zero_not_the_rollup(): void
+    {
+        ProductVariant::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'product_id' => $this->widget->id,
+            'name' => 'Small', 'price' => 90, 'stock_quantity' => 40,
+        ]);
+
+        $variant = $this->login($this->owner)->withHeaders(['X-Branch-Id' => $this->other->id])
+            ->getJson('/api/v1/products')->assertOk()->json('data.0.variants.0');
+
+        $this->assertEquals(0, $variant['branch_stock']);
     }
 }

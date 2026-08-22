@@ -79,22 +79,68 @@ class ProductController extends Controller
             ->orderByDesc('created_at')
             ->paginate(min((int) $request->query('per_page', 15), 100));
 
-        // Per-branch price display: stamp each item with the operating branch's
-        // product-level override (null = catalog price) so the POS/list show the
-        // price this branch will actually charge (Phase 4c).
-        if ($branchId = $branch->id()) {
-            $ids = collect($products->items())->pluck('id');
-            $overrides = BranchPrice::query()
-                ->where('branch_id', $branchId)
-                ->whereNull('variant_id')
-                ->whereIn('product_id', $ids)
-                ->pluck('price', 'product_id');
-            foreach ($products as $p) {
-                $p->branch_price = isset($overrides[$p->id]) ? (string) $overrides[$p->id] : null;
+        static::stampBranchFigures($products, $products->items(), $branch->id());
+
+        return ApiResponse::paginated($products);
+    }
+
+    /**
+     * What this branch charges, and what this branch actually holds.
+     *
+     * Extracted so the product list and the quick-keys strip cannot drift. They
+     * had drifted: the list stamped a branch price and the strip stamped nothing,
+     * so the same product tapped from two places on the same screen could answer
+     * two different questions about stock. One implementation, two callers.
+     *
+     * @param  iterable<int, Product>  $products
+     * @param  array<int, Product>  $rows
+     */
+    public static function stampBranchFigures(iterable $products, array $rows, ?string $branchId): void
+    {
+        if ($branchId === null) {
+            return;
+        }
+
+        $ids = collect($rows)->pluck('id');
+        $overrides = BranchPrice::query()
+            ->where('branch_id', $branchId)
+            ->whereNull('variant_id')
+            ->whereIn('product_id', $ids)
+            ->pluck('price', 'product_id');
+        foreach ($products as $p) {
+            $p->branch_price = isset($overrides[$p->id]) ? (string) $overrides[$p->id] : null;
+        }
+
+        // Per-branch stock for each VARIANT, stamped the same way and for the
+        // same reason.
+        //
+        // `product_variants.stock_quantity` is the tenant-wide rollup — the
+        // shop's total across every branch. A till standing in one branch
+        // that reads it is being told about stock it cannot sell, and the
+        // offline projection already answers this question per branch
+        // (PosProjection::stockAt keys "productId:variantId"). So the same
+        // size read online and offline gave two different numbers, and the
+        // one the size picker needs is this one.
+        //
+        // Additive: `branch_stock` alongside the untouched rollup, so the
+        // catalog and inventory screens that legitimately want the shop-wide
+        // figure keep reading what they always read. Same shape as
+        // `branch_price` directly above.
+        $variantStock = BranchStock::query()
+            ->where('branch_id', $branchId)
+            ->whereNotNull('variant_id')
+            ->whereIn('product_id', $ids)
+            ->pluck('quantity', 'variant_id');
+
+        foreach ($products as $p) {
+            if (! $p->relationLoaded('variants')) {
+                continue;
+            }
+            foreach ($p->variants as $v) {
+                $v->branch_stock = (float) ($variantStock[$v->id] ?? 0);
             }
         }
 
-        return ApiResponse::paginated($products);
     }
 
     public function store(StoreProductRequest $request, CreateProductAction $action): JsonResponse

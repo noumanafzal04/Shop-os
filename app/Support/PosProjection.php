@@ -99,7 +99,26 @@ class PosProjection
             // Never authoritative: the till only ever DECREMENTS it, and the
             // server derives the real movements from the sales it receives.
             'track_inventory' => (bool) $product->track_inventory,
-            'stock' => $stock($product->id),
+
+            // A VARIANTED PRODUCT HOLDS NO STOCK OF ITS OWN.
+            //
+            // `Product::effectiveStock()` states the rule outright — "the parent
+            // stock_quantity is an orphaned leftover that must not be read as
+            // truth" — and this line was reading exactly that. For a T-shirt
+            // whose stock all sits on S, M and L, the parent BranchStock row is
+            // whatever CreateProductAction seeded it with, which is normally
+            // zero, so the till was handed 0 for a product with a full rail.
+            //
+            // The till believes this figure enough to grey a tile out, so the
+            // consequence was not cosmetic: a varianted tracked product rendered
+            // as out of stock and could not be tapped at all.
+            //
+            // Summed here rather than left to the client because the client
+            // cannot know it is looking at an orphan, and because the ONE rule
+            // has to give the same answer in both repos.
+            'stock' => $product->relationLoaded('variants') && $product->variants->isNotEmpty()
+                ? $product->variants->sum(fn ($v): float => (float) $stock("{$product->id}:{$v->id}"))
+                : $stock($product->id),
             'low_stock_threshold' => $product->low_stock_threshold === null ? null : (float) $product->low_stock_threshold,
 
             // Menu hours, so a breakfast item cannot be rung at dinner.
@@ -124,6 +143,19 @@ class PosProjection
 
             'offline_ok' => static::sellableOffline($product),
 
+            // Sizes, strengths, pack shapes — whatever this trade calls them.
+            //
+            // `is_active` is here because the till has to be able to REFUSE a
+            // size, and without it the device cannot tell a switched-off variant
+            // from a live one. Offline that was not a cosmetic gap: the till
+            // would sell a retired size at the right price, and the queued sale
+            // would then die on sync with VARIANT_UNAVAILABLE — non-retryable,
+            // after the money had crossed the counter. A sale that cannot be
+            // saved is worse than a sale that was never taken.
+            //
+            // `cost` is deliberately NOT sent. ProductVariant uses
+            // HidesCostPrice, and a device that has to be assumed lost is the
+            // last place to put what the shop pays for its stock.
             'variants' => $product->relationLoaded('variants')
                 ? $product->variants->map(fn ($v): array => [
                     'id' => $v->id,
@@ -131,6 +163,7 @@ class PosProjection
                     'sku' => $v->sku,
                     'price' => (float) $v->price,
                     'stock' => $stock("{$product->id}:{$v->id}"),
+                    'is_active' => (bool) $v->is_active,
                 ])->values()->all()
                 : [],
 

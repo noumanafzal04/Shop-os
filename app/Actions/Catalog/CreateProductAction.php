@@ -134,6 +134,13 @@ class CreateProductAction
                 ]);
             }
 
+            // The axes those variants were generated from, kept beside them so
+            // the matrix can be reopened on edit. See UpdateProductAction.
+            if (! empty($data['variant_axes'])) {
+                $product->attributes = [...($product->attributes ?? []), 'variant_axes' => $data['variant_axes']];
+                $product->save();
+            }
+
             foreach ($data['variants'] ?? [] as $variant) {
                 $created = $product->variants()->create([
                     'tenant_id' => $product->tenant_id,

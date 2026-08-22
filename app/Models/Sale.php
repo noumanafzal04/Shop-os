@@ -92,6 +92,28 @@ class Sale extends BaseModel
     }
 
     /** The branch this sale was rung up on (null for legacy/headless sales). */
+    /**
+     * The customer this sale was rung for, when it was rung for one.
+     *
+     * `sales.customer_id` has existed since the table was created and this
+     * relation had not. Nothing crashed, because only one caller ever wanted it
+     * — `SendSaleReceiptAction`, which opens with
+     * `$sale->loadMissing('tenant', 'customer')` and therefore threw
+     * `RelationNotFoundException` on its very first line. It has no callers, so
+     * the throw had never happened: SMS and email receipts were written, wired
+     * to nothing, and would have failed the first time anybody wired them.
+     *
+     * Found by `scripts/silent-nulls.py`, written after `$product->branch_id`
+     * was nearly read off a model with no such column. Eloquent answers a
+     * missing ATTRIBUTE with null and a missing RELATION with an exception, and
+     * the first of those is the one nobody notices — so the scanner looks for
+     * both.
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);

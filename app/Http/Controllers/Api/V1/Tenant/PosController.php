@@ -920,6 +920,11 @@ class PosController extends Controller
             ->take($limit)
             ->values();
 
+        // The same branch figures the product list stamps. Without this the
+        // strip's sizes carried the shop-wide rollup while the grid's carried
+        // this branch's shelf — two answers to one question, on one screen.
+        ProductController::stampBranchFigures($products, $products->all(), $branchId);
+
         return ApiResponse::ok($products);
     }
 

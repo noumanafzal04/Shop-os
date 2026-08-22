@@ -83,6 +83,67 @@ class UpdateProductRequest extends FormRequest
             'recipe_items.*.ingredient_product_id' => ['required_with:recipe_items', 'uuid', 'distinct'],
             'recipe_items.*.quantity' => ['required_with:recipe_items', 'numeric', 'min:0.001'],
             'unit' => ['nullable', 'string', 'max:32'],
+
+            /**
+             * Sizes, on an item that already exists.
+             *
+             * This key was ABSENT, and the way it failed is the reason it is
+             * worth a note: `ProductController::update` passes
+             * `$request->validated()`, which returns only rule-covered keys — so
+             * `PUT /products/{id}` carrying a `variants` array answered
+             * **200 "Item updated"** and discarded every one of them. A success
+             * response for work that was thrown away, which is worse than a
+             * refusal, because nobody goes looking.
+             *
+             * `id` is what distinguishes an edit from an addition: a row with one
+             * updates that variant, a row without creates one, and a variant
+             * whose id stops appearing is retired. `SyncProductVariantsAction`
+             * does the reconciling.
+             *
+             * `stock_quantity` is accepted only on a NEW row. Stock has one write
+             * path (InventoryService) so every unit lands in `stock_movements`;
+             * an edit form that could set a quantity would be a second, silent
+             * door onto the shelf.
+             */
+            'variants' => ['sometimes', 'nullable', 'array', 'max:100'],
+            'variants.*.id' => ['nullable', 'uuid'],
+            'variants.*.name' => ['required_with:variants', 'string', 'max:100', 'distinct'],
+            'variants.*.sku' => [
+                'nullable', 'string', 'max:64', 'distinct',
+                // `route('product')` is the ID STRING, not a bound model — this
+                // controller does its own `findOrFail`. Written as
+                // `?->id` first, which threw "Attempt to read property id on
+                // string" and 500'd every update. Same shape as reading an
+                // attribute a model does not have, one layer out.
+                //
+                // Ignoring this product's own rows is the point: a variant
+                // keeping the SKU it already has is not a collision.
+                Rule::unique('product_variants', 'sku')
+                    ->where('tenant_id', $tenantId)
+                    ->whereNull('deleted_at')
+                    ->ignore($this->route('product'), 'product_id'),
+                Rule::unique('products', 'sku')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
+            'variants.*.price' => ['required_with:variants', 'numeric', 'min:0'],
+            'variants.*.cost' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.stock_quantity' => ['sometimes', 'numeric', 'min:0'],
+            'variants.*.low_stock_threshold' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.is_active' => ['sometimes', 'boolean'],
+
+            // ── Sizes, and the axes they were generated from ─────────────
+            //
+            // `variants` is the flat list the rest of the system reads. The AXES
+            // are what a shopkeeper actually typed — Colour: Red, Blue / Size: S,
+            // M, L — and they are kept so the matrix can be reopened on edit
+            // rather than presenting twelve unexplained rows. Stored inside the
+            // product's existing `attributes` JSON, so no migration and no new
+            // column; accepted at the top level here because `attributes.*` is
+            // rules as a flat string bag and a nested array would fail it.
+            'variant_axes' => ['sometimes', 'nullable', 'array', 'max:3'],
+            'variant_axes.*.name' => ['required_with:variant_axes', 'string', 'max:40'],
+            'variant_axes.*.values' => ['required_with:variant_axes', 'array', 'min:1', 'max:40'],
+            'variant_axes.*.values.*' => ['string', 'max:60'],
+
             'attributes' => ['nullable', 'array'],
             'attributes.*' => ['nullable', 'string', 'max:255'],
             'price' => ['sometimes', 'required', 'numeric', 'min:0', 'max:99999999'],

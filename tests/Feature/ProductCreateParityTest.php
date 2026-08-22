@@ -73,6 +73,14 @@ class ProductCreateParityTest extends TestCase
         'recipe_items' => 'recipe_items, via SyncRecipeItemsAction',
         'collection_ids' => 'collection_product pivot, via ->collections()->sync()',
         'variants' => 'product_variants (plus a branch_stock row each)',
+        // Not a column of its own: the axes a shop typed to GENERATE those
+        // variants — Colour: Red, Blue / Size: S, M — land inside the product's
+        // existing `attributes` json, so the matrix can be reopened on edit
+        // instead of showing twelve unexplained rows. Round-tripped by
+        // ProductVariantEditTest rather than here, because `attributes` already
+        // rides the maximal payload as a whole and asserting on one key inside
+        // it would be asserting on a different thing than this file measures.
+        'variant_axes' => "products.attributes['variant_axes']",
     ];
 
     /**

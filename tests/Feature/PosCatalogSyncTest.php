@@ -208,6 +208,93 @@ class PosCatalogSyncTest extends TestCase
         $this->assertEquals(12, $this->bootstrap()['products']['items'][0]['stock']);
     }
 
+    /**
+     * A VARIANTED PRODUCT'S TILE IS NOT OUT OF STOCK BECAUSE THE PARENT ROW IS.
+     *
+     * `Product::effectiveStock()` says it in as many words — "the parent
+     * stock_quantity is an orphaned leftover that must not be read as truth" —
+     * and this projection was reading exactly that. CreateProductAction seeds
+     * the parent BranchStock row (normally 0) and puts the real quantities on
+     * the per-variant rows, so a T-shirt with a full rail of S, M and L was
+     * handed to the till as zero.
+     *
+     * The till greys a tile out on this number, so the consequence was that a
+     * varianted tracked product could not be tapped at all. Fifth time this
+     * month a rule stated in one file has been contradicted by another reading
+     * the thing the rule warns about.
+     */
+    public function test_a_varianted_products_stock_is_the_sum_of_its_sizes(): void
+    {
+        $product = $this->product();
+        $main = Branch::withoutTenancy()->where('tenant_id', $this->tenant->id)
+            ->where('is_default', true)->first();
+
+        foreach ([['Small', 4], ['Medium', 6], ['Large', 5]] as [$name, $qty]) {
+            $variant = ProductVariant::query()->create([
+                'tenant_id' => $this->tenant->id, 'product_id' => $product->id,
+                'name' => $name, 'price' => 400, 'stock_quantity' => $qty,
+            ]);
+            BranchStock::withoutTenancy()->create([
+                'tenant_id' => $this->tenant->id, 'branch_id' => $main->id,
+                'product_id' => $product->id, 'variant_id' => $variant->id, 'quantity' => $qty,
+            ]);
+        }
+
+        // The parent row is the orphan: whatever it says must not decide this.
+        BranchStock::withoutTenancy()
+            ->where('product_id', $product->id)->whereNull('variant_id')
+            ->update(['quantity' => 0]);
+
+        $item = $this->bootstrap()['products']['items'][0];
+
+        $this->assertEquals(15, $item['stock'], 'the till was told a full rail was empty');
+    }
+
+    /**
+     * And each size carries its own branch figure, and whether it is live.
+     *
+     * `is_active` was absent from this projection while present online, so a
+     * size picker written against the online shape would silently lose its
+     * guard offline — and a retired size sold offline dies on sync with
+     * VARIANT_UNAVAILABLE, non-retryable, after the drawer has opened. A sale
+     * that cannot be saved is worse than one never taken.
+     */
+    public function test_each_size_carries_its_own_branch_stock_and_whether_it_is_live(): void
+    {
+        $product = $this->product();
+        $main = Branch::withoutTenancy()->where('tenant_id', $this->tenant->id)
+            ->where('is_default', true)->first();
+        $other = Branch::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Second', 'is_default' => false,
+        ]);
+
+        $large = ProductVariant::query()->create([
+            'tenant_id' => $this->tenant->id, 'product_id' => $product->id,
+            'name' => 'Large', 'price' => 400, 'stock_quantity' => 900, 'is_active' => true,
+        ]);
+        $retired = ProductVariant::query()->create([
+            'tenant_id' => $this->tenant->id, 'product_id' => $product->id,
+            'name' => 'Tiny', 'price' => 100, 'stock_quantity' => 3, 'is_active' => false,
+        ]);
+
+        BranchStock::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $main->id,
+            'product_id' => $product->id, 'variant_id' => $large->id, 'quantity' => 6,
+        ]);
+        // The same size, stacked high at a branch this till cannot reach.
+        BranchStock::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $other->id,
+            'product_id' => $product->id, 'variant_id' => $large->id, 'quantity' => 999,
+        ]);
+
+        $sizes = collect($this->bootstrap()['products']['items'][0]['variants'])
+            ->keyBy('name');
+
+        $this->assertEquals(6, $sizes['Large']['stock'], 'a till sells from where it stands');
+        $this->assertTrue($sizes['Large']['is_active']);
+        $this->assertFalse($sizes['Tiny']['is_active'], 'the device cannot tell a retired size from a live one');
+    }
+
     public function test_it_marks_what_a_till_may_not_sell_without_the_server(): void
     {
         // The allow-list rides on the ITEM, not the trade: a pharmacy sells

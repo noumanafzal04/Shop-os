@@ -12,6 +12,7 @@ class UpdateProductAction
         private readonly SyncProductUnitsAction $syncUnits,
         private readonly SyncComboItemsAction $syncCombo,
         private readonly SyncRecipeItemsAction $syncRecipe,
+        private readonly SyncProductVariantsAction $syncVariants,
     ) {}
 
     /**
@@ -31,9 +32,33 @@ class UpdateProductAction
         $recipeItems = array_key_exists('recipe_items', $data) ? ($data['recipe_items'] ?? []) : null;
         unset($data['recipe_items']);
 
+        // Sizes. The `unset` is load-bearing rather than tidy: `BaseModel` guards
+        // only `id`, so `fill(['variants' => …])` would set an ATTRIBUTE named
+        // `variants` — shadowing the HasMany — and `save()` would emit
+        // `UPDATE products SET variants = ?` against a column that does not
+        // exist. Until now the missing validation rule was all that prevented it.
+        $variants = array_key_exists('variants', $data) ? ($data['variants'] ?? []) : null;
+        unset($data['variants']);
+
+        // The axes a shopkeeper typed to generate those sizes — Colour: Red,
+        // Blue / Size: S, M, L. Kept inside the product's own `attributes` JSON
+        // so the matrix can be reopened on edit instead of presenting twelve
+        // unexplained rows. Merged rather than assigned, because `attributes` is
+        // a free-form bag that other things may be using.
+        $axes = array_key_exists('variant_axes', $data) ? ($data['variant_axes'] ?? []) : null;
+        unset($data['variant_axes']);
+
         $warnings = [];
 
-        DB::transaction(function () use ($product, $data, $collectionIds, $barcodes, $units, $comboItems, $recipeItems, &$warnings): void {
+        DB::transaction(function () use ($product, $data, $collectionIds, $barcodes, $units, $comboItems, $recipeItems, $variants, $axes, &$warnings): void {
+            if ($axes !== null) {
+                // `attributes` is a `'array'` cast on a real json column, so this
+                // reads the column and not Eloquent's internal attribute bag —
+                // worth knowing, because the two share a name and only one of
+                // them is the shop's data.
+                $data['attributes'] = [...($product->attributes ?? []), 'variant_axes' => $axes];
+            }
+
             $product->fill($data)->save();
 
             if ($collectionIds !== null) {
@@ -48,6 +73,10 @@ class UpdateProductAction
 
             if ($units !== null) {
                 $this->syncUnits->execute($product, $units);
+            }
+
+            if ($variants !== null) {
+                $this->syncVariants->execute($product, $variants);
             }
 
             if ($comboItems !== null) {
