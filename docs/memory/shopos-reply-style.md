@@ -22,3 +22,16 @@ as everything else in this project ([[shopos-reachability-rule]]).
 block. Detail belongs in `docs/decisions/` and `HANDOVER.md`, which is where it
 survives anyway — see [[shopos-docs-discipline]]. Do not pad the summary with
 what was already said in the body; it should stand alone.
+
+**ALWAYS end with three things, in this order** (asked for again 2026-08-22,
+"last py bataya kro kya kia kya rehta next"):
+
+1. ✅ **Kya kiya** — what actually got done this turn
+2. ⏭️ **Kya rehta hai** — what is still open, including anything running in the
+   background right now
+3. 👉 **Next** — the single next step, or the one decision needed from them
+
+Not optional and not only at the end of a big task — every substantive reply.
+The user tracks this project by these three lines, so a reply that ends without
+them makes them ask for the status again, which is the signal that it was
+missing.

@@ -32,6 +32,19 @@ test that survives a deleted step is worse than no test, because it reads as
 coverage. Every one of the 39 tests in the four `*TenantWalkthroughTest.php`
 files was verified this way.
 
+**3. When a mutation PASSES, suspect the mutation before the test.** Added
+2026-08-22. Removing `SALES_MANAGE` from the cashier preset left two brand-new
+bay-board tests green, which should have meant they were vacuous. They were not
+— the mutation's anchor matched THREE presets and it had stripped the permission
+from the wrong one. Retargeted by line number, the same mutation fails 19 of 28
+cases.
+
+A mutation that passes is one of two things — a missing check or a missing
+mutation — and they look identical from the outside. Before writing "the check
+is not there", prove the mutation landed where you meant: diff the file, or
+assert on the anchor's match count before replacing. Nearly shipped as
+reassurance.
+
 **How to apply:** assert on the FAR end of the chain — receive stock and check the
 ledger, not the stock table; fire a course and check the kitchen board, not the
 ticket. That is where this codebase actually breaks: [[shopos-read-vs-manage]] and

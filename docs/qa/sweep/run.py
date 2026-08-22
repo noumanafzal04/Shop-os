@@ -46,14 +46,15 @@ import phase_q
 import phase_r
 import phase_s
 import phase_t
+import phase_u
 
-PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]
+PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u"]
 
 
 # What each phase needs standing before it. Naming a late phase alone runs its
 # prerequisites too — asking for "the seams" and silently getting only the admin
 # side is the kind of quiet no-op that makes a sweep untrustworthy.
-NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"], "r": ["c"], "s": ["c"], "t": ["c"]}
+NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"], "r": ["c"], "s": ["c"], "t": ["c"], "u": ["c"]}
 
 
 def _with_prerequisites(want: list[str]) -> set[str]:
@@ -77,7 +78,7 @@ def _with_prerequisites(want: list[str]) -> set[str]:
 # income, a cashbook and a profit figure, and `finance` is a business type made
 # of nothing else. Naming the gate here means the run says so out loud if the
 # route ever silently stops reaching it again.
-GATES = {"i": "pos", "o": "pos", "p": "pos", "q": "pos", "k": "inventory", "s": "inventory", "l": "dine_in", "m": "pos", "n": "pos", "e": "expenses"}
+GATES = {"i": "pos", "o": "pos", "p": "pos", "q": "pos", "k": "inventory", "s": "inventory", "u": "inventory", "l": "dine_in", "m": "pos", "n": "pos", "e": "expenses"}
 
 
 def _expected(shops: dict, want: set[str]) -> dict[str, set[str]]:
@@ -178,6 +179,12 @@ def main() -> int:
         # No module gate: every shop has a history, and the trail is not a
         # feature a plan turns on.
         phase_t.run(api, rep, sold)
+
+    if "u" in want:
+        # Sizes are a CATALOGUE idea, not a food one — a pharmacy's strengths
+        # and a tyre shop's sizes are the same mechanism — so the gate is stock,
+        # not trade.
+        phase_u.run(api, rep, sold)
 
     code = rep.summary(_expected(shops, want), set(shops))
 

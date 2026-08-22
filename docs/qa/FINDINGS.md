@@ -118,6 +118,100 @@ billing buckets, deep links and the workshop board.
 
 ---
 
+## 2026-08-22 — a size nobody could tap
+
+Built the size picker, and scouting it first turned a small feature into a
+different job. Full write-up: `docs/decisions/shopos-a-size-nobody-could-tap.md`.
+
+### The bug that was live before the feature existed
+
+`Product::effectiveStock()` says the parent `stock_quantity` of a varianted
+product is "an orphaned leftover that must not be read as truth". The till read
+exactly that, and the tile is `disabled` on the result:
+
+```
+a T-shirt with a full rail of S, M and L  →  "Out of stock", unpressable
+```
+
+`CreateProductAction` seeds the parent row at zero and puts the quantities on the
+variants, so **any tracked product with sizes could not be sold at all** — online
+or offline, since the projection sent the same orphan. Fifth time this month a
+rule stated in one file was contradicted by another file reading the thing the
+rule warns about.
+
+### The same size, two numbers
+
+The offline projection resolved stock **per branch**. The online product list
+stamped `branch_price` and no stock, so the till read
+`variants[].stock_quantity` — the shop-wide rollup that `InventoryService` itself
+calls legacy. A shop could not be asked which of its own screens to believe.
+`/products` now stamps `branch_stock` per variant, additively, through **one
+method the quick-keys strip also calls** — those two had already drifted, so the
+same product tapped from two places on one screen answered differently.
+
+### One rule, six doors — and the scanner had no fence at all
+
+A tile, a row, a chip, a quick key, the scanner and the dine-in tab. The stock
+and sold-out fences were on four of them. The **scanner** — the door a mart uses
+all day — would ring a sold-out dish and an empty shelf in silence, and it was
+the only path in the product that could produce a variant line at all.
+
+I then wrote the rule twice myself, `PosPage` and `TabPage`, twenty minutes
+apart. That is exactly how the 86 rule and the discount ceiling came to disagree
+between those same two screens, so it now lives in
+`src/modules/pos/availability.ts` with the caller supplying its own stock reader.
+
+### Also found and fixed
+
+| | |
+|---|---|
+| The dine-in menu was capped at **15 items** | `catalogService.products({})` sends no `per_page`. A waiter filtering to "Curries" was narrowing a list already cut |
+| The tab showed **no availability at all** | The server refuses a sold-out dish; the tile read neither flag and `fireAdd` reported it as "Couldn't add the item." |
+| A scanned size was **dropped** at the options sheet | Scan a Large, pick toppings, ring a Small |
+| The pharmacy substitute picker charged the **parent's** price | Its drug reference carries no variants, so a two-strength medicine substituted silently wrong |
+| An always-mounted `role="dialog" aria-modal="true"` drawer | The Appearance panel never unmounts — it sat in the accessibility tree on every screen saying the page was inert, tab order included. Found because a browser test asked for "the dialog" and got two |
+
+### Phase U — the same thing in three sizes
+
+New sweep phase, gated on the inventory module rather than a trade (a pharmacy's
+strengths and a tyre shop's sizes are one mechanism). **191 ok · 0 to look at ·
+0 bugs across 8 shops.** Five claims: a size sells at its own price, it depletes
+its own shelf, the counter reads *this branch's* figure, a variant from another
+product is refused, and a client cannot name its own price on a size.
+
+Two harness faults caught while writing it, both by earlier work:
+
+- `rep.expect(..., missing, [])` was refused — **`Report.expect` rejects an empty
+  `want` because nothing can satisfy one.** That guard was added last week after
+  two phases hit it; it caught a third. Counted instead.
+- The cross-product fence reported *"only one product here has sizes — nothing to
+  cross"* in every shop: a check that cannot fail, dressed as a check that
+  passed. It now creates the neighbour it needs.
+
+### And a mutation of mine passed when it should not have
+
+Removing `SALES_MANAGE` from the cashier preset left the new bay-board tests
+green — which should have meant they were vacuous. The **mutation** was at fault:
+its anchor matched three presets and it stripped the permission from the wrong
+one. Retargeted by line, the same mutation fails 19 of 28 cases.
+
+> A mutation that passes is either a missing check or a missing mutation, and
+> telling those two apart is the whole job.
+
+### Still not possible, and a shop must be told
+
+- **A variant cannot be edited, renamed, re-priced or removed after creation.** No
+  route, no rules in `UpdateProductRequest`, create-only form, `is_active` read in
+  five places and written in none. The Help Centre now says so plainly. **This is
+  the next thing to build.**
+- A single size cannot be 86'd (`sold_out_at` is on products only).
+- A recipe has no size dimension — half and full plate consume the same
+  ingredients.
+- A variant change never moves `products.updated_at`, so delta sync could not
+  carry it to a till even once editing exists.
+
+---
+
 ## 2026-08-21 (later) — the estimate that hid the work
 
 The verification lane, re-run properly. Three agents, three verdicts —

@@ -42,6 +42,7 @@ import phase_q
 import phase_r
 import phase_s
 import phase_t
+import phase_u
 from api import Api, Report
 
 
@@ -818,10 +819,111 @@ def main() -> int:
         phases=("t",),
     ))
 
+    # ── phase U · the same thing in three sizes ─────────────────────
+
+    # 44 · THE ONE WITH MONEY IN IT. Every size answers at the parent's price,
+    #      which is what the till actually did until the day the picker shipped:
+    #      the tap handler sent variant_id null, so Small, Medium and Large all
+    #      rang at 111. A shop selling three sizes charging one, silently, on
+    #      every sale.
+    real_post_sale = Api.post
+    results.append(mutation(
+        "every size rings at the parent's price",
+        "a size sells at its own price",
+        lambda: setattr(Api, "post", lambda self, p, b=None, **k: _sold_at_the_parents_price(real_post_sale, self, p, b, **k)),
+        lambda: setattr(Api, "post", real_post_sale),
+        ran_marker="the sold line names the size",
+        phases=("u",),
+    ))
+
+    # 45 · the size that leaves is not the size that falls. Selling a Large
+    #      takes one off Small — the shelf still balances by one, so a check
+    #      counting "did anything move" would pass. Only asking WHICH catches it.
+    real_u_reread = phase_u._reread
+    results.append(mutation(
+        "the wrong size comes off the shelf",
+        "selling a Large takes one off Large",
+        lambda: setattr(phase_u, "_reread", lambda *a, **k: _the_wrong_size_fell(real_u_reread, *a, **k)),
+        lambda: setattr(phase_u, "_reread", real_u_reread),
+        ran_marker="a size sells at its own price",
+        phases=("u",),
+    ))
+
+    # 46 · the shop-wide rollup, handed over as if it were this branch's shelf.
+    #      The exact state the online product list was in: `branch_stock` absent,
+    #      so a till read a rail standing in another town. The picker disables a
+    #      chip on this figure, so it decides what a cashier may sell.
+    results.append(mutation(
+        "no size carries this branch's figure",
+        "every size carries this branch's figure",
+        lambda: setattr(phase_u, "_reread", lambda *a, **k: _branch_figures_stripped(real_u_reread, *a, **k)),
+        lambda: setattr(phase_u, "_reread", real_u_reread),
+        ran_marker="a size sells at its own price",
+        phases=("u",),
+    ))
+
+    # 47 · a variant belonging to another product, resolved instead of refused.
+    #      Nothing in the panel can send that pair, which is exactly why it is
+    #      worth a mutation: the fence is invisible from every screen test that
+    #      will ever be written, so this is the only thing holding it.
+    results.append(mutation(
+        "a foreign size is accepted",
+        "A FOREIGN SIZE WAS ACCEPTED",
+        lambda: setattr(Api, "post", lambda self, p, b=None, **k: _a_foreign_size_is_taken(real_post_sale, self, p, b, **k)),
+        lambda: setattr(Api, "post", real_post_sale),
+        ran_marker="a size sells at its own price",
+        phases=("u",),
+    ))
+
     print("=" * 70)
     print(f"{sum(results)} of {len(results)} mutations caught")
     print("=" * 70)
     return 0 if all(results) else 1
+
+
+def _sold_at_the_parents_price(real, self, path, body=None, **kw):
+    """Every sold line comes back at the parent's price, whatever size was asked for."""
+    status, payload = real(self, path, body, **kw)
+    if path == "/sales" and status in (200, 201):
+        for line in ((payload or {}).get("data") or {}).get("items") or []:
+            line["unit_price"] = phase_u.PARENT_PRICE
+
+    return status, payload
+
+
+def _the_wrong_size_fell(real, *a, **kw):
+    """A Large sells and a Small comes off the shelf. The count still balances."""
+    row = real(*a, **kw)
+    sizes = {v.get("name"): v for v in (row or {}).get("variants") or []}
+    if "Small" in sizes and "Large" in sizes:
+        sizes["Small"], sizes["Large"] = (
+            {**sizes["Small"], "branch_stock": sizes["Large"].get("branch_stock")},
+            {**sizes["Large"], "branch_stock": sizes["Small"].get("branch_stock")},
+        )
+        row = {**row, "variants": [sizes.get(v.get("name"), v) for v in row["variants"]]}
+
+    return row
+
+
+def _branch_figures_stripped(real, *a, **kw):
+    """The rollup and nothing else — the state the online list was really in."""
+    row = real(*a, **kw)
+    if row and row.get("variants"):
+        row = {**row, "variants": [{k: v for k, v in s.items() if k != "branch_stock"}
+                                   for s in row["variants"]]}
+
+    return row
+
+
+def _a_foreign_size_is_taken(real, self, path, body=None, **kw):
+    """A sale carrying another product's variant comes back 201 instead of 422."""
+    status, payload = real(self, path, body, **kw)
+    items = (body or {}).get("items") or [] if isinstance(body, dict) else []
+    crossed = any(i.get("variant_id") for i in items) and status == 422
+    if path == "/sales" and crossed:
+        return 201, {"data": {"id": "pretend", "items": [{"unit_price": 900.0, "variant_name": "Large"}]}}
+
+    return status, payload
 
 
 def _module_off_for(real, paths: tuple[str, ...]):

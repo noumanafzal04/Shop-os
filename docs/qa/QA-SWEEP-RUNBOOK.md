@@ -40,7 +40,7 @@ sweep.
 | **M** | Money given away on purpose — points, coupons, promotions | C | **built · clean** |
 | **N** | Sales that are not a sale yet — layaway, exchange, trade-in, disposals | C | **built · clean** |
 
-**Eighteen phases built. 36 of 36 mutations caught.**
+**Twenty-one phases built (A–U).**
 
 Phases A–H answer "does the shop work". The rest answer what they could not,
 and two of them are where a real defect turned out to live:
@@ -473,6 +473,44 @@ raised from Rs 5,000 to Rs 90,000 was not. Three questions:
 tenant-scoped as a model — the platform reads across every shop — so the tenant
 endpoint's own `where` is the entire wall between one history and another, and a
 run with one shop cannot see that wall at all.
+
+## Phase U — the same thing in three sizes
+
+```bash
+python3 run.py u          # pulls a, b, c in first
+```
+
+A shirt in S, M and L. A medicine in 250mg and 500mg. One product, several
+things on the shelf, and the whole subject is that they are not
+interchangeable.
+
+- **Its own price.** The fixture's parent is priced at 111 and no size is, so a
+  line coming back at 111 is the exact failure the till had for months: the tap
+  handler sent `variant_id: null`, so Small, Medium and Large all rang at the
+  parent's price.
+- **Its own stock.** Selling a Large takes one off Large and nothing off Small.
+  A check that only asked "did anything move" would pass while the wrong size
+  fell — the shelf still balances by one.
+- **Its own shelf.** `branch_stock`, not the shop-wide rollup. The picker
+  disables a chip on this figure, so it decides what a cashier may sell.
+- **Fenced.** A `variant_id` belonging to another product is refused, not
+  resolved to something plausible. *Nothing in the panel can send that pair,
+  which is exactly why it needs a call: the fence is invisible to every screen
+  test that will ever be written.*
+- **Server-priced.** A client-supplied `unit_price` on a variant line is
+  ignored. The rule is asserted elsewhere for a plain line, and a variant takes
+  a different branch through the pricing code — a different road to the same
+  rule, and a road nobody drove.
+
+Gated on **inventory**, not on a trade. Variants are a catalogue idea: a
+pharmacy's strengths and a tyre shop's sizes are one mechanism, and a trade list
+here would be a second copy of an answer the product already has.
+
+**The fence needed a neighbour.** Its first run reported *"only one product here
+has sizes — nothing to cross"* in every shop, which is a check that cannot fail
+wearing the words of a check that passed. It now creates the second sized
+product it needs. Same lesson as phase Q guessing which product was fuel: a
+skip is not a pass, and a skip in every shop is a hole in the denominator.
 
 ## Shops with books and no till
 

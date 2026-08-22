@@ -276,7 +276,133 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-21 (latest) — the estimate that hid the work
+### 2026-08-23 (latest) — a size nobody could add
+
+The size picker made variants sellable; this made them creatable. Three scouts
+read the product form first, and the first thing they found made the rest
+academic.
+
+Full write-up: `docs/decisions/shopos-a-size-nobody-could-tap.md` (second half).
+
+**`+ Add variant` was a submit button.** No `type`, `Button` had no default, and
+the HTML default inside a form is submit. So pressing it created the product with
+**zero variants** and closed the drawer — and reopening lands in edit mode, where
+the section was hidden. **The variant editor had never worked once.** Every
+variant in the system came in through the API, including the e2e fixture, which
+is why nothing caught it. `+ Group` and `Save modifiers` had the same omission.
+
+Of **305 `<Button>` usages in the app, exactly one asked for `type="submit"`**, so
+the default was backwards. `Button` now defaults to `"button"` and the nine real
+submits say so. The rule that sorted 22 bare buttons across 10 files: a `<Button>`
+with its own `onClick` is never the submit; a bare one inside a form always is.
+
+**What replaced the editor.** Name the axes — Colour: Red, Blue / Size: S, M, L —
+and the twelve rows are generated. Regeneration keeps every price already typed,
+matched by name, so adding Black after pricing six rows loses nothing. Real `<th>`
+headers (from the stock count sheet, the only editor here that keeps column names
+visible past row one), one-tap values per axis, "Apply to all" that disables when
+it would be a no-op, and a name on every cell — `Price for Red / S`, not twelve
+boxes all announced as "Price". The trade's axis names already existed and were
+being spent on one line of grey hint text.
+
+**And the backend that makes it more than a create form.** A grid you cannot
+reopen is worse than no grid, so editing was built too: `SyncProductVariantsAction`,
+rules on `UpdateProductRequest`, four lines in `UpdateProductAction`. It **touches
+the parent** — the offline delta is keyed on `products.updated_at`, so without it
+a retired size keeps selling on every offline till and each queued sale dies on
+sync, non-retryably, after the cash crossed the counter. It **never
+force-deletes** (five cascades, `stock_movements` among them). It **refuses to
+leave a product with no sellable size**. `PUT /products/{id}` used to answer
+**200 "Item updated"** and discard every variant.
+
+**A scanner, from a question.** Nearly wrote `$product->branch_id` — a column
+`products` does not have, which Eloquent answers with null, silently, for ever.
+Asked "then it could be missed on other pages too", which became
+`scripts/silent-nulls.py`: 836 reads judged, 1,816 honestly counted as unjudged.
+**One real finding** — `Sale` had no `customer()` relation while
+`sales.customer_id` had existed since the table was created, so
+`SendSaleReceiptAction` would have thrown on its first line. It has no callers, so
+it never had: SMS/email receipts were built, wired to nothing, and would have
+failed the moment anybody wired them.
+
+Also this session: grid tiles were unequal widths (my own regression — wrapping
+the tile stopped it being the grid item, and a `<button>` sizes to content);
+sizes moved out from under the cards into the sheet only, at the shop's request,
+with "from" in front of a sized item's price; and the update prompt got a brand
+rail, an icon and a two-word heading without becoming a modal.
+
+Gates: backend **2154 / 9081**, panel **1081 / 85 files**, Playwright four
+viewports.
+
+### 2026-08-22 — a size nobody could tap
+
+The ask was small: tapping an item at the till should ask **which size**, as
+buttons, and take that size's own price — chips on a tile where there is room, a
+sheet on a row where there is not, and the same on the dine-in tab. Scouted
+first, which turned it into a different job.
+
+Full write-up: `docs/decisions/shopos-a-size-nobody-could-tap.md`.
+
+**Everything except the question was already built.** `ProductVariant` with its
+own price, cost and stock. `BusinessTypes` naming the diner's variant attribute
+"Size". Server pricing from `variant->price`, proven by `SalesTest`. The dine-in
+path complete end to end — validated, priced, snapshotted, "Half"/"Large" printed
+on the KOT and the kitchen display, carried into the sale on settle, with a test
+asserting 800 + 1400 = 2200 through all of it. The offline mirror pricing the
+same way and refusing an unknown variant. `addLine(p, variantId, name, price)`.
+
+And the tap handler: `if (p.modifier_groups?.length) openConfig(p); else
+addLine(p)`. No variant branch, so every tap sent `variant_id: null` and **the
+barcode scanner was the only path in the whole product that could produce a
+variant line.** `TabPage.fireAdd` was the same against a server that had been
+ready the whole time.
+
+**The bug underneath it.** `Product::effectiveStock()` says the parent
+`stock_quantity` of a varianted product is "an orphaned leftover that must not be
+read as truth". The till's `shownStock` read exactly that, and the tile is
+`disabled` on the result — so a T-shirt with a full rail of S, M and L rendered
+**"Out of stock" and unpressable.** Not a display problem: an item the shop could
+not sell, with or without a connection. Fifth time this month a rule stated in one
+file was contradicted by another file reading the thing the rule warns about.
+
+**And the same size gave two answers depending on the screen.** The offline
+projection resolved stock per branch; the online product list stamped no stock at
+all, so the till read the shop-wide rollup. `/products` now stamps
+`branch_stock` per variant — additive, rollup untouched — through one method the
+quick-keys strip also calls, because those two had already drifted.
+
+**One rule, six doors.** A tile, a row, a chip, a quick key, the scanner and the
+tab. The fences were on four; the scanner had neither, so the door a mart uses all
+day would ring a sold-out dish and an empty shelf in silence. I then wrote the
+rule twice myself — PosPage and TabPage, twenty minutes apart, which is exactly
+how the 86 rule and the discount ceiling came to disagree between those same two
+screens — so it now lives in `src/modules/pos/availability.ts`.
+
+Also fixed on the way: the tab's menu was capped at fifteen items; the tab showed
+no availability at all while the server refused; a scanned size was dropped when
+the options sheet opened; the pharmacy substitute picker charged the parent's
+price for a two-strength medicine; and an always-mounted
+`role="dialog" aria-modal="true"` Appearance drawer sat in the accessibility tree
+on every screen telling readers the page was inert, tab-order included — found
+because a browser test asked for "the dialog" and was handed two.
+
+**A mutation of mine passed when it should not have.** Removing `SALES_MANAGE`
+from the cashier preset left the new bay-board tests green — which should have
+meant they were vacuous. The mutation was at fault: its anchor matched three
+presets and it stripped the permission from the wrong one. Retargeted by line,
+the same mutation fails 19 of 28. A mutation that passes is either a missing check
+or a missing mutation.
+
+**Not done, and it matters:** a variant cannot be edited, renamed, re-priced or
+removed after creation — no route, no request rules, create-only form, `is_active`
+read in five places and written in none. A shop must get its sizes right first
+time and the Help Centre says so. That is the next thing to build. Nor can a
+single size be 86'd, and a recipe has no size dimension.
+
+Gates: backend **2146 / 9054**, panel **1057 / 84 files**, browser Playwright over
+four viewports with a chip measured on a 390pt phone, a11y **0 of 367** unnamed.
+
+### 2026-08-21 — the estimate that hid the work
 
 Finished the verification lane that died mid-run, this time with three agents
 told to answer **CONFIRMED / REFUTED / COULD_NOT_CHECK** — three verdicts, because

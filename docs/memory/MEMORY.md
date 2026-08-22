@@ -98,4 +98,6 @@
 - [Everyone Minus One Role](shopos-everyone-minus-one-role.md) — "Everyone" excluded UserRole::Staff; the cashier's bell could never be filled; staff still get NO operational notification
 - [Promise In Another File](shopos-promise-in-another-file.md) — STANDING: a comment/label stating a rule implemented nowhere; 4 in one day; a comment reads as DONE
 - [Three Verdicts Paid Off](shopos-three-verdicts-paid-off.md) — 11 confirmed / 2 refuted, both refutations MINE; don't re-raise announcement dedupe or workshop preset
-- [Size Picker Gap](shopos-size-picker-gap.md) — REQUESTED not built: variants (S/M/L, own price+stock) fully exist but NO screen can pick one; UI spec = chips ON the tile in grid, popup in rows, dine-in is tiles-only
+- [Size Picker](shopos-size-picker-gap.md) — SHIPPED: chips on tiles, sheet on rows, dine-in too; found that varianted products were UNSELLABLE (tile disabled on orphaned parent stock); variants STILL cannot be edited after creation
+- [Button Submit Default](shopos-button-submit-default.md) — FIXED: shared <Button> had no type, so it SUBMITTED inside a form; the variant editor had never worked once; 305 uses, 1 wanted submit
+- [Silent Nulls](shopos-silent-nulls.md) — STANDING: a missing attribute is null and silent, a missing relation throws; scripts/silent-nulls.py; found Sale::customer() absent
