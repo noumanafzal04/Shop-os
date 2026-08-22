@@ -105,6 +105,40 @@ class PresetCanDoItsJobTest extends TestCase
         $this->read('cashier', '/categories')->assertOk();
     }
 
+    // ── The bay board ───────────────────────────────────────────────
+
+    /**
+     * THE BOARD, which this file had no case for at all.
+     *
+     * A workshop, laundry, tailor or repair counter runs off the board of work
+     * taken in, and there is no mechanic or service-advisor preset — the whole
+     * surface sits behind `sales.manage`, which `cashier` carries, so the job is
+     * doable under an existing preset.
+     *
+     * That reasoning was checked and held (a claim that there was no usable
+     * preset was refuted), and this is the case that keeps it true. If somebody
+     * later fences the board behind a permission of its own, an automotive shop
+     * would be offered a job whose main screen 403s — the exact shape of
+     * "a job offered must be a job doable" — and this fails instead.
+     */
+    public function test_a_cashier_can_read_the_bay_board(): void
+    {
+        $this->read('cashier', '/sale-documents?kind=job_card&status=open')->assertOk();
+    }
+
+    /**
+     * And can identify the car in front of them.
+     *
+     * `vehicles-lookup` is deliberately split out onto `sales.manage` rather
+     * than `customers.manage` — the route file says why: the person on the till
+     * needs to find, and register, a vehicle mid-sale. Booking a car in is the
+     * first thing that happens on this board, and it starts with the plate.
+     */
+    public function test_a_cashier_can_look_up_the_car_in_front_of_them(): void
+    {
+        $this->read('cashier', '/vehicles-lookup')->assertOk();
+    }
+
     public function test_a_supervisor_can_read_the_same_till(): void
     {
         $this->read('shift_supervisor', '/products')->assertOk();
