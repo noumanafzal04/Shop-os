@@ -162,7 +162,7 @@ export default function ProductsPage() {
 
   return (
     <>
-      <PageMeta title="Items | ShopOS" description="Products and services" />
+      <PageMeta title="Items | CartZe" description="Products and services" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

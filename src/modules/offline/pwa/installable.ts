@@ -1,5 +1,5 @@
 /**
- * Can this device put ShopOS on its home screen, and how.
+ * Can this device put CartZe on its home screen, and how.
  *
  * ── Two completely different answers ────────────────────────────────────
  *

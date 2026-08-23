@@ -86,7 +86,7 @@ export default function TransfersPage() {
 
   return (
     <>
-      <PageMeta title="Stock Transfers | ShopOS" description="Move stock between branches" />
+      <PageMeta title="Stock Transfers | CartZe" description="Move stock between branches" />
 
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>

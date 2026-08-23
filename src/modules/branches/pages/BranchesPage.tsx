@@ -66,7 +66,7 @@ export default function BranchesPage() {
 
   return (
     <>
-      <PageMeta title="Branches | ShopOS" description="Your shop locations" />
+      <PageMeta title="Branches | CartZe" description="Your shop locations" />
 
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>

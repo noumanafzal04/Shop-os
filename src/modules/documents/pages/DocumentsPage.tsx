@@ -32,7 +32,7 @@ export default function DocumentsPage() {
 
   return (
     <>
-      <PageMeta title="Quotations & advances | ShopOS" description="Quotations and goods held on advance" />
+      <PageMeta title="Quotations & advances | CartZe" description="Quotations and goods held on advance" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Quotations &amp; advances</h2>

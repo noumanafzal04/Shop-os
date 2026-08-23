@@ -79,7 +79,7 @@ export default function ShopDashboard() {
 
   return (
     <>
-      <PageMeta title="Dashboard | ShopOS" description="Your business at a glance" />
+      <PageMeta title="Dashboard | CartZe" description="Your business at a glance" />
 
       {/* A header band rather than a bare title: this page is a stack of white
           cards, and without one deliberate plate at the top the first KPI tile

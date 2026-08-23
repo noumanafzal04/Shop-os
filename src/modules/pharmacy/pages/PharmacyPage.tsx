@@ -29,7 +29,7 @@ export default function PharmacyPage() {
 
   return (
     <>
-      <PageMeta title="Pharmacy | ShopOS" description="Dispensing register and batch recall" />
+      <PageMeta title="Pharmacy | CartZe" description="Dispensing register and batch recall" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Pharmacy</h2>

@@ -76,7 +76,7 @@ export default function ExpensesPage() {
 
   return (
     <>
-      <PageMeta title="Expenses | ShopOS" description="Business expenses" />
+      <PageMeta title="Expenses | CartZe" description="Business expenses" />
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>

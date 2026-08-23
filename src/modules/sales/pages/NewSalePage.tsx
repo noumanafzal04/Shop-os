@@ -146,7 +146,7 @@ export default function NewSalePage() {
 
   return (
     <>
-      <PageMeta title="New Sale | ShopOS" description="Point of sale" />
+      <PageMeta title="New Sale | CartZe" description="Point of sale" />
 
       <div className="mb-6">
         <Link to="/tenant/sales" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">

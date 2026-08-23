@@ -28,7 +28,7 @@ export default function ForecourtShiftPage() {
 
   return (
     <>
-      <PageMeta title={`${s.number} | ShopOS`} description="Forecourt shift reconciliation" />
+      <PageMeta title={`${s.number} | CartZe`} description="Forecourt shift reconciliation" />
 
       <div className="mb-5">
         <Link to="/tenant/fuel" className="text-theme-xs text-gray-400 hover:text-gray-600">← Forecourt</Link>

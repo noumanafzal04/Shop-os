@@ -86,7 +86,7 @@ export default function ReservationsPage() {
 
   return (
     <>
-      <PageMeta title="Reservations | ShopOS" description="Customer reservations" />
+      <PageMeta title="Reservations | CartZe" description="Customer reservations" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

@@ -37,7 +37,7 @@ export default function RidersPage() {
 
   return (
     <>
-      <PageMeta title="Riders | ShopOS" description="Your delivery riders" />
+      <PageMeta title="Riders | CartZe" description="Your delivery riders" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Delivery Riders</h2>

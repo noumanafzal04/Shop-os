@@ -233,7 +233,7 @@ export default function LabelsPage() {
 
   return (
     <>
-      <PageMeta title="Barcode Labels | ShopOS" description="Generate and print barcode labels" />
+      <PageMeta title="Barcode Labels | CartZe" description="Generate and print barcode labels" />
 
       <style>{`
         #label-sheet { display: none; }

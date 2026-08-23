@@ -102,7 +102,7 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <>
-      <PageMeta title="Announcements | ShopOS Admin" description="Broadcast push notifications" />
+      <PageMeta title="Announcements | CartZe Admin" description="Broadcast push notifications" />
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Announcements</h2>

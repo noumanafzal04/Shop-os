@@ -237,7 +237,7 @@ export default function DayPage() {
 
   return (
     <>
-      <PageMeta title="Day & Banking | ShopOS" description="What the shop took today, and what went to the bank" />
+      <PageMeta title="Day & Banking | CartZe" description="What the shop took today, and what went to the bank" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

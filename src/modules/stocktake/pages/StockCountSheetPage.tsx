@@ -159,7 +159,7 @@ export default function StockCountSheetPage() {
 
   return (
     <>
-      <PageMeta title="Count sheet | ShopOS" description="Count the shelves against what the system believes" />
+      <PageMeta title="Count sheet | CartZe" description="Count the shelves against what the system believes" />
 
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>

@@ -119,7 +119,7 @@ export default function TillDevicesPanel() {
   const windowDays = roster.data?.offline_days ?? null;
 
   if (devices.length === 0) {
-    // "No tills yet" is true of a shop nobody has opened ShopOS on. It is a LIE
+    // "No tills yet" is true of a shop nobody has opened CartZe on. It is a LIE
     // to a shop whose device announced itself and was turned away — signed out,
     // or already registered to another shop — and that owner is looking at the
     // device while the screen tells them it does not exist. The server sends a
@@ -140,7 +140,7 @@ export default function TillDevicesPanel() {
 
     return (
       <p className="text-theme-sm text-gray-400">
-        No tills yet. Every device that opens ShopOS signs itself in here.
+        No tills yet. Every device that opens CartZe signs itself in here.
       </p>
     );
   }

@@ -228,7 +228,7 @@ export default function MarketShopPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <PageMeta
-        title={`${shop.data?.business_name ?? "Shop"} | ShopOS Market`}
+        title={`${shop.data?.business_name ?? "Shop"} | CartZe Market`}
         description="Shop catalog"
       />
       <MarketHeader />

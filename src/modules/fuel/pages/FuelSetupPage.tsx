@@ -94,7 +94,7 @@ export default function FuelSetupPage() {
 
   return (
     <>
-      <PageMeta title="Tanks & Pumps | ShopOS" description="Forecourt equipment" />
+      <PageMeta title="Tanks & Pumps | CartZe" description="Forecourt equipment" />
 
       <div className="mb-5">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Tanks & pumps</h2>

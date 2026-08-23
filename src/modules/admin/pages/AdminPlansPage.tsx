@@ -209,7 +209,7 @@ export default function AdminPlansPage() {
 
   return (
     <>
-      <PageMeta title="Plans | ShopOS Admin" description="Subscription plans" />
+      <PageMeta title="Plans | CartZe Admin" description="Subscription plans" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

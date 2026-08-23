@@ -94,7 +94,7 @@ export default function SuppliersPage() {
 
   return (
     <>
-      <PageMeta title="Suppliers | ShopOS" description="Your vendors and payables" />
+      <PageMeta title="Suppliers | CartZe" description="Your vendors and payables" />
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Suppliers</h2>

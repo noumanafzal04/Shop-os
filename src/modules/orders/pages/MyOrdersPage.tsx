@@ -30,7 +30,7 @@ export default function MyOrdersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <PageMeta title="My Orders | ShopOS" description="Your online orders" />
+      <PageMeta title="My Orders | CartZe" description="Your online orders" />
       <MarketHeader />
 
       <div className="mx-auto max-w-4xl px-4 py-8">

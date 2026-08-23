@@ -21,7 +21,7 @@ export default function PortfolioPage() {
 
   return (
     <>
-      <PageMeta title="Portfolio | ShopOS" description="Showcase gallery" />
+      <PageMeta title="Portfolio | CartZe" description="Showcase gallery" />
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Portfolio</h2>

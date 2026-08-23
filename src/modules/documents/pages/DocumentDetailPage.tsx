@@ -53,7 +53,7 @@ export default function DocumentDetailPage() {
 
   return (
     <>
-      <PageMeta title={`${doc.number} | ShopOS`} description="Quotation / advance booking" />
+      <PageMeta title={`${doc.number} | CartZe`} description="Quotation / advance booking" />
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">

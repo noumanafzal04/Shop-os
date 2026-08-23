@@ -122,7 +122,7 @@ export default function HelpCenterPage() {
 
   // From the auth store rather than /shop/settings: that endpoint is
   // owner/staff-only and 403s for a platform admin reading the same page.
-  const shopName = user?.tenant?.business_name ?? "ShopOS";
+  const shopName = user?.tenant?.business_name ?? "CartZe";
   const logoUrl = user?.tenant?.logo_url ?? null;
 
   return (
@@ -137,7 +137,7 @@ export default function HelpCenterPage() {
      * Same fix as the shop setup page, and for the same reason: a full-height
      * page has to know what is pinned below it. */
     <div className="flex h-[calc(100dvh-var(--pinned-bottom,0px))] flex-col bg-white dark:bg-gray-900">
-      <PageMeta title="Help Centre | ShopOS" description="How every module works" />
+      <PageMeta title="Help Centre | CartZe" description="How every module works" />
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="flex shrink-0 items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-5">

@@ -1748,7 +1748,7 @@ export default function PosPage() {
      * laid out taller than the glass and the band that fell past the bottom
      * edge was the one with the buttons on it. */
     <div className="flex h-dvh flex-col bg-gray-50 dark:bg-gray-900">
-      <PageMeta title="POS | ShopOS" description="Point of sale terminal" />
+      <PageMeta title="POS | CartZe" description="Point of sale terminal" />
 
       {/* Covers the till, keeping the cart intact underneath: locking is not
           the end of a sale, it's the end of a person's turn at the counter. */}

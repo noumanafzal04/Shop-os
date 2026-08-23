@@ -51,7 +51,7 @@ export default function OwnerOrdersPage() {
 
   return (
     <>
-      <PageMeta title="Orders | ShopOS" description="Online orders" />
+      <PageMeta title="Orders | CartZe" description="Online orders" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

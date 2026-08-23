@@ -12,7 +12,7 @@
  * "good" whatever the brand.
  */
 
-/** ShopOS house brand. Also the fallback whenever a tenant hasn't chosen. */
+/** CartZe house brand. Also the fallback whenever a tenant hasn't chosen. */
 export const DEFAULT_PRIMARY = "#465fff";
 
 /**
@@ -137,7 +137,7 @@ export function contrastInk(hex: string): string {
 
 /**
  * Paint the tenant's colours onto the document. Passing null/undefined (or an
- * unparseable value) restores the ShopOS default, so this is safe to call on
+ * unparseable value) restores the CartZe default, so this is safe to call on
  * every settings load — including when a tenant clears their choice.
  */
 export type TintLevel = "none" | "subtle" | "strong";
@@ -176,7 +176,7 @@ export function applyTenantTheme(options: TenantThemeOptions = {}): void {
     // No choice (or an unparseable one) — strip every override so the
     // stylesheet's own palette shows through untouched. Removing beats
     // re-setting the defaults: the house look stays pixel-identical, and a
-    // future rebrand of ShopOS needs no change here.
+    // future rebrand of CartZe needs no change here.
     for (const [step] of RAMP) root.style.removeProperty(`--color-brand-${step}`);
     for (const [step] of NEUTRAL_RAMP) root.style.removeProperty(`--color-gray-${step}`);
     root.style.removeProperty("--brand-ink");
@@ -222,7 +222,7 @@ export function applyTenantTheme(options: TenantThemeOptions = {}): void {
 
 /** A few ready-made brands so a merchant isn't forced to hunt for a hex. */
 export const THEME_PRESETS: Array<{ name: string; primary: string }> = [
-  { name: "ShopOS Blue", primary: DEFAULT_PRIMARY },
+  { name: "CartZe Blue", primary: DEFAULT_PRIMARY },
   { name: "Emerald", primary: "#12b76a" },
   { name: "Teal", primary: "#0d9488" },
   { name: "Violet", primary: "#7a5af8" },

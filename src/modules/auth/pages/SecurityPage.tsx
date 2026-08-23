@@ -67,7 +67,7 @@ export default function SecurityPage() {
 
   return (
     <>
-      <PageMeta title="Security | ShopOS" description="Change your password" />
+      <PageMeta title="Security | CartZe" description="Change your password" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Security</h2>

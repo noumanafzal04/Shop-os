@@ -344,7 +344,7 @@ export default function TabPage() {
 
   return (
     <div className="flex h-dvh flex-col bg-gray-50 dark:bg-gray-950">
-      <PageMeta title={`Tab ${ticket.ticket_number} | ShopOS`} description="Dine-in tab" />
+      <PageMeta title={`Tab ${ticket.ticket_number} | CartZe`} description="Dine-in tab" />
 
       <header className="flex items-center justify-between border-b border-gray-200 bg-white px-5 py-3 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex items-center gap-4">

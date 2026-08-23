@@ -75,7 +75,7 @@ export default function AdminAuditPage() {
 
   return (
     <>
-      <PageMeta title="Audit Log | ShopOS Admin" description="Sensitive-action trail" />
+      <PageMeta title="Audit Log | CartZe Admin" description="Sensitive-action trail" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Audit Log</h2>

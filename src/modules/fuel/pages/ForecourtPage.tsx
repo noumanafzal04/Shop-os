@@ -59,7 +59,7 @@ export default function ForecourtPage() {
 
   return (
     <>
-      <PageMeta title="Forecourt | ShopOS" description="Open and reconcile forecourt shifts" />
+      <PageMeta title="Forecourt | CartZe" description="Open and reconcile forecourt shifts" />
 
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>

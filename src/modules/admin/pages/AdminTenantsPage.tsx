@@ -82,7 +82,7 @@ export default function AdminTenantsPage() {
 
   return (
     <>
-      <PageMeta title="Tenants | ShopOS Admin" description="Manage businesses" />
+      <PageMeta title="Tenants | CartZe Admin" description="Manage businesses" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

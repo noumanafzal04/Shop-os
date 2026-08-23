@@ -320,7 +320,7 @@ export default function ShopSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Settings | ShopOS" description="Shop settings" />
+      <PageMeta title="Settings | CartZe" description="Shop settings" />
       <div className="mb-4">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Settings</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">Manage your shop profile, location and how the app works for you.</p>
@@ -555,7 +555,7 @@ export default function ShopSettingsPage() {
                         <Input value={String(prefs.invoice_strn ?? "")} onChange={(e) => setP("invoice_strn", e.target.value)} placeholder="e.g. 03-04-8765-432-11" />
                       </Field>
                     </div>
-                    <Field label="FBR POS ID" hint="Your FBR POS registration, if you're a Tier-1 retailer. ShopOS prints it — it does not transmit invoices to FBR.">
+                    <Field label="FBR POS ID" hint="Your FBR POS registration, if you're a Tier-1 retailer. CartZe prints it — it does not transmit invoices to FBR.">
                       <Input className="max-w-xs" value={String(prefs.invoice_fbr_pos_id ?? "")} onChange={(e) => setP("invoice_fbr_pos_id", e.target.value)} placeholder="e.g. 556677" />
                     </Field>
                   </SectionCard>

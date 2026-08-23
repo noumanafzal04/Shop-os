@@ -182,7 +182,7 @@ export default function IncomePage() {
 
   return (
     <>
-      <PageMeta title="Income | ShopOS" description="Other income (non-sales)" />
+      <PageMeta title="Income | CartZe" description="Other income (non-sales)" />
 
       <input
         ref={fileRef}

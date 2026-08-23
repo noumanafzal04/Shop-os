@@ -79,7 +79,7 @@ export function openDb(): Promise<IDBDatabase> {
     // forever with nothing on screen.
     request.onblocked = () => {
       if (cached === opening) cached = null;
-      reject(new Error("Another ShopOS tab is holding the till's storage. Close it and try again."));
+      reject(new Error("Another CartZe tab is holding the till's storage. Close it and try again."));
     };
   });
 

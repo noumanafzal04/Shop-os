@@ -92,7 +92,7 @@ export default function BankOffersPage() {
 
   return (
     <div>
-      <PageMeta title="Bank card offers | ShopOS" description="Banks that fund a discount on their own cards" />
+      <PageMeta title="Bank card offers | CartZe" description="Banks that fund a discount on their own cards" />
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>

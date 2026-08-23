@@ -41,8 +41,8 @@ export default defineConfig({
       includeAssets: ["favicon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"],
 
       manifest: {
-        name: "ShopOS",
-        short_name: "ShopOS",
+        name: "CartZe",
+        short_name: "CartZe",
         description: "Point of sale and shop management",
         // The till fills the screen and is used in one orientation on a stand.
         display: "standalone",

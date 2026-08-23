@@ -186,7 +186,7 @@ export default function MapPicker({ value, onChange, heightClass = "h-72" }: Map
         </p>
         <p className="max-w-sm text-theme-xs text-gray-500 dark:text-gray-400">
           Your address fields below still work and still save. Pinning a location on the map
-          needs a map key — ask whoever set up your ShopOS to add one.
+          needs a map key — ask whoever set up your CartZe to add one.
         </p>
       </div>
     );

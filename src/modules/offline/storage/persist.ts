@@ -124,7 +124,7 @@ export function isNearlyFull(health: StorageHealth): boolean {
  */
 export function storageWarning(health: StorageHealth, installed = isInstalled()): string | null {
   if (health.state === "not-persisted") {
-    return "This device hasn't given ShopOS permanent storage. If the browser runs low on space it can delete sales that haven't reached the server yet. Install ShopOS to the home screen, or keep this till online.";
+    return "This device hasn't given CartZe permanent storage. If the browser runs low on space it can delete sales that haven't reached the server yet. Install CartZe to the home screen, or keep this till online.";
   }
 
   // Safari — every iPad and iPhone — has no persist() at all, so this branch is
@@ -134,7 +134,7 @@ export function storageWarning(health: StorageHealth, installed = isInstalled())
   // warning appears only while the app is still a browser tab, and stops the
   // moment somebody acts on it.
   if (health.state === "unsupported" && !installed) {
-    return "This browser won't promise to keep sales that haven't reached the server. Add ShopOS to the home screen and open it from there — an installed till holds onto its data far better than a browser tab.";
+    return "This browser won't promise to keep sales that haven't reached the server. Add CartZe to the home screen and open it from there — an installed till holds onto its data far better than a browser tab.";
   }
 
   if (isNearlyFull(health)) {

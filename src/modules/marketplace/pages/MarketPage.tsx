@@ -35,7 +35,7 @@ export default function MarketPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <PageMeta title="ShopOS Market" description="Discover local shops in your city" />
+      <PageMeta title="CartZe Market" description="Discover local shops in your city" />
       <MarketHeader />
 
       <div className="mx-auto max-w-6xl px-4 py-8">

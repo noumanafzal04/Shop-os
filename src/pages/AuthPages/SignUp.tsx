@@ -6,8 +6,8 @@ export default function SignUp() {
   return (
     <>
       <PageMeta
-        title="Create account | ShopOS"
-        description="Create your ShopOS account"
+        title="Create account | CartZe"
+        description="Create your CartZe account"
       />
       <AuthLayout>
         <SignUpForm />

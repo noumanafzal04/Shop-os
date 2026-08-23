@@ -81,7 +81,7 @@ export default function CouponsPage() {
 
   return (
     <>
-      <PageMeta title="Coupons | ShopOS" description="Discount codes" />
+      <PageMeta title="Coupons | CartZe" description="Discount codes" />
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Coupons</h2>

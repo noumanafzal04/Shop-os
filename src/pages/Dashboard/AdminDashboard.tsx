@@ -39,7 +39,7 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <PageMeta title="Admin | ShopOS" description="Platform overview" />
+      <PageMeta title="Admin | CartZe" description="Platform overview" />
 
       {/* A header band rather than a bare title: the console is a stack of
           white cards, and without one deliberate plate at the top the first KPI
@@ -56,7 +56,7 @@ export default function AdminDashboard() {
             </span>
             <div className="min-w-0">
               <p className="text-theme-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">
-                ShopOS platform
+                CartZe platform
               </p>
               <h2 className="mt-0.5 text-xl font-bold tracking-tight text-gray-800 dark:text-white/90 sm:text-2xl">
                 Platform Overview

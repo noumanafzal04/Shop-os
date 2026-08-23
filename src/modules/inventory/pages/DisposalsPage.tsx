@@ -71,7 +71,7 @@ export default function DisposalsPage() {
 
   return (
     <>
-      <PageMeta title="Disposals | ShopOS" description="Stock written off or sent back, and what is owed for it" />
+      <PageMeta title="Disposals | CartZe" description="Stock written off or sent back, and what is owed for it" />
 
       <div className="mb-5">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Disposals</h2>

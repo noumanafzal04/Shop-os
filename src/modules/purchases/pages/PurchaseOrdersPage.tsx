@@ -176,7 +176,7 @@ export default function PurchaseOrdersPage() {
 
   return (
     <>
-      <PageMeta title="Purchases | ShopOS" description="Purchase orders & receiving" />
+      <PageMeta title="Purchases | CartZe" description="Purchase orders & receiving" />
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Purchase Orders</h2>

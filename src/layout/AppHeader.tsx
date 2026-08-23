@@ -7,6 +7,7 @@ import NotificationDropdown from "../components/header/NotificationDropdown";
 import UserDropdown from "../components/header/UserDropdown";
 import CommandPalette from "../modules/search/components/CommandPalette";
 import BranchSwitcher from "../modules/branches/components/BranchSwitcher";
+import { Wordmark } from "../components/brand/Brand";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
@@ -109,16 +110,7 @@ const AppHeader: React.FC = () => {
 
           {/* The wordmark, only where the rail isn't showing one. */}
           <Link to="/" className="shrink-0 lg:hidden">
-            <img
-              className="h-8 w-auto dark:hidden"
-              src="./images/logo/logo.svg"
-              alt="Logo"
-            />
-            <img
-              className="hidden h-8 w-auto dark:block"
-              src="./images/logo/logo-dark.svg"
-              alt="Logo"
-            />
+            <Wordmark />
           </Link>
 
           {/* Search, as an icon between `sm` and `lg`.

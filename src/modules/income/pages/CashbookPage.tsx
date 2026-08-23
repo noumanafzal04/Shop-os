@@ -21,7 +21,7 @@ export default function CashbookPage() {
 
   return (
     <>
-      <PageMeta title="Cashbook | ShopOS" description="Money in and out" />
+      <PageMeta title="Cashbook | CartZe" description="Money in and out" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

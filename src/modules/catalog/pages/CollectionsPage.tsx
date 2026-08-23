@@ -103,7 +103,7 @@ export default function CollectionsPage() {
 
   return (
     <>
-      <PageMeta title="Collections | ShopOS" description="Display sections for your storefront" />
+      <PageMeta title="Collections | CartZe" description="Display sections for your storefront" />
 
       <div className="mb-6 flex items-center justify-between">
         <div>

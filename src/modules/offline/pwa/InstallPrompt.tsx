@@ -5,7 +5,7 @@ import { installRoute, isInstalled } from "./installable";
 import { useReservesBottomRoom } from "./useReservesBottomRoom";
 
 /**
- * "Put ShopOS on this tablet."
+ * "Put CartZe on this tablet."
  *
  * ── Why this is not a nicety ────────────────────────────────────────────
  *
@@ -110,12 +110,12 @@ export default function InstallPrompt() {
       <span className="flex-1 text-theme-sm text-gray-700 dark:text-gray-200">
         {route === "prompt" ? (
           <>
-            Put ShopOS on this device. It opens from an icon, fills the screen,
+            Put CartZe on this device. It opens from an icon, fills the screen,
             and keeps working when the line drops.
           </>
         ) : (
           <>
-            Put ShopOS on this iPad: tap{" "}
+            Put CartZe on this iPad: tap{" "}
             <span className="font-semibold">Share</span>, then{" "}
             <span className="font-semibold">Add to Home Screen</span>. It then
             opens from an icon and keeps working when the line drops.

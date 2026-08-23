@@ -92,7 +92,7 @@ export default function AdminBannersPage() {
 
   return (
     <>
-      <PageMeta title="Banners | ShopOS Admin" description="Promo banners / paid ads" />
+      <PageMeta title="Banners | CartZe Admin" description="Promo banners / paid ads" />
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Promo Banners</h2>

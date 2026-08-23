@@ -92,7 +92,7 @@ export default function ReportsPage() {
 
   return (
     <>
-      <PageMeta title="Reports | ShopOS" description="Business performance" />
+      <PageMeta title="Reports | CartZe" description="Business performance" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

@@ -135,7 +135,7 @@ export default function WorkshopPage() {
 
   return (
     <div>
-      <PageMeta title={`${words.board} | ShopOS`} description="Work taken in, and what stage each piece is at" />
+      <PageMeta title={`${words.board} | CartZe`} description="Work taken in, and what stage each piece is at" />
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>

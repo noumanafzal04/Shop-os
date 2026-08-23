@@ -9,8 +9,8 @@ export default function Home() {
   return (
     <>
       <PageMeta
-        title="Dashboard | ShopOS"
-        description="ShopOS business dashboard"
+        title="Dashboard | CartZe"
+        description="CartZe business dashboard"
       />
       <div className="grid grid-cols-12 gap-4 md:gap-6">
         <div className="col-span-12 space-y-6 xl:col-span-7">

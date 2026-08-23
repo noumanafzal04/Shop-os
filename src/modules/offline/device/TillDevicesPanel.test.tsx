@@ -284,7 +284,7 @@ describe("naming a till", () => {
 });
 
 describe("a device the server turned away", () => {
-  // "No tills yet" is true of a shop nobody has opened ShopOS on. It is a LIE
+  // "No tills yet" is true of a shop nobody has opened CartZe on. It is a LIE
   // to a shop whose device announced itself and was refused — and that owner
   // is looking straight at the device while the screen says it does not exist.
 

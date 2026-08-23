@@ -81,7 +81,7 @@ export default function ShopSetupPage() {
 
   return (
     <>
-      <PageMeta title={`${noun.Title} setup | ShopOS`} description={`Complete your ${noun.lower} profile`} />
+      <PageMeta title={`${noun.Title} setup | CartZe`} description={`Complete your ${noun.lower} profile`} />
       {/* `min-h-dvh` minus whatever is pinned to the bottom of the screen.
        *
        * This page is NOT inside AppLayout — it centres its own card in a

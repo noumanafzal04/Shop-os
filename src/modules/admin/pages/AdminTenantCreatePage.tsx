@@ -206,7 +206,7 @@ export default function AdminTenantCreatePage() {
 
   return (
     <>
-      <PageMeta title="Create Business | ShopOS Admin" description="New business" />
+      <PageMeta title="Create Business | CartZe Admin" description="New business" />
       <div className="mb-6">
         <Link to="/admin/tenants" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">
           ← Back to businesses

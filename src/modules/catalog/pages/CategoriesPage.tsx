@@ -81,7 +81,7 @@ export default function CategoriesPage() {
 
   return (
     <>
-      <PageMeta title="Categories | ShopOS" description="Organize your catalog" />
+      <PageMeta title="Categories | CartZe" description="Organize your catalog" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Categories</h2>

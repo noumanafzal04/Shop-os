@@ -6,8 +6,8 @@ export default function SignIn() {
   return (
     <>
       <PageMeta
-        title="Sign in | ShopOS"
-        description="Sign in to ShopOS"
+        title="Sign in | CartZe"
+        description="Sign in to CartZe"
       />
       <AuthLayout>
         <SignInForm />
