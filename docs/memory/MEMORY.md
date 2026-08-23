@@ -106,4 +106,5 @@
 - [Fixtures That Breed](shopos-fixtures-that-breed.md) — STANDING: Date.now() in an e2e fixture name; 13 strays starved a SIBLING spec and it blamed the screen
 - [CartZe Brand](shopos-cartze-brand.md) — product renamed CartZe (cartze.shop); wordmark is a COMPONENT — an SVG in an img inherits no font and no theme
 - [A Rail You Can Read](shopos-rail-you-can-read.md) — FIXED: 22 icon collisions in 16 menus; Simple mode was module-gated so a restaurant had Dine-in and no Kitchen
+- [Page Two, Per List](shopos-page-two-per-list.md) — 3 more page-two bugs in the folder-credit gap; scanner gained per-CALL + orphan-hook axes; detector was wrong 5 of 6 first
 

@@ -206,6 +206,228 @@ def screens() -> list[tuple[str, str, str]]:
     return out
 
 
+# ── The per-LIST question the folder check cannot ask ───────────────────
+#
+# The scan above credits an escape hatch to a FOLDER. A folder that shows two
+# paginated lists and puts a search box on one of them reads as covered for
+# both, and that limit is written into this file's own docblock.
+#
+# This is the other half, asked of the CALL rather than of the folder, and it
+# needs no attribution at all: **can this list's request ask for anything but
+# page one?** A call that sends no `page` and no `search` cannot reach row 31
+# however many pagers are rendered somewhere in its folder. It is a necessary
+# condition, not a sufficient one — the folder check still has to say whether a
+# person can press anything.
+#
+# Its first two catches, both on the buyer's side of the marketplace:
+#
+#   /customer/reservations   `reservations: () => apiGet(...)` — no argument at
+#                            all, against a server that has always answered
+#                            paginate(15). A buyer with sixteen holds could not
+#                            see the sixteenth or cancel it, and the ones that
+#                            fall off are the OLDEST — exactly where a forgotten
+#                            hold sits, with the shop still keeping stock off its
+#                            shelf for it.
+#
+#   /customer/orders         the hook took a page and kept previous data; the
+#                            SCREEN called it with none and rendered no pager.
+#                            Built, tested, wired to nothing.
+ASKS_FOR_A_PAGE = re.compile(r"\bpage\b")
+ASKS_BY_NAME_TOO = re.compile(r"\bsearch\b|\bq\b\s*[:=]")
+LITERAL_GET = re.compile(r'apiGet\s*(?:<[^>]*>)?\s*\(\s*[`"\']([^`"\'?]+)')
+# `params: toParams(filters)` — the varying happens one function away, which is
+# why a window around the call alone reported five false positives on the first
+# run. Every one of them was a money list whose filters carry a page.
+BUILDS_PARAMS = re.compile(r"params:\s*\{?\s*\.{0,3}\s*(\w+)\s*\(")
+
+
+def _builders() -> dict[str, str]:
+    """
+    Sources to fold in when the varying happens somewhere other than the call.
+
+    Two kinds, and the first run needed both — it reported six calls frozen and
+    FIVE of them were the detector's fault:
+
+      a params BUILDER — `params: toParams(filters)`, where `toParams` is the
+      thing that writes `page`. Every false positive on the first run was a
+      money list of exactly this shape.
+
+      a filter TYPE — `disposals: (params: DisposalFilters = {}) => apiGet(…,
+      { params })`. Nothing in the call names a page; `DisposalFilters` declares
+      one and the caller supplies it.
+
+    An audit that produces findings is a thing to verify, not to believe — and
+    five of six is the ratio that makes the point.
+    """
+    out: dict[str, str] = {}
+    for f in list((PANEL / "src").rglob("*.ts")) + list((PANEL / "src").rglob("*.tsx")):
+        if ".test." in f.name:
+            continue
+        src = f.read_text()
+        for m in re.finditer(r"export function (\w+)", src):
+            out[m.group(1)] = src[m.start():m.start() + 1500]
+        for m in re.finditer(r"(?:export )?(?:interface|type) (\w+)", src):
+            out[m.group(1)] = src[m.start():m.start() + 1200]
+    return out
+
+
+def opt_in_routes(routes: set[str]) -> set[str]:
+    """
+    Routes that paginate only when ASKED to.
+
+    `ExpenseCategoryController@index` says it plainly: "Opt-in, so the picker
+    that has always received a flat array still does." A client that sends no
+    `per_page` gets every row, so sending no page is correct there and flagging
+    it is the scanner inventing a defect.
+    """
+    out: set[str] = set()
+    methods: set[str] = set()
+    for f in (BACKEND / "app/Http/Controllers/Api/V1").rglob("*.php"):
+        src = f.read_text()
+        for m in re.finditer(
+            r"public function (\w+)\([^)]*\)\s*:\s*JsonResponse\s*\{(.*?)\n    \}", src, re.S
+        ):
+            body = m.group(2)
+            if "ApiResponse::paginated" in body and "filled('per_page')" in body:
+                methods.add(f"{f.stem}@{m.group(1)}")
+
+    listing = subprocess.run(["php", "artisan", "route:list", "--json"],
+                             cwd=BACKEND, capture_output=True, text=True)
+    for r in json.loads(listing.stdout):
+        if (r.get("action") or "").split("\\")[-1] in methods:
+            out.add(re.sub(r"^api/v1/", "", r["uri"]).strip("/"))
+
+    return out & routes
+
+
+def _member_around(src: str, at: int) -> str:
+    """
+    The one service method the call belongs to — not a window of characters.
+    
+    A fixed window was the first attempt and it was blind. `marketplaceService`
+    keeps `reservations` a few lines from a shop SEARCH, so 500 characters of
+    context contained the word `search` and the call read as escapable. The
+    detector answered "fine" about the very call the bug was in, twice, while I
+    narrowed the wrong thing.
+    
+    A member of an object literal starts at a two-space-indented `name:` and
+    ends where the next one starts. That is exactly the unit the question is
+    about: what THIS call sends.
+    """
+    starts = [m.start() for m in re.finditer(r"\n  \w+:", src)]
+    before = [p for p in starts if p <= at]
+    after = [p for p in starts if p > at]
+    lo = before[-1] if before else max(0, at - 400)
+    hi = after[0] if after else min(len(src), at + 400)
+
+    return src[lo:hi]
+
+
+def frozen_on_page_one(routes: set[str]) -> tuple[list[tuple[str, str]], int]:
+    """(route, file) for every call whose request cannot vary, and how many were judged."""
+    builders = _builders()
+    routes = routes - (opt_in_routes(routes) if routes else set())
+    stuck, judged = [], 0
+
+    for f in sorted((PANEL / "src").rglob("*.ts")) + sorted((PANEL / "src").rglob("*.tsx")):
+        if ".test." in f.name:
+            continue
+        src = f.read_text()
+        for m in LITERAL_GET.finditer(src):
+            if m.group(1).lstrip("/") not in routes:
+                continue
+            judged += 1
+            window = _member_around(src, m.start())
+            # Fold in whatever builds this call's params, one hop — a builder
+            # function by name, and any type the enclosing signature declares.
+            # A PARAMETER's type — `(params: DisposalFilters = {})` — not every
+            # capitalised word after a colon. The wide version folded in
+            # `apiGet<CustomerReservation[]>`'s own type and, through it, enough
+            # unrelated text to mention a page: the detector stopped detecting,
+            # and the mutation that proves this check works slipped straight
+            # through it. Widen a resolver far enough and it answers yes to
+            # everything.
+            for name in BUILDS_PARAMS.findall(window) + re.findall(r"\(\s*\w+\s*:\s*([A-Z]\w+)", window):
+                window += "\n" + builders.get(name, "")
+            if not (ASKS_FOR_A_PAGE.search(window)
+                    or ASKS_BY_NAME_TOO.search(window)
+                    or DRAINS_EVERY_PAGE.search(window)):
+                stuck.append((m.group(1).lstrip("/"), str(f.relative_to(PANEL))))
+
+    return stuck, judged
+
+
+# ── A page argument nobody supplies ─────────────────────────────────────
+#
+# The third shape, and the one the other two both miss.
+#
+# `useMyOrders(page = 1)` sent the page, kept previous data, and had done since
+# it was written. `MyOrdersPage` called it as `useMyOrders()` and rendered no
+# pager — so a buyer who had ordered sixteen times could never look at the
+# first one. The call CAN vary, so the per-list check above is satisfied; the
+# folder holds a pager on a different screen, so the folder check is satisfied
+# too. Built, tested, and wired to nothing.
+#
+# The signature is the giveaway: a hook that offers a page and is never once
+# asked for a second one.
+TAKES_A_PAGE = re.compile(r"export function (use\w+)\(([^)]*)\)")
+
+
+def page_argument_nobody_passes(blind: bool = False) -> tuple[list[tuple[str, str]], int]:
+    """
+    (hook, where it is declared) for hooks whose page argument no caller sends,
+    and HOW MANY were examined.
+
+    The count is not decoration. The first version of this function read
+
+        if ".test." in f.name is False
+
+    which Python parses as a chained comparison — `(".test." in f.name) and
+    (f.name is False)` — so it is always False and the source list was EMPTY. It
+    printed "0 hooks offer a page nobody asks for" and looked exactly like a
+    clean result, including against the mutation planted to prove it works. A
+    detector that reads nothing reports no problems; only a denominator tells
+    the two apart, which is the rule this whole file is built on and which I
+    still managed to break inside it.
+    """
+    files = [] if blind else [f for f in
+             list((PANEL / "src").rglob("*.ts")) + list((PANEL / "src").rglob("*.tsx"))
+             if ".test." not in f.name]
+    sources = [(f, f.read_text()) for f in files]
+    everything = "\n".join(src for _f, src in sources)
+
+    out, judged = [], 0
+    for f, src in sources:
+        for m in TAKES_A_PAGE.finditer(src):
+            hook, params = m.group(1), m.group(2)
+            if "page" not in params:
+                continue
+            judged += 1
+            # Every CALL of it — the declaration excluded by what precedes it,
+            # not by what it contains. Excluding any argument list containing an
+            # `=` was the first attempt and it threw away real callers:
+            # `useDayHistory(listParams, tab === "history")` has three of them,
+            # so two working screens were reported as never passing a page.
+            # Two false positives out of three findings, and only reading them
+            # one by one told me which.
+            calls = [m for m in re.finditer(rf"(?<!function )\b{re.escape(hook)}\(([^)]*)\)", everything)]
+            if not [m for m in calls if m.group(1).strip()]:
+                out.append((hook, str(f.relative_to(PANEL))))
+
+    return out, judged
+
+
+def _same_shape(call: str, route: str) -> bool:
+    """One path equals another with `${x}` and `{x}` both reading as a wildcard."""
+    def shape(p: str) -> tuple[str, ...]:
+        return tuple("*" if ("$" in seg or seg.startswith("{")) else seg
+                     for seg in p.strip("/").split("/"))
+
+    a, b = shape(call), shape(route)
+
+    return len(a) == len(b) and all(x == "*" or y == "*" or x == y for x, y in zip(a, b))
+
+
 def report(mutate: str | None = None) -> int:
     routes = paginating_routes()
     mods = screens()
@@ -237,7 +459,16 @@ def report(mutate: str | None = None) -> int:
         # sub-resource of one product, not the product LIST — counting it as
         # one accused the branches module of failing to page a list it never
         # shows. A prefix match makes every nested route look like its parent.
-        lists = sorted({r for r in routes for c in calls if c == r})
+        #
+        # Exact by SHAPE, though, not by characters. A screen writes
+        # `/marketplace/shops/${slug}/products` and Laravel writes
+        # `marketplace/shops/{slug}/products`; compared as strings they never
+        # matched, so two routes that ARE fetched — by a screen that pages them
+        # correctly — were reported as named by no screen at all. The report
+        # says out loud that a route nobody names is either an unbuilt list or a
+        # path this scan failed to recognise; those two were the second, and
+        # saying so was not the same as fixing it.
+        lists = sorted({r for r in routes for c in calls if _same_shape(c, r)})
         if not lists:
             continue
         checked += 1
@@ -265,7 +496,23 @@ def report(mutate: str | None = None) -> int:
     for q in quiet:
         print(f"  · {q}")
 
-    return len(stuck), checked, len(quiet), len(routes)
+    # ── per LIST, not per folder ───────────────────────────────────────
+    frozen, judged = frozen_on_page_one(set() if mutate == "blind" else routes)
+    print(f"\n{len(frozen)} of {judged} literal calls to a paginating route cannot "
+          f"ask for anything but page one:")
+    for route, where in frozen:
+        print(f"  · {route:32} {where}")
+
+    # Blinded by INPUT, not by being skipped. A check that is stepped over in
+    # the proving run cannot be told apart from one that is broken — which is
+    # the exact confusion the proving run exists to end.
+    orphans, hooks = page_argument_nobody_passes(blind=mutate == "blind")
+    print(f"\n{len(orphans)} of {hooks} hook(s) that offer a page are never asked for one:")
+    for hook, where in orphans:
+        print(f"  · {hook:32} {where}")
+
+    return (len(stuck) + len(frozen) + len(orphans), checked, len(quiet), len(routes),
+            judged, hooks)
 
 
 def prove() -> int:
@@ -278,20 +525,23 @@ def prove() -> int:
     the verdict.
     """
     print("── proving it can fail ──\n")
-    _, checked, quiet, routes = report(mutate="blind")
+    _, checked, quiet, routes, calls, hooks = report(mutate="blind")
 
-    if checked != 0 or quiet != routes:
-        print("\nBROKEN: a detector reading nothing still found screens to judge")
+    if checked != 0 or quiet != routes or calls != 0 or hooks != 0:
+        print("\nBROKEN: a detector reading nothing still found things to judge "
+              f"(folders={checked}, calls={calls}, hooks={hooks})")
         return 1
 
-    print(f"\nblinded: checked 0 folders and could place none of {routes} routes.")
+    print(f"\nblinded: checked 0 folders, 0 calls and 0 hooks, and could place "
+          f"none of {routes} routes.")
     print("That is the shape a broken scan takes. A real run below that checks 0")
     print("is broken too, whatever its verdict says.\n")
 
-    stuck, checked, quiet, routes = report()
+    stuck, checked, quiet, routes, calls, hooks = report()
 
-    if checked == 0:
-        print("\nBROKEN: the real run judged nothing either")
+    if checked == 0 or calls == 0 or hooks == 0:
+        print("\nBROKEN: the real run judged nothing either "
+              f"(folders={checked}, calls={calls}, hooks={hooks})")
         return 1
 
     return 1 if stuck else 0
@@ -301,5 +551,5 @@ if __name__ == "__main__":
     if "--prove" in sys.argv:
         raise SystemExit(prove())
 
-    stuck, checked, _quiet, _routes = report()
-    raise SystemExit(1 if (stuck or checked == 0) else 0)
+    stuck, checked, _quiet, _routes, calls, hooks = report()
+    raise SystemExit(1 if (stuck or checked == 0 or calls == 0 or hooks == 0) else 0)

@@ -10,6 +10,82 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-23 — page two, asked of the list instead of the folder
+
+`unreachable-pages.py` has carried this limit in its own docblock since it was
+written: the escape hatch is credited to a FOLDER, not to a LIST. Three defects
+were sitting inside exactly that gap.
+
+### BUG · a buyer could not reach their own older reservations
+
+Server: `paginate(15)`, newest first. Client: `reservations: () => apiGet(…)` —
+**no argument at all.** Sixteen holds and the sixteenth cannot be seen or
+cancelled. The rows that fall off are the OLDEST, which is where a forgotten hold
+sits — the shop still keeping stock off its shelf for somebody whose only way to
+say "never mind" has scrolled out of reach.
+
+### BUG · a page argument no screen ever supplied
+
+`useMyOrders(page = 1)` sent the page and kept previous data — paging was built
+deliberately. `MyOrdersPage` called `useMyOrders()` and rendered no pager. A
+buyer who had ordered sixteen times could never look at the first one. **Built,
+tested, wired to nothing — the eighth time.**
+
+### BUG · stocktake, and the workshop lesson repeating
+
+`useStockCounts()` sent no page against a `paginate(25)` endpoint. The folder
+scan passed the screen as **"search only"** — but the search it was credited for
+is the item lookup on the count SHEET next door. This list has no search box; its
+one placeholder says "Pick a category". A shop's 26th stock count was
+unreachable, and a stock count is the record you look BACK at.
+
+### THE SCANNER · two questions the folder cannot ask
+
+**Can this list's request ask for anything but page one?** Asked of the CALL, so
+it needs no attribution. **Does any hook offer a page nobody asks for?** The
+shape the other two miss: call can vary, folder has a pager, the one screen that
+matters passes nothing.
+
+### HARNESS · getting the detector right cost more than the fixes
+
+Every step the same class of mistake, and worth the space:
+
+| | |
+|---|---|
+| 6 findings, **5 the detector's fault** | the page was one function away (`toParams(filters)`) or in the caller's filter type |
+| widening the resolver made it **blind** | folding every capitalised word after a colon swallowed `apiGet<CustomerReservation[]>`'s own type; the planted mutation slipped through **twice** |
+| a 500-char window is not a unit of meaning | `marketplaceService` keeps `reservations` beside a shop SEARCH; the window now spans exactly one service member |
+| `if ".test." in f.name is False` | Python reads a chained comparison — always False, **file list empty**. Printed "0 hooks" and looked clean, including against the mutation. Only the denominator told them apart |
+| `useDayHistory(listParams, tab === "history")` | excluded because its arguments contain an `=`. Two working screens accused; the declaration is now excluded by what PRECEDES it |
+
+> **A check that is stepped over cannot be told apart from one that is broken.**
+> `--prove` now blinds all three by INPUT. Blinded: 0 folders, 0 calls, 0 hooks.
+> Real: 27, 33, 24.
+
+### HARNESS · the other denominator was lying too
+
+"Paginating routes named by no screen" sat at **2 of 38** for the life of the
+tool, under a note saying such a route is "either a list nobody built yet or a
+path this scan failed to recognise". Both were the second: a screen writes
+`` `/marketplace/shops/${slug}/products` ``, Laravel writes
+`marketplace/shops/{slug}/products`, and compared as characters they never
+matched — two routes that ARE fetched, by a screen that pages them correctly.
+Comparing by SHAPE (equal segment counts, `{x}` and `${x}` both wildcards) clears
+it without weakening the rule against mistaking a sub-resource for its list.
+
+> **Naming a limit is not the same as fixing it.** The note was honest, and it
+> was also nobody looking.
+
+All four figures are now 0: folders 0/27, unnamed routes 0/38, frozen calls 0/33,
+orphaned page arguments 0/24.
+
+### STILL NOT COVERED
+
+The folder-level "search only" verdict can still be borrowed from the wrong
+screen — stocktake was caught by the hook check, not by fixed attribution. Doing
+it properly needs to know which call feeds which rendered list, which regex
+cannot answer. A stated limit, not a papered-over one.
+
 ## 2026-08-23 — twenty-two collisions nobody had counted
 
 ### MEASURED · the collapsed sidebar could not be read

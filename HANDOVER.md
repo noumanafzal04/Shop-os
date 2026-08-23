@@ -276,7 +276,36 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-23 (latest) — a rail you can read, and a name of our own
+### 2026-08-23 (latest) — page two, asked of the list instead of the folder
+
+Full write-up: `docs/decisions/shopos-page-two-per-list.md`.
+
+Three defects inside the limit `unreachable-pages.py` had written into its own
+docblock — the escape hatch credited to a FOLDER, not to a LIST.
+
+**A buyer could not reach their own older reservations.** Server `paginate(15)`,
+client `reservations: () => apiGet(…)` with no argument. The rows that fall off
+are the oldest, which is where a forgotten hold sits — stock off the shelf for
+somebody whose only way to cancel has scrolled away.
+
+**`useMyOrders` took a page and no screen gave it one.** Hook sends it, keeps
+previous data; the screen called it bare and rendered no pager. Built, tested,
+wired to nothing — the eighth time.
+
+**Stocktake repeated the workshop lesson.** `useStockCounts()` sent no page
+against `paginate(25)`, and the folder passed as "search only" — crediting the
+item lookup on the count SHEET next door. This list has no search box at all.
+
+The scanner now asks two questions the folder cannot: can this CALL's request ask
+for anything but page one, and does any hook offer a page nobody asks for.
+Getting it right cost more than the fixes — 5 of the first 6 findings were the
+detector's fault, widening the resolver made it blind to its own mutation twice,
+and `if ".test." in f.name is False` is a chained comparison that emptied the
+file list while printing a clean-looking zero.
+
+Gates: panel **1122 / 88 files** · tsc, eslint (0 errors), build clean.
+
+### 2026-08-23 — a rail you can read, and a name of our own
 
 Full write-up: `docs/decisions/shopos-a-rail-you-can-read.md`.
 
