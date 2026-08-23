@@ -26,3 +26,45 @@ export function ownerAuth(): Record<string, string> {
 
   return { Authorization: `Bearer ${token}`, Accept: "application/json" };
 }
+
+/**
+ * Remove every product whose name starts with `prefix`, and answer how many.
+ *
+ * Because two specs bred. Both named their fixture `…${Date.now()}`, so each
+ * run left one more behind permanently: nine shirts and four pizzas, each with
+ * its own sizes, all of them SIZED items sitting on the front page of the till.
+ *
+ * Nothing noticed until a sibling spec starved — `chrome.spec` needs eight
+ * PLAIN products to fill a cart with, the sized fixtures had crowded them off
+ * page one, and four viewports failed on a precondition about a screen that was
+ * working perfectly. A fixture that accumulates is a slow leak that presents as
+ * an unrelated bug.
+ *
+ * So a fixture with a fixed name clears its own ground first. One of a thing,
+ * every run, whatever happened last time.
+ */
+export async function removeProductsNamed(
+  request: { get: APIGet; delete: APIDelete },
+  prefix: string,
+): Promise<number> {
+  const auth = ownerAuth();
+  const res = await request.get(`${API}/products?search=${encodeURIComponent(prefix)}&per_page=100`, {
+    headers: auth,
+  });
+  if (!res.ok()) return 0;
+
+  const rows = ((await res.json()) as { data: Array<{ id: string; name: string }> }).data ?? [];
+  const doomed = rows.filter((r) => r.name.startsWith(prefix));
+
+  for (const row of doomed) {
+    await request.delete(`${API}/products/${row.id}`, { headers: auth });
+  }
+
+  return doomed.length;
+}
+
+type APIGet = (url: string, opts: { headers: Record<string, string> }) => Promise<{
+  ok: () => boolean;
+  json: () => Promise<unknown>;
+}>;
+type APIDelete = (url: string, opts: { headers: Record<string, string> }) => Promise<unknown>;

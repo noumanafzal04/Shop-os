@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { API, ownerAuth } from "./api";
+import { API, ownerAuth, removeProductsNamed } from "./api";
 
 /**
  * CREATING A SHIRT IN COLOURS AND SIZES, THROUGH THE FORM.
@@ -46,10 +46,16 @@ test.beforeEach(({ browserName }, testInfo) => {
   );
 });
 
-const NAME = `E2E Form Shirt ${Date.now()}`;
+// A FIXED name, cleared before use. It was `…${Date.now()}` and left one more
+// shirt in the catalogue every run — see removeProductsNamed for what that cost.
+const NAME = "E2E Form Shirt";
 
 test("the size grid generates rows, prices them all at once, and saves them", async ({ page, request }) => {
   const auth = ownerAuth();
+
+  // Clear last run's shirt, so this one creates rather than colliding — and so
+  // the shop is not left with a rail of them.
+  await removeProductsNamed(request, NAME);
 
   await page.goto("/tenant/products/new");
   await page.waitForLoadState("networkidle").catch(() => {});

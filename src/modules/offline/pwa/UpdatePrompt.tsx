@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
 import { useOfflineStore } from "../offlineStore";
+import { watchForUpdates } from "./updateWatch";
 import { useReservesBottomRoom } from "./useReservesBottomRoom";
 
 /**
@@ -19,6 +20,7 @@ import { useReservesBottomRoom } from "./useReservesBottomRoom";
  * — the next natural reload picks it up regardless.
  */
 export default function UpdatePrompt() {
+  const stopWatching = useRef<(() => void) | null>(null);
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -26,12 +28,23 @@ export default function UpdatePrompt() {
     // Deliberately silent on first install. "ShopOS is ready to work offline"
     // is a sentence that means nothing to a cashier and arrives at the one
     // moment they are busiest — their first day.
-    onRegisteredSW() {},
+    //
+    // What it DOES do is keep asking. A browser looks for a new worker when the
+    // page is navigated, and the till is the one screen nobody navigates — it
+    // is opened on Monday and used until Saturday. Without this the strip below
+    // could not appear on the screen it matters most on. See `updateWatch`.
+    onRegisteredSW(_swUrl, registration) {
+      stopWatching.current?.();
+      stopWatching.current = watchForUpdates(registration);
+    },
     onRegisterError() {
       // A service worker that will not register is a till without an offline
       // shell. It still sells; it just needs a line. Nothing to say here.
     },
   });
+
+  // Cleared when the component goes, so a remount does not stack watchers.
+  useEffect(() => () => stopWatching.current?.(), []);
 
   // Sales this till is still holding. An update reloads the app, and the one
   // thing a cashier standing over a queue of unsent sales will fear is that
