@@ -360,19 +360,22 @@ describe("the menu offers nothing the API will refuse", () => {
  * this pins the reason the resolved field has to exist.
  */
 describe("trade gates need the resolved business type", () => {
-  it("an old clinic is a pharmacy or it keeps no register", () => {
-    expect(shopNav(FEATURES.pharmacy, "pharmacy", "advanced", false)
-      .flatMap((i) => (i.subItems ?? []).map((s) => s.path))).toContain("/tenant/pharmacy");
+  // Every path the menu offers, wherever it sits. These read the WHOLE nav
+  // rather than only its dropdowns — they were written when the trade screens
+  // all lived inside "More", and asserting on `subItems` alone would have
+  // failed the day one of them was promoted to the top level for being the
+  // screen a shop's day runs on. The claim is "this trade is offered its
+  // register", not "it is offered it in a dropdown".
+  const offers = (type: string) => shopNav(FEATURES[type === "clinic" ? "pharmacy" : type === "workshop" ? "automotive" : type], type, "advanced", false)
+    .flatMap((i) => [...(i.path ? [i.path] : []), ...(i.subItems ?? []).map((s) => s.path)]);
 
-    expect(shopNav(FEATURES.pharmacy, "clinic", "advanced", false)
-      .flatMap((i) => (i.subItems ?? []).map((s) => s.path))).not.toContain("/tenant/pharmacy");
+  it("an old clinic is a pharmacy or it keeps no register", () => {
+    expect(offers("pharmacy")).toContain("/tenant/pharmacy");
+    expect(offers("clinic")).not.toContain("/tenant/pharmacy");
   });
 
   it("an old workshop is automotive or it keeps no vehicle register", () => {
-    expect(shopNav(FEATURES.automotive, "automotive", "advanced", false)
-      .flatMap((i) => (i.subItems ?? []).map((s) => s.path))).toContain("/tenant/vehicles");
-
-    expect(shopNav(FEATURES.automotive, "workshop", "advanced", false)
-      .flatMap((i) => (i.subItems ?? []).map((s) => s.path))).not.toContain("/tenant/vehicles");
+    expect(offers("automotive")).toContain("/tenant/vehicles");
+    expect(offers("workshop")).not.toContain("/tenant/vehicles");
   });
 });

@@ -5,17 +5,29 @@ import {
   BoltIcon,
   BoxCubeIcon,
   BoxIcon,
+  CalenderIcon,
   ChatIcon,
   ChevronDownIcon,
+  CopyIcon,
+  DocsIcon,
   DollarLineIcon,
   FileIcon,
+  FolderIcon,
   GridIcon,
   GroupIcon,
   InfoIcon,
   ListIcon,
+  MoreDotIcon,
+  PaperPlaneIcon,
+  PieChartIcon,
   PlugInIcon,
+  ShootingStarIcon,
+  TableIcon,
+  TaskIcon,
   UserCircleIcon,
+  UserIcon,
 } from "../icons";
+import { BrandMark, Wordmark } from "../components/brand/Brand";
 import { useSidebar } from "../context/SidebarContext";
 import { useUiMode, type UiMode } from "../context/UiModeContext";
 import { useShopSettings } from "../modules/shop/hooks/useShop";
@@ -63,7 +75,11 @@ export function shopNav(
   can: (permission: string) => boolean = () => true,
 ): NavItem[] {
   const branchItem: NavItem = {
-    icon: <BoxCubeIcon />,
+    // Two of the same thing, which is what a branch IS. It wore the cube that
+    // Products wears — different components, near-identical pictures, and the
+    // icon-uniqueness test cannot see that because it compares names. Some of
+    // this only a pair of eyes finds.
+    icon: <CopyIcon />,
     name: "Branches",
     subItems: [
       // Adding a location is configuration; moving stock between them is
@@ -85,9 +101,54 @@ export function shopNav(
   const canSell = has("pos") || has("marketplace");
   const hasCatalog = has("products") || has("services");
 
+  /**
+   * The one screen this trade's day actually runs on, beside the till.
+   *
+   * A restaurant's is the kitchen pass; a workshop's is the board of cars in
+   * the bay; a chemist's is the dispensing register; a station's is the shift.
+   * These used to live in "More" — a dropdown — while Simple mode dropped them
+   * altogether, so a workshop's calm view offered Products and withheld the
+   * board its whole day is spent on. Simple mode is meant to be the daily
+   * essentials, and for these trades this IS the daily essential.
+   */
+  const tradeDaily: NavItem[] = [
+    // The pass lives on a different wall from the till: same shop, two people,
+    // two displays.
+    ...(has("dine_in") ? [{ icon: <TaskIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
+    // The board of work TAKEN IN — every car in the bay, or every job on the
+    // rail. A laundry, a tailor and a repair counter all run exactly this.
+    ...(has("pos") && hasJobBoard(businessType)
+      ? [{ icon: <TaskIcon />, name: boardWords(businessType).board, path: "/tenant/workshop" }]
+      : []),
+    // The chemist's paperwork: the dispensing register and batch recall.
+    // Pharmacy-only — a mart that happens to stock paracetamol keeps no
+    // register, and the page would be an empty table forever.
+    ...(has("inventory") && businessType === "pharmacy"
+      ? [{ icon: <ListIcon />, name: "Dispensary", path: "/tenant/pharmacy" }]
+      : []),
+  ];
+
+  // The forecourt. A station runs its day off the shift, so it sits with the
+  // daily screens rather than buried in setup — the equipment page is its
+  // sub-item because it's touched once and then left alone.
+  const forecourt: NavItem[] = has("fuel")
+    ? [{
+        icon: <BoltIcon />,
+        name: "Forecourt",
+        subItems: [
+          // A forecourt shift ends by setting fuel stock to the dip, so it is a
+          // stock correction; a tanker is goods received; the plant is
+          // configuration. Three screens, three different people.
+          { name: "Shifts", path: "/tenant/fuel" },
+          { name: "Deliveries & rates", path: "/tenant/fuel/deliveries" },
+          { name: "Tanks & pumps", path: "/tenant/fuel/setup" },
+        ],
+      }]
+    : [];
+
   // The Expense & Income module — one home for all money in/out.
   const expenseManager: NavItem = {
-    icon: <FileIcon />,
+    icon: <PieChartIcon />,
     name: "Expense Manager",
     subItems: [
       { name: "Cashbook", path: "/tenant/cashbook" },
@@ -100,20 +161,27 @@ export function shopNav(
   };
 
   // Basic mode: the daily essentials only — the calm view for a new merchant.
+  //
+  // "Essential" is read per TRADE, not per module. It used to be one list for
+  // everybody, so a restaurant's calm view had Dine-in and no Kitchen, a
+  // workshop had Products and no board, and a filling station had no forecourt
+  // at all — the screens those shops spend the whole day on.
   if (mode === "basic") {
     return filterByPermission([
       { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
       ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
-      ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
-      ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
+      ...(has("dine_in") ? [{ icon: <TableIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
+      ...tradeDaily,
+      ...forecourt,
+      ...(canSell ? [{ icon: <FileIcon />, name: "Sales", path: "/tenant/sales" }] : []),
       // End of day. Even the calm view needs it — without it a shop can never
       // close a day off or record what went to the bank.
-      ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
-      ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders" }] : []),
+      ...(has("pos") ? [{ icon: <CalenderIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
+      ...(has("marketplace") || has("delivery") ? [{ icon: <PaperPlaneIcon />, name: "Orders", path: "/tenant/orders" }] : []),
       ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products" }] : []),
       ...(has("expenses") ? [expenseManager] : []),
       ...(multiBranch ? [branchItem] : []),
-      { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
+      { icon: <PlugInIcon />, name: "Settings", path: "/tenant/settings" },
     // Last, and never gated: anyone in the shop can get stuck, and what
     // the Help Centre SHOWS is already filtered to this shop's modules
     // and to what the reader can open.
@@ -126,41 +194,26 @@ export function shopNav(
     { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
     // POS till is only for shops on a plan that includes it (not online-only).
     ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
-    ...(has("dine_in") ? [{ icon: <GridIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
-    // The kitchen board is a separate screen because it lives on a different
-    // wall from the till — the same shop, two people, two displays.
-    ...(has("dine_in") ? [{ icon: <ListIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
-    ...(canSell ? [{ icon: <DollarLineIcon />, name: "Sales", path: "/tenant/sales" }] : []),
+    ...(has("dine_in") ? [{ icon: <TableIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
+    // The kitchen pass, the bay board, the dispensing register — whichever of
+    // them this trade runs its day on. Same list Simple mode uses, so the two
+    // views cannot disagree about what this shop's daily work IS.
+    ...tradeDaily,
+    ...(canSell ? [{ icon: <FileIcon />, name: "Sales", path: "/tenant/sales" }] : []),
     // The 10pm question: what did the shop take today across every drawer, and
     // how much of it went to the bank. No shift answers it, however well
     // counted — so it sits with the daily screens, not in a reports folder.
     // A cashier is entitled to the record of their own drawer, so it carries
     // the same permission as ringing a sale; the day CLOSE is manager-only,
     // checked on the server.
-    ...(has("pos") ? [{ icon: <ListIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
+    ...(has("pos") ? [{ icon: <CalenderIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
     // Promises outstanding: prices quoted, and goods held on advance. Sits
     // beside Sales because it is the same ledger one step earlier — and a
     // shopkeeper holding customers' money needs it where they'll see it daily.
-    ...(has("pos") ? [{ icon: <ListIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
-    ...(has("marketplace") || has("delivery") ? [{ icon: <PlugInIcon />, name: "Orders", path: "/tenant/orders" }] : []),
-    ...(has("delivery") ? [{ icon: <GroupIcon />, name: "Riders", path: "/tenant/riders" }] : []),
-    // The forecourt. A station runs its day off the shift, so it sits with the
-    // daily screens rather than buried in setup — the equipment page is its
-    // sub-item because it's touched once and then left alone.
-    ...(has("fuel")
-      ? [{
-          icon: <BoltIcon />,
-          name: "Forecourt",
-          subItems: [
-            // A forecourt shift ends by setting fuel stock to the dip, so it
-            // is a stock correction; a tanker is goods received; the plant is
-            // configuration. Three screens, three different people.
-            { name: "Shifts", path: "/tenant/fuel" },
-            { name: "Deliveries & rates", path: "/tenant/fuel/deliveries" },
-            { name: "Tanks & pumps", path: "/tenant/fuel/setup" },
-          ],
-        }]
-      : []),
+    ...(has("pos") ? [{ icon: <DocsIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
+    ...(has("marketplace") || has("delivery") ? [{ icon: <PaperPlaneIcon />, name: "Orders", path: "/tenant/orders" }] : []),
+    ...(has("delivery") ? [{ icon: <UserIcon />, name: "Riders", path: "/tenant/riders" }] : []),
+    ...forecourt,
     // Expense & Income module — one home for all money in/out.
     ...(has("expenses") ? [expenseManager] : []),
     // Multi-branch: a locations manager appears only when the plan allows >1.
@@ -186,7 +239,7 @@ export function shopNav(
     ...(has("inventory")
       ? [
           {
-            icon: <BoxCubeIcon />,
+            icon: <FolderIcon />,
             name: "Inventory",
             subItems: [
               { name: "Stock", path: "/tenant/inventory" },
@@ -224,7 +277,12 @@ export function shopNav(
         }]
       : []),
     {
-      icon: <BoltIcon />,
+      // The back office, plus the counter LOOKUPS a trade reaches for when a
+      // customer is standing there — not its daily board, which is above.
+      //
+      // "More" used to hold both, so a workshop's whole day's work sat inside a
+      // dropdown named after nothing in particular.
+      icon: <MoreDotIcon />,
       name: "More",
       subItems: [
         { name: "Reports", path: "/tenant/reports" },
@@ -233,35 +291,21 @@ export function shopNav(
         // raises — you granted somebody a permission, and later you want to
         // know what they did with it.
         { name: "Activity", path: "/tenant/activity" },
-        // The chemist's paperwork: the dispensing register and batch recall.
-        // Pharmacy-only — a mart that happens to stock paracetamol keeps no
-        // register, and the page would be an empty table forever.
-        ...(has("inventory") && businessType === "pharmacy"
-          ? [{ name: "Pharmacy", path: "/tenant/pharmacy" }]
-          : []),
         // A tyre or auto shop's real customer key: the plate, what the car
         // takes, and what was fitted last time. Only the trades that work on
         // vehicles — a grocery would never open it twice. A vehicle IS
         // customer data, so it carries the CRM permission.
+        //
+        // Narrower than the bay board above on purpose: a fuel station keeps
+        // vehicle records for its account customers but has no bay.
         ...(has("products") && (businessType === "automotive" || businessType === "petroleum")
           ? [{ name: "Vehicles", path: "/tenant/vehicles" }]
-          : []),
-        // The board of work TAKEN IN — every car in the bay, or every job on
-        // the rail. Automotive and services both, because a laundry, a tailor
-        // and a repair counter run exactly this: work arrives, lines
-        // accumulate, it becomes an invoice when the customer collects.
-        //
-        // Narrower than Vehicles above on purpose: a fuel station keeps vehicle
-        // records for its account customers but has no bay, and a board that is
-        // permanently empty is a menu item people learn to skip.
-        ...(has("pos") && hasJobBoard(businessType)
-          ? [{ name: boardWords(businessType).board, path: "/tenant/workshop" }]
           : []),
         // Serialized goods (phones, electronics, batteries) — look up a
         // serial's warranty. The trades that sell a unit somebody brings back;
         // a grocery or pharmacy never does. Same list the product form gates
         // the serial toggle on, so where you turn it on and where you look it
-        // up cannot disagree. A counter lookup, so it sits with the till.
+        // up cannot disagree.
         ...(has("pos") && has("inventory") && tracksSerials(businessType)
           ? [{ name: "Warranty lookup", path: "/tenant/warranty" }]
           : []),
@@ -277,8 +321,8 @@ export function shopNav(
     // Settings + subscription stand alone at the bottom — one click away.
     // Subscription carries no permission because the server asks for none:
     // what the shop pays is not a secret from the people who work in it.
-    { icon: <DollarLineIcon />, name: "Subscription", path: "/tenant/subscription" },
-    { icon: <BoltIcon />, name: "Settings", path: "/tenant/settings" },
+    { icon: <ShootingStarIcon />, name: "Subscription", path: "/tenant/subscription" },
+    { icon: <PlugInIcon />, name: "Settings", path: "/tenant/settings" },
     // Last, and never gated: anyone in the shop can get stuck, and what
     // the Help Centre SHOWS is already filtered to this shop's modules
     // and to what the reader can open.
@@ -338,7 +382,7 @@ export function adminNav(
 const SECTION_ROOTS = ["/tenant", "/admin"];
 
 const AppSidebar: React.FC = () => {
-  const { isExpanded, isMobileOpen, railWide, setIsHovered, toggleSidebar, closeMobileSidebar } =
+  const { isExpanded, isMobileOpen, railWide, setIsHovered, closeMobileSidebar } =
     useSidebar();
   const location = useLocation();
   const role = useAuthStore((s) => s.user?.role);
@@ -643,31 +687,7 @@ const AppSidebar: React.FC = () => {
         }`}
       >
         <Link to={homeForRole(role)} className="flex items-center">
-          {showLabels ? (
-            <>
-              <img
-                className="dark:hidden"
-                src="/images/logo/logo.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-              <img
-                className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-            </>
-          ) : (
-            <img
-              src="/images/logo/logo-icon.svg"
-              alt="Logo"
-              width={32}
-              height={32}
-            />
-          )}
+          {showLabels ? <Wordmark /> : <BrandMark />}
         </Link>
         {/* Close, on the drawer itself.
             The only way out used to be the header's toggle, which the drawer
@@ -691,23 +711,13 @@ const AppSidebar: React.FC = () => {
             </svg>
           </button>
         )}
-        {showLabels && (
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            aria-label="Collapse sidebar"
-            className="hidden size-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200 lg:flex"
-          >
-            <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true">
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M0.583252 1C0.583252 0.585788 0.919038 0.25 1.33325 0.25H14.6666C15.0808 0.25 15.4166 0.585786 15.4166 1C15.4166 1.41421 15.0808 1.75 14.6666 1.75L1.33325 1.75C0.919038 1.75 0.583252 1.41422 0.583252 1ZM0.583252 11C0.583252 10.5858 0.919038 10.25 1.33325 10.25L14.6666 10.25C15.0808 10.25 15.4166 10.5858 15.4166 11C15.4166 11.4142 15.0808 11.75 14.6666 11.75L1.33325 11.75C0.919038 11.75 0.583252 11.4142 0.583252 11ZM1.33325 5.25C0.919038 5.25 0.583252 5.58579 0.583252 6C0.583252 6.41421 0.919038 6.75 1.33325 6.75L7.99992 6.75C8.41413 6.75 8.74992 6.41421 8.74992 6C8.74992 5.58579 8.41413 5.25 7.99992 5.25L1.33325 5.25Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
-        )}
+        {/* No collapse button here.
+            There was one — the same three-bar icon the header already carries,
+            nine pixels from the wordmark, doing the identical thing four
+            centimetres from its twin. Two controls for one action is not twice
+            as convenient; it is a question about whether they differ. The
+            header's is the one that survives, because it is reachable whether
+            the sidebar is open or shut and this one was not. */}
       </div>
 
       {/* The ONLY scroller: min-h-0 lets it shrink inside the flex column, so a
@@ -761,7 +771,7 @@ const AppSidebar: React.FC = () => {
               </div>
               <p className="mt-2 px-1 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
                 {mode === "basic"
-                  ? "Daily essentials only. Switch to Full view for every module."
+                  ? "The screens your day runs on. Switch to Full view for every module."
                   : "Every module this shop has."}
               </p>
             </>

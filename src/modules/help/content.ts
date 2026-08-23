@@ -57,7 +57,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
   // ── Start here ────────────────────────────────────────────────────
   {
     id: "how-it-fits",
-    title: "How ShopOS fits together",
+    title: "How CartZe fits together",
     summary: "Why you see the screens you see, and not the ones you don't.",
     group: "Start here",
     keywords: ["missing", "hidden", "why can't I see", "screen not showing"],
@@ -85,6 +85,19 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "note",
         text: "This Help Centre follows the same rule — you are only reading articles about the modules your shop actually has, and the screens you personally can open.",
+      },
+      { type: "h", text: "Simple and Full view" },
+      {
+        type: "p",
+        text: "At the bottom of the menu is a Simple / Full view switch. This one is not a gate — it changes how much of the SAME shop is on screen, never what the shop is. Nothing appears in Simple that Full withholds.",
+      },
+      {
+        type: "p",
+        text: "Simple keeps the screens your trade's day actually runs on, which is not the same list for everybody: a restaurant keeps the kitchen pass, a workshop keeps its job board, a chemist keeps the dispensing register, a filling station keeps the forecourt. Full view adds everything else your shop has — reports, staff, suppliers, coupons, the record of who changed what.",
+      },
+      {
+        type: "note",
+        text: "If a screen has gone missing, check this switch before anything else. It is the one reason a screen can vanish that has nothing to do with modules, trade or permissions.",
       },
     ],
   },
@@ -921,7 +934,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "A customer asks you to keep something. The stock is set aside so it cannot be sold to somebody else, and the reservation expires on its own if they do not come back." },
       { type: "p", text: "Confirm it to turn it into a sale, or let it lapse and the stock returns to the shelf." },
-      { type: "warn", text: "This is holding STOCK, not booking an appointment. ShopOS does not do appointment booking." },
+      { type: "warn", text: "This is holding STOCK, not booking an appointment. CartZe does not do appointment booking." },
     ],
   },
   {
@@ -1226,7 +1239,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ["Last 4 digits", "Optional, and never blocks a sale. But the bank matches your claim on it, so a sale without one may be harder to collect — the claims report flags those separately."],
         ["The amount due drops", "The customer taps less. What YOU are owed has not changed; the bank pays the rest."],
       ]},
-      { type: "warn", text: "Never type a full card number anywhere in ShopOS. The box takes four digits and nothing else, deliberately — holding full card numbers is a serious legal obligation, and this is not the place for them." },
+      { type: "warn", text: "Never type a full card number anywhere in CartZe. The box takes four digits and nothing else, deliberately — holding full card numbers is a serious legal obligation, and this is not the place for them." },
 
       { type: "h", text: "Getting the money back" },
       { type: "p", text: "Reports → Bank claims. Per campaign, with every invoice number, date and last-4 the bank will ask for. Export it and send it to them." },
@@ -1339,7 +1352,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "warn", text: "One device belongs to one shop. If a tablet has already signed itself in somewhere else, this screen will say so instead of listing it — it is not a fault, it is the tablet still being registered to the other shop." },
 
       { type: "h", text: "Offline pricing checks" },
-      { type: "p", text: "ShopOS is being prepared to keep selling when the internet drops. Before a till is allowed to work out prices on its own, it has to prove it gets the same answer your server does." },
+      { type: "p", text: "CartZe is being prepared to keep selling when the internet drops. Before a till is allowed to work out prices on its own, it has to prove it gets the same answer your server does." },
       { type: "p", text: "So every sale is priced TWICE — once by the server, which is what the customer pays, and again by the offline engine, purely to compare. Nothing on the receipt changes, and nobody is ever charged the second figure." },
       { type: "keys", items: [
         ["Carts checked", "How many sales have actually been compared. This is the number that matters — zero disagreements means nothing if nothing was checked."],
@@ -1368,7 +1381,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ["A practice shift", "Training a new cashier works offline too, and it still takes nothing off the shelf — neither on the till nor in your books when it syncs. Practice sales keep their own TRN- numbering and stay out of every figure you read."],
       ]},
       { type: "warn", text: "Some things still need the connection, and the till will say so before you take the money — never after. Khata (a customer's balance is shared between tills), spending loyalty points, coupons, dine-in tables, medicines, and anything tracked by serial number. Take cash or card instead, or wait." },
-      { type: "note", text: "A sale that has been rung is never lost. Close the browser, flatten the battery, come back three days later — it is still there and it still sends. It is safest of all if you have installed ShopOS to the home screen rather than leaving it in a browser tab." },
+      { type: "note", text: "A sale that has been rung is never lost. Close the browser, flatten the battery, come back three days later — it is still there and it still sends. It is safest of all if you have installed CartZe to the home screen rather than leaving it in a browser tab." },
       { type: "p", text: "When they arrive, the shop records them against the time they actually happened — a Tuesday sale counts in Tuesday's takings and Tuesday's cashier's figures, not the day it finally reached us." },
       { type: "note", text: "That is true even when the tablet's own clock is wrong. A device that has been flat for a week can come back believing it is the day it was made; the till corrects itself against the shop's time, and the shop refuses to file a sale into tomorrow or into a moment before that till was last in touch. You are told which tablet was out and by how much — see 'The morning after' below." },
       { type: "note", text: "The sale is also credited to the cashier who RANG it, not to whoever happened to be signed in when the queue finally sent. And a tablet carried to another branch still files its waiting sales at the branch it belongs to — the goods left that shelf, not this one." },
@@ -1390,7 +1403,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "If a till runs out of space" },
       { type: "p", text: "A till holds its unsent sales on the device itself, so it needs room. You will see a warning long before it matters — free some space and carry on." },
       { type: "warn", text: "If the device genuinely fills up, the till will not let you open a shift. That is deliberate: a sale rung with no room to save it is a sale lost with the customer already gone, and refusing before the shift starts costs nothing. Connect the till and let it sync — that sends what is waiting and frees the space." },
-      { type: "note", text: "Add ShopOS to the home screen and open it from there. An installed till holds onto its data far better than a browser tab, and on an iPad it is the only thing that makes a real difference." },
+      { type: "note", text: "Add CartZe to the home screen and open it from there. An installed till holds onto its data far better than a browser tab, and on an iPad it is the only thing that makes a real difference." },
     ],
   },
   {
@@ -1563,7 +1576,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         text: "Every tab shares one Save. Change something on one tab, move to another, and it is still waiting to be saved — pressing Save anywhere saves the lot.",
       },
       { type: "h", text: "Your tills" },
-      { type: "p", text: "Settings → Point of Sale → Lanes & PINs. Every device that opens ShopOS signs itself in here, so you can see which tablets and computers your shop runs on and when each last reached us." },
+      { type: "p", text: "Settings → Point of Sale → Lanes & PINs. Every device that opens CartZe signs itself in here, so you can see which tablets and computers your shop runs on and when each last reached us." },
       { type: "p", text: "Lost a tablet, or lent one out and never got it back? Sign it out. It stops being usable straight away, but it stays on the list — the sales it already sent still belong to it, and you may want to see what happened. If it turns up, allow it again." },
       {
         type: "note",
