@@ -201,6 +201,16 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [axes, setAxes] = useState<Axis[]>([]);
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+  /**
+   * What STOPPED the save — never the same thing as a warning that came back
+   * with one.
+   *
+   * Both used to be `warnings`, and the banner that renders them is titled
+   * "Saved with warning". So the one case that saves NOTHING — an online item
+   * with no description — announced itself as a save. A shopkeeper corrected a
+   * price, read "Saved with warning", closed the drawer, and lost the edit.
+   */
+  const [blocked, setBlocked] = useState<string[]>([]);
   const [tab, setTab] = useState<"details" | "media" | "options" | "advanced">("details");
   const syncModifiers = useSyncModifiers(id);
 
@@ -379,9 +389,20 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
     e.preventDefault();
     if (mutation.isPending) return;
 
+    setWarnings([]);
+    setBlocked([]);
+
     // Online-required: an item shown to online customers needs a description.
-    if (onlineRequired && !description.trim()) {
-      setWarnings(["Add a description before saving an item that's shown online."]);
+    //
+    // Enforced on CREATE only. On edit it becomes a warning, because the item is
+    // already online without one — refusing the save does not take it off the
+    // marketplace, it only stops the shop fixing anything else about it. One
+    // demo shop had four products, all four online, all four with no
+    // description: not a single price on the shelf could be corrected.
+    if (onlineRequired && !description.trim() && !isEdit) {
+      setBlocked([
+        "This item is shown to online customers, so it needs a description before it can be created. Nothing has been saved yet.",
+      ]);
       return;
     }
 
@@ -447,8 +468,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       }
     };
 
-    const warningsOf = (res: { meta: ApiMeta }) =>
-      (res.meta?.warnings as string[] | undefined) ?? [];
+    const warningsOf = (res: { meta: ApiMeta }) => [
+      ...((res.meta?.warnings as string[] | undefined) ?? []),
+      ...(onlineRequired && !description.trim()
+        ? ["Saved — but this item is shown online with no description, so customers see a blank listing."]
+        : []),
+    ];
 
     if (isEdit) {
       update.mutate(
@@ -580,6 +605,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-5 overflow-y-auto p-6">
             {generalError && <Alert variant="error" title="Couldn't save" message={generalError} />}
+            {blocked.map((b) => (
+              <Alert key={b} variant="error" title="Not saved" message={b} />
+            ))}
             {warnings.map((w) => (
               <Alert key={w} variant="warning" title="Saved with warning" message={w} />
             ))}
@@ -999,12 +1027,19 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
         <div>
           <Label>
-            Description {onlineRequired && <span className="text-error-500">*</span>}
+            {/* The asterisk means "you cannot save without this", so it is only
+                honest where that is true — on create. On an item that is
+                already online without one, the field is a strong nudge, not a
+                lock, and marking it required would promise a refusal that no
+                longer happens. */}
+            Description {onlineRequired && !isEdit && <span className="text-error-500">*</span>}
           </Label>
           <TextArea value={description} onChange={setDescription} rows={3} placeholder={onlineRequired ? "Shown to online customers — describe the item" : "Optional details"} />
           {onlineRequired && !description.trim() && (
             <p className="mt-1 text-theme-xs text-warning-500">
-              A description is required for items shown online.
+              {isEdit
+                ? "This item is shown online. Without a description, customers see a blank listing."
+                : "A description is required for items shown online."}
             </p>
           )}
           {err("description") && <p className="mt-1 text-theme-xs text-error-500">{err("description")}</p>}

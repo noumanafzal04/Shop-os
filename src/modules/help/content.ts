@@ -150,8 +150,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "list",
         items: [
-          "Tab 2 — Media & online: photos, description, and which collections it belongs to.",
-          "Tab 3 — Variants & options: the same product in sizes or colours (each with its own stock and barcode), or add-ons like 'extra cheese' that change the price.",
+          "Tab 2 — Media & online: photos, and which collections it belongs to.",
+          "Tab 3 — Sizes & options: the same product in sizes or colours (each with its own price and stock), or add-ons like 'extra cheese' that change the price. Name what varies — Size, Colour — list the values, and every combination is made for you, priced in one go.",
           "Tab 4 — Codes & packs: extra barcodes for the same product, and pack sizes — sell as a piece, a dozen or a carton while stock is held in the base unit. 'Still selling this' is at the bottom of it.",
         ],
       },
@@ -1066,12 +1066,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "Reached from Products → + Add product, not from the menu." },
       { type: "list", items: [
-        "Details — the only tab you must fill in. Name, category, price.",
-        "Media & online — photos and description. Only if you sell online or use images.",
-        "Variants & options — sizes and colours, or add-ons that change the price.",
+        "Details — the only tab you must fill in. Name, category, price, description.",
+        "Media & online — photos, and which collections it belongs to. Only if you sell online or use images.",
+        "Sizes & options — sizes and colours, or add-ons that change the price.",
         "Codes & packs — extra barcodes, and selling the same thing by piece or carton.",
       ]},
       { type: "note", text: "Save from the first tab and come back later. A half-filled product is more useful than one you never finished." },
+      { type: "h", text: "Items you show online" },
+      { type: "p", text: "A new item that customers will see online cannot be created without a description — they have nothing else to go on. The Description box is on the Details tab and is marked with a red star when that applies to the item you are adding." },
+      { type: "note", text: "On an item you already have, it is a warning rather than a block: it saves, and tells you the listing is blank. Otherwise correcting one price would mean writing marketing copy first, and an item that is already online without a description stays online either way." },
     ],
   },
   {
