@@ -855,3 +855,27 @@ span.flatpickr-weekday,
   }
   .rise-into-view { animation-duration: 120ms; }
 }
+
+/**
+ * A stroke that travels, once — the tick on the Appearance panel's Save.
+ *
+ * `pathLength` is not set, so the dash figures are in user units and 40 is
+ * comfortably longer than the tick's own path; anything shorter leaves a gap
+ * mid-travel. Reduced motion gets the finished tick with no journey, which is
+ * the point of the setting: the information, without the movement.
+ */
+@keyframes draws-itself {
+  from { stroke-dashoffset: 40; }
+  to { stroke-dashoffset: 0; }
+}
+
+.draws-itself {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .draws-itself {
+    animation: draws-itself 340ms ease-out;
+  }
+}

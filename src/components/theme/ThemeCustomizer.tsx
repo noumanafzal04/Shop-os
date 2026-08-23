@@ -62,6 +62,40 @@ const ResetGlyph = () => (
     <path d="M4 4v5h5M4.6 13a7.5 7.5 0 1 0 1.4-5.3L4 9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+/** Save: something going into the shop's record, not a floppy disk. */
+const SaveGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+    <path d="M12 4v9m0 0 3.2-3.2M12 13l-3.2-3.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5 15v2.5A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+/**
+ * The tick DRAWS itself, once, when the save lands.
+ *
+ * A label that flips from "Save" to "Saved ✓" between two frames is a change
+ * the eye can miss entirely — and this panel's whole job is telling somebody
+ * their shop now looks different. A stroke that travels takes about a third of
+ * a second and is impossible to miss. Reduced motion turns the travel off and
+ * keeps the tick.
+ */
+const CheckGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+    <path
+      className="draws-itself"
+      d="m5 12.5 4.5 4.5L19 7.5"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+const SpinnerGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true">
+    <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2.2" strokeOpacity="0.3" />
+    <path d="M20.5 12A8.5 8.5 0 0 0 12 3.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+  </svg>
+);
 
 /** A titled group inside the canvas. */
 function Group({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -252,14 +286,33 @@ export default function ThemeCustomizer() {
           the canvas is open so it can't sit on top of its own panel, and never
           drawn on the till (see `onTill` above). */}
       {!open && !onTill && (
+        /**
+         * A tab that says what it is.
+         *
+         * It was a plain square with a gear in it, and a gear on the right edge
+         * of a business dashboard could be almost anything — shop settings,
+         * printer setup, the thing you press by mistake. Hovering now widens it
+         * and the word arrives, so nobody has to click to find out; the gear
+         * turns a quarter while that happens, which is the small confirmation
+         * that the thing is a control and not a decoration.
+         *
+         * All of it is `motion-safe`, and the WIDTH is what animates rather
+         * than the position — a tab that slides in from the edge on hover is a
+         * tab that moves out from under the pointer aiming at it.
+         */
         <button
           type="button"
           onClick={() => setOpen(true)}
           title="Appearance"
           aria-label="Open appearance settings"
-          className="fixed right-0 top-1/2 z-[60] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-l-xl bg-brand-500 text-white transition hover:w-12 hover:bg-brand-600"
+          className="group fixed right-0 top-1/2 z-[60] flex h-11 w-11 -translate-y-1/2 items-center gap-0 overflow-hidden rounded-l-xl bg-brand-500 pl-3 text-white shadow-theme-md transition-[width,background-color] duration-300 hover:w-36 hover:bg-brand-600 focus-visible:w-36 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300"
         >
-          <GearGlyph />
+          <span className="shrink-0 transition-transform duration-500 motion-safe:group-hover:rotate-90 motion-safe:group-focus-visible:rotate-90">
+            <GearGlyph />
+          </span>
+          <span className="ml-2.5 whitespace-nowrap text-theme-sm font-medium opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+            Appearance
+          </span>
         </button>
       )}
 
@@ -463,13 +516,21 @@ export default function ThemeCustomizer() {
           >
             <ResetGlyph /> Reset
           </button>
+          {/* Three states, three pictures. The tick was a literal "✓" inside the
+              label — the same weight as the word beside it, arriving in one
+              frame, on the one control whose job is to confirm that something
+              happened. */}
           <button
             type="button"
             onClick={save}
             disabled={!dirty || update.isPending}
-            className="flex-1 rounded-xl bg-brand-500 px-4 py-2.5 text-theme-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-40"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-theme-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-40"
           >
-            {update.isPending ? "Saving…" : saved ? "Saved ✓" : dirty ? "Save" : "Saved ✓"}
+            {update.isPending
+              ? <><SpinnerGlyph /> Saving…</>
+              : dirty && !saved
+                ? <><SaveGlyph /> Save</>
+                : <><CheckGlyph /> Saved</>}
           </button>
         </footer>
       </aside>
