@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canVisit, mappedScreens, permissionForScreen } from "./screenPermissions";
+import { canVisit, mappedScreens, permissionForScreen, permissionsForScreen } from "./screenPermissions";
 import { TENANT_ROUTES } from "../../test/routes";
 
 /**
@@ -28,6 +28,10 @@ const TENANT_PERMISSIONS = new Set([
   "suppliers.manage",
   "purchases.manage",
   "sales.manage",
+  // Working the pass, split out of sales.manage so a kitchen hand need not be
+  // shown the shop's takings to mark a curry ready.
+  "kitchen.manage",
+  "tables.serve_any",
   "discounts.apply",
   "discounts.override",
   "sales.void",
@@ -76,10 +80,24 @@ describe("the map describes screens that exist", () => {
   it("names only permissions the server defines", () => {
     // A typo here locks the screen against everybody but the owner —
     // silently, because a permission nobody holds simply never matches.
+    //
+    // EVERY name, not the first one. This read `permissionForScreen`, which
+    // returns the head of an ANY-of list and drops the rest — so the second
+    // permission on the four screens that have one was never checked at all,
+    // and `kitchen.manage` had been sitting there unlisted. A check blind to
+    // part of its own subject is the shape this repository keeps finding.
     for (const path of mappedScreens()) {
-      const permission = permissionForScreen(path);
+      for (const permission of permissionsForScreen(path)) {
+        expect(TENANT_PERMISSIONS, `${path} → ${permission}`).toContain(permission);
+      }
+    }
+  });
 
-      expect(TENANT_PERMISSIONS, `${path} → ${permission}`).toContain(permission);
+  it("still has a first-permission reading, and it is one of the real ones", () => {
+    // `permissionForScreen` names the rule for a label or a message; it is not
+    // how anybody decides. Kept honest here so its callers can rely on it.
+    for (const path of mappedScreens()) {
+      expect(permissionsForScreen(path)[0]).toBe(permissionForScreen(path));
     }
   });
 });

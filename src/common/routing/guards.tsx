@@ -8,6 +8,7 @@ import { useTenantTheme } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
 import type { UserRole } from "../../modules/auth/types";
 import { canVisitAdmin } from "./adminScreenPermissions";
+import { canBeAt } from "./screenPermissions";
 
 /**
  * Each role's home:
@@ -94,19 +95,40 @@ export function RequireFeature({ feature }: { feature: string | string[] }) {
  * the screen, the queries, and a 403 from every one of them. Sending them home
  * is both the honest answer and the readable one.
  *
- * Scope owners hold every permission implicitly (see authStore.hasPermission),
- * so this only ever narrows staff.
+ * ── Why this takes no permission prop ───────────────────────────────────
+ *
+ * It used to. Twenty-four `<RequirePermission permission="…">` wrappers named
+ * the rule again, beside a map that already held it — and a prop is ONE string,
+ * so the four screens whose rule is ANY-of could not be expressed at all. All
+ * four had drifted:
+ *
+ *   /tenant/kitchen    map: sales.manage OR kitchen.manage   guard: sales.manage
+ *   /tenant/suppliers  + purchases.manage, inventory.manage  guard: suppliers
+ *   /tenant/purchases  + inventory.manage                    guard: purchases
+ *   /tenant/activity   + reports.view                        guard: settings
+ *
+ * The kitchen one had teeth. `kitchen.manage` was split out of `sales.manage`
+ * precisely so a kitchen hand could work the pass without being shown the
+ * shop's takings, and the shop's own Kitchen preset grants nothing else. The
+ * sidebar offered them the board, a notification deep-linked to it — and this
+ * guard sent them to the dashboard. The one screen their job is made of.
+ *
+ * So the gate reads its own location and asks the map, which is what
+ * `RequireAdminScreen` below has always done on the other console. Scope owners
+ * hold every permission implicitly (see authStore.hasPermission), so this only
+ * ever narrows staff.
  */
-export function RequirePermission({ permission }: { permission: string }) {
+export function RequireTenantScreen() {
   // Subscribe to the permission LIST, not to the store's hasPermission — that
   // is a stable closure, so a fresh /me changing what a staff member holds
   // would not re-run this gate.
   const role = useAuthStore((s) => s.user?.role);
   const permissions = useAuthStore((s) => s.user?.permissions);
+  const { pathname } = useLocation();
 
-  const allowed = role === "shop_owner" || (permissions?.includes(permission) ?? false);
+  const can = (p: string) => role === "shop_owner" || (permissions?.includes(p) ?? false);
 
-  if (!allowed) {
+  if (!canBeAt(pathname, can)) {
     return <Navigate to="/tenant" replace />;
   }
 
@@ -114,7 +136,7 @@ export function RequirePermission({ permission }: { permission: string }) {
 }
 
 /**
- * The platform-side twin of RequirePermission.
+ * The platform-side twin of RequireTenantScreen.
  *
  * Filtering the rail stops a screen being OFFERED; it does not stop it being
  * reached. A banner scheduler who types /admin/payments got the whole billing

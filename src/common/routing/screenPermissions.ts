@@ -153,3 +153,40 @@ export function canVisit(path: string, can: (permission: string) => boolean): bo
 
   return permissions.length === 0 || permissions.some(can);
 }
+
+/**
+ * The rule that governs an ACTUAL url, including one with an id in it.
+ *
+ * The map names screens; a browser is at `/tenant/documents/9f2c…`. A child
+ * screen is governed by its parent — the detail of a document is the documents
+ * screen — so the longest mapped ancestor wins, and `/tenant/fuel/setup` still
+ * beats `/tenant/fuel` for a path under it.
+ *
+ * Matching is by SEGMENT. A prefix compared as a string makes `/tenant/salesmen`
+ * a child of `/tenant/sales`, which is how a rule ends up governing a screen
+ * nobody meant it to.
+ */
+export function screenGoverning(pathname: string): string | null {
+  const segments = pathname.replace(/\/+$/, "").split("/");
+
+  for (let n = segments.length; n > 1; n--) {
+    const candidate = segments.slice(0, n).join("/");
+    if (candidate in SCREEN_PERMISSIONS) return candidate;
+  }
+
+  return null;
+}
+
+/**
+ * May this person be at this url?
+ *
+ * The route guard's question, and deliberately the same function the sidebar
+ * and the dashboard tiles answer with — see `RequireTenantScreen`. Four
+ * surfaces offering a screen and a fifth deciding who gets in is how a kitchen
+ * hand came to be shown a Kitchen link that bounced them to the dashboard.
+ */
+export function canBeAt(pathname: string, can: (permission: string) => boolean): boolean {
+  const screen = screenGoverning(pathname);
+
+  return screen === null || canVisit(screen, can);
+}

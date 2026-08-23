@@ -7,7 +7,7 @@ import {
   RequireAuth,
   RequireFeature,
   RequireAdminScreen,
-  RequirePermission,
+  RequireTenantScreen,
   RequireRole,
   RequireSetupComplete,
   TenantThemed,
@@ -179,7 +179,7 @@ export default function App() {
                 {/* POS runs FULL-SCREEN — no sidebar/header — so the cashier
                     gets the whole viewport. It has its own in-page top bar. */}
                 <Route element={<RequireFeature feature="pos" />}>
-                  <Route element={<RequirePermission permission="sales.manage" />}>
+                  <Route element={<RequireTenantScreen />}>
                     <Route path="/tenant/pos" element={<PosPage />} />
                   </Route>
                 </Route>
@@ -195,7 +195,7 @@ export default function App() {
                     the kitchen board most of all: it hangs on a wall and is
                     read from two metres away. */}
                 <Route element={<RequireFeature feature="dine_in" />}>
-                  <Route element={<RequirePermission permission="sales.manage" />}>
+                  <Route element={<RequireTenantScreen />}>
                     <Route path="/tenant/dine-in" element={<FloorPage />} />
                     <Route path="/tenant/dine-in/tickets/:id" element={<TabPage />} />
                     <Route path="/tenant/kitchen" element={<KitchenPage />} />
@@ -209,7 +209,7 @@ export default function App() {
                       there is nothing to catalogue. Mirrors the server's
                       `feature:products,services`. */}
                   <Route element={<RequireFeature feature={["products", "services"]} />}>
-                    <Route element={<RequirePermission permission="products.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="products" element={<ProductsPage />}>
                         <Route path="new" element={<ProductEditorRoute />} />
                         <Route path=":id/edit" element={<ProductEditorRoute />} />
@@ -224,31 +224,31 @@ export default function App() {
                   {/* The chemist's paperwork rides the inventory module: the
                       register reads batches and the recall reads stock. */}
                   <Route element={<RequireFeature feature="inventory" />}>
-                    <Route element={<RequirePermission permission="sales.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="pharmacy" element={<PharmacyPage />} />
                     </Route>
-                    <Route element={<RequirePermission permission="suppliers.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="suppliers" element={<SuppliersPage />} />
                     </Route>
-                    <Route element={<RequirePermission permission="purchases.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="purchases" element={<PurchaseOrdersPage />} />
                     </Route>
                   </Route>
-                  <Route element={<RequirePermission permission="customers.manage" />}>
+                  <Route element={<RequireTenantScreen />}>
                     <Route path="customers" element={<CustomersPage />} />
                   </Route>
-                  <Route element={<RequirePermission permission="coupons.manage" />}>
+                  <Route element={<RequireTenantScreen />}>
                     <Route path="coupons" element={<CouponsPage />} />
                     <Route path="promotions" element={<PromotionsPage />} />
                     <Route path="bank-offers" element={<BankOffersPage />} />
                   </Route>
                   <Route element={<RequireFeature feature="services" />}>
-                    <Route element={<RequirePermission permission="settings.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="portfolio" element={<PortfolioPage />} />
                     </Route>
                   </Route>
                   <Route element={<RequireFeature feature="inventory" />}>
-                    <Route element={<RequirePermission permission="inventory.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="inventory" element={<InventoryPage />} />
                       <Route path="disposals" element={<DisposalsPage />} />
                       {/* Counting the shelves. Rides the stock module — a shop
@@ -264,25 +264,25 @@ export default function App() {
                     {/* A shift ends by setting fuel stock to the dip, so it is
                         a stock correction; the plant is configuration; a
                         tanker is goods received. */}
-                    <Route element={<RequirePermission permission="inventory.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="fuel" element={<ForecourtPage />} />
                       <Route path="fuel/shifts/:id" element={<ForecourtShiftPage />} />
                     </Route>
-                    <Route element={<RequirePermission permission="settings.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="fuel/setup" element={<FuelSetupPage />} />
                     </Route>
-                    <Route element={<RequirePermission permission="purchases.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="fuel/deliveries" element={<FuelDeliveriesPage />} />
                     </Route>
                   </Route>
-                  <Route element={<RequirePermission permission="sales.manage" />}>
+                  <Route element={<RequireTenantScreen />}>
                     <Route path="sales" element={<SalesPage />} />
                     <Route path="sales/new" element={<NewSalePage />} />
                   </Route>
                   {/* Quotations & advance bookings — counter documents that end
                       in a till transaction, hence the POS module. */}
                   <Route element={<RequireFeature feature="pos" />}>
-                    <Route element={<RequirePermission permission="sales.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="documents" element={<DocumentsPage />} />
                       <Route path="documents/:id" element={<DocumentDetailPage />} />
                       {/* The trading day and the safe-to-bank leg. A day is
@@ -294,7 +294,7 @@ export default function App() {
                     </Route>
                   </Route>
                   <Route element={<RequireFeature feature="expenses" />}>
-                    <Route element={<RequirePermission permission="expenses.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="expenses" element={<ExpensesPage />} />
                       <Route path="income" element={<IncomePage />} />
                       <Route path="cashbook" element={<CashbookPage />} />
@@ -303,7 +303,7 @@ export default function App() {
                       <Route path="ledger" element={<LedgerPage />} />
                     </Route>
                   </Route>
-                  <Route element={<RequirePermission permission="reports.view" />}>
+                  <Route element={<RequireTenantScreen />}>
                     <Route path="reports" element={<ReportsPage />} />
                   </Route>
                   {/* Orders follow PRODUCTS, matching the API. They used to
@@ -312,31 +312,31 @@ export default function App() {
                       and sells nothing online could manage riders and never
                       reach an order to give one. */}
                   <Route element={<RequireFeature feature="products" />}>
-                    <Route element={<RequirePermission permission="orders.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="orders" element={<OwnerOrdersPage />} />
                     </Route>
                   </Route>
                   {/* Riders follow DELIVERY, not marketplace: a pharmacy
                       delivers phone orders without selling online. */}
                   <Route element={<RequireFeature feature="delivery" />}>
-                    <Route element={<RequirePermission permission="orders.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="riders" element={<RidersPage />} />
                     </Route>
                   </Route>
                   <Route element={<RequireFeature feature="reservations" />}>
-                    <Route element={<RequirePermission permission="reservations.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="reservations" element={<ReservationsPage />} />
                     </Route>
                   </Route>
                   <Route element={<RequireFeature feature="marketplace" />}>
-                    <Route element={<RequirePermission permission="settings.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="reviews" element={<OwnerReviewsPage />} />
                     </Route>
                   </Route>
-                  <Route element={<RequirePermission permission="staff.manage" />}>
+                  <Route element={<RequireTenantScreen />}>
                     <Route path="staff" element={<TenantStaffPage />} />
                   </Route>
-                  <Route element={<RequirePermission permission="settings.manage" />}>
+                  <Route element={<RequireTenantScreen />}>
                     <Route path="branches" element={<BranchesPage />} />
                     <Route path="settings" element={<ShopSettingsPage />} />
                     <Route path="activity" element={<ActivityPage />} />
@@ -345,7 +345,7 @@ export default function App() {
                       gate like the CRM does — the sidebar decides which trades
                       ever see the screen. */}
                   <Route element={<RequireFeature feature="products" />}>
-                    <Route element={<RequirePermission permission="customers.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="vehicles" element={<VehiclesPage />} />
                     </Route>
                   </Route>
@@ -354,17 +354,17 @@ export default function App() {
                       does all day, and a workshop that had to hand out customer
                       permissions to do it would hand them to everybody. */}
                   <Route element={<RequireFeature feature="pos" />}>
-                    <Route element={<RequirePermission permission="sales.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="workshop" element={<WorkshopPage />} />
                     </Route>
                   </Route>
                   <Route element={<RequireFeature feature="inventory" />}>
-                    <Route element={<RequirePermission permission="inventory.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="transfers" element={<TransfersPage />} />
                     </Route>
                     {/* A counter lookup — the person holding the phone is the
                         person on the till. */}
-                    <Route element={<RequirePermission permission="sales.manage" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="warranty" element={<WarrantyLookupPage />} />
                     </Route>
                   </Route>
