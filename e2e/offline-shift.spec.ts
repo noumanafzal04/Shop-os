@@ -55,7 +55,25 @@ interface Session {
 type Requester = { get: (u: string, o: object) => Promise<{ json: () => Promise<unknown> }> };
 
 async function sessions(request: Requester, auth: Record<string, string>): Promise<Session[]> {
-  const res = await request.get(`${API}/pos/sessions`, { headers: auth });
+  /**
+   * `from` far enough back to see a shift nobody closed.
+   *
+   * `/pos/sessions` defaults to `now()->startOfDay()`, so a till left open
+   * overnight is invisible to it — and this spec's cleanup, which asks for the
+   * open shifts and closes them, read that empty answer as "there are none".
+   *
+   * The result was not a clean failure. The cleanup closed nothing, the till
+   * booted still believing a drawer was open, and the assertion that fired was
+   * "a till with no shift and no line offered no way to open one — this is the
+   * whole bug" — pointing at the product, about a leftover from a run somebody
+   * had killed the evening before. A precondition that cannot see far enough
+   * back is a precondition that lies.
+   */
+  // No `status` filter: the cleanup wants the OPEN ones and the verification at
+  // the bottom wants the CLOSED one this test just synced. Filtering here for
+  // the first hid the second, and the failure read "the shift opened offline
+  // never reached the server" about a shift that had arrived perfectly well.
+  const res = await request.get(`${API}/pos/sessions?from=2020-01-01`, { headers: auth });
   const body = (await res.json()) as { data?: { sessions?: Session[] } | Session[] };
   const d = body.data;
 
@@ -89,6 +107,15 @@ test("a till that reboots into an outage opens its own drawer and counts it out"
       data: { counted_cash: Number(s.opening_float) || 0 },
     });
   }
+  // And say so if one survived. A shift this spec could not close makes every
+  // assertion below describe something other than what it claims to.
+  const stubborn = (await sessions(request, auth)).filter((x) => x.status === "open");
+  expect(
+    stubborn.length,
+    `${stubborn.length} shift(s) are still open after cleanup — the till will boot believing a drawer is open, `
+      + "and everything below would be measuring that instead of an outage",
+  ).toBe(0);
+
   const before = (await sessions(request, auth)).filter((s) => Number(s.opening_float) === float).length;
 
   // ── prime the device while the line is still up ──────────────────────

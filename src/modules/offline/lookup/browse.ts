@@ -81,7 +81,13 @@ export function asProduct(item: CatalogItem): CatalogProduct {
     // a size chip would have rendered its stock as NaN. The product-level fields
     // above have always been renamed properly; the variants were the one thing
     // handed over unconverted.
-    variants: item.variants.map((v) => ({
+    // `?? []`, because a row written by an EARLIER version of this app is still
+    // sitting in IndexedDB. The mirror's whole job is to survive a device that
+    // has not re-synced, so every field read out of it has to tolerate a shape
+    // that predates the field. Written without the guard first, and the till
+    // then failed to boot offline at all — the catalog read threw, and the shift
+    // screen never rendered its "Open shift" button.
+    variants: (item.variants ?? []).map((v) => ({
       id: v.id,
       name: v.name,
       sku: v.sku,

@@ -56,7 +56,9 @@ export function indexEntriesFor(item: CatalogItem): BarcodeEntry[] {
   add(item.plu_code);
 
   for (const code of item.barcodes) add(code);
-  for (const variant of item.variants) add(variant.sku, { variantId: variant.id });
+  // Same reason as browse.ts: a row cached before this field existed must not
+  // take the scan index down with it.
+  for (const variant of item.variants ?? []) add(variant.sku, { variantId: variant.id });
   for (const unit of item.units) add(unit.barcode, { unitId: unit.id });
 
   return [...byCode.values()];
