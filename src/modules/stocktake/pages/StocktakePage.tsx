@@ -15,6 +15,7 @@ import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useCategories } from "../../catalog/hooks/useCatalog";
+import Pager from "../../../components/ui/pager";
 import { useStockCounts, useStocktakeMutations } from "../hooks/useStocktake";
 import type { StockCount } from "../services/stocktakeService";
 
@@ -40,7 +41,17 @@ export default function StocktakePage() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canApply = hasPermission("settings.manage");
 
-  const counts = useStockCounts();
+  // `useStockCounts` has always taken a page; nothing ever gave it one, and the
+  // server answers paginate(25). So the 26th count a shop had ever done was
+  // unreachable — and a stock count is precisely the record you look BACK at,
+  // because it is where the shop found out what was missing.
+  //
+  // The folder scan passed this screen as "search only". The search it was
+  // credited for is the item lookup on the count SHEET next door; this list has
+  // no search box at all, and its one placeholder says "Pick a category". Same
+  // shape as the workshop board, in the same blind spot.
+  const [page, setPage] = useState(1);
+  const counts = useStockCounts({ page });
   const categories = useCategories();
   const { start } = useStocktakeMutations();
 
@@ -174,6 +185,8 @@ export default function StocktakePage() {
           </div>
         )}
       </div>
+
+      <Pager pagination={counts.data?.meta?.pagination} onPage={setPage} noun="counts" />
 
       {/* Start a count ──────────────────────────────────────────────── */}
       <Modal isOpen={startModal.isOpen} onClose={startModal.closeModal} className="max-w-md p-6">

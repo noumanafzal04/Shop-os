@@ -1,5 +1,8 @@
+import { useState } from "react";
+
 import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
+import Pager from "../../../components/ui/pager";
 import { useToast } from "../../../components/ui/toast";
 import { useCancelReservation, useMyReservations } from "../hooks/useMarketplace";
 import type { CustomerReservation } from "../services/marketplaceService";
@@ -51,11 +54,13 @@ const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 const cancellable = (r: CustomerReservation) => r.status === "pending" || r.status === "accepted";
 
 export function MyReservations() {
-  const reservations = useMyReservations(true);
+  const [page, setPage] = useState(1);
+  const reservations = useMyReservations(true, page);
   const cancel = useCancelReservation();
   const toast = useToast();
 
-  const rows = reservations.data ?? [];
+  const rows = reservations.data?.data ?? [];
+  const pagination = reservations.data?.meta?.pagination;
 
   // Nothing at all rather than an empty-state card. A buyer who has never
   // reserved anything should not have to learn what a reservation is.
@@ -116,6 +121,11 @@ export function MyReservations() {
           </div>
         ))}
       </div>
+
+      {/* The shared pager, so nobody writes another. There are only ever a
+          handful of these, and the shop's own reservations screen has had one
+          all along — this list is the customer's side of the same rows. */}
+      <Pager pagination={pagination} onPage={setPage} noun="reservations" />
     </section>
   );
 }

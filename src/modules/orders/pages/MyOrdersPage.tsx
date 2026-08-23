@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import PageMeta from "../../../components/common/PageMeta";
 import { Link } from "react-router";
 import Badge from "../../../components/ui/badge/Badge";
@@ -5,6 +7,7 @@ import Button from "../../../components/ui/button/Button";
 import { useToast } from "../../../components/ui/toast";
 import { MarketHeader } from "../../marketplace/components/MarketHeader";
 import { MyReservations } from "../../marketplace/components/MyReservations";
+import Pager from "../../../components/ui/pager";
 import { useCancelMyOrder, useMyOrders } from "../hooks/useOrders";
 import type { CustomerOrder, OrderStatus } from "../services/ordersService";
 import { useConfirm } from "../../../components/ui/confirm";
@@ -21,7 +24,13 @@ const STEPS: OrderStatus[] = ["pending", "confirmed", "preparing", "out_for_deli
 
 export default function MyOrdersPage() {
   const confirm = useConfirm();
-  const orders = useMyOrders();
+  // `useMyOrders` has taken a page and kept previous data since it was written.
+  // This screen called it with none and rendered no pager, so a buyer who had
+  // ordered sixteen times could never look at the first one. The capability was
+  // built, tested and wired to nothing — the eighth time that shape has turned
+  // up in this repository.
+  const [page, setPage] = useState(1);
+  const orders = useMyOrders(page);
   const cancel = useCancelMyOrder();
   const toast = useToast();
   const rows = orders.data?.data ?? [];
@@ -110,6 +119,8 @@ export default function MyOrdersPage() {
             ))}
           </div>
         )}
+
+        <Pager pagination={orders.data?.meta?.pagination} onPage={setPage} noun="orders" />
 
         {/* Reservations a buyer asked for. Renders nothing at all when there
             are none, which is almost everybody — the shop's half of this

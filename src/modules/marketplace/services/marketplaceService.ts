@@ -156,7 +156,18 @@ export const marketplaceService = {
 
   deleteAddress: (id: string) => apiDelete<null>(`/customer/addresses/${id}`),
 
-  reservations: () => apiGet<CustomerReservation[]>("/customer/reservations"),
+  /**
+   * A page of them, newest first.
+   *
+   * It took no argument at all, while the server has always answered
+   * `paginate(15)` — so a buyer with sixteen reservations could not see the
+   * sixteenth, could not cancel it, and had no sign it existed. The ones that
+   * fall off are the OLDEST, which is exactly where a forgotten hold sits: the
+   * shop is still keeping a fridge off its shelf for somebody whose only way to
+   * say "never mind" has scrolled out of reach.
+   */
+  reservations: (page = 1) =>
+    apiGet<CustomerReservation[]>("/customer/reservations", { params: { page } }),
 
   cancelReservation: (id: string) =>
     apiPost<CustomerReservation>(`/customer/reservations/${id}/cancel`),

@@ -168,10 +168,15 @@ export function useDeleteAddress() {
 
 // ── The buyer's own reservations ──────────────────────────────────────
 
-export function useMyReservations(enabled: boolean) {
+export function useMyReservations(enabled: boolean, page = 1) {
   return useQuery({
-    queryKey: ["market", "reservations"],
-    queryFn: async () => (await marketplaceService.reservations()).data,
+    queryKey: ["market", "reservations", page],
+    // The WHOLE envelope, not `.data`. Unwrapping it here threw away
+    // `meta.pagination`, which is the only thing that can tell the screen there
+    // is a second page — so the screen could not have offered one even if
+    // somebody had thought to.
+    queryFn: () => marketplaceService.reservations(page),
+    placeholderData: keepPreviousData,
     enabled,
   });
 }
