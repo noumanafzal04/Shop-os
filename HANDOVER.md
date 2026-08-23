@@ -276,7 +276,46 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-23 (latest) — five copies of one rule, and a banner that lied
+### 2026-08-23 (latest) — a rail you can read, and a name of our own
+
+Full write-up: `docs/decisions/shopos-a-rail-you-can-read.md`.
+
+**The collapsed rail could not be read.** Counted across eight trades × two
+modes: **22 icon collisions in 16 menus.** POS = Sales in all eight; a
+restaurant showed one picture for Kitchen, Day & banking and Quotes. The rail is
+the default on a tablet and shows no words, so that is two different screens
+looking identical at the moment somebody chooses between them. One picture per
+concept now, held by `navRail.test.ts`.
+
+Two more came from looking rather than from the test, and it could not have found
+either: Help Centre printed blue (`info.svg` had `#0BA5EC` hard-coded) and
+Branches wore the same cube as Products — different components, same drawing.
+
+**Simple mode did not know what the shop does.** It was one list gated on modules
+only, so a restaurant had Dine-in and no Kitchen, a workshop had Products and no
+board, a chemist had no register, a station had no forecourt — the screen each
+of those shops opens first and closes last. The trade's daily screen is now in
+both modes from one definition. Simple ⊆ Full still holds.
+
+**The sidebar's collapse button is gone** — the same control the header already
+carries, four centimetres away.
+
+**CartZe.** The product has a name and a domain (cartze.shop): 105 strings, the
+manifest, new app icons, and a `<title>`, of which there had been none — the tab
+said "localhost". The wordmark is now a COMPONENT, not an .svg: an SVG in an
+`<img>` is its own document, inherits no font, fetches no webfont and knows
+nothing about dark mode, which is why there were two files forever one edit
+apart.
+
+**Appearance.** The tab widens on hover and says its name (width animates, not
+position — a tab that slides out from under the pointer aiming at it is worse
+than a silent one), and Save has three states with three pictures, including a
+tick that draws itself. Reduced motion keeps the tick, drops the journey.
+
+Gates: panel **1122 / 88 files** · Playwright **105 passed, 18 skipped, 0
+failed** · tsc, eslint (0 errors), build clean.
+
+### 2026-08-23 — five copies of one rule, and a banner that lied
 
 Full write-ups: `docs/decisions/shopos-the-menu-and-the-door.md` and
 `docs/decisions/shopos-saved-that-saved-nothing.md`.

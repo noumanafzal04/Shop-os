@@ -10,6 +10,65 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-23 — twenty-two collisions nobody had counted
+
+### MEASURED · the collapsed sidebar could not be read
+
+Eight trades × two menu modes, every top-level item's icon compared:
+**22 collisions across 16 menus.** POS and Sales wore the same picture in ALL
+EIGHT trades; a restaurant showed one icon for Kitchen, Day & banking and
+Quotes; every full menu had POS = Sales = Subscription and More = Settings.
+
+The rail is icons-only by design and is the default on a tablet, so this is two
+different screens looking identical at the moment somebody is choosing between
+them. Nobody had counted because reading a list of icon names is not how anyone
+looks at a sidebar. Fixed to one picture per concept; `navRail.test.ts` fails if
+two ever share again.
+
+### AND TWO THE TEST CANNOT FIND
+
+Found by looking at a screenshot, not by the check:
+
+- Help Centre printed BLUE while every other nav icon was grey — `info.svg`
+  carried a hard-coded `#0BA5EC` instead of `currentColor`.
+- Branches wore the same cube as Products. **Different components, near-identical
+  drawings** — and a check that compares component names is blind to that by
+  construction.
+
+> Worth stating plainly: the guard covers "two items reference the same icon",
+> not "two icons look alike". Its limit is written into its own docblock rather
+> than discovered later.
+
+### BUG · Simple mode did not know what the shop does
+
+The calm view was one list for everybody, gated on MODULES only:
+
+| trade | had | lacked |
+|---|---|---|
+| restaurant | Dine-in | **Kitchen** — the pass, on the other wall |
+| workshop / services | Products | **the job board** |
+| pharmacy | Products | **the dispensing register** |
+| filling station | Products | **the forecourt** |
+
+Every one of those is the screen that shop opens first and closes last. "Daily
+essentials" was being read as a fixed list when it is a per-trade question. The
+trade's own daily screen now appears in both modes from ONE definition, so the
+two views cannot disagree about what a shop's day is. Simple ⊆ Full still holds
+and is still pinned.
+
+### DUPLICATE CONTROL · two hamburgers, one action
+
+The sidebar header carried a collapse button identical to the app header's, four
+centimetres away. Removed — the header's is reachable whether the sidebar is open
+or shut and the sidebar's was not.
+
+### GAP · the app had no title
+
+`index.html` carried no `<title>` at all, so the browser tab read "localhost". A
+till is one of half a dozen tabs open on a shop's computer all day and that line
+is the only thing telling them apart. Fixed alongside the CartZe rename (105
+strings, manifest, app icons regenerated from their SVG sources).
+
 ## 2026-08-23 — five copies of one rule, and a banner that lied
 
 ### BUG · the shop's own Kitchen preset could not open the kitchen board
