@@ -276,7 +276,58 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-23 (latest) — a size nobody could add
+### 2026-08-23 (latest) — five copies of one rule, and a banner that lied
+
+Full write-ups: `docs/decisions/shopos-the-menu-and-the-door.md` and
+`docs/decisions/shopos-saved-that-saved-nothing.md`.
+
+**The Kitchen preset could not open the kitchen board.** `kitchen.manage` exists
+so a kitchen hand need not be shown the shop's takings to mark a curry ready, and
+the preset grants nothing else. Four surfaces offered them the board — sidebar,
+dashboard, trade panel, notification deep link, all reading `screenPermissions` —
+and the route guard required `sales.manage` and redirected them home. **The one
+screen their job is made of.**
+
+`RequirePermission` took ONE string across 27 wrappers, so the four screens whose
+rule is ANY-of could not be written there at all, and all four had drifted the
+same way: kitchen, suppliers, purchases, activity. Checked against `route:list` —
+**the map matched the server every time; the fifth copy was the only wrong one.**
+The gate now reads its own location and asks the map, which is what
+`RequireAdminScreen` already did on the admin console.
+
+**"Saved with warning" on a save that never happened.** An online item with no
+description: the form set a warning and returned — no request — and the banner
+that renders warnings is hard-coded "Saved with warning". A shopkeeper corrects a
+price, reads that it saved, closes the drawer, loses the edit. Measured on the
+shop it was reported on: **4 products, all 4 online, all 4 with no description —
+not one price could be corrected.** A refusal now says "Not saved"; on edit it is
+no longer a refusal at all (the item is already online, so blocking the save only
+stops unrelated work); create still blocks.
+
+**Two of my own specs were breeding.** `chrome.spec` failed on four viewports
+about a screen that worked: both variant specs named their fixture
+`` `E2E … ${Date.now()}` `` and left one more behind every run — 9 shirts and 4
+pizzas, all SIZED — crowding plain products off page one of the till, where the
+cart test needs eight. Fixed names, cleared before use, 13 strays swept.
+
+**The report that started it was not a bug.** "Edit main variants show ni ho
+rahe" — reproduced the exact shape (variants from the API, no recorded axes) in a
+real browser by both routes; the tab appears and the grid rebuilds. The running
+copy was old. Which is its own finding: the service worker is `prompt` and a
+browser looks for a new one **on navigation** — and the till is the one screen
+nobody navigates, opened Monday and used until Saturday. `updateWatch` now asks
+hourly. The reload is still the shopkeeper's decision; only the offer now reaches
+them.
+
+**New guard:** `docs/qa/screen-permission-drift.py` — does every screen's rule
+exist on the server? 40 of 43 agree, 3 named exceptions, `--prove` fails if the
+planted drift is missed. It caught its own first version, whose regex could not
+read a nested `<Route>`.
+
+Gates: backend 2154/9081 · panel **1098 / 87 files** · Playwright **105 passed,
+18 skipped, 0 failed** · tsc, eslint (0 errors), build clean.
+
+### 2026-08-23 — a size nobody could add
 
 The size picker made variants sellable; this made them creatable. Three scouts
 read the product form first, and the first thing they found made the rest

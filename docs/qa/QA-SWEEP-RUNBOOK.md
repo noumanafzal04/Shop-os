@@ -590,6 +590,8 @@ python3 docs/qa/unreachable-pages.py --prove   # break it on purpose first
 shopos-backend/scripts/dead-endpoints.py       # routes with no caller, and the reverse
 shopos-backend/scripts/dead-rules.py          # rules the code states and never consults
 shopos-backend/scripts/one-rule-many-paths.py # rules only SOME selling paths ask
+python3 docs/qa/screen-permission-drift.py    # who the panel lets in vs who the server does
+python3 docs/qa/screen-permission-drift.py --prove
 ```
 
 `unreachable-pages.py` asks whether every panel screen that lists a paginating
@@ -604,6 +606,18 @@ and deliberately does not duplicate the endpoint list.
 supplier credit that could be recorded twice. Its output is **leads, not
 findings**: of ten uncalled rules, one was a gap and nine were redundant or
 enforced in a query instead. Each carries a line in `SETTLED` saying which.
+
+`screen-permission-drift.py` asks whether the panel's screen→permission map
+quotes a rule the SERVER actually has. Its docblock promised exactly that and
+nothing checked it, because the claim spans two repositories. It walks App.tsx's
+nested route tree, follows each screen to the GETs its module makes, and compares
+against `php artisan route:list`. **40 of 43 screens agree; 3 are named
+exceptions with reasons**, and a screen in neither list is UNEXAMINED and fails
+the run. It exists because five copies of one rule had drifted on four screens —
+the sharpest of them left a kitchen hand offered a board they were then bounced
+off. `--prove` earned its keep on day one: the first version could not read a
+nested `<Route>`, reported all 43 screens unmeasured, and would have printed a
+clean sheet forever.
 
 `one-rule-many-paths.py` lists what each of the three selling paths refuses —
 counter, online order, dine-in tab — and asks, of every rule only one of them

@@ -10,6 +10,103 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-23 — five copies of one rule, and a banner that lied
+
+### BUG · the shop's own Kitchen preset could not open the kitchen board
+
+`kitchen.manage` was split out of `sales.manage` on 2026-08-10 so a kitchen hand
+need not be shown the shop's takings to mark a curry ready, and the Kitchen job
+preset grants nothing else. Four surfaces offered them the board — sidebar,
+dashboard tiles, trade panel, notification deep link, all reading
+`screenPermissions` — and the route guard required `sales.manage` and redirected
+them to the dashboard.
+
+`RequirePermission` took ONE string, so the four screens whose rule is ANY-of
+could not be written there at all, and all four had drifted the same way:
+
+| screen | map + server | guard |
+|---|---|---|
+| `/tenant/kitchen` | `sales.manage` OR `kitchen.manage` | `sales.manage` |
+| `/tenant/suppliers` | + `purchases.manage`, `inventory.manage` | `suppliers.manage` |
+| `/tenant/purchases` | + `inventory.manage` | `purchases.manage` |
+| `/tenant/activity` | + `reports.view` | `settings.manage` |
+
+Checked against `route:list`: the map matched the server in every case. Fixed by
+a gate that reads its own location and asks the map — what `RequireAdminScreen`
+already did on the admin console. See
+`docs/decisions/shopos-the-menu-and-the-door.md`.
+
+> **The copy that drifts is the one written in a different file, by a different
+> author, on a different day.** Four surfaces agreed because they read one map.
+
+### HARNESS · the check was blind to the half that broke
+
+`screenPermissions.test.ts` — "names only permissions the server defines" — read
+`permissionForScreen`, which returns the FIRST of an ANY-of list. The second name
+on every one of those four screens was never checked, and `kitchen.manage` was
+missing from its hand-copied registry the whole time. Now checks every name.
+
+### NEW GUARD · `docs/qa/screen-permission-drift.py`
+
+The map's docblock promises "the permission named here is the one the SERVER asks
+for on that screen's own action". Nothing had ever checked it — the claim spans
+two repositories. Reads App.tsx's route tree, follows each screen to its module's
+GETs, and compares against `php artisan route:list`.
+
+**40 of 43 screens quote a rule the server really has.** Three are named
+exceptions with reasons; a screen in neither list is UNEXAMINED and the run exits
+non-zero. `--prove` plants a drift — and caught the first version, whose regex
+could not read a nested `<Route>` and reported all 43 screens unmeasured.
+
+### BUG · "Saved with warning" on a save that never happened
+
+An online item with no description: the form set a warning and `return`ed — no
+request — and the banner that renders warnings is titled, hard-coded, **"Saved
+with warning"**. The message contradicted its own title.
+
+Measured on the shop it was reported on: **4 products, all 4 online, all 4 with
+no description — not one price could be corrected**, and every attempt said it
+had worked.
+
+Fixed twice over: a refusal now says **"Not saved · Nothing has been saved yet"**,
+and on EDIT it is no longer a refusal at all — the item is already online without
+a description, so blocking the save does not take it off the marketplace, it only
+stops the shop fixing anything else. Create still blocks.
+See `docs/decisions/shopos-saved-that-saved-nothing.md`.
+
+### HARNESS · two specs were breeding, and a third starved
+
+`chrome.spec` failed on four viewports: *"the till listed no sellable products"*,
+on a screen that was working perfectly. Both variant specs named their fixture
+`` `E2E … ${Date.now()}` `` and left one more behind every run — **9 shirts and 4
+pizzas, every one of them a SIZED item** crowding plain products off page one of
+the till, where `chrome.spec` needs eight to fill a cart.
+
+Fixed names, cleared before use (`removeProductsNamed`), and the 13 strays swept.
+
+> **A fixture that accumulates is a slow leak that presents as an unrelated
+> bug** — and the spec that fails is never the spec that leaked.
+
+### The report that started it, which was not a bug
+
+*"Edit main variants show ni ho rahe."* Reproduced the exact shape — variants
+from the API, `attributes = null`, no recorded axes — in a real browser, by both
+routes a shopkeeper can take. The tab appears and the grid rebuilds from the
+names. The running copy was simply old.
+
+Which is its own finding: the service worker is registered `prompt`, and a
+browser looks for a new one **on navigation** — and the till is the one screen
+nobody navigates. It is opened on Monday and used until Saturday. `updateWatch`
+now asks hourly (skipped offline, survives a failed check). The reload is still
+nobody's decision but the shopkeeper's; only the offer now reaches them.
+
+### Stale in this very file
+
+The "worth doing next" list below said permissions were unexamined and the panel
+untouched. Phase I has driven every preset for days, and the panel now has a
+cross-repo scanner. Corrected there — **a list of what is left is worth exactly
+as much as its last edit.**
+
 ## 2026-08-21 — three agents, and a workflow that mislabelled its own failures
 
 Ran three read-only subagents on three lenses — the pharmacy's paths,
@@ -2417,18 +2514,28 @@ Both are re-runnable: Phase A reuses the tenants it made, Phase C reuses and
 restocks its product, and a drawer left open from last time is picked up rather
 than fought with.
 
-**All phases through R are built.** What is worth doing next:
+**All phases through U are built.** What is worth doing next — corrected
+2026-08-23, because two of the three entries here had been done for days and
+were still being read as the plan:
 
 1. **Depth inside the phases**, not more phases: multi-branch transfers, stock
    disposals (written-off vs returned-to-supplier must never sum), loyalty
    points, promotions and coupons, dine-in tabs and KOT, layaway, trade-ins as
    a tender.
-2. **Permissions as their own axis.** Every phase so far runs as an owner, who
-   passes every gate. The `*.manage`-fencing-a-read bug class lives exactly
-   where a cashier, a waiter or a kitchen preset is the one asking.
-3. **The panel**, which the sweep never touches. It drives HTTP only, so a
-   screen that never calls a working endpoint is still invisible to it — the
-   "built but unreachable" class this repo has hit seven times.
+2. ~~Permissions as their own axis~~ — **done.** Phase I hires every preset the
+   shop is offered and drives both halves: what the job's own description
+   promises must open, and somebody else's work must not. It also asks whether a
+   job OFFERED to a shop can be done there at all.
+3. ~~The panel, which the sweep never touches~~ — **partly done.** The sweep
+   still drives HTTP only, and that is fine: the panel half is now answered
+   statically by `docs/qa/screen-permission-drift.py` (does every screen's rule
+   exist on the server?) and `docs/qa/unreachable-pages.py` (can every list
+   reach page two?). What neither can see is a screen that renders wrongly —
+   that is Playwright's job, and `e2e/chrome.spec.ts` walks every screen at four
+   viewports.
+4. **Per-list attribution** — `unreachable-pages.py` credits an escape hatch to
+   a FOLDER, so a folder with two lists and one search box reads as covered for
+   both. Its own docblock names this; it is the last known hole in that tool.
 
 Still open, unrelated to the sweep: the two-week shadow run, and `code128Svg`
 needing a barcode sized by the symbol.

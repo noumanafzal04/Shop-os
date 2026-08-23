@@ -101,3 +101,7 @@
 - [Size Picker](shopos-size-picker-gap.md) — SHIPPED: chips on tiles, sheet on rows, dine-in too; found that varianted products were UNSELLABLE (tile disabled on orphaned parent stock); variants STILL cannot be edited after creation
 - [Button Submit Default](shopos-button-submit-default.md) — FIXED: shared <Button> had no type, so it SUBMITTED inside a form; the variant editor had never worked once; 305 uses, 1 wanted submit
 - [Silent Nulls](shopos-silent-nulls.md) — STANDING: a missing attribute is null and silent, a missing relation throws; scripts/silent-nulls.py; found Sale::customer() absent
+- [Menu And Door](shopos-menu-and-door.md) — FIXED: Kitchen preset was offered the board by 4 surfaces and bounced by the 5th; RequirePermission held ONE string
+- [Saved That Saved Nothing](shopos-saved-nothing.md) — FIXED: a refusal wore the title "Saved with warning"; a whole shop's prices were uneditable and it said they weren't
+- [Fixtures That Breed](shopos-fixtures-that-breed.md) — STANDING: Date.now() in an e2e fixture name; 13 strays starved a SIBLING spec and it blamed the screen
+
