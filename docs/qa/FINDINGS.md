@@ -118,6 +118,48 @@ billing buckets, deep links and the workshop board.
 
 ---
 
+## 2026-08-23 — a precondition that could not see far enough back
+
+Not a product bug, and worth writing down anyway because of how it presented.
+
+`e2e/offline-shift.spec.ts` opens by closing every open shift, because its whole
+subject is a till that boots with **no** drawer open. It asked `/pos/sessions`,
+got an empty list, closed nothing, and carried on. The till then booted still
+believing a drawer was open, and the assertion that fired was:
+
+> *"a till with no shift and no line offered no way to open one — this is the
+> whole bug"*
+
+A sentence pointing squarely at the product, about a shift somebody had left open
+the evening before.
+
+**`/pos/sessions` defaults to today.** `$from = now()->startOfDay()`
+(`PosController::sessions`), so a till left open overnight is invisible to the
+very call the cleanup used to find it. An empty answer meant "none today", and
+the spec read it as "none at all".
+
+Fixed by asking from 2020 rather than from midnight, and by asserting the
+precondition out loud — if a shift survives cleanup the spec now says so, instead
+of letting every assertion below describe something other than what it claims to.
+
+Two things learned the hard way in the same ten minutes:
+
+- Adding `?status=open` to that same call fixed the cleanup and broke the
+  verification, which looks for the CLOSED shift the test had just synced. The
+  failure read *"the shift opened offline never reached the server"* about a
+  shift that had arrived perfectly well. One helper, two callers, opposite needs
+  — the filter belongs in the caller.
+- The orphan itself came from Playwright runs killed mid-flight earlier in the
+  session. `openTill` opens a shift; a killed run never closes it. Worth knowing
+  before killing another one.
+
+**A lead, not raised as a defect:** a shift that is still OPEN is not history, and
+a date-scoped list hides it from anybody who does not think to widen the range.
+Same family as the "which day is open" bug. The till itself shows it — that is how
+this was found — so the question is only whether the owner's shift screens do.
+
+---
+
 ## 2026-08-22 — a size nobody could tap
 
 Built the size picker, and scouting it first turned a small feature into a
