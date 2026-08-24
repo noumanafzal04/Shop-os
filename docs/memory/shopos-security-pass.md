@@ -38,3 +38,20 @@ off it means httpOnly cookies + CSRF on every write).
 
 NOT covered and still owed: dependency CVEs (`composer audit` / `npm audit`),
 and infrastructure — which cannot be audited until there is a domain and TLS.
+
+## The CVE pass, 2026-08-24 — and why it stopped being an errand
+
+Run: `composer audit` clean, `npm audit` clean. That snapshot is worth little on
+its own, so both deploy workflows now run it as a GATE before deploying:
+`composer audit --locked` (advisories are about the lockfile) and
+`npm audit --omit=dev --audit-level=high` (this gate is about what reaches a
+shop's browser; a build tool's advisory is not worth blocking a 2am deploy).
+
+**Proven by polarity, not by a clean run:** `minimist@0.0.8` and
+`guzzlehttp/guzzle@6.5.0` both make the exact gate command exit 1, while our two
+repos exit 0. `0 vulnerabilities` and "the audit never ran" print identically —
+see [[shopos-measurement-that-lied]], including the `$?`-after-a-pipe trap that
+made a working gate look inert.
+
+Doc: `docs/decisions/shopos-a-pass-is-not-a-gate.md`.
+

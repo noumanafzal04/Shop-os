@@ -42,7 +42,7 @@
 - [CI/CD & Mobile](shopos-cicd-and-mobile.md) — CI gates green, deploy BLOCKED on bad DEPLOY_SSH_KEY; `claude --remote-control` for phone
 - [Workflow Test Rule](shopos-workflow-test-rule.md) — STANDING: delete a step and it must fail; never assert "not empty" on an envelope
 - [Admin Side Backlog](shopos-admin-side-backlog.md) — ALL BUILT 2026-08-15 (password reset, billing filters, security pass); kept as the record that a memory can go stale silently
-- [Security Pass](shopos-security-pass.md) — DONE 2026-08-15 both sides; 4 fixes, biggest = anyone could lock a shop out of its own till; CVE pass still owed
+- [Security Pass](shopos-security-pass.md) — both sides; 4 fixes, biggest = anyone could lock a shop out of its own till; dependency audits are a CI gate, proven by polarity
 - [Help Centre](shopos-help-centre.md) — in-app, full-screen, filtered per tenant by module/trade/permission; STANDING: update it whenever a screen changes
 - [Reorder & Labels](shopos-reorder-and-labels.md) — reorder list was built-but-unreachable (fixed); perm labels now server-side; 2 of my 3 findings were WRONG — don't re-raise
 - [Tax Year](shopos-tax-year.md) — PK tax year 1 Jul–30 Jun added beside the calendar year; not a setting, quarters unchanged
@@ -108,7 +108,7 @@
 - [A Rail You Can Read](shopos-rail-you-can-read.md) — FIXED: 22 icon collisions in 16 menus; Simple mode was module-gated so a restaurant had Dine-in and no Kitchen
 - [Page Two, Per List](shopos-page-two-per-list.md) — 3 more page-two bugs in the folder-credit gap; scanner gained per-CALL + orphan-hook axes; detector was wrong 5 of 6 first
 - [What It Used To Cost](shopos-what-it-used-to-cost.md) — SHIPPED price history; Product had NO audit trait; the design is mostly about what must NOT be filed
-- [Branch Day-to-Day](shopos-branch-day-to-day.md) — gaps 1+2 FIXED 2026-08-24; only gap 3 (branch name on record screens) still open
+- [Branch Day-to-Day](shopos-branch-day-to-day.md) — who works where, which branch a staff member is told they are in, and which record screens name one
 - [Token Lives One Hour](shopos-token-lives-one-hour.md) — STANDING: access tokens expire 1h after minting (per-token, not in sanctum config); 97 sweep "bugs" were one dead credential
 - [Who Works Where](shopos-who-works-where.md) — FIXED: panel never set users.branch_id, so branch two's cashier rang branch one's stock and nothing looked wrong
 - [Measurement That Lied](shopos-measurement-that-lied.md) — STANDING: wrong cwd, unquoted heredoc, soft-deleted target — three plausible-looking results from tools that never ran

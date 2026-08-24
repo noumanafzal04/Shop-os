@@ -276,7 +276,41 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-24 (latest) — a docket outlived its tab
+### 2026-08-24 (latest) — a pass is not a gate, and eight lines that lied
+
+Full write-up: `docs/decisions/shopos-a-pass-is-not-a-gate.md`.
+
+"CVE pass still owed" sat on the backlog for weeks and took two commands:
+`composer audit` clean, `npm audit` clean. **That result is worth almost
+nothing on its own** — an audit that was clean in August says nothing about
+September, because the point of an advisory is that it is published after
+somebody last looked. Both deploy workflows run it as a gate now.
+
+Proven by POLARITY rather than by a clean run: `0 vulnerabilities` and *the
+audit never ran* print identically, so the gate commands were pointed at
+`minimist@0.0.8` and `guzzlehttp/guzzle@6.5.0` — exit 1 — and at our two repos —
+exit 0. The first attempt to prove it reported `exit=0` on the vulnerable
+project, because `$?` after a pipe is **tail's** exit code.
+
+**And the backlog itself was audited.** Every "still pending" hook in
+`MEMORY.md` was measured against the code, and **eight** described work that had
+already shipped: variants editable since 23 Aug, recipe/BOM, dine-in POS UI,
+inclusive tax, offline shift open/close, serial-on-receive, per-serial returns,
+all four pharmacy items, Web Serial ESC/POS, and branch names on record screens.
+
+The cause is structural, and it is the codebase's own lesson turned on the
+notes: a hook carrying a STATUS is a copy of a fact living in the file, and
+copies drift — silently, because the file stays right and nobody opens it.
+`shopos-qa-sweep-aug09` had already recorded this exact failure ("check the
+file, not this line") and the shape returned anyway, because that fix was one
+line rather than a rule. **A hook says what a memory is ABOUT; status lives in
+the file.**
+
+What is genuinely left, verified against code: staff receive no operational
+notifications (`notifyTenantOwners` is the only broadcast and it selects
+`ShopOwner`), the two-week offline shadow RUN, and the 72-hour soak.
+
+### 2026-08-24 — a docket outlived its tab
 
 Full write-up: `docs/decisions/shopos-a-docket-outlived-its-tab.md`.
 

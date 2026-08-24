@@ -57,6 +57,10 @@ result, and each shape was the shape of the answer I was expecting.
   `app/Notifications/` and `app/Console/`; `NotifyExpiringStock` lives in
   `app/Actions/Inventory/`. Before recording an absence, search the whole tree
   for the CONCEPT, not the conventional home for it;
+- **`$?` after a pipe is the LAST command's exit code.** `npm audit … | tail`
+  then `echo $?` reports tail's 0 while npm exited 1, so a gate that works reads
+  as a gate that does nothing. Redirect to /dev/null and test `$?` directly, or
+  use `PIPESTATUS`;
 - and the general form: **a tool that could not do its job does not return an
   answer, it returns something shaped like one.**
 
