@@ -164,6 +164,13 @@ class PosProjection
                     'price' => (float) $v->price,
                     'stock' => $stock("{$product->id}:{$v->id}"),
                     'is_active' => (bool) $v->is_active,
+                    // Off tonight, for THIS size. Sent for the same reason the
+                    // product's flag is: the till holds a copy of the menu, and
+                    // a size dropped from a delta is indistinguishable from one
+                    // that was never there. The server refuses the line either
+                    // way (SoldOut); this is so the sheet can grey it out before
+                    // a waiter has promised it to a table.
+                    'sold_out' => $v->sold_out_at !== null,
                 ])->values()->all()
                 : [],
 

@@ -85,6 +85,7 @@ GIVES_MONEY_AWAY = [
 SHARED = {
     "DiscountCeiling::assert": "app/Support/DiscountCeiling.php",
     "ModifierResolver::resolve": "app/Support/ModifierResolver.php",
+    "SoldOut::assertSellable": "app/Support/SoldOut.php",
 }
 
 CODE = re.compile(r"'([A-Z][A-Z0-9_]{3,})'")
@@ -150,6 +151,43 @@ def codes_in(path: str) -> set[str]:
     return found
 
 
+IMPORT = re.compile(r"^use App\\Support\\([A-Za-z0-9_]+);", re.M)
+
+
+def guards_nobody_credited() -> list[str]:
+    r"""
+    A Support class that refuses things, called by a selling path, and NOT in
+    `SHARED`.
+
+    This is the tool's own blind spot, and it cost a run. `ITEM_SOLD_OUT` was
+    extracted into `App\Support\SoldOut` so all three paths would share one
+    rule — the very thing this tool exists to reward — and the report stopped
+    mentioning the code AT ALL. Not "missing from all three", which would have
+    been loud: absent, because the tool reads three files and the rule had left
+    them. A clean exit, from a scan that could no longer see the rule it was
+    written for.
+
+    So registration is no longer something to remember. Any `App\Support\X`
+    imported by a path, whose file throws a code, must be credited to its
+    callers or named here.
+    """
+    loose = []
+    credited = {call.split("::")[0] for call in SHARED}
+
+    for name, path in PATHS.items():
+        for cls in IMPORT.findall((ROOT / path).read_text()):
+            if cls in credited:
+                continue
+            guard = ROOT / f"app/Support/{cls}.php"
+            if not guard.exists():
+                continue
+            if CODE.findall(guard.read_text()):
+                loose.append(f"{name} calls App\\Support\\{cls}, which refuses "
+                             f"things this tool cannot see")
+
+    return sorted(set(loose))
+
+
 def ceiling_is_asked_everywhere() -> list[str]:
     """The three paths that can give money away must all call the one guard."""
     return [f for f in GIVES_MONEY_AWAY
@@ -188,6 +226,13 @@ def report(mutate: str | None = None) -> tuple[list[str], int]:
         print("\nEXPECTED names codes no path throws any more — delete these:")
         for c in sorted(stale):
             print(f"  · {c}")
+
+    loose = guards_nobody_credited()
+    if loose:
+        print("\nA SHARED GUARD IS NOT IN `SHARED`, so its refusals are invisible here:")
+        for g in loose:
+            print(f"  · {g}")
+        unexamined += [f"uncredited:{g}" for g in loose]
 
     missing = ceiling_is_asked_everywhere()
     if missing:
@@ -235,7 +280,19 @@ def prove() -> int:
     # extracting it would read as removing it from everywhere.
     assert "DISCOUNT_LIMIT_EXCEEDED" in counter & tab, \
         "a code thrown by a shared guard is not being credited to its callers"
-    print("both shapes this tool exists to see are asserted against.\n")
+
+    # And the blind spot that cost a run: extracting a rule into a Support
+    # class it does not know about used to make the rule VANISH from the
+    # report — a clean exit from a scan that could no longer see it.
+    forgotten = SHARED.pop("SoldOut::assertSellable")
+    try:
+        assert len(guards_nobody_credited()) == 3, \
+            "an uncredited Support guard is invisible AND unreported — the tool " \
+            "would go quiet about the very rule somebody just centralised"
+    finally:
+        SHARED["SoldOut::assertSellable"] = forgotten
+
+    print("all three shapes this tool exists to see are asserted against.\n")
 
     leads, total = report()
 

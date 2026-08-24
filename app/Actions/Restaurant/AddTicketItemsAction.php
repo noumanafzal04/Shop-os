@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\RestaurantTicket;
 use App\Support\DiscountCeiling;
 use App\Support\ModifierResolver;
+use App\Support\SoldOut;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 
@@ -76,12 +77,7 @@ class AddTicketItemsAction
                 // tab is always MORE FOOD, never the closing of a bill. What
                 // has already been eaten is settled by SettleTicketAction,
                 // which does not come through here.
-                if ($product->isSoldOut()) {
-                    throw DomainException::unprocessable(
-                        "{$product->name} is sold out.",
-                        'ITEM_SOLD_OUT',
-                    );
-                }
+                SoldOut::assertSellable($product, $variant);
 
                 $quantity = (float) $item['quantity'];
 

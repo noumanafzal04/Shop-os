@@ -19,6 +19,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Geo;
 use App\Support\ModifierResolver;
+use App\Support\SoldOut;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
@@ -222,12 +223,7 @@ class OrderService
                     // publishing is the shop's own business; this is not a
                     // publishing decision, it is "there is none left", and
                     // promising it down the phone is the same broken promise.
-                    if ($product->isSoldOut()) {
-                        throw DomainException::unprocessable(
-                            "{$product->name} is sold out.",
-                            'ITEM_SOLD_OUT',
-                        );
-                    }
+                    SoldOut::assertSellable($product, $variant);
 
                     $source = $variant ?? $product;
                     $qty = (float) $item['quantity'];

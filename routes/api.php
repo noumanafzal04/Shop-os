@@ -276,6 +276,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // and undone tomorrow. See SoldOutController.
                 Route::post('products/{product}/sold-out', [SoldOutController::class, 'store']);
                 Route::delete('products/{product}/sold-out', [SoldOutController::class, 'destroy']);
+                // ONE SIZE, off tonight. A kitchen runs out of large bases, not
+                // of pizza — and taking the whole item off costs the sizes that
+                // are still there.
+                Route::post('products/{product}/variants/{variant}/sold-out', [SoldOutController::class, 'storeVariant']);
+                Route::delete('products/{product}/variants/{variant}/sold-out', [SoldOutController::class, 'destroyVariant']);
                 // branch-stock and serials are reads — they live in the read
                 // group above, because the counter asks both questions.
                 // Per-branch price overrides (effective = override ?? base).

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
@@ -29,6 +30,59 @@ use Illuminate\Http\JsonResponse;
  */
 class SoldOutController extends Controller
 {
+    /**
+     * ONE SIZE, off tonight.
+     *
+     * A pizzeria runs out of large bases, not of pizza. Before this the only
+     * move was to take the whole item off, so Small and Medium went with it —
+     * all evening, on the busiest thing on the menu.
+     *
+     * The product-level flag stays exactly as it was: "no pizza tonight" is
+     * still a sentence a shop needs to be able to say, and it is not the same
+     * sentence as "no large".
+     */
+    public function storeVariant(Product $product, ProductVariant $variant): JsonResponse
+    {
+        $this->mustBelong($product, $variant);
+
+        if ($variant->sold_out_at === null) {
+            $variant->forceFill([
+                'sold_out_at' => now(),
+                'sold_out_by' => auth()->id(),
+            ])->save();
+        }
+
+        return ApiResponse::ok(
+            ['id' => $variant->id, 'sold_out_at' => $variant->sold_out_at],
+            "{$product->name} — {$variant->name} is off the menu.",
+        );
+    }
+
+    /** Put that size back. */
+    public function destroyVariant(Product $product, ProductVariant $variant): JsonResponse
+    {
+        $this->mustBelong($product, $variant);
+
+        $variant->forceFill(['sold_out_at' => null, 'sold_out_by' => null])->save();
+
+        return ApiResponse::ok(
+            ['id' => $variant->id, 'sold_out_at' => null],
+            "{$product->name} — {$variant->name} is back on.",
+        );
+    }
+
+    /**
+     * The size has to be this product's.
+     *
+     * Route model binding resolves both independently, so without this a shop
+     * could 86 somebody else's size through a URL — and the reply would name
+     * this product while the flag landed on another.
+     */
+    private function mustBelong(Product $product, ProductVariant $variant): void
+    {
+        abort_if($variant->product_id !== $product->id, 404);
+    }
+
     /** Take it off. Idempotent: 86'ing an already-86'd dish keeps the first time. */
     public function store(Product $product): JsonResponse
     {

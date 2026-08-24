@@ -29,6 +29,7 @@ use App\Support\DiscountCeiling;
 use App\Support\ModifierResolver;
 use App\Support\RecipeCost;
 use App\Support\RegisterContext;
+use App\Support\SoldOut;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -280,11 +281,12 @@ class CreateSaleAction
                     // usually already eaten. Refusing to take their money
                     // because the kitchen has since run out is not a
                     // protection, it is a shop that cannot close a bill.
-                    if (! $trusted && $product->sold_out_at !== null) {
-                        throw DomainException::unprocessable(
-                            "{$product->name} is sold out.",
-                            'ITEM_SOLD_OUT',
-                        );
+                    if (! $trusted) {
+                        // The SIZE as well as the product — a kitchen runs out
+                        // of large bases, not of pizza. One rule, in SoldOut,
+                        // because three paths ask this question and three copies
+                        // is three chances for one to forget the size.
+                        SoldOut::assertSellable($product, $variant);
                     }
 
                     $source = $variant ?? $product;
