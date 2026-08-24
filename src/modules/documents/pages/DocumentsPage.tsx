@@ -88,6 +88,7 @@ export default function DocumentsPage() {
 
         <select
           value={status}
+          aria-label="Which documents to show"
           onChange={(e) => setStatus(e.target.value)}
           className="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-theme-sm text-gray-700 dark:border-gray-700 dark:text-gray-300"
         >

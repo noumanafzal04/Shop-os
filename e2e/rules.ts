@@ -94,6 +94,21 @@ export async function nothingIsCovered(page: Page): Promise<Finding[]> {
       const hit = document.elementFromPoint(x, y);
       if (hit === null) continue;
 
+      // A MODAL IS SUPPOSED TO COVER THE PAGE.
+      //
+      // `/tenant/products/new` IS a dialog — the product form is a drawer over
+      // the catalogue, `aria-modal="true"` and all — so the first time this
+      // rule met one it reported the whole sidebar, the wordmark and every menu
+      // item as unpressable. All correct, all behind a backdrop doing its job.
+      //
+      // While a modal is open, the only controls anybody is meant to reach are
+      // the ones inside it, so those are the only ones judged. Controls INSIDE
+      // the modal are still judged normally, which is the half that matters:
+      // a close button under a header is one of the defects this suite was
+      // written for, and it lives in exactly this kind of panel.
+      const modal = document.querySelector('[aria-modal="true"]');
+      if (modal !== null && !modal.contains(el)) continue;
+
       // Its own child is fine — a <span> inside a <button> still presses the
       // button. Its own ancestor is fine too: the click bubbles nowhere else.
       if (hit === el || el.contains(hit) || hit.contains(el)) continue;
@@ -408,6 +423,30 @@ export async function pinnedThingsDoNotSitOnThePage(page: Page): Promise<Finding
 
     for (const card of pinned) {
       const box = card.getBoundingClientRect();
+
+      // OVERLAP IS NOT THE SAME AS HIDDEN — asked ONCE, about the card.
+      //
+      // This rule tested only whether two boxes share space, so it went on
+      // reporting a dialog's footer after the fix that mattered: the install
+      // card had been dropped BELOW the modal layer, where it sits behind the
+      // footer and hides nothing.
+      //
+      // The first version of this check asked per ELEMENT, inside the loop
+      // below, and `elementFromPoint` forces a synchronous layout. With the
+      // card behind — now the ordinary case — nothing ever matched, the loop
+      // never broke, and a screen check that takes four seconds took
+      // FIFTY-FOUR MINUTES on a phone. The question belongs to the card, not
+      // to each of the thousand text nodes it happens to overlap.
+      //
+      // Three samples rather than one: a card can lose its centre to a tooltip
+      // and still cover everything either side of it.
+      const y = box.top + box.height / 2;
+      const inFront = [box.left + box.width * 0.2, box.left + box.width * 0.5, box.left + box.width * 0.8]
+        .some((x) => {
+          const front = document.elementFromPoint(x, y);
+          return front === null || card.contains(front);
+        });
+      if (!inFront) continue;
 
       for (const el of Array.from(document.body.querySelectorAll<HTMLElement>("*"))) {
         if (card.contains(el) || el.contains(card)) continue;

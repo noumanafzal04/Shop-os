@@ -105,7 +105,7 @@ export default function InstallPrompt() {
     <div
       ref={card}
       role="status"
-      className="fixed inset-x-3 bottom-3 z-[999998] mx-auto flex max-w-md items-start gap-3 rounded-xl border border-brand-500/30 bg-white p-3 shadow-theme-lg dark:border-brand-500/40 dark:bg-gray-900"
+      className="fixed inset-x-3 bottom-3 z-[99998] mx-auto flex max-w-md items-start gap-3 rounded-xl border border-brand-500/30 bg-white p-3 shadow-theme-lg dark:border-brand-500/40 dark:bg-gray-900"
     >
       <span className="flex-1 text-theme-sm text-gray-700 dark:text-gray-200">
         {route === "prompt" ? (

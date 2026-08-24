@@ -65,6 +65,7 @@ export default function OwnerOrdersPage() {
         </div>
         <div className="w-48">
           <Select
+            aria-label="Which orders to show"
             options={[
               { value: "", label: "All statuses" },
               { value: "pending", label: "Pending" },

@@ -1,3 +1,5 @@
+import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
+import { useBranchStore } from "../../../stores/branchStore";
 import { useState } from "react";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import BranchStockModal from "../../transfers/components/BranchStockModal";
@@ -98,6 +100,16 @@ export default function ProductsPage() {
   const [lookup, setLookup] = useState<Product | null>(null);
   const [priceEdit, setPriceEdit] = useState<Product | null>(null);
   const soldOut = useSoldOut();
+
+  // WHICH KITCHEN the 86 sheet is talking about. Only where a shop has more
+  // than one: "at Main" told to a single-shop owner is noise about a choice
+  // they do not have.
+  const branchCol = useBranchColumn();
+  const activeBranchId = useBranchStore((s) => s.activeBranchId);
+  const myBranchId = useAuthStore((s) => s.user?.branch_id);
+  const branchName = branchCol.show
+    ? branchCol.label(activeBranchId ?? myBranchId ?? null)
+    : null;
   const variantSoldOut = useVariantSoldOut();
   /** The product whose sizes are being taken off, one at a time. */
   const [eightySix, setEightySix] = useState<Product | null>(null);
@@ -401,7 +413,16 @@ export default function ProductsPage() {
 
                                 return;
                               }
-                              soldOut.mutate({ id: p.id, off: !p.sold_out });
+                              // SAY WHICH KITCHEN. Without a sheet to open,
+                              // this press changed a row and said nothing —
+                              // fine in a one-shop business, and in a chain the
+                              // chef has no way to tell whether they just
+                              // closed their own kitchen or the company. The
+                              // server's own words carry the branch.
+                              soldOut.mutate(
+                                { id: p.id, off: !p.sold_out },
+                                { onSuccess: (res) => toast.success(res.message) },
+                              );
                             }}
                             disabled={soldOut.isPending}
                             className={`rounded-lg p-2 transition disabled:opacity-40 ${
@@ -459,8 +480,13 @@ export default function ProductsPage() {
         <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">
           {eightySix?.name} — what has run out?
         </h3>
+        {/* WHICH KITCHEN. A branch runs out; a chain does not — Gulberg losing
+            its last bases says nothing about DHA, which used to lose them too.
+            Named only where there is more than one branch: a single-shop owner
+            being told "at Main" is noise about a choice they do not have. */}
         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-          Off for tonight. Press again when the delivery lands.
+          Off for tonight{branchName ? ` at ${branchName}` : ""}. Press again when the delivery lands.
+          {branchName ? " Other branches are not affected." : ""}
         </p>
 
         <div className="space-y-2">

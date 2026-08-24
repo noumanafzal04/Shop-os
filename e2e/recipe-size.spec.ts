@@ -23,10 +23,16 @@ import { API, foodAuth, removeProductsNamed } from "./api";
 
 test.describe.configure({ mode: "serial" });
 
-// No project guard. `playwright.config.ts` runs this in the `restaurant`
-// project and nowhere else — a spec that guards itself with a skip is a spec
-// that can quietly stop running, which is exactly what this one did before
-// there was a shop that could host it.
+// `playwright.config.ts` runs this only where a shop can hold a dish. The one
+// guard left is the suite's standing rule for FLOW tests — proven once, not
+// re-proven at every width; food.chrome.spec is what walks the sizes.
+test.beforeEach(({ browserName }, testInfo) => {
+  void browserName;
+  test.skip(
+    testInfo.project.name !== "restaurant",
+    "a flow test, not a layout one — food.chrome.spec walks the food screens at every size",
+  );
+});
 
 
 const DOUGH = "E2E Recipe Dough";

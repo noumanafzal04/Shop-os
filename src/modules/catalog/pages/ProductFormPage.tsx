@@ -643,7 +643,19 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         </div>
 
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 space-y-5 overflow-y-auto p-6">
+          {/* `min-h-0` so this pane can shrink below its content: a flex item
+              defaults to `min-height: auto` and otherwise grows past the dialog,
+              pushing the footer — and with it Save and Cancel — off the bottom.
+              Same shape as the till's cart, see
+              docs/decisions/shopos-cart-hid-its-lines.md.
+
+              It was added while chasing an unreachable Cancel on a tablet and
+              it was NOT that bug — measuring the boxes afterwards showed this
+              pane already fitting (897 tall, 897 of content). The real cause
+              was the PWA install card sitting on the footer at z-999998. Kept
+              because the guard is right and free, and noted because a comment
+              claiming the wrong cause is worse than no comment. */}
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
             {generalError && <Alert variant="error" title="Couldn't save" message={generalError} />}
             {blocked.map((b) => (
               <Alert key={b} variant="error" title="Not saved" message={b} />

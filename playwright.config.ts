@@ -92,9 +92,24 @@ export default defineConfig({
     // fixture, and a food spec builds what it needs itself.
     {
       name: "restaurant",
-      testMatch: /food\..*\.spec\.ts|recipe-size\.spec\.ts/,
+      testMatch: RESTAURANT_ONLY,
       dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/food.json" },
+    },
+
+    // A restaurant works on a TABLET. The first version of this project ran
+    // desktop only, which measured the floor, the tab and the kitchen board at
+    // the one size nobody uses them at — and the product form had just proved
+    // what that costs: it passes at 1280 and its Cancel button is unreachable
+    // at 768, because rows wrap and the pane outgrows the dialog.
+    //
+    // The board is the wall screen and stays desktop-shaped; the FLOOR and the
+    // TAB are held in a waiter's hands.
+    {
+      name: "restaurant-tablet",
+      testMatch: RESTAURANT_ONLY,
+      dependencies: ["setup"],
+      use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/food.json" },
     },
   ],
 

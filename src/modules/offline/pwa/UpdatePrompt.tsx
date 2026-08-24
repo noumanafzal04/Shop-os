@@ -78,8 +78,20 @@ export default function UpdatePrompt() {
        * IS in two words, the Modal's own lift (`shadow-2xl` + ring) instead of a
        * hairline, and one entrance movement. Nothing here interrupts, and
        * nothing here can swallow a tap meant for the cart.
+       *
+       * `z-[99998]` is the load-bearing part of that sentence, and it used to
+       * be 999999 — above EVERY dialog in the app. On a tablet this card and
+       * the install one sat on the bottom strip of any open modal, which is
+       * where Save and Cancel live: a shopkeeper filling in a new item could
+       * press neither. The page had been protected from exactly this (see
+       * `--pinned-bottom` in AppLayout) and dialogs, which render outside that
+       * container, had not.
+       *
+       * Below the modal layer means a modal's backdrop covers this card while
+       * a dialog is open, which is the right answer anyway: an install
+       * suggestion is ambient, and a dialog is a task somebody is in.
        */
-      className="rise-into-view fixed inset-x-3 bottom-3 z-[999999] mx-auto flex max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-brand-500/30 dark:bg-gray-900 dark:ring-brand-400/30"
+      className="rise-into-view fixed inset-x-3 bottom-3 z-[99998] mx-auto flex max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-brand-500/30 dark:bg-gray-900 dark:ring-brand-400/30"
     >
       {/* The rail. On a dark ground a border disappears and a coloured edge does
           not — the same reasoning that turned the product tiles into real white

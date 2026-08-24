@@ -1,10 +1,31 @@
 import { test as setup, expect } from "@playwright/test";
 
+import config from "../playwright.config";
+
 import { API, ownerAuth } from "./api";
 
 /** The catalog needs ENOUGH ON THE SHELF to fill a cart. */
 const WANTED = 14;
-const TOP_UP = 60;
+
+/**
+ * ENOUGH FOR EVERY PROJECT THAT WILL DRAW ON IT.
+ *
+ * Playwright runs a dependency project ONCE, so this shelf is stocked once and
+ * then sold from by every project that depends on it — four device sizes, each
+ * running the selling and size-picker specs.
+ *
+ * A flat 60 was marginal at that. The offline spec failed on the LAST two
+ * device sizes with "Insufficient stock: only 0 in stock", which is a sync
+ * error that reads exactly like a product bug and is a fixture that ran out.
+ *
+ * A bigger constant would be the same fragility with a longer fuse, and the
+ * number would have to be revisited by whoever adds the fifth size — which is
+ * to say, never. Counting the dependents means the next one pays for itself.
+ */
+const PER_PROJECT = 60;
+const DRAWS_ON_THE_SHELF = (config.projects ?? [])
+  .filter((p) => (p.dependencies ?? []).includes("shelf")).length || 1;
+const TOP_UP = PER_PROJECT * DRAWS_ON_THE_SHELF;
 
 /**
  * Put stock on the shelf before any layout test opens the till.

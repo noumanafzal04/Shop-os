@@ -320,8 +320,13 @@ export default function NewSalePage() {
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-gray-600 dark:text-gray-400">Discount</span>
+              {/* Named, because the word beside it is a <span> and not a
+                  <label>: visible and unannounced. Two money boxes that both
+                  read "edit text, blank" is not cosmetic — a discount typed
+                  into amount paid is a bill that balances and is wrong. */}
               <input
                 type="number"
+                aria-label="Discount"
                 min={0}
                 className="w-28 rounded border border-gray-300 px-2 py-1 text-right dark:border-gray-700 dark:bg-gray-900"
                 value={discount}
@@ -337,6 +342,7 @@ export default function NewSalePage() {
               <span className="text-gray-600 dark:text-gray-400">Amount paid</span>
               <input
                 type="number"
+                aria-label="Amount paid"
                 min={0}
                 className="w-28 rounded border border-gray-300 px-2 py-1 text-right dark:border-gray-700 dark:bg-gray-900"
                 value={amountPaid}

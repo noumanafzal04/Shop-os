@@ -36,6 +36,39 @@ const SCREENS: Array<{ path: string; name: string }> = [
   // said 1 tap target where the till has fifty, which is the only reason
   // anybody found out.
   { path: "/tenant/pos", name: "the till" },
+
+  // ── the other thirty-two ────────────────────────────────────────────
+  //
+  // This list held FOURTEEN of the shop's forty-eight screens, and the
+  // thirty-four it did not hold had never been opened by a browser at all.
+  // Not a lower standard: none. That gap is exactly how a kitchen board
+  // spent six days showing dockets for tabs that had been cancelled — the
+  // screens nobody looks at are the ones nothing is measured against.
+  //
+  // Everything here is reachable by the MART fixture. The trade-gated ones —
+  // the forecourt, the dispensary, the workshop, the bay board — need a shop
+  // that has them, the same problem the restaurant project exists to solve,
+  // and they are still uncovered.
+  { path: "/tenant/categories", name: "categories" },
+  { path: "/tenant/collections", name: "collections" },
+  { path: "/tenant/labels", name: "barcode labels" },
+  { path: "/tenant/products/new", name: "a new item" },
+  { path: "/tenant/stocktake", name: "stock counts" },
+  { path: "/tenant/transfers", name: "branch transfers" },
+  { path: "/tenant/disposals", name: "written-off stock" },
+  { path: "/tenant/branches", name: "branches" },
+  { path: "/tenant/orders", name: "online orders" },
+  { path: "/tenant/documents", name: "quotes & invoices" },
+  { path: "/tenant/sales/new", name: "a new sale" },
+  { path: "/tenant/income", name: "other income" },
+  { path: "/tenant/ledger", name: "the ledger" },
+  { path: "/tenant/cashbook", name: "the cashbook" },
+  { path: "/tenant/coupons", name: "coupons" },
+  { path: "/tenant/promotions", name: "promotions" },
+  { path: "/tenant/reviews", name: "reviews" },
+  { path: "/tenant/activity", name: "activity" },
+  { path: "/tenant/security", name: "security" },
+  { path: "/tenant/subscription", name: "subscription" },
 ];
 
 for (const screen of SCREENS) {

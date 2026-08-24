@@ -219,6 +219,7 @@ export default function ActivityPage() {
             { value: "BankDeposit", label: "Banking" },
           ]}
           placeholder="Everything"
+          aria-label="What kind of change"
           onChange={reset(setType)}
         />
         <Select
@@ -229,10 +230,11 @@ export default function ActivityPage() {
             { value: "deleted", label: "Removed" },
           ]}
           placeholder="Added, changed & removed"
+          aria-label="Added, changed or removed"
           onChange={reset(setEvent)}
         />
-        <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
-        <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
+        <Input type="date" aria-label="Changed on or after" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+        <Input type="date" aria-label="Changed on or before" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
