@@ -3,6 +3,7 @@
 namespace App\Actions\Catalog;
 
 use App\Exceptions\DomainException;
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductBarcode;
@@ -80,6 +81,34 @@ class ImportProductsAction
 
         $summary = ['total' => 0, 'created' => 0, 'updated' => 0, 'failed' => 0, 'errors' => []];
 
+        /**
+         * ONE row in the trail for the import, not one per product.
+         *
+         * A product's price is audited, and rightly — it is the number a shop
+         * changes most often and the only record of the old one used to be the
+         * screen it was typed over. But an import is ONE act by one person, and
+         * a supplier's price list touching 340 items would file 340 rows a
+         * second apart and push every hand-made change off the first page.
+         * That is the failure the whole `auditOnly` allowlist exists to avoid.
+         *
+         * So the rows are suppressed and the OPERATION is recorded, below.
+         * Suppressing without recording would be making a write quiet, which is
+         * a different and much worse thing.
+         */
+        $before = Product::query()->count();
+
+        Product::withoutAuditing(function () use ($rows, &$summary): void {
+            $this->importRows($rows, $summary);
+        });
+
+        $this->recordTheImport($summary, $before);
+
+        return $summary;
+    }
+
+    /** @param array<int, array<string, string>> $rows */
+    private function importRows(array $rows, array &$summary): void
+    {
         foreach ($rows as $i => $row) {
             // +2 = 1 for the header line, 1 for 1-based line numbers a user sees.
             $lineNo = $i + 2;
@@ -106,8 +135,36 @@ class ImportProductsAction
                 ]];
             }
         }
+    }
 
-        return $summary;
+    /**
+     * The import itself, as one line somebody can read.
+     *
+     * `new_values` carries the counts rather than a product's fields, because
+     * the thing that happened is the import — "340 items updated by Asif at
+     * 11:04" is the sentence a shopkeeper needs when a shelf price is suddenly
+     * wrong and nobody remembers touching it.
+     */
+    private function recordTheImport(array $summary, int $before): void
+    {
+        if ($summary['created'] === 0 && $summary['updated'] === 0) {
+            return;
+        }
+
+        AuditLog::query()->create([
+            'user_id' => auth()->id(),
+            'tenant_id' => $this->context->id(),
+            'event' => 'imported',
+            'auditable_type' => Product::class,
+            'auditable_id' => null,
+            'old_values' => ['products' => $before],
+            'new_values' => [
+                'created' => $summary['created'],
+                'updated' => $summary['updated'],
+                'failed' => $summary['failed'],
+            ],
+            'ip_address' => request()?->ip(),
+        ]);
     }
 
     /** @return 'created'|'updated' */

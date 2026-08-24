@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ItemType;
+use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HidesCostPrice;
 use App\Support\ItemTypes;
@@ -18,8 +19,51 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Product extends BaseModel
 {
+    use Auditable;
     use BelongsToTenant;
     use HidesCostPrice;
+
+    /**
+     * WHAT THIS ITEM USED TO COST THE CUSTOMER, AND WHO MOVED IT.
+     *
+     * Every other money authority in this shop has been auditable for a while —
+     * a tax rate, a coupon, a customer's credit limit, a group's discount — and
+     * the number a shop changes most often was not on the list. Sugar goes from
+     * 180 to 210 and the only record of 180 was the screen it was typed over.
+     *
+     * ── Three prices, and deliberately not the fourth ───────────────────
+     *
+     * `cost` is missing on purpose. It is not a decision: it re-blends itself
+     * on every delivery (weighted average, see MovingCost), so auditing it
+     * would file a row per line per goods-received, none of them anybody's
+     * choice, and bury the ones that are. The shop already has a truer record
+     * of what it paid — the purchase order lines, with a date and a supplier
+     * against each.
+     *
+     * ── And not on create ───────────────────────────────────────────────
+     *
+     * See `auditCreate` below. An item arriving with a price is not a price
+     * change; a shop that opens with five thousand of them would have no trail
+     * left to read.
+     */
+    protected function auditOnly(): array
+    {
+        return ['price', 'discount_price', 'wholesale_price'];
+    }
+
+    /**
+     * No. A catalogue is not a sequence of decisions.
+     *
+     * The shop opens with thousands of items and imports a supplier's list
+     * every month. "This item was created with a price" is already answered by
+     * the item itself and by `created_at`; filing it would push every hand-made
+     * price change off the first page of the trail, which is the one thing the
+     * trail is for.
+     */
+    protected function auditCreate(): bool
+    {
+        return false;
+    }
 
     protected function casts(): array
     {

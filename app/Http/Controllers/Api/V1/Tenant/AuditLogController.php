@@ -40,6 +40,9 @@ class AuditLogController extends Controller
     public function index(Request $request): JsonResponse
     {
         $logs = AuditLog::query()
+            // Eager, or a page of 25 rows is 25 extra queries — and the trail is
+            // exactly the screen somebody opens with a long date range.
+            ->with('auditable')
             // Explicit, not by global scope: AuditLog carries a tenant_id but
             // is not tenant-scoped as a model — the platform reads it across
             // every shop, and a read that FORGETS to say which shop it wants is
@@ -48,6 +51,11 @@ class AuditLogController extends Controller
             ->with('user:id,name,email')
             ->when($request->query('event'), fn ($q, $e) => $q->where('event', $e))
             ->when($request->query('type'), fn ($q, $t) => $q->where('auditable_type', 'like', "%{$t}%"))
+            // ONE record's history — "what has this item's price done", asked
+            // from the item itself. The trail could be filtered by KIND and by
+            // person and by date, and not by subject, so the one question a
+            // shopkeeper actually arrives with was the one it could not answer.
+            ->when($request->query('record'), fn ($q, $id) => $q->where('auditable_id', $id))
             ->when($request->query('user_id'), fn ($q, $id) => $q->where('user_id', $id))
             ->when($request->query('from'), fn ($q, $d) => $q->whereDate('created_at', '>=', $d))
             ->when($request->query('to'), fn ($q, $d) => $q->whereDate('created_at', '<=', $d))
@@ -61,6 +69,11 @@ class AuditLogController extends Controller
                 'event' => $log->event,
                 'entity' => class_basename($log->auditable_type),
                 'entity_id' => $log->auditable_id,
+                // WHICH one. The trail named a kind and never a subject, so a
+                // price change read "Item price · 180 → 210" about one of four
+                // thousand items. Null where the row is about a kind rather
+                // than a record — an import belongs to no single product.
+                'subject' => $log->subjectName(),
                 'actor' => $log->user?->only(['id', 'name', 'email']),
                 'old_values' => $log->old_values,
                 'new_values' => $log->new_values,

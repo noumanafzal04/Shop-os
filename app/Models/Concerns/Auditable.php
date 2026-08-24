@@ -48,9 +48,59 @@ trait Auditable
         return [];
     }
 
+    /**
+     * Is a CREATE of this model an event worth a row?
+     *
+     * For almost everything, yes: a coupon that exists is a coupon somebody
+     * made. For a PRODUCT it is not. A shop opens with five thousand items and
+     * imports a supplier's list every month, and "this item was created with a
+     * price" is not a decision anybody needs to look back at — the catalogue
+     * already holds what it was created with, and `created_at` says when.
+     *
+     * What a shop actually wants from a product's trail is the DIFFERENCE:
+     * sugar was 180 and now it is 210, and somebody chose that. Filing the
+     * creates would bury exactly that line under the imports, which is the
+     * failure mode `auditOnly` was introduced to avoid — same argument, one
+     * step further along.
+     */
+    protected function auditCreate(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Suppress this model's audit rows for the duration of `$work`.
+     *
+     * Exists for ONE shape: a bulk operation where each row would file a row,
+     * and the useful record is of the operation rather than of its rows. A
+     * price-list import touching 340 items is one act by one person; 340
+     * identical-looking rows a second apart is not a better record of it, it is
+     * a worse one, and it pushes every hand-made price change off the first
+     * page of the trail.
+     *
+     * Deliberately NOT a way to make a write quiet. Whoever suppresses is
+     * expected to record the operation itself — see `ImportProductsAction`.
+     */
+    public static function withoutAuditing(callable $work): mixed
+    {
+        static::$auditingSuppressed[static::class] = true;
+
+        try {
+            return $work();
+        } finally {
+            unset(static::$auditingSuppressed[static::class]);
+        }
+    }
+
+    /** @var array<class-string, bool> */
+    protected static array $auditingSuppressed = [];
+
     public static function bootAuditable(): void
     {
         static::created(function (Model $m): void {
+            if (! $m->auditCreate() || $m->auditingSuppressed()) {
+                return;
+            }
             $new = $m->auditAttributes($m->getAttributes());
             // A create that carries none of the watched fields is not an event
             // this model is audited FOR. Without this, every walk-in customer
@@ -63,6 +113,9 @@ trait Auditable
         });
 
         static::updated(function (Model $m): void {
+            if ($m->auditingSuppressed()) {
+                return;
+            }
             $changes = $m->getChanges();
             unset($changes['updated_at']);
             if ($changes === []) {
@@ -85,7 +138,12 @@ trait Auditable
         });
 
         // Always recorded, allowlist or not: losing the row loses the field.
-        static::deleted(fn (Model $m) => $m->writeAudit('deleted', $m->auditAttributes($m->getOriginal()), null));
+        static::deleted(function (Model $m): void {
+            if ($m->auditingSuppressed()) {
+                return;
+            }
+            $m->writeAudit('deleted', $m->auditAttributes($m->getOriginal()), null);
+        });
     }
 
     protected function auditAttributes(array $attributes): array
@@ -112,6 +170,11 @@ trait Auditable
         }
 
         return false;
+    }
+
+    protected function auditingSuppressed(): bool
+    {
+        return static::$auditingSuppressed[static::class] ?? false;
     }
 
     protected function writeAudit(string $event, ?array $old, ?array $new): void
