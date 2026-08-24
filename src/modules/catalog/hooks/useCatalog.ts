@@ -241,6 +241,19 @@ export function useProductImages(productId: string | undefined) {
  * stale menu is the exact failure this feature exists to prevent, so the
  * screen that sells has to hear about it as fast as the screen that decided.
  */
+export function useVariantSoldOut() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ productId, variantId, off }: { productId: string; variantId: string; off: boolean }) =>
+      catalogService.setVariantSoldOut(productId, variantId, off),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["pos-catalog"] });
+    },
+  });
+}
+
 export function useSoldOut() {
   const qc = useQueryClient();
 

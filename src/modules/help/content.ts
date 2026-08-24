@@ -224,6 +224,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Your online shop follows the same press. The item stays on the menu marked sold out, so a customer can see you normally have it, and an order for it is refused — the counter and the app never disagree about what you have tonight." },
       { type: "note", text: "This is not the same as switching a product off. Switching off is a catalog change: the item leaves your online shop, your menu and your reports altogether. Sold out is for today — it stays where it is, marked, and one press puts it back when the delivery lands." },
       { type: "note", text: "An order a customer placed BEFORE you pressed it still goes through. Food somebody already committed to has to stay billable — refusing to close a bill because the kitchen has since run out would leave you unable to take money for a meal you already served. Sold out stops new orders, not orders you already have." },
+      { type: "p", text: "If the item comes in sizes, the same button asks which one has run out. Marking the Large off leaves Small and Medium selling all evening — a kitchen runs out of large bases, not of pizza, and taking the whole item off used to cost you every other size on your busiest line." },
+      { type: "note", text: "\"All of it — take the item off\" is still there at the bottom of that list, because \"no pizza tonight\" is a real sentence and it is not the same one as \"no large\"." },
       { type: "warn", text: "Nothing turns it back on by itself. That is on purpose: an item that un-sold-out overnight while the kitchen still had none puts a customer in front of a dish that never arrives. The row shows how long it has been off, so a forgotten one is easy to spot." },
 ],
   },

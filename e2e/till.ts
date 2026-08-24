@@ -28,6 +28,25 @@ export async function openTill(page: Page): Promise<void> {
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.waitForTimeout(800);
 
+  // ── Are we even signed in? ──────────────────────────────────────────
+  //
+  // Access tokens live 60 minutes and the browser holds one in localStorage. A
+  // suite that runs long — competing with a backend run on the same machine, say
+  // — crosses that line mid-flight, and every screen after it is the signed-out
+  // shell. What that produced was thirteen failures reading "no product cards on
+  // screen", "the till listed no sellable products", and an a11y ratchet saying
+  // `2/5 unnamed` on EVERY screen: the same two controls everywhere, because
+  // every screen was the same page.
+  //
+  // None of it was about the product. A precondition that cannot hold has to say
+  // WHICH precondition, or the suite spends an afternoon accusing the till.
+  if (/\/signin/.test(page.url())) {
+    throw new Error(
+      "signed out at the till — the saved session expired mid-run (tokens live 60 "
+      + "minutes). Nothing after this point is evidence about the product.",
+    );
+  }
+
   const start = page.getByRole("button", { name: /open (the )?(shift|drawer)|start shift/i }).first();
   if (await start.isVisible().catch(() => false)) {
     await start.click();

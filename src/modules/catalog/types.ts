@@ -51,6 +51,15 @@ export interface CollectionInput {
 export interface ProductVariant {
   id: string;
   name: string;
+  /**
+   * Off tonight, for this size alone.
+   *
+   * A kitchen runs out of large bases, not of pizza — and 86'ing the product
+   * took Small and Medium with it. Same shape as the product's own flag: a
+   * timestamp rather than a boolean, so a shop can see how long something has
+   * been off.
+   */
+  sold_out_at?: string | null;
   sku: string | null;
   price: string | number;
   cost: string | number | null;

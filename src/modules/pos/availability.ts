@@ -105,6 +105,14 @@ export function whyNotSellable(
   variant: ProductVariant | null,
   stockOf: StockReader = catalogReader,
 ): string | null {
+  // The SIZE first — it is the more specific answer and the one a customer
+  // hears. "No large, but we have medium" is a sale; "no pizza" when only the
+  // large ran out is a lost evening, and that is what the product-level flag
+  // used to be the only way to say.
+  if (variant !== null && (variant.sold_out_at ?? null) !== null) {
+    return `${p.name} — ${variant.name} is sold out.`;
+  }
+
   if (p.sold_out === true) return `${p.name} is sold out.`;
 
   if (p.type === "product" && p.track_inventory === true) {

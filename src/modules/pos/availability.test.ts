@@ -168,3 +168,53 @@ describe("whether a line may be rung", () => {
     expect(whyNotSellable(p, large, () => 3)).toBeNull();
   });
 });
+
+
+describe("one size can be off while the others sell", () => {
+  /**
+   * A pizzeria runs out of large bases, not of pizza. Before this the only move
+   * was to take the whole item off, so Small and Medium went with it — all
+   * evening, on the busiest thing on the menu.
+   */
+  const pizza = {
+    id: "p1", name: "Pizza", type: "product" as const,
+    sold_out: false, track_inventory: false,
+  };
+  const size = (name: string, off: string | null) => ({
+    id: name, name, sku: null, price: 100, cost: null,
+    stock_quantity: 10, low_stock_threshold: null, is_active: true,
+    sold_out_at: off,
+  });
+
+  it("refuses the size that ran out", () => {
+    expect(whyNotSellable(pizza, size("Large", "2026-08-24T18:00:00Z")))
+      .toBe("Pizza — Large is sold out.");
+  });
+
+  it("and keeps selling the ones that did not", () => {
+    // The whole point. This is the sale the product-level flag used to cost.
+    expect(whyNotSellable(pizza, size("Small", null))).toBeNull();
+  });
+
+  it("says the size, not the product, when both are off", () => {
+    // The more specific answer is the one a customer hears: "no large, but we
+    // have medium" is a sale.
+    expect(whyNotSellable({ ...pizza, sold_out: true }, size("Large", "2026-08-24T18:00:00Z")))
+      .toBe("Pizza — Large is sold out.");
+  });
+
+  it("still takes everything off when the PRODUCT is off", () => {
+    // "No pizza tonight" is a real sentence and not the same one.
+    expect(whyNotSellable({ ...pizza, sold_out: true }, size("Small", null)))
+      .toBe("Pizza is sold out.");
+  });
+
+  it("treats a missing flag as on, never as off", () => {
+    // A device that has not synced since this shipped carries rows without the
+    // field. Reading absence as "sold out" would silently empty a menu.
+    const noField = { ...size("Small", null) } as Record<string, unknown>;
+    delete noField.sold_out_at;
+
+    expect(whyNotSellable(pizza, noField as never)).toBeNull();
+  });
+});

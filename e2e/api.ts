@@ -11,7 +11,36 @@ const STATE = "e2e/.auth/owner.json";
  * believes, which is exactly the envelope this codebase keeps being fooled by —
  * the sale is real when the server has it.
  */
+/**
+ * How long the saved sign-in is worth anything.
+ *
+ * `IssueTokensAction::ACCESS_TTL_MINUTES` is 60, set PER TOKEN at creation —
+ * `config/sanctum.php` says `expiration => null`, so reading that file tells you
+ * nothing. A full suite runs in about thirteen minutes and is nowhere near it;
+ * a suite competing with a backend run on the same machine took over an hour,
+ * crossed the line, and every spec after that point was SIGNED OUT.
+ *
+ * What that looked like was not "session expired". It was "no product cards on
+ * screen", "the till listed no sellable products", and an accessibility ratchet
+ * reporting `2/5 unnamed` on EVERY screen — the same two controls everywhere,
+ * because every screen was the signed-out shell. Thirteen failures that said
+ * nothing about the product.
+ *
+ * So the age is checked, once, and said out loud. A run that cannot be trusted
+ * must not read like one that can.
+ */
+const SESSION_GOOD_FOR_MS = 55 * 60 * 1000;
+
 export function ownerAuth(): Record<string, string> {
+  const age = Date.now() - fs.statSync(STATE).mtimeMs;
+  if (age > SESSION_GOOD_FOR_MS) {
+    throw new Error(
+      `the saved sign-in is ${Math.round(age / 60000)} minutes old and access tokens live 60 — `
+      + "every assertion after this point is about a signed-out app, not about the product. "
+      + "Re-run the suite (auth.setup mints a fresh one).",
+    );
+  }
+
   const raw = JSON.parse(fs.readFileSync(STATE, "utf8")) as {
     origins: Array<{ localStorage: Array<{ name: string; value: string }> }>;
   };

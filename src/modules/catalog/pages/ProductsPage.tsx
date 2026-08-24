@@ -12,7 +12,7 @@ import { useModal } from "../../../hooks/useModal";
 import Select from "../../../components/form/Select";
 import Input from "../../../components/form/input/InputField";
 import { useAuthStore } from "../../../stores/authStore";
-import { useCategories, useProductMutations, useProducts, useSoldOut } from "../hooks/useCatalog";
+import { useCategories, useProductMutations, useProducts, useSoldOut, useVariantSoldOut } from "../hooks/useCatalog";
 import type { ItemTypeCode, Product } from "../types";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { ApiError } from "../../../common/types/api";
@@ -98,6 +98,9 @@ export default function ProductsPage() {
   const [lookup, setLookup] = useState<Product | null>(null);
   const [priceEdit, setPriceEdit] = useState<Product | null>(null);
   const soldOut = useSoldOut();
+  const variantSoldOut = useVariantSoldOut();
+  /** The product whose sizes are being taken off, one at a time. */
+  const [eightySix, setEightySix] = useState<Product | null>(null);
 
   // ── Export the current (filtered) catalog to CSV ─────────────────
   const toast = useToast();
@@ -387,7 +390,19 @@ export default function ProductsPage() {
                             chef is not opening a thirty-field form to make it. */}
                         {!p.track_inventory && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); soldOut.mutate({ id: p.id, off: !p.sold_out }); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // A product with sizes has no single answer: the
+                              // large bases ran out, the small ones did not. So
+                              // the same button asks WHICH, and only where there
+                              // is a which — one extra tap, and never a form.
+                              if ((p.variants ?? []).some((v) => v.is_active)) {
+                                setEightySix(p);
+
+                                return;
+                              }
+                              soldOut.mutate({ id: p.id, off: !p.sold_out });
+                            }}
                             disabled={soldOut.isPending}
                             className={`rounded-lg p-2 transition disabled:opacity-40 ${
                               p.sold_out
@@ -435,6 +450,60 @@ export default function ProductsPage() {
       </div>
 
       {/* Delete confirmation */}
+      {/* WHICH SIZE ran out.
+          A pizzeria loses large bases, not pizza — and 86'ing the product took
+          Small and Medium off the menu with it, all evening, on the busiest
+          item there is. One tap from the same button, and no form: this is a
+          decision made twice a day by whoever is cooking. */}
+      <Modal isOpen={eightySix !== null} onClose={() => setEightySix(null)} className="max-w-sm p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">
+          {eightySix?.name} — what has run out?
+        </h3>
+        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+          Off for tonight. Press again when the delivery lands.
+        </p>
+
+        <div className="space-y-2">
+          {(eightySix?.variants ?? []).filter((v) => v.is_active).map((v) => {
+            const off = v.sold_out_at !== null && v.sold_out_at !== undefined;
+
+            return (
+              <button
+                key={v.id}
+                type="button"
+                disabled={variantSoldOut.isPending}
+                onClick={() => eightySix && variantSoldOut.mutate(
+                  { productId: eightySix.id, variantId: v.id, off: !off },
+                  { onSuccess: () => setEightySix(null) },
+                )}
+                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition disabled:opacity-40 ${
+                  off
+                    ? "border-warning-500/40 bg-warning-500/10 text-warning-700 dark:text-warning-400"
+                    : "border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/5"
+                }`}
+              >
+                <span className="font-medium">{v.name}</span>
+                <span className="text-theme-xs">{off ? "Off — put it back on" : "Mark it off"}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* The product-level flag is still a real sentence: "no pizza tonight"
+            is not the same as "no large". */}
+        <button
+          type="button"
+          disabled={soldOut.isPending}
+          onClick={() => eightySix && soldOut.mutate(
+            { id: eightySix.id, off: !eightySix.sold_out },
+            { onSuccess: () => setEightySix(null) },
+          )}
+          className="mt-4 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+        >
+          {eightySix?.sold_out ? "Put the whole item back on" : "All of it — take the item off"}
+        </button>
+      </Modal>
+
       <Modal isOpen={confirmModal.isOpen} onClose={confirmModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-2 text-lg font-semibold text-gray-800 dark:text-white/90">
           Delete "{target?.name}"?

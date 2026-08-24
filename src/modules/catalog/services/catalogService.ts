@@ -81,6 +81,18 @@ export const catalogService = {
       ? apiPost<{ id: string; sold_out_at: string | null }>(`/products/${id}/sold-out`)
       : apiDelete<{ id: string; sold_out_at: string | null }>(`/products/${id}/sold-out`),
 
+  /**
+   * ONE SIZE off, rather than the whole thing.
+   *
+   * A kitchen runs out of large bases, not of pizza. Taking the product off
+   * costs the Small and Medium sales for the rest of the evening, on the busiest
+   * item on the menu.
+   */
+  setVariantSoldOut: (productId: string, variantId: string, off: boolean) =>
+    off
+      ? apiPost<{ id: string; sold_out_at: string | null }>(`/products/${productId}/variants/${variantId}/sold-out`)
+      : apiDelete<{ id: string; sold_out_at: string | null }>(`/products/${productId}/variants/${variantId}/sold-out`),
+
   syncModifiers: (id: string, groups: ModifierGroup[]) =>
     apiPut<Product>(`/products/${id}/modifier-groups`, { groups }),
 

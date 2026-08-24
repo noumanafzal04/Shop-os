@@ -78,6 +78,17 @@ export interface CatalogItem {
     price: number;
     stock: number;
     is_active: boolean;
+    /**
+     * Off tonight, for THIS size.
+     *
+     * Same reasoning as the product's flag two fields up: a till holding
+     * yesterday's copy of the menu has to learn that the large ran out, and a
+     * size dropped from a delta is indistinguishable from one that never
+     * existed. Optional because a device that has not synced since this
+     * shipped carries rows without it, and `?? false` is the honest reading —
+     * "we have not been told it is off".
+     */
+    sold_out?: boolean;
   }>;
   units: Array<{ id: string; name: string; factor: number; price: number | null; barcode: string | null }>;
   barcodes: string[];

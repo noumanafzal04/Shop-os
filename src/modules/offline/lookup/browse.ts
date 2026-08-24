@@ -102,6 +102,11 @@ export function asProduct(item: CatalogItem): CatalogProduct {
       // retired variant regardless, so the worst case is a refusal the shop can
       // see, not a silent one.
       is_active: v.is_active ?? true,
+      // The till's ProductVariant carries a TIMESTAMP; the mirror carries a
+      // boolean, because a device has no use for when. Translated here, like
+      // every other field whose two shapes differ — passing the mirror through
+      // untranslated is exactly how `stock_quantity` came back undefined.
+      sold_out_at: v.sold_out ? new Date().toISOString() : null,
     })),
     units: item.units,
     modifier_groups: item.modifier_groups,
