@@ -129,6 +129,44 @@ class StaffBranchTest extends TestCase
         $this->assertSame($this->second->id, $res->json('data.branch_id'));
     }
 
+    public function test_somebody_removed_can_be_hired_again(): void
+    {
+        // Found by driving the real form: the validation said a removed
+        // person's email was free (`unique(...)->whereNull('deleted_at')`) and
+        // the DATABASE said otherwise, with a flat unique index that counted
+        // trashed rows. So the form was accepted, the insert hit a 1062, and the
+        // shop got a raw SQLSTATE where a sentence belonged.
+        //
+        // A seasonal hire coming back in October is an ordinary thing, and it
+        // was not refused — it CRASHED.
+        $first = $this->login()->postJson('/api/v1/staff', [
+            'name' => 'Seasonal', 'email' => 'seasonal@shop.test',
+            'password' => 'password123', 'permissions' => ['sales.manage'],
+        ])->assertCreated();
+
+        $this->login()->deleteJson("/api/v1/staff/{$first->json('data.id')}")->assertOk();
+
+        $this->login()->postJson('/api/v1/staff', [
+            'name' => 'Seasonal', 'email' => 'seasonal@shop.test',
+            'password' => 'password123', 'permissions' => ['sales.manage'],
+        ])->assertCreated();
+    }
+
+    public function test_two_people_still_cannot_share_a_live_email(): void
+    {
+        // The other half. Widening the index to (email, deleted_at) must not
+        // widen what it was FOR — one live person per address.
+        $this->login()->postJson('/api/v1/staff', [
+            'name' => 'First', 'email' => 'shared@shop.test',
+            'password' => 'password123', 'permissions' => ['sales.manage'],
+        ])->assertCreated();
+
+        $this->login()->postJson('/api/v1/staff', [
+            'name' => 'Second', 'email' => 'shared@shop.test',
+            'password' => 'password123', 'permissions' => ['sales.manage'],
+        ])->assertStatus(422);
+    }
+
     public function test_an_owner_is_pinned_to_nothing(): void
     {
         // An owner switches; a null here is what makes the HQ view possible.
