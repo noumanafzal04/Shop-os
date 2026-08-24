@@ -10,6 +10,71 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-24 — which pizza is in the Family Deal
+
+### BUG · a deal containing a sized product could not be sold at all
+
+Measured with a probe before anything was designed, on a shop holding ten Small
+and ten Large:
+
+```
+PARENT stock: 0 · effective: 20
+SALE → 422  "Insufficient stock: only 0 in stock."
+```
+
+**Not a wrong number — a refusal, on a full shelf**, quoting a figure the shop
+could see was false. The deduction ran against `products.stock_quantity`, which
+for a varianted product is an orphaned leftover that must not be read as truth —
+the same figure that had disabled the POS tile for sized items a few days
+earlier, one layer up.
+
+### The gap was in three places, each needing a different answer
+
+| | |
+|---|---|
+| schema | `combo_items` had no `variant_id` — the size could not be recorded |
+| save | a deal naming no size could be created, and then never sold |
+| sale | FOUR sites move stock for a combo, all of them against the parent |
+
+The four are `CreateSaleAction` (POS), `OrderService` (online),
+`ProcessSaleReturnAction` (refund) and the BOM snapshot — which is what a sale
+records about what it consumed, so a refund now reads the same shelf the sale
+took from.
+
+### A deal nobody can sell should not be saveable
+
+"Which pizza is in this deal" is a question only the shop can answer, and
+guessing at sale time would mis-count a real shelf. It is asked once, where
+somebody is looking at the deal — rather than at the counter, as "no stock" on a
+shop that has plenty. Same principle as the job presets: an offer that cannot be
+fulfilled should not be made.
+
+### A restriction that had to go
+
+`component_product_id` carried `distinct`. With sizes, **"two Small and one
+Large" is an ordinary deal** — the pair `(product, size)` is what must be
+unique, which a validation rule cannot express. Moved into the action; the same
+item AND size twice is still refused.
+
+### And a smaller thing the e2e drove out
+
+The section's button read "+ Add item" while the page header carries "+ Add
+Item" opening the same drawer — two buttons a screen apart, the same three
+words, told apart by one capital letter. A reader has the section heading for
+context; a screen reader announcing a list of buttons does not. Now "+ Add item
+to deal". Pointing the test at the letter case would have written the confusion
+into the suite.
+
+### HARNESS · the sixth measurement that lied
+
+`npx playwright test --project=desktop` run from the parent repo answered
+`Project(s) "desktop" not found. Available projects: ""` — no config, so it ran
+nowhere. It was proving a MUTATION at the time, so "the test did not fail" would
+have been read as the guard working.
+
+**Four of the six were a relative path.** Recorded in
+`docs/memory/shopos-measurement-that-lied.md`.
+
 ## 2026-08-24 — a code for each size
 
 ### BUG · a reader with no writer, again

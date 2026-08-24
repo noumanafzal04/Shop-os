@@ -276,7 +276,27 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-24 (latest) — a code for each size
+### 2026-08-24 (latest) — which pizza is in the Family Deal
+
+Full write-up: `docs/decisions/shopos-which-pizza-is-in-the-deal.md`.
+
+Probed before designing, on a shop holding ten Small and ten Large:
+`PARENT stock: 0 · effective: 20`, and the sale came back **422 "Insufficient
+stock: only 0 in stock."** Not a wrong number — a refusal on a full shelf. Any
+deal containing a sized product was unsellable.
+
+Three places, three answers: `combo_items` gained `variant_id`; a deal that names
+no size is now refused at SAVE, where somebody is looking at it, rather than
+discovered at the counter; and all four sites that move stock for a combo (POS,
+online, refund, and the BOM snapshot) name the size.
+
+`distinct` came off the component id — "two Small and one Large" is an ordinary
+deal, and the pair (product, size) is what must be unique, which a rule cannot
+express.
+
+Gates: backend **2183 / 9167** · panel **1132 / 89 files**.
+
+### 2026-08-24 — a code for each size
 
 Full write-up: `docs/decisions/shopos-a-code-for-each-size.md`.
 

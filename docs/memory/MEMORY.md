@@ -113,3 +113,4 @@
 - [Who Works Where](shopos-who-works-where.md) — FIXED: panel never set users.branch_id, so branch two's cashier rang branch one's stock and nothing looked wrong
 - [Measurement That Lied](shopos-measurement-that-lied.md) — STANDING: wrong cwd, unquoted heredoc, soft-deleted target — three plausible-looking results from tools that never ran
 - [A Code For Each Size](shopos-code-for-each-size.md) — FIXED: variant barcodes had a reader and no writer; writing it exposed 3 more that were 'correct' while the column stayed empty
+- [Which Pizza In The Deal](shopos-which-pizza-in-the-deal.md) — FIXED: a deal with a sized item could not be sold AT ALL; 4 stock writers now name the size
