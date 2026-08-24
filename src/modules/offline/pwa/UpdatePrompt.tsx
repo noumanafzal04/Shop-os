@@ -116,11 +116,11 @@ export default function UpdatePrompt() {
             Update ready
           </p>
           <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-            Install it between customers — nothing is lost either way.
+            Updating reloads the till, so finish the sale you are on first.
           </p>
           {owed > 0 && (
             <p className="mt-1 text-theme-xs font-medium text-gray-600 dark:text-gray-300">
-              The {owed} {owed === 1 ? "sale" : "sales"} saved on this till will
+              The {owed} {owed === 1 ? "sale" : "sales"} waiting to be sent will
               still be here afterwards.
             </p>
           )}

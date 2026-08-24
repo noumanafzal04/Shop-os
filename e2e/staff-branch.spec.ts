@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 
 import { API, ownerAuth } from "./api";
+import { projectOnly } from "./rules";
 
 /**
  * HIRING SOMEBODY INTO A BRANCH, THROUGH THE SCREEN.
@@ -22,7 +23,7 @@ test.beforeEach(({ browserName }, testInfo) => {
   void browserName;
   test.skip(
     testInfo.project.name !== "desktop",
-    "a flow test, not a layout one — chrome.spec walks every screen at every size",
+    projectOnly("a flow test, not a layout one — chrome.spec walks every screen at every size"),
   );
 });
 

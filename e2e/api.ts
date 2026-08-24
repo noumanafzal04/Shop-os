@@ -75,6 +75,18 @@ export function foodAuth(): Record<string, string> {
 }
 
 /**
+ * The owner of a shop in one particular trade.
+ *
+ * Nine screens sit behind a trade the mart fixture does not have — the
+ * forecourt, the dispensary, the workshop, the bay board — and had no browser
+ * coverage at all until there was a shop that could open them. Usable only from
+ * the matching project, which carries the same storageState.
+ */
+export function tradeAuth(trade: string): Record<string, string> {
+  return authFrom(`e2e/.auth/${trade}.json`);
+}
+
+/**
  * Remove every product whose name starts with `prefix`, and answer how many.
  *
  * Because two specs bred. Both named their fixture `…${Date.now()}`, so each

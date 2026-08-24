@@ -133,12 +133,20 @@ const AppHeader: React.FC = () => {
             </button>
           )}
 
+          {/* `min-w-0` so this can give way.
+
+              A flex item defaults to `min-width: auto` and refuses to shrink
+              below its content, and the controls on the right are `shrink-0`
+              on purpose — so nothing in the row was willing to yield. On a shop
+              whose header carries one control more than the mart's, the row
+              could not fit 1280 and the WHOLE PAGE scrolled sideways. A search
+              box that narrows is fine; a page that scrolls sideways is not. */}
           {isTenant && (
-            <div className="hidden lg:block">
+            <div className="hidden min-w-0 lg:block">
               <button
                 type="button"
                 onClick={() => setPaletteOpen(true)}
-                className="relative flex h-11 w-full items-center gap-3 rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-3 text-sm text-gray-400 shadow-theme-xs transition-colors hover:border-brand-300 dark:border-gray-800 dark:hover:border-brand-800 xl:w-[430px]"
+                className="relative flex h-11 w-full items-center gap-3 rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-3 text-sm text-gray-400 shadow-theme-xs transition-colors hover:border-brand-300 dark:border-gray-800 dark:hover:border-brand-800 xl:max-w-[430px]"
               >
                 <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
                   <svg

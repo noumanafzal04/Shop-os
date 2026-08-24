@@ -1,5 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
+import { BY_PROJECT } from "./skipReporter";
+
 /**
  * What a browser can tell you that a source file cannot.
  *
@@ -256,14 +258,41 @@ export async function noSidewaysScroll(page: Page): Promise<Finding[]> {
       return right;
     };
 
+    const insideFixed = (el: Element): boolean => {
+      let n: Element | null = el;
+      while (n) {
+        if (getComputedStyle(n).position === "fixed") return true;
+        n = n.parentElement;
+      }
+
+      return false;
+    };
+
     let worst: Element | null = null;
     let worstRight = doc.clientWidth;
     for (const el of Array.from(document.body.querySelectorAll("*"))) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
-      if (getComputedStyle(el).position === "fixed") continue;
+      // FIXED, or INSIDE something fixed. Skipping only the fixed element
+      // itself left its children fair game, and the appearance drawer parks
+      // off-screen right with a static header inside it — so every screen in
+      // the shop was told its sideways scroll was caused by a panel nobody had
+      // opened, reaching 1616px in a 1280px window while the real overflow was
+      // eighteen pixels of something else.
+      //
+      // Third time this rule has named the wrong thing; the two before are in
+      // the note above. A culprit that cannot push anything is not a culprit.
+      if (insideFixed(el)) continue;
       const right = clippedRight(el);
-      if (right > worstRight) {
+
+      // `>=`, and the deepest wins a tie.
+      //
+      // A parent stretched by a child reaches exactly as far as the child does,
+      // and document order put the PARENT first — so the finding named the page
+      // container on every screen, which is the symptom and never something
+      // anybody can go and fix. The innermost element at the far edge is the
+      // one that refused to shrink.
+      if (right >= worstRight) {
         worstRight = right;
         worst = el;
       }
@@ -878,4 +907,17 @@ export function report(findings: Finding[], where: string): void {
       ? `\n${where}\n` + findings.map((f) => `  · ${f.what}\n      ${f.detail}`).join("\n") + "\n"
       : where,
   ).toEqual([]);
+}
+
+/**
+ * A check that belongs to ONE project and declines the others.
+ *
+ * The reason carries a marker rather than a form of words, because
+ * `skipReporter` has to tell an honest project skip from a check that skipped
+ * itself out of existence — and it used to do that by pattern-matching English.
+ * The day five trade projects arrived with a sentence nobody had thought to
+ * match, fifty-two of them were reported as coverage that had quietly vanished.
+ */
+export function projectOnly(why: string): string {
+  return `${BY_PROJECT} ${why}`;
 }

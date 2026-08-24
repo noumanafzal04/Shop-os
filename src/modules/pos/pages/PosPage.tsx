@@ -2439,7 +2439,7 @@ export default function PosPage() {
                       className={`group flex w-full flex-col overflow-hidden rounded-xl border text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
                         i === activeIndex
                           ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
-                          : "border-gray-200 bg-white hover:border-brand-400 hover:shadow-md dark:border-gray-700 dark:bg-gray-900"
+                          : "border-gray-200 bg-pos-card hover:border-brand-400 hover:bg-white hover:shadow-md dark:border-gray-700 dark:bg-gray-900"
                       }`}
                     >
                       {shelfHasPhotos && (
@@ -2526,7 +2526,7 @@ export default function PosPage() {
             /* The same white card the tiles became, for the same reason: a
                10% tint on a dark ground is not a surface, and the shop could
                not tell a row from the page it sits on. */
-            <div className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:divide-gray-800 dark:border-gray-700 dark:bg-gray-900">
+            <div className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-pos-card shadow-sm dark:divide-gray-800 dark:border-gray-700 dark:bg-gray-900">
               {products.isLoading && tiles.length === 0 ? (
                 Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 animate-pulse bg-gray-100 dark:bg-gray-800" />)
               ) : productsDenied ? (

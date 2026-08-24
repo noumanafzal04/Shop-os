@@ -64,6 +64,16 @@ layer(base);
      bars are what stop the coloured workspace running to the screen edge. */
   --color-pos-ground: #212a45;
 
+  /* The SHELF, one step below the cart.
+     Product cards and the cart were the same `bg-white`, so a four-column grid
+     of them read as one white mass on the navy — the shop's words were "sari
+     screen white lag rahi". Not a tint: a translucent panel on a dark ground
+     has no edge at any opacity, which is why these became solid plates in the
+     first place, and going back would undo that.
+     Solid, and a shade off white. The cart stays pure white, so the brightest
+     thing on the till is the one place money is being counted. */
+  --color-pos-card: #f2f4f7;
+
   --color-brand-25: #f2f7ff;
   --color-brand-50: #ecf3ff;
   --color-brand-100: #dde9ff;

@@ -22,6 +22,12 @@ import { defineConfig, devices } from "@playwright/test";
 // a guaranteed skip is a check that was deleted quietly (e2e/skipReporter.ts).
 const RESTAURANT_ONLY = /food\..*\.spec\.ts|recipe-size\.spec\.ts/;
 
+// Screens that live behind a trade the mart fixture does not have. Each is
+// walked by a project signed in as a shop that HAS that trade — asking the mart
+// would be refused and skip, and a guaranteed skip is a check deleted quietly.
+const TRADE_ONLY = /trade\.chrome\.spec\.ts/;
+const TRADES = ["petroleum", "pharmacy", "automotive", "retail", "services"];
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -54,13 +60,13 @@ export default defineConfig({
     // "below xl" is on every tablet in the shop.
     {
       name: "tablet-landscape",
-      testIgnore: RESTAURANT_ONLY,
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7) landscape"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "tablet-portrait",
-      testIgnore: RESTAURANT_ONLY,
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/owner.json" },
     },
@@ -72,13 +78,13 @@ export default defineConfig({
     // the catalog share a screen that is 390 points wide.
     {
       name: "phone",
-      testIgnore: RESTAURANT_ONLY,
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPhone 14"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "desktop",
-      testIgnore: RESTAURANT_ONLY,
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" },
     },
@@ -111,6 +117,15 @@ export default defineConfig({
       dependencies: ["setup"],
       use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/food.json" },
     },
+
+    // One per trade. Cheap — a handful of page loads each — and the only way
+    // these screens are looked at by anything at all.
+    ...TRADES.map((trade) => ({
+      name: `trade-${trade}`,
+      testMatch: TRADE_ONLY,
+      dependencies: ["setup"],
+      use: { ...devices["Desktop Chrome"], storageState: `e2e/.auth/${trade}.json` },
+    })),
   ],
 
   webServer: {

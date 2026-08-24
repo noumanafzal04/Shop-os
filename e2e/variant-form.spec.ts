@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+import { projectOnly } from "./rules";
+
 import { API, ownerAuth, removeProductsNamed } from "./api";
 
 /**
@@ -42,7 +44,7 @@ test.beforeEach(({ browserName }, testInfo) => {
   void browserName;
   test.skip(
     testInfo.project.name !== "desktop",
-    "a flow test, not a layout one — chrome.spec walks every screen at every size",
+    projectOnly("a flow test, not a layout one — chrome.spec walks every screen at every size"),
   );
 });
 

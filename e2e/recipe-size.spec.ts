@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+import { projectOnly } from "./rules";
+
 import { API, foodAuth, removeProductsNamed } from "./api";
 
 /**
@@ -30,7 +32,7 @@ test.beforeEach(({ browserName }, testInfo) => {
   void browserName;
   test.skip(
     testInfo.project.name !== "restaurant",
-    "a flow test, not a layout one — food.chrome.spec walks the food screens at every size",
+    projectOnly("a flow test, not a layout one — food.chrome.spec walks the food screens at every size"),
   );
 });
 

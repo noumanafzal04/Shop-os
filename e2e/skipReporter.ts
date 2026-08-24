@@ -19,6 +19,12 @@ import type { Reporter, TestCase, TestResult } from "@playwright/test/reporter";
  * reason came from the shop or the server, because that is the kind that can
  * quietly last for months.
  */
+/**
+ * Written into a skip's reason by `onlyOnProject`, and read back here. The two
+ * live apart, so the token is the contract between them.
+ */
+export const BY_PROJECT = "[project]";
+
 export default class SkipReporter implements Reporter {
   private byProject = 0;
 
@@ -29,9 +35,16 @@ export default class SkipReporter implements Reporter {
 
     const reason = test.annotations.find((a) => a.type === "skip")?.description ?? "";
 
-    // The suite's own shape: one flow, proven once, not re-proven at every
-    // width. chrome.spec is what walks the sizes.
-    if (/screen size|layout one|a flow test/i.test(reason)) {
+    // The suite's own shape: a check that belongs to ONE project and declines
+    // the others — a flow proven once rather than at four widths, or a screen
+    // that only one trade's shop has.
+    //
+    // Matched on a MARKER, not on prose. The first version pattern-matched the
+    // wording, and the day five trade projects arrived with a sentence nobody
+    // had thought to match, fifty-two honest project skips were reported as
+    // checks that had talked themselves out of existence. A detector reading
+    // English is a detector waiting for somebody to rephrase.
+    if (reason.includes(BY_PROJECT)) {
       this.byProject += 1;
 
       return;

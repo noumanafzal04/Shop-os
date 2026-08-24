@@ -16,6 +16,30 @@ const FOOD_OWNER = process.env.E2E_FOOD_OWNER ?? "sweep-food-restaurant@qa.test"
 const FOOD_STATE = "e2e/.auth/food.json";
 
 /**
+ * A SHOP PER TRADE, because nine screens still have none.
+ *
+ * The mart fixture reaches thirty-four of the shop's forty-eight screens. The
+ * other nine sit behind a trade it does not have — the forecourt, the
+ * dispensary, the workshop, the bay board, vehicles, warranty, riders, the
+ * portfolio, reservations — and had never been opened by a browser at all.
+ *
+ * That is not a theoretical gap. The restaurant shop was added the same day and
+ * the first walk of its screens found a kitchen board showing dockets for tabs
+ * cancelled six days earlier.
+ *
+ * These are the QA sweep's own tenants, the same as the mart and the
+ * restaurant. Each sign-in costs one of `throttle:auth`'s five per minute, so
+ * they run once and the sessions are reused.
+ */
+const TRADES: Array<{ key: string; owner: string }> = [
+  { key: "petroleum", owner: "sweep-petroleum@qa.test" },
+  { key: "pharmacy", owner: "sweep-pharmacy@qa.test" },
+  { key: "automotive", owner: "sweep-automotive@qa.test" },
+  { key: "retail", owner: "sweep-retail@qa.test" },
+  { key: "services", owner: "sweep-services@qa.test" },
+];
+
+/**
  * Sign in once, keep the session, and let every other spec start inside the app.
  *
  * The QA sweep's own tenants are the fixtures — a mart with a catalog, a till,
@@ -92,3 +116,9 @@ setup("sign in as a restaurant owner", async ({ page }) => {
   // entire food vertical has no browser coverage at all.
   await signIn(page, FOOD_OWNER, FOOD_STATE);
 });
+
+for (const trade of TRADES) {
+  setup(`sign in as a ${trade.key} owner`, async ({ page }) => {
+    await signIn(page, trade.owner, `e2e/.auth/${trade.key}.json`);
+  });
+}

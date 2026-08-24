@@ -133,6 +133,18 @@ test("every control on screen can be called by name", async ({ page }) => {
     await page.waitForLoadState("networkidle").catch(() => {});
     await page.waitForTimeout(600);
 
+    // GIVE IT A BOUNDED CHANCE TO RENDER, then judge.
+    //
+    // A flat 600ms measured Reports as zero controls on a loaded machine once
+    // — a true finding by the denominator's own rule, and a flake, which is
+    // the worst combination: it teaches people to re-run a red suite. Polling
+    // waits only as long as it has to, and a screen that is STILL empty at the
+    // end is a real one.
+    await expect
+      .poll(async () => (await everythingHasAName(page)).examined, { timeout: 8_000 })
+      .toBeGreaterThan(0)
+      .catch(() => {});
+
     const { findings, examined, hinted } = await everythingHasAName(page);
 
     // THE DENOMINATOR. Zero findings on a screen that rendered no controls is
