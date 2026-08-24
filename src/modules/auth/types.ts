@@ -97,6 +97,16 @@ export interface User {
   role: UserRole;
   status: "active" | "suspended";
   permissions: string[];
+  /**
+   * The branch this person is pinned to, or null.
+   *
+   * The server has sent this since branches existed and this type did not have
+   * it, so it arrived and was dropped — which is why nothing in the panel could
+   * show a staff member their branch or set one. Staff are pinned to it by
+   * `ResolveBranch` and cannot move with a header; an owner's is null, because
+   * an owner switches.
+   */
+  branch_id: string | null;
   email_verified: boolean;
   phone_verified: boolean;
   last_login_at: string | null;

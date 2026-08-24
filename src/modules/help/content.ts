@@ -892,6 +892,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "What a branch is" },
       { type: "p", text: "A second address. Every shop starts with one branch called Main, and you never have to think about branches until you open another." },
       { type: "p", text: "Each branch holds its OWN stock, its own till drawers and its own takings. The catalog, customers and suppliers are shared — a product is one product wherever it sits." },
+      { type: "h", text: "Who works where" },
+      { type: "p", text: "Staff → Add or edit somebody → Which branch do they work at. They can only work that one: its stock, its till, its day. The choice only appears once you have more than one branch, and leaving it unset puts them at Main." },
+      { type: "note", text: "This is not a preference they can change. Their branch is shown beside the search box at the top of the screen so they can check where they are, and nothing they do can move them — which is the point, because it is what stops a second branch's cashier selling the first branch's shelf." },
       { type: "h", text: "Working across branches" },
       {
         type: "list",

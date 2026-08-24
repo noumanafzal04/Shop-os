@@ -37,6 +37,17 @@ export interface StaffInput {
   password?: string;
   status?: "active" | "suspended";
   permissions: string[];
+  /**
+   * Which branch this person works at. Tenant side only — the platform route
+   * REFUSES it (`prohibited`), because a platform staff member belongs to no
+   * shop and therefore to no branch of one.
+   *
+   * `null` clears the pin, which the server reads as "falls back to Main".
+   * The server has accepted and written this from the day it was added, and the
+   * panel never sent it once: every staff member in every multi-branch shop
+   * fell back to Main, so branch two's cashier rang on branch one's stock.
+   */
+  branch_id?: string | null;
 }
 
 /**

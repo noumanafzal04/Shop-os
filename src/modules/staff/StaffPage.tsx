@@ -11,6 +11,8 @@ import { useModal } from "../../hooks/useModal";
 import { ApiError } from "../../common/types/api";
 import { useDebouncedValue } from "../../common/hooks/useDebouncedValue";
 import type { User } from "../auth/types";
+import { useBranches } from "../branches/hooks/useBranches";
+import Select from "../../components/form/Select";
 import { useStaffModule, type StaffInput } from "./hooks/useStaff";
 import { hintFor, labelFor } from "./permissions";
 import { useConfirm } from "../../components/ui/confirm";
@@ -36,10 +38,35 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
   const modal = useModal();
   const toast = useToast();
   const [editing, setEditing] = useState<User | null>(null);
-  const [form, setForm] = useState<{ name: string; email: string; phone: string; password: string; permissions: string[] }>({
-    name: "", email: "", phone: "", password: "", permissions: [],
+  const [form, setForm] = useState<{
+    name: string; email: string; phone: string; password: string;
+    permissions: string[]; branch_id: string;
+  }>({
+    name: "", email: "", phone: "", password: "", permissions: [], branch_id: "",
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const isTenantSide = basePath === "/staff";
+
+  /**
+   * WHICH BRANCH THIS PERSON WORKS AT.
+   *
+   * The server has accepted and written `branch_id` on staff since branches
+   * existed. Nothing ever sent it — the word did not appear on this screen —
+   * so every staff member in every multi-branch shop fell back to Main, and
+   * branch two's cashier rang on branch one's stock. The whole staff-branch
+   * model was driven by a column nothing set.
+   *
+   * Tenant side only: the platform route REFUSES the field (`prohibited`),
+   * because a platform staff member belongs to no shop and so to no branch of
+   * one. And only asked when there is a choice — a single-branch shop showing a
+   * select with one option in it is a question with one answer.
+   */
+  const branches = useBranches(isTenantSide);
+  const branchList = branches.data ?? [];
+  const picksBranch = isTenantSide && branchList.length > 1;
+  const branchName = (id: string | null | undefined) =>
+    branchList.find((b) => b.id === id)?.name ?? null;
 
   const mutation = editing ? staff.update : staff.create;
   const apiError = mutation.error instanceof ApiError ? mutation.error : null;
@@ -67,7 +94,6 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
   // a lot of permissions.
   const allChecked =
     catalog.length > 0 && catalog.every((p) => form.permissions.includes(p.key));
-  const isTenantSide = basePath === "/staff";
   const jobs = presets.data ?? [];
 
   /**
@@ -88,14 +114,17 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", email: "", phone: "", password: "", permissions: [] });
+    setForm({ name: "", email: "", phone: "", password: "", permissions: [], branch_id: "" });
     staff.create.reset();
     modal.openModal();
   };
 
   const openEdit = (u: User) => {
     setEditing(u);
-    setForm({ name: u.name, email: u.email ?? "", phone: u.phone ?? "", password: "", permissions: u.permissions ?? [] });
+    setForm({
+      name: u.name, email: u.email ?? "", phone: u.phone ?? "", password: "",
+      permissions: u.permissions ?? [], branch_id: u.branch_id ?? "",
+    });
     staff.update.reset();
     modal.openModal();
   };
@@ -115,6 +144,10 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
       email: form.email.trim() || undefined,
       phone: form.phone.trim() || undefined,
       permissions: form.permissions,
+      // Sent only where the field is allowed, and "" means "no pin" — which the
+      // server reads as falling back to Main. Sending it on the platform route
+      // would be a 422 on a screen that has no branches to offer.
+      ...(picksBranch ? { branch_id: form.branch_id || null } : {}),
     };
     if (editing) {
       staff.update.mutate(
@@ -187,6 +220,11 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
               <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 <th className="px-6 py-3 font-medium">Name</th>
                 <th className="px-6 py-3 font-medium">Contact</th>
+                {/* Only where there is more than one branch to be at. Same rule
+                    the other branch-scoped lists follow — sales, transfers,
+                    registers, the day — so a single-site shop is never shown a
+                    column that says "Main" all the way down. */}
+                {picksBranch && <th className="px-6 py-3 font-medium">Branch</th>}
                 <th className="px-6 py-3 font-medium">Permissions</th>
                 <th className="px-6 py-3 font-medium">Status</th>
                 <th className="px-6 py-3 font-medium text-right">Actions</th>
@@ -195,15 +233,25 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {list.isLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i}><td colSpan={5} className="px-6 py-4"><div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>
+                  <tr key={i}><td colSpan={picksBranch ? 6 : 5} className="px-6 py-4"><div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>
                 ))
               ) : rows.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">No staff yet — add your first team member.</td></tr>
+                <tr><td colSpan={picksBranch ? 6 : 5} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">No staff yet — add your first team member.</td></tr>
               ) : (
                 rows.map((u) => (
                   <tr key={u.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
                     <td className="px-6 py-4 font-medium text-gray-800 dark:text-white/90">{u.name}</td>
                     <td className="px-6 py-4 text-theme-xs">{u.email ?? u.phone ?? "—"}</td>
+                    {picksBranch && (
+                      <td className="px-6 py-4 text-theme-xs">
+                        {/* No pin reads as Main, because that is what the server
+                            does with it — not as "—", which would suggest they
+                            work nowhere. */}
+                        {branchName(u.branch_id) ?? (
+                          <span className="text-gray-400">Main</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
                         {(u.permissions ?? []).slice(0, 3).map((p) => (
@@ -220,11 +268,19 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
                       <Badge size="sm" color={u.status === "active" ? "success" : "error"}>{u.status}</Badge>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className={ROW_ACTION} onClick={() => openEdit(u)}>Edit</button>
-                      <button className={ROW_ACTION} onClick={() => toggleSuspend(u)}>
+                      {/* Named per ROW. Down a column of twenty people a screen
+                          reader otherwise hears "Edit, Suspend, Remove" twenty
+                          times with nothing to say whose. Same treatment the
+                          catalogue's rows already got. */}
+                      <button className={ROW_ACTION} aria-label={`Edit ${u.name}`} onClick={() => openEdit(u)}>Edit</button>
+                      <button
+                        className={ROW_ACTION}
+                        aria-label={`${u.status === "active" ? "Suspend" : "Activate"} ${u.name}`}
+                        onClick={() => toggleSuspend(u)}
+                      >
                         {u.status === "active" ? "Suspend" : "Activate"}
                       </button>
-                      <button className={ROW_ACTION_DANGER} onClick={() => remove(u)}>Remove</button>
+                      <button className={ROW_ACTION_DANGER} aria-label={`Remove ${u.name}`} onClick={() => remove(u)}>Remove</button>
                     </td>
                   </tr>
                 ))
@@ -280,6 +336,28 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
             <Input type="text" value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="Min. 8 chars" />
             {errorFor("password") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("password")}</p>}
           </div>
+
+          {picksBranch && (
+            <div>
+              <Label>Which branch do they work at?</Label>
+              <Select
+                value={form.branch_id}
+                onChange={(v) => set("branch_id", v)}
+                placeholder="Main (no branch pinned)"
+                options={branchList.map((b) => ({ value: b.id, label: b.name }))}
+              />
+              {/* Not a preference. A staff member is PINNED to their branch by
+                  the server and cannot move with a header, so this decides
+                  whose stock they sell and whose drawer they count. */}
+              <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
+                They can only work this branch — its stock, its till, its day. Leave it
+                unset and they fall back to Main.
+              </p>
+              {errorFor("branch_id") && (
+                <p className="mt-1 text-theme-xs text-error-500">{errorFor("branch_id")}</p>
+              )}
+            </div>
+          )}
 
           <div>
             {/* The job comes first. Seventeen checkboxes is the right model and

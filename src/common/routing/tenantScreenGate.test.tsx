@@ -41,6 +41,7 @@ const staff = (permissions: string[]): User => ({
   role: "staff",
   status: "active",
   permissions,
+  branch_id: null,
   email_verified: true,
   phone_verified: true,
   last_login_at: null,

@@ -13,10 +13,14 @@ import { useBranches } from "../hooks/useBranches";
  */
 export default function BranchSwitcher() {
   const role = useAuthStore((s) => s.user?.role);
+  const myBranchId = useAuthStore((s) => s.user?.branch_id);
   const settings = useShopSettings();
   const multiBranchSetting = settings.data ? settings.data.max_branches !== 1 : false;
-  // Only owners on a multi-branch plan need the branch list.
-  const branches = useBranches(role === "shop_owner" && multiBranchSetting);
+  // Owners need the list to CHOOSE from. Staff need it to read one name off —
+  // their own — and they may not be allowed it at all: `/branches` takes any of
+  // seven permissions and a kitchen hand holds none of them. An unresolved name
+  // renders nothing rather than a guess.
+  const branches = useBranches(multiBranchSetting && (role === "shop_owner" || Boolean(myBranchId)));
   const { activeBranchId, setActiveBranch } = useBranchStore();
   const qc = useQueryClient();
 
@@ -31,10 +35,41 @@ export default function BranchSwitcher() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  // Owners only; single-branch shops never see it.
-  if (role !== "shop_owner" || !multiBranchSetting) return null;
+  if (!multiBranchSetting) return null;
 
   const list = branches.data ?? [];
+
+  /**
+   * A STAFF MEMBER IS TOLD WHERE THEY ARE, AND CANNOT MOVE.
+   *
+   * `ResolveBranch` pins staff to `users.branch_id` and a header can never move
+   * them, so they were never wrong about which branch they were on — they
+   * simply could not KNOW. This control returned null for them and nothing else
+   * named the branch, which on a two-branch shop means a person counting a
+   * drawer has no way to check whose drawer it is.
+   *
+   * Read-only on purpose: the pin is the owner's decision, made on the staff
+   * screen. Offering a switch that the server ignores would be worse than
+   * silence.
+   */
+  if (role !== "shop_owner") {
+    const mine = list.find((b) => b.id === myBranchId);
+    if (!mine) return null;
+
+    return (
+      <div
+        className="flex h-11 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300"
+        title={`You work at ${mine.name}`}
+      >
+        <svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <path d="M3 7l7-4 7 4-7 4-7-4z" strokeLinejoin="round" />
+          <path d="M3 7v6l7 4 7-4V7" strokeLinejoin="round" />
+        </svg>
+        <span className="max-w-[10rem] truncate font-medium">{mine.name}</span>
+      </div>
+    );
+  }
+
   if (list.length < 2) return null;
 
   // null activeBranchId = "All branches" (the HQ reporting view). A specific
