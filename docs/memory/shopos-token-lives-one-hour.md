@@ -28,3 +28,22 @@ Third time this exact shape has cost a run: calling as nobody
 ([[shopos-asked-as-nobody]]), a dead agent's null verdict
 ([[shopos-failed-check-is-not-a-verdict]]), and now an expired credential.
 **A failed check is not a verdict about the subject.**
+
+## It bit the e2e suite too (2026-08-24)
+
+A Playwright run competing with a backend suite on the same machine took over an
+hour. The browser holds the token in `localStorage`, so once it expired **every
+screen was the signed-out shell** — and the suite reported:
+
+- "no product cards on screen — is a shift open?"
+- "the till listed no sellable products"
+- the a11y ratchet: **`2/5 unnamed` on EVERY screen**
+
+That last one is the tell. A real accessibility regression varies screen to
+screen; an identical figure everywhere means every screen was the same page.
+
+**Two guards now say it out loud:** `ownerAuth()` refuses a saved session older
+than 55 minutes, and `openTill()` throws if it lands on `/signin`. Both name the
+expiry rather than the till.
+
+See [[shopos-measurement-that-lied]].

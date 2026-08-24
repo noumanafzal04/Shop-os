@@ -10,6 +10,52 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-24 — the Large ran out, the Small did not
+
+### BUG · a size could not be taken off the menu
+
+Eighty-sixing was a decision about a PRODUCT. A pizzeria out of large bases had
+exactly one move: take the whole pizza off — **Small and Medium with it, all
+evening, on the busiest item on the menu.** Nothing was broken; the feature had
+been built one dimension short of the thing it describes. A size is what a
+customer orders and what a kitchen runs out of.
+
+The product-level flag is untouched. "No pizza tonight" is a real sentence, and
+not the same one as "no large".
+
+### The shape it took, and why
+
+| decision | reason |
+|---|---|
+| one `App\Support\SoldOut`, three callers | a two-part rule written three times is three chances for one copy to check the product and forget the size — which has already cost this shop once |
+| **size asked FIRST** | "no large, but we have medium" is a sale; "no pizza" when only the large ran out is a lost evening |
+| `trusted` NOT a parameter | a dine-in settle and an online capture are food already eaten; those paths simply do not call the rule, out loud, rather than hiding the choice behind a flag |
+| the chef presses the **row** button | already written down when 86 was built: a chef is not opening a thirty-field form twice a day. It now asks *which* when there is a which |
+| mirror `sold_out: bool` → till `sold_out_at` | a device has no use for *when*; `browse.ts` translates, and **absence reads as "on"** so an un-synced device sells rather than refuses |
+
+`CreateSaleAction`, `OrderService` and `AddTicketItemsAction` all consult the one
+rule, where `scripts/one-rule-many-paths.py` can see them do it.
+
+### HARNESS · thirteen failures that were one expired token, again
+
+A full browser run reported 13 failures all accusing the till, and the a11y
+ratchet said **`2/5 unnamed` on every screen alike**. That figure is the tell: a
+real a11y regression varies screen by screen. One identical number everywhere
+means every screen was the SAME screen — the sign-in page. `e2e/.auth/owner.json`
+was 68 minutes old and `/auth/me` returned 401; access tokens live 60 minutes,
+set per token at mint, so `config/sanctum.php` (`expiration => null`) proves
+nothing when read.
+
+This is the **second** time one dead credential has been reported as a wall of
+product bugs — the sweep's own 97 were the first. Both sides now refuse instead
+of guessing: `ownerAuth()` throws when the saved sign-in is over 55 minutes old,
+and `openTill()` throws by name when it lands on `/signin`.
+
+> A tool that could not do its job does not return an answer. It returns
+> something shaped like one.
+
+---
+
 ## 2026-08-24 — which pizza is in the Family Deal
 
 ### BUG · a deal containing a sized product could not be sold at all

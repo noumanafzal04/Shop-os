@@ -5,7 +5,7 @@ metadata:
   type: feedback
 ---
 
-SIX times in one session a measurement produced readable, plausible output while
+SEVEN times in one session a measurement produced readable, plausible output while
 the tool had not actually done the job. Four of the six were a relative path:
 
 | what I ran | what it looked like | what happened |
@@ -15,6 +15,7 @@ the tool had not actually done the job. Four of the six were a relative path:
 | planted a test value with `->first()` | guard "fired" | the row was **soft-deleted**; the guard never ran |
 | `cd ../shopos-backend` from the parent | task "failed with exit code 1" | the cd failed; **the suite never ran**. Happened FOUR times in one session |
 | `npx playwright test --project=desktop` from the parent | `Project(s) "desktop" not found. Available projects: ""` | no config found — it ran nowhere, and the MUTATION it was proving therefore proved nothing |
+| a python heredoc writing `Path("src/…")` from the parent | printed nothing alarming; the guard clause exited | **the file was never written**, and `npx vitest` on the same path then answered "15 passed" — about tests that did not exist |
 | `tsc --noEmit -p tsconfig.app.json` | typecheck clean | it does **not cover test files** — `npm run build` (`tsc -b`) does, and it failed on an `Object.hasOwn` the app config never looked at |
 
 **Why:** none of them errored. Each returned something with the shape of a

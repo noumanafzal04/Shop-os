@@ -276,7 +276,40 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-24 (latest) — which pizza is in the Family Deal
+### 2026-08-24 (latest) — the Large ran out, the Small did not
+
+Full write-up: `docs/decisions/shopos-the-large-ran-out.md`.
+
+Eighty-sixing was a decision about a PRODUCT. A pizzeria out of large bases had
+one move: take the whole pizza off — **Small and Medium with it, all evening, on
+the busiest item on the menu.** A size is what a customer orders and what a
+kitchen runs out of, so a size is what has to be markable. The product-level flag
+stays: "no pizza tonight" is a different sentence from "no large".
+
+The rule lives once, in `App\Support\SoldOut`, because three paths sell — the
+counter, an online order and a dine-in tab — and a two-part rule written three
+times is three chances for one of them to check the product and forget the size.
+That has cost this shop before: `ITEM_SOLD_OUT` once lived on the counter alone
+and the tab printed a kitchen ticket for a dish that was off.
+
+**The size is asked first.** "No large, but we have medium" is a sale; "no pizza"
+when only the large ran out is a lost evening.
+
+`trusted` is deliberately not a parameter. A dine-in settle and an online
+capture are food already eaten — those paths simply do not call the rule, out
+loud, rather than passing a flag that hides the choice.
+
+The chef presses it on the same row button, which now asks *which* when there is
+a which. Not in the product editor: a chef is not opening a thirty-field form
+twice a day.
+
+The mirror carries `sold_out: boolean`, the till carries `sold_out_at`, and
+`browse.ts` translates — **absence reads as "on"**, so a device that has not
+synced since this shipped sells rather than refuses.
+
+Gates: backend **2189 / 9193** · panel **1137 / 89 files**.
+
+### 2026-08-24 — which pizza is in the Family Deal
 
 Full write-up: `docs/decisions/shopos-which-pizza-is-in-the-deal.md`.
 

@@ -114,3 +114,4 @@
 - [Measurement That Lied](shopos-measurement-that-lied.md) — STANDING: wrong cwd, unquoted heredoc, soft-deleted target — three plausible-looking results from tools that never ran
 - [A Code For Each Size](shopos-code-for-each-size.md) — FIXED: variant barcodes had a reader and no writer; writing it exposed 3 more that were 'correct' while the column stayed empty
 - [Which Pizza In The Deal](shopos-which-pizza-in-the-deal.md) — FIXED: a deal with a sized item could not be sold AT ALL; 4 stock writers now name the size
+- [The Large Ran Out](shopos-large-ran-out.md) — per-size 86 shipped; one shared SoldOut rule across all 3 selling paths; size checked FIRST; absence of the mirror flag reads as "on"
