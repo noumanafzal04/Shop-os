@@ -42,6 +42,17 @@ jobs:
       - name: Tests
         run: npx vitest run
 
+      - name: Known vulnerabilities in what we ship
+        # A CVE pass sat on the backlog as a one-off for weeks, which is the
+        # wrong shape for it: an audit that was clean in August says nothing
+        # about September, and the whole point is the advisory published after
+        # somebody looked. So it is a gate, not an errand.
+        #
+        # `--omit=dev` because this gate is about what reaches the shop's
+        # browser. A build tool with an advisory is worth knowing and is not
+        # worth blocking a deploy over at 2am; a dependency inside dist/ is.
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Build
         # Built here as well as on the droplet, deliberately. A build that fails
         # would otherwise fail on a 1 GB box AFTER the checkout had already been

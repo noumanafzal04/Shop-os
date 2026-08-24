@@ -1272,7 +1272,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
             {/* ═══════════════ TAB: Variants & options ═══════════════ */}
             <div className={activeTab === "options" ? "space-y-5" : "hidden"}>
-        {/* Variants — products, creation only */}
+        {/* Variants — products, on BOTH paths.
+            This said "creation only" for a while after it stopped being true,
+            which is its own kind of wrong documentation: a comment stating a
+            limitation that no longer exists keeps the limitation alive in
+            everybody's backlog. Sizes are created, re-priced, added later and
+            retired from here; `toPayload` decides what each row sends. */}
         {showVariants && (
           <Section
             title="Sizes, colours and options"
