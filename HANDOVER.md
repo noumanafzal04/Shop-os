@@ -276,7 +276,105 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-24 (latest) — the Large ran out, the Small did not
+### 2026-08-24 (latest) — a docket outlived its tab
+
+Full write-up: `docs/decisions/shopos-a-docket-outlived-its-tab.md`.
+
+The e2e suite had no shop that could hold a dish — the fixture is a mart and
+`itemTypesFor('mart')` is `["physical_product","deal"]` — so the floor, the tab
+and the kitchen board had **no browser coverage at all.** Giving the suite a
+restaurant meant building a fixture that puts a real ticket on the pass, because
+a board with nothing on it passes every layout rule ever written. Reading what
+was already on that board found the bug:
+
+```
+9 dockets on the pass — EIGHT belonging to tabs that had been VOIDED,
+two of them fired six days earlier.
+```
+
+`cancel()` voided the tab and its line items and never touched the KOT rows;
+`boardQuery` filtered on the docket's own status alone. The dashboard was worse
+— `kot_waiting` counted `whereNull('served_at')` with no filter at all, so the
+number an owner reads to know what the kitchen owes grew by one every time
+anybody cancelled anything and never came down.
+
+One rule now, `KitchenTicket::scopeForAnOpenTab`, read by both.
+
+**Cancel writes, settle does not.** Cancel is a known fact — this food will not
+be cooked or paid for — so the docket is written `void`, except anything already
+`served`, because cancelling a bill cannot un-cook food. Settle is not a fact
+about the kitchen at all: a tab being paid says nothing about whether anyone
+pressed Ready, and writing `served` would put a claim in the kitchen's record
+the kitchen never made. The board judges instead.
+
+There is a `restaurant` playwright project now, signed in as
+`sweep-food-restaurant@qa.test`, running `food.*.spec.ts` and
+`recipe-size.spec.ts` and nothing else. The recipe spec no longer skips — it
+FAILS if the shop cannot keep a dish, which is the point of the project.
+
+Four fixture traps on the way, every one of them the harness rather than the
+product: `tables[0]` was occupied; `fire`'s response `data` IS the kots array;
+cleanup ran after the assertions so four failing runs stranded four open tabs on
+a real floor; and `kot_number` is a per-tab sequence, so `KOT #1` matched five
+cards.
+
+Gates: backend **2205 / 9281** · panel **1137 / 90 files**.
+
+### 2026-08-24 — when a Large uses more than a Small
+
+Full write-up: `docs/decisions/shopos-when-a-large-uses-more.md`.
+
+Measured before designing, through the real API. A sized dish with a `2 dough`
+recipe: **one Small consumed 2, one Large consumed 2.** Nothing refused,
+nothing logged — a recipe belonged to a DISH, so a pizzeria's ingredient stock
+was right for one size at most and its food cost was wrong for every other.
+`bomSnapshot()` had written the fact down itself: *"A recipe has no sizes and
+passes null."*
+
+A size's rows now **override** the dish's rows — not add to them, because
+addition cannot express the ordinary case of a Large using more of the same
+flour. A size that names nothing falls back to the dish's own rows, which is
+what every recipe in the database is, so nothing that worked stops working.
+
+One answer, `App\Support\RecipeFor`, for four readers: the counter deducts it,
+the return restores it, the BOM snapshot records it and `RecipeCost` prices it.
+The snapshot is the one that would have bitten quietly — it is what a refund
+restores, so a returned Large would have put a Small's flour back.
+
+**Warned, not refused**, unlike the deal case: a deal with no size was
+unsellable, while a sized dish with one recipe sells fine and just deducts
+wrong. Refusing would break every shop that wrote a recipe the only way the
+software allowed.
+
+`distinct` came off the ingredient id for the second time in a week — the same
+flour once per size is the commonest sized recipe there is, and the pair
+(ingredient, size) is what must be unique.
+
+And one thing I had wrong: I read `OrderService`, saw no recipe branch, and was
+about to file "the online door consumes nothing". The probe said it deducts at
+COMPLETION — it only skips the placement-time hold.
+
+**The e2e for this cannot run.** The fixture shop is a mart, and
+`itemTypesFor('mart')` is `["physical_product","deal"]`, so a food spec asks the
+server for a dish, is refused, and skips forever while printing as a line in a
+green run. `e2e/skipReporter.ts` now separates skips **by project** (a flow
+proven once, not four times) from skips **by what the shop or server said**,
+and names the second kind with its reason. A food fixture shop is owed: until
+there is one, dine-in, KOT, menu hours and recipes are proven by backend tests
+only.
+
+Two more found while writing this up, both in the audit trail shipped hours
+earlier. Activity could filter to **Products** and no further, so an item's
+eleventh-oldest price change meant paging every product change in the shop —
+while the server had accepted `?record=` since the panel was built and nothing
+passed it. And the trail **never named WHICH one**: rows read `Product ·
+Changed · price 180 → 210` with no subject, though `subjectName()` had been
+written for exactly that and the panel's type did not declare the field. A
+writer with no reader, arriving in the same commit as the thing that needed it.
+
+Gates: backend **2199 / 9236** · panel **1137 / 90 files**.
+
+### 2026-08-24 — the Large ran out, the Small did not
 
 Full write-up: `docs/decisions/shopos-the-large-ran-out.md`.
 

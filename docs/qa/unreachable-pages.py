@@ -323,6 +323,27 @@ def _member_around(src: str, at: int) -> str:
     return src[lo:hi]
 
 
+# ── Calls that are a SUMMARY, not a list ────────────────────────────────
+#
+# A handful of rows shown beside something else, with the full list one click
+# away. Page two would be wrong here: a product form is not a place to browse.
+#
+# An entry is a CLAIM and has to be checked, not admired. `PriceHistory` earned
+# its place only after the claim it rests on was made true — its own docblock
+# said "the whole trail is still on Activity, filterable", and Activity could
+# filter to Products but not to THIS product. The eleventh-oldest price change
+# of one item meant paging every product change in the shop. The server had
+# taken `?record=` since the panel was built and nothing passed it.
+#
+# So the rule for this dict: name the screen that shows the REST of it, and go
+# and use it before adding the line.
+A_SUMMARY_WITH_THE_REST_ELSEWHERE = {
+    "src/modules/catalog/components/PriceHistory.tsx":
+        "a handful of price changes beside the price field; the rest is on "
+        "Activity, narrowed to this item, linked from the panel itself",
+}
+
+
 def frozen_on_page_one(routes: set[str]) -> tuple[list[tuple[str, str]], int]:
     """(route, file) for every call whose request cannot vary, and how many were judged."""
     builders = _builders()
@@ -349,10 +370,13 @@ def frozen_on_page_one(routes: set[str]) -> tuple[list[tuple[str, str]], int]:
             # everything.
             for name in BUILDS_PARAMS.findall(window) + re.findall(r"\(\s*\w+\s*:\s*([A-Z]\w+)", window):
                 window += "\n" + builders.get(name, "")
+            here = str(f.relative_to(PANEL))
+            if here in A_SUMMARY_WITH_THE_REST_ELSEWHERE:
+                continue
             if not (ASKS_FOR_A_PAGE.search(window)
                     or ASKS_BY_NAME_TOO.search(window)
                     or DRAINS_EVERY_PAGE.search(window)):
-                stuck.append((m.group(1).lstrip("/"), str(f.relative_to(PANEL))))
+                stuck.append((m.group(1).lstrip("/"), here))
 
     return stuck, judged
 

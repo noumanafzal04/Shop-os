@@ -80,3 +80,18 @@ flagged as a caller bug; both-sides-collections compares for EQUALITY.
 Related: [[shopos-read-vs-manage]], [[shopos-security-pass]],
 [[shopos-other-half-of-a-date]], [[shopos-ceiling-follows-the-bill]],
 [[shopos-sold-out-and-reachability]], [[shopos-detector-vs-rule]]
+
+**2026-08-24 follow-up — two gaps in what shipped:**
+- Activity could filter to a KIND (`type=Product`) but not to one RECORD, so an
+  item's older price changes meant paging every product change in the shop. The
+  server took `?record=` from day one and nothing passed it. Fixed: Activity
+  reads it from the URL, says so with a removable chip, and `PriceHistory` links
+  in. The summary panel's page-one cap is registered in
+  `unreachable-pages.py` under `A_SUMMARY_WITH_THE_REST_ELSEWHERE` — the rule
+  for that dict is: name the screen showing the rest, and go USE it first.
+- The trail **never named WHICH one**. Rows read `Product · Changed · price 180
+  → 210`. `subjectName()` existed; the panel's `AuditLog` interface did not
+  declare `subject`. A writer with no reader, in the same commit as the thing
+  that needed it. See [[shopos-measurement-that-lied]] for the stale
+  `vite preview` (`reuseExistingServer: true`) that made the first e2e run lie
+  about this.

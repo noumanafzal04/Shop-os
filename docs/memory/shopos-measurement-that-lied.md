@@ -47,6 +47,11 @@ result, and each shape was the shape of the answer I was expecting.
   now a truncating window has hidden entries and made me draw the wrong
   conclusion about the tool's output — once nearly filing "the sweep's reuse
   branch never runs";
+- **playwright's webServer has `reuseExistingServer: true`** and serves a BUILT
+  `dist` via `vite preview`. A preview process left over from an earlier run
+  keeps serving the OLD bundle, so a new e2e fails against code that is not on
+  the page. Kill port 4173 (`lsof -ti:4173 | xargs kill -9`) before trusting an
+  e2e failure that says a control is missing;
 - and the general form: **a tool that could not do its job does not return an
   answer, it returns something shaped like one.**
 

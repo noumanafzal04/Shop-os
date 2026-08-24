@@ -10,6 +10,171 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-24 — a docket outlived its tab
+
+### BUG · a cancelled tab kept telling the kitchen to cook
+
+Read off a real shop's pass while building an e2e fixture:
+
+```
+9 dockets on the board
+  KOT#1  fired  2026-08-18   ticket TAB-00002 is void
+  KOT#1  fired  2026-08-18   ticket TAB-00003 is void
+  … EIGHT of the nine belonged to VOIDED tabs
+```
+
+`cancel()` voided the tab and its line items and **never touched the KOT rows**.
+`boardQuery` filtered on the docket's own status alone. So a docket for a dead
+tab looked exactly like one for a table still waiting, and nothing would ever
+take it down.
+
+### BUG · the owner's dashboard counted every docket ever fired
+
+Worse, because it is the number read at a glance:
+
+```php
+$kots = KitchenTicket::query()
+    ->whereNull('served_at');   // no docket status, no tab status
+```
+
+`kot_waiting` grew by one every time anybody cancelled anything and never came
+down. Two readers of one fact, disagreeing with each other and with reality —
+now `KitchenTicket::scopeForAnOpenTab`, read by both.
+
+### The distinction that shaped the fix
+
+| | writes the docket? | why |
+|---|---|---|
+| **cancel** | yes, `void` | a known fact: this food will not be cooked, eaten or paid for |
+| cancel, already `served` | **no** | cancelling a bill cannot un-cook food; rewriting what the kitchen sent out to tidy a screen is how its record stops being true |
+| **settle** | **no** | not a fact about the kitchen at all — a paid tab says nothing about whether anyone pressed Ready. The BOARD judges: a closed tab is not work |
+
+### HARNESS · four fixture traps, none of them the product
+
+The e2e for this could not exist until the suite had a shop that can hold a
+dish. Building it cost four wrong answers, each looking like a product failure:
+
+| symptom | cause |
+|---|---|
+| `TABLE_OCCUPIED` | the fixture took `tables[0]` and a tab was open on it |
+| "could not put a ticket on the pass" | `fire`'s response `data` IS the kots array, not `{kots: […]}` |
+| the next run failed for no visible reason | cleanup ran AFTER the assertions, so four failing runs stranded four open tabs on a real floor |
+| `KOT #1` resolved to five elements | `kot_number` is a per-tab sequence; every card on a busy pass says #1 |
+
+The third is `shopos-fixtures-that-breed` in a new shape — not a name that
+grows, a **table that stays occupied**. Cleanup registers the tab the moment it
+EXISTS now, and runs from `afterEach`.
+
+---
+
+## 2026-08-24 — when a Large uses more than a Small
+
+### BUG · every size of a dish drew the same ingredients
+
+Measured through the real API before anything was designed:
+
+```
+CREATE sized dish + recipe → 201
+one SMALL sold → dough 2 consumed
+one LARGE sold → dough 2 consumed
+```
+
+Nothing refused, nothing logged. A recipe belonged to a DISH, so a pizzeria's
+ingredient stock was right for one size at most — and its **food cost**, the
+number a kitchen prices against, was wrong for every other. `bomSnapshot()` had
+already written the fact down: *"A recipe has no sizes and passes null."*
+
+The refund is where it would have bitten quietly: the BOM snapshot is what a
+return restocks, so a returned Large put a Small's flour back.
+
+### The shape it took
+
+| decision | reason |
+|---|---|
+| one `App\Support\RecipeFor`, four readers | counter, return, snapshot, cost — four copies of "which rows apply" is four chances to forget the size |
+| size rows **override**, never add | addition cannot express the ordinary case: a Large uses MORE of the same flour, not extra on top of the Small's |
+| a size naming nothing falls back to the dish | that is what every recipe in the database is; nothing that worked stops working |
+| **warned**, not refused | unlike the deal, a sized dish with one recipe still SELLS — refusing would break shops that wrote a recipe the only way allowed |
+| `distinct` removed (2nd time this week) | the same flour once per size is the commonest sized recipe; the pair (ingredient, size) is the key, which a rule cannot express |
+
+### REFUTED · "the online door consumes no recipe at all"
+
+I read `OrderService`, found no recipe branch beside the combo one, and was
+about to file it. The probe measured `97 → 94` at completion: an order rings
+through `CreateSaleAction` when it completes. It holds nothing at PLACEMENT,
+which a deal does — a real difference, defensible, and not the bug I was sure
+of. **The probe existed to check the thing I was certain about.**
+
+### BUG · the trail never said WHICH one
+
+Found by writing the e2e for the fix above. The Activity table renders When,
+Who, What (a kind + an event badge) and Changed to. It has never rendered the
+SUBJECT:
+
+```
+Product · Changed · price 180 → 210
+```
+
+Which sugar? The shop cannot tell. `AuditLog::subjectName()` and the
+controller's `'subject' => $log->subjectName()` were written the same day the
+trail learned to filter by record — and the controller's own comment says the
+reason out loud: *"WHICH one. The trail named a kind and never a subject."*
+**The panel's `AuditLog` interface did not declare the field at all.**
+
+A writer with no reader — the inverse of this repository's most repeated
+defect, and it arrived in the same commit as the thing that made it necessary.
+
+The row now prints the subject under its kind, and nothing where the subject is
+gone: a deleted record has no name left, and inventing one would be worse than
+the blank.
+
+### BUG · "the whole trail is on Activity" was half true
+
+`unreachable-pages.py` flagged `PriceHistory.tsx` for a call that cannot ask for
+page two. The panel is a summary — a handful of price changes beside the price
+field — and page two would be wrong there. But its own docblock rested the case
+on a claim:
+
+> The whole trail is still on Activity, filterable.
+
+Activity could filter to **Products**, and no further. Finding the
+eleventh-oldest price change of ONE item meant paging every product change in
+the shop and reading each row's subject. The server had accepted `?record=`
+since the day the panel was built, and nothing passed it.
+
+Activity now reads `?record=` from the URL and says so with a removable chip —
+a filtered list that looks unfiltered is how somebody concludes their shop has
+no history. The panel links straight into it.
+
+Only then was the scanner exemption honest. The entry names the screen that
+shows the rest, and the rule for that dict is written beside it: **go and use
+that screen before adding the line.**
+
+### HARNESS · a spec that skips itself out of existence
+
+The e2e for this cannot run. The fixture shop is a mart and
+`itemTypesFor('mart')` is `["physical_product","deal"]`, so the spec asks for a
+food dish, is refused, and skips — forever, printing as one more line in a green
+run.
+
+`e2e/skipReporter.ts` now separates the two kinds:
+
+```
+3 skipped by project — a flow proven once, not re-proven at four widths.
+
+DID NOT RUN — 1 check(s) skipped on what the SHOP or SERVER said:
+  · desktop › recipe-size.spec.ts › a recipe line can name which size it is for…
+      this shop cannot keep food dishes
+```
+
+Same rule the sweep learned when three phases picked their own shops:
+**checks that did not happen do not appear in a list of checks that did.**
+
+Owed: a food fixture shop. Until there is one, dine-in, KOT, menu hours and
+recipes have no browser coverage at all.
+
+---
+
 ## 2026-08-24 — the Large ran out, the Small did not
 
 ### BUG · a size could not be taken off the menu

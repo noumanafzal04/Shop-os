@@ -115,3 +115,5 @@
 - [A Code For Each Size](shopos-code-for-each-size.md) — FIXED: variant barcodes had a reader and no writer; writing it exposed 3 more that were 'correct' while the column stayed empty
 - [Which Pizza In The Deal](shopos-which-pizza-in-the-deal.md) — FIXED: a deal with a sized item could not be sold AT ALL; 4 stock writers now name the size
 - [The Large Ran Out](shopos-large-ran-out.md) — per-size 86 shipped; one shared SoldOut rule across all 3 selling paths; size checked FIRST; absence of the mirror flag reads as "on"
+- [When A Large Uses More](shopos-large-uses-more.md) — per-size recipes shipped; RecipeFor = one answer for 4 readers; size rows OVERRIDE not add; e2e fixture shop is a MART so food specs can never run
+- [A Docket Outlived Its Tab](shopos-docket-outlived-tab.md) — cancelled tabs left dockets on the kitchen pass forever + inflated kot_waiting; one shared scopeForAnOpenTab; e2e finally has a RESTAURANT project
