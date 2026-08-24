@@ -8,12 +8,14 @@ use App\Exceptions\DomainException;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductSerial;
+use App\Models\ProductVariant;
 use App\Models\Sale;
 use App\Models\SaleItemSerial;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Services\InventoryService;
 use App\Support\DocumentCounter;
+use App\Support\RecipeFor;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -311,8 +313,15 @@ class ProcessSaleReturnAction
                     } elseif ($product !== null && $product->hasRecipe()) {
                         // Returning a made-to-order dish puts its ingredients back
                         // (ingredient qty × returned count) — the mirror of the
-                        // recipe depletion at sale time.
-                        foreach ($product->recipeItems()->with('ingredient')->get() as $ri) {
+                        // recipe depletion at sale time, for the SIZE that was
+                        // sold. This is the legacy path (sales older than the BOM
+                        // snapshot), and it has to read the same rows the sale
+                        // read or a returned Large restores a Small's flour.
+                        $soldSize = $line['variant_id'] === null
+                            ? null
+                            : ProductVariant::query()->whereKey($line['variant_id'])->first();
+
+                        foreach (RecipeFor::rows($product, $soldSize) as $ri) {
                             $ingredient = $ri->ingredient;
                             if ($ingredient !== null && $ingredient->type === ItemType::Product && $ingredient->track_inventory) {
                                 $this->inventory->adjust([

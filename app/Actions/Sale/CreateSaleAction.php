@@ -28,6 +28,7 @@ use App\Support\CashRounding;
 use App\Support\DiscountCeiling;
 use App\Support\ModifierResolver;
 use App\Support\RecipeCost;
+use App\Support\RecipeFor;
 use App\Support\RegisterContext;
 use App\Support\SoldOut;
 use App\Support\TenantContext;
@@ -289,7 +290,6 @@ class CreateSaleAction
                         SoldOut::assertSellable($product, $variant);
                     }
 
-                    $source = $variant ?? $product;
                     $quantity = (float) $item['quantity'];
 
                     // Pack-breaking: a product-level line may be sold in a defined
@@ -450,7 +450,7 @@ class CreateSaleAction
                         // an incomplete food cost is not a smaller cost, it is
                         // a wrong one in the direction that makes a kitchen
                         // underprice.
-                        'unit_cost' => $this->lineCost($source, $factor),
+                        'unit_cost' => $this->lineCost($product, $variant, $factor),
                         'line_discount' => $lineDiscount,
                         'line_total' => $lineTotal,
                         'modifiers' => $modifierSnapshot,
@@ -981,7 +981,7 @@ class CreateSaleAction
                     // Snapshot the exploded BOM (per-unit component quantities) for
                     // combo/recipe lines, so a later return restocks exactly what
                     // was sold even if the recipe/combo is edited in between.
-                    $componentsSnapshot = $this->bomSnapshot($line['product']);
+                    $componentsSnapshot = $this->bomSnapshot($line['product'], $line['variant'] ?? null);
 
                     $saleItem = $sale->items()->create([
                         'tenant_id' => $tenantId,
@@ -1045,11 +1045,13 @@ class CreateSaleAction
                     } elseif ($line['product']->hasRecipe()) {
                         // A made-to-order dish holds no stock of its own — selling it
                         // draws each raw ingredient down by (ingredient qty × dish
-                        // qty). allow_negative: the dish is already made, so a short
+                        // qty), for the SIZE ordered: a Large is made differently
+                        // from a Small, and one recipe for all sizes used to draw
+                        // the same flour for both. allow_negative: the dish is already made, so a short
                         // or under-recorded ingredient must never fail the sale (it
                         // just shows as negative stock to recount) — and a dine-in
                         // settle of food already served can never be blocked.
-                        foreach ($line['product']->recipeItems()->with('ingredient')->get() as $ri) {
+                        foreach (RecipeFor::rows($line['product'], $line['variant'] ?? null) as $ri) {
                             $ingredient = $ri->ingredient;
                             if ($ingredient !== null && $ingredient->type === ItemType::Product && $ingredient->track_inventory) {
                                 $this->inventory->adjust([
@@ -1309,13 +1311,17 @@ class CreateSaleAction
      *
      * @return array<int, array{product_id: string, variant_id: null, name: string, quantity_per_unit: float}>|null
      */
-    private function bomSnapshot(Product $product): ?array
+    private function bomSnapshot(Product $product, ?ProductVariant $variant = null): ?array
     {
         if ($product->isCombo()) {
             $rows = $product->comboItems()->with('component')->get()
                 ->map(fn ($ci) => [$ci->component, (float) $ci->quantity, $ci->variant_id]);
         } elseif ($product->hasRecipe()) {
-            $rows = $product->recipeItems()->with('ingredient')->get()
+            // WHICH SIZE was ordered decides which rows apply — a Large is
+            // made differently from a Small, and the snapshot has to record
+            // what the kitchen actually used or the refund restores a Small's
+            // ingredients for a Large that went out.
+            $rows = RecipeFor::rows($product, $variant)
                 ->map(fn ($ri) => [$ri->ingredient, (float) $ri->quantity, null]);
         } else {
             return null;
@@ -1328,7 +1334,9 @@ class CreateSaleAction
                     'product_id' => $component->id,
                     // The size this deal names, so the snapshot records what
                     // actually left the shelf rather than the parent it hangs
-                    // under. A recipe has no sizes and passes null.
+                    // under. An INGREDIENT is drawn from its own shelf, not
+                    // from a size of the dish, so a recipe row passes null here
+                    // — the size decided WHICH rows, not which shelf.
                     'variant_id' => $variantId,
                     'name' => $component->name,
                     'quantity_per_unit' => $qtyPerUnit,
@@ -1498,18 +1506,23 @@ class CreateSaleAction
      * before and therefore cannot regress anything. The shop is told WHICH
      * ingredients are stopping it on the product form, where the price is set.
      */
-    private function lineCost(Product|ProductVariant $source, float $factor): ?float
+    private function lineCost(Product $product, ?ProductVariant $variant, float $factor): ?float
     {
-        // A VARIANT is a size or a colour of something bought in — it carries
-        // its own purchase cost and never a recipe of its own. Only the product
-        // can be a dish.
-        $recipe = $source instanceof Product ? RecipeCost::forDish($source) : null;
+        // A dish that comes in sizes costs what THAT size uses. The recipe
+        // hangs off the product either way — a variant carries no recipe of
+        // its own, it names which of the product's rows apply — so the dish is
+        // always what is costed, and the size only chooses.
+        $recipe = RecipeCost::forDish($product, [], $variant);
 
         if ($recipe !== null) {
             return round($recipe * $factor, 2);
         }
 
-        return $source->cost !== null ? round((float) $source->cost * $factor, 2) : null;
+        // Nothing cookable here: fall back to what was PAID for it, and a
+        // size's own purchase cost beats the parent's.
+        $bought = $variant ?? $product;
+
+        return $bought->cost !== null ? round((float) $bought->cost * $factor, 2) : null;
     }
 
     private function bankOffer(

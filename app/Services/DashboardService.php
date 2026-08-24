@@ -837,9 +837,14 @@ class DashboardService
         // Fired and not yet served. `ready_at` splits the two states a kitchen
         // actually distinguishes: still cooking, versus sitting under the lamp
         // waiting for someone to run it — the second is the one that gets cold.
+        // `forAnOpenTab` — the same rule the pass reads. Without it this counted
+        // every un-served docket ever fired, so the number an owner reads to
+        // know what the kitchen owes grew by one for every tab anybody had ever
+        // cancelled and never came down.
         $kots = KitchenTicket::query()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->forAnOpenTab()
             ->whereNull('served_at');
 
         return [

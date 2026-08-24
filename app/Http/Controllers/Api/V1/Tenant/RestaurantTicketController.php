@@ -175,6 +175,23 @@ class RestaurantTicketController extends Controller
             'void_reason' => $request->input('reason', 'Tab cancelled'),
         ]);
 
+        // AND TAKE THE DOCKETS OFF THE PASS.
+        //
+        // The line items were voided here from the day this was written and
+        // the KOT rows never were, so a cancelled tab left its dockets sitting
+        // `fired` on the kitchen board — forever, since nothing else ever looks
+        // at them. Found on a real shop's board: nine dockets, EIGHT of them
+        // belonging to voided tabs and two fired six days earlier. A cook was
+        // being told to cook meals nobody would eat or pay for.
+        //
+        // A docket already SERVED is left alone. Cancelling a tab cannot
+        // un-cook food, and rewriting what the kitchen actually sent out to
+        // tidy a screen is how a kitchen's own record stops being true.
+        KitchenTicket::query()
+            ->where('ticket_id', $ticket->id)
+            ->whereIn('status', ['fired', 'preparing', 'ready'])
+            ->update(['status' => 'void']);
+
         $ticket->forceFill([
             'status' => RestaurantTicketStatus::Void,
             'closed_at' => now(),

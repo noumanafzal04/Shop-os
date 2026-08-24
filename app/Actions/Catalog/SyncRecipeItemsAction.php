@@ -32,7 +32,7 @@ class SyncRecipeItemsAction
     public function __construct(private readonly TenantContext $context) {}
 
     /**
-     * @param  array<array{ingredient_product_id?: string, quantity?: mixed}>  $items
+     * @param  array<array{ingredient_product_id?: string, quantity?: mixed, variant_id?: string|null}>  $items
      * @return string[] warnings to show the merchant
      */
     public function execute(Product $dish, array $items): array
@@ -43,6 +43,10 @@ class SyncRecipeItemsAction
             ->map(fn ($i) => [
                 'ingredient_product_id' => (string) ($i['ingredient_product_id'] ?? ''),
                 'quantity' => (float) ($i['quantity'] ?? 1),
+                // Which SIZE this row is the recipe for; null is "the dish,
+                // whatever size", which is what every row was before sizes
+                // could be named.
+                'variant_id' => ($i['variant_id'] ?? null) ?: null,
             ])
             ->filter(fn ($i) => $i['ingredient_product_id'] !== '' && $i['quantity'] > 0)
             ->values();
@@ -59,7 +63,20 @@ class SyncRecipeItemsAction
         /** @var list<Product> $ingredients */
         $ingredients = [];
 
+        $sizes = $dish->variants()->pluck('id')->all();
+
         foreach ($clean as $i) {
+            // A size named here must be a size of THIS dish. Silently keeping a
+            // row nailed to somebody else's variant would make a recipe that
+            // never applies to anything — stored, visible, and consumed by
+            // nothing.
+            if ($i['variant_id'] !== null && ! in_array($i['variant_id'], $sizes, true)) {
+                throw DomainException::unprocessable(
+                    'A recipe line names a size this dish does not have.',
+                    'RECIPE_VARIANT_UNKNOWN',
+                );
+            }
+
             if ($i['ingredient_product_id'] === $dish->id) {
                 throw DomainException::unprocessable('A dish cannot be its own ingredient.', 'RECIPE_SELF_REFERENCE');
             }
@@ -79,17 +96,36 @@ class SyncRecipeItemsAction
             $ingredients[] = $ingredient;
         }
 
+        // The same ingredient may appear once per size, and once for the dish
+        // — but not twice for the same size, which would silently double a
+        // deduction. `distinct` on the request cannot express a PAIR.
+        $pairs = [];
+        foreach ($clean as $i) {
+            $key = $i['variant_id'].'|'.$i['ingredient_product_id'];
+            if (isset($pairs[$key])) {
+                throw DomainException::unprocessable(
+                    'The same ingredient is listed twice for one size.',
+                    'RECIPE_DUPLICATE',
+                );
+            }
+            $pairs[$key] = true;
+        }
+
         $dish->recipeItems()->delete();
         foreach ($clean as $sort => $i) {
             $dish->recipeItems()->create([
                 'tenant_id' => $tenantId,
                 'ingredient_product_id' => $i['ingredient_product_id'],
+                'variant_id' => $i['variant_id'],
                 'quantity' => $i['quantity'],
                 'sort_order' => $sort,
             ]);
         }
 
-        return $this->trackIngredients($ingredients);
+        return array_merge(
+            $this->trackIngredients($ingredients),
+            $this->sizesShareOneRecipe($dish, $clean->pluck('variant_id')->filter()->isNotEmpty()),
+        );
     }
 
     /**
@@ -132,6 +168,27 @@ class SyncRecipeItemsAction
         }
 
         return $warnings;
+    }
+
+    /**
+     * A dish with sizes whose recipe names none of them.
+     *
+     * SAID, not refused. Every recipe in the database is this shape, so
+     * refusing would break shops that have done nothing wrong, and a kitchen
+     * may genuinely portion the same across sizes. But it is worth knowing:
+     * before this could be said, a pizzeria's Small and Large drew identical
+     * flour and nothing anywhere hinted at it.
+     *
+     * @return string[]
+     */
+    private function sizesShareOneRecipe(Product $dish, bool $namesASize): array
+    {
+        if ($namesASize || $dish->variants()->count() === 0) {
+            return [];
+        }
+
+        return ['Every size of this dish will consume the same ingredients. '
+            .'Add a line for a size if a larger one uses more.'];
     }
 
     /** Does the dish's shop run the stock module? */

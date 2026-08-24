@@ -85,8 +85,13 @@ class UpdateProductRequest extends FormRequest
             'combo_items.*.variant_id' => ['nullable', 'uuid'],
             'combo_items.*.quantity' => ['required_with:combo_items', 'numeric', 'min:0.001'],
             'recipe_items' => ['sometimes', 'nullable', 'array', 'max:60'],
-            'recipe_items.*.ingredient_product_id' => ['required_with:recipe_items', 'uuid', 'distinct'],
+            // NOT `distinct`. With sizes, the same flour appears once for the
+            // Small and once for the Large — an ordinary recipe. The pair
+            // (ingredient, size) is what must be unique, which a rule cannot
+            // express, so SyncRecipeItemsAction refuses the real duplicate.
+            'recipe_items.*.ingredient_product_id' => ['required_with:recipe_items', 'uuid'],
             'recipe_items.*.quantity' => ['required_with:recipe_items', 'numeric', 'min:0.001'],
+            'recipe_items.*.variant_id' => ['nullable', 'uuid'],
             'unit' => ['nullable', 'string', 'max:32'],
 
             /**

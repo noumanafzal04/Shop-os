@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\RecipeItem;
 
 /**
@@ -36,6 +37,13 @@ use App\Models\RecipeItem;
  * Same rule the disposals screen follows for a lot with no recorded cost. See
  * `docs/decisions/shopos-stock-disposals.md`.
  *
+ * ── A size costs what a size uses ───────────────────────────────────────
+ *
+ * A Large pizza is not a Small at a higher price — it is more dough. When a
+ * recipe row names a size, this costs THAT size, because the margin report is
+ * exactly where an averaged food cost does its damage: the shop prices every
+ * size against a number that is right for none of them.
+ *
  * ── Recipes nest ────────────────────────────────────────────────────────
  *
  * A gravy base is prepped in the morning, a spice paste goes into the gravy,
@@ -61,7 +69,7 @@ final class RecipeCost
      *
      * @param  array<string, true>  $seen  dish ids already on this branch
      */
-    public static function forDish(Product $dish, array $seen = []): ?float
+    public static function forDish(Product $dish, array $seen = [], ?ProductVariant $variant = null): ?float
     {
         // A recipe that comes back round to itself is a mis-entry. Refuse in
         // the same way an unknown cost is refused, so a caller has one case to
@@ -72,9 +80,10 @@ final class RecipeCost
 
         $seen[$dish->id] = true;
 
-        $items = $dish->relationLoaded('recipeItems')
-            ? $dish->recipeItems
-            : $dish->recipeItems()->with('ingredient')->get();
+        // WHICH SIZE is being costed. A Large is made differently from a Small,
+        // so it costs differently — and the margin report a restaurant prices
+        // against is exactly where that must not be averaged away.
+        $items = RecipeFor::rows($dish, $variant);
 
         if ($items->isEmpty()) {
             return null;
@@ -114,11 +123,9 @@ final class RecipeCost
      *
      * @return array<int, string> ingredient names, one level deep
      */
-    public static function missingCosts(Product $dish): array
+    public static function missingCosts(Product $dish, ?ProductVariant $variant = null): array
     {
-        $items = $dish->relationLoaded('recipeItems')
-            ? $dish->recipeItems
-            : $dish->recipeItems()->with('ingredient')->get();
+        $items = RecipeFor::rows($dish, $variant);
 
         $missing = [];
 

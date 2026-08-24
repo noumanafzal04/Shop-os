@@ -138,6 +138,20 @@ class KitchenController extends Controller
 
         return KitchenTicket::query()
             ->when($branchId, fn (Builder $q) => $q->where('branch_id', $branchId))
+            // THE PASS IS ABOUT TABLES STILL BEING SERVED.
+            //
+            // This filtered on the docket's own status alone, so a docket
+            // outlived its tab: found on a real board, nine dockets with EIGHT
+            // belonging to VOIDED tabs and two fired six days earlier. A cook
+            // was being told to cook meals nobody would eat.
+            //
+            // Cancel now voids its own dockets, because that is a known fact.
+            // Settle does not, because it is not one — a tab being paid says
+            // nothing about whether the kitchen sent the food out, and writing
+            // `served` on a docket the cook never bumped would put a claim in
+            // the kitchen's record that the kitchen never made. The BOARD is
+            // where the judgement belongs: a closed tab is not work.
+            ->forAnOpenTab()
             ->where(function (Builder $q) use ($includeServed): void {
                 $q->whereIn('status', self::ACTIVE_STATUSES);
 

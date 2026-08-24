@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\RestaurantTicketStatus;
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,6 +29,28 @@ class KitchenTicket extends Model
      * its table's, a KOT takes its tab's) sets it before this runs and is left
      * alone.
      */
+    /**
+     * WORK THE KITCHEN STILL OWES.
+     *
+     * The pass asked one question and the owner's dashboard asked another, and
+     * neither asked whether the TAB was still open — so a docket outlived its
+     * tab. Found on a real board: nine dockets with EIGHT belonging to voided
+     * tabs, two of them fired six days earlier. The dashboard was worse: it
+     * counted every un-served docket ever fired, so `kot_waiting` — the number
+     * an owner reads to know what the kitchen owes — grew by one for every tab
+     * anybody had ever cancelled.
+     *
+     * One rule, because two readers is two chances for one of them to forget
+     * the tab.
+     */
+    public function scopeForAnOpenTab(Builder $query): Builder
+    {
+        return $query->whereHas(
+            'ticket',
+            fn (Builder $t) => $t->where('status', RestaurantTicketStatus::Open->value),
+        );
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $row): void {

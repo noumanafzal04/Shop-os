@@ -11,6 +11,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * One line of a dish's recipe: a raw ingredient product + how much of it one
  * portion consumes. Selling the dish draws this quantity out of the
  * ingredient's stock. See App\Models\RecipeItem usage in CreateSaleAction.
+ *
+ * A row may name a SIZE (`variant_id`), because a kitchen runs out of large
+ * bases rather than of pizza. Which rows apply is App\Support\RecipeFor's
+ * single answer, not each caller's.
  */
 class RecipeItem extends Model
 {
@@ -26,6 +30,16 @@ class RecipeItem extends Model
     public function dish(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'dish_product_id');
+    }
+
+    /**
+     * WHICH SIZE this row is the recipe for, or null for "the dish, whatever
+     * size" — which is what every row was before sizes could be named, and
+     * what a size with nothing of its own falls back to. See App\Support\RecipeFor.
+     */
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'variant_id');
     }
 
     public function ingredient(): BelongsTo
