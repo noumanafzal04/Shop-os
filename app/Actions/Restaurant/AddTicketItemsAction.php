@@ -77,7 +77,11 @@ class AddTicketItemsAction
                 // tab is always MORE FOOD, never the closing of a bill. What
                 // has already been eaten is settled by SettleTicketAction,
                 // which does not come through here.
-                SoldOut::assertSellable($product, $variant);
+                // The TAB's branch, not the operator's: a manager covering two
+                // sites can have their context on one while the tab they are
+                // adding to belongs to the other, and the kitchen that has to
+                // cook this is the tab's.
+                SoldOut::assertSellable($product, $variant, $ticket->branch_id);
 
                 $quantity = (float) $item['quantity'];
 

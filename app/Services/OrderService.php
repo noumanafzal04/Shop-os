@@ -7,6 +7,7 @@ use App\Enums\FulfillmentType;
 use App\Enums\ItemType;
 use App\Enums\OrderStatus;
 use App\Exceptions\DomainException;
+use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
@@ -39,6 +40,9 @@ use Illuminate\Support\Facades\DB;
  */
 class OrderService
 {
+    /** @var array<string, string|null> tenant id → its default branch id */
+    private array $onlineBranch = [];
+
     public function __construct(
         private readonly InventoryService $inventory,
         private readonly CreateSaleAction $createSale,
@@ -223,7 +227,18 @@ class OrderService
                     // publishing is the shop's own business; this is not a
                     // publishing decision, it is "there is none left", and
                     // promising it down the phone is the same broken promise.
-                    SoldOut::assertSellable($product, $variant);
+                    // WHICH BRANCH'S ANSWER. An online order has no branch of
+                    // its own — nothing on `orders` names one — and it holds
+                    // and deducts stock from the tenant's DEFAULT branch. So it
+                    // asks that branch, because answering from anywhere else
+                    // would let it promise a dish out of a kitchen it is not
+                    // going to take the stock from.
+                    //
+                    // This is a CONSEQUENCE, not a design: until an order names
+                    // the branch that fulfils it, a chain's online shop is its
+                    // main branch's shop. See
+                    // docs/decisions/shopos-one-branch-runs-out.md.
+                    SoldOut::assertSellable($product, $variant, $this->onlineBranchId($shop));
 
                     $source = $variant ?? $product;
                     $qty = (float) $item['quantity'];
@@ -618,5 +633,24 @@ class OrderService
                 "{$type}-{$order->id}",
             );
         }
+    }
+
+    /**
+     * The branch an online order actually comes out of.
+     *
+     * Nothing on `orders` names a branch, and `InventoryService` defaults to the
+     * tenant's default one — so this is where the goods leave from, and
+     * therefore the only branch whose "we have run out" answer is true for this
+     * order.
+     *
+     * Cached per call-site tenant: a fifty-line basket must not ask the
+     * database fifty times for a row that cannot change mid-transaction.
+     */
+    private function onlineBranchId(Tenant $shop): ?string
+    {
+        return $this->onlineBranch[$shop->id] ??= Branch::withoutTenancy()
+            ->where('tenant_id', $shop->id)
+            ->where('is_default', true)
+            ->value('id');
     }
 }

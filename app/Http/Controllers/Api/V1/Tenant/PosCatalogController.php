@@ -264,7 +264,7 @@ class PosCatalogController extends Controller
         $stock = PosProjection::stockAt($this->branch->id(), $live->pluck('id'));
 
         return $this->shape($page, fn (Product $p): ?array => $this->alive($p)
-            ? PosProjection::item($p, $stock)
+            ? PosProjection::item($p, $stock, $this->branch->id())
             : null);
     }
 

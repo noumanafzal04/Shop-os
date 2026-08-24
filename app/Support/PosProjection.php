@@ -70,7 +70,7 @@ class PosProjection
      * on-hand quantity AT THIS BRANCH — passed in rather than queried per row,
      * because a catalog of 20,000 items would otherwise be 20,000 queries.
      */
-    public static function item(Product $product, array $stockByTarget = []): array
+    public static function item(Product $product, array $stockByTarget = [], ?string $branchId = null): array
     {
         $stock = static fn (string $key): float => (float) ($stockByTarget[$key] ?? 0);
 
@@ -139,7 +139,12 @@ class PosProjection
             // copy on the tablet still selling it. The server refuses the line
             // regardless (CreateSaleAction); this is so the screen can say so
             // BEFORE a waiter has promised it to a table.
-            'sold_out' => $product->sold_out_at !== null,
+            //
+            // THIS branch's answer. A till stands somewhere, and 86 is a
+            // statement about a kitchen rather than about a company: Gulberg
+            // running out of bases says nothing about DHA, which had one
+            // switch between them until this was keyed on a branch.
+            'sold_out' => SoldOut::isOff($product, null, $branchId),
 
             'offline_ok' => static::sellableOffline($product),
 
@@ -170,7 +175,7 @@ class PosProjection
                     // that was never there. The server refuses the line either
                     // way (SoldOut); this is so the sheet can grey it out before
                     // a waiter has promised it to a table.
-                    'sold_out' => $v->sold_out_at !== null,
+                    'sold_out' => SoldOut::isOff($product, $v, $branchId),
                 ])->values()->all()
                 : [],
 
@@ -258,5 +263,8 @@ class PosProjection
     }
 
     /** Relations `item()` reads. Eager-load these or every row is a query. */
-    public const RELATIONS = ['variants', 'units', 'barcodes', 'modifierGroups.options', 'images'];
+    // `soldOut` is here so a page of two hundred items asks about 86 once
+    // rather than two hundred times. SoldOut::isOff reads the relation when it
+    // is loaded, and a till that felt instant is the only reason this matters.
+    public const RELATIONS = ['variants', 'units', 'barcodes', 'modifierGroups.options', 'images', 'soldOut'];
 }

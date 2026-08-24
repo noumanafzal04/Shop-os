@@ -15,6 +15,7 @@ use App\Http\Requests\Catalog\SyncModifierGroupsRequest;
 use App\Http\Requests\Catalog\UpdateProductRequest;
 use App\Models\Branch;
 use App\Models\BranchPrice;
+use App\Models\BranchSoldOut;
 use App\Models\BranchStock;
 use App\Models\Product;
 use App\Models\ProductSerial;
@@ -102,6 +103,36 @@ class ProductController extends Controller
         }
 
         $ids = collect($rows)->pluck('id');
+
+        // WHAT THIS BRANCH HAS RUN OUT OF TONIGHT.
+        //
+        // 86 used to be a column on the product, so the list serialised it for
+        // free. It is a row per branch now — a kitchen runs out, a chain does
+        // not — and the catalogue has to say which answer it is showing, or a
+        // manager looking at Gulberg sees DHA's evening.
+        //
+        // Stamped here beside the branch price and the branch stock, for the
+        // reason those are: two screens asking the same question of the same
+        // product must not get two answers.
+        $off = BranchSoldOut::query()
+            ->where('branch_id', $branchId)
+            ->whereIn('product_id', $ids)
+            ->get(['product_id', 'variant_id', 'sold_out_at']);
+
+        $offProduct = $off->whereNull('variant_id')->keyBy('product_id');
+        $offVariant = $off->whereNotNull('variant_id')->keyBy('variant_id');
+
+        foreach ($products as $p) {
+            $p->sold_out = $offProduct->has($p->id);
+            $p->sold_out_at = $offProduct->get($p->id)?->sold_out_at;
+
+            if ($p->relationLoaded('variants')) {
+                foreach ($p->variants as $v) {
+                    $v->sold_out_at = $offVariant->get($v->id)?->sold_out_at;
+                }
+            }
+        }
+
         $overrides = BranchPrice::query()
             ->where('branch_id', $branchId)
             ->whereNull('variant_id')

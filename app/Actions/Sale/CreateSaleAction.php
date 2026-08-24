@@ -287,7 +287,7 @@ class CreateSaleAction
                         // of large bases, not of pizza. One rule, in SoldOut,
                         // because three paths ask this question and three copies
                         // is three chances for one to forget the size.
-                        SoldOut::assertSellable($product, $variant);
+                        SoldOut::assertSellable($product, $variant, $branchId);
                     }
 
                     $quantity = (float) $item['quantity'];

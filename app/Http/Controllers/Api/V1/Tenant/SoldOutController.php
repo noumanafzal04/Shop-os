@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
+use App\Models\BranchSoldOut;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -45,16 +49,11 @@ class SoldOutController extends Controller
     {
         $this->mustBelong($product, $variant);
 
-        if ($variant->sold_out_at === null) {
-            $variant->forceFill([
-                'sold_out_at' => now(),
-                'sold_out_by' => auth()->id(),
-            ])->save();
-        }
+        $row = $this->take($product, $variant);
 
         return ApiResponse::ok(
-            ['id' => $variant->id, 'sold_out_at' => $variant->sold_out_at],
-            "{$product->name} — {$variant->name} is off the menu.",
+            ['id' => $variant->id, 'sold_out_at' => $row->sold_out_at],
+            "{$product->name} — {$variant->name} is off the menu at {$this->branchName()}.",
         );
     }
 
@@ -63,11 +62,11 @@ class SoldOutController extends Controller
     {
         $this->mustBelong($product, $variant);
 
-        $variant->forceFill(['sold_out_at' => null, 'sold_out_by' => null])->save();
+        $this->putBack($product, $variant);
 
         return ApiResponse::ok(
             ['id' => $variant->id, 'sold_out_at' => null],
-            "{$product->name} — {$variant->name} is back on.",
+            "{$product->name} — {$variant->name} is back on at {$this->branchName()}.",
         );
     }
 
@@ -83,34 +82,84 @@ class SoldOutController extends Controller
         abort_if($variant->product_id !== $product->id, 404);
     }
 
-    /** Take it off. Idempotent: 86'ing an already-86'd dish keeps the first time. */
+    /** Take it off, HERE. Idempotent: a second press keeps the first time. */
     public function store(Product $product): JsonResponse
     {
-        // The FIRST timestamp is the useful one. Re-stamping on every press
-        // would erase "off since Tuesday", which is the whole point of storing
-        // a time rather than a flag — a dish nobody remembers turning off is
-        // what this feature costs a shop if it cannot say how long.
-        if ($product->sold_out_at === null) {
-            $product->forceFill([
-                'sold_out_at' => now(),
-                'sold_out_by' => auth()->id(),
-            ])->save();
-        }
+        $row = $this->take($product, null);
 
         return ApiResponse::ok(
-            ['id' => $product->id, 'sold_out_at' => $product->sold_out_at],
-            "{$product->name} is off the menu.",
+            ['id' => $product->id, 'sold_out_at' => $row->sold_out_at],
+            "{$product->name} is off the menu at {$this->branchName()}.",
         );
     }
 
-    /** Put it back. */
+    /** Put it back here. */
     public function destroy(Product $product): JsonResponse
     {
-        $product->forceFill(['sold_out_at' => null, 'sold_out_by' => null])->save();
+        $this->putBack($product, null);
 
         return ApiResponse::ok(
             ['id' => $product->id, 'sold_out_at' => null],
-            "{$product->name} is back on.",
+            "{$product->name} is back on at {$this->branchName()}.",
         );
+    }
+
+    /**
+     * WHICH BRANCH is running out.
+     *
+     * The OPERATING branch (`id()`), never the read scope (`scopeId()`): this
+     * is a write, and an owner looking at all branches has a null scope. The
+     * same rule receiving a delivery follows, and for the same reason — goods
+     * arrive somewhere definite, and so does running out of them.
+     */
+    private function branchId(): string
+    {
+        $id = app(BranchContext::class)->id();
+
+        if ($id === null) {
+            throw DomainException::unprocessable(
+                'Choose which branch has run out before taking something off the menu.',
+                'BRANCH_REQUIRED',
+            );
+        }
+
+        return $id;
+    }
+
+    private function branchName(): string
+    {
+        return Branch::query()->whereKey($this->branchId())->value('name') ?? 'this branch';
+    }
+
+    /**
+     * The FIRST press is the one that counts.
+     *
+     * Re-stamping would erase "off since Tuesday", which is the whole point of
+     * storing a time rather than a flag: a dish nobody remembers turning off is
+     * what this costs a shop if it cannot say how long.
+     */
+    private function take(Product $product, ?ProductVariant $variant): BranchSoldOut
+    {
+        return BranchSoldOut::query()->firstOrCreate(
+            [
+                'branch_id' => $this->branchId(),
+                'product_id' => $product->id,
+                'variant_id' => $variant?->id,
+            ],
+            [
+                'tenant_id' => $product->tenant_id,
+                'sold_out_at' => now(),
+                'sold_out_by' => auth()->id(),
+            ],
+        );
+    }
+
+    private function putBack(Product $product, ?ProductVariant $variant): void
+    {
+        BranchSoldOut::query()
+            ->where('branch_id', $this->branchId())
+            ->where('product_id', $product->id)
+            ->where('variant_id', $variant?->id)
+            ->delete();
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BranchSoldOut;
 use App\Models\City;
 use App\Models\DiningTable;
 use App\Models\Order;
@@ -85,11 +86,26 @@ class SoldOutTest extends TestCase
             ->postJson("/api/v1/products/{$this->fish->id}/sold-out");
     }
 
+    /**
+     * The row IS the fact now — there is no flag on the product.
+     *
+     * Keyed on a branch, because a kitchen runs out and a chain does not: these
+     * tests run a single-branch shop, so "off here" and "off" are the same
+     * sentence and the assertions read the same as they always did.
+     */
+    private function offRow(): ?BranchSoldOut
+    {
+        return BranchSoldOut::withoutTenancy()
+            ->where('product_id', $this->fish->id)
+            ->whereNull('variant_id')
+            ->first();
+    }
+
     public function test_a_dish_can_be_taken_off_the_menu(): void
     {
         $this->eightySix()->assertOk();
 
-        $this->assertNotNull($this->fish->fresh()->sold_out_at);
+        $this->assertNotNull($this->offRow());
     }
 
     public function test_the_till_refuses_to_sell_it(): void
@@ -115,7 +131,7 @@ class SoldOutTest extends TestCase
             ->deleteJson("/api/v1/products/{$this->fish->id}/sold-out")
             ->assertOk();
 
-        $this->assertNull($this->fish->fresh()->sold_out_at);
+        $this->assertNull($this->offRow());
 
         $this->actingAsUser($this->cashier)
             ->postJson('/api/v1/sales', [
@@ -131,12 +147,12 @@ class SoldOutTest extends TestCase
         // back on. Re-stamping on every press would erase exactly that, which
         // is the whole reason this is a timestamp and not a flag.
         $this->eightySix();
-        $first = $this->fish->fresh()->sold_out_at;
+        $first = $this->offRow()?->sold_out_at;
 
         $this->travel(2)->hours();
         $this->eightySix()->assertOk();
 
-        $this->assertEquals($first, $this->fish->fresh()->sold_out_at);
+        $this->assertEquals($first, $this->offRow()?->sold_out_at);
     }
 
     public function test_it_records_who_called_it(): void
@@ -145,7 +161,7 @@ class SoldOutTest extends TestCase
         // somebody, and "nobody knows who" ends it.
         $this->eightySix();
 
-        $this->assertSame($this->owner->id, $this->fish->fresh()->sold_out_by);
+        $this->assertSame($this->owner->id, $this->offRow()?->sold_out_by);
     }
 
     public function test_a_cashier_ringing_a_queue_cannot_take_a_dish_off(): void
@@ -154,7 +170,7 @@ class SoldOutTest extends TestCase
         // remove a dish from the menu for the whole shop.
         $this->eightySix($this->cashier)->assertForbidden();
 
-        $this->assertNull($this->fish->fresh()->sold_out_at);
+        $this->assertNull($this->offRow());
     }
 
     public function test_being_sold_out_is_not_the_same_as_being_deactivated(): void
@@ -166,7 +182,7 @@ class SoldOutTest extends TestCase
         $fresh = $this->fish->fresh();
 
         $this->assertTrue((bool) $fresh->is_active);
-        $this->assertNotNull($fresh->sold_out_at);
+        $this->assertNotNull($this->offRow());
     }
 
     public function test_the_till_is_told_which_items_are_off(): void

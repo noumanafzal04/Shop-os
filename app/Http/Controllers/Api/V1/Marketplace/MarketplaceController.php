@@ -3,9 +3,15 @@
 namespace App\Http\Controllers\Api\V1\Marketplace;
 
 use App\Http\Controllers\Controller;
+use App\Models\Banner;
+use App\Models\Branch;
+use App\Models\Category;
+use App\Models\City;
+use App\Models\GalleryImage;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Support\ApiResponse;
+use App\Support\Geo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,18 +33,18 @@ class MarketplaceController extends Controller
             'lng' => ['required', 'numeric', 'between:-180,180'],
         ]);
 
-        $city = \App\Models\City::query()
+        $city = City::query()
             ->where('is_active', true)
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->orderByRaw(\App\Support\Geo::sqlDistanceKm((float) $data['lat'], (float) $data['lng']))
+            ->orderByRaw(Geo::sqlDistanceKm((float) $data['lat'], (float) $data['lng']))
             ->first();
 
         if ($city === null) {
             return ApiResponse::ok(['city' => null, 'in_service_area' => false]);
         }
 
-        $distance = \App\Support\Geo::distanceKm(
+        $distance = Geo::distanceKm(
             (float) $data['lat'], (float) $data['lng'],
             (float) $city->latitude, (float) $city->longitude,
         );
@@ -76,7 +82,7 @@ class MarketplaceController extends Controller
             });
 
         if ($near) {
-            $expr = \App\Support\Geo::sqlDistanceKm($lat, $lng);
+            $expr = Geo::sqlDistanceKm($lat, $lng);
             $query->selectRaw("tenants.*, CASE WHEN latitude IS NULL OR longitude IS NULL THEN NULL ELSE {$expr} END as distance_km")
                 // Un-pinned shops sink to the end instead of disappearing.
                 ->orderByRaw('distance_km IS NULL, distance_km')
@@ -110,7 +116,7 @@ class MarketplaceController extends Controller
         $lat = $request->query('lat') !== null ? (float) $request->query('lat') : null;
         $lng = $request->query('lng') !== null ? (float) $request->query('lng') : null;
         if ($lat !== null && $lng !== null && $tenant->latitude !== null && $tenant->longitude !== null) {
-            $distance = \App\Support\Geo::distanceKm($lat, $lng, (float) $tenant->latitude, (float) $tenant->longitude);
+            $distance = Geo::distanceKm($lat, $lng, (float) $tenant->latitude, (float) $tenant->longitude);
             $radius = $tenant->setting('delivery_radius_km');
             $payload['distance_km'] = $distance;
             $payload['delivers_to_me'] = $tenant->deliveryEnabled()
@@ -220,7 +226,7 @@ class MarketplaceController extends Controller
                 'image' => $p->images->first()?->url,
                 'shop' => $shop?->only(['slug', 'business_name', 'business_type']),
                 'distance_km' => $near && $shop?->latitude !== null && $shop?->longitude !== null
-                    ? \App\Support\Geo::distanceKm((float) $data['lat'], (float) $data['lng'], (float) $shop->latitude, (float) $shop->longitude)
+                    ? Geo::distanceKm((float) $data['lat'], (float) $data['lng'], (float) $shop->latitude, (float) $shop->longitude)
                     : null,
             ];
         })->values();
@@ -238,7 +244,7 @@ class MarketplaceController extends Controller
             });
 
         if ($near) {
-            $expr = \App\Support\Geo::sqlDistanceKm((float) $data['lat'], (float) $data['lng']);
+            $expr = Geo::sqlDistanceKm((float) $data['lat'], (float) $data['lng']);
             $shopQuery->selectRaw("tenants.*, CASE WHEN latitude IS NULL OR longitude IS NULL THEN NULL ELSE {$expr} END as distance_km")
                 ->orderByRaw('distance_km IS NULL, distance_km');
         } else {
@@ -251,7 +257,7 @@ class MarketplaceController extends Controller
             ])->values();
 
         // ── Category names (with how many shops use them) ────────────
-        $categories = \App\Models\Category::withoutTenancy()
+        $categories = Category::withoutTenancy()
             ->whereIn('tenant_id', $visibleTenantIds)
             ->where('is_active', true)
             ->where('name', 'like', $like)
@@ -283,7 +289,7 @@ class MarketplaceController extends Controller
         ]);
         $near = isset($data['lat'], $data['lng']);
 
-        $banners = \App\Models\Banner::query()->live()
+        $banners = Banner::query()->live()
             ->where('placement', 'home')
             ->with('advertiser:id,slug')
             ->orderBy('sort_order')
@@ -312,7 +318,7 @@ class MarketplaceController extends Controller
 
         $nearby = $base();
         if ($near) {
-            $expr = \App\Support\Geo::sqlDistanceKm((float) $data['lat'], (float) $data['lng']);
+            $expr = Geo::sqlDistanceKm((float) $data['lat'], (float) $data['lng']);
             $nearby->selectRaw("tenants.*, CASE WHEN latitude IS NULL OR longitude IS NULL THEN NULL ELSE {$expr} END as distance_km")
                 ->orderByRaw('distance_km IS NULL, distance_km');
         } else {
@@ -363,7 +369,7 @@ class MarketplaceController extends Controller
                     'image' => $p->images->first()?->url,
                     'shop' => $shop?->only(['slug', 'business_name', 'business_type']),
                     'distance_km' => $near && $shop?->latitude !== null && $shop?->longitude !== null
-                        ? \App\Support\Geo::distanceKm((float) $data['lat'], (float) $data['lng'], (float) $shop->latitude, (float) $shop->longitude)
+                        ? Geo::distanceKm((float) $data['lat'], (float) $data['lng'], (float) $shop->latitude, (float) $shop->longitude)
                         : null,
                 ];
             })
@@ -404,7 +410,7 @@ class MarketplaceController extends Controller
                 'longitude' => $tenant->longitude,
                 'business_hours' => $tenant->business_hours,
                 'is_open_now' => $tenant->isOpenNow(),
-                'categories' => \App\Models\Category::withoutTenancy()
+                'categories' => Category::withoutTenancy()
                     ->where('tenant_id', $tenant->id)
                     ->where('is_active', true)
                     ->whereNull('parent_id')
@@ -429,7 +435,7 @@ class MarketplaceController extends Controller
                 'prep_time_minutes' => $tenant->setting('prep_time_minutes') !== null ? (int) $tenant->setting('prep_time_minutes') : null,
                 'accepts_orders' => $tenant->sellsOnline(),
                 'service_area' => $tenant->setting('service_area'),
-                'gallery' => \App\Models\GalleryImage::withoutTenancy()
+                'gallery' => GalleryImage::withoutTenancy()
                     ->where('tenant_id', $tenant->id)
                     ->orderBy('sort_order')
                     ->get()
@@ -444,6 +450,29 @@ class MarketplaceController extends Controller
     }
 
     private function publicProduct(Product $product, ?string $timezone = null): array
+    {
+        return $this->publicProductAt($product, $this->defaultBranchOf($product->tenant_id), $timezone);
+    }
+
+    /**
+     * The branch a shopfront answers from.
+     *
+     * Cached per tenant: a page of forty products must not ask forty times for
+     * a row that cannot change while the page is being built.
+     *
+     * @var array<string, string|null>
+     */
+    private array $defaultBranch = [];
+
+    private function defaultBranchOf(string $tenantId): ?string
+    {
+        return $this->defaultBranch[$tenantId] ??= Branch::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->where('is_default', true)
+            ->value('id');
+    }
+
+    private function publicProductAt(Product $product, ?string $defaultBranchId, ?string $timezone = null): array
     {
         // Customers see availability, never counts or costs. A variant product
         // holds its stock on the variants, so roll them up — the parent
@@ -477,7 +506,12 @@ class MarketplaceController extends Controller
             // the customer wants to know it exists, and the flag is undone when
             // the next delivery lands. Without it the only way to find out is
             // to build a basket and be refused at checkout.
-            'sold_out' => $product->isSoldOut(),
+            // Off at the branch the order will actually come out of — the
+            // shop's default one, because nothing on `orders` names a branch
+            // and the stock is drawn from there. A chain's online shop is its
+            // main branch's shop until an order can say which kitchen it is
+            // for. See docs/decisions/shopos-one-branch-runs-out.md.
+            'sold_out' => $product->isSoldOut($defaultBranchId),
             'available_from' => $product->available_from,
             'available_until' => $product->available_until,
             'variants' => $product->variants->map(fn ($v) => [
