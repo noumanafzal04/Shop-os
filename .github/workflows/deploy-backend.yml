@@ -45,6 +45,17 @@ jobs:
         # phpunit.xml pins sqlite :memory:, so no database service is needed.
         run: php artisan test
 
+      - name: Known vulnerabilities in what we ship
+        # A CVE pass was on the backlog as a one-off for weeks, which is the
+        # wrong shape for it: an audit that was clean in August says nothing
+        # about September, and the whole point is the advisory published after
+        # somebody looked. So it is a gate, not an errand.
+        #
+        # Advisories are about the LOCKFILE, so this runs before the deploy and
+        # fails it — shipping a known-vulnerable dependency to a machine that
+        # holds shops' takings is not a warning.
+        run: composer audit --locked
+
       - name: Migrations go back down as well as up
         # The suite only ever runs `migrate:fresh`, so the DOWN path had never
         # been executed by anything — and both directions were broken: a column
