@@ -38,6 +38,15 @@ result, and each shape was the shape of the answer I was expecting.
 - when planting a value to prove a guard fires, plant it on the row the system
   actually reads — check `deleted_at`, scopes, and which of several duplicates
   is live;
+- **count the backslashes when a regex is written by a script that writes a
+  script.** A `\\\\` inside a heredoc landed as four literal backslashes, so an
+  import scanner matched nothing and returned `[]` — which reads exactly like
+  "nothing is wrong". The mutation that was supposed to prove the new check
+  worked instead proved it did not, and only because the mutation existed;
+- **do not read a finding list through `grep -A2` or `tail -8`.** Three times
+  now a truncating window has hidden entries and made me draw the wrong
+  conclusion about the tool's output — once nearly filing "the sweep's reuse
+  branch never runs";
 - and the general form: **a tool that could not do its job does not return an
   answer, it returns something shaped like one.**
 
