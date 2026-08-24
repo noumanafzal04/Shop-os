@@ -10,6 +10,116 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-29 — the number a shop changes most often
+
+### HARNESS · 97 bugs that were one expired token
+
+The first full run after the price work printed **849 ok · 70 to look at · 97
+bugs**. Every one of the 97 was a 401:
+
+```
+BUG  I  petroleum · hire a buyer            — 401 Unauthenticated.
+BUG  I  mart · add Lane 1                   — 401 Unauthenticated.
+BUG  I  food_restaurant · the shop is offered job presets — 401
+```
+
+Measured rather than guessed: **100 of the 107 cached tokens were dead**,
+super-admin included, while `personal_access_tokens` still held 2,290 rows. So
+nothing had been deleted — and `config/sanctum.php` says `'expiration' => null`,
+which is why reading it proves nothing. The expiry is set **per token**:
+
+```
+2565 | ["access"]  | expires_at = 2026-08-24 05:56:33 | created 04:56:33
+```
+
+**An access token lives one hour. A full sweep does not fit in one hour.** Tokens
+minted in phase A are dead by the later phases, and every call after that point
+came back 401 — which the phases reported as product defects.
+
+Exactly the class the `HARNESS_NO_TOKEN` guard was built for, one step further
+along: the earlier bug was calling as NOBODY, this one is calling as somebody who
+has since expired. The client now signs the identity in again and retries once;
+if that fails it returns a status no route ever issues, so no phase can mistake
+it for a refusal, and `run.py` fails the run out loud rather than printing a
+summary that cannot be trusted.
+
+> **A failed check is not a verdict about the subject.** Third time this exact
+> shape has cost a run — bare calls, dead agents, and now dead credentials.
+
+### HARNESS · my own probe re-priced the shop's selling item
+
+Phase T's new price check moved `state["product"]` — the item every other phase
+sells — and left it 37.50 higher. The next run rang a basket against phase C's
+literal tender and the server said "amount paid (1,000.00) is less than the total
+(1,075.00)" in six shops, reported as **six product bugs**.
+
+Then the repair was worse than the damage: a script re-priced every product whose
+name began with "Sweep" to 500, flattening the fixtures whose DISTINCT price is
+their fingerprint — Sized Item 111, Neighbour 222, Shelf Lot 1200, Trade-In Scrap
+200, Serialized 1500, Petrol 280. **88 rows.** Restored from the phase files that
+own them.
+
+Two fixes: phase T uses an item of its own that nothing sells, and
+`phase_c._ensure_product` now puts the **price** back beside the restock it
+already did — because "reuse what you find" inherits whatever the last run left,
+and this product's price is what every downstream tender is computed from.
+Verified by planting 777 and watching the run announce
+`shelf price put back — 777.00 → 500.0`.
+
+> And the first attempt to verify that proved nothing: the 777 went onto a
+> SOFT-DELETED duplicate (that shop holds 8 of them, 7 deleted), the sale
+> correctly ignored it, and the guard never fired. I also nearly filed "the
+> sweep's reuse branch never runs" — which was my own `tail -8` truncating the
+> output. **Two false findings in one verification, both from how I measured.**
+
+### GAP · a shelf price moved with nobody named
+
+A tax rate, a coupon, a customer's credit limit and a group's discount had all
+been auditable for a while. The money authority a shop exercises **daily** was
+not on the list — `Product` used no `Auditable` trait at all. Sugar goes from 180
+to 210 and the only record of 180 was the screen it was typed over.
+
+### The work was mostly about what must NOT be filed
+
+The trait's docblock had already argued the danger about customers — "a shop that
+imports five thousand products would bury its own trail in one afternoon" — and a
+catalogue makes it twice as sharply.
+
+| | |
+|---|---|
+| an item **arriving** with a price | not a price change — `auditCreate()` false |
+| a name, a category, a barcode | not a money decision — `auditOnly` = 3 selling prices |
+| an **import** of 340 items | ONE act — suppressed per row, recorded once |
+
+**`cost` is deliberately absent.** It re-blends on every goods-received
+(weighted average), so auditing it files a row per line per delivery, none of
+them a decision. The truer record of what was paid is the purchase order line,
+with a date and a supplier on it.
+
+> Suppressing without recording would be **making a write quiet**, which is a
+> different and much worse thing. The import files one row: *340 items re-priced,
+> by Asif, at 11:04*.
+
+### GAP · the trail could not be asked about a thing
+
+It filtered by kind, by person and by date — not by subject. So the one question
+a shopkeeper actually arrives with, "what has THIS item's price done", was the
+one it could not answer. `?record=` added.
+
+### GAP · `audit_logs.auditable_id` was NOT NULL
+
+An act about a KIND rather than a record — an import — could only be filed by
+pretending it happened to one row. Made nullable; `auditable_type` already
+carries which kind.
+
+### Held by
+
+6 backend tests, each about a row that must NOT exist (two mutations each kill
+exactly one); `e2e/price-history.spec.ts`, because this trail has been through
+the built-but-unreachable failure once already — recorded for the platform,
+unreadable by the shop it was about; and sweep phase T, whose whole subject is
+who changed what.
+
 ## 2026-08-23 — page two, asked of the list instead of the folder
 
 `unreachable-pages.py` has carried this limit in its own docblock since it was

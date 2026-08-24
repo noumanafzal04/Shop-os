@@ -195,6 +195,26 @@ def main() -> int:
     # 96 "bugs" that were all this — including "the shop has a Main branch — 0
     # branches" about a shop with eighteen. So it is said out loud, and the run
     # fails: a summary that cannot be trusted must not read like one that can.
+    # ── a credential that DIED mid-run is the same class of lie ─────────
+    #
+    # An access token lives one hour; a full sweep does not fit in one. The
+    # client renews on 401 and retries, so this list should be empty — and when
+    # it is not, everything above it was measured with a dead credential. One
+    # run reported 97 BUGS that were all expired tokens: "hire a buyer — 401",
+    # "add Lane 1 — 401". Saying so beats a green summary that cannot be trusted.
+    expired = [c for c in api.calls if c.get("error") == "credential expired"]
+    if expired:
+        print(f"\n{'!' * 70}")
+        print(f"{len(expired)} call(s) ran with a token that had EXPIRED and could")
+        print("not be renewed. An access token lives ONE HOUR and a full sweep is")
+        print("longer than that. Nothing above is evidence about the product.")
+        for c in expired[:5]:
+            print(f"  · {c['method']} {c['path']}")
+        if len(expired) > 5:
+            print(f"  · … and {len(expired) - 5} more")
+        print("!" * 70)
+        return 1
+
     bare = [c for c in api.calls if c.get("error") == "no credentials"]
     if bare:
         print(f"\n{'!' * 70}")

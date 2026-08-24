@@ -107,4 +107,7 @@
 - [CartZe Brand](shopos-cartze-brand.md) — product renamed CartZe (cartze.shop); wordmark is a COMPONENT — an SVG in an img inherits no font and no theme
 - [A Rail You Can Read](shopos-rail-you-can-read.md) — FIXED: 22 icon collisions in 16 menus; Simple mode was module-gated so a restaurant had Dine-in and no Kitchen
 - [Page Two, Per List](shopos-page-two-per-list.md) — 3 more page-two bugs in the folder-credit gap; scanner gained per-CALL + orphan-hook axes; detector was wrong 5 of 6 first
+- [What It Used To Cost](shopos-what-it-used-to-cost.md) — SHIPPED price history; Product had NO audit trait; the design is mostly about what must NOT be filed
+- [Branch Day-to-Day](shopos-branch-day-to-day.md) — OPEN: panel can NEVER assign a staff member a branch (API accepts it), and staff are never shown which branch they are in
+- [Token Lives One Hour](shopos-token-lives-one-hour.md) — STANDING: access tokens expire 1h after minting (per-token, not in sanctum config); 97 sweep "bugs" were one dead credential
 

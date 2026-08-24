@@ -107,7 +107,8 @@ def _ensure_product(api: Api, rep: Report, code: str, token: str, item_type: str
     found = next((r for r in rows if r.get("name") == name), None)
 
     if found is not None:
-        found = _restock(api, rep, code, token, found, item_type)
+        found = _repriced(api, rep, code, token, found)
+        found = _restock(api, rep, code, token, found, item_type) if found else None
         if found is not None:
             rep.ok("C", f"{code} · reuse product")
             return found
@@ -133,6 +134,40 @@ def _ensure_product(api: Api, rep: Report, code: str, token: str, item_type: str
 
     rep.ok("C", f"{code} · create {item_type}")
     return body.get("data") or {}
+
+
+def _repriced(api: Api, rep: Report, code: str, token: str, product: dict) -> dict | None:
+    """
+    Put the shelf price back to what every later assertion is computed from.
+
+    "Reuse what you find" quietly inherits whatever the last run left behind,
+    and this product's PRICE is not incidental — the tenders downstream are
+    literal figures worked out from `PRICE`, so a product 37.50 higher makes the
+    server refuse a basket and the sweep report it as a product bug.
+
+    That is not hypothetical. A probe in phase T re-priced this very item, twice,
+    and the next run printed "amount paid is less than the total" as SIX BUGS in
+    six shops. The product was correct; the fixture had drifted.
+
+    Restocking was already done here for exactly this reason. The price belongs
+    beside it: a re-runnable fixture has to find its subject not merely present
+    but in the STATE it needs.
+    """
+    if abs(float(product.get("price") or 0) - PRICE) < 0.01:
+        return product
+
+    was = product.get("price")
+    status, body = api.put(f"/products/{product['id']}", {
+        "name": product["name"], "price": PRICE, "tax_rate": 0,
+    }, token=token)
+
+    if status != 200:
+        rep.bug("C", f"{code} · put the shelf price back", f"{was} → {PRICE} refused: {status}")
+        return None
+
+    rep.ok("C", f"{code} · shelf price put back", f"{was} → {PRICE}")
+
+    return (body.get("data") or {}) or product
 
 
 NEEDED = 20.0   # one pass rings 3 + 2 + 2 and returns some; 20 is comfortable

@@ -51,6 +51,7 @@ def run(api: Api, rep: Report, sold: dict) -> dict:
         token = state["token"]
 
         _a_credit_limit_names_who_raised_it(api, rep, code, token)
+        _a_price_names_who_moved_it(api, rep, code, token, state)
         _a_walk_in_customer_is_not_an_event(api, rep, code, token)
         _a_coupon_names_who_made_it(api, rep, code, token, state)
         _a_tax_rate_names_who_moved_it(api, rep, code, token, state)
@@ -100,6 +101,98 @@ def _a_credit_limit_names_who_raised_it(api: Api, rep: Report, code: str, token:
     else:
         rep.bug("T", f"{code} · A CREDIT LIMIT WAS RAISED WITH NOBODY NAMED",
                 f"a row with no actor answers nothing; actor={row.get('actor')}")
+
+
+def _a_price_names_who_moved_it(api: Api, rep: Report, code: str, token: str, state: dict) -> None:
+    """
+    The number a shop changes most often, and the last one to be recorded.
+
+    A tax rate, a coupon and a credit limit were all auditable before a SHELF
+    PRICE was — and a shelf price is the money authority a shop exercises daily.
+    Sugar goes from 180 to 210 and the only record of 180 used to be the screen
+    it was typed over.
+
+    Two halves, and the second is the one with teeth: a catalogue is not a
+    sequence of decisions. An item ARRIVING with a price must file nothing, or a
+    shop that opens with five thousand of them has no trail left to read.
+    """
+    # ── this phase's OWN item, never the shop's selling one ─────────────
+    #
+    # The first version re-priced `state["product"]` — the item every other
+    # phase sells — and left it 37.50 higher. The next run of phase C then rang
+    # a basket against a hard-coded tender and got "amount paid is less than the
+    # total" in six shops at once, reported as SIX PRODUCT BUGS. A probe that
+    # mutates shared state leaves every later phase lying, and the fastest way
+    # to find that out is to have done it.
+    product = _probe_product(api, token, code, state)
+    if product is None:
+        rep.query("T", f"{code} · an item of this phase's own to re-price",
+                  "could not create one")
+        return
+
+    was = float(product.get("price") or 0)
+    now = round(was + 37.5, 2) if was else 199.0
+
+    status, _ = api.put(f"/products/{product['id']}", {
+        "name": product["name"], "price": now,
+    }, token=token)
+    if status != 200:
+        rep.query("T", f"{code} · move a shelf price", f"{status}")
+        return
+
+    row = _latest(api, token, "Product")
+
+    if row is None:
+        rep.bug("T", f"{code} · A SHELF PRICE MOVED WITH NOBODY NAMED",
+                f"{was} → {now}, and the trail has no row for it")
+        return
+
+    old = (row.get("old_values") or {}).get("price")
+    if old is not None and abs(float(old) - was) < 0.01:
+        rep.ok("T", f"{code} · the trail says what the price WAS", f"{was} → {now}")
+    else:
+        rep.bug("T", f"{code} · THE TRAIL DOES NOT SAY WHAT THE PRICE WAS",
+                f"'it is {now} now' is on the product already; old_values={row.get('old_values')}")
+
+    if (row.get("actor") or {}).get("name"):
+        rep.ok("T", f"{code} · and who moved it", row["actor"]["name"])
+    else:
+        rep.bug("T", f"{code} · A SHELF PRICE MOVED WITH NOBODY NAMED",
+                f"a row with no actor answers nothing; actor={row.get('actor')}")
+
+    # ── and a new item is not a price change ────────────────────────────
+    #
+    # The shop's OWN kind of item. A salon has the `services` module and not
+    # `products`, so a physical product is a 422 there — and the first version
+    # asked for one anyway, which meant the whole "a create is quiet" half was
+    # skipped in exactly one shop and reported as something to look at. A check
+    # that cannot run in a trade is a hole in the denominator, not a query.
+    sells_goods = (state.get("features") or {}).get("products")
+    item = ({"item_type": "physical_product"} if sells_goods
+            else {"item_type": "service", "duration_minutes": 30})
+
+    status, body = api.post("/products", {
+        "name": f"{PROBE} New Item {abs(hash(code)) % 997}",
+        "price": 250, **item,
+    }, token=token)
+
+    if status not in (200, 201):
+        rep.query("T", f"{code} · add an item to prove creates are quiet",
+                  f"{status} for {item['item_type']} — {_why(status, body)}")
+        return
+
+    made = (body.get("data") or {}).get("id")
+    status, listing = api.get(f"/audit-logs?type=Product&record={made}", token=token)
+
+    if status != 200:
+        rep.bug("T", f"{code} · THE TRAIL CANNOT BE ASKED ABOUT ONE ITEM",
+                f"?record= → {status}; a shopkeeper's question arrives at the item")
+        return
+
+    rows = _rows(listing)
+    rep.expect("T", f"{code} · a new item is not a price change", len(rows), 0,
+               f"adding one item filed {len(rows)} row(s) — a shop opening with five "
+               f"thousand would bury its own trail")
 
 
 def _a_coupon_names_who_made_it(api: Api, rep: Report, code: str, token: str, state: dict) -> None:
@@ -296,6 +389,35 @@ def _latest(api: Api, token: str, entity: str) -> dict | None:
     rows = _rows(body) if status == 200 else []
 
     return rows[0] if rows else None
+
+
+def _probe_product(api: Api, token: str, code: str, state: dict) -> dict | None:
+    """
+    An item belonging to this phase, reused between runs.
+
+    Its price wanders upward run after run and that is fine — nothing sells it.
+    The shop's own product is left exactly where phase C put it.
+    """
+    name = f"{PROBE} Priced Item"
+    sells_goods = (state.get("features") or {}).get("products")
+    kind = ({"item_type": "physical_product"} if sells_goods
+            else {"item_type": "service", "duration_minutes": 30})
+
+    status, body = api.post("/products", {"name": name, "price": 180, **kind}, token=token)
+    if status in (200, 201):
+        return body.get("data") or {}
+
+    status, body = api.get(f"/products?search={name.replace(' ', '+')}", token=token)
+
+    return next((p for p in _rows(body) if p.get("name") == name), None)
+
+
+def _why(status: int, body: dict) -> str:
+    """The server's own words, so a query names a reason rather than a number."""
+    errors = body.get("errors") or {}
+    first = next((m for msgs in errors.values() for m in msgs), None)
+
+    return str(first or body.get("message") or status)[:120]
 
 
 def _rows(body: dict) -> list:

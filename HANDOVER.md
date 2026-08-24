@@ -276,7 +276,59 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-23 (latest) — page two, asked of the list instead of the folder
+### 2026-08-29 (latest) — what this item used to cost
+
+Full write-up: `docs/decisions/shopos-what-it-used-to-cost.md`.
+
+Every other money authority had been auditable for a while — tax rate, coupon,
+credit limit, group discount. The one a shop exercises DAILY was not on the list:
+`Product` used no `Auditable` trait at all, so sugar went 180 → 210 and the only
+record of 180 was the screen it was typed over.
+
+The hard half was not recording it. A catalogue makes the trait's own warning
+twice as sharp, so most of the work is about what must NOT be filed: an item
+arriving with a price is not a price change (`auditCreate()` false), a rename is
+not a money decision (`auditOnly` = the three selling prices), and an import of
+340 items is ONE act — suppressed per row and recorded once, because suppressing
+without recording would be making a write quiet.
+
+`cost` is deliberately absent: it re-blends on every delivery, so auditing it
+files a row per line per goods-received, none of them a decision. The purchase
+order line is the truer record of what was paid.
+
+Two things had to change underneath. The trail filtered by kind, person and date
+but NOT by subject — the one question a shopkeeper arrives with — so `?record=`
+was added. And `audit_logs.auditable_id` was NOT NULL, so an act about a KIND
+(an import) could only be filed by pretending it happened to a row.
+
+It shows under the price boxes on the item, gated by the Activity rule from the
+same map: a stock keeper can change a price and is not shown who else has, and
+for them the section renders nothing rather than appearing and 403ing.
+
+**And two harness lies in the same run, both mine.**
+
+The first full sweep after this printed 849 ok and **97 bugs** — every one a 401.
+Measured: 100 of 107 cached tokens were dead while `personal_access_tokens` still
+held 2,290 rows, so nothing had been deleted. `config/sanctum.php` says
+`'expiration' => null`, which is why reading it proves nothing: **the expiry is
+set per token, `created + 1 hour`, and a full sweep is longer than an hour.** The
+client now renews on 401 and retries once, returns a status no route ever issues
+if that fails, and `run.py` fails the run out loud rather than printing a summary
+that cannot be trusted.
+
+The second: phase T's new price check re-priced `state["product"]` — the item
+every other phase SELLS — so the next run's baskets failed against phase C's
+literal tenders and six shops reported six product bugs. The repair was then
+worse than the damage: a script flattened every "Sweep %" product to 500,
+destroying the fixtures whose distinct price is their fingerprint (Sized Item 111,
+Shelf Lot 1200, Serialized 1500, Petrol 280) — 88 rows, restored from the phases
+that own them. Phase T uses an item of its own now, and
+`phase_c._ensure_product` puts the price back beside the restock it already did.
+
+Gates: backend **2162 / 9108** · panel **1122 / 88 files** · Playwright **107
+passed, 24 skipped, 0 failed**.
+
+### 2026-08-23 — page two, asked of the list instead of the folder
 
 Full write-up: `docs/decisions/shopos-page-two-per-list.md`.
 

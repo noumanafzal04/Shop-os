@@ -134,6 +134,42 @@ class Api:
         # So: wait it out here, once, using the server's own figure. A sweep
         # that trips a rate limit and calls the result a finding is a sweep that
         # manufactures bugs, and this one nearly did.
+        # ── 401 means MY CREDENTIAL DIED, not that the shop refused ─────
+        #
+        # An access token carries `expires_at` = minted + ONE HOUR, set per
+        # token rather than through config/sanctum.php — which is why reading
+        # `'expiration' => null` there proves nothing. A full sweep takes longer
+        # than an hour, so tokens minted in phase A are dead by the later
+        # phases, and every call after that point came back 401.
+        #
+        # One run printed **97 BUGS** that were all this: "hire a buyer — 401",
+        # "add Lane 1 — 401", "the shop is offered job presets — 401". The
+        # server was answering correctly about a credential that had expired
+        # mid-run, and the sweep was reporting it as a product defect.
+        #
+        # Same rule as HARNESS_NO_TOKEN above, one step further along: a tool
+        # that cannot do its job must SAY SO rather than answer anyway. So the
+        # identity is signed in again and the call retried once — and if that
+        # fails, the answer is a harness status no route ever returns, never a
+        # 401 a phase could read as a refusal.
+        if status == 401 and use is not None and token is not NOBODY and not _retry:
+            email = next((e for e, t in self._cache.items() if t == use), None)
+            if email is not None:
+                print(f"       … token expired for {email}, signing in again", flush=True)
+                self._cache.pop(email, None)
+                fresh = self.login(email)
+                if fresh:
+                    return self.call(method, path, body, fresh, _retry=True, headers=headers)
+
+            self.calls.append({"method": method, "path": path, "status": 0,
+                               "error": "credential expired"})
+
+            return 0, {
+                "message": "HARNESS: the token expired mid-run and could not be "
+                           "renewed — this is not an answer about the product",
+                "meta": {"error_code": "HARNESS_TOKEN_EXPIRED"},
+            }
+
         if status == 429 and not _retry:
             wait = min(int(self.headers.get("Retry-After") or 61) + 1, 70)
             print(f"       … rate limited on {path}, waiting {wait}s", flush=True)

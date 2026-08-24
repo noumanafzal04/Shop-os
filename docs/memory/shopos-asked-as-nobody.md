@@ -78,3 +78,17 @@ screen for **all 17** codes.
 
 Related: [[shopos-qa-sweep]], [[shopos-detector-vs-rule]],
 [[shopos-workflow-test-rule]], [[shopos-who-changed-what]]
+
+**2026-08-24 — and I did it again, inside the sweep.** Phase T's new price check
+re-priced `state["product"]`, the item every other phase SELLS, leaving it 37.50
+higher; the next run's baskets failed against phase C's literal tenders and six
+shops reported six product bugs. Then the repair was worse than the damage — a
+script flattened every "Sweep %" product to 500, destroying the fixtures whose
+DISTINCT price is their fingerprint (Sized Item 111, Shelf Lot 1200, Serialized
+1500, Petrol 280): 88 rows.
+
+Fixes: a probe uses an item of its own that nothing sells, and
+`phase_c._ensure_product` puts the price back beside the restock it already did —
+a re-runnable fixture must find its subject not merely present but in the STATE
+it needs. See [[shopos-token-lives-one-hour]] for the other harness lie in the
+same run.
