@@ -25,6 +25,7 @@ import type { ItemTypeCode, ModifierGroup } from "../types";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import VariantMatrixEditor from "../components/VariantMatrixEditor";
 import { axesFromRows, toPayload, type Axis, type MatrixRow } from "../variantMatrix";
+import { PriceHistory } from "../components/PriceHistory";
 
 /** A compact labelled on/off switch used for stock + marketplace flags. */
 function Toggle({
@@ -1024,6 +1025,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             )}
           </>
         ) : null}
+
+        {/* What this item used to cost, and who moved it. Edit only — a new item
+            has no history, and the section renders nothing for anyone whose job
+            does not include reading the shop's trail. */}
+        {isEdit && id && <PriceHistory productId={id} />}
 
         <div>
           <Label>

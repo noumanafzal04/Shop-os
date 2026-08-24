@@ -21,7 +21,7 @@ import { apiGet } from "../../../common/api/client";
 
 interface AuditLog {
   id: string;
-  event: "created" | "updated" | "deleted";
+  event: "created" | "updated" | "deleted" | "imported";
   entity: string;
   entity_id: string;
   actor: { id: string; name: string; email: string | null } | null;
@@ -31,8 +31,13 @@ interface AuditLog {
   created_at: string;
 }
 
-const EVENT_COLOR = { created: "success", updated: "info", deleted: "error" } as const;
-const EVENT_WORD = { created: "added", updated: "changed", deleted: "removed" } as const;
+// `imported` is a bulk act, and it is here because one exists: a price-list
+// import touching 340 items files ONE row rather than 340, so the trail keeps
+// its hand-made price changes on the first page. Rendering it needs no special
+// case beyond a word and a colour — `Changes` already reads whatever values a
+// row carries, which for an import is the counts.
+const EVENT_COLOR = { created: "success", updated: "info", deleted: "error", imported: "warning" } as const;
+const EVENT_WORD = { created: "added", updated: "changed", deleted: "removed", imported: "imported" } as const;
 
 /** Model name → what a shopkeeper calls it. Anything unlisted keeps its own name. */
 const THING: Record<string, string> = {
@@ -56,6 +61,7 @@ const THING: Record<string, string> = {
   FuelNozzle: "Nozzle",
   FuelDelivery: "Fuel delivery",
   ForecourtShift: "Forecourt shift",
+  Product: "Item price",
 };
 
 /** Column name → what it is called on the screen it was changed on. */
@@ -71,6 +77,13 @@ const FIELD: Record<string, string> = {
   code: "Code",
   is_active: "Active",
   name: "Name",
+  price: "Price",
+  discount_price: "Sale price",
+  wholesale_price: "Wholesale price",
+  created: "Items added",
+  updated: "Items re-priced",
+  failed: "Rows rejected",
+  products: "Items before",
 };
 
 function label(key: string): string {
