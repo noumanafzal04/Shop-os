@@ -81,3 +81,53 @@ test("a fresh item shows no history at all", async ({ page, request }) => {
 
   await expect(page.locator("[data-price-history]")).toHaveCount(0);
 });
+
+test("the panel's link reaches the rest of that item's changes", async ({ page, request }) => {
+  // The panel shows a handful and deliberately has no page two — a product form
+  // is not a place to browse. That was only honest once Activity could be
+  // narrowed to ONE item: before this, it filtered to Products and no further,
+  // so an item's eleventh-oldest price change meant paging every product change
+  // in the shop.
+  const auth = ownerAuth();
+  const name = `${NAME} Trail`;
+
+  await removeProductsNamed(request, name);
+  const made = await request.post(`${API}/products`, {
+    headers: auth,
+    data: { name, item_type: "physical_product", price: 100, track_inventory: true },
+  });
+  const id = ((await made.json()) as { data: { id: string } }).data.id;
+
+  for (const price of [110, 120, 130]) {
+    const moved = await request.put(`${API}/products/${id}`, { headers: auth, data: { name, price } });
+    expect(moved.ok(), `the price did not move to ${price}: ${moved.status()}`).toBeTruthy();
+  }
+
+  await page.goto(`/tenant/products/${id}/edit`);
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(1500);
+
+  const link = page.getByRole("link", { name: /every change to this item/i });
+  await expect(link, "the panel does not offer the rest of the trail").toBeVisible();
+  await link.click();
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(1200);
+
+  // Narrowed, and SAYING it is narrowed. A filtered list that looks unfiltered
+  // is how somebody concludes their shop has no history.
+  expect(page.url(), "the link did not carry which item").toContain(`record=${id}`);
+  await expect(
+    page.getByText(/Showing one item only/i),
+    "the list is filtered and does not admit it",
+  ).toBeVisible();
+
+  // Every row on screen is about THIS item, which is the whole point of the
+  // filter — and the thing that was impossible before it.
+  const rows = page.locator("tbody tr");
+  await expect(rows.first()).toBeVisible();
+  await expect(rows.filter({ hasText: name })).toHaveCount(await rows.count());
+
+  await page.getByRole("button", { name: /Show everything/i }).click();
+  await page.waitForTimeout(900);
+  expect(page.url(), "clearing the filter left it in the URL").not.toContain("record=");
+});

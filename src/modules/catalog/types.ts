@@ -179,6 +179,15 @@ export interface RecipeItemLine {
   id?: string;
   ingredient_product_id: string;
   quantity: number | string;
+  /**
+   * WHICH SIZE of this dish the line is the recipe for.
+   *
+   * Null means the dish, whatever size — which is what every recipe was before
+   * a size could be named, and what a size with nothing of its own falls back
+   * to. A kitchen runs out of large bases, not of pizza: one recipe for all
+   * sizes drew a Small's flour for a Large.
+   */
+  variant_id?: string | null;
   ingredient?: { id: string; name: string };
 }
 
@@ -282,7 +291,7 @@ export interface ProductInput {
     variant_id?: string | null;
     quantity: number;
   }>;
-  recipe_items?: Array<{ ingredient_product_id: string; quantity: number }>;
+  recipe_items?: Array<{ ingredient_product_id: string; quantity: number; variant_id?: string | null }>;
   unit?: string;
   attributes?: Record<string, string>;
   price: number | string;

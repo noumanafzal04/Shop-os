@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 export const API = process.env.E2E_API_URL ?? "http://localhost:8000/api/v1";
 const STATE = "e2e/.auth/owner.json";
+const FOOD_STATE = "e2e/.auth/food.json";
 
 /**
  * The signed-in owner's bearer token, read out of the saved browser session.
@@ -31,8 +32,8 @@ const STATE = "e2e/.auth/owner.json";
  */
 const SESSION_GOOD_FOR_MS = 55 * 60 * 1000;
 
-export function ownerAuth(): Record<string, string> {
-  const age = Date.now() - fs.statSync(STATE).mtimeMs;
+function authFrom(state: string): Record<string, string> {
+  const age = Date.now() - fs.statSync(state).mtimeMs;
   if (age > SESSION_GOOD_FOR_MS) {
     throw new Error(
       `the saved sign-in is ${Math.round(age / 60000)} minutes old and access tokens live 60 — `
@@ -41,19 +42,36 @@ export function ownerAuth(): Record<string, string> {
     );
   }
 
-  const raw = JSON.parse(fs.readFileSync(STATE, "utf8")) as {
+  const raw = JSON.parse(fs.readFileSync(state, "utf8")) as {
     origins: Array<{ localStorage: Array<{ name: string; value: string }> }>;
   };
   const stored = raw.origins
     .flatMap((o) => o.localStorage)
     .find((kv) => kv.name === "shopos-auth")?.value;
 
-  if (!stored) throw new Error("no saved session — auth.setup.ts did not run");
+  if (!stored) throw new Error(`no saved session in ${state} — auth.setup.ts did not run`);
 
   const token = (JSON.parse(stored) as { state: { accessToken?: string } }).state.accessToken;
-  if (!token) throw new Error("the saved session carries no token");
+  if (!token) throw new Error(`the saved session in ${state} carries no token`);
 
   return { Authorization: `Bearer ${token}`, Accept: "application/json" };
+}
+
+export function ownerAuth(): Record<string, string> {
+  return authFrom(STATE);
+}
+
+/**
+ * The RESTAURANT's owner, for the specs the mart cannot host.
+ *
+ * A mart's item types are ["physical_product", "deal"], so a dish, a recipe, a
+ * dine-in tab and a kitchen board were all unreachable in a browser — and a
+ * spec that wanted one skipped itself out of existence rather than failing.
+ * Only usable from the `restaurant` project, which carries the matching
+ * storageState.
+ */
+export function foodAuth(): Record<string, string> {
+  return authFrom(FOOD_STATE);
 }
 
 /**

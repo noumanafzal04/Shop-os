@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 
 import { apiGet } from "../../../common/api/client";
 import { canVisit } from "../../../common/routing/screenPermissions";
@@ -78,7 +79,19 @@ export function PriceHistory({ productId }: { productId: string }) {
     <div data-price-history className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
       <p className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">Price history</p>
       <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-        The last few changes, most recent first.
+        The last few changes, most recent first.{" "}
+        {/* The rest of them, actually reachable.
+            This panel deliberately shows a handful and has no page two — a
+            product form is not a place to browse. That was only honest once
+            Activity could be narrowed to ONE item; before this link it filtered
+            to Products and no further, so the eleventh-oldest price change
+            meant paging every product change in the shop. */}
+        <Link
+          to={`/tenant/activity?record=${productId}`}
+          className="font-medium text-brand-600 underline underline-offset-2 hover:text-brand-700 dark:text-brand-400"
+        >
+          See every change to this item
+        </Link>
       </p>
 
       <ul className="mt-3 space-y-2">

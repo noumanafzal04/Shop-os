@@ -152,7 +152,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
     variant_id: string;
     quantity: string;
   }>>([]);
-  const [recipeRows, setRecipeRows] = useState<Array<{ ingredient_product_id: string; quantity: string }>>([]);
+  const [recipeRows, setRecipeRows] = useState<Array<{ ingredient_product_id: string; quantity: string; variant_id: string }>>([]);
   /** What one portion costs to make, as the server computed it on load. */
   const [recipeCost, setRecipeCost] = useState<number | null>(null);
   const [recipeMissing, setRecipeMissing] = useState<string[]>([]);
@@ -197,6 +197,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [visibleOnline, setVisibleOnline] = useState(true);
   const [collectionIds, setCollectionIds] = useState<string[]>([]);
   const [variants, setVariants] = useState<MatrixRow[]>([]);
+
+  // The sizes that EXIST on the server, which are the only ones a recipe line
+  // can point at. A row still being typed in the grid above has no id yet, so
+  // offering it would collect an answer that cannot be saved.
+  const savedSizes = variants.filter((v): v is MatrixRow & { id: string } => Boolean(v.id));
   /**
    * The axes those rows were generated from.
    *
@@ -356,7 +361,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         variant_id: c.variant_id ?? "",
         quantity: String(c.quantity),
       })));
-      setRecipeRows((p.recipe_items ?? []).map((r) => ({ ingredient_product_id: r.ingredient_product_id, quantity: String(r.quantity) })));
+      setRecipeRows((p.recipe_items ?? []).map((r) => ({ ingredient_product_id: r.ingredient_product_id, quantity: String(r.quantity), variant_id: r.variant_id ?? "" })));
       // Computed server-side from the ingredients' own costs — never here. The
       // browser holds no cost prices (see HidesCostPrice), and a figure the
       // panel worked out itself would be a second answer to a question the
@@ -466,7 +471,14 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       // module was switched off.
       recipe_items: isFood && inventoryEnabled
         ? recipeRows.filter((r) => r.ingredient_product_id && Number(r.quantity) > 0)
-            .map((r) => ({ ingredient_product_id: r.ingredient_product_id, quantity: Number(r.quantity) }))
+            .map((r) => ({
+              ingredient_product_id: r.ingredient_product_id,
+              quantity: Number(r.quantity),
+              // WHICH size this line is for. Blank is the dish's own recipe —
+              // what every row was before sizes could be named, and what a
+              // size with nothing of its own falls back to.
+              variant_id: r.variant_id || null,
+            }))
         : undefined,
       unit: unit.trim() || undefined,
       price: price,
@@ -932,7 +944,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               <button
                 type="button"
                 className={ROW_ACTION}
-                onClick={() => setRecipeRows((r) => [...r, { ingredient_product_id: "", quantity: "1" }])}
+                onClick={() => setRecipeRows((r) => [...r, { ingredient_product_id: "", quantity: "1", variant_id: "" }])}
               >
                 + Add ingredient
               </button>
@@ -944,6 +956,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 <div key={i} className="mb-2 flex items-center gap-2">
                   <select
                     value={row.ingredient_product_id}
+                    aria-label={`Ingredient ${i + 1}`}
                     onChange={(e) => setRecipeRows((arr) => arr.map((x, j) => (j === i ? { ...x, ingredient_product_id: e.target.value } : x)))}
                     className="h-11 flex-1 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90"
                   >
@@ -952,9 +965,31 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
+                  {/* WHICH SIZE of THIS dish this line is the recipe for.
+                      A kitchen runs out of large bases, not of pizza — and one
+                      recipe for every size drew a Small's flour for a Large,
+                      measured, both `2 dough`. Blank keeps the old meaning
+                      exactly: the dish, whatever size.
+
+                      Only sizes that EXIST on the server can be named, so this
+                      appears once the dish is saved — a size being typed in the
+                      grid above has no id to point at yet. */}
+                  {savedSizes.length > 0 && (
+                    <select
+                      value={row.variant_id}
+                      aria-label={`Which size ingredient ${i + 1} is for`}
+                      onChange={(e) => setRecipeRows((arr) => arr.map((x, j) => (j === i ? { ...x, variant_id: e.target.value } : x)))}
+                      className="h-11 w-40 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90"
+                    >
+                      <option value="">Every size</option>
+                      {savedSizes.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name} only</option>
+                      ))}
+                    </select>
+                  )}
                   <span className="text-theme-xs text-gray-400">×</span>
-                  <Input type="number" min="0" step={0.001} value={row.quantity} onChange={(e) => setRecipeRows((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} className="max-w-24" />
-                  <button type="button" className={ROW_ACTION_DANGER} onClick={() => setRecipeRows((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                  <Input type="number" min="0" step={0.001} aria-label={`Quantity of ingredient ${i + 1}`} value={row.quantity} onChange={(e) => setRecipeRows((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} className="max-w-24" />
+                  <button type="button" aria-label={`Remove ingredient ${i + 1}`} className={ROW_ACTION_DANGER} onClick={() => setRecipeRows((arr) => arr.filter((_, j) => j !== i))}>✕</button>
                 </div>
               ))
             )}

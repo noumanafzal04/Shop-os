@@ -211,6 +211,12 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "warn", text: "If any ingredient has no cost price, the dish says it cannot be costed and names which ones — rather than showing a smaller figure. A part-costed dish looks more profitable than it is, and that is how a menu gets underpriced." },
       { type: "note", text: "This is also what your Margins report uses, so fixing an ingredient's cost corrects every report that dish appears in. The figure on the form refreshes when you save and reopen." },
       { type: "note", text: "The ingredient list — and the item list on a deal — offers your WHOLE catalog, not the first screenful. Start typing while the dropdown is open and it jumps to what you want." },
+      { type: "h", text: "When a Large uses more than a Small" },
+      { type: "p", text: "If your dish comes in sizes, each ingredient line can say which size it is for. Leave it on \"Every size\" and the line applies to all of them — that is how every recipe worked before, and nothing you have already written needs changing." },
+      { type: "p", text: "Set a line to \"Large only\" and the Large is made from those lines instead: they replace the every-size lines for that size, they do not add to them. That is how a chef writes it down — a Large uses more of the same flour, not extra flour on top of the Small's." },
+      { type: "note", text: "A size you never spell out keeps using the every-size lines, so you only have to describe the sizes that are genuinely different." },
+      { type: "warn", text: "Before this, one recipe served every size: a Small and a Large both took the same flour out of stock, and your food cost was right for one of them at most. If your dish has sizes and no line names one, the save tells you so." },
+      { type: "note", text: "The size choice appears once the dish is saved — a size still being typed into the grid does not exist yet for a recipe line to point at." },
       { type: "h", text: "A deal that contains something with sizes" },
       { type: "p", text: "If an item in your deal comes in sizes, a second box appears asking which one — a Family Deal has a Large pizza in it, not just \"a pizza\". Selling the deal then takes that size off the shelf and nothing else." },
       { type: "warn", text: "The deal will not save until you answer it, and that is deliberate: without a size there is no shelf to take from, and the till used to refuse the sale with \"no stock\" while the shop had twenty. Better asked here, once, than found at the counter." },
@@ -546,6 +552,23 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "warn",
         text: "A dish that is off tonight, or one that has run out, is now marked on the menu grid and cannot be tapped — the kitchen refused it before, but only after a waiter had already promised it to a table.",
+      },
+      { type: "h", text: "When a table leaves without eating" },
+      {
+        type: "p",
+        text: "Cancel the tab and the kitchen stops being told to cook it. The dockets already fired come off the pass, and the waiting count on your dashboard comes down with them.",
+      },
+      {
+        type: "warn",
+        text: "Before this, a cancelled tab left its dockets on the board for good. A cook kept looking at food nobody was going to eat, and the owner's dashboard counted it as work still owed — one more every time anybody cancelled anything, and never coming down.",
+      },
+      {
+        type: "note",
+        text: "Anything the kitchen had already sent out stays recorded as served. Cancelling a bill cannot un-cook food, and the kitchen's own record of what it made has to stay true.",
+      },
+      {
+        type: "note",
+        text: "Settling works the same way from the board's side: a paid table stops being work on the pass. The dockets themselves are left exactly as the kitchen left them — a bill being paid says nothing about whether anyone pressed Ready.",
       },
       { type: "h", text: "Going off shift with open tables" },
       {
@@ -1542,6 +1565,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "Some changes are worth being able to prove afterwards. Somebody raised a customer's credit limit to ninety thousand. Somebody moved the tax rate from 17% to 5%, which re-rates every product on it. Somebody made a coupon for half off. Activity records all of it — who, what, when, and what the value was before." },
       { type: "p", text: "It is kept whether or not anyone ever asks. That is the point of a record: the day you need it is not a day you can go back and start keeping one." },
+      { type: "p", text: "Opening it from an item narrows it to that item, and a bar at the top says so with a Show everything link. That is how the Price history panel on a product gets you the rest of its changes — the panel shows the last few, the link shows all of them." },
       { type: "h", text: "What is recorded" },
       { type: "keys", items: [
         ["Credit limits", "How much a customer may take on khata without paying. The limit itself, not the rest of the record — a phone number corrected at the counter is not an event."],

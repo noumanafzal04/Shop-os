@@ -1,9 +1,19 @@
-import { test as setup, expect } from "@playwright/test";
+import { test as setup, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 
 const OWNER = process.env.E2E_OWNER ?? "sweep-mart@qa.test";
 const PASSWORD = process.env.E2E_PASSWORD ?? "password";
 const STATE = "e2e/.auth/owner.json";
+
+// A SECOND SHOP, because a mart cannot hold a dish.
+//
+// `itemTypesFor('mart')` is ["physical_product", "deal"], so every food screen
+// — a recipe, a dine-in tab, a kitchen board, menu hours — was unreachable in a
+// browser. A spec that wanted one asked the server for a dish, was refused, and
+// SKIPPED. Forever, printing as a line in a green run. See e2e/skipReporter.ts,
+// which is what made that visible.
+const FOOD_OWNER = process.env.E2E_FOOD_OWNER ?? "sweep-food-restaurant@qa.test";
+const FOOD_STATE = "e2e/.auth/food.json";
 
 /**
  * Sign in once, keep the session, and let every other spec start inside the app.
@@ -16,7 +26,7 @@ const STATE = "e2e/.auth/owner.json";
  * `throttle:auth` is 5 logins per minute per IP, so this runs ONCE and the
  * session is reused. See the same note in the sweep's client.
  */
-setup("sign in as a shop owner", async ({ page }) => {
+async function signIn(page: Page, who: string, into: string): Promise<void> {
   fs.mkdirSync("e2e/.auth", { recursive: true });
 
   // `throttle:auth` is 5 per minute per IP and it is CORRECT — it is the
@@ -25,7 +35,7 @@ setup("sign in as a shop owner", async ({ page }) => {
   // suite for a reason that has nothing to do with layout.
   for (let attempt = 1; ; attempt++) {
     await page.goto("/signin");
-    await page.getByPlaceholder("you@business.com").fill(OWNER);
+    await page.getByPlaceholder("you@business.com").fill(who);
     await page.getByPlaceholder("Enter your password").fill(PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
 
@@ -70,5 +80,15 @@ setup("sign in as a shop owner", async ({ page }) => {
 
   expect(page.url(), "still on the setup form").not.toContain("/tenant/setup");
 
-  await page.context().storageState({ path: STATE });
+  await page.context().storageState({ path: into });
+}
+
+setup("sign in as a shop owner", async ({ page }) => {
+  await signIn(page, OWNER, STATE);
+});
+
+setup("sign in as a restaurant owner", async ({ page }) => {
+  // Same throttle budget, one more login. Worth it: without this shop the
+  // entire food vertical has no browser coverage at all.
+  await signIn(page, FOOD_OWNER, FOOD_STATE);
 });

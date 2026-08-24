@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
 import Pager from "../../../components/ui/pager";
@@ -24,6 +25,13 @@ interface AuditLog {
   event: "created" | "updated" | "deleted" | "imported";
   entity: string;
   entity_id: string;
+  /**
+   * WHICH ONE. "Product · Changed · price 180 → 210" names a kind and never a
+   * thing — and a shop reading its own history has to be told which sugar.
+   * The server has sent this since the trail learned to filter by record; the
+   * screen declared no field for it and rendered nothing.
+   */
+  subject: string | null;
   actor: { id: string; name: string; email: string | null } | null;
   old_values: Record<string, unknown> | null;
   new_values: Record<string, unknown> | null;
@@ -137,8 +145,18 @@ export default function ActivityPage() {
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
 
+  // ONE RECORD, when somebody arrived here from it.
+  //
+  // The price panel on a product says "the whole trail is on Activity" and that
+  // was half true: Activity could filter to Products but not to THIS product,
+  // so finding an item's eleventh-oldest price change meant paging every
+  // product change in the shop. The server has taken `?record=` since the panel
+  // was built; nothing was passing it.
+  const [params, setParams] = useSearchParams();
+  const record = params.get("record") ?? "";
+
   const logs = useQuery({
-    queryKey: ["activity", { event, type, from, to, page }],
+    queryKey: ["activity", { event, type, from, to, page, record }],
     queryFn: () =>
       apiGet<AuditLog[]>("/audit-logs", {
         params: {
@@ -146,6 +164,7 @@ export default function ActivityPage() {
           type: type || undefined,
           from: from || undefined,
           to: to || undefined,
+          record: record || undefined,
           page,
         },
       }),
@@ -166,6 +185,22 @@ export default function ActivityPage() {
           Who changed what, and when. Kept whether or not anyone ever asks.
         </p>
       </div>
+
+      {/* Narrowed to one thing. Named as a removable chip rather than left
+          implicit: a filtered list that looks unfiltered is how somebody
+          concludes their shop has no history. */}
+      {record !== "" && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-theme-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
+          <span>Showing one item only.</span>
+          <button
+            type="button"
+            className="font-medium underline underline-offset-2"
+            onClick={() => { setParams({}); setPage(1); }}
+          >
+            Show everything
+          </button>
+        </div>
+      )}
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Select
@@ -242,9 +277,22 @@ export default function ActivityPage() {
                         <div className="text-theme-xs text-gray-400">{log.actor.email}</div>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="mr-2">{THING[log.entity] ?? log.entity}</span>
-                      <Badge size="sm" color={EVENT_COLOR[log.event]}>{EVENT_WORD[log.event]}</Badge>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 whitespace-nowrap">
+                        <span>{THING[log.entity] ?? log.entity}</span>
+                        <Badge size="sm" color={EVENT_COLOR[log.event]}>{EVENT_WORD[log.event]}</Badge>
+                      </div>
+                      {/* The thing itself, under its kind. A row that says a
+                          price moved from 180 to 210 and does not say WHOSE
+                          price is a record of an event that cannot be looked
+                          into. Nothing is shown where the subject is gone —
+                          a deleted record has no name left to print, and
+                          inventing one would be worse than the blank. */}
+                      {log.subject && (
+                        <div className="mt-1 font-medium text-gray-800 dark:text-white/90">
+                          {log.subject}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4"><Changes log={log} /></td>
                   </tr>
