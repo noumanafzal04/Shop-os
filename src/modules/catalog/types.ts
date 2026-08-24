@@ -177,6 +177,16 @@ export interface RecipeItemLine {
 export interface ComboItemLine {
   id?: string;
   component_product_id: string;
+  /**
+   * WHICH size of the component, where it has sizes.
+   *
+   * A deal listed its parts by product, and a product can have sizes — so a
+   * deal containing a pizza never said which, and the sale deducted against the
+   * parent's stock, which for a varianted product is always zero. The result was
+   * not a wrong figure but a refusal: "Insufficient stock: only 0 in stock" on a
+   * shop holding twenty. The server now refuses to SAVE such a deal.
+   */
+  variant_id?: string | null;
   quantity: number | string;
   component?: { id: string; name: string };
 }
@@ -257,7 +267,12 @@ export interface ProductInput {
   warranty_months?: number | null;
   barcodes?: string[];
   units?: ProductUnit[];
-  combo_items?: Array<{ component_product_id: string; quantity: number }>;
+  combo_items?: Array<{
+    component_product_id: string;
+    /** Which size, where the component has sizes. Null where it has none. */
+    variant_id?: string | null;
+    quantity: number;
+  }>;
   recipe_items?: Array<{ ingredient_product_id: string; quantity: number }>;
   unit?: string;
   attributes?: Record<string, string>;

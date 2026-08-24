@@ -146,7 +146,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [pluCode, setPluCode] = useState("");
   const [extraBarcodes, setExtraBarcodes] = useState<string[]>([]);
   const [units, setUnits] = useState<Array<{ name: string; factor: string; price: string; barcode: string }>>([]);
-  const [comboRows, setComboRows] = useState<Array<{ component_product_id: string; quantity: string }>>([]);
+  const [comboRows, setComboRows] = useState<Array<{
+    component_product_id: string;
+    /** Which size — "" while unanswered, which the server refuses to save. */
+    variant_id: string;
+    quantity: string;
+  }>>([]);
   const [recipeRows, setRecipeRows] = useState<Array<{ ingredient_product_id: string; quantity: string }>>([]);
   /** What one portion costs to make, as the server computed it on load. */
   const [recipeCost, setRecipeCost] = useState<number | null>(null);
@@ -265,6 +270,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const needsPicker = isCombo || (isFood && inventoryEnabled);
   const comboPickerQ = usePickableProducts(needsPicker);
   const pickable = (comboPickerQ.data?.rows ?? []).filter((p) => p.item_type !== "deal" && p.id !== id);
+  /** The sizes a chosen component comes in — empty when it has none. */
+  const comboSizes = (productId: string) =>
+    (pickable.find((p) => p.id === productId)?.variants ?? []).filter((v) => v.is_active);
   // When switching type on create, reset the stock-tracking default sensibly.
   useEffect(() => {
     if (!isEdit && typeInfo) setTrackStock(typeInfo.inventory === "required");
@@ -343,7 +351,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       // that size loose from its own label without anybody touching it.
       setExtraBarcodes((p.barcodes ?? []).filter((b) => !b.variant_id).map((b) => b.barcode));
       setUnits((p.units ?? []).map((u) => ({ name: u.name, factor: String(u.factor), price: u.price != null ? String(u.price) : "", barcode: u.barcode ?? "" })));
-      setComboRows((p.combo_items ?? []).map((c) => ({ component_product_id: c.component_product_id, quantity: String(c.quantity) })));
+      setComboRows((p.combo_items ?? []).map((c) => ({
+        component_product_id: c.component_product_id,
+        variant_id: c.variant_id ?? "",
+        quantity: String(c.quantity),
+      })));
       setRecipeRows((p.recipe_items ?? []).map((r) => ({ ingredient_product_id: r.ingredient_product_id, quantity: String(r.quantity) })));
       // Computed server-side from the ingredients' own costs — never here. The
       // browser holds no cost prices (see HidesCostPrice), and a figure the
@@ -439,7 +451,14 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         .map((u) => ({ name: u.name.trim(), factor: Number(u.factor), price: u.price ? Number(u.price) : null, barcode: u.barcode.trim() || null })) : undefined,
       combo_items: isCombo
         ? comboRows.filter((r) => r.component_product_id && Number(r.quantity) > 0)
-            .map((r) => ({ component_product_id: r.component_product_id, quantity: Number(r.quantity) }))
+            .map((r) => ({
+              component_product_id: r.component_product_id,
+              // Sent as null when the item has no sizes — the server refuses a
+              // size on something that has none, which is how it catches a stale
+              // id left behind by a changed row.
+              variant_id: r.variant_id || null,
+              quantity: Number(r.quantity),
+            }))
         : undefined,
       // Only when the recipe editor was on screen. Sending an empty list from
       // a form that never showed the section would silently wipe a recipe the
@@ -831,9 +850,15 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               <button
                 type="button"
                 className={ROW_ACTION}
-                onClick={() => setComboRows((r) => [...r, { component_product_id: "", quantity: "1" }])}
+                onClick={() => setComboRows((r) => [...r, { component_product_id: "", variant_id: "", quantity: "1" }])}
               >
-                + Add item
+                {/* "to deal", because the page header already carries an
+                    "+ Add Item" that opens this very drawer. Two buttons a
+                    screen apart saying the same three words, told apart only by
+                    a capital I — a person reading the screen has the section
+                    heading for context and a screen reader announcing the list
+                    of buttons does not. */}
+                + Add item to deal
               </button>
             </div>
             {comboRows.length === 0 ? (
@@ -843,7 +868,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 <div key={i} className="mb-2 flex items-center gap-2">
                   <select
                     value={row.component_product_id}
-                    onChange={(e) => setComboRows((arr) => arr.map((x, j) => (j === i ? { ...x, component_product_id: e.target.value } : x)))}
+                    aria-label={`Item ${i + 1} in this deal`}
+                    // Changing the product clears the size: a Large pizza's id
+                    // means nothing once the row is a bottle of cola, and the
+                    // server would refuse it as "not one of Cola's".
+                    onChange={(e) => setComboRows((arr) => arr.map((x, j) => (j === i ? { ...x, component_product_id: e.target.value, variant_id: "" } : x)))}
                     className="h-11 flex-1 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90"
                   >
                     <option value="">Select a product…</option>
@@ -851,6 +880,24 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
+                  {/* WHICH size, and only where the item has any.
+                      A deal containing a sized product could not be sold at all
+                      — the sale deducted against a parent shelf that is always
+                      zero and refused on a full shop. The server refuses to save
+                      one now, so this is where the question gets answered. */}
+                  {comboSizes(row.component_product_id).length > 0 && (
+                    <select
+                      value={row.variant_id ?? ""}
+                      aria-label={`Which size of item ${i + 1}`}
+                      onChange={(e) => setComboRows((arr) => arr.map((x, j) => (j === i ? { ...x, variant_id: e.target.value } : x)))}
+                      className="h-11 w-36 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90"
+                    >
+                      <option value="">Which size?</option>
+                      {comboSizes(row.component_product_id).map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  )}
                   <span className="text-theme-xs text-gray-400">×</span>
                   <Input type="number" min="0" step={0.001} value={row.quantity} onChange={(e) => setComboRows((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} className="max-w-24" />
                   <button type="button" className={ROW_ACTION_DANGER} onClick={() => setComboRows((arr) => arr.filter((_, j) => j !== i))}>✕</button>
