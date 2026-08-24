@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\BranchStock;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Support\BarcodeNamespace;
 use App\Support\ItemTypes;
 use Illuminate\Support\Facades\DB;
 
@@ -103,6 +104,7 @@ class SyncProductVariantsAction
                     // door on the shelf, and the difference between the two would
                     // be invisible until somebody counted.
                     $variant->fill($fields)->save();
+                    BarcodeNamespace::assign($product, $variant, $row);
                     $kept[] = $variant->id;
 
                     continue;
@@ -115,6 +117,7 @@ class SyncProductVariantsAction
                 ]);
                 $kept[] = $created->id;
 
+                BarcodeNamespace::assign($product, $created, $row);
                 $this->openTheShelfFor($product, $created, $mainBranchId, $row);
             }
 

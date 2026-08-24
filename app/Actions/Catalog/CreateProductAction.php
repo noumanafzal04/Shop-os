@@ -5,6 +5,7 @@ namespace App\Actions\Catalog;
 use App\Models\Branch;
 use App\Models\BranchStock;
 use App\Models\Product;
+use App\Support\BarcodeNamespace;
 use App\Support\ItemTypes;
 use App\Support\PlanLimits;
 use App\Support\TenantContext;
@@ -151,6 +152,13 @@ class CreateProductAction
                     'stock_quantity' => $variant['stock_quantity'] ?? 0,
                     'low_stock_threshold' => $variant['low_stock_threshold'] ?? null,
                 ]);
+
+                // The code printed on THIS size's packet. Written through the
+                // same place the edit path uses, because this loop and
+                // SyncProductVariantsAction are two writers of one thing and a
+                // barcode saved by only one of them exists after an edit and not
+                // after a create.
+                BarcodeNamespace::assign($product, $created, $variant);
 
                 // Per-branch on-hand for this variant at Main (mirrors the
                 // variant's rollup stock_quantity).

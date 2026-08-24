@@ -2,11 +2,8 @@
 
 namespace App\Actions\Catalog;
 
-use App\Exceptions\DomainException;
 use App\Models\Product;
-use App\Models\ProductBarcode;
-use App\Models\ProductUnit;
-use App\Models\ProductVariant;
+use App\Support\BarcodeNamespace;
 
 /**
  * Replaces a product's alternate barcodes. A barcode must resolve to exactly
@@ -34,31 +31,19 @@ class SyncProductBarcodesAction
             ->values();
 
         foreach ($clean as $barcode) {
-            $clashesPrimary = Product::query()
-                ->where('barcode', $barcode)
-                ->whereKeyNot($product->id)
-                ->exists();
-
-            $clashesAlternate = ProductBarcode::query()
-                ->where('barcode', $barcode)
-                ->where('product_id', '!=', $product->id)
-                ->exists();
-
-            // A variant SKU or a pack barcode sharing this code would be
-            // shadowed by this (product-level) alternate at scan time.
-            $clashesVariant = ProductVariant::query()->where('sku', $barcode)->exists();
-            $clashesUnit = ProductUnit::query()->where('barcode', $barcode)->exists();
-
-            if ($clashesPrimary || $clashesAlternate || $clashesVariant || $clashesUnit) {
-                throw DomainException::unprocessable(
-                    "Barcode {$barcode} is already used as another item's code (product, variant, or pack).",
-                    'BARCODE_TAKEN',
-                );
-            }
+            // The rule lives in BarcodeNamespace, because per-SIZE barcodes need
+            // exactly the same one and two copies of "what makes a code free" is
+            // how one of them ends up allowing a scan that rings the wrong line.
+            BarcodeNamespace::assertFree($barcode, $product);
         }
 
-        // Replace the set.
-        $product->barcodes()->delete();
+        // Replace the set — the PRODUCT-level set only.
+        //
+        // `barcodes()` is every row for this product, and a variant's own
+        // barcode is one of those rows. Deleting them all here would wipe every
+        // size's code the moment somebody edited the alternates, which is a
+        // different form of the same bug this file was written to prevent.
+        $product->barcodes()->whereNull('variant_id')->delete();
         foreach ($clean as $barcode) {
             $product->barcodes()->create(['tenant_id' => $tenantId, 'barcode' => $barcode]);
         }

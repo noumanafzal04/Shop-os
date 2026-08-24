@@ -73,6 +73,25 @@ class PosController extends Controller
 
         $variantId = null;
         $unitId = null;
+
+        // ── A code that belongs to ONE SIZE ─────────────────────────────
+        //
+        // The product query matches an alternate barcode through `barcodes`,
+        // and a size's own code IS one of those rows. So the parent was found,
+        // the fallback below never ran — it only runs when nothing was found at
+        // all — and the till asked which size while holding the answer in its
+        // hand.
+        //
+        // Written when no barcode row could name a variant, which stayed true
+        // only because nothing wrote that column.
+        if ($product !== null) {
+            $variantId = ProductBarcode::query()
+                ->where('barcode', $code)
+                ->where('product_id', $product->id)
+                ->whereNotNull('variant_id')
+                ->value('variant_id');
+        }
+
         if ($product === null) {
             // Fall back to a variant SKU, or an alternate barcode tied to a variant.
             $variant = ProductVariant::query()->where('sku', $code)->where('is_active', true)->first()

@@ -36,7 +36,7 @@ class ProductController extends Controller
     public function index(Request $request, BranchContext $branch): JsonResponse
     {
         $products = Product::query()
-            ->with(['category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
+            ->with(['category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     // Match name, brand, generic/salt (pharmacy), SKU, primary
@@ -215,7 +215,7 @@ class ProductController extends Controller
         $header = ProductCsv::headerRow();
 
         $rows = Product::query()
-            ->with(['category:id,name', 'taxGroup:id,name', 'barcodes:id,product_id,barcode'])
+            ->with(['category:id,name', 'taxGroup:id,name', 'barcodes:id,product_id,variant_id,barcode'])
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('name', 'like', "%{$search}%")
@@ -296,7 +296,7 @@ class ProductController extends Controller
             // computed from these and the selection used to stop at the name,
             // so the figure could not be produced from the row it was already
             // loading.
-            ->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name,cost'])
+            ->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name,cost'])
             ->findOrFail($id);
 
         return ApiResponse::ok(array_merge($product->toArray(), [

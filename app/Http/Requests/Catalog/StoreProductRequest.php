@@ -174,6 +174,11 @@ class StoreProductRequest extends FormRequest
                 Rule::unique('product_variants', 'sku')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
                 Rule::unique('products', 'sku')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
             ],
+            // The code printed on THIS size's packet. A drinks shop's 500ml and
+            // 1L carry different EANs; uniqueness across every namespace a scan
+            // consults is enforced in BarcodeNamespace, not here, because a
+            // validation rule cannot see the variant it is being assigned to.
+            'variants.*.barcode' => ['nullable', 'string', 'max:64', 'distinct'],
             'variants.*.price' => ['required_with:variants', 'numeric', 'min:0'],
             'variants.*.cost' => ['nullable', 'numeric', 'min:0'],
             'variants.*.stock_quantity' => ['sometimes', 'numeric', 'min:0'],
