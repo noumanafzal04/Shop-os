@@ -10,6 +10,7 @@ import { ApiError } from "../../../common/types/api";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useCreditDisposal, useDisposals } from "../hooks/useInventory";
 import type { StockDisposal } from "../services/inventoryService";
+import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 
 /**
  * What left the shelf without being sold, and what is owed back for it.
@@ -48,6 +49,7 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 export default function DisposalsPage() {
+  const branchCol = useBranchColumn();
   const money = useMoney();
   const [tab, setTab] = useState<Tab>("claims");
   const [settling, setSettling] = useState<StockDisposal | null>(null);
@@ -121,6 +123,7 @@ export default function DisposalsPage() {
               <tr className="border-b border-gray-100 text-left text-theme-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
                 <th className="px-4 py-2.5 font-medium">Item</th>
                 <th className="px-4 py-2.5 font-medium">Why</th>
+                {branchCol.show && <th className="px-4 py-2.5 font-medium">Branch</th>}
                 <th className="px-4 py-2.5 text-right font-medium">Qty</th>
                 <th className="px-4 py-2.5 text-right font-medium">Cost</th>
                 <th className="px-4 py-2.5 font-medium">Where it went</th>
@@ -129,10 +132,10 @@ export default function DisposalsPage() {
             </thead>
             <tbody>
               {q.isLoading ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">Loading…</td></tr>
+                <tr><td colSpan={branchCol.show ? 7 : 6} className="px-4 py-10 text-center text-sm text-gray-400">Loading…</td></tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
+                  <td colSpan={branchCol.show ? 7 : 6} className="px-4 py-12 text-center">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {tab === "claims" ? "Nothing waiting on a supplier." : "Nothing here."}
                     </p>
@@ -156,6 +159,9 @@ export default function DisposalsPage() {
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                       {REASON_LABELS[d.reason] ?? d.reason}
                     </td>
+                    {branchCol.show && (
+                      <td className="px-4 py-3 text-theme-xs text-gray-600 dark:text-gray-300">{branchCol.label(d.branch_id)}</td>
+                    )}
                     <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-200">
                       {Number(d.quantity)}
                     </td>

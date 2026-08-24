@@ -66,6 +66,14 @@ export interface BatchDisposalInput {
 }
 
 export interface StockDisposal {
+  /**
+   * Which branch this happened at, or null for an unpinned shop.
+   *
+   * The table has carried it since branches existed and the API returns it;
+   * this type did not declare it, so it arrived and was dropped. See
+   * `useBranchColumn`.
+   */
+  branch_id: string | null;
   id: string;
   number: string;
   product_name: string;
@@ -100,6 +108,14 @@ export interface DisposalFilters {
 }
 
 export interface StockMovement {
+  /**
+   * Which branch this happened at, or null for an unpinned shop.
+   *
+   * The table has carried it since branches existed and the API returns it;
+   * this type did not declare it, so it arrived and was dropped. See
+   * `useBranchColumn`.
+   */
+  branch_id: string | null;
   id: string;
   product_id: string;
   variant_id: string | null;

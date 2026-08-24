@@ -33,6 +33,14 @@ export const PAYMENT_METHODS = [
 ] as const;
 
 export interface Expense {
+  /**
+   * Which branch this happened at, or null for an unpinned shop.
+   *
+   * The table has carried it since branches existed and the API returns it;
+   * this type did not declare it, so it arrived and was dropped. See
+   * `useBranchColumn`.
+   */
+  branch_id: string | null;
   id: string;
   expense_category_id: string | null;
   supplier_id: string | null;

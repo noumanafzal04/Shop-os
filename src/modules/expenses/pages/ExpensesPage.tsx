@@ -32,6 +32,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import { useSuppliers } from "../../purchases/hooks/usePurchases";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -177,6 +178,7 @@ function MiniFilterBar({
 // ── Expenses ──────────────────────────────────────────────────────────
 
 function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
+  const branchCol = useBranchColumn();
   const [filters, setFilters] = useState<MoneyFilters>({ page: 1 });
   // Typing must not fire a request per keystroke, but every other filter is a
   // deliberate click and should answer at once.
@@ -372,6 +374,10 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                 <SortHeader label="Date" column="date" />
                 <th className="px-5 py-3 font-medium">Description</th>
                 <th className="px-5 py-3 font-medium">Category</th>
+                {/* Only where there is more than one branch to be at — see
+                    useBranchColumn. A single-site shop would get a column
+                    reading "Main" all the way down. */}
+                {branchCol.show && <th className="px-5 py-3 font-medium">Branch</th>}
                 <th className="px-5 py-3 font-medium">Paid</th>
                 <SortHeader label="Amount" column="amount" align="right" />
                 <th className="px-5 py-3 text-right font-medium">Receipt</th>
@@ -381,11 +387,11 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {expenses.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}><td colSpan={7} className="px-5 py-4"><div className="h-6 animate-pulse rounded bg-gray-100 dark:bg-gray-800" /></td></tr>
+                  <tr key={i}><td colSpan={branchCol.show ? 8 : 7} className="px-5 py-4"><div className="h-6 animate-pulse rounded bg-gray-100 dark:bg-gray-800" /></td></tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={branchCol.show ? 8 : 7} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {activeFilterCount(filters) > 0 ? "No expenses match these filters." : "No expenses recorded yet."}
                   </td>
                 </tr>
@@ -414,6 +420,9 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                       )}
                     </td>
                     <td className="px-5 py-3.5">{e.category?.name ?? "—"}</td>
+                    {branchCol.show && (
+                      <td className="px-5 py-3.5 text-theme-xs">{branchCol.label(e.branch_id)}</td>
+                    )}
                     <td className="px-5 py-3.5">
                       <span className="text-theme-xs capitalize text-gray-500">{e.payment_method.replace("_", " ")}</span>
                       {/* The one that matters: this expense took real cash out

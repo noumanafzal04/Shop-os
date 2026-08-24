@@ -20,6 +20,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
+import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 
 type AdjustType = "in" | "out" | "set";
 
@@ -94,6 +95,7 @@ export default function InventoryPage() {
   const batches = useBatches(batchTarget?.id ?? null);
 
   const movements = useMovements({ product_id: target?.id });
+  const branchCol = useBranchColumn();
 
   const openBatches = (p: Product) => {
     setBatchTarget(p);
@@ -539,6 +541,12 @@ export default function InventoryPage() {
                     <span>
                       {m.type === "set" ? "Recount" : m.quantity_change > 0 ? "In" : "Out"}
                       {m.variant ? ` · ${m.variant.name}` : ""}
+                      {/* WHICH branch moved it. An owner looking at the
+                          all-branches view sees "Out −3" twice with no way to
+                          tell whether that is one shop or two — and stock is the
+                          one figure where that distinction is the whole
+                          question. */}
+                      {branchCol.show ? ` · ${branchCol.label(m.branch_id)}` : ""}
                       {m.reason ? ` — ${m.reason}` : ""}
                     </span>
                     <span className={m.quantity_change > 0 ? "text-success-500" : "text-error-500"}>

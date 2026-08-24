@@ -27,6 +27,7 @@ import { downloadFile, openAuthedFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -57,6 +58,7 @@ const INCOME_METHODS = [
 ];
 
 export default function IncomePage() {
+  const branchCol = useBranchColumn();
   const money = useMoney();
   const toast = useToast();
   const confirm = useConfirm();
@@ -272,6 +274,7 @@ export default function IncomePage() {
                 <th className="px-6 py-3 font-medium">Date</th>
                 <th className="px-6 py-3 font-medium">Description</th>
                 <th className="px-6 py-3 font-medium">Category</th>
+                {branchCol.show && <th className="px-6 py-3 font-medium">Branch</th>}
                 <th className="px-6 py-3 font-medium">Received</th>
                 <th className="px-6 py-3 font-medium text-right">Amount</th>
                 <th className="px-6 py-3 font-medium text-right">Receipt</th>
@@ -282,14 +285,14 @@ export default function IncomePage() {
               {incomes.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={7} className="px-6 py-4">
+                    <td colSpan={branchCol.show ? 8 : 7} className="px-6 py-4">
                       <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
                     </td>
                   </tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={branchCol.show ? 8 : 7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {activeFilterCount(filters) > 0 ? "No income matches these filters." : "No income recorded yet."}
                   </td>
                 </tr>
@@ -299,6 +302,9 @@ export default function IncomePage() {
                     <td className="px-6 py-4">{e.income_date.slice(0, 10)}</td>
                     <td className="px-6 py-4 font-medium text-gray-800 dark:text-white/90">{e.description}</td>
                     <td className="px-6 py-4">{e.category?.name ?? "—"}</td>
+                    {branchCol.show && (
+                      <td className="px-6 py-4 text-theme-xs">{branchCol.label(e.branch_id)}</td>
+                    )}
                     <td className="px-6 py-4">
                       <span className="text-theme-xs capitalize text-gray-500">
                         {(e.payment_method ?? "cash").replace("_", " ")}

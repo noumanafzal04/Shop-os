@@ -906,6 +906,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ],
       },
       { type: "note", text: "Every figure on every money screen respects the branch you are looking at. Switching to all-branches changes the numbers because it is genuinely a different question." },
+      { type: "h", text: "Which branch a record belongs to" },
+      { type: "p", text: "Expenses, income, stock write-offs and stock movements each show the branch they happened at, once you have more than one. In the all-branches view that is the only thing telling two otherwise identical rows apart." },
+      { type: "note", text: "Purchase orders and the cashbook do not show one, and that is the honest answer rather than an omission: an order is raised for the shop, and the cashbook is built from entries that carry their own branch already." },
     ],
   },
   {
