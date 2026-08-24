@@ -276,7 +276,44 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-24 (latest) — a kitchen runs out, a chain does not
+### 2026-08-25 (latest) — nine screens, one bug, and a rule that named the wrong thing
+
+Full write-up: `docs/decisions/shopos-a-header-that-would-not-yield.md`.
+
+Nine screens sat behind a trade the mart fixture does not have — the forecourt,
+fuel deliveries, tanks & pumps, the dispensary, the bay board, vehicles,
+warranty, reservations — and had **never been opened by a browser at all**. Five
+projects, one per trade, each signed in as a QA-sweep shop that has it.
+
+**First walk: seven of nine failed, and all seven were the same bug.** The top
+bar's row had nothing willing to give way — the right-hand controls are
+`shrink-0` on purpose and the search box was pinned at `xl:w-[430px]` — so a
+shop whose header carries one control more than the mart's could not fit 1280
+and every screen it has scrolled sideways.
+
+Two classes fix it: `min-w-0` on the search wrapper and `xl:max-w-[430px]`
+rather than a fixed width. A search box that narrows is fine; a page that
+scrolls sideways is not.
+
+**The rule named the wrong culprit twice more**, making four. It skipped
+`position: fixed` elements but not their CHILDREN, so a closed appearance drawer
+parked off-screen right was blamed on every screen in the shop; and a parent
+stretched by a child reaches exactly as far as the child, with document order
+putting the parent first, so `>` kept naming containers instead of the thing
+that refused to shrink.
+
+The two earlier misattributions were already in the rule's docblock, and that is
+why the third and fourth were recognised as the same shape in minutes rather
+than believed.
+
+Also: the till's product cards and the cart were the same `bg-white`, so a
+four-column grid read as one white mass on the navy ground — the shop's words
+were *"sari screen white lag rahi"*. Not returned to a tint (a translucent panel
+on a dark ground has no edge at any opacity, which is why these became solid
+plates); the shelf gets `--color-pos-card` one step below white and **the cart
+stays the brightest thing on the till**, which is where money is counted.
+
+### 2026-08-24 — a kitchen runs out, a chain does not
 
 Full write-up: `docs/decisions/shopos-one-branch-runs-out.md`.
 

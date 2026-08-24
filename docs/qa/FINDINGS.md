@@ -67,6 +67,70 @@ EXISTS now, and runs from `afterEach`.
 
 ---
 
+## 2026-08-25 — nine screens, one bug, four wrong names
+
+### The denominator, again
+
+Nine screens sat behind a trade the mart fixture does not have and had **never
+been opened by a browser**. Five projects, one per trade, signed in as the
+QA-sweep shop that has it.
+
+**First walk: 7 of 9 failed. All seven were the same bug.**
+
+### BUG · a header row where nothing could give way
+
+```
+1298px of content in a 1280px window
+```
+
+The top bar is hamburger, logo, search icon, search box, and a group of controls
+on the right. The right group is `shrink-0` **on purpose** — controls that
+squash are worse than useless — and the search box was pinned at
+`xl:w-[430px]`.
+
+So on a shop whose header carries one control more than the mart's, the row
+could not fit 1280 and **every screen that shop has scrolled sideways**.
+
+`min-w-0` on the search wrapper and `xl:max-w-[430px]` instead of a fixed width.
+A search box that narrows is fine; a page that scrolls sideways is not.
+
+### HARNESS · the rule named the wrong culprit. Four times.
+
+The bug WAS reported the first time — with a culprit that was working correctly.
+Acting on that report would have meant breaking the appearance panel.
+
+| named | what it actually was |
+|---|---|
+| a decorative blur, 453px | clipped by an `overflow-hidden` parent (already in the docblock) |
+| a table in its own `overflow-x-auto` box | same (already in the docblock) |
+| `header.flex.shrink-0` at 1616px | the appearance drawer, **closed** and parked off-screen right |
+| `div.flex-1.transition-all` | the page container — the symptom, not the cause |
+
+Third: `position: fixed` was skipped for the element and not for its
+**children**, and a closed drawer parked off-screen has static children inside
+it.
+
+Fourth: a parent stretched by a child reaches **exactly as far as the child**,
+and document order puts the parent first — so `>` kept the container. `>=` with
+the deepest winning a tie walks the report down to something a person can fix.
+
+**The two earlier misattributions were in the rule's own docblock, and that is
+why the third and fourth were recognised in minutes instead of believed.**
+
+### The shop's own words · "sari screen white lag rahi"
+
+The till's product cards and the cart were both `bg-white`, so a four-column
+grid of cards read as one white mass on the navy ground.
+
+**Not returned to a tint.** That was tried and failed once already — a
+translucent panel on a dark ground has no edge at any opacity, which is why
+these became solid plates and why `cardsAreSurfaces` exists. The shelf gets
+`--color-pos-card`, solid and one step below white, and the **cart stays the
+brightest surface on the till** — which is the place money is counted, and until
+now was indistinguishable from the shelf.
+
+---
+
 ## 2026-08-24 — a kitchen runs out, a chain does not
 
 ### BUG · one switch for a whole company
