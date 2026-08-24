@@ -303,6 +303,18 @@ Six backend tests (removing `branch_id` from `$fillable` kills three — the upd
 path only calls `fill`), three panel tests, and an e2e that fills the real form
 and asks the server what it received.
 
+That e2e then found a second bug on its next run: **re-hiring somebody you had
+removed was impossible.** The validation exempts trashed rows from the email
+uniqueness and the DATABASE index did not, so it crashed with a raw SQLSTATE
+where a sentence belonged. Index is `(email, deleted_at)` now.
+
+**Gap 3 closed the same day.** The four screens that STORE a branch now name it —
+expenses, income, disposals, movements — through one shared `useBranchColumn`.
+`null` reads "Main"; an id not in the list reads "—" and deliberately does not
+fall back, because printing the wrong shop against a record of money is worse
+than printing nothing. Purchase orders and the cashbook are excluded on purpose:
+neither table has the column.
+
 ### 2026-08-29 — what this item used to cost
 
 Full write-up: `docs/decisions/shopos-what-it-used-to-cost.md`.

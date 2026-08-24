@@ -96,3 +96,44 @@ from `$fillable` kills three of the six.
 Three panel tests for the read-only label, and `e2e/staff-branch.spec.ts`, which
 fills the real form and then asks the SERVER what it received — because the
 absence of a control is precisely the thing a unit test cannot see.
+
+
+## Gap 3, closed the same day
+
+The four record screens that STORE a branch and never showed one: expenses,
+income, stock disposals, inventory movements. Their tables all carry `branch_id`
+and the API returns it — and every one of the panel's row types omitted the
+field, so it arrived and was dropped. The same shape that hid a staff member's
+branch, four more times.
+
+**One hook, not four copies.** The rule is not "show a branch column", it is
+"show it only where there is more than one branch to be at" — and that condition
+written out four times is four chances for one of them to drift. `useBranchColumn`
+holds it once.
+
+Two label decisions, both deliberate:
+
+| | |
+|---|---|
+| `branch_id` is null | reads **Main**, because that is what the server does with it — "—" would suggest it happened nowhere |
+| the id is not in the list | reads **—**, and deliberately does NOT fall back to "Main" |
+
+The second matters more than it looks. A branch can be closed while its records
+remain, and **printing the wrong shop's name against a record of money is worse
+than printing nothing.** The same holds mid-load, when the list is simply empty:
+a page of confident wrong answers for one second is one second long enough for
+somebody to read one.
+
+**The sharpest case was the one that is not a table.** Stock movements render as
+a compact list inside the adjust modal, and an owner in the all-branches view
+sees "Out −3" twice with no way to tell whether that is one shop or two — on the
+one figure where that distinction is the entire question.
+
+**Two screens deliberately left alone.** Purchase orders and the cashbook have no
+branch column in the database: an order is raised for the shop, and the cashbook
+is derived from entries that carry their own branch. Adding one there would claim
+something the record does not hold, and the Help Centre says so rather than
+leaving it looking forgotten.
+
+The test drives the exported rule rather than restating it. The first version
+copied the four lines into the test file, which would have proved the copy.

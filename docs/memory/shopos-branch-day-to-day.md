@@ -42,7 +42,9 @@ till devices.
    branch. They cannot be wrong about it — the server pins them — but they also
    cannot know.
 
-3. **STILL OPEN — only 7 surfaces show a branch name** out of ~65 tenant pages. Fine for
+3. ~~**Only 7 surfaces show a branch name**~~ FIXED — the four that STORE one (expenses, income, disposals, movements) now show it via one shared `useBranchColumn`. Purchase orders and the cashbook deliberately do not: neither table has the column.
+
+   OLD TEXT: **only 7 surfaces show a branch name** out of ~65 tenant pages. Fine for
    most (a catalogue is shop-wide), but worth a pass for the ones that are
    branch-scoped records: expenses, cashbook/ledger, inventory movements,
    disposals, purchases.

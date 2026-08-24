@@ -41,6 +41,24 @@ platform staff member belongs to no shop. And an `exists` rule scoped to the
 owner's tenant is what stops somebody being pinned to another shop's branch —
 tested, not trusted.
 
-Still open from [[shopos-branch-day-to-day]]: only 7 of ~65 tenant screens name a
-branch; the branch-scoped RECORD screens (expenses, cashbook/ledger, movements,
-disposals, purchases) are worth a pass.
+**Gap 3 closed the same day.** The four screens that STORE a branch now name it
+— expenses, income, disposals, movements — through one shared `useBranchColumn``useBranchColumn`,
+because the rule is "only where there is more than one branch" and four copies of
+that condition is four chances to drift.
+
+Two label rules, both deliberate: `null` reads **Main** (what the server does
+with it), and an id NOT in the list reads **—** rather than falling back to Main.
+A branch can be closed while its records remain, and **printing the wrong shop's
+name against a record of money is worse than printing nothing** — same reasoning
+mid-load, when the list is simply empty.
+
+Purchase orders and the cashbook are deliberately excluded: neither table has a
+branch column. An order is raised for the shop; the cashbook is derived. The Help
+Centre says so, so it does not read as forgotten.
+
+**And a second bug fell out of the e2e:** re-hiring somebody you removed was
+impossible. Validation exempted trashed rows from the email uniqueness, the
+DATABASE index did not, so it crashed with a raw SQLSTATE. Fixed to
+`(email, deleted_at)`. My first theory — "the rule exempts them, so it cannot be
+the email" — was wrong: the rule was right and nothing had checked the schema
+agreed.

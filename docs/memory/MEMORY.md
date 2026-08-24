@@ -111,4 +111,4 @@
 - [Branch Day-to-Day](shopos-branch-day-to-day.md) — gaps 1+2 FIXED 2026-08-24; only gap 3 (branch name on record screens) still open
 - [Token Lives One Hour](shopos-token-lives-one-hour.md) — STANDING: access tokens expire 1h after minting (per-token, not in sanctum config); 97 sweep "bugs" were one dead credential
 - [Who Works Where](shopos-who-works-where.md) — FIXED: panel never set users.branch_id, so branch two's cashier rang branch one's stock and nothing looked wrong
-
+- [Measurement That Lied](shopos-measurement-that-lied.md) — STANDING: wrong cwd, unquoted heredoc, soft-deleted target — three plausible-looking results from tools that never ran

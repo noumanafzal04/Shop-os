@@ -72,6 +72,51 @@ still cannot share one.
 > `whereNull('deleted_at')`, and ruled the email out. The rule was right —
 > nothing had ever checked that the schema agreed with it.
 
+### GAP · four record screens stored a branch and showed none
+
+Expenses, income, stock disposals and inventory movements all carry `branch_id`
+in the table, the API returns it — and **every one of the panel's row types
+omitted the field**, so it arrived and was dropped. The staff-branch shape, four
+more times.
+
+One shared `useBranchColumn` rather than four copies, because the rule is not
+"show a branch column" but "show it only where there is more than one branch to
+be at", and that condition written four times is four chances to drift.
+
+Two label decisions, and the second is the one that matters:
+
+| | |
+|---|---|
+| `branch_id` null | reads **Main** — what the server does with it; "—" would suggest it happened nowhere |
+| id not in the list | reads **—**, and deliberately does NOT fall back to "Main" |
+
+A branch can be closed while its records remain. **Printing the wrong shop's name
+against a record of money is worse than printing nothing** — and the same applies
+mid-load, when the list is simply empty: a page of confident wrong answers for one
+second is one second long enough for somebody to read one.
+
+The sharpest case was the one that is not a table: stock movements render as a
+list inside the adjust modal, and an owner in the all-branches view saw "Out −3"
+twice with no way to tell one shop from two — on the one figure where that is the
+entire question.
+
+Purchase orders and the cashbook are deliberately excluded: neither has the
+column. An order is raised for the shop; the cashbook is derived. The Help Centre
+says so, so it does not read as forgotten.
+
+### HARNESS · three measurements that lied, in one session
+
+All three produced plausible output while the tool had not done the job:
+
+| | |
+|---|---|
+| vitest from the wrong directory | 224 "failures" — it never found the files |
+| an unquoted heredoc | the shell **executed the backticks in my prose**, silently deleting four code names from two memory files |
+| planting a test value on a soft-deleted row | the guard looked like it fired; it had not run |
+
+> Same family as the 97 expired-token "bugs": **a tool that could not do its job
+> does not return an answer, it returns something shaped like one.**
+
 ### Held by
 
 Six backend tests. The sharpest is the update path: `UpdateStaffAction` only
