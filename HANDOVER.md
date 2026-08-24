@@ -276,7 +276,31 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-24 (latest) — who works where
+### 2026-08-24 (latest) — a code for each size
+
+Full write-up: `docs/decisions/shopos-a-code-for-each-size.md`.
+
+The till has resolved a scan to one SIZE through `product_barcodes.variant_id`
+since the column existed, and **nothing ever wrote it**. A drinks shop could not
+put the 500ml's EAN on the 500ml and the 1L's on the 1L — the entire reason those
+codes are printed differently.
+
+Writing it exposed three more, each of them correct in a world where no barcode
+row could name a variant: the parent match swallowed the code so the variant
+fallback never ran; replacing the alternates deleted every size's code; and the
+payload omitted `variant_id`, so the panel's "Additional barcodes" box would have
+listed each size's code and saved it back as the product's.
+
+The grid's column had been headed "Code / barcode" while storing the SKU. Two
+columns now.
+
+`BarcodeNamespace` owns both the uniqueness rule and the writer, because there
+are TWO paths that create variants and the first version wrote barcodes on edit
+and not on create.
+
+Gates: backend **2176 / 9142** · panel **1132 / 89 files**.
+
+### 2026-08-24 — who works where
 
 Full write-up: `docs/decisions/shopos-who-works-where.md`.
 

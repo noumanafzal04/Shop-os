@@ -10,6 +10,54 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-24 — a code for each size
+
+### BUG · a reader with no writer, again
+
+The till has resolved a scan to ONE SIZE through `product_barcodes.variant_id`
+since the column existed. **Nothing ever wrote it** — every alternate barcode was
+created with `['tenant_id', 'barcode']`, so all of them belonged to the parent.
+
+A drinks shop could not put the 500ml's EAN on the 500ml and the 1L's on the 1L,
+which is the entire reason those two codes are printed differently. Same for a
+chemist's strip and box, and a garment's size tickets.
+
+### Writing it exposed three more, each correct in the old world
+
+| | |
+|---|---|
+| the parent match **swallowed** the code | the lookup finds a product via `orWhereHas('barcodes')`, and a size's row is one of those — so the variant fallback, which only runs when nothing is found at all, never ran. Scanning the 1L rang the parent and the till asked which size, holding the answer |
+| replacing the alternates **wiped every size's code** | `$product->barcodes()` is every row for the product; the sync deleted the lot. Scoped to `whereNull('variant_id')` now |
+| the payload **could not tell them apart** | the eager load selected `barcodes:id,product_id,barcode`. So the panel's "Additional barcodes" box would have listed every size's code and saved it back as the product's — cutting each size loose from its own label, silently |
+
+> Every one of those was right in a world where no barcode row could name a
+> variant. That world existed only because nothing wrote the column.
+
+### And the header had been promising it all along
+
+The variant grid's second column was headed **"Code / barcode"** and stored the
+SKU. It half-worked, because the till's fallback also matches a variant SKU — so
+typing an EAN into the SKU box was the workaround and the header papered over it.
+Two columns now: SKU, and Barcode.
+
+### Two writers of one thing
+
+`CreateProductAction` has its own variant loop and `SyncProductVariantsAction`
+has another, so the first version wrote barcodes on edit and **not on create**.
+The tests caught it immediately. Both call `BarcodeNamespace` now, which owns the
+uniqueness rule as well — two copies of "what makes a code free" is how one of
+them lets a scan ring the wrong line.
+
+### HARNESS · two more measurements that lied
+
+Bringing this session's count to five, all recorded in
+`docs/memory/shopos-measurement-that-lied.md`:
+
+| | said | was |
+|---|---|---|
+| `cd ../shopos-backend` from the parent | "failed with exit code 1" | the cd failed; **the suite never ran** — the fourth relative-path miss of the day |
+| `tsc --noEmit -p tsconfig.app.json` | clean | it **excludes test files**. `npm run build` compiles them, and a broken one takes down the Playwright webServer with a message naming nothing: *"Process from config.webServer was not able to start"* |
+
 ## 2026-08-24 — a column nothing set
 
 ### BUG · a staff member could not be given a branch
