@@ -276,7 +276,77 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-24 (latest) — a pass is not a gate, and eight lines that lied
+### 2026-08-24 (latest) — a kitchen runs out, a chain does not
+
+Full write-up: `docs/decisions/shopos-one-branch-runs-out.md`.
+
+Eighty-sixing belonged to the SHOP, so a chain had one switch between its
+kitchens: Gulberg lost its last pizza bases, the chef took the pizza off, and
+DHA — with a full tray — stopped selling it too. Third dimension in a week
+(product → size → branch), each added after the one before proved a dimension
+short of its own subject.
+
+**The columns went.** Keeping `products.sold_out_at` as "off everywhere" beside
+per-branch rows would be two places holding one fact, and this codebase has paid
+for that shape repeatedly. `branch_sold_out` has no `is_sold_out` column either:
+the row's existence is the fact. Every existing flag was migrated to a row per
+branch, so nothing came back on sale during the deploy.
+
+The **operating** branch writes it (never the read scope) — the same rule
+receiving a delivery follows. The dine-in tab asks the TICKET's branch, because
+a manager covering two sites may have their context on the other one.
+
+**The online door answers from Main, and that is a consequence rather than a
+design.** Nothing on `orders` names a branch, so Main is the shelf it draws
+from. Measured before any of this: Main=0, Gulberg=10, an online order for two →
+`422 "Insufficient stock: only 0 in stock."` A refusal on a full shelf one
+branch over. **Still open, and a product decision**: nearest branch, a chosen
+online branch, or a shop-wide pool.
+
+**The silent press was found only in a browser.** The backend was right and its
+24 tests were green; an item with no sizes opens no sheet, so the press landed
+with no word at all. In a chain a chef could not tell whether they had closed
+their own kitchen or the company. The server's reply already carried the branch
+and nothing was showing it.
+
+Two things caught before they shipped: the migration dropped a column while an
+index still named it (the CI down-migration gate's exact shape), and `pint app/`
+was run against the standing paths-only rule, reformatting 27 unrelated files.
+
+Gates: backend **2210 / 9303** · panel **1137 / 90** · browser **200 passed**.
+
+### 2026-08-24 — thirty-two screens no browser had opened
+
+Full write-up: `docs/decisions/shopos-thirty-two-screens-nobody-opened.md`.
+
+`chrome.spec.ts` walked **14 of the shop's 48 screens**. The other 32 had never
+been opened by a browser at all — not a lower standard on them, **none**. That
+is the same gap that let the kitchen board show dockets for cancelled tabs for
+six days: the screens nobody looks at are the ones nothing is measured against.
+
+Twenty more went in, and the first walk found two things.
+
+**A modal is supposed to cover the page.** `/tenant/products/new` reported the
+whole sidebar as unpressable behind a backdrop — all correct, because the
+product form IS a dialog. The rule had never met one. It now judges only what is
+inside an open modal, and still judges THAT: proved by planting a cover over the
+dialog's own Close button, which is one of the defects this suite exists for.
+
+**Eight controls announced as "edit text, blank"** — activity's two filters and
+two date boxes, the orders and documents status filters, and NewSalePage's
+**Discount and Amount paid**. Two money boxes side by side, labelled by a
+`<span>` rather than a `<label>`: visible and silent. A discount typed into
+amount paid is a bill that balances and is wrong. The `shopos-label-not-attached`
+pass fixed what it could see; these screens were in nothing's field of view.
+
+Standing figure: **0 of 758 visible controls across 34 screens**, up from
+0 of 346 across 14.
+
+Still uncovered: the trade-gated screens (forecourt, dispensary, workshop, bay
+board, vehicles, warranty, riders, portfolio, reservations). Each needs a
+fixture shop of that trade — the same fix as the `restaurant` project.
+
+### 2026-08-24 — a pass is not a gate, and eight lines that lied
 
 Full write-up: `docs/decisions/shopos-a-pass-is-not-a-gate.md`.
 

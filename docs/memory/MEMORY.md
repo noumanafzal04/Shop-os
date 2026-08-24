@@ -117,3 +117,5 @@
 - [The Large Ran Out](shopos-large-ran-out.md) — per-size 86 shipped; one shared SoldOut rule across all 3 selling paths; size checked FIRST; absence of the mirror flag reads as "on"
 - [When A Large Uses More](shopos-large-uses-more.md) — per-size recipes shipped; RecipeFor = one answer for 4 readers; size rows OVERRIDE not add; e2e fixture shop is a MART so food specs can never run
 - [A Docket Outlived Its Tab](shopos-docket-outlived-tab.md) — cancelled tabs left dockets on the kitchen pass forever + inflated kot_waiting; one shared scopeForAnOpenTab; e2e finally has a RESTAURANT project
+- [Screens Nobody Opened](shopos-screens-nobody-opened.md) — chrome.spec walked 14 of 48 shop screens; walking 20 more found a modal-blind rule and 8 controls that say "edit text, blank", two of them money boxes
+- [One Branch Runs Out](shopos-one-branch-runs-out.md) — per-branch 86; branch_sold_out REPLACED the columns (one source of truth); online door answers from Main and that gap is still open

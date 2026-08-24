@@ -67,6 +67,134 @@ EXISTS now, and runs from `afterEach`.
 
 ---
 
+## 2026-08-24 — a kitchen runs out, a chain does not
+
+### BUG · one switch for a whole company
+
+Eighty-sixing belonged to the SHOP, so a chain had one switch between its
+kitchens. Gulberg ran out of pizza bases, the chef pressed 86, and DHA stopped
+selling a pizza it had a full tray of.
+
+Third dimension in a week: **product → size → branch**, each added after the one
+before turned out to be a dimension short of its own subject.
+
+### The columns went, deliberately
+
+The cheap move — keep `products.sold_out_at` as "off everywhere" and add
+per-branch rows beside it — is **two places holding one fact**, and the copy that
+drifts is always the one written by somebody else on another day.
+
+`branch_sold_out` has no `is_sold_out` column either: the row's existence IS the
+fact. Existing flags were migrated to a row per branch, so nothing came back on
+sale during the deploy.
+
+| decision | reason |
+|---|---|
+| the **operating** branch writes it | same rule as receiving a delivery: goods arrive somewhere definite, and so does running out of them |
+| all-branches view is ASKED (`BRANCH_REQUIRED`) | a write with a null scope has to name its place |
+| the tab asks the TICKET's branch | a manager covering two sites may have their context on the other one |
+
+### QUERY · the online door answers from Main
+
+Nothing on `orders` names a branch, and `InventoryService` defaults to Main — so
+that is the shelf an online order draws from, and the only branch whose answer
+is true for it.
+
+Measured before any of this was built:
+
+```
+Main = 0   ·   Gulberg = 10
+online order (2 units)  →  422  "Insufficient stock: only 0 in stock."
+```
+
+**A refusal on a full shelf, one branch over.** A chain's online shop is its main
+branch's shop. Still open, and a product decision rather than a bug to fix
+unilaterally: nearest branch, a chosen "online branch", or a shop-wide pool.
+
+### BUG · the press that said nothing, found only in a browser
+
+The backend was right and its 24 tests were green. An item with **no sizes**
+opens no sheet, so the press landed silently — the row changed colour and
+nothing else.
+
+Fine in a one-shop business. In a chain, a chef had no way to tell whether they
+had closed their own kitchen or the company. The server's reply already carried
+the branch — *"Pizza is off the menu at Gulberg."* — and nothing was showing it.
+
+### HARNESS · a fixture that ran out
+
+Two device sizes failed the offline spec with `Insufficient stock: only 0 in
+stock` — a sync error that reads exactly like a product bug and is a shelf that
+had been sold empty. Playwright runs a dependency project ONCE, so one shelf
+feeds four device sizes, and a flat 60 was marginal.
+
+The quantity is derived from the count of dependent projects now. A bigger
+constant would be the same fragility with a longer fuse, revisited by whoever
+adds the fifth size — which is to say, never.
+
+---
+
+## 2026-08-24 — thirty-two screens no browser had opened
+
+### The denominator, before any finding
+
+```
+16 walked · 48 shop-side screens · 32 NEVER opened in a browser
+```
+
+`chrome.spec.ts` held fourteen screens. Every rule it enforces had run **zero
+times** against two thirds of the product. This is the same gap that let a
+kitchen board show dockets for cancelled tabs for six days.
+
+Twenty more went in — every screen the MART fixture can reach.
+
+### HARNESS · the covered-control rule had never met a modal
+
+`/tenant/products/new` reported the sidebar, the wordmark and every menu item as
+unpressable behind `div.absolute.inset-0.bg-gray-900/30`.
+
+All correct: the product form IS a dialog (`role="dialog"`,
+`aria-modal="true"`), and a backdrop that covers the page is a backdrop working.
+No route the suite walked had ever opened in a modal, so the rule had never had
+to know.
+
+It now judges only what is **inside** an open modal — and still judges that,
+proved by planting a cover over the dialog's own Close button. A close button
+under a header is one of the original defects this suite was written for, and it
+lives in exactly this kind of panel.
+
+### BUG · eight controls that announce themselves as "edit text, blank"
+
+| screen | what |
+|---|---|
+| activity | both filters, both date boxes |
+| online orders | the status filter |
+| quotes & invoices | the status filter |
+| **a new sale** | **Discount and Amount paid** |
+
+The last row is the one that matters: two money boxes side by side, each
+labelled by a `<span>` instead of a `<label>` — visible, and silent to a screen
+reader. **A discount typed into amount paid is a bill that balances and is
+wrong.**
+
+Same shape as the `shopos-label-not-attached` pass, which fixed what it could
+see. These screens were in nothing's field of view. And the activity ones had
+been under my hands the same day, adding a `record` filter — measurement caught
+what looking did not.
+
+```
+0 of 758 visible controls across 34 screens   (was 0 of 346 across 14)
+```
+
+### Still uncovered
+
+The trade-gated screens: forecourt, dispensary, workshop, bay board, vehicles,
+warranty, riders, portfolio, reservations. Each needs a fixture shop of that
+trade — the same fix as the `restaurant` project. `/tenant/setup` is excluded
+deliberately: a walk must not change what it walks.
+
+---
+
 ## 2026-08-24 — when a Large uses more than a Small
 
 ### BUG · every size of a dish drew the same ingredients
