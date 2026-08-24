@@ -77,7 +77,12 @@ class UpdateProductRequest extends FormRequest
             'combo_items' => ['sometimes', 'nullable', 'array', 'max:30'],
             // One row per component (see StoreProductRequest) — duplicates lose
             // stock on cancel/return via colliding restore keys.
-            'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid', 'distinct'],
+            // NOT `distinct` any more. With sizes, "two Small and one Large"
+            // is an ordinary deal and the same product appears twice — the pair
+            // (product, size) is what has to be unique, and a validation rule
+            // cannot express that. SyncComboItemsAction checks it instead.
+            'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid'],
+            'combo_items.*.variant_id' => ['nullable', 'uuid'],
             'combo_items.*.quantity' => ['required_with:combo_items', 'numeric', 'min:0.001'],
             'recipe_items' => ['sometimes', 'nullable', 'array', 'max:60'],
             'recipe_items.*.ingredient_product_id' => ['required_with:recipe_items', 'uuid', 'distinct'],

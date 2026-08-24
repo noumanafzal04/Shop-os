@@ -1019,6 +1019,11 @@ class CreateSaleAction
                             if ($component !== null && $component->type === ItemType::Product && $component->track_inventory) {
                                 $this->inventory->adjust([
                                     'product_id' => $component->id,
+                                    // WHICH size of it. A component with sizes has no stock of
+                                    // its own on the parent — that figure is an orphaned
+                                    // leftover, always zero — so this used to deduct against
+                                    // nothing and refuse the sale on a full shelf.
+                                    'variant_id' => $ci->variant_id,
                                     'type' => 'out',
                                     'quantity' => round((float) $ci->quantity * $line['quantity'], 3),
                                     'reason' => "Sale {$invoiceNumber} (deal: {$line['product']->name})",
@@ -1306,20 +1311,23 @@ class CreateSaleAction
     {
         if ($product->isCombo()) {
             $rows = $product->comboItems()->with('component')->get()
-                ->map(fn ($ci) => [$ci->component, (float) $ci->quantity]);
+                ->map(fn ($ci) => [$ci->component, (float) $ci->quantity, $ci->variant_id]);
         } elseif ($product->hasRecipe()) {
             $rows = $product->recipeItems()->with('ingredient')->get()
-                ->map(fn ($ri) => [$ri->ingredient, (float) $ri->quantity]);
+                ->map(fn ($ri) => [$ri->ingredient, (float) $ri->quantity, null]);
         } else {
             return null;
         }
 
         $snapshot = [];
-        foreach ($rows as [$component, $qtyPerUnit]) {
+        foreach ($rows as [$component, $qtyPerUnit, $variantId]) {
             if ($component !== null && $component->type === ItemType::Product && $component->track_inventory) {
                 $snapshot[] = [
                     'product_id' => $component->id,
-                    'variant_id' => null,
+                    // The size this deal names, so the snapshot records what
+                    // actually left the shelf rather than the parent it hangs
+                    // under. A recipe has no sizes and passes null.
+                    'variant_id' => $variantId,
                     'name' => $component->name,
                     'quantity_per_unit' => $qtyPerUnit,
                 ];

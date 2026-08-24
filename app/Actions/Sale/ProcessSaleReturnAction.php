@@ -293,6 +293,11 @@ class ProcessSaleReturnAction
                             if ($component !== null && $component->type === ItemType::Product && $component->track_inventory) {
                                 $this->inventory->adjust([
                                     'product_id' => $component->id,
+                                    // WHICH size of it. A component with sizes has no stock of
+                                    // its own on the parent — that figure is an orphaned
+                                    // leftover, always zero — so this used to deduct against
+                                    // nothing and refuse the sale on a full shelf.
+                                    'variant_id' => $ci->variant_id,
                                     'type' => 'in',
                                     'quantity' => round((float) $ci->quantity * (float) $line['quantity'], 3),
                                     'reason' => "Return {$return->return_number} (deal: {$product->name})",

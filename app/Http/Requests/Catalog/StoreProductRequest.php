@@ -103,7 +103,12 @@ class StoreProductRequest extends FormRequest
             // for both rows at sale time but restock only one (the restore key
             // collapses them) — losing a unit on every cancel/return. Use
             // quantity for multiples, not repeated rows.
-            'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid', 'distinct'],
+            // NOT `distinct` any more. With sizes, "two Small and one Large"
+            // is an ordinary deal and the same product appears twice — the pair
+            // (product, size) is what has to be unique, and a validation rule
+            // cannot express that. SyncComboItemsAction checks it instead.
+            'combo_items.*.component_product_id' => ['required_with:combo_items', 'uuid'],
+            'combo_items.*.variant_id' => ['nullable', 'uuid'],
             'combo_items.*.quantity' => ['required_with:combo_items', 'numeric', 'min:0.001'],
             // Recipe / bill-of-materials — ONLY a food dish consumes ingredients.
             // 'distinct' for the same reason as combo components (restore key

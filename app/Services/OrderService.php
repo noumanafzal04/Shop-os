@@ -375,6 +375,11 @@ class OrderService
                             if ($component !== null && $component->track_inventory) {
                                 $this->inventory->adjust([
                                     'product_id' => $component->id,
+                                    // WHICH size of it. A component with sizes has no stock of
+                                    // its own on the parent — that figure is an orphaned
+                                    // leftover, always zero — so this used to deduct against
+                                    // nothing and refuse the sale on a full shelf.
+                                    'variant_id' => $ci->variant_id,
                                     'type' => 'out',
                                     'quantity' => round((float) $ci->quantity * $line['qty'], 3),
                                     'reason' => "Order {$order->order_number} (deal: {$line['product']->name})",
