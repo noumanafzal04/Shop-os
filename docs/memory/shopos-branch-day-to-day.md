@@ -1,6 +1,6 @@
 ---
 name: shopos-branch-day-to-day
-description: OPEN (asked 2026-08-24) — multi-branch works server-side (owner switches, staff pinned) but the panel can NEVER assign a staff member a branch, and staff are never told which branch they are in
+description: FIXED 2026-08-24 — staff can now be hired into a branch and are shown which one; gap 3 (branch name on more record screens) still open
 metadata:
   type: project
 ---
@@ -27,9 +27,9 @@ shop does have two.
 multi-branch shops in: sales, transfers, registers, stocktake (+ sheet), day,
 till devices.
 
-## The gaps, and the first one has teeth
+## The gaps — 1 and 2 FIXED 2026-08-24, see [[shopos-who-works-where]]
 
-1. **A staff member cannot be given a branch from the panel.**
+1. ~~**A staff member cannot be given a branch from the panel.**~~ FIXED.
    `StoreTenantStaffRequest` and `UpdateStaffRequest` both accept `branch_id`,
    and the staff screen never sends it — the word "branch" does not appear in
    `TenantStaffPage` or `useStaff` at all. So every staff member falls back to
@@ -37,12 +37,12 @@ till devices.
    staff-branch model is driven by a column nothing sets. Classic
    built-but-unreachable — see [[shopos-reachability-rule]].
 
-2. **A branch manager is never told which branch they are in.** `BranchSwitcher`
+2. ~~**A branch manager is never told which branch they are in.**~~ FIXED — read-only label in the header. `BranchSwitcher`
    returns null for staff (`role !== "shop_owner"`), and nothing else names the
    branch. They cannot be wrong about it — the server pins them — but they also
    cannot know.
 
-3. **Only 7 surfaces show a branch name** out of ~65 tenant pages. Fine for
+3. **STILL OPEN — only 7 surfaces show a branch name** out of ~65 tenant pages. Fine for
    most (a catalogue is shop-wide), but worth a pass for the ones that are
    branch-scoped records: expenses, cashbook/ledger, inventory movements,
    disposals, purchases.

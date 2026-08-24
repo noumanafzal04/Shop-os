@@ -108,6 +108,7 @@
 - [A Rail You Can Read](shopos-rail-you-can-read.md) — FIXED: 22 icon collisions in 16 menus; Simple mode was module-gated so a restaurant had Dine-in and no Kitchen
 - [Page Two, Per List](shopos-page-two-per-list.md) — 3 more page-two bugs in the folder-credit gap; scanner gained per-CALL + orphan-hook axes; detector was wrong 5 of 6 first
 - [What It Used To Cost](shopos-what-it-used-to-cost.md) — SHIPPED price history; Product had NO audit trait; the design is mostly about what must NOT be filed
-- [Branch Day-to-Day](shopos-branch-day-to-day.md) — OPEN: panel can NEVER assign a staff member a branch (API accepts it), and staff are never shown which branch they are in
+- [Branch Day-to-Day](shopos-branch-day-to-day.md) — gaps 1+2 FIXED 2026-08-24; only gap 3 (branch name on record screens) still open
 - [Token Lives One Hour](shopos-token-lives-one-hour.md) — STANDING: access tokens expire 1h after minting (per-token, not in sanctum config); 97 sweep "bugs" were one dead credential
+- [Who Works Where](shopos-who-works-where.md) — FIXED: panel never set users.branch_id, so branch two's cashier rang branch one's stock and nothing looked wrong
 

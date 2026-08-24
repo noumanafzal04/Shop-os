@@ -10,6 +10,77 @@ because a harness bug that looks like a product bug is the most expensive kind.
 
 ---
 
+## 2026-08-24 — a column nothing set
+
+### BUG · a staff member could not be given a branch
+
+`ResolveBranch` pins staff to `users.branch_id`: a header can never move them,
+their reads are that one branch, their sales draw down that branch's stock. The
+whole model runs on that column — and **the panel never once set it.** The word
+"branch" did not appear in `TenantStaffPage`, `StaffPage` or `useStaff`.
+
+So every staff member in every multi-branch shop fell back to Main, and branch
+two's cashier rang on branch one's shelf.
+
+> The worst version of built-but-unreachable, because **nothing looks wrong.**
+> No error, no empty state, no 403 — just a second branch quietly selling the
+> first branch's stock, with reports that reconcile perfectly against the wrong
+> site.
+
+The Help Centre had been saying "Staff are assigned to a branch and see that
+branch's figures" the whole time — a promise stated in one file and implemented
+nowhere.
+
+### BUG · and they could not be told where they were
+
+`BranchSwitcher` returned null for anyone who was not an owner and nothing else
+named the branch. A staff member could not be WRONG (the server pins them) but
+could not KNOW — and on a two-branch shop the person counting a drawer has no way
+to check whose drawer it is. Read-only label now: the pin is the owner's
+decision, and **a switch the server ignores would be worse than silence.**
+
+### GAP · the panel's own type dropped the field
+
+`UserResource` has sent `branch_id` since branches existed. The panel's `User`
+interface did not have it, so it arrived and was discarded — which is why nothing
+could show it even where somebody thought to.
+
+### The one that could do real damage
+
+A staff member pinned to ANOTHER shop's branch would read and write a business
+that is not their employer's. The `exists` rule is scoped to the owner's tenant;
+a test now proves the refusal rather than trusting the rule to stay there.
+
+### BUG · somebody you removed could never be re-hired
+
+Found by the new e2e failing on its SECOND run — the first had passed.
+
+> **Couldn't save** — `SQLSTATE[23000] … 1062 Duplicate entry
+> 'e2e-branch-hire@shopos.test' for key 'users.users_email_unique'`
+
+The validation says a removed person's address is free again
+(`unique('users','email')->whereNull('deleted_at')`); the database had a **flat
+unique index counting trashed rows**. Phone had the identical pair. So re-hiring
+someone you removed was not refused — it **crashed**, with the whole INSERT and a
+bcrypt hash where a sentence belonged.
+
+Index is `(email, deleted_at)` now: any number of removed people may hold an
+address, exactly one live person may. A second test pins that two LIVE people
+still cannot share one.
+
+> **My first theory was wrong and it is worth recording.** I read the rule, saw
+> `whereNull('deleted_at')`, and ruled the email out. The rule was right —
+> nothing had ever checked that the schema agreed with it.
+
+### Held by
+
+Six backend tests. The sharpest is the update path: `UpdateStaffAction` only
+calls `fill($data)`, so it works exactly as long as `branch_id` stays fillable —
+**silently droppable for the entire life of the field.** Removing it from
+`$fillable` kills three of the six. Plus three panel tests and an e2e that fills
+the real form and asks the SERVER what it received, because the absence of a
+control is precisely what a unit test cannot see.
+
 ## 2026-08-29 — the number a shop changes most often
 
 ### HARNESS · 97 bugs that were one expired token

@@ -276,7 +276,34 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-29 (latest) — what this item used to cost
+### 2026-08-24 (latest) — who works where
+
+Full write-up: `docs/decisions/shopos-who-works-where.md`.
+
+`ResolveBranch` pins staff to `users.branch_id` — a header cannot move them,
+their reads are that branch, their sales draw down its stock. **The panel never
+once set it.** The word "branch" did not appear on the staff screen at all, so
+every staff member in every multi-branch shop fell back to Main and branch two's
+cashier rang on branch one's shelf.
+
+The worst version of built-but-unreachable: nothing looks wrong. No error, no
+empty state, no 403 — a second branch quietly selling the first branch's stock,
+with reports that reconcile perfectly against the wrong site. The Help Centre had
+been promising the behaviour the whole time.
+
+And the other half: `BranchSwitcher` returned null for staff and nothing else
+named the branch, so a person counting a drawer had no way to check whose drawer
+it was. They get a read-only label now — the pin is the owner's decision, and a
+switch the server ignores would be worse than silence.
+
+Also fixed: the panel's own `User` type had no `branch_id`, so the field arrived
+from the server and was dropped.
+
+Six backend tests (removing `branch_id` from `$fillable` kills three — the update
+path only calls `fill`), three panel tests, and an e2e that fills the real form
+and asks the server what it received.
+
+### 2026-08-29 — what this item used to cost
 
 Full write-up: `docs/decisions/shopos-what-it-used-to-cost.md`.
 
