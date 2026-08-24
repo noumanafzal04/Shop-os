@@ -10,16 +10,16 @@
 - [ShopOS Offline Plan](shopos-offline-plan.md) — Phases 0-2 SHIPPED (device registry, PWA, catalog sync, pricing mirror, shadow mode + denominator); Phases 0-3 ALL shipped (outbox+offline selling verified 2026-08-17); only the 2-week shadow RUN remains
 - [ShopOS Maps & Location](shopos-maps-location.md) — shop location via Geoapify (Google-swappable) on setup+settings; business_type is ADMIN-controlled; settings redesigned; Select made controllable
 - [ShopOS Sale-Shape Features](shopos-sale-shape-features.md) — 2026-07-22 pre-offline: Rx capture, variant-medicine FEFO, sell-on-credit (khata) all shipped + tested (471 green)
-- [ShopOS FOOD Dine-in](shopos-food-dinein.md) — 2026-07-23: dine-in backend (tables/tabs/KOT/settle+split) SHIPPED (480 green); recipe/BOM + POS UI still pending
+- [ShopOS FOOD Dine-in](shopos-food-dinein.md) — dine-in backend: tables/tabs/KOT/settle+split
 - [ShopOS Plans & Revamp Flow](shopos-plans-and-flow.md) — 2026-08-06 REBUILD: plans = payment only (Basic/Premium/Enterprise PKR + custom); modules/branches/staff assigned per tenant at creation
 - [ShopOS Multi-branch](shopos-multi-branch.md) — design locked: branch=sub-unit, default Main, per-branch stock + cross-branch lookup + transfers, HQ dashboard; build is Step ④
 - [ShopOS UI Conventions](shopos-ui-conventions.md) — admin panel standards: toasts, modals for add/edit forms, ONE shared confirm-delete component, clean UI
 - [ShopOS Session Refresh](shopos-session-refresh.md) — auth store persisted to localStorage; refresh via useMe() in AppLayout or admin module-toggles/settings stay stale
-- [ShopOS Pharmacy Edges](shopos-pharmacy-edges.md) — batch/expiry engine done; medicine batches now REQUIRE expiry; dashboard near-expiry count; remaining: opening-stock enforce, dosage, recall, notifications
+- [ShopOS Pharmacy Edges](shopos-pharmacy-edges.md) — batch/expiry engine; medicine batches REQUIRE an expiry; dashboard near-expiry count
 - [ShopOS Payments Status](shopos-payments-status.md) — RESOLVED: NO gateway anywhere; manual/recorded model (POS tenders/admin-billing/COD). COD-first launch = no blocker; online prepay = 1 gateway build on existing stub
-- [ShopOS Retail Depth](shopos-retail-depth.md) — serialized selling (IMEI/serial + warranty capture at POS + warranty-desk lookup) SHIPPED; remaining: serial-on-receive, per-serial returns
-- [ShopOS Hardware](shopos-hardware.md) — POS is WEB/PWA → abstraction axis is TRANSPORT not vendor-SDK; hardware_devices registry + Settings→Hardware + receipt-size printing SHIPPED; direct ESC/POS (Web Serial) is next tier
-- [ShopOS Loyalty](shopos-loyalty.md) — points earn/redeem/reverse (khata-ledger model) + POS redeem + settings + customer statement SHIPPED; product search now matches description+category; remaining doc gaps: promo engine, inclusive tax, SMS receipts
+- [ShopOS Retail Depth](shopos-retail-depth.md) — serialized selling: IMEI/serial capture at POS, warranty desk, serial-on-receive, per-serial returns
+- [ShopOS Hardware](shopos-hardware.md) — POS is WEB/PWA → the abstraction axis is TRANSPORT, not vendor-SDK; hardware_devices registry, Settings→Hardware, receipt-size printing, Web Serial ESC/POS
+- [ShopOS Loyalty](shopos-loyalty.md) — points earn/redeem/reverse on the khata-ledger model, POS redeem, customer statement
 - [ShopOS Deployment](shopos-deployment.md) — staging droplet shopos-dev 159.223.78.102 ($6/1GB); backend live /api/v1/health; panel on :8080 (may need DO cloud firewall port open); change seeded super-admin before use
 - [ShopOS Petroleum Analysis](shopos-petroleum-analysis.md) — ON HOLD: petroleum business type ~85-90% already covered; only Fuel Management net-new; 'departments' = existing Branch dimension
 - [ShopOS Modules Jul31](shopos-modules-jul31.md) — 2026-07-31 sprint: BOGO, petroleum type, inclusive tax+tax groups, customer groups SHIPPED (695 green); --seed fixed; 3 pre-existing bugs fixed; UI+more pending
@@ -66,7 +66,7 @@
 - [POS View Toggle](shopos-pos-view-toggle.md) — tiles/rows is a per-DEVICE choice now; a view doesn't get its own idea of what may be sold
 - [Sync Progress Pill](shopos-sync-progress-pill.md) — "Sending X of Y"; pillLabel had 2 drifted copies while exempt; count ANSWERED rows, freeze the denominator, clear in finally
 - [Slip Number Lookup](shopos-slip-number-lookup.md) — OFF- slip matched NO search: offline customer couldn't be found or refunded; Help Centre had promised it worked
-- [Offline Shift Gap](shopos-offline-shift-gap.md) — till that RELOADED offline couldn't sell; FIXED via shiftMirror (only status 0 falls back); shift open/close offline still owed
+- [Offline Shift Gap](shopos-offline-shift-gap.md) — a till that RELOADED offline couldn't sell; shiftMirror, and why only status 0 falls back
 - [Cover Cannot Ring](shopos-cover-cannot-ring.md) — reliever couldn't press Tender; `!!open` is null under cover BY DESIGN; ringableSessionId(); a test that names the failure then checks something adjacent
 - [Reply Style](shopos-reply-style.md) — STANDING: user doesn't read long replies; ALWAYS end with short summary bullets (kya kiya / kya next)
 - [Offline Never Reachable](shopos-offline-never-reachable.md) — CRITICAL: react-query PAUSES all work when navigator.onLine is false; offline selling never ran in a browser; jsdom says onLine=true so tests were blind
@@ -98,7 +98,7 @@
 - [Everyone Minus One Role](shopos-everyone-minus-one-role.md) — "Everyone" excluded UserRole::Staff; the cashier's bell could never be filled; staff still get NO operational notification
 - [Promise In Another File](shopos-promise-in-another-file.md) — STANDING: a comment/label stating a rule implemented nowhere; 4 in one day; a comment reads as DONE
 - [Three Verdicts Paid Off](shopos-three-verdicts-paid-off.md) — 11 confirmed / 2 refuted, both refutations MINE; don't re-raise announcement dedupe or workshop preset
-- [Size Picker](shopos-size-picker-gap.md) — SHIPPED: chips on tiles, sheet on rows, dine-in too; found that varianted products were UNSELLABLE (tile disabled on orphaned parent stock); variants STILL cannot be edited after creation
+- [Size Picker](shopos-size-picker-gap.md) — chips on tiles, sheet on rows, dine-in too; why varianted products were UNSELLABLE (tile disabled on orphaned parent stock)
 - [Button Submit Default](shopos-button-submit-default.md) — FIXED: shared <Button> had no type, so it SUBMITTED inside a form; the variant editor had never worked once; 305 uses, 1 wanted submit
 - [Silent Nulls](shopos-silent-nulls.md) — STANDING: a missing attribute is null and silent, a missing relation throws; scripts/silent-nulls.py; found Sale::customer() absent
 - [Menu And Door](shopos-menu-and-door.md) — FIXED: Kitchen preset was offered the board by 4 surfaces and bounced by the 5th; RequirePermission held ONE string

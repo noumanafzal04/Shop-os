@@ -52,6 +52,11 @@ result, and each shape was the shape of the answer I was expecting.
   keeps serving the OLD bundle, so a new e2e fails against code that is not on
   the page. Kill port 4173 (`lsof -ti:4173 | xargs kill -9`) before trusting an
   e2e failure that says a control is missing;
+- **a grep that finds nothing has proved nothing about the FEATURE, only about
+  the folder you looked in.** "Expiry notifications: absent" came from grepping
+  `app/Notifications/` and `app/Console/`; `NotifyExpiringStock` lives in
+  `app/Actions/Inventory/`. Before recording an absence, search the whole tree
+  for the CONCEPT, not the conventional home for it;
 - and the general form: **a tool that could not do its job does not return an
   answer, it returns something shaped like one.**
 

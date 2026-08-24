@@ -44,3 +44,29 @@ of finishing a task, alongside the test gates. Half-finished work goes on a
 `wip/*` branch with a commit message saying exactly what is done and what is
 left — never left uncommitted. See [[shopos-audit-aug06]] and
 [[shopos-build-sequence]].
+
+## An index hook must not carry a STATUS
+
+`MEMORY.md` is the only thing loaded every session, so its hooks are what I
+actually read — and a hook that says what is DONE or STILL PENDING is a copy of
+a fact that lives in the file. Copies drift, and this one drifts silently
+because the file is right and nobody opens it.
+
+Measured 2026-08-24: **four** hooks claimed work still owed that had shipped —
+`shopos-size-picker-gap` ("variants STILL cannot be edited" while the file said
+**BUILT 2026-08-23**), `shopos-food-dinein` ("recipe/BOM + POS UI still
+pending"), `shopos-loyalty` ("remaining: inclusive tax"), `shopos-offline-shift-gap`
+("shift open/close offline still owed"). Each one had sent me hunting something
+already built, and one of them survived a whole session of me repeating it in a
+pending list.
+
+`shopos-qa-sweep-aug09` had already recorded this exact failure — *"Index said
+'none fixed' for days after they were — check the file, not this line"* — which
+is the point: the note existed and the shape recurred anyway, because the fix
+was one line rather than the rule.
+
+**The rule:** a hook says what the memory is ABOUT. Status lives in the file
+only. Anything a hook claims is owed must be verified against the CODE before it
+enters a plan — same as [[shopos-admin-side-backlog]], the record that a memory
+can go stale silently.
+
