@@ -265,7 +265,13 @@ export default function VariantMatrixEditor({
               <thead className="border-b border-gray-100 text-theme-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
                 <tr>
                   <th className="px-3 py-2">Size</th>
-                  <th className="px-3 py-2">Code / barcode</th>
+                  {/* Two columns, because they were one under a header that
+                      promised both and stored a SKU. The SKU is the shop's own
+                      reference; the barcode is what the scanner reads off the
+                      packet, and a drinks shop's 500ml and 1L carry different
+                      ones. */}
+                  <th className="px-3 py-2">SKU</th>
+                  <th className="px-3 py-2">Barcode</th>
                   <th className="px-3 py-2 text-right">Price</th>
                   <th className="px-3 py-2 text-right">Cost</th>
                   {tracksStock && <th className="px-3 py-2 text-right">Opening stock</th>}
@@ -290,6 +296,17 @@ export default function VariantMatrixEditor({
                       />
                       {err(`variants.${i}.sku`) && (
                         <span className="block text-theme-xs text-error-500">{err(`variants.${i}.sku`)}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Cell
+                        label={`Barcode for ${r.name}`}
+                        value={r.barcode ?? ""}
+                        onChange={(v) => onRows(rows.map((x, j) => (j === i ? { ...x, barcode: v } : x)))}
+                        width="w-36"
+                      />
+                      {err(`variants.${i}.barcode`) && (
+                        <span className="block text-theme-xs text-error-500">{err(`variants.${i}.barcode`)}</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">

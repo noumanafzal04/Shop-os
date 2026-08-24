@@ -82,7 +82,17 @@ export interface Product {
   // Serialized retail (phones/electronics): capture a serial/IMEI per unit + warranty.
   tracks_serial?: boolean;
   warranty_months?: number | null;
-  barcodes?: Array<{ id: string; barcode: string }>;
+  /**
+   * Every code that resolves to this item.
+   *
+   * `variant_id` says WHICH size it is on: null means the code belongs to the
+   * product as a whole (an "additional barcode"), anything else means it is
+   * printed on that one size's packet. The panel had no idea the distinction
+   * existed, so the moment sizes started carrying their own codes, the extra-
+   * barcodes box would have listed them and saved them back as the product's —
+   * quietly cutting every size loose from its own label.
+   */
+  barcodes?: Array<{ id: string; barcode: string; variant_id?: string | null }>;
   unit: string | null;
   /**
    * Free-form specs, plus one structured key this app writes itself.
@@ -217,6 +227,8 @@ export interface VariantInput {
   is_active?: boolean;
   name: string;
   sku?: string;
+  /** The code printed on THIS size's packet. Blank clears it. */
+  barcode?: string;
   price: number | string;
   cost?: number | string;
   stock_quantity?: number;

@@ -42,6 +42,15 @@ export interface MatrixRow {
   /** The joined label — what the receipt, the KOT and the cart line all show. */
   name: string;
   sku?: string;
+  /**
+   * The code printed on THIS size's packet — a drinks shop's 500ml and 1L carry
+   * different EANs, which is the whole reason those codes exist.
+   *
+   * Separate from `sku`: the SKU is the shop's own internal reference and the
+   * barcode is what the scanner reads. They were one field for a while, under a
+   * header that said "Code / barcode" and stored a SKU.
+   */
+  barcode?: string;
   price: number | string;
   cost?: number | string;
   stock_quantity?: number;
@@ -221,6 +230,10 @@ export function toPayload(rows: MatrixRow[]): VariantInput[] {
     ...(r.id !== undefined ? { id: r.id } : {}),
     name: r.name.trim(),
     sku: r.sku?.trim() || undefined,
+    // Sent whenever the row HAS the key, blank included — an empty box is a
+    // shop saying the packet no longer carries that code, and dropping it would
+    // make the old one permanent.
+    ...(r.barcode !== undefined ? { barcode: r.barcode.trim() } : {}),
     price: r.price,
     cost: r.cost === "" || r.cost === undefined ? undefined : r.cost,
     ...(r.id === undefined ? { stock_quantity: Number(r.stock_quantity ?? 0) } : {}),

@@ -312,6 +312,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         id: v.id,
         name: v.name,
         sku: v.sku ?? undefined,
+        // The code printed on this size's packet, found by the link the server
+        // now returns. Without `variant_id` in the payload there is no way to
+        // tell a size's code from the product's, and both would show in the
+        // wrong place.
+        barcode: (p.barcodes ?? []).find((b) => b.variant_id === v.id)?.barcode ?? "",
         // `Number`, not the raw string: the server answers `"1499.00"` and a box
         // reading 1499.00 is not what the shop typed. Coercing keeps 1499.50
         // intact and turns 1499.00 back into 1499.
@@ -333,7 +338,10 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setKitchenStation(p.kitchen_station ?? "");
       setTrackSerial(p.tracks_serial ?? false);
       setWarrantyMonths(p.warranty_months != null ? String(p.warranty_months) : "");
-      setExtraBarcodes((p.barcodes ?? []).map((b) => b.barcode));
+      // Product-level only. A size's own code lives in the sizes grid, and
+      // listing it here would save it straight back as the product's — cutting
+      // that size loose from its own label without anybody touching it.
+      setExtraBarcodes((p.barcodes ?? []).filter((b) => !b.variant_id).map((b) => b.barcode));
       setUnits((p.units ?? []).map((u) => ({ name: u.name, factor: String(u.factor), price: u.price != null ? String(u.price) : "", barcode: u.barcode ?? "" })));
       setComboRows((p.combo_items ?? []).map((c) => ({ component_product_id: c.component_product_id, quantity: String(c.quantity) })));
       setRecipeRows((p.recipe_items ?? []).map((r) => ({ ingredient_product_id: r.ingredient_product_id, quantity: String(r.quantity) })));

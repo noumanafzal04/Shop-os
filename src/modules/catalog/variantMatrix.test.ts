@@ -240,3 +240,37 @@ describe("the payload", () => {
     expect(off.is_active).toBe(false);
   });
 });
+
+
+describe("a size's own barcode travels with it", () => {
+  it("is sent even when blank, so clearing the box clears the code", () => {
+    // The server reads a present-but-empty `barcode` as "this packet no longer
+    // carries that code". Dropping the key on empty would make the old one
+    // permanent — the shop empties the field, saves, and nothing happens.
+    const [cleared] = toPayload([{ name: "500ml", price: 80, barcode: "" }]);
+    expect(cleared).toHaveProperty("barcode", "");
+
+    const [set] = toPayload([{ name: "1L", price: 140, barcode: " 8961000000022 " }]);
+    expect(set.barcode, "a scanned code is not trimmed before it is stored").toBe("8961000000022");
+  });
+
+  it("is left out entirely when the row never had one", () => {
+    // Absent is not the same as blank. A row that never carried the key must
+    // not tell the server to delete a code somebody set elsewhere.
+    const [row] = toPayload([{ name: "M", price: 100 }]);
+    expect("barcode" in row).toBe(false);
+  });
+
+  it("survives a regeneration that keeps the row", () => {
+    // Rows are matched by NAME across a regeneration, and everything already
+    // typed has to come back — a shop that adds a third colour must not lose
+    // the barcodes it typed for the first two.
+    const kept = regenerate(
+      [{ name: "Size", values: ["S", "M"] }],
+      [{ name: "S", price: 100, barcode: "111" }],
+    );
+
+    expect(kept.find((r) => r.name === "S")?.barcode).toBe("111");
+    expect(kept.find((r) => r.name === "M")?.barcode).toBeUndefined();
+  });
+});
