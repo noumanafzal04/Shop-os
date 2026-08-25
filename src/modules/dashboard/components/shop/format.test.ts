@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDate, formatDateTime, formatDelta, humanizeEntity } from "./format";
+import { formatDate, formatDateTime, humanizeEntity } from "./format";
+// The percentage moved to `MetricTile`, which both consoles' strips render —
+// it used to live here while the platform console formatted the same number a
+// different way.
+import { formatDelta } from "../deltaFormat";
 
 /**
  * Dates that are days, not instants.

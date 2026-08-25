@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router";
 
-import { AngleRightIcon } from "../../../../icons";
+import { Surface, SurfaceEmpty, SurfacePulse } from "../Surface";
 
 interface PanelProps {
   title: string;
@@ -21,6 +20,15 @@ interface PanelProps {
   children: ReactNode;
 }
 
+/**
+ * The platform console's card — a shell over `Surface`, which the shop
+ * console's `SectionCard` also renders.
+ *
+ * They used to be two copies of one design, and copies drift: these had
+ * already separated on padding and, more quietly, on the BREAKPOINT that
+ * padding stepped at — `md` here against `sm` there — so between 640px and
+ * 768px the two consoles were visibly different products.
+ */
 export function Panel({
   title,
   subtitle,
@@ -32,39 +40,17 @@ export function Panel({
   children,
 }: PanelProps) {
   return (
-    <section
-      className={`group/panel overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs transition-colors hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700 ${className}`}
+    <Surface
+      title={title}
+      subtitle={subtitle}
+      icon={icon}
+      action={action}
+      aside={aside}
+      flush={flush}
+      className={className}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 md:px-6 md:pt-5">
-        <div className="flex min-w-0 items-center gap-3">
-          {icon && (
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:ring-brand-500/20">
-              {icon}
-            </span>
-          )}
-          <div className="min-w-0">
-            <h3 className="truncate font-semibold tracking-tight text-gray-800 dark:text-white/90">
-              {title}
-            </h3>
-            {subtitle && (
-              <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
-            )}
-          </div>
-        </div>
-        {aside}
-        {action && (
-          <Link
-            to={action.to}
-            className="flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-theme-xs font-medium text-gray-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
-          >
-            {action.label}
-            {/* The arrow steps out on hover so the pill reads as a door, not a tag. */}
-            <AngleRightIcon className="size-3.5 transition-transform duration-200 group-hover/panel:translate-x-0.5" />
-          </Link>
-        )}
-      </div>
-      <div className={flush ? "" : "px-5 pb-5 md:px-6 md:pb-6"}>{children}</div>
-    </section>
+      {children}
+    </Surface>
   );
 }
 
@@ -76,30 +62,12 @@ export function Panel({
  * trusting the figures that ARE there.
  */
 export function PanelEmpty({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-8 text-center dark:border-gray-700 dark:bg-white/[0.02]">
-      <span
-        aria-hidden
-        className="mb-3 flex size-10 items-center justify-center rounded-full bg-white text-gray-400 ring-1 ring-gray-200 dark:bg-white/[0.04] dark:text-gray-500 dark:ring-gray-700"
-      >
-        <svg viewBox="0 0 20 20" fill="none" className="size-5">
-          <path
-            d="M3.5 6.5 10 3l6.5 3.5v7L10 17l-6.5-3.5v-7Z"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinejoin="round"
-          />
-          <path d="M3.5 6.5 10 10m0 0 6.5-3.5M10 10v7" stroke="currentColor" strokeWidth="1.4" />
-        </svg>
-      </span>
-      <p className="text-theme-sm text-gray-600 dark:text-gray-300">{children}</p>
-    </div>
-  );
+  return <SurfaceEmpty message={children} />;
 }
 
 /** Pulsing block used by every panel's loading state. */
 export function Pulse({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded bg-gray-200 dark:bg-gray-800 ${className}`} />;
+  return <SurfacePulse className={className} />;
 }
 
 /** Chart placeholder shaped like a plot, so the layout does not jump on load. */

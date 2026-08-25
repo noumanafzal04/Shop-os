@@ -37,14 +37,6 @@ export function formatDateTime(value: string | null | undefined): string {
   )}`;
 }
 
-/** "+12.4%" / "-8%". Null in, null out — the caller then renders nothing. */
-export function formatDelta(delta: number | null | undefined): string | null {
-  if (delta === null || delta === undefined) return null;
-
-  const rounded = Math.round(Math.abs(delta) * 10) / 10;
-
-  return `${delta < 0 ? "−" : "+"}${rounded}%`;
-}
 
 /** CamelCase audit entity → readable noun ("ProductBatch" → "product batch"). */
 export function humanizeEntity(entity: string | undefined): string {

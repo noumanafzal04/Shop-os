@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
 
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
   BoxIconLine,
   CalenderIcon,
   DollarLineIcon,
@@ -15,19 +13,9 @@ import {
 } from "../../../../icons";
 import type { TenantDashboard } from "../../types";
 import type { Capabilities } from "./capabilities";
-import { formatDelta } from "./format";
-import { Sparkline } from "../Sparkline";
-import { TONE_TEXT, type Tone } from "./tone";
+import { MetricTile, MetricTileSkeleton } from "../MetricTile";
+import { type Tone } from "./tone";
 import { tradeProfile, type FocusKey } from "./trade";
-
-/** Icon chip per tone — tinted ground, matching ring, matching glyph. */
-const CHIP: Record<Tone, string> = {
-  brand: "bg-brand-50 text-brand-600 ring-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:ring-brand-500/25",
-  success: "bg-success-50 text-success-600 ring-success-100 dark:bg-success-500/15 dark:text-success-500 dark:ring-success-500/25",
-  warning: "bg-warning-50 text-warning-600 ring-warning-100 dark:bg-warning-500/15 dark:text-warning-500 dark:ring-warning-500/25",
-  error: "bg-error-50 text-error-600 ring-error-100 dark:bg-error-500/15 dark:text-error-500 dark:ring-error-500/25",
-  gray: "bg-gray-50 text-gray-600 ring-gray-200 dark:bg-white/[0.04] dark:text-gray-300 dark:ring-gray-700",
-};
 
 interface TileProps {
   label: string;
@@ -46,86 +34,13 @@ interface TileProps {
 
 type TileSpec = TileProps & { key: string };
 
-function DeltaPill({ delta, invert }: { delta: number | null | undefined; invert?: boolean }) {
-  const text = formatDelta(delta);
-  if (text === null || delta === null || delta === undefined) return null;
-
-  const up = delta > 0;
-  const good = invert ? !up : up;
-  // A flat day is real information, but it is neither good nor bad news.
-  const tone =
-    delta === 0
-      ? "bg-gray-100 text-gray-600 ring-gray-200 dark:bg-white/5 dark:text-gray-300 dark:ring-gray-700"
-      : good
-        ? "bg-success-50 text-success-600 ring-success-100 dark:bg-success-500/15 dark:text-success-500 dark:ring-success-500/25"
-        : "bg-error-50 text-error-600 ring-error-100 dark:bg-error-500/15 dark:text-error-500 dark:ring-error-500/25";
-
-  return (
-    <span
-      title="Compared with yesterday"
-      className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-theme-xs font-semibold tabular-nums ring-1 ${tone}`}
-    >
-      {delta !== 0 &&
-        (up ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />)}
-      {text}
-    </span>
-  );
-}
-
-function KpiTile({ label, value, icon, tone, delta, invertDelta, emphasis, caption, spark }: TileProps) {
-  return (
-    <div
-      // The one figure the strip exists for gets a ground of its own, not just a
-      // heavier border — a border alone is invisible in a row of six cards. The
-      // rest get a whisper of the same treatment so the strip reads as one set.
-      className={`relative overflow-hidden rounded-2xl border p-4 shadow-theme-xs transition-all duration-200 hover:shadow-theme-md sm:p-5 ${
-        spark ? "pb-9 sm:pb-10" : ""
-      } ${
-        emphasis
-          ? "border-brand-200 bg-gradient-to-br from-brand-50 via-white to-brand-50/40 hover:border-brand-300 dark:border-brand-500/40 dark:from-brand-500/15 dark:via-white/[0.03] dark:to-brand-500/5 dark:hover:border-brand-500/60"
-          : "border-gray-200 bg-gradient-to-b from-white to-gray-50/70 hover:border-gray-300 dark:border-gray-800 dark:from-white/[0.045] dark:to-white/[0.02] dark:hover:border-gray-700"
-      }`}
-    >
-      {spark && (
-        <span aria-hidden className={`pointer-events-none ${TONE_TEXT[tone]}`}>
-          <Sparkline points={spark} />
-        </span>
-      )}
-
-      <div className="relative">
-        <div className="flex items-start justify-between gap-2">
-          <span
-            className={`flex size-10 shrink-0 items-center justify-center rounded-xl ring-1 ${CHIP[tone]}`}
-          >
-            {icon}
-          </span>
-          <DeltaPill delta={delta} invert={invertDelta} />
-        </div>
-        <p
-          className={`mt-4 truncate font-bold tabular-nums tracking-tight ${
-            emphasis
-              ? "text-2xl text-brand-600 dark:text-brand-400 sm:text-3xl"
-              : "text-xl text-gray-800 dark:text-white/90 sm:text-2xl"
-          }`}
-          title={value}
-        >
-          {value}
-        </p>
-        <p
-          className={`mt-1 truncate text-theme-sm ${
-            emphasis ? "font-semibold text-brand-700 dark:text-brand-300" : "font-medium text-gray-600 dark:text-gray-300"
-          }`}
-        >
-          {label}
-        </p>
-        {caption && (
-          <p className="mt-0.5 truncate text-theme-xs text-gray-500 dark:text-gray-400" title={caption}>
-            {caption}
-          </p>
-        )}
-      </div>
-    </div>
-  );
+/**
+ * The shop's number tile is `MetricTile`, which the platform console renders
+ * too. It used to be a second copy of that design living here, and the copies
+ * had drifted — different value sizes, and different percentage formatting.
+ */
+function KpiTile(props: TileProps) {
+  return <MetricTile {...props} deltaTitle="Compared with yesterday" />;
 }
 
 /** Column counts per tile count, so a 4-tile books dashboard never leaves gaps. */
@@ -134,8 +49,8 @@ const COLS: Record<number, string> = {
   2: "sm:grid-cols-2",
   3: "sm:grid-cols-3",
   4: "sm:grid-cols-2 xl:grid-cols-4",
-  5: "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5",
-  6: "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6",
+  5: "sm:grid-cols-2 lg:grid-cols-3",
+  6: "sm:grid-cols-2 lg:grid-cols-3",
 };
 
 interface Props {
@@ -352,19 +267,11 @@ export function KpiRowSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className={`grid grid-cols-1 gap-4 md:gap-5 ${COLS[Math.min(count, 6)]}`}>
       {Array.from({ length: count }).map((_, i) => (
-        <div
-          key={i}
-          // Same padding, same ground, same corner as the loaded tile — including
-          // the sparkline's bottom allowance, or the strip resizes on arrival.
-          className="rounded-2xl border border-gray-200 bg-white p-4 pb-9 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:p-5 sm:pb-10"
-        >
-          <div className="flex items-start justify-between">
-            <div className="size-10 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
-            <div className="h-5 w-14 animate-pulse rounded-full bg-gray-200 dark:bg-gray-800" />
-          </div>
-          <div className="mt-4 h-7 w-24 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
-          <div className="mt-2 h-3 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
-        </div>
+        // The tile's OWN skeleton, not a hand-copied one. This used to repeat
+        // the padding and the sparkline allowance inline, so the two drifted
+        // 4px apart and the strip resized on arrival — the thing the copy was
+        // written to prevent.
+        <MetricTileSkeleton key={i} />
       ))}
     </div>
   );

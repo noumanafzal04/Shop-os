@@ -31,9 +31,18 @@ export function StatTile({ label, value, caption, tone, to }: StatTileProps) {
           <AngleRightIcon className="mt-1.5 size-4 shrink-0 text-gray-500 opacity-0 transition-all duration-200 group-hover/tile:translate-x-0.5 group-hover/tile:opacity-100 dark:text-gray-400" />
         )}
       </div>
-      <p className="mt-1 truncate text-theme-sm font-medium text-gray-700 dark:text-gray-300">{label}</p>
+      <p
+        className="mt-1 text-theme-sm font-medium leading-snug text-gray-700 dark:text-gray-300"
+        title={label}
+        style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+      >
+        {label}
+      </p>
       {caption && (
-        <p className="mt-0.5 truncate text-theme-xs text-gray-500 dark:text-gray-400" title={caption}>
+        <p
+          className="mt-0.5 text-theme-xs leading-snug text-gray-500 dark:text-gray-400"
+          title={caption}
+        >
           {caption}
         </p>
       )}

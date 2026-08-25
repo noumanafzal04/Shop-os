@@ -1,3 +1,5 @@
+import { hasShape } from "./sparkShape";
+
 /**
  * The last seven days of one figure, drawn behind its KPI tile.
  *
@@ -11,7 +13,14 @@
  * history, because a single point has no direction to show.
  */
 export function Sparkline({ points }: { points: number[] }) {
-  if (points.length < 2) return null;
+  // A WEEK OF NOTHING HAS NO SHAPE, and neither has a single day. An all-zero
+  // series drew a level line with the area under it filled, which on a shop
+  // that has not sold yet reads as volume — the FIGURE already says zero, and
+  // the shape was adding a claim that is not true.
+  //
+  // The same question decides whether the tile reserves room for this, so it
+  // is asked in one place. See `sparkShape`.
+  if (!hasShape(points)) return null;
 
   const min = Math.min(...points);
   const max = Math.max(...points);
@@ -29,9 +38,9 @@ export function Sparkline({ points }: { points: number[] }) {
       aria-hidden
       viewBox="0 0 100 30"
       preserveAspectRatio="none"
-      className="absolute inset-x-0 bottom-0 h-12 w-full"
+      className="absolute inset-x-0 bottom-0 h-10 w-full"
     >
-      <path d={`${line} L100,30 L0,30 Z`} fill="currentColor" opacity="0.10" />
+      <path d={`${line} L100,30 L0,30 Z`} fill="currentColor" opacity="0.08" />
       <path d={line} fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.45" vectorEffect="non-scaling-stroke" />
     </svg>
   );

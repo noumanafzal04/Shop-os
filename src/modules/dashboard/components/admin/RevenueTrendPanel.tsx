@@ -51,19 +51,19 @@ export function RevenueTrendPanel({ series, loading = false }: Props) {
       toolbar: { show: false },
       animations: { enabled: false },
     },
-    stroke: { curve: "smooth", width: 2.5 },
+    stroke: { curve: "smooth", lineCap: "round", width: 3 },
     fill: {
       type: "gradient",
       gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0, stops: [0, 92, 100] },
     },
     dataLabels: { enabled: false },
-    markers: { size: 0, strokeColors: t.surface, strokeWidth: 2, hover: { size: 6 } },
+    markers: { size: 0, strokeColors: t.surface, strokeWidth: 3, hover: { size: 6 } },
     grid: {
       borderColor: t.grid,
       strokeDashArray: 3,
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },
-      padding: { left: 8, right: 8 },
+      padding: { left: 8, right: 18 },
     },
     xaxis: {
       type: "category",

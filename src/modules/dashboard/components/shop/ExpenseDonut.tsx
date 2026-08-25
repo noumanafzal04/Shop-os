@@ -88,7 +88,7 @@ export function ExpenseDonut({ breakdown, money }: Props) {
   };
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs transition-colors hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700 sm:p-6">
+    <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-theme-xs transition-colors hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700 sm:p-6">
       <h3 className="font-semibold tracking-tight text-gray-800 dark:text-white/90">
         Where the money went
       </h3>

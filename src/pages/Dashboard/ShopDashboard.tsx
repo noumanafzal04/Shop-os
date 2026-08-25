@@ -1,4 +1,5 @@
 import PageMeta from "../../components/common/PageMeta";
+import { DashboardHero } from "../../modules/dashboard/components/DashboardHero";
 import Alert from "../../components/ui/alert/Alert";
 import { useTenantDashboard } from "../../modules/dashboard/hooks/useDashboard";
 import { ActivityTimeline } from "../../modules/dashboard/components/shop/ActivityTimeline";
@@ -81,45 +82,25 @@ export default function ShopDashboard() {
     <>
       <PageMeta title="Dashboard | CartZe" description="Your business at a glance" />
 
-      {/* A header band rather than a bare title: this page is a stack of white
-          cards, and without one deliberate plate at the top the first KPI tile
-          becomes the page's masthead by accident. The wash is the tenant's own
-          brand ramp, which is the only colour on the page that is theirs. */}
-      <header className="relative mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] md:mb-6 sm:p-6">
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-brand-500/10 blur-3xl dark:bg-brand-500/20"
-        />
-        <div className="relative flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-4">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-theme-xl font-bold text-white shadow-theme-md sm:size-14">
-              {initials(shopName)}
-            </span>
-            <div className="min-w-0">
-              <p className="text-theme-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">
-                {greeting(now.getHours())}
-              </p>
-              <h2 className="mt-0.5 truncate text-xl font-bold tracking-tight text-gray-800 dark:text-white/90 sm:text-2xl">
-                {shopName}
-              </h2>
-              <p className="mt-0.5 text-theme-sm text-gray-500 dark:text-gray-400">
-                {now.toLocaleDateString(undefined, {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </p>
-            </div>
-          </div>
-          {branchName && (
-            <span className="flex items-center gap-2 rounded-full bg-brand-50 px-3.5 py-1.5 text-theme-xs font-semibold text-brand-600 ring-1 ring-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:ring-brand-500/25">
-              <span className="size-1.5 rounded-full bg-brand-500" />
+      <DashboardHero
+        eyebrow={greeting(now.getHours())}
+        title={shopName}
+        subtitle={now.toLocaleDateString(undefined, {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })}
+        initials={initials(shopName)}
+        aside={
+          branchName ? (
+            <span className="flex items-center gap-2 rounded-full bg-white/12 px-3.5 py-1.5 text-theme-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur">
+              <span className="size-1.5 rounded-full bg-white/80" />
               {branchName} only
             </span>
-          )}
-        </div>
-      </header>
+          ) : undefined
+        }
+      />
 
       {data?.subscription_state === "grace" && (
         <div className="mb-6">

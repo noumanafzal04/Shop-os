@@ -56,7 +56,7 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
       animations: { enabled: false },
     },
     colors: chartSeries.map((s) => s.color),
-    stroke: { curve: "smooth", width: type === "area" ? 2.5 : 0 },
+    stroke: { curve: "smooth", lineCap: "round", width: type === "area" ? 3 : 0 },
     // A washed fill under each line reads as volume rather than a wire diagram;
     // it fades to nothing so three overlapping series never turn to mud.
     fill:
@@ -72,15 +72,15 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
           }
         : { type: "solid", opacity: 1 },
     plotOptions: { bar: { columnWidth: "35%", borderRadius: 4, borderRadiusApplication: "end" } },
-    markers: { size: 0, strokeWidth: 2, hover: { size: 6 } },
+    markers: { size: 0, strokeWidth: 3, strokeColors: dark ? colors["gray-800"] : "#fff", hover: { size: 6 } },
     dataLabels: { enabled: false },
     legend: { show: false },
     grid: {
       borderColor: dark ? colors["gray-800"] : colors["gray-100"],
-      strokeDashArray: 4,
+      strokeDashArray: 3,
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },
-      padding: { left: 8, right: 8 },
+      padding: { left: 8, right: 18 },
     },
     xaxis: {
       type: "category",
@@ -109,7 +109,7 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
   const last = days[days.length - 1];
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white px-5 pb-5 pt-5 shadow-theme-xs transition-colors hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700 sm:px-6 sm:pt-6">
+    <section className="rounded-3xl border border-gray-200 bg-white px-5 pb-5 pt-5 shadow-theme-xs transition-colors hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700 sm:px-6 sm:pt-6">
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h3 className="font-semibold tracking-tight text-gray-800 dark:text-white/90">
@@ -184,7 +184,7 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
 
 export function ChartSkeleton({ height = "h-[310px]" }: { height?: string }) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
+    <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <SkeletonBar className="h-4 w-32" />

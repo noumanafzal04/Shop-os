@@ -146,7 +146,7 @@ export function RecentExpensesCard({ rows, money, to }: ExpensesProps) {
 /** Table skeleton — same header chip, same column rhythm as the real thing. */
 export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
+    <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
       <div className="flex items-center gap-3">
         <SkeletonBar className="size-9 rounded-xl" />
         <SkeletonBar className="h-4 w-32" />
