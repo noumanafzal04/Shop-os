@@ -8,6 +8,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductVariant extends BaseModel
 {
+    /**
+     * A size is part of its product's projection, so a change to one is a
+     * change to the product the till syncs on. Price, name, retiring a size —
+     * all of it reaches a device only because the parent's `updated_at` moved.
+     *
+     * Stock is covered a level down, on `BranchStock`, where it is written.
+     *
+     * @var array<int, string>
+     */
+    protected $touches = ['product'];
+
     use BelongsToTenant;
 
     // A variant carries its own buying price, and rides along inside the

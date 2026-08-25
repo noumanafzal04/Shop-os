@@ -15,6 +15,7 @@ use App\Models\Promotion;
 use App\Models\TaxGroup;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\InventoryService;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -293,6 +294,119 @@ class PosCatalogSyncTest extends TestCase
         $this->assertEquals(6, $sizes['Large']['stock'], 'a till sells from where it stands');
         $this->assertTrue($sizes['Large']['is_active']);
         $this->assertFalse($sizes['Tiny']['is_active'], 'the device cannot tell a retired size from a live one');
+    }
+
+    /**
+     * A SIZE RUNS OUT, AND THE TILL HAS TO BE TOLD.
+     *
+     * The delta pages on `products.updated_at` — that is what "changed since"
+     * means for this projection. But a size's stock is written to the VARIANT:
+     * `InventoryService::adjust()` rolls the branch total up onto
+     * `$target = $variant ?? $product`, so selling the last Large touches
+     * `product_variants.updated_at` and leaves the parent's alone.
+     *
+     * The parent is the only row the delta looks at. So the till asks "anything
+     * new?", is told no, and keeps the stock figure it was handed on the day it
+     * first synced — for ever, until somebody happens to rename the product.
+     *
+     * Offline that is the whole of the damage: the mirror is the ONLY thing the
+     * till can consult with the line down, so it sells a size the shop ran out
+     * of days ago, takes the money, and the sync refuses the sale on reconnect
+     * with `retryable: false`. The customer has gone and the sale is lost.
+     */
+    public function test_a_sizes_stock_change_reaches_the_till(): void
+    {
+        $product = $this->product(['stock_quantity' => 0]);
+        $large = ProductVariant::query()->create([
+            'tenant_id' => $this->tenant->id, 'product_id' => $product->id,
+            'name' => 'Large', 'price' => 400, 'stock_quantity' => 5, 'is_active' => true,
+        ]);
+        $main = Branch::withoutTenancy()->where('tenant_id', $this->tenant->id)
+            ->where('is_default', true)->first();
+        BranchStock::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $main->id,
+            'product_id' => $product->id, 'variant_id' => $large->id, 'quantity' => 5,
+        ]);
+
+        // The till syncs, and knows about the five.
+        $first = $this->bootstrap()['products'];
+        $this->assertSame(
+            5.0,
+            (float) collect($first['items'][0]['variants'])->firstWhere('name', 'Large')['stock'],
+            'the till did not get the size stock it was meant to start from',
+        );
+
+        // A DIFFERENT second, or the cursor legitimately excludes the row on
+        // its timestamp alone and this test would pass against the bug.
+        $this->travel(2)->seconds();
+
+        // The shop sells the last of them.
+        app(InventoryService::class)->adjust([
+            'product_id' => $product->id,
+            'variant_id' => $large->id,
+            'type' => 'set',
+            'new_quantity' => 0,
+            'reason' => 'sold out',
+        ]);
+
+        $changed = $this->delta('products', $first['cursor']);
+
+        $row = collect($changed['items'])->firstWhere('id', $product->id);
+        $this->assertNotNull(
+            $row,
+            'the size ran out and the till was never told — the delta pages on '.
+            'products.updated_at and a variant write does not move it',
+        );
+        $this->assertSame(
+            0.0,
+            (float) collect($row['variants'])->firstWhere('name', 'Large')['stock'],
+            'the till was told the product changed but still holds the old size stock',
+        );
+    }
+
+    /**
+     * A SIZE'S PRICE CHANGES, AND THE TILL HAS TO BE TOLD.
+     *
+     * The other half of the same hole, and the half that has nothing to do with
+     * stock. Repricing a Large writes `product_variants` and nothing else — no
+     * `BranchStock` row moves, no rollup is recomputed — so a fix that hung off
+     * the stock table would carry the sold-out case and quietly leave this one.
+     *
+     * Offline the till prices the line from its mirror, so a stale size price
+     * is a sale rung at last month's money, every time, with nothing on screen
+     * suggesting anything is wrong.
+     */
+    public function test_a_sizes_price_change_reaches_the_till(): void
+    {
+        $product = $this->product(['stock_quantity' => 0]);
+        $large = ProductVariant::query()->create([
+            'tenant_id' => $this->tenant->id, 'product_id' => $product->id,
+            'name' => 'Large', 'price' => 400, 'stock_quantity' => 5, 'is_active' => true,
+        ]);
+
+        $first = $this->bootstrap()['products'];
+        $this->assertSame(
+            400.0,
+            (float) collect($first['items'][0]['variants'])->firstWhere('name', 'Large')['price'],
+        );
+
+        $this->travel(2)->seconds();
+
+        $large->forceFill(['price' => 550])->save();
+
+        $changed = $this->delta('products', $first['cursor']);
+        $row = collect($changed['items'])->firstWhere('id', $product->id);
+
+        $this->assertNotNull(
+            $row,
+            'the size was repriced and the till was never told — nothing but the '.
+            'variant row moved, and the delta does not look at it',
+        );
+        $this->assertSame(
+            550.0,
+            (float) collect($row['variants'])->firstWhere('name', 'Large')['price'],
+            'the till would keep ringing the old price offline',
+        );
     }
 
     public function test_it_marks_what_a_till_may_not_sell_without_the_server(): void
