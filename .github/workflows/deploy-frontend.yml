@@ -7,9 +7,13 @@ name: Panel — gate, then deploy
 # package.json. The commands below are the ones actually being run by hand on
 # the server, which already keep the checkout and the web root apart.
 
+# THE GATE RUNS EVERYWHERE; ONLY ONE BRANCH DEPLOYS. See the note in
+# deploy-backend.yml — the same hole, for the same reason: this fired on
+# `admin-panel` alone while every commit lands on `offline/v1/admin-panel`, so
+# tsc, eslint, vitest and the build ran at merge time and nowhere else.
 on:
   push:
-    branches: [admin-panel]
+    branches: ['**']
   workflow_dispatch:
 
 # One at a time. Two overlapping runs would have the droplet building one commit
@@ -62,6 +66,9 @@ jobs:
   deploy:
     name: Deploy to droplet
     needs: gate
+    # The release branch and nothing else. `needs: gate` says the tests must
+    # pass; this says where a passing test run is allowed to reach the droplet.
+    if: github.ref == 'refs/heads/admin-panel'
     runs-on: ubuntu-latest
     steps:
       - name: Build on the droplet and publish
