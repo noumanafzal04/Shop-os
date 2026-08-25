@@ -290,7 +290,192 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-25 (latest) — the front door
+### 2026-08-26 (latest) — one dashboard, two consoles
+
+Full write-up: `docs/decisions/shopos-one-dashboard-two-consoles.md`.
+
+The brief was "trendy and modern, keep it consistent, break nothing". The page
+STRUCTURE was left alone deliberately — the shop console is gated module by
+module and trade by trade, and rearranging it to look newer is how a pharmacy
+loses its batch panel.
+
+`SectionCard` (shop) and `Panel` (admin) were **the same component written
+twice**, and had already drifted: different padding, and different BREAKPOINTS
+for it, so between 640px and 768px the two consoles were visibly different
+products. Both render one `Surface` now. A trap avoided on the way: the first
+version interpolated `group/${name}` into a class — Tailwind scans source text,
+so that class is never generated and the hover arrow silently stops moving.
+
+**Labels that could not be read.** Six KPI tiles from 1024px is 150px each, so
+every label longer than "Total tenants" was cut: *Active subscriptio…*, *Revenue
+this mon…*, *Online orders tod…*. Same defect in the shop's `StatTile`. Labels
+and subtitles and plan names all wrap now — "Karahi House — cus…" is a different
+shop as far as the reader is concerned. The caption's line count was **guessed
+twice and wrong twice** (two lines, then three); it has no clamp at all now,
+because every guess at a line count is a width nobody measured.
+
+The strip ramps 2 → 3 → 6 and waits for `2xl` on both consoles, and the
+emphasised tile lost its size bump: at 1536 "Rs 133,000" at 30px still printed
+as "Rs 133,…". **Money is never truncated.**
+
+**Fourth pass.** KPI strips cap at **three across** on both consoles — five or
+six put a money figure in 150px of tile, and even where it fitted it was a wall
+of numbers. A gap under three labels turned out to be mine: `MetricTile`
+reserved the sparkline's room from the prop's presence while `Sparkline` had
+just learned to draw nothing for a week of zeros; both ask `hasShape()` now.
+`SalesTrendChart`, `ExpenseDonut` and `RecentTables` each built their own card
+shell, so the new corner and header rule had stopped at them. Charts: rounder
+heavier stroke, hover marker with a ring, tighter grid dash — and the last point
+sat at the plot's right edge, so a 3px round cap ran into the card's border and
+the line looked like it carried on past the panel.
+
+**Third pass — the part you can see.** Fair feedback on the first two: *"koi
+changes nahi nazar aayi."* Both were real and neither was visible — consolidating
+two copies changes nothing on screen by design, and an unclipped label only looks
+different if you knew it was clipped.
+
+Both consoles now open with a **brand gradient masthead** (`DashboardHero`,
+shared), borrowed deliberately from the landing page's hero so a shopkeeper who
+signs in lands somewhere that looks like the place they were just sold. One
+colour, once per screen — everything below stays white, which is the whole reason
+it works. Panels went `rounded-3xl` with **a hairline under every header**: the
+card had been one undivided plate, so a title and its contents ran together and
+every panel read as a soft rectangle of grey text.
+
+**Second pass — the tile itself.** The shop's KPI tile lived inside `KpiRow`
+and the platform's was `KpiTile`: the same design twice, drifted on the value's
+size and on the percentage — `−100.4%` there against `-100.43%` here. One
+`MetricTile` now. The grey gradient wash is gone (it makes white cards look
+dirty and does nothing else), the figure is larger and tighter, the hover is a
+lift, and the sparkline runs to the card's edges.
+
+Two things the sweep caught in that new tile: `leading-none` clipped every
+figure — including "37" — because it sets the line box to exactly the font size
+and `truncate` then cuts the ink; and the sparkline filled the area under an
+**all-zero** week, so a shop that has not sold yet carried a slab of colour
+across three tiles that reads as volume. A week of nothing has no shape. Also
+`KpiRowSkeleton` had a hand-copied version of the tile's padding and was now 4px
+short — the strip would have resized on arrival, which is the bug the copy
+existed to prevent.
+
+Checked on both consoles at seven widths each — 1920 down to 390 — with a sweep
+that walks every leaf text node and compares `scrollWidth`/`scrollHeight`
+against the client box. Fourteen viewports, nothing clipped, nothing
+overflowing, no errors. A screenshot would not have found most of it:
+"Active subscriptio…" looks fine as a design.
+
+### 2026-08-26 — asking for a newer version, and the top of the page
+
+Full write-up: `docs/decisions/shopos-asking-for-a-newer-version.md`.
+
+**"When does the update button show?"** Up to an hour after a deploy, because a
+till is the one screen nobody navigates and the browser only looks on
+navigation — so `updateWatch` polls hourly. That is right for something nobody
+should think about and useless the moment somebody IS thinking about it. Worse,
+**"Later" was a one-way door**: dismissing the strip cleared the flag that MEANS
+a version is waiting, so nothing offered it again until an unrelated reload.
+
+There is a refresh control in the header now, on both consoles, and it answers
+with **one of five things** — found / installing / current / offline /
+unavailable. "Nothing found" and "I could not look" are not the same sentence:
+a till offline for the afternoon must not be told it has the newest prices, and
+a copy served over plain http must not be reassured either. Offline is
+deliberately not red — a till with no line is doing what it was built for.
+
+**Its first press exposed a real bug.** On the admin console it said "this copy
+cannot update itself", every time, about an app that updates itself perfectly
+well: `useRegisterSW` may be called once, so it lived inside the shop-side
+update strip and the admin console had no registration to ask. Registration
+moved to `ServiceWorkerHost` in `AppLayout` — both consoles, and NOT the app
+root, because the root includes the landing page and that would precache
+megabytes of console for a stranger reading a page about a till.
+
+**The top of the landing page was wrong three times.** The hero slides under a
+transparent header; `-mt-[62px]` was the header measured by hand, and the nav
+growing a pill made it 79px — a white line across the fold. Wrapping header and
+hero in one dark box removed the line and **broke `sticky`** (a sticky element
+holds inside its own parent; at 2400px down its top was -1010px). It measures
+itself with a `ResizeObserver` now: 79px on a desktop, 69px on a phone, which is
+why no literal could have been right.
+
+Also: the nav is one pill with short, same-shaped labels and marks the section
+you are in (an observer reports *changes*, not state — the mark used to stick
+for ever); the footer wordmark was near-black on a permanently dark footer in
+light mode and now takes `tone="onDark"`; the profile dropdown's four filled
+glyphs are line icons like the rest of the product, and its sign-out arrow
+points out rather than in; the owner's-day phone went from 971px to 482px tall;
+and every sentence fencing the product to one country or currency is gone.
+
+Gates: panel 1165 / 95 files, tsc, eslint 0 errors, build. Verified in a real
+browser at four viewports: 0 sideways scroll, 0 console errors, sticky header
+0px at every depth.
+
+### 2026-08-25 — a dark shop, and asking for a person
+
+Full write-ups: `docs/decisions/shopos-a-dark-shop-one-lit-counter.md`,
+`docs/decisions/shopos-ask-for-a-person.md`.
+
+The landing page was "bohot basic" — a white page that **stated** the till keeps
+selling and **stated** it knows eight trades, which is what every competitor's
+page states. It now argues instead. The fold is a dark room with one lit thing
+in it, because the pitch is a shop whose power has gone and whose counter has
+not. The eight-icon grid became a **switcher**: pick a trade, watch the till
+change — a batch and an expiry for the pharmacy, a meter roll for the pump, a
+KOT for the restaurant. The units are the argument, and they cost one tap to
+check. Nine bands, a real header (it greets a signed-in shopkeeper by name and
+its button opens *their* shop) and a real footer.
+
+The fold shows the **whole system** — the rail, the shop's name, the day
+counted — with the till small over its left corner, because the person reading
+this is buying a business system and a till alone made it look like a cash
+register. The type inside the window runs a third larger than the real app's:
+the layout is the app's exactly, but a 1440px console squeezed into an 1150px
+frame turns 13px labels into smudges. It is **drawn, not screenshotted** — a
+capture needs a second copy for dark mode and becomes a lie the first time a
+button moves.
+
+A third browser-only bug: the owner's-day section puts that dashboard inside a
+340px phone, and the comment above it claimed the component "is responsive, so
+a 340px column is simply its small layout". **False** — a Tailwind breakpoint
+asks the viewport, never the box the component stands in, so it took the
+four-across layout inside the phone and clipped "Rs 146,000" to "Rs 146…". It
+lays out by `@container` now.
+
+Bugs only a browser could find: the chart rendered **no bars at all**
+(`items-end` stopped the columns stretching, so every percentage height resolved
+against zero), and the page **scrolled sideways 20px on a phone** (the glow
+behind the till widened the document). Both caught by measuring `scrollWidth`
+and computed heights at four viewports, not by looking at a screenshot.
+
+And the page grew a second door. "Try the demo" is the right answer for whoever
+will try software alone, and the wrong one for the shopkeeper who wants walking
+through it and the one with a single question in the way — **both used to read
+the whole page and leave**. `enquiries`: a public throttled endpoint, an admin
+queue on the rail, oldest first. A name and an email is the whole requirement.
+It does **not** book anything and does not pretend to — `prefers_at` is a
+preference, the reply says a person will confirm, and the admin card says
+"Wants a time around…".
+
+Two things worth keeping from how it was tested:
+
+- The ordering test **passed against its own bug twice**. First the oldest row
+  was also the first inserted, so no `ORDER BY` still gave the right answer.
+  Reversing that did not fix it either — SQLite served the filtered query from
+  the `(status, created_at)` index and returned `created_at` order by accident.
+  Only the *unfiltered* listing, where no index can rescue it, pins the clause.
+- The admin side finally has the **reachability guard** the shop side grew after
+  its fourth unreachable screen. It was wrong on its first run — it modelled one
+  route shape and called the Help Centre a dead menu row, when the Help Centre
+  is simply ungated on purpose. *Suspect the parser before the code.*
+
+Gates: backend 2263 passed EXIT=0; panel 1156 / 94 files, tsc, eslint 0 errors,
+build. The whole loop was driven in a real browser: form filled → row in the
+database → the lead on `/admin/enquiries` with the time correct in PKT.
+
+Also: `.env.example` still said `APP_NAME=Laravel`, and `MAIL_FROM_NAME` is
+built from it — a fresh install signed its email "Laravel".
+
+### 2026-08-25 — the front door
 
 Full write-up: `docs/decisions/shopos-the-front-door.md`.
 

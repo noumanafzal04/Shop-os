@@ -126,3 +126,7 @@
 - [Told By Permission](shopos-told-by-permission.md) — staff finally get operational alerts; whoever can ACT is told, branch-scoped; the permission IS the setting (no second switch)
 - [Exit Code, Not Summary](shopos-exit-code-not-summary.md) — STANDING: `php artisan test` said "2225 passed" while exiting 1; judge by exit code, make tools write files, annotations beat admin-only logs
 - [The Front Door](shopos-the-front-door.md) — `/` = landing (marketplace → /shops); Try-demo = own 24h tenant; Keep-this-shop → admin request → converts
+- [A Dark Shop, One Lit Counter](shopos-dark-shop-lit-counter.md) — landing redesign: dark hero IS the argument, trade switcher = evidence, dashboard drawn not screenshotted; 2 browser-only bugs
+- [Ask For A Person](shopos-ask-for-a-person.md) — enquiries (walkthrough/question) + admin queue; a preference is NOT a booking; admin reachability guard finally exists
+- [Dashboards — consistency pass DONE](shopos-dashboards-redesign-pending.md) — one shared Surface, no truncated labels; NEVER interpolate a Tailwind class; structure left alone on purpose
+- [Asking For A Newer Version](shopos-asking-for-a-newer-version.md) — header refresh control with 5 honest answers; SW registration lives in AppLayout, not the update strip
