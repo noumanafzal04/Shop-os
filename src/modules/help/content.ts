@@ -1502,6 +1502,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
       },
       { type: "p", text: "Staff → Add staff → pick the job → save. You can change any box afterwards." },
       {
+        type: "note",
+        text: "A permission also decides who gets TOLD. Alerts go to whoever can act on them, not only to you: the person holding stock permission hears when a shelf runs down or a batch is nearing its expiry date, and whoever handles orders hears when one comes in. You keep receiving all of it either way. So if you would rather your counter staff were not chasing stock, simply do not tick the stock boxes for them — that is the setting, and there is no second one to find.",
+      },
+      {
+        type: "note",
+        text: "With more than one branch, these alerts follow the branch. A shelf that runs down in Gulberg tells the people who work in Gulberg, and an online order tells the branch that is filling it — not all five. Anyone whose branch you have not set yet hears about everything, so it is worth setting.",
+      },
+      {
         type: "p",
         text: "Select all ticks every box at once — useful for a partner or a second manager. It warns you when you do, because it includes shop settings and hiring staff. Clear empties the list to start again.",
       },
