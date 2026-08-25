@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\V1\Admin\BillingController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\EnquiryController as AdminEnquiryController;
 use App\Http\Controllers\Api\V1\Admin\PlanController;
 use App\Http\Controllers\Api\V1\Admin\ShopRequestController;
 use App\Http\Controllers\Api\V1\Admin\StaffController as AdminStaffController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\Api\V1\Marketplace\MarketplaceController;
 use App\Http\Controllers\Api\V1\Marketplace\ReviewController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Public\DemoController;
+use App\Http\Controllers\Api\V1\Public\EnquiryController;
 use App\Http\Controllers\Api\V1\Tenant\AuditLogController as TenantAuditLogController;
 use App\Http\Controllers\Api\V1\Tenant\BankController;
 use App\Http\Controllers\Api\V1\Tenant\BatchController;
@@ -111,6 +113,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // somebody has seen anything is how you lose the shopkeeper who was going
     // to buy it — the email is asked for later, when they want to KEEP it.
     Route::post('/demo', [DemoController::class, 'store'])->middleware('throttle:demo');
+
+    // ── Ask for a person instead ───────────────────────────────────────
+    //
+    // The tap above suits whoever will try software on their own. This is for
+    // the two visitors it does not suit: the one who wants walking through it
+    // first, and the one with a single question in the way. Both used to leave
+    // the page with nowhere to go.
+    Route::post('/enquiries', [EnquiryController::class, 'store'])->middleware('throttle:enquiry');
 
     Route::get('/health', function () {
         return ApiResponse::ok([
@@ -1006,6 +1016,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/shop-requests', [ShopRequestController::class, 'index']);
                 Route::post('/shop-requests/{id}/approve', [ShopRequestController::class, 'approve']);
                 Route::post('/shop-requests/{id}/decline', [ShopRequestController::class, 'decline']);
+            });
+
+            // Landing-page enquiries. Same gate as shop requests: whoever may
+            // open a shop is whoever talks to the people asking for one.
+            Route::middleware('permission:'.Permissions::TENANTS_CREATE)->group(function (): void {
+                Route::get('/enquiries', [AdminEnquiryController::class, 'index']);
+                Route::patch('/enquiries/{id}', [AdminEnquiryController::class, 'update']);
             });
 
             Route::get('/audit-logs', [AuditLogController::class, 'index'])->middleware('role:super_admin');

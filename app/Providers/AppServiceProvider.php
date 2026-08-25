@@ -100,6 +100,24 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        /*
+         * ASKING FOR A PERSON.
+         *
+         * Far cheaper than a demo — the worst a flood does is fill a list an
+         * admin deletes, not build tenants — so the limit is not about cost.
+         * It is about the list staying worth reading: a queue with two hundred
+         * junk rows in it is a queue nobody opens, and the real enquiry sits
+         * in there unanswered.
+         */
+        RateLimiter::for('enquiry', function (Request $request) {
+            return [
+                // One person, one form, corrected once. Three is a typo fixed
+                // twice, not a campaign.
+                Limit::perMinute(3)->by('enquiry-min:'.$request->ip()),
+                Limit::perHour(10)->by('enquiry-hour:'.$request->ip()),
+            ];
+        });
+
         RateLimiter::for('otp', function (Request $request) {
             return [
                 Limit::perMinute(1)->by('otp-min:'.$request->ip()),
