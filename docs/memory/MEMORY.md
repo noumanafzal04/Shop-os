@@ -39,7 +39,7 @@
 - [Table Ownership](shopos-table-ownership.md) — a dine-in tab belongs to its waiter; tables.serve_any lifts it; reads stay open
 - [Read vs Manage](shopos-read-vs-manage.md) — the `*.manage` bug class: a write permission gating a read; ANY-of gate + READS_* sets + PresetCanDoItsJobTest
 - [QA Sweep Aug-09](shopos-qa-sweep-aug09.md) — all 9 bugs FIXED + both audits closed; ALL 9 bugs + ALL gaps now closed (last three cleared 2026-08-17). (Index said "none fixed" for days after they were — check the file, not this line.)
-- [CI/CD & Mobile](shopos-cicd-and-mobile.md) — CI gates green, deploy BLOCKED on bad DEPLOY_SSH_KEY; `claude --remote-control` for phone
+- [CI/CD & Mobile](shopos-cicd-and-mobile.md) — gates PROVEN on real runs (not "never run"); gate now fires on every branch, deploy fenced to the release branch; only SSH key blocks deploy
 - [Workflow Test Rule](shopos-workflow-test-rule.md) — STANDING: delete a step and it must fail; never assert "not empty" on an envelope
 - [Admin Side Backlog](shopos-admin-side-backlog.md) — ALL BUILT 2026-08-15 (password reset, billing filters, security pass); kept as the record that a memory can go stale silently
 - [Security Pass](shopos-security-pass.md) — both sides; 4 fixes, biggest = anyone could lock a shop out of its own till; dependency audits are a CI gate, proven by polarity
@@ -124,3 +124,4 @@
 - [Mirror & Refusal](shopos-mirror-and-refusal.md) — FIXED: size stock/price never reached the offline till; a refused sale vanished silently (drawer over, cause unknowable)
 - [Nearest Branch Fills It](shopos-nearest-branch-fills-it.md) — online orders: nearest branch that holds the WHOLE basket; release reads branch off the movement; a mutation caught my test, not my code
 - [Told By Permission](shopos-told-by-permission.md) — staff finally get operational alerts; whoever can ACT is told, branch-scoped; the permission IS the setting (no second switch)
+- [Exit Code, Not Summary](shopos-exit-code-not-summary.md) — STANDING: `php artisan test` said "2225 passed" while exiting 1; judge by exit code, make tools write files, annotations beat admin-only logs

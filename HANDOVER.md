@@ -233,11 +233,25 @@ work once. Both scripts now `rm -rf .github` and `git reset --hard`, which also
 retires the standing "first pull always aborts" gotcha. Full detail and the
 server's checkout-vs-`-live` split are in `docs/decisions/shopos-deployment.md`.
 
-**The rewritten workflows have not run yet.** The originals did — that is how
-both gotchas above were found — but recent pushes carry `[skip ci]` to keep the
-old frontend deploy away from the droplet. Dropping `[skip ci]` is what proves
-these, and the frontend is the one to watch: the gate is verified locally, the
-SSH half has only ever been run by hand.
+**Both gates are PROVEN. Only the deploy half fails, and it fails on the SSH
+key.** Checked against the Actions API on 2026-08-25: sixty-seven runs, and the
+most recent of each reports `Test suite: success` on the backend and
+`Typecheck, lint, test, build: success` on the panel. The deploy job then fails
+on its one SSH step — `DEPLOY_SSH_KEY` — which is the outstanding item and is
+not a coding task.
+
+*This paragraph used to say the rewritten workflows had never run and that
+pushes carried `[skip ci]`. Neither was true by the time anybody read it: no
+recent commit carries `[skip ci]`, and the runs are on record. It was believed
+and repeated for two weeks. Check `/actions/runs` before repeating it again.*
+
+**What WAS wrong, and is now fixed: the gate ran nowhere the work happens.** It
+fired on `backend` / `admin-panel` alone while every commit lands on
+`offline/v1/*`, so the suite ran at merge time and nowhere else — a red branch
+could sit for weeks and say nothing until the moment it was promoted. The gate
+now runs on every branch and the deploy job is fenced to the release branch with
+`if:`. `needs: gate` says the tests must pass; the `if:` says where a passing
+run is allowed to reach a server holding shops' takings.
 
 Two things worth knowing when a supermarket signs:
 
@@ -276,7 +290,38 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-25 (latest) — whoever can act on it
+### 2026-08-25 (latest) — the gate that ran nowhere, and the red nobody could read
+
+Full write-up: `docs/decisions/shopos-a-gate-nobody-could-read.md`.
+
+**The gate ran nowhere the work happens.** Triggers were `branches: [backend]` /
+`[admin-panel]`; every commit lands on `offline/v1/*`. The suite ran at merge
+time and nowhere else. Now `branches: ['**']` for the gate, with deploy fenced
+by `if:` to the release branch. First run: gate **success**, deploy **skipped**,
+on both.
+
+**And the suite had been red all along, while reporting "2225 passed".** No test
+failed. `EveryTradeSellsTest::trades()` hands three arguments to a test that
+accepts one; PHPUnit 11 warns, and the warning takes the process to exit 1. Red
+on CI and locally, for as long as the mismatch existed. Fixed with a provider
+DERIVED from the existing one — not three parameters with two ignored (a
+signature that lies), and not a second hand-written list (two copies, one gets
+updated). Now `SUITE EXIT=0`, zero warnings.
+
+**It was invisible because the summary swallowed the exit code.** Every backend
+run read back as `{"result":"passed","tests":2225}`, which has no opinion about
+`$?`. Fifth entry in `shopos-measurement-that-lied.md`. When stdout is being
+rewritten, make the tool write a FILE: `--log-events-text`, then grep it.
+
+**A red gate could not be read either.** Job logs need admin rights on this
+repository; annotations do not. The gate now emits `::error::` as well as a step
+summary — the summary alone reaches only the people who could already read the
+log, which I shipped before checking.
+
+Still outstanding and not a coding task: the deploy job's SSH step
+(`DEPLOY_SSH_KEY`).
+
+### 2026-08-25 — whoever can act on it
 
 Full write-up: `docs/decisions/shopos-told-by-permission.md`.
 

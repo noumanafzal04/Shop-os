@@ -58,3 +58,24 @@ Two traps:
 
 Long jobs stall on permission prompts while the phone is disconnected. Pick
 "don't ask again" for `npx vitest *` / `php artisan test *` before walking away.
+
+
+## 2026-08-25 — two things this file and HANDOVER got wrong
+
+**The gates are PROVEN, not unrun.** Checked against the Actions API: 67 runs,
+and the latest of each says `Test suite: success` (backend) and
+`Typecheck, lint, test, build: success` (panel). Only the DEPLOY job fails, on
+its SSH step. HANDOVER claimed for two weeks that the rewritten workflows had
+never run and that pushes carried `[skip ci]` — no recent commit does. Believed
+and repeated without checking `/actions/runs`.
+
+**The real hole: the gate ran nowhere the work happens.** Triggers were
+`branches: [backend]` / `[admin-panel]` while every commit lands on
+`offline/v1/*`, so the suite ran at MERGE time only — a red branch could sit for
+weeks in silence. Now `branches: ['**']` for the gate, with the deploy job
+fenced by `if: github.ref == 'refs/heads/backend'` (and `admin-panel`).
+
+**How to check, no `gh` needed** (repo is public):
+`curl -s "https://api.github.com/repos/noumanafzal04/Shop-os/actions/runs?per_page=5"`
+then `/actions/runs/<id>/jobs`. Job LOGS need admin auth (403); job+step
+conclusions do not.
