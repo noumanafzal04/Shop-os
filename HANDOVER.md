@@ -276,7 +276,56 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-25 (latest) — nine screens, one bug, and a rule that named the wrong thing
+### 2026-08-25 (latest) — the machine slept
+
+Full write-up: `docs/decisions/shopos-the-machine-slept.md`.
+
+A full browser run came back with **eighteen failures and a test that had taken
+41.4 minutes against a five-minute deadline**. Read straight: a screen that
+hangs the browser, and a till that has stopped taking cash on two of four
+devices. Neither was true, and nothing was wrong with the product or the suite.
+
+The lid closed at 10:34 on 4% battery and the machine slept for forty-seven
+minutes. That one fact makes both halves of the report: the long test was
+asleep for most of it, and the run drifted past the **sixty-minute token TTL**,
+so everything after the wake failed in about a second on a 401 — which looks
+exactly like a broken feature. Re-run awake: **40 passed in 3.9 minutes**, same
+screens, same viewport, reviews and subscription included.
+
+Every cheap theory was wrong and each cost a measurement to kill — the four
+layout rules ran in **225ms** on the "hanging" page, phone and tablet-landscape
+passed the same screens, and the page was fine at 810px. The tell was **run
+order, not viewport**: everything before the sleep passed, everything after it
+failed, and `selling.spec.ts:260` passed on one project and failed on the next
+minutes later, straddling the moment the token died.
+
+**The rule.** Playwright kills a test at its timeout, so no amount of slow code
+can produce a duration past it. *A duration beyond the timeout is not a
+measurement of anything the test did — it is the wall clock moving while the
+test stood still.* A detector with no false positives from slowness, because
+slowness is capped by definition.
+
+`e2e/clockReporter.ts` now says both things where the failures are printed:
+"the clock moved while the run did not" (names the test, points at
+`pmset -g log`, says to re-run under `caffeinate -i`) and "this run outlived its
+own login". **Neither fails the run** — the job is to stop a red run being
+*misread*, not to add a new way to be red. Five tests in
+`e2e/clockReporter.guard.ts`, three mutations proven; the load-bearing one is
+the teardown slack, without which every genuinely timed-out test would be
+reported as a sleeping machine.
+
+Second instance of `shopos-token-lives-one-hour.md` (97 sweep "bugs" were one
+dead credential), and a fourth entry for `shopos-measurement-that-lied.md`:
+wrong cwd, unquoted heredoc, soft-deleted target, **machine asleep**.
+
+Two traps met on the way, both worth avoiding next time: **killing a run
+destroys the previous run's evidence** — Playwright wipes `test-results/` at
+startup, so the 41-minute test's trace was gone the moment the next probe
+started. And **`--timeout=60000` on the command line breaks `auth.setup.ts`**,
+which deliberately waits 65 seconds out for `throttle:auth`; the 300-second
+global timeout exists for that one reason. Set a timeout inside the spec.
+
+### 2026-08-25 — nine screens, one bug, and a rule that named the wrong thing
 
 Full write-up: `docs/decisions/shopos-a-header-that-would-not-yield.md`.
 
@@ -4377,6 +4426,10 @@ bug.
 
 - **Pricing is server-authoritative.** HTTP never supplies `unit_price`, `tax` or
   `line_total`. `trusted_prices` exists for internal paths only.
+- **Run the browser suite awake:** `caffeinate -i npx playwright test`. A run is
+  longer than the sixty-minute token TTL is forgiving, and a sleeping laptop
+  turns that into eighteen failures that name features instead of naming the
+  clock. `e2e/clockReporter.ts` says so now, but only after the fact.
 - **PKR only.** Never render `$`.
 - **No secrets in git**, and rotate anything exposed.
 - **Demo seeders must never run against production.**
