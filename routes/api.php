@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Marketplace\FavoriteController;
 use App\Http\Controllers\Api\V1\Marketplace\MarketplaceController;
 use App\Http\Controllers\Api\V1\Marketplace\ReviewController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Public\DemoController;
 use App\Http\Controllers\Api\V1\Tenant\AuditLogController as TenantAuditLogController;
 use App\Http\Controllers\Api\V1\Tenant\BankController;
 use App\Http\Controllers\Api\V1\Tenant\BatchController;
@@ -100,6 +101,14 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
+    // ── A shop of your own, from the landing page ──────────────────────
+    //
+    // Not under `auth/`, even though it hands back a token: what it DOES is
+    // create a shop, and a route list should say what a call does rather than
+    // what it happens to return. Public, because asking for an email before
+    // somebody has seen anything is how you lose the shopkeeper who was going
+    // to buy it — the email is asked for later, when they want to KEEP it.
+    Route::post('/demo', [DemoController::class, 'store'])->middleware('throttle:demo');
 
     Route::get('/health', function () {
         return ApiResponse::ok([

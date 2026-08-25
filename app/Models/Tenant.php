@@ -7,6 +7,7 @@ use App\Models\Concerns\Auditable;
 use App\Support\Modules;
 use App\Support\ShopSettings;
 use Database\Factories\TenantFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -37,6 +38,27 @@ class Tenant extends BaseModel
         });
     }
 
+    /**
+     * REAL SHOPS ONLY.
+     *
+     * A demo shop is a real tenant row a stranger was handed from the landing
+     * page, and it must never be mistaken for a business. Written as a scope
+     * rather than a `where` at each call site because the places that must
+     * exclude it are the marketplace, every platform figure and every admin
+     * list — and one of those getting missed is a customer ordering dinner
+     * from a shop that will not exist tomorrow.
+     */
+    public function scopeReal(Builder $query): Builder
+    {
+        return $query->where('is_demo', false);
+    }
+
+    /** Has this demo shop's day run out? Always false for a real one. */
+    public function demoHasEnded(): bool
+    {
+        return $this->is_demo && $this->demo_expires_at !== null && $this->demo_expires_at->isPast();
+    }
+
     protected function casts(): array
     {
         return [
@@ -46,6 +68,8 @@ class Tenant extends BaseModel
             'features' => 'array',
             'limits' => 'array',
             'setup_completed' => 'boolean',
+            'is_demo' => 'boolean',
+            'demo_expires_at' => 'datetime',
             'subscription_starts_at' => 'datetime',
             'subscription_ends_at' => 'datetime',
             'business_hours' => 'array',
@@ -405,6 +429,13 @@ class Tenant extends BaseModel
     public function scopeMarketplaceVisible($query)
     {
         return $query
+            // NEVER A DEMO. A demo shop is a real tenant row handed to a
+            // stranger from the landing page, and it disappears in a day —
+            // a customer who ordered dinner from one would be ordering from
+            // a business that does not exist. Fenced HERE because every
+            // marketplace read comes through this scope, and a rule written
+            // at five call sites is a rule with four chances to be missed.
+            ->where('is_demo', false)
             ->where('status', TenantStatus::Active)
             ->where('online_shop_enabled', true)
             ->where('setup_completed', true)

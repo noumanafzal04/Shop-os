@@ -87,3 +87,12 @@ Artisan::command('stock:expiring', function (NotifyExpiringStock $action) {
 // 07:00: before the shutters go up, so the first decision of the day can be
 // made about it rather than the last.
 Schedule::command('stock:expiring')->dailyAt('07:00');
+
+/**
+ * Demo shops clear themselves away after a day.
+ *
+ * Hourly rather than daily: the demo says on screen that the shop ends at a
+ * particular time, and a shop still standing four hours after the banner said
+ * it was gone makes a liar of the only sentence on that banner.
+ */
+Schedule::command('shopos:prune-demos')->hourly();

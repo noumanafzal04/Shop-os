@@ -77,6 +77,29 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($request->ip());
         });
 
+        /**
+         * "Try the demo" — the one unauthenticated endpoint that CREATES.
+         *
+         * Every call writes a tenant, an owner and a shelf, so the limit is
+         * about what it costs rather than about brute force. Somebody
+         * evaluating this needs one shop, or two if they want to compare a
+         * restaurant with a pharmacy. Nobody needs twenty, and a script asking
+         * for twenty thousand is the only other caller there is.
+         */
+        RateLimiter::for('demo', function (Request $request) {
+            return [
+                // The per-minute one is about ACCIDENTS, not abuse — a second
+                // press while the first shop is still building. Two was too
+                // tight and refused a real thing people do: opening a
+                // restaurant, then a pharmacy, to see how different they are.
+                Limit::perMinute(5)->by('demo-min:'.$request->ip()),
+                // This is the actual fence. Twenty tenants an hour from one
+                // address is far more than anybody evaluating needs, and every
+                // one of them clears itself away within the day.
+                Limit::perHour(20)->by('demo-hour:'.$request->ip()),
+            ];
+        });
+
         RateLimiter::for('otp', function (Request $request) {
             return [
                 Limit::perMinute(1)->by('otp-min:'.$request->ip()),

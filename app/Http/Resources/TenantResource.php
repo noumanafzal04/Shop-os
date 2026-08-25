@@ -71,6 +71,11 @@ class TenantResource extends JsonResource
             'images_enabled' => $this->imagesEnabled(),
             'status' => $this->status,
             'setup_completed' => $this->setup_completed,
+            // A demo shop must SAY it is one, on every screen of itself. The
+            // panel cannot draw that banner from nothing, and a demo that
+            // looks like a real shop is one somebody types real products into.
+            'is_demo' => (bool) $this->is_demo,
+            'demo_expires_at' => $this->demo_expires_at?->toIso8601String(),
             'subscription_starts_at' => $this->subscription_starts_at?->toIso8601String(),
             'subscription_ends_at' => $this->subscription_ends_at?->toIso8601String(),
             'subscription_expired' => $this->subscriptionExpired(),
