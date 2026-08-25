@@ -290,7 +290,48 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-25 (latest) — the gate that ran nowhere, and the red nobody could read
+### 2026-08-25 (latest) — the front door
+
+Full write-up: `docs/decisions/shopos-the-front-door.md`.
+
+`cartze.shop` answered with the customer marketplace — a list of somebody
+else's shops, shown to the person deciding whether to trust their day's takings
+to this. The storefront moved to `/shops` and `/` is the product's page.
+`homeForRole` was the quiet one: it sent customers to `/`, so signing in as a
+customer would have landed them on a POS advert.
+
+**Try the demo gives each visitor their own tenant**, seeded for their trade,
+for 24 hours. Not a shared sandbox — a shared one is renamed to nonsense within
+a day and two visitors ringing sales at once ruin each other's figures. No email
+at the door; it is asked on the way out. The expiry is ABSOLUTE from creation
+so the banner can print a real time, which a sliding window could never do
+truthfully.
+
+**It is not the demo seeder.** `DemoDataSeeder` and `migrate:fresh` stay
+forbidden on production; this creates one tenant. Three fences: `is_demo` is
+checked inside `marketplaceVisible()` (one scope, not five call sites), the
+shelf is stocked through `InventoryService` (writing `stock_quantity` alone
+leaves every item reading "out of stock"), and the owner's password is random
+and never sent anywhere.
+
+**"Keep this shop" converts what they built.** While the request is pending the
+shop keeps working and the prune skips it — the bound is on the ADMIN answering,
+never a timer that deletes a waiting customer's work — so `/admin/shop-requests`
+is ordered by longest wait and says so at the top. They set their own email and
+password at request time, which is also what finally lets a demo owner sign back
+in at all. Approval returns `setup_completed` to false so they name their own
+business, which is why the request form does not ask for one.
+
+Four faults found by RUNNING it rather than reading it: a 404 out of a public
+endpoint (the action read through the ambient tenant scope), a 500 on an
+optional phone field every test happened to send, "waiting less than a days",
+and a page whose animation was load-bearing — `opacity: 0` rescued by
+JavaScript, one broken observer from a blank landing page.
+
+And a mutation caught a test of mine passing against its own bug for the third
+time that day.
+
+### 2026-08-25 — the gate that ran nowhere, and the red nobody could read
 
 Full write-up: `docs/decisions/shopos-a-gate-nobody-could-read.md`.
 

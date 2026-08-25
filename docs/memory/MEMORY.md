@@ -125,3 +125,4 @@
 - [Nearest Branch Fills It](shopos-nearest-branch-fills-it.md) — online orders: nearest branch that holds the WHOLE basket; release reads branch off the movement; a mutation caught my test, not my code
 - [Told By Permission](shopos-told-by-permission.md) — staff finally get operational alerts; whoever can ACT is told, branch-scoped; the permission IS the setting (no second switch)
 - [Exit Code, Not Summary](shopos-exit-code-not-summary.md) — STANDING: `php artisan test` said "2225 passed" while exiting 1; judge by exit code, make tools write files, annotations beat admin-only logs
+- [The Front Door](shopos-the-front-door.md) — `/` = landing (marketplace → /shops); Try-demo = own 24h tenant; Keep-this-shop → admin request → converts
