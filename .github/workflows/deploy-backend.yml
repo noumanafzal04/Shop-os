@@ -5,9 +5,20 @@ name: Backend — gate, then deploy
 # `migrate --force` against the droplet's database with nothing having run the
 # test suite first — and a migration is the one step no rollback undoes.
 
+# THE GATE RUNS EVERYWHERE; ONLY ONE BRANCH DEPLOYS.
+#
+# It used to fire on `backend` alone, and all the work happens on
+# `offline/v1/backend` — so the suite ran at MERGE time and nowhere else. Weeks
+# of commits could sit on a working branch with a red suite and nothing would
+# say so until the moment they were promoted, which is the moment it is most
+# expensive to find out.
+#
+# Deploying is the half that must stay narrow, and it does: the job below is
+# fenced to the release branch by `if:`, so a push to any other branch runs the
+# tests and stops there.
 on:
   push:
-    branches: [backend]
+    branches: ['**']
   workflow_dispatch:
 
 concurrency:
@@ -76,6 +87,10 @@ jobs:
   deploy:
     name: Deploy to droplet
     needs: gate
+    # The release branch and nothing else. `needs: gate` says the tests must
+    # pass; this says where a passing test run is allowed to reach a server that
+    # holds shops' takings.
+    if: github.ref == 'refs/heads/backend'
     runs-on: ubuntu-latest
     steps:
       - name: Pull, migrate, cache, restart
