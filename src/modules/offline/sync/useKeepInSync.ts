@@ -36,7 +36,7 @@ export const HEARTBEAT_MS = 15 * 60 * 1000;
 export function useKeepInSync(enabled: boolean): void {
   const reachable = useConnectionStore((s) => s.reachable);
   const online = useConnectionStore((s) => s.online);
-  const setPending = useOfflineStore((s) => s.setPending);
+  const setTally = useOfflineStore((s) => s.setTally);
   const connected = online && reachable;
 
   // ── 1. Reconnected ────────────────────────────────────────────────
@@ -107,14 +107,14 @@ export function useKeepInSync(enabled: boolean): void {
 
     let cancelled = false;
     void import("../db/repo")
-      .then((repo) => repo.pendingCount())
-      .then((n) => {
-        if (!cancelled) setPending(n);
+      .then((repo) => repo.queueTally())
+      .then((tally) => {
+        if (!cancelled) setTally(tally);
       })
       .catch(() => {});
 
     return () => {
       cancelled = true;
     };
-  }, [enabled, connected, syncing, setPending]);
+  }, [enabled, connected, syncing, setTally]);
 }

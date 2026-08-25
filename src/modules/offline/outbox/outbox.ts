@@ -233,6 +233,57 @@ export async function owedCount(): Promise<number> {
   return rows.filter((r) => !finished.includes(r.status)).length;
 }
 
+/**
+ * SALES THE SERVER REFUSED FOR GOOD, AND NOBODY HAS BEEN TOLD ABOUT.
+ *
+ * `owedCount` above answers "how much is still to SEND", and refused rows are
+ * rightly not in it — sending them again cannot change the answer. But that
+ * left them in no count at all, and `markFailed` keeps a row precisely so the
+ * shop can act on it. Its own note says a dropped one would leave "a customer
+ * holding a receipt for something the shop has no record of, and nobody would
+ * ever know to look" — and then nothing looked.
+ *
+ * What that costs a shop is the worst thing in this module. The line drops, a
+ * cashier rings an item the mirror still thinks is on the shelf, the customer
+ * pays and walks out. The line returns, the server refuses the sale, the row
+ * goes quiet, **the pill reads "Online"**, and the day closes with cash in the
+ * drawer against no sale at all. The drawer is over and nobody can say why.
+ *
+ * So a refusal is not finished. It is owed to a PERSON rather than to the
+ * server, and this is the question that says so.
+ *
+ * Not reported by the offline report either, and it could not be: that screen
+ * asks the SERVER what happened while the shop was away, and a refused sale is
+ * the one thing that never reached it.
+ */
+export async function refusedRows(): Promise<OutboxRow[]> {
+  const rows = await allRows();
+
+  return rows
+    .filter((r) => r.status === OUTBOX_STATUS.FAILED)
+    .sort((a, b) => b.at.localeCompare(a.at));
+}
+
+export async function refusedCount(): Promise<number> {
+  return (await refusedRows()).length;
+}
+
+/**
+ * The money on a refused row, read back out of the payload it was queued with.
+ *
+ * Defensive about the shape on purpose: this row may have been written by an
+ * older build, and a screen that throws while listing refused sales is a
+ * screen that hides them — which is the defect it exists to fix. An amount
+ * that cannot be read comes back null and the list says so rather than
+ * printing "Rs 0", which a shopkeeper would read as a sale worth nothing.
+ */
+export function refusedTotal(row: OutboxRow): number | null {
+  const total = (row.sale as { total?: unknown } | null)?.total;
+  const n = typeof total === "string" ? Number(total) : total;
+
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
 export async function markSending(rows: OutboxRow[]): Promise<void> {
   await putMany(
     STORE.OUTBOX,

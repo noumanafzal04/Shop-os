@@ -19,7 +19,8 @@ import { shiftBlocker } from "../../offline/storage/persist";
 import { syncLabel, useManualSync } from "../../offline/sync/useManualSync";
 import { runShadowCheck } from "../../offline/pricing/runShadowCheck";
 import { completeOffline, linesFromCatalog } from "../../offline/outbox/offlineCheckout";
-import { pendingCount } from "../../offline/db/repo";
+import { queueTally } from "../../offline/db/repo";
+import { refusedRows, refusedTotal, type OutboxRow } from "../../offline/outbox/outbox";
 import { onHand, unsyncedDeltas } from "../../offline/outbox/localStock";
 import { lastServerContact } from "../../offline/contact";
 import { pillLabel, useOfflineStore } from "../../offline/offlineStore";
@@ -360,7 +361,9 @@ export default function PosPage() {
   const tillLocked = useTillStore((s) => s.locked);
   const online = useConnectionStore((s) => s.online);
   const reachable = useConnectionStore((s) => s.reachable);
-  const setOfflinePending = useOfflineStore((s) => s.setPending);
+  const setOfflineTally = useOfflineStore((s) => s.setTally);
+  const offlineRefused = useOfflineStore((s) => s.refused);
+  const [refusedList, setRefusedList] = useState<OutboxRow[]>([]);
   const offlineOwed = useOfflineStore((s) => s.pending);
   const syncing = useOfflineStore((s) => s.syncing);
 
@@ -751,6 +754,7 @@ export default function PosPage() {
   const heldModal = useModal();
   const receiptModal = useModal();
   const lineEditModal = useModal();
+  const refusedModal = useModal();
   const serialModal = useModal();
   const customerModal = useModal();
   const discountModal = useModal();
@@ -1197,7 +1201,7 @@ export default function PosPage() {
       // Keep the badge honest the moment the queue grows, rather than at the
       // next sync — the cashier has just added to it.
       if (isOffline) {
-        void pendingCount().then(setOfflinePending).catch(() => {});
+        void queueTally().then(setOfflineTally).catch(() => {});
         refreshStockDeltas();
       }
       // The drawer opens on cash, not on card — that's the whole reason the
@@ -1601,6 +1605,47 @@ export default function PosPage() {
       className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
       <span className="flex items-center gap-1.5"><AlertIcon className="h-4 w-4 shrink-0" /> {posNotice}</span>
       <button aria-label="Dismiss this message" className={INLINE_DISMISS} onClick={() => setPosNotice(null)}><CloseIcon className="h-4 w-4" /></button>
+    </div>
+  );
+
+  /**
+   * SALES THE SERVER REFUSED FOR GOOD.
+   *
+   * The money is already in the drawer. That is the whole reason this is a
+   * standing red strip and not a toast: an offline sale that comes back
+   * refused leaves cash against no sale at all, and until now it left it
+   * SILENTLY — the row was marked failed, dropped out of the "still to send"
+   * count, and the pill went back to reading "Online". The drawer is over at
+   * close and nobody can say why.
+   *
+   * Not dismissible, unlike the notice above it. A cashier can clear a warning
+   * about a near-expiry batch because nothing is owed once they have read it;
+   * here something is owed until a person has dealt with it, and a strip that
+   * can be tapped away is a strip that gets tapped away on a busy counter.
+   *
+   * Drawn in BOTH layouts for the reason `data-pos-notice` is: a phone shows
+   * one pane at a time, and a warning in the pane nobody is looking at is not
+   * a warning. See the note above `noticeStrip`.
+   */
+  const refusedStrip = offlineRefused > 0 && (
+    <div
+      data-pos-refused
+      className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-theme-xs text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
+    >
+      <span className="flex items-center gap-1.5">
+        <AlertIcon className="h-4 w-4 shrink-0" />
+        {offlineRefused} offline sale{offlineRefused === 1 ? " was" : "s were"} refused — the money was taken and nothing was recorded
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          void refusedRows().then(setRefusedList).catch(() => setRefusedList([]));
+          refusedModal.openModal();
+        }}
+        className="rounded-lg border border-error-300 px-2.5 py-1 font-medium hover:bg-error-100 dark:border-error-500/40 dark:hover:bg-error-500/20"
+      >
+        See which
+      </button>
     </div>
   );
 
@@ -2074,7 +2119,23 @@ export default function PosPage() {
             two-tone split survives whichever theme the shop runs; the cards on
             it still follow the theme, which is why nothing inside had to be
             re-coloured except the few labels that had no card under them. */}
-        <div className="flex gap-1 bg-pos-ground px-3 pt-2 sm:hidden">
+        {/* THE PHONE'S TOP STRIP — SWITCHER AND ANYTHING THE TILL NEEDS TO SAY.
+          *
+          * One grid child, deliberately. The grid above declares exactly three
+          * rows (`auto`, `1fr`, `auto`), and on a phone it gets exactly three
+          * children: this, the one visible pane, and the footer. Adding a
+          * FOURTH — a notice, a refusal — pushed the pane into the `auto` row
+          * and left the strip holding `minmax(0,1fr)`. `auto` takes what its
+          * content needs, and a product list needs everything, so the strip was
+          * crushed to a few pink pixels under the switcher while still passing
+          * every "is it visible" check.
+          *
+          * Found by the phone project and by nothing else, on a strip added to
+          * warn a shop it had lost money. Grouping them keeps the child count
+          * fixed no matter how many of them are on screen.
+          */}
+        <div className="sm:hidden">
+        <div className="flex gap-1 bg-pos-ground px-3 pt-2">
           {([["catalog", "Products"], ["cart", "Cart"]] as const).map(([k, label]) => (
             <button
               key={k}
@@ -2099,8 +2160,10 @@ export default function PosPage() {
           ))}
         </div>
 
-        {/* Above the pane switch, so a phone sees it whichever pane is open. */}
-        {posNotice && <div className="bg-pos-ground px-3 sm:hidden">{noticeStrip}</div>}
+        {/* Under the pane switch, so a phone sees it whichever pane is open. */}
+        {posNotice && <div className="bg-pos-ground px-3">{noticeStrip}</div>}
+        {offlineRefused > 0 && <div className="bg-pos-ground px-3">{refusedStrip}</div>}
+        </div>
 
         <div className={`${phonePane === "catalog" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-pos-ground p-3 sm:flex lg:col-span-6 xl:col-span-5`}>
           {/* Everything you type or scan into, in one raised card. Loose
@@ -2239,6 +2302,7 @@ export default function PosPage() {
             {/* Hidden on a phone, where it is drawn above the pane switch
                 instead — see the note there. */}
             {posNotice && <div className="hidden sm:block">{noticeStrip}</div>}
+            {offlineRefused > 0 && <div className="hidden sm:block">{refusedStrip}</div>}
             {/* The reprint tray, at the till rather than in a report: a receipt
                 that never came out is a customer still standing there. */}
             {(failedReceipts.data?.length ?? 0) > 0 && (
@@ -3824,6 +3888,50 @@ export default function PosPage() {
       />
 
       {/* Held sales */}
+      {/* WHAT WAS REFUSED, AND WHY.
+          Slip number first: it is the only thing the customer's paper and this
+          list have in common, and finding the customer is the whole job. The
+          server's own words are shown rather than a friendly paraphrase — the
+          shop has to decide what to do, and "Insufficient stock: only 0 in
+          stock" tells them; "could not be saved" does not. */}
+      <Modal isOpen={refusedModal.isOpen} onClose={refusedModal.closeModal} className="max-w-lg p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Refused sales</h3>
+        <p className="mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
+          These were rung on this till while it was offline and the server would not
+          accept them. Nothing was recorded, so the cash in the drawer has no sale
+          against it — ring each one again, or correct what the server objected to.
+        </p>
+        <div className="max-h-80 space-y-2 overflow-y-auto">
+          {refusedList.map((row) => {
+            const amount = refusedTotal(row);
+
+            return (
+              <div key={row.op} className="rounded-lg border border-error-200 p-3 dark:border-error-500/30">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-mono text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                    {row.offlineNumber}
+                  </span>
+                  {/* An unreadable amount says so. "Rs 0" reads as a sale worth
+                      nothing, which is a different and wrong story. */}
+                  <span className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
+                    {amount === null ? "amount unreadable" : `Rs ${amount.toLocaleString()}`}
+                  </span>
+                </div>
+                <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
+                  {new Date(row.at).toLocaleString()}
+                </p>
+                <p className="mt-1 text-theme-xs text-error-600 dark:text-error-400">
+                  {row.error ?? "The server gave no reason."}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-5 flex justify-end">
+          <Button size="sm" variant="outline" onClick={refusedModal.closeModal}>Close</Button>
+        </div>
+      </Modal>
+
       <Modal isOpen={heldModal.isOpen} onClose={heldModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Held sales</h3>
         {/* "No held sales" is a FALSE statement with no line, and the worst

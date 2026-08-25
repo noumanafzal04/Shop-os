@@ -21,6 +21,9 @@ import {
   pruneAcked,
   readRow,
   recoverInFlight,
+  refusedCount,
+  refusedRows,
+  refusedTotal,
   type OutboxRow,
 } from "./outbox";
 
@@ -257,6 +260,48 @@ describe("the store itself", () => {
 
     expect(await allRows()).toHaveLength(1);
     expect(await getAll(STORE.OUTBOX)).toHaveLength(1);
+  });
+});
+
+describe("sales the server refused for good", () => {
+  it("counts them, because nothing else does", async () => {
+    // The gap this closes: `owedCount` correctly leaves a refused row out —
+    // retrying cannot help — and that left it in no count at all. The pill
+    // read "Online" while the till held a sale the shop had taken money for
+    // and the server had never recorded.
+    await enqueue(row("1", { status: OUTBOX_STATUS.FAILED }));
+    await enqueue(row("2"));
+    await enqueue(row("3", { status: OUTBOX_STATUS.ACKED }));
+
+    expect(await owedCount(), "still to send").toBe(1);
+    expect(await refusedCount(), "owed to a person, not to the server").toBe(1);
+  });
+
+  it("says nothing when a queue is merely draining", async () => {
+    await enqueue(row("1"));
+    await enqueue(row("2", { status: OUTBOX_STATUS.SENDING }));
+
+    expect(await refusedCount()).toBe(0);
+  });
+
+  it("hands back the newest first, with what the server said", async () => {
+    // Newest first because the customer most likely to still be findable is
+    // the one who left most recently.
+    await enqueue(row("old", { status: OUTBOX_STATUS.FAILED, at: "2026-08-16T09:00:00.000Z", error: "Insufficient stock: only 0 in stock." }));
+    await enqueue(row("new", { status: OUTBOX_STATUS.FAILED, at: "2026-08-16T11:00:00.000Z", error: "Item may not be sold offline." }));
+
+    const rows = await refusedRows();
+
+    expect(rows.map((r) => r.op)).toEqual(["new", "old"]);
+    expect(rows[0].error, "the server's own words, so the shop can act").toBe("Item may not be sold offline.");
+  });
+
+  it("reads the amount off the sale, and admits when it cannot", async () => {
+    // "Rs 0" would read as a sale worth nothing, which is a different story
+    // from one whose amount this build cannot parse.
+    expect(refusedTotal(row("1"))).toBe(100);
+    expect(refusedTotal(row("2", { sale: {} }))).toBeNull();
+    expect(refusedTotal(row("3", { sale: { total: "250.50" } }))).toBe(250.5);
   });
 });
 

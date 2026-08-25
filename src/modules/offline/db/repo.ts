@@ -93,6 +93,24 @@ export async function clearCaches(): Promise<void> {
  * customer holding the paper — so counting rows would show a badge reading "47
  * unsent" at a till that owes nothing, on a shop's busiest day.
  */
+/**
+ * What the queue owes, in the two currencies it owes it in.
+ *
+ * Returned together and set together, because they are read together and the
+ * three places that ask were already three copies of one wiring. A count that
+ * is updated in two of them and not the third is how a till goes on saying
+ * "Online" with a refused sale sitting on it.
+ *
+ *   owed     — still to SEND. The number the cashier sees on the pill.
+ *   refused  — the server said no for good. Owed to a PERSON, not to a server:
+ *              the money is in the drawer and there is no sale against it.
+ */
+export async function queueTally(): Promise<{ owed: number; refused: number }> {
+  const { refusedCount } = await import("../outbox/outbox");
+
+  return { owed: await pendingCount(), refused: await refusedCount() };
+}
+
 export async function pendingCount(): Promise<number> {
   const { owedCount } = await import("../outbox/outbox");
   const { owedShiftOps } = await import("../shift/shiftQueue");

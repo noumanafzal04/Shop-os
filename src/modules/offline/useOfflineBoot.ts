@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { ApiError } from "../../common/types/api";
-import { pendingCount, putSingleton } from "./db/repo";
+import { putSingleton, queueTally } from "./db/repo";
 import { STORE } from "./db/schema";
 import { deviceId } from "./device/deviceId";
 import { deviceService } from "./device/deviceService";
@@ -64,7 +64,7 @@ export function useOfflineBoot(enabled: boolean): void {
   const setRegistered = useOfflineStore((s) => s.setRegistered);
   const setPolicy = useOfflineStore((s) => s.setPolicy);
   const setStorage = useOfflineStore((s) => s.setStorage);
-  const setPending = useOfflineStore((s) => s.setPending);
+  const setTally = useOfflineStore((s) => s.setTally);
   const refreshHoursOffline = useOfflineStore((s) => s.refreshHoursOffline);
 
   // Once per mounted session. Registering twice does no harm on the server —
@@ -103,7 +103,7 @@ export function useOfflineBoot(enabled: boolean): void {
       }
 
       try {
-        setPending(await pendingCount());
+        setTally(await queueTally());
       } catch {
         // No database yet, or a browser that refuses one. The till still works;
         // it simply cannot say how much it is holding, which is the truth.
@@ -161,5 +161,5 @@ export function useOfflineBoot(enabled: boolean): void {
     };
 
     void boot();
-  }, [enabled, setDevice, setRegistered, setPolicy, setStorage, setPending, refreshHoursOffline]);
+  }, [enabled, setDevice, setRegistered, setPolicy, setStorage, setTally, refreshHoursOffline]);
 }

@@ -23,7 +23,7 @@ import { useOfflineStore } from "../offlineStore";
  * failed poll on a bad shop wifi is how a cashier learns to ignore toasts.
  */
 
-vi.mock("../db/repo", () => ({ pendingCount: vi.fn(async () => 0) }));
+vi.mock("../db/repo", () => ({ queueTally: vi.fn(async () => ({ owed: 0, refused: 0 })) }));
 
 let pull: ReturnType<typeof vi.spyOn>;
 
@@ -207,8 +207,8 @@ describe("the number on the badge", () => {
    * exists for.
    */
   it("is read again when a flush finishes, not only when the line changes", async () => {
-    const counted = vi.mocked(repo.pendingCount);
-    counted.mockResolvedValue(1);
+    const counted = vi.mocked(repo.queueTally);
+    counted.mockResolvedValue({ owed: 1, refused: 0 });
     useOfflineStore.setState({ pending: 0, syncing: null });
 
     renderHook(() => useKeepInSync(true));
@@ -217,7 +217,7 @@ describe("the number on the badge", () => {
 
     // The flush runs. `pullNow` narrates it, then clears `syncing` in its
     // `finally` — by which point the rows are marked acked and owe nothing.
-    counted.mockResolvedValue(0);
+    counted.mockResolvedValue({ owed: 0, refused: 0 });
     await act(async () => {
       useOfflineStore.getState().setSyncing({ sent: 0, total: 1 });
     });
@@ -231,12 +231,37 @@ describe("the number on the badge", () => {
     ).toBe(0);
   });
 
+  it("carries the refused count through the same read, not a second one", async () => {
+    /**
+     * The count of REFUSED sales rides on the same read as the owed count, and
+     * this is what stops the two drifting.
+     *
+     * Three places ask the queue how it is doing — boot, this heartbeat, and
+     * the till the moment a sale is queued — and before `queueTally` each was
+     * its own copy of one wiring. A refusal surfaced in two of them and not the
+     * third is a till that shows "Online" on the one screen a cashier is
+     * actually looking at.
+     */
+    const counted = vi.mocked(repo.queueTally);
+    counted.mockResolvedValue({ owed: 2, refused: 1 });
+    useOfflineStore.setState({ pending: 0, refused: 0, syncing: null });
+
+    renderHook(() => useKeepInSync(true));
+    await act(async () => {});
+
+    expect(useOfflineStore.getState().pending).toBe(2);
+    expect(
+      useOfflineStore.getState().refused,
+      "the refusal never reached the store — the till would say nothing about money it took",
+    ).toBe(1);
+  });
+
   it("does not re-read on a quiet heartbeat", async () => {
     // A flush with nothing owed never sets `syncing`, so an idle till must not
     // go back to IndexedDB every quarter hour for an answer that cannot have
     // changed.
-    const counted = vi.mocked(repo.pendingCount);
-    counted.mockResolvedValue(0);
+    const counted = vi.mocked(repo.queueTally);
+    counted.mockResolvedValue({ owed: 0, refused: 0 });
     useOfflineStore.setState({ pending: 0, syncing: null });
 
     renderHook(() => useKeepInSync(true));

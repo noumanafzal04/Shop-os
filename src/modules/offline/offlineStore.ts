@@ -65,6 +65,14 @@ interface OfflineState {
   /** How many sales are sitting in the outbox, unsent. */
   pending: number;
   /**
+   * Sales the server refused for good. Money taken, nothing recorded.
+   *
+   * Separate from `pending` on purpose: `pending` is work the till will finish
+   * by itself, and this is work that needs a person. Rolling them into one
+   * number would let a refusal hide inside a queue that is draining normally.
+   */
+  refused: number;
+  /**
    * A flush in progress, and how far it has got. Null when nothing is sending.
    *
    * The one moment a shopkeeper most wants to be told something: the line has
@@ -79,6 +87,7 @@ interface OfflineState {
   setPolicy: (offlineDays: number | null) => void;
   setStorage: (storage: StorageHealth) => void;
   setPending: (pending: number) => void;
+  setTally: (tally: { owed: number; refused: number }) => void;
   setSyncing: (syncing: { sent: number; total: number } | null) => void;
   /** Re-read the local clock. Called on boot and whenever connectivity flips. */
   refreshHoursOffline: () => void;
@@ -92,6 +101,7 @@ export const useOfflineStore = create<OfflineState>()((set) => ({
   hoursOffline: hoursSinceContact(),
   storage: null,
   pending: 0,
+  refused: 0,
   syncing: null,
 
   setDevice: (deviceId) => set({ deviceId }),
@@ -99,6 +109,7 @@ export const useOfflineStore = create<OfflineState>()((set) => ({
   setPolicy: (offlineDays) => set({ offlineDays }),
   setStorage: (storage) => set({ storage }),
   setPending: (pending) => set({ pending }),
+  setTally: ({ owed, refused }) => set({ pending: owed, refused }),
   setSyncing: (syncing) => set({ syncing }),
   refreshHoursOffline: () => set({ hoursOffline: hoursSinceContact() }),
 }));
