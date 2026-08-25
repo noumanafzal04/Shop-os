@@ -5,6 +5,7 @@ import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
 import { useMe } from "../modules/auth/hooks/useAuth";
+import ServiceWorkerHost from "../modules/offline/pwa/ServiceWorkerHost";
 
 const LayoutContent: React.FC = () => {
   const { railWide, isMobileOpen } = useSidebar();
@@ -16,6 +17,11 @@ const LayoutContent: React.FC = () => {
 
   return (
     <div className="min-h-screen xl:flex">
+      {/* Registers the service worker for BOTH consoles and nowhere else. It
+          was inside the shop-side update strip, which meant the admin console
+          had no registration to ask — so the header's "check for updates"
+          answered "this copy cannot update itself" about an app that can. */}
+      <ServiceWorkerHost />
       <div>
         <AppSidebar />
         <Backdrop />

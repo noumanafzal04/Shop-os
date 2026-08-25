@@ -5,6 +5,7 @@ import { DRAWER_BELOW, useSidebar } from "../context/SidebarContext";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 import NotificationDropdown from "../components/header/NotificationDropdown";
 import UserDropdown from "../components/header/UserDropdown";
+import { UpdateButton } from "../modules/offline/pwa/UpdateButton";
 import CommandPalette from "../modules/search/components/CommandPalette";
 import BranchSwitcher from "../modules/branches/components/BranchSwitcher";
 import { Wordmark } from "../components/brand/Brand";
@@ -183,6 +184,12 @@ const AppHeader: React.FC = () => {
           <div className="hidden items-center gap-2 sm:flex sm:gap-3">
             {/* Operating-branch switcher (owners, multi-branch shops) */}
             {isTenant && <BranchSwitcher />}
+            {/* "Is there a newer CartZe?", asked on purpose. The app checks
+                by itself once an hour, which is right for something nobody
+                should think about and useless the moment somebody IS thinking
+                about it. It is also where a waiting update lives after the
+                strip has been dismissed. */}
+            <UpdateButton />
             <ThemeToggleButton />
             <NotificationDropdown />
           </div>
@@ -217,6 +224,7 @@ const AppHeader: React.FC = () => {
       {isApplicationMenuOpen && (
         <div className="absolute inset-x-0 top-full flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 shadow-theme-md sm:hidden dark:border-gray-800 dark:bg-gray-900">
           {isTenant && <BranchSwitcher />}
+          <UpdateButton />
           <ThemeToggleButton />
           <NotificationDropdown />
         </div>

@@ -1,8 +1,7 @@
-import { useEffect, useRef } from "react";
-import { useRegisterSW } from "virtual:pwa-register/react";
+import { useRef, useState } from "react";
 
 import { useOfflineStore } from "../offlineStore";
-import { watchForUpdates } from "./updateWatch";
+import { useUpdateStore } from "./updateStore";
 import { useReservesBottomRoom } from "./useReservesBottomRoom";
 
 /**
@@ -20,31 +19,23 @@ import { useReservesBottomRoom } from "./useReservesBottomRoom";
  * — the next natural reload picks it up regardless.
  */
 export default function UpdatePrompt() {
-  const stopWatching = useRef<(() => void) | null>(null);
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    // Deliberately silent on first install. "CartZe is ready to work offline"
-    // is a sentence that means nothing to a cashier and arrives at the one
-    // moment they are busiest — their first day.
-    //
-    // What it DOES do is keep asking. A browser looks for a new worker when the
-    // page is navigated, and the till is the one screen nobody navigates — it
-    // is opened on Monday and used until Saturday. Without this the strip below
-    // could not appear on the screen it matters most on. See `updateWatch`.
-    onRegisteredSW(_swUrl, registration) {
-      stopWatching.current?.();
-      stopWatching.current = watchForUpdates(registration);
-    },
-    onRegisterError() {
-      // A service worker that will not register is a till without an offline
-      // shell. It still sells; it just needs a line. Nothing to say here.
-    },
-  });
+  // WHAT IT NO LONGER DOES: register the service worker. That moved to
+  // `ServiceWorkerHost`, which is mounted on both consoles — this strip is
+  // shop-side only, and while it owned the registration the admin console had
+  // none at all. This is now purely the offer, and it reads the fact.
+  const ready = useUpdateStore((s) => s.ready);
+  const apply = useUpdateStore((s) => s.apply);
 
-  // Cleared when the component goes, so a remount does not stack watchers.
-  useEffect(() => () => stopWatching.current?.(), []);
+  /**
+   * "Later" hides THIS STRIP. It does not un-download a build.
+   *
+   * It used to call `setNeedRefresh(false)`, which is the flag meaning "a new
+   * version is waiting" — so dismissing the strip made the app forget the
+   * update existed, and nothing on any screen offered it again until somebody
+   * reloaded for an unrelated reason. The header now shows the way in
+   * permanently, and it can only do that if this stops erasing the fact.
+   */
+  const [dismissed, setDismissed] = useState(false);
 
   // Sales this till is still holding. An update reloads the app, and the one
   // thing a cashier standing over a queue of unsent sales will fear is that
@@ -58,7 +49,7 @@ export default function UpdatePrompt() {
   const card = useRef<HTMLDivElement>(null);
   useReservesBottomRoom(card);
 
-  if (!needRefresh) return null;
+  if (!ready || !apply || dismissed) return null;
 
   return (
     <div
@@ -130,7 +121,7 @@ export default function UpdatePrompt() {
           <div className="mt-2.5 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => void updateServiceWorker(true)}
+              onClick={apply}
               /* `min-h-10`: this is a till, pressed with a thumb, and the old
                  buttons were about 30px tall — under the floor the browser
                  suite enforces for everything else on this screen. */
@@ -143,7 +134,7 @@ export default function UpdatePrompt() {
                 reader and a sighted cashier being told two different things. */}
             <button
               type="button"
-              onClick={() => setNeedRefresh(false)}
+              onClick={() => setDismissed(true)}
               className="min-h-10 rounded-lg px-3 text-theme-sm font-medium text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200"
             >
               Later

@@ -1384,7 +1384,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     parent: "settings",
     permission: "settings.manage",
     screen: "/tenant/settings",
-    keywords: ["till", "device", "tablet", "offline", "internet", "pricing", "variance", "sign out", "lost tablet"],
+    keywords: ["till", "device", "tablet", "offline", "internet", "pricing", "variance", "sign out", "lost tablet", "update", "new version", "refresh", "upgrade"],
     body: [
       { type: "h", text: "Your tills" },
       { type: "p", text: "Shop settings → Point of Sale → Lanes & PINs. Every device that opens the POS adds itself to this list on its own — there is nothing to register by hand. Each row shows which lane it stands at and when it last reached us." },
@@ -1406,6 +1406,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Disagreements are grouped by what actually went wrong, not listed one per sale. Nine carts with the same fault are one problem shown once, with the carts folded underneath — fixing one fixes all of them." },
       { type: "note", text: "Your automatic offers ARE worked out by the till, including buy-one-get-one. If you ever set up an offer of a kind the till does not recognise, it will refuse to sell offline rather than print a wrong price — the shop is told, not the customer. The same applies to a customer whose group gets a percentage off, and to a bank card offer: the till says so at the tender screen and the customer keeps the discount if you wait for the connection." },
       { type: "p", text: "If a till's browser data is cleared, its count starts again from zero and the totals here go down. That is deliberate — the evidence really did go with it, and a figure that only ever climbed would claim more than it could show." },
+
+      { type: "h", text: "Getting a newer CartZe" },
+      { type: "p", text: "A till is the one screen nobody ever navigates away from — it is opened on Monday and stood on the counter until Saturday — so it will not notice a new version on its own the way an ordinary web page does. It checks once an hour instead, and when a newer one is ready a strip appears at the bottom offering it." },
+      { type: "p", text: "Nothing ever updates by itself. Updating reloads the till, so the moment has to be one you chose: finish the sale you are on, then press Update. Any sales still waiting to be sent survive the reload — they are stored on the tablet, not in the page." },
+      { type: "note", text: "There is a refresh button in the header, next to the bell, if you would rather ask now than wait for the hourly check — somebody has told you the new prices are live, say. It answers straight: a new version is ready, you are already on the latest, or there is no connection to check with. Pressing 'Later' on the strip is safe too: the update waits, and that header button is where you go back to it." },
 
       { type: "h", text: "Selling when the internet is down" },
       { type: "p", text: "Once the checks above are clean and support has turned offline selling on for your shop, a till keeps trading through a power cut or a dead connection. Nothing for you to switch on at the counter — the POS notices and carries on. Your whole product list and its categories are already on the tablet, so you can browse and search them exactly as you do online; the only thing missing is product photos, which are not stored on the device." },

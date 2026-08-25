@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import UpdatePrompt from "./UpdatePrompt";
+import { useUpdateStore } from "./updateStore";
 import { useOfflineStore } from "../offlineStore";
 
 /**
@@ -18,21 +19,18 @@ import { useOfflineStore } from "../offlineStore";
  * that it never blocks the till.
  */
 
-let needRefresh = false;
-const setNeedRefresh = vi.fn((v: boolean) => {
-  needRefresh = v;
-});
+/**
+ * The strip no longer registers anything — `ServiceWorkerHost` does, on both
+ * consoles — so these drive the store it reads instead of a mocked virtual
+ * module. What is asserted is unchanged: the offer, and never the taking.
+ */
 const updateServiceWorker = vi.fn();
 
-vi.mock("virtual:pwa-register/react", () => ({
-  useRegisterSW: () => ({
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  }),
-}));
+const waiting = (ready: boolean) =>
+  useUpdateStore.setState({ ready, apply: ready ? () => updateServiceWorker(true) : null });
 
 beforeEach(() => {
-  needRefresh = false;
+  waiting(false);
   vi.clearAllMocks();
 });
 
@@ -52,7 +50,7 @@ describe("when there is nothing to update", () => {
 
 describe("when a new version is waiting", () => {
   beforeEach(() => {
-    needRefresh = true;
+    waiting(true);
   });
 
   it("offers it without taking it", async () => {
@@ -92,8 +90,20 @@ describe("when a new version is waiting", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /later/i }));
 
-    expect(setNeedRefresh).toHaveBeenCalledWith(false);
+    expect(screen.queryByText(/update ready/i)).toBeNull();
     expect(updateServiceWorker).not.toHaveBeenCalled();
+  });
+
+  it("dismissing does not make the app forget the update exists", async () => {
+    // "Later" used to clear the flag that MEANS a new version is waiting, so
+    // the strip took the update down with it and nothing offered it again
+    // until an unrelated reload. The header now carries that offer
+    // permanently, and it can only do that if this stays true.
+    render(<UpdatePrompt />);
+    await userEvent.click(screen.getByRole("button", { name: /later/i }));
+
+    expect(useUpdateStore.getState().ready).toBe(true);
+    expect(useUpdateStore.getState().apply).not.toBeNull();
   });
 
   it("is a strip, not a modal — nothing behind it is blocked", () => {
@@ -116,7 +126,7 @@ describe("when the till is holding sales", () => {
     // unfounded — the outbox is in IndexedDB and every upgrade step is
     // additive — but an unanswered fear postpones the update for a week.
     useOfflineStore.setState({ pending: 12 });
-    needRefresh = true;
+    waiting(true);
 
     render(<UpdatePrompt />);
 
@@ -126,7 +136,7 @@ describe("when the till is holding sales", () => {
 
   it("says nothing extra when there is nothing owed", () => {
     useOfflineStore.setState({ pending: 0 });
-    needRefresh = true;
+    waiting(true);
 
     render(<UpdatePrompt />);
 
