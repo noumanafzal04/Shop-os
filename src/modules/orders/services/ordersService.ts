@@ -21,6 +21,12 @@ export interface CustomerOrder {
   payment_method: string;
   payment_status: string;
   delivery_address: string | null;
+  /**
+   * Where it is coming from — and for a pickup, where to walk to. The branch
+   * that fills an order is chosen by distance, so a collecting customer has no
+   * other way of knowing which shop is holding it.
+   */
+  branch?: { name: string; address: string | null; phone: string | null } | null;
   subtotal: string;
   delivery_fee: string;
   total: string;
@@ -87,6 +93,13 @@ export interface OwnerOrder {
   items: OrderItem[];
   rider_id: string | null;
   rider?: Rider | null;
+  /**
+   * Which branch filled it. Null for orders placed before shops tracked this —
+   * they genuinely came out of the default branch and no honest value can be
+   * invented for them now.
+   */
+  branch_id: string | null;
+  branch?: { id: string; name: string } | null;
 }
 
 export const ordersService = {

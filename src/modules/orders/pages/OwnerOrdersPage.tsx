@@ -1,3 +1,4 @@
+import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
@@ -43,6 +44,9 @@ export default function OwnerOrdersPage() {
   const activeRiders = (riders.data ?? []).filter((r) => r.is_active);
   const [error, setError] = useState<string | null>(null);
   const takeModal = useModal();
+
+  const branchCol = useBranchColumn();
+
 
   const rows = orders.data?.data ?? [];
   const pagination = orders.data?.meta.pagination;
@@ -115,6 +119,17 @@ export default function OwnerOrdersPage() {
                 <div className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
                   {o.fulfillment_type === "delivery" ? `🚚 Deliver to: ${o.delivery_address ?? "—"}` : "🏬 Pickup"} · {o.payment_method.toUpperCase()} ({o.payment_status})
                   {o.notes ? ` · "${o.notes}"` : ""}
+                  {/* WHICH BRANCH IS FILLING IT.
+                      A chain picks the nearest branch that holds the whole
+                      basket, so the shop putting this together is not
+                      necessarily the one reading the screen — and for a pickup
+                      it is where the customer will turn up.
+                      `useBranchColumn` decides whether it is worth saying at
+                      all, and its own note explains why that rule lives in one
+                      place: written out per screen, one of them always drifts
+                      into printing "Main" all the way down for a shop that has
+                      only ever had one. */}
+                  {branchCol.show && o.branch_id && ` · 🏪 ${branchCol.label(o.branch_id)}`}
                 </div>
 
                 <div className="mb-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
