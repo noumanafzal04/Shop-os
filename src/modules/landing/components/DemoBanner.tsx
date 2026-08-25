@@ -52,6 +52,7 @@ export default function DemoBanner() {
   });
 
   return (
+    <>
     <div
       data-demo-banner
       role="status"
@@ -81,7 +82,14 @@ export default function DemoBanner() {
         </button>
       )}
 
-      <KeepShopModal open={asking} onClose={() => setAsking(false)} />
+
     </div>
+
+    {/* A SIBLING, not a child. `Modal` renders where it is declared rather
+        than through a portal, so anything it sits inside styles it — and this
+        banner is `text-center`, which quietly centred every label in the form.
+        A dialog is not part of the strip that opened it. */}
+    <KeepShopModal open={asking} onClose={() => setAsking(false)} />
+    </>
   );
 }

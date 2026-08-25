@@ -4,7 +4,7 @@ import { useState } from "react";
 import { apiPost } from "../../../common/api/client";
 import { ApiError } from "../../../common/types/api";
 import Button from "../../../components/ui/button/Button";
-import { Modal } from "../../../components/ui/modal";
+import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
@@ -48,69 +48,73 @@ export default function KeepShopModal({ open, onClose }: { open: boolean; onClos
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  return (
-    <Modal isOpen={open} onClose={onClose} className="max-w-md p-6">
-      <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Keep this shop</h3>
-      <p className="mt-1.5 text-theme-sm text-gray-500 dark:text-gray-400">
-        Everything you have set up stays exactly as it is. We will be in touch to
-        finish it off.
-      </p>
+  const incomplete =
+    !form.contact_name.trim() || !form.contact_email.trim() || form.password.length < 8;
 
+  return (
+    // `ModalForm`, and no padding on the Modal — the house form shell. It pins
+    // the title and the buttons and scrolls only the middle, which is what
+    // keeps a form's Save on screen on a laptop. Hand-rolling a header here
+    // put the close button on top of the description and left the whole thing
+    // a size and a rhythm apart from every other form in the app.
+    <Modal isOpen={open} onClose={onClose} className="max-w-md">
       <form
-        className="mt-5 space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           ask.mutate();
         }}
       >
-        <div>
-          <Label htmlFor="keep-name">Your name</Label>
-          <Input id="keep-name" value={form.contact_name} onChange={set("contact_name")} placeholder="Bilal Ahmed" />
-        </div>
+        <ModalForm
+          title="Keep this shop"
+          description="Everything you have set up stays exactly as it is. We will be in touch to finish it off."
+          footer={
+            <>
+              <Button type="button" size="sm" variant="outline" onClick={onClose}>Cancel</Button>
+              {/* The shared Input takes no `required`, so the gate is on the
+                  button — the better half anyway: a disabled Send beside
+                  visibly empty boxes says what is missing, where a browser
+                  bubble appears and vanishes. The server validates regardless
+                  and its field errors come back through the toast. */}
+              <Button type="submit" size="sm" disabled={ask.isPending || incomplete}>
+                {ask.isPending ? "Sending…" : "Send request"}
+              </Button>
+            </>
+          }
+        >
+          <div>
+            <Label htmlFor="keep-name">Your name</Label>
+            <Input id="keep-name" value={form.contact_name} onChange={set("contact_name")} placeholder="Bilal Ahmed" />
+          </div>
 
-        <div>
-          <Label htmlFor="keep-email">Email</Label>
-          <Input id="keep-email" type="email" value={form.contact_email} onChange={set("contact_email")} placeholder="you@business.com" />
-          <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-            This becomes how you sign in.
-          </p>
-        </div>
+          <div>
+            <Label htmlFor="keep-email">Email</Label>
+            <Input id="keep-email" type="email" value={form.contact_email} onChange={set("contact_email")} placeholder="you@business.com" />
+            <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              This becomes how you sign in.
+            </p>
+          </div>
 
-        <div>
-          <Label htmlFor="keep-password">Choose a password</Label>
-          <Input id="keep-password" type="password" value={form.password} onChange={set("password")} placeholder="At least 8 characters" />
-          <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-            {/* Said plainly, because it is the reason to fill this in even
-                before an answer comes back. */}
-            So you can come back to this shop from any device.
-          </p>
-        </div>
+          <div>
+            <Label htmlFor="keep-password">Choose a password</Label>
+            <Input id="keep-password" type="password" value={form.password} onChange={set("password")} placeholder="At least 8 characters" />
+            <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              {/* Said plainly, because it is the reason to fill this in even
+                  before an answer comes back: until now this shop could not be
+                  signed into at all. */}
+              So you can come back to this shop from any device.
+            </p>
+          </div>
 
-        <div>
-          <Label htmlFor="keep-phone">Phone <span className="font-normal text-gray-400">(optional)</span></Label>
-          <Input id="keep-phone" value={form.contact_phone} onChange={set("contact_phone")} placeholder="0300 1234567" />
-        </div>
+          <div>
+            <Label htmlFor="keep-phone">Phone <span className="font-normal text-gray-400">(optional)</span></Label>
+            <Input id="keep-phone" value={form.contact_phone} onChange={set("contact_phone")} placeholder="0300 1234567" />
+          </div>
 
-        <div>
-          <Label htmlFor="keep-note">Anything we should know? <span className="font-normal text-gray-400">(optional)</span></Label>
-          <Input id="keep-note" value={form.note} onChange={set("note")} placeholder="Two branches, opening next month" />
-        </div>
-
-        {/* The shared Input takes no `required`, so the gate is on the button
-            — which is the better half of it anyway: a disabled Send with three
-            visibly empty boxes says what is missing, where a browser bubble
-            appears and vanishes. The server validates regardless, and its
-            field errors come back through the toast. */}
-        <div className="flex justify-end gap-2.5 pt-1">
-          <Button type="button" size="sm" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button
-            type="submit"
-            size="sm"
-            disabled={ask.isPending || !form.contact_name.trim() || !form.contact_email.trim() || form.password.length < 8}
-          >
-            {ask.isPending ? "Sending…" : "Send request"}
-          </Button>
-        </div>
+          <div>
+            <Label htmlFor="keep-note">Anything we should know? <span className="font-normal text-gray-400">(optional)</span></Label>
+            <Input id="keep-note" value={form.note} onChange={set("note")} placeholder="Two branches, opening next month" />
+          </div>
+        </ModalForm>
       </form>
     </Modal>
   );
