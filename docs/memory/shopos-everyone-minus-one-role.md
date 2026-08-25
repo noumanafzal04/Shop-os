@@ -26,8 +26,9 @@ decision, not to catch a mistake.
 **How to apply:** the picker now reads its options from the same `AUDIENCE_LABEL`
 map as the list badge — they had already drifted. One map, three readers.
 
-Still open and raised rather than decided: `notifyTenantOwners` filters to owners
-by construction, so tenant staff receive **no operational notification of any
-kind**. Whether a cashier should hear about low stock is the shop's call.
+**CLOSED 2026-08-25.** `notifyTenantOwners` is gone; operational alerts go to
+whoever holds the permission to act, scoped to the branch concerned. The
+question this file left open — *should a cashier hear about low stock* — is
+answered by the permission itself. See [[shopos-told-by-permission]].
 
 Related: [[shopos-no-roles]], [[shopos-read-vs-manage]].

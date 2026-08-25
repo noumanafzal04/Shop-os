@@ -95,7 +95,7 @@
 - [Estimate At Wrong Layer](shopos-estimate-at-wrong-layer.md) — STANDING: "245 unnamed fields" was really 34 (24 of them ONE header pair); a precise count taken at the wrong layer funds the wrong decision
 - [Scanner's Own Blind Spot](shopos-scanner-own-blind-spot.md) — unreachable-pages.py never judged modules/workshop; bay board read page one; combo/recipe picker offered 15 of the catalogue
 - [Label Not Attached](shopos-label-not-attached.md) — 327 <Label> vs 5 htmlFor: labelled and UNATTACHED; runtime fix that gives up rather than guesses; 0 of 367 unnamed
-- [Everyone Minus One Role](shopos-everyone-minus-one-role.md) — "Everyone" excluded UserRole::Staff; the cashier's bell could never be filled; staff still get NO operational notification
+- [Everyone Minus One Role](shopos-everyone-minus-one-role.md) — "Everyone" excluded UserRole::Staff; the cashier's bell could never be filled; that gap is now CLOSED
 - [Promise In Another File](shopos-promise-in-another-file.md) — STANDING: a comment/label stating a rule implemented nowhere; 4 in one day; a comment reads as DONE
 - [Three Verdicts Paid Off](shopos-three-verdicts-paid-off.md) — 11 confirmed / 2 refuted, both refutations MINE; don't re-raise announcement dedupe or workshop preset
 - [Size Picker](shopos-size-picker-gap.md) — chips on tiles, sheet on rows, dine-in too; why varianted products were UNSELLABLE (tile disabled on orphaned parent stock)
@@ -123,3 +123,4 @@
 - [The Machine Slept](shopos-the-machine-slept.md) — STANDING: a test cannot outlast its own timeout; 18 "failures" were one closed lid + a dead token
 - [Mirror & Refusal](shopos-mirror-and-refusal.md) — FIXED: size stock/price never reached the offline till; a refused sale vanished silently (drawer over, cause unknowable)
 - [Nearest Branch Fills It](shopos-nearest-branch-fills-it.md) — online orders: nearest branch that holds the WHOLE basket; release reads branch off the movement; a mutation caught my test, not my code
+- [Told By Permission](shopos-told-by-permission.md) — staff finally get operational alerts; whoever can ACT is told, branch-scoped; the permission IS the setting (no second switch)

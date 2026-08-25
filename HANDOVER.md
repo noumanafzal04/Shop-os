@@ -276,7 +276,43 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-25 (latest) — the nearest branch that can actually fill it
+### 2026-08-25 (latest) — whoever can act on it
+
+Full write-up: `docs/decisions/shopos-told-by-permission.md`.
+
+Every operational notification went to shop OWNERS and nobody else. The stock
+keeper was never told a shelf had run down; whoever packs orders was never told
+one arrived. `/notifications` sits behind no role gate and the bell renders for
+every signed-in role — there was a bell in front of them the whole time with
+nothing that could be put in it.
+
+**Whoever holds the permission that lets them act on it.** Not a role: cashier
+and stock keeper are permission SETS, and a "notify the cashier" would put back
+the concept a release was spent removing. It also answers the question this gap
+was raised with and left open — *should a cashier hear about low stock?*
+**The permission IS the setting.** A shop that does not want its counter chasing
+stock does not tick `inventory.manage`; a separate switch would be a second
+answer to a question already answered. Owners hold everything implicitly, so
+nothing is taken from anybody.
+
+**It follows the branch.** Gulberg's shelf tells Gulberg's people; an order
+tells the branch filling it. Staff with no branch recorded are INCLUDED —
+over-notify and somebody asks a question, under-notify and nobody asks anything.
+
+`notifyTenantOwners` is deleted: after the four senders moved it had no callers
+in app or tests, and this repo has found "built, and nothing reaches it" seven
+times.
+
+Six tests, four mutations — and the fourth one proved a COMMENT of mine wrong
+rather than the code. I had claimed the per-recipient dedupe suffix stopped one
+person silencing the rest; `app_notifications` is already unique on
+(user_id, dedupe_key), so a shared key changed nothing. The suffix stays for
+continuity with rows already written and the comment now says so.
+
+Help Centre updated: assigning a permission now has a consequence invisible from
+the checkbox, so the staff topic says it.
+
+### 2026-08-25 — the nearest branch that can actually fill it
 
 Full write-up: `docs/decisions/shopos-nearest-branch-fills-it.md`.
 
