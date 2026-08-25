@@ -290,7 +290,79 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-26 (latest) — one dashboard, two consoles
+### 2026-08-26 (latest) — the demo world catches up with the product
+
+Asked whether the demo seeder needed anything. It ran fine — `migrate:fresh
+--seed`, exit 0, nine shops — and had not been touched since 9 August while
+about fifteen features shipped past it. A seeder that still runs is not a
+seeder that still covers the product.
+
+Two of the gaps were worse than "thin". **A module was switched on with an
+empty table underneath**, which does not read as unconfigured, it reads as
+broken:
+
+- Karahi House had `dine_in` on and **no tables**. Nothing to seat, so no tab
+  could be opened, so the kitchen board could never show a docket. The till's
+  own free-text table is deliberately hidden for dine-in shops, so dine-in
+  could not be demonstrated at all.
+- Highway Fuel had `fuel` on and **no tank**, so `OpenForecourtShiftAction`
+  answered `NO_FORECOURT_CONFIGURED` — the whole of Unit 11 unreachable in the
+  demo world.
+
+And **Demo Mart** — the shop `owner@demomart.test` opens, the credentials
+printed in the seeder's own docblock — had every module on and not one row
+behind any of them. That is the first thing anybody sees on a fresh install.
+
+`product_variants` was **0**. The seeder has had a `variants` reader since the
+first import and no catalog ever wrote one; same for `modifiers`. Sizes, the
+picker, per-size 86, per-size recipes, a deal that names a size, variant
+barcodes — nothing had demo data. A reader with no writer, three times in one
+file. Neither had `products.barcode`: not one demo product carried a code, so
+the most-used control on the till had nothing to find.
+
+Now seeded, all through the real actions rather than written to tables: a floor
+of thirteen tables with one tab fired and one still being keyed; a forecourt
+with a tank per grade, six nozzles, a reconciled shift and a live one; sizes on
+food and garments with the parent holding no stock of its own; recipes
+including per-size **overrides**; deals including one that names a size; 86 in
+both shapes; serials received, sold and claimed on; vehicles and a trade-in;
+khata and points; registers, hardware, cash movements, coupons, banks, packs,
+transfers, a stock count that found a variance, lots with real dates, both
+disposal dispositions, riders, enquiries, a demo shop asking to be kept.
+
+Three things this cost, each worth keeping:
+
+- **Exit 0 and no warning is not success.** The first equipment pass ran before
+  the catalog existed, so every method found nothing and returned. Thirteen
+  tables appeared and nothing else did, and the run was green. The row count
+  told the truth; the exit code did not.
+- **The seeder must not compute a total.** A khata tender has to equal the bill
+  exactly, and price × quantity was wrong in six of eight shops because the demo
+  world also seeds an automatic 10%-over-500 promotion. It now asks
+  `PromotionService::preview()` — the same thing the till asks.
+- **Realism that breaks the product is not realism.** Eleven expired lots were
+  seeded "for the dashboard". `InventoryService` fences expired quantity out of
+  what may be sold, so eleven demo products silently refused to sell. Exactly
+  one lot is now past its date and it is written off in the same pass.
+
+The guard is the point. `DemoWorldIsCompleteTest` already existed with the right
+argument in its docblock — and it enumerated features by hand, so it could only
+cover what its author remembered, and it passed for a fortnight over all of the
+above. It now carries a **map** from module → the tables its screens read, with
+a denominator (≥9 shops, ≥60 module/table pairs, and every module in the map ON
+somewhere). Switch a module on for a demo shop and the test names the table you
+have to fill. Proven by mutation twice: removing `seedDineIn` fails with
+"Karahi House: 'dine_in' is on, but DiningTable is empty".
+
+Its own re-run test then found a real bug in this work: `seedLots` guarded
+per-product, so every re-seed gave lots to the next eight products. Not
+duplication — growth — and the seeder's promise is that a re-run changes
+nothing. Guarded on its own marker now, because "does this shop have any lot"
+was already true from the purchase order.
+
+2270 tests, 9537 assertions, exit 0.
+
+### 2026-08-26 — one dashboard, two consoles
 
 Full write-up: `docs/decisions/shopos-one-dashboard-two-consoles.md`.
 
