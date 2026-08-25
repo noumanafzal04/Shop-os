@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * Business-type registry — the core of ShopOS's business-type awareness.
+ * Business-type registry — the core of CartZe's business-type awareness.
  *
  * NOTHING in the platform is hardcoded to retail. A tenant's selected type
  * determines:
@@ -487,7 +487,7 @@ class BusinessTypes
      * suppliers on a running account, keeps a store room, and lives or dies on
      * food cost. The inventory module is what carries all three — Suppliers,
      * Purchases, and `SyncRecipeItemsAction::tracksStock()`, which is recipe
-     * costing itself. Off by default, a restaurant concludes that ShopOS cannot
+     * costing itself. Off by default, a restaurant concludes that CartZe cannot
      * cost a menu, and nobody ever tells them otherwise.
      *
      * The two mistakes are NOT symmetrical. Clutter is noticed and ignored; a

@@ -17,7 +17,7 @@ use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
 
 /**
- * A petrol pump is the one business ShopOS serves where the till is the LAST
+ * A petrol pump is the one business CartZe serves where the till is the LAST
  * thing to hear what was sold.
  *
  * Fuel leaves through a meter into a customer's tank whether or not anybody

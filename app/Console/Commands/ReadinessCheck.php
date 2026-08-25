@@ -36,7 +36,7 @@ class ReadinessCheck extends Command
 
     public function handle(): int
     {
-        $this->components->info('ShopOS readiness — '.app()->environment());
+        $this->components->info('CartZe readiness — '.app()->environment());
 
         $this->checkDebug();
         $this->checkSeededSuperAdmin();

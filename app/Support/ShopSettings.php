@@ -27,7 +27,7 @@ class ShopSettings
             'tax_inclusive' => false,
 
             // ── Appearance / branding ───────────────────────────────────
-            // A tenant can wear its own colours. NULL means "use the ShopOS
+            // A tenant can wear its own colours. NULL means "use the CartZe
             // default" (brand blue #465FFF) — we never store the default, so a
             // future rebrand of the product follows automatically for everyone
             // who hasn't chosen. The primary drives the whole brand ramp
@@ -56,7 +56,7 @@ class ShopSettings
             'pickup_enabled' => true,
             'delivery_enabled' => true,
             // Who carries deliveries: 'self' = the shop's own riders (Model A,
-            // available now) · 'platform' = the ShopOS rider pool (coming soon).
+            // available now) · 'platform' = the CartZe rider pool (coming soon).
             'prep_time_minutes' => null,   // estimated prep / handover time
             'delivery_radius_km' => null,  // null = no distance limit (city-wide)
             'min_order_amount' => null,    // delivery orders below this are rejected

@@ -104,7 +104,7 @@ class SettingsConfigTest extends TestCase
 
     // ── Branding: a shop can wear its own colours ────────────────────
 
-    /** Unset means "follow ShopOS" — we never persist the house default. */
+    /** Unset means "follow CartZe" — we never persist the house default. */
     public function test_brand_colours_default_to_null(): void
     {
         $this->actingAsUser($this->owner)->getJson('/api/v1/shop/settings')

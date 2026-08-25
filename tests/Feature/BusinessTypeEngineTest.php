@@ -141,7 +141,7 @@ class BusinessTypeEngineTest extends TestCase
     // is what carries Suppliers, Purchases AND recipe costing.
     //
     // The two mistakes are not symmetrical. Clutter is noticed and ignored; a
-    // missing capability is never discovered, and the shop concludes ShopOS
+    // missing capability is never discovered, and the shop concludes CartZe
     // cannot cost a menu.
 
     public function test_a_restaurant_gets_the_stock_chain(): void

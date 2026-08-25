@@ -31,7 +31,7 @@ class OtpDeliveryTest extends TestCase
     public function test_phone_identifier_delivers_via_sms_sender(): void
     {
         $this->mock(SmsSender::class, function ($m): void {
-            $m->shouldReceive('send')->once()->withArgs(fn ($to, $msg) => $to === '+923001234567' && str_contains($msg, 'ShopOS'));
+            $m->shouldReceive('send')->once()->withArgs(fn ($to, $msg) => $to === '+923001234567' && str_contains($msg, 'CartZe'));
         });
         $this->mock(EmailSender::class, fn ($m) => $m->shouldReceive('send')->never());
 
@@ -40,7 +40,7 @@ class OtpDeliveryTest extends TestCase
 
     public function test_sms_sender_posts_to_gateway_when_configured(): void
     {
-        config(['services.sms.endpoint' => 'https://sms.test/send', 'services.sms.key' => 'k', 'services.sms.from' => 'ShopOS']);
+        config(['services.sms.endpoint' => 'https://sms.test/send', 'services.sms.key' => 'k', 'services.sms.from' => 'CartZe']);
         Http::fake(['sms.test/*' => Http::response(['ok' => true], 200)]);
 
         app(SmsSender::class)->send('+92300', 'hello');

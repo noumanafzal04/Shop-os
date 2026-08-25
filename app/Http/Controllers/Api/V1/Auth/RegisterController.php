@@ -35,6 +35,6 @@ class RegisterController extends Controller
         return ApiResponse::created([
             'user' => (new UserResource($user))->resolve(),
             ...$tokens,
-        ], 'Welcome to ShopOS!');
+        ], 'Welcome to CartZe!');
     }
 }

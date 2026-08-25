@@ -45,7 +45,7 @@ return [
     'sms' => [
         'key' => env('SMS_API_KEY'),
         'endpoint' => env('SMS_ENDPOINT'),
-        'from' => env('SMS_FROM', 'ShopOS'),
+        'from' => env('SMS_FROM', 'CartZe'),
     ],
 
 ];
