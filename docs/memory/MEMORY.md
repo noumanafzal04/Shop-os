@@ -104,7 +104,7 @@
 - [Menu And Door](shopos-menu-and-door.md) — FIXED: Kitchen preset was offered the board by 4 surfaces and bounced by the 5th; RequirePermission held ONE string
 - [Saved That Saved Nothing](shopos-saved-nothing.md) — FIXED: a refusal wore the title "Saved with warning"; a whole shop's prices were uneditable and it said they weren't
 - [Fixtures That Breed](shopos-fixtures-that-breed.md) — STANDING: Date.now() in an e2e fixture name; 13 strays starved a SIBLING spec and it blamed the screen
-- [CartZe Brand](shopos-cartze-brand.md) — product renamed CartZe (cartze.shop); wordmark is a COMPONENT — an SVG in an img inherits no font and no theme
+- [CartZe Brand](shopos-cartze-brand.md) — rename DONE; wordmark is a COMPONENT; and 3 storage keys (`shopos-till`/`-device-id`/`-auth`) must NEVER be renamed — test-guarded
 - [A Rail You Can Read](shopos-rail-you-can-read.md) — FIXED: 22 icon collisions in 16 menus; Simple mode was module-gated so a restaurant had Dine-in and no Kitchen
 - [Page Two, Per List](shopos-page-two-per-list.md) — 3 more page-two bugs in the folder-credit gap; scanner gained per-CALL + orphan-hook axes; detector was wrong 5 of 6 first
 - [What It Used To Cost](shopos-what-it-used-to-cost.md) — SHIPPED price history; Product had NO audit trait; the design is mostly about what must NOT be filed

@@ -28,3 +28,25 @@ near-black letters on near-black blue.
 The maskable app icon is a SEPARATE drawing, not the badge relabelled — Android
 crops it to the launcher's shape. Rendered with `qlmanage -t -s 512` and resized
 with `sips`; no other rasteriser is installed on this machine.
+
+
+## The rename is DONE — and three names must never join it (2026-08-25)
+
+Every user-visible "ShopOS" is now CartZe. The ones that mattered were the ones
+that leave the building: the **SMS sender name** (what shows on a phone before
+the message is opened), the verification code's text, the email subject.
+`OtpDeliveryTest` caught the change, which is the right way round.
+
+**NEVER RENAME these three** — they name data already on shopkeepers' devices,
+and a rename hides it rather than migrating it:
+
+| key | cost of renaming |
+| --- | --- |
+| `shopos-till` | IndexedDB name. Till points at an EMPTY database — **the outbox is in there**. Every unsent offline sale orphaned: money taken, server never hears. |
+| `shopos-device-id` | new id → new slip segment → counter restarts at 000001 → duplicate slip numbers, customer unfindable. See [[shopos-offline-slip-numbers]]. |
+| `shopos-auth` | every shop signed out at once, mid-day. |
+
+Guarded by `src/modules/offline/storageKeys.test.ts`, mutation-proven — a
+comment was not enough ([[shopos-promise-in-another-file]]). If they ever must
+change, it is a MIGRATION that reads the old name and writes the new, never a
+find-and-replace.
