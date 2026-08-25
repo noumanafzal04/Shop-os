@@ -45,7 +45,7 @@ export default function MyOrdersPage() {
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">My Orders</h1>
-          <Link to="/" className="text-sm text-brand-500 hover:text-brand-600">Browse shops →</Link>
+          <Link to="/shops" className="text-sm text-brand-500 hover:text-brand-600">Browse shops →</Link>
         </div>
 
         {orders.isLoading ? (
@@ -53,7 +53,7 @@ export default function MyOrdersPage() {
         ) : rows.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
             <p className="text-gray-500 dark:text-gray-400">No orders yet.</p>
-            <Link to="/"><Button size="sm" className="mt-3">Start shopping</Button></Link>
+            <Link to="/shops"><Button size="sm" className="mt-3">Start shopping</Button></Link>
           </div>
         ) : (
           <div className="space-y-4">

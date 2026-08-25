@@ -1,5 +1,6 @@
 import { SidebarProvider, useSidebar } from "../context/SidebarContext";
 import { Outlet } from "react-router";
+import DemoBanner from "../modules/landing/components/DemoBanner";
 import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
@@ -31,6 +32,10 @@ const LayoutContent: React.FC = () => {
           railWide ? "lg:ml-[290px]" : "lg:ml-[90px]"
         } ${isMobileOpen ? "ml-0" : ""}`}
       >
+        {/* Above the header, so it is the first thing on every screen of a
+            demo and cannot be scrolled away from. Renders nothing at all for a
+            real shop. */}
+        <DemoBanner />
         <AppHeader />
         {/* `--pinned-bottom` is set by whatever is currently fixed to the
             bottom of the screen — the PWA install card, the update card — and

@@ -17,7 +17,14 @@ import { canBeAt } from "./screenPermissions";
 export function homeForRole(role: UserRole | undefined): string {
   if (role === "super_admin" || role === "admin_staff") return "/admin";
   if (role === "shop_owner" || role === "staff") return "/tenant";
-  return "/";
+
+  // A CUSTOMER GOES TO THE SHOPS, not to the landing page.
+  //
+  // This said `/` and was right for as long as `/` was the storefront. The
+  // moment the base url became the page the PRODUCT is sold from, signing in
+  // as a customer started landing them on an advert for a point-of-sale
+  // system — which is a different audience's page entirely.
+  return "/shops";
 }
 
 /**

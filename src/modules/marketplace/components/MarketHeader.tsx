@@ -17,7 +17,7 @@ export function MarketHeader() {
   return (
     <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <Link to="/" className="text-xl font-bold text-brand-500">
+        <Link to="/shops" className="text-xl font-bold text-brand-500">
           CartZe <span className="font-normal text-gray-500">Market</span>
         </Link>
 

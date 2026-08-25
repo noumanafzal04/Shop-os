@@ -20,6 +20,8 @@ const SignIn = lazy(() => import("./pages/AuthPages/SignIn"));
 const SignUp = lazy(() => import("./pages/AuthPages/SignUp"));
 const NotFound = lazy(() => import("./pages/OtherPage/NotFound"));
 const MarketPage = lazy(() => import("./modules/marketplace/pages/MarketPage"));
+const LandingPage = lazy(() => import("./modules/landing/pages/LandingPage"));
+const DemoPage = lazy(() => import("./modules/landing/pages/DemoPage"));
 const MarketShopPage = lazy(() => import("./modules/marketplace/pages/MarketShopPage"));
 const MyOrdersPage = lazy(() => import("./modules/orders/pages/MyOrdersPage"));
 const OwnerOrdersPage = lazy(() => import("./modules/orders/pages/OwnerOrdersPage"));
@@ -105,8 +107,17 @@ export default function App() {
       <ScrollToTop />
       <Suspense fallback={<PageFallback />}>
         <Routes>
-          {/* ── User side (storefront) is the BASE url ────────────── */}
-          <Route path="/" element={<MarketPage />} />
+          {/* ── The storefront lives under /shops ─────────────────────
+              It used to BE the base url, which meant cartze.shop answered a
+              shopkeeper evaluating the product with a list of somebody else's
+              shops. Two audiences were sharing one address and only one of
+              them pays for it.
+
+              `/` redirects here until the landing page lands, so nothing a
+              customer has bookmarked breaks in between. */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/demo" element={<DemoPage />} />
+          <Route path="/shops" element={<MarketPage />} />
           <Route path="/shop/:slug" element={<MarketShopPage />} />
 
           {/* Public auth (bounce authenticated users to their home) */}

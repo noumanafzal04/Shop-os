@@ -889,3 +889,90 @@ span.flatpickr-weekday,
     animation: draws-itself 340ms ease-out;
   }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE LANDING PAGE
+   ══════════════════════════════════════════════════════════════════════
+
+   Movement earns its place or it does not go in. Three things move here:
+   something arrives as you reach it, the till in the hero rings a sale by
+   itself, and a number counts up once. Everything else is still.
+
+   All of it is switched off under `prefers-reduced-motion` — not slowed,
+   OFF. A shopkeeper who has asked their phone to stop animating things has
+   asked for a reason, and "we made it faster" is not an answer to it. */
+
+@keyframes settles-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* VISIBLE BY DEFAULT. The hiding is applied only once the hook has mounted and
+   found a working IntersectionObserver — `settling` goes on <html>, and until
+   it does every `.settles` is simply on screen.
+
+   Written the other way round first, and a screenshot showed the whole page
+   below the hero as blank space. That was a capture artifact, but it was also
+   the truth about the failure mode: content hidden by CSS and rescued by
+   JavaScript is one broken observer away from a landing page with nothing on
+   it. An animation is an enhancement, and an enhancement must not be load
+   bearing. */
+.settling .settles { opacity: 0; }
+.settling .settles.is-in {
+  animation: settles-in 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--settle-delay, 0ms);
+}
+
+/* The till's own quiet life: a card lifting a hair, on a long cycle. Slow
+   enough that it reads as depth rather than as something demanding attention. */
+@keyframes breathes {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+.breathes { animation: breathes 6s ease-in-out infinite; }
+
+/* A line item landing in the cart, one after another. */
+@keyframes rings-up {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+.rings-up {
+  opacity: 0;
+  animation: rings-up 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--ring-delay, 0ms);
+}
+
+/* THE ONE BUTTON THAT ASKS FOR ATTENTION.
+   A ring that expands out of the button and fades, every few seconds, plus a
+   shine that crosses it. Deliberately NOT a blink: content that switches on
+   and off is both an accessibility failure and the visual language of a
+   pop-up ad. A pulse is read as "this one" — a blink is read as "close me". */
+@keyframes calls-you-over {
+  0%        { transform: scale(1);    opacity: 0.55; }
+  70%, 100% { transform: scale(1.28); opacity: 0; }
+}
+.calls-you-over::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--color-brand-500);
+  animation: calls-you-over 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  z-index: -1;
+}
+
+@keyframes shine-crosses {
+  0%       { transform: translateX(-140%); }
+  55%,100% { transform: translateX(240%); }
+}
+.shine-crosses { animation: shine-crosses 3.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .settling .settles { opacity: 1; }
+  .settling .settles.is-in { animation: none; }
+  .breathes { animation: none; }
+  .rings-up { opacity: 1; animation: none; }
+  .calls-you-over::after { animation: none; opacity: 0; }
+  .shine-crosses { animation: none; opacity: 0; }
+}

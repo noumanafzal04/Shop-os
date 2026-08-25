@@ -54,6 +54,10 @@ export interface Tenant {
   limits_usage?: LimitUsage[];
   status: "active" | "suspended";
   setup_completed: boolean;
+  /** A shop handed out by "Try the demo". Never a real business. */
+  is_demo?: boolean;
+  /** When that demo clears itself away. Absolute, so it can be printed. */
+  demo_expires_at?: string | null;
   subscription_starts_at?: string | null;
   subscription_ends_at: string | null;
   subscription_expired: boolean;
