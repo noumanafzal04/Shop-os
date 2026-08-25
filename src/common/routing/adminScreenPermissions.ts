@@ -22,6 +22,10 @@
 const ADMIN_SCREEN_PERMISSIONS: Record<string, string> = {
   "/admin/tenants": "tenants.view",
   "/admin/tenants/new": "tenants.create",
+  // Demos asking to become businesses. Gated on "may open a shop" rather
+  // than a permission of its own: approving one IS opening a shop, just one
+  // that already has somebody's products in it.
+  "/admin/shop-requests": "tenants.create",
   // Plans price the platform; reading them is part of reading a tenant.
   "/admin/plans": "tenants.view",
   "/admin/payments": "billing.view",

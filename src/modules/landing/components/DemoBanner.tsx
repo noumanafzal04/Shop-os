@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
 
+import { apiGet } from "../../../common/api/client";
 import { useAuthStore } from "../../../stores/authStore";
+import KeepShopModal from "./KeepShopModal";
 
 /**
  * "THIS SHOP ENDS AT …" — said on every screen of a demo, and said honestly.
@@ -21,6 +23,7 @@ export default function DemoBanner() {
   // Re-rendered on a slow tick so "in 3 hours" does not sit there saying
   // yesterday's answer for the length of a session.
   const [, tick] = useState(0);
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     if (!tenant?.is_demo) return;
@@ -29,8 +32,19 @@ export default function DemoBanner() {
     return () => window.clearInterval(t);
   }, [tenant?.is_demo]);
 
+  // Is somebody already waiting on an answer? The banner has to stop asking
+  // for something it has already been given — a shop that keeps offering
+  // "Keep this shop" after the request went in reads as though nobody heard.
+  const pending = useQuery({
+    queryKey: ["shop", "keep"],
+    queryFn: () => apiGet<{ id: string } | null>("/shop/keep"),
+    enabled: Boolean(tenant?.is_demo),
+    staleTime: 60_000,
+  });
+
   if (!tenant?.is_demo) return null;
 
+  const asked = Boolean(pending.data?.data);
   const ends = tenant.demo_expires_at ? new Date(tenant.demo_expires_at) : null;
   const gone = ends !== null && ends.getTime() <= Date.now();
   const when = ends?.toLocaleString(undefined, {
@@ -44,19 +58,30 @@ export default function DemoBanner() {
       className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-brand-500 px-4 py-2 text-center text-theme-xs font-medium text-white"
     >
       <span>
-        {gone
-          ? "This demo shop has ended — nothing here is saved."
-          : <>Demo shop — yours alone. It clears itself away{when ? <> at <strong className="font-semibold">{when}</strong></> : " after a day"}.</>}
+        {asked
+          // Once they have asked, nothing is going to delete this shop —
+          // the prune leaves a tenant with a request outstanding alone — so
+          // the countdown stops being the truth and stops being shown.
+          ? <>We have your request. Your shop is <strong className="font-semibold">safe</strong> while we look at it.</>
+          : gone
+            ? "This demo shop has ended — nothing here is saved."
+            : <>Demo shop — yours alone. It clears itself away{when ? <> at <strong className="font-semibold">{when}</strong></> : " after a day"}.</>}
       </span>
-      <Link
-        to="/signup"
-        className="rounded-md bg-white/15 px-2.5 py-1 font-semibold underline-offset-2 transition hover:bg-white/25"
-      >
-        {/* The only place an email is asked for, and only from somebody who has
-            already decided they want to keep what they built. Asking on the way
-            IN loses the shopkeeper who would have bought it. */}
-        Keep this shop
-      </Link>
+
+      {!asked && (
+        <button
+          type="button"
+          onClick={() => setAsking(true)}
+          className="rounded-md bg-white/15 px-2.5 py-1 font-semibold transition hover:bg-white/25"
+        >
+          {/* The only place an email is ever asked for, and only from somebody
+              who has already decided they want to keep what they built. Asking
+              on the way IN loses the shopkeeper who would have bought it. */}
+          Keep this shop
+        </button>
+      )}
+
+      <KeepShopModal open={asking} onClose={() => setAsking(false)} />
     </div>
   );
 }

@@ -352,6 +352,7 @@ function filterByPermission(items: NavItem[], can: (permission: string) => boole
 const adminMainItems: NavItem[] = [
   { icon: <GridIcon />, name: "Dashboard", path: "/admin" },
   { icon: <GroupIcon />, name: "Tenants", path: "/admin/tenants" },
+  { icon: <GroupIcon />, name: "Shop requests", path: "/admin/shop-requests" },
   { icon: <ListIcon />, name: "Plans", path: "/admin/plans" },
   { icon: <DollarLineIcon />, name: "Billing & Payments", path: "/admin/payments" },
 ];
