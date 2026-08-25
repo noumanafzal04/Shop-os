@@ -54,7 +54,27 @@ jobs:
 
       - name: Tests
         # phpunit.xml pins sqlite :memory:, so no database service is needed.
-        run: php artisan test
+        #
+        # Captured so that a failure can NAME ITSELF. Reading a job's log needs
+        # admin rights on this repository — a run that fails tells everybody
+        # else only "Process completed with exit code 1", which is how a red
+        # gate goes uninvestigated. A step summary needs no such rights.
+        run: |
+          set -o pipefail
+          php artisan test 2>&1 | tee /tmp/test-output.txt
+
+      - name: Which tests failed
+        if: failure()
+        run: |
+          {
+            echo '## The suite went red'
+            echo
+            echo 'Named here because a job log is admin-only and this is not.'
+            echo
+            echo '```'
+            tail -n 120 /tmp/test-output.txt || echo 'no output captured'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Known vulnerabilities in what we ship
         # A CVE pass was on the backlog as a one-off for weeks, which is the
