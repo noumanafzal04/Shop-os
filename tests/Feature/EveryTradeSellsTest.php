@@ -78,6 +78,27 @@ class EveryTradeSellsTest extends TestCase
         ];
     }
 
+    /**
+     * Just the trade name, for the checks that only ask which trade it is.
+     *
+     * DERIVED from `trades()` rather than typed out again. PHPUnit 11 warns
+     * when a data set hands a test more arguments than it accepts, and that
+     * warning is not cosmetic here: it made `php artisan test` exit 1 while
+     * reporting "2225 passed", so the CI gate was red for a reason no summary
+     * line mentioned. The obvious fix — give this test three parameters and
+     * ignore two — would be a signature that lies about what the test reads.
+     *
+     * A second hand-written list would be the more familiar mistake: two
+     * copies of the trades, and the day somebody adds the eighth they update
+     * one of them.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function tradeNames(): array
+    {
+        return array_map(static fn (array $row): array => [$row[0]], self::trades());
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -215,7 +236,7 @@ class EveryTradeSellsTest extends TestCase
         }
     }
 
-    #[DataProvider('trades')]
+    #[DataProvider('tradeNames')]
     public function test_a_cashier_of_this_trade_can_reach_the_till_at_all(string $type): void
     {
         // The POS module is on for every one of these trades. A shop whose
