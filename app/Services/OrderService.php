@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Support\FulfillingBranch;
 use App\Support\Geo;
 use App\Support\ModifierResolver;
+use App\Support\Permissions;
 use App\Support\SoldOut;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -436,13 +437,21 @@ class OrderService
                 // A counter order was entered by the shop; telling the owner a
                 // "new online order" arrived would be false, and the distinction
                 // is the whole point of tracking a channel.
-                $this->notifications->notifyTenantOwners(
+                // Whoever PACKS it. Until now an owner heard about every
+                // order and the staff who had to put it together heard about
+                // none — and with the branch chosen by distance, the shop that
+                // has to fill it is not necessarily the one the owner is
+                // standing in. Told at that branch only: five branches told
+                // about one branch's order is how a bell stops being read.
+                $this->notifications->notifyWhoCanAct(
                     $shop,
+                    Permissions::ORDERS_MANAGE,
                     'order.placed',
                     $counter ? 'New '.($order->channel === 'whatsapp' ? 'WhatsApp' : 'phone').' order' : 'New online order',
                     "{$order->customer_name} — order {$order->order_number} — {$shop->currencySymbol()} ".number_format($order->total, 0).'.',
                     ['order_id' => $order->id],
                     "order-placed-{$order->id}",
+                    $order->branch_id,
                 );
 
                 return $order->load('items');

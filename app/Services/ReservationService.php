@@ -12,6 +12,7 @@ use App\Models\Reservation;
 use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Permissions;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -40,8 +41,7 @@ class ReservationService
         private readonly InventoryService $inventory,
         private readonly CreateSaleAction $createSale,
         private readonly NotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     // ── Customer actions ────────────────────────────────────────────
 
@@ -97,8 +97,11 @@ class ReservationService
             'expires_at' => now()->addHours(self::PENDING_WINDOW_HOURS),
         ]);
 
-        $this->notifications->notifyTenantOwners(
+        // Whoever answers reservations. An owner is not always the person
+        // standing at the counter when somebody asks to hold an item.
+        $this->notifications->notifyWhoCanAct(
             $shop,
+            Permissions::RESERVATIONS_MANAGE,
             'reservation.created',
             'New reservation request',
             "{$customer->name} wants {$quantity} × {$product->name}.",

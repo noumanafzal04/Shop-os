@@ -5,6 +5,7 @@ namespace App\Actions\Inventory;
 use App\Models\ProductBatch;
 use App\Models\Tenant;
 use App\Services\NotificationService;
+use App\Support\Permissions;
 use App\Support\ShopSettings;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -151,8 +152,12 @@ class NotifyExpiringStock
 
         // Batch + stage. A lot speaks twice in its life and never again, which
         // is what keeps this from becoming the notification nobody reads.
-        $created = $this->notifications->notifyTenantOwners(
+        // Whoever can sell it down or arrange the return — the same people
+        // the low-stock alert goes to, and for the same reason: an owner
+        // reading it in another city cannot walk to the shelf.
+        $created = $this->notifications->notifyWhoCanAct(
             $tenant->id,
+            Permissions::INVENTORY_MANAGE,
             "stock.expiry.{$stage}",
             $title,
             $body,
@@ -165,9 +170,9 @@ class NotifyExpiringStock
             "expiry-{$stage}-{$batch->id}",
         );
 
-        // notifyTenantOwners returns one row per owner; an already-deduped
-        // batch comes back as nulls, and a shop with no owner at all comes back
-        // empty. Neither spent the budget.
+        // One row per recipient; an already-deduped batch comes back as nulls,
+        // and a shop with nobody holding the permission comes back empty.
+        // Neither spent the budget.
         return $created->filter()->isNotEmpty();
     }
 }

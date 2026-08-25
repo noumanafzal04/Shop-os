@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
+use App\Support\Permissions;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
@@ -302,13 +303,21 @@ class InventoryService
                 if ($threshold !== null) {
                     if ($current > $threshold && $newQuantity <= $threshold) {
                         $label = $variant !== null ? "{$product->name} / {$variant->name}" : $product->name;
-                        $this->notifications->notifyTenantOwners(
+                        // Whoever REORDERS, not merely whoever owns the shop.
+                        // A stock keeper holding `inventory.manage` was never
+                        // told a shelf had run down — the one person the alert
+                        // is for. At the branch that ran down, because a chain
+                        // told about every other branch's shelves stops reading
+                        // any of them.
+                        $this->notifications->notifyWhoCanAct(
                             $product->tenant_id,
+                            Permissions::INVENTORY_MANAGE,
                             'stock.low',
                             'Low stock alert',
                             "{$label} is down to {$newQuantity} (alert level {$threshold}).",
                             ['product_id' => $product->id, 'variant_id' => $variant?->id],
                             "low-stock-{$target->id}",
+                            $branchId,
                         );
                     } elseif ($current <= $threshold && $newQuantity > $threshold) {
                         // Recovered — clear the dedupe so the NEXT drop alerts again.
