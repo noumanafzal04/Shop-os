@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\TenantContext;
 use Database\Seeders\CitySeeder;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -78,6 +79,29 @@ class DemoShopTest extends TestCase
     {
         $this->postJson('/api/v1/demo', ['business_type' => 'casino'])->assertStatus(422);
         $this->assertSame(0, Tenant::query()->where('is_demo', true)->count());
+    }
+
+    public function test_it_builds_a_shop_even_with_another_tenant_in_context(): void
+    {
+        // NOT a browser scenario: the public route resolves no tenant, so a
+        // visitor holding a token cannot put one in context. What can is
+        // anything calling this action from inside a tenant's request — and a
+        // process that reuses its container between calls, which is how this
+        // was met at all.
+        //
+        // Set explicitly here rather than hoped for. The first version of this
+        // test signed in and passed a token, believing that did it; it did
+        // not, and the test passed against its own bug until a mutation showed
+        // a different test catching the fault.
+        $this->postJson('/api/v1/demo', ['business_type' => 'food'])->assertCreated();
+        $other = Tenant::query()->where('is_demo', true)->firstOrFail();
+        app(TenantContext::class)->set($other);
+
+        app(CreateDemoShopAction::class)->execute('pharmacy');
+
+        $this->assertSame(2, Tenant::query()->where('is_demo', true)->count());
+        // And the caller's context is handed back as it was found.
+        $this->assertSame($other->id, app(TenantContext::class)->id());
     }
 
     // ── And the fences ──────────────────────────────────────────────

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\V1\Admin\BillingController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\PlanController;
+use App\Http\Controllers\Api\V1\Admin\ShopRequestController;
 use App\Http\Controllers\Api\V1\Admin\StaffController as AdminStaffController;
 use App\Http\Controllers\Api\V1\Admin\TenantController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
@@ -49,6 +50,7 @@ use App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController;
 use App\Http\Controllers\Api\V1\Tenant\IncomeCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\IncomeController;
 use App\Http\Controllers\Api\V1\Tenant\InventoryController;
+use App\Http\Controllers\Api\V1\Tenant\KeepShopController;
 use App\Http\Controllers\Api\V1\Tenant\KitchenController;
 use App\Http\Controllers\Api\V1\Tenant\OfflineReportController;
 use App\Http\Controllers\Api\V1\Tenant\OrderController;
@@ -180,6 +182,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::put('/shop', [ShopController::class, 'update'])->middleware('permission:settings.manage');
             Route::get('/shop/settings', [ShopController::class, 'settings']);
             Route::get('/shop/subscription', [SubscriptionController::class, 'show']);
+
+            // "Keep this shop" — a demo asking to become a business. No
+            // permission gate beyond being the shop's own owner: it is not an
+            // operation on the shop, it is a person asking about their own.
+            Route::get('/shop/keep', [KeepShopController::class, 'show']);
+            Route::post('/shop/keep', [KeepShopController::class, 'store']);
             Route::put('/shop/settings', [ShopController::class, 'updateSettings'])->middleware('permission:settings.manage');
             // Portfolio / gallery — a service business shows its work. Gated by
             // the services module: a mart or pharmacy has no portfolio.
@@ -990,6 +998,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // ── Platform side (Super Admin + platform staff) ─────────────
         Route::prefix('admin')->middleware('role:super_admin,admin_staff')->group(function (): void {
             Route::get('/dashboard', [AdminDashboardController::class, 'index']);
+            // Demos asking to become businesses. Gated on the permission
+            // that already means "may open a shop" rather than a new one — the
+            // decision here IS opening a shop, just one that already has
+            // somebody's products in it.
+            Route::middleware('permission:'.Permissions::TENANTS_CREATE)->group(function (): void {
+                Route::get('/shop-requests', [ShopRequestController::class, 'index']);
+                Route::post('/shop-requests/{id}/approve', [ShopRequestController::class, 'approve']);
+                Route::post('/shop-requests/{id}/decline', [ShopRequestController::class, 'decline']);
+            });
+
             Route::get('/audit-logs', [AuditLogController::class, 'index'])->middleware('role:super_admin');
 
             // Plans — read for all platform roles, writes Super-Admin only.

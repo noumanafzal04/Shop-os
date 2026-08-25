@@ -33,6 +33,15 @@ class PruneDemoShops extends Command
             ->where('is_demo', true)
             ->whereNotNull('demo_expires_at')
             ->where('demo_expires_at', '<', now())
+            // NEVER A SHOP SOMEBODY IS WAITING ON AN ANSWER ABOUT.
+            //
+            // Pressing "Keep this shop" is the strongest signal this product
+            // gets, and deleting that person's work because an admin has not
+            // replied yet would be the worst reply available. The bound on a
+            // pending request is the ADMIN'S obligation to answer — which the
+            // admin list enforces by ordering oldest-first — never a timer
+            // that clears away a waiting customer's shop.
+            ->whereDoesntHave('shopRequests', fn ($q) => $q->pending())
             ->get();
 
         if ($expired->isEmpty()) {

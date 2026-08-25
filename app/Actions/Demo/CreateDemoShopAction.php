@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\InventoryService;
 use App\Support\BusinessTypes;
+use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -69,6 +70,39 @@ class CreateDemoShopAction
             throw new \InvalidArgumentException("Unknown business type: {$businessType}");
         }
 
+        // ── CREATED FROM OUTSIDE ANY TENANT ────────────────────────────
+        //
+        // `BelongsToTenant` scopes every read to whatever tenant is in context,
+        // and this action's own `$tenant->users()->firstOrFail()` asks for the
+        // NEW shop's owner. With somebody else's tenant in context that lookup
+        // searches the wrong shop, finds nobody, and throws — a 404 out of a
+        // public endpoint.
+        //
+        // The public route resolves no tenant, so a browser cannot get here
+        // with one set. What CAN is anything that calls this action from
+        // inside a tenant's request — and a process that reuses its container
+        // between calls, which is how the suite met it. An action whose job is
+        // to create a tenant must not read through another one's scope,
+        // whoever calls it.
+        //
+        // Restored in `finally`: quietly emptying a caller's tenant context is
+        // a trap for whatever runs next.
+        $context = app(TenantContext::class);
+        $was = $context->get();
+        $context->clear();
+
+        try {
+            return $this->build($businessType);
+        } finally {
+            if ($was !== null) {
+                $context->set($was);
+            }
+        }
+    }
+
+    /** @return array{tenant: Tenant, owner: User} */
+    private function build(string $businessType): array
+    {
         return DB::transaction(function () use ($businessType): array {
             $label = BusinessTypes::get($businessType)['label'] ?? 'Shop';
             $name = "{$label} Demo ".strtoupper(Str::random(4));

@@ -53,6 +53,12 @@ class Tenant extends BaseModel
         return $query->where('is_demo', false);
     }
 
+    /** Requests to turn this demo into a business. The prune reads this. */
+    public function shopRequests(): HasMany
+    {
+        return $this->hasMany(ShopRequest::class);
+    }
+
     /** Has this demo shop's day run out? Always false for a real one. */
     public function demoHasEnded(): bool
     {
