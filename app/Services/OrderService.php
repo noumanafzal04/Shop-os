@@ -18,6 +18,7 @@ use App\Models\Sale;
 use App\Models\StockMovement;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\FulfillingBranch;
 use App\Support\Geo;
 use App\Support\ModifierResolver;
 use App\Support\SoldOut;
@@ -40,9 +41,6 @@ use Illuminate\Support\Facades\DB;
  */
 class OrderService
 {
-    /** @var array<string, string|null> tenant id → its default branch id */
-    private array $onlineBranch = [];
-
     public function __construct(
         private readonly InventoryService $inventory,
         private readonly CreateSaleAction $createSale,
@@ -205,40 +203,7 @@ class OrderService
                         );
                     }
 
-                    // Eighty-six. Whoever is cooking took this off tonight's
-                    // menu, and the till has refused it since the day that
-                    // button shipped. One question — MAY THIS BE SOLD RIGHT NOW
-                    // — and three places that can start selling an item: this
-                    // one, the counter, and AddTicketItemsAction. Only the
-                    // counter had ever been asked.
-                    //
-                    // What makes it worse than an ordinary omission is that
-                    // CreateSaleAction EXEMPTS the trusted path from this rule,
-                    // and says why: an online order is food the customer
-                    // already committed to, so refusing to bill it because the
-                    // kitchen has since run out is a shop that cannot close its
-                    // own tab. That exemption is only safe if placement
-                    // refused first. Placement never did, so the rule was
-                    // enforced nowhere for an online order — the kitchen
-                    // pressed 86 and the app kept taking orders all evening.
-                    //
-                    // A counter order is stopped too. `visible_in_marketplace`
-                    // is relaxed above for a shopkeeper on the phone because
-                    // publishing is the shop's own business; this is not a
-                    // publishing decision, it is "there is none left", and
-                    // promising it down the phone is the same broken promise.
-                    // WHICH BRANCH'S ANSWER. An online order has no branch of
-                    // its own — nothing on `orders` names one — and it holds
-                    // and deducts stock from the tenant's DEFAULT branch. So it
-                    // asks that branch, because answering from anywhere else
-                    // would let it promise a dish out of a kitchen it is not
-                    // going to take the stock from.
-                    //
-                    // This is a CONSEQUENCE, not a design: until an order names
-                    // the branch that fulfils it, a chain's online shop is its
-                    // main branch's shop. See
-                    // docs/decisions/shopos-one-branch-runs-out.md.
-                    SoldOut::assertSellable($product, $variant, $this->onlineBranchId($shop));
+                    // 86 is asked AFTER the branch is chosen — see below.
 
                     $source = $variant ?? $product;
                     $qty = (float) $item['quantity'];
@@ -328,12 +293,63 @@ class OrderService
                     $couponCode = $result['code'];
                 }
 
+                // ── WHICH BRANCH IS FILLING THIS ──────────────────────
+                //
+                // The nearest one that actually holds the whole basket. Not
+                // simply the nearest: if the branch round the corner is out of
+                // one line a shop fills the order from the next one along
+                // rather than turning the customer away, and that difference is
+                // the entire reason a chain has more than one shop.
+                //
+                // When no single branch holds all of it we fall back to the
+                // nearest, and the ordinary per-line check below refuses with a
+                // message naming the ITEM — which is what the customer and the
+                // shop can each act on. "No branch has all of this" is true and
+                // useless to both.
+                //
+                // A single-branch business gets its one branch either way, so
+                // nothing about this changes for them.
+                $ranked = FulfillingBranch::ranked(
+                    $shop->id,
+                    isset($data['latitude']) ? (float) $data['latitude'] : null,
+                    isset($data['longitude']) ? (float) $data['longitude'] : null,
+                );
+                $branch = FulfillingBranch::holdingAll($ranked, self::needFrom($lines))
+                    ?? $ranked->first();
+
+                // ── AND WHAT THAT BRANCH WILL SELL ────────────────────
+                //
+                // Eighty-six: whoever is cooking took this off tonight's menu.
+                // One question — MAY THIS BE SOLD RIGHT NOW — and three places
+                // that can start selling an item: this one, the counter and
+                // AddTicketItemsAction.
+                //
+                // It is asked HERE, after the branch is known, rather than in
+                // the parse loop above, because the answer belongs to a branch:
+                // a dish 86'd in Gulberg is still on in Main. Asked any earlier
+                // and it would be answered by whichever branch happened to be
+                // the default, which is the bug this whole change exists to end.
+                //
+                // What makes missing it worse than an ordinary omission is that
+                // CreateSaleAction EXEMPTS the trusted path from this rule, and
+                // says why: an online order is food the customer already
+                // committed to, so refusing to bill it because the kitchen has
+                // since run out is a shop that cannot close its own tab. That
+                // exemption is only safe if placement refused first.
+                foreach ($lines as $line) {
+                    SoldOut::assertSellable($line['product'], $line['variant'], $branch?->id);
+                }
+
                 $seq = Order::withoutTenancy()->where('tenant_id', $shop->id)->count() + 1;
 
                 /** @var Order $order */
                 $order = Order::withoutTenancy()->create([
                     'tenant_id' => $shop->id,
                     'customer_id' => $customer?->id,
+                    // WHICH BRANCH FILLS IT. Recorded, never inferred later:
+                    // branches gain and lose stock all day, so re-deriving this
+                    // next week would answer about next week's shelves.
+                    'branch_id' => $branch?->id,
                     // Who took the call. When the address turns out to be wrong,
                     // somebody has to be askable.
                     'created_by' => $staff?->id,
@@ -377,47 +393,37 @@ class OrderService
                         'line_total' => $line['line_total'],
                     ]);
 
-                    // Hold stock now (audited, row-locked). A deal holds no stock of
-                    // its own — it draws each component down. Non-inventory items
-                    // (e.g. food menu items) have nothing to hold — skip them.
-                    if ($line['product']->isCombo()) {
-                        foreach ($line['product']->comboItems()->with('component')->get() as $ci) {
-                            $component = $ci->component;
-                            if ($component !== null && $component->track_inventory) {
-                                $this->inventory->adjust([
-                                    'product_id' => $component->id,
-                                    // WHICH size of it. A component with sizes has no stock of
-                                    // its own on the parent — that figure is an orphaned
-                                    // leftover, always zero — so this used to deduct against
-                                    // nothing and refuse the sale on a full shelf.
-                                    'variant_id' => $ci->variant_id,
-                                    'type' => 'out',
-                                    'quantity' => round((float) $ci->quantity * $line['qty'], 3),
-                                    'reason' => "Order {$order->order_number} (deal: {$line['product']->name})",
-                                    'reference_type' => 'order',
-                                    'reference_id' => $order->id,
-                                    // Key by the ORDER-ITEM row, not the product —
-                                    // two lines of the same product (or a deal
-                                    // added twice) must each hold their own stock,
-                                    // and releaseStock keys the same way so the
-                                    // release matches the hold exactly.
-                                    'idempotency_key' => "order-{$order->id}-item-{$orderItem->id}-c{$component->id}",
-                                ]);
-                            }
-                        }
-                    } elseif ($line['product']->track_inventory) {
+                    // Hold stock now (audited, row-locked), at the branch that
+                    // is going to fill this order.
+                    //
+                    // WHAT the line draws is asked of `stockDraw` and nowhere
+                    // else — the same function `FulfillingBranch` was given to
+                    // choose the branch with. Two copies of "what does this
+                    // basket take off a shelf" would answer differently the
+                    // first time anybody ordered a deal or a pack, and the
+                    // branch would be chosen against one basket and debited
+                    // against another.
+                    foreach (self::stockDraw($line) as $draw) {
                         $this->inventory->adjust([
-                            'product_id' => $line['product']->id,
-                            'variant_id' => $line['variant']?->id,
+                            'product_id' => $draw['product_id'],
+                            'variant_id' => $draw['variant_id'],
+                            // The branch, at last. Left out, this fell to the
+                            // tenant's default one and a chain's whole online
+                            // shop was its main branch's shop.
+                            'branch_id' => $order->branch_id,
                             'type' => 'out',
-                            // Packs draw base units: pack count × factor.
-                            'quantity' => round($line['qty'] * $line['factor'], 3),
-                            'reason' => "Order {$order->order_number}",
+                            'quantity' => $draw['qty'],
+                            'reason' => $draw['reason'] === null
+                                ? "Order {$order->order_number}"
+                                : "Order {$order->order_number} (deal: {$draw['reason']})",
                             'reference_type' => 'order',
                             'reference_id' => $order->id,
-                            // Per order-item (see combo branch) — duplicate product
-                            // lines must not collapse into one hold.
-                            'idempotency_key' => "order-{$order->id}-item-{$orderItem->id}",
+                            // Key by the ORDER-ITEM row, not the product — two
+                            // lines of the same product (or a deal added twice)
+                            // must each hold their own stock, and releaseStock
+                            // keys the same way so the release matches the hold
+                            // exactly.
+                            'idempotency_key' => "order-{$order->id}-item-{$orderItem->id}{$draw['key']}",
                         ]);
                     }
                 }
@@ -614,6 +620,15 @@ class OrderService
             $this->inventory->adjust([
                 'product_id' => $mv->product_id,
                 'variant_id' => $mv->variant_id,
+                // READ OFF THE MOVEMENT, not re-derived from the order.
+                //
+                // Stock goes back exactly where it came from. Re-deriving the
+                // branch here would be a second opinion about a fact already
+                // recorded, and the two would part company the moment an order
+                // was cancelled after its branch was renamed, closed, or the
+                // order was moved — putting a Gulberg hold back on Main's shelf
+                // and leaving both counts wrong in opposite directions.
+                'branch_id' => $mv->branch_id,
                 'type' => 'in',
                 'quantity' => abs((float) $mv->quantity_change),
                 'reason' => "Order {$order->order_number} released",
@@ -646,11 +661,84 @@ class OrderService
      * Cached per call-site tenant: a fifty-line basket must not ask the
      * database fifty times for a row that cannot change mid-transaction.
      */
-    private function onlineBranchId(Tenant $shop): ?string
+    /**
+     * WHAT ONE LINE TAKES OFF A SHELF. One answer, two readers.
+     *
+     * The hold debits it and `FulfillingBranch` is given it to decide which
+     * branch can fill the order. Those have to be the same arithmetic or the
+     * branch is chosen against one basket and debited against another — and it
+     * would go wrong on exactly the two shapes that are easy to forget:
+     *
+     *   a DEAL holds nothing of its own and draws each component down, at the
+     *   component's own SIZE (a parent's stock figure is an orphaned leftover
+     *   and always zero);
+     *   a PACK is a multiplier — a box of twelve draws twelve base units.
+     *
+     * `key` is the suffix that keeps a deal's components from colliding in the
+     * idempotency key; `reason` names the deal on the movement, and is null for
+     * an ordinary line.
+     *
+     * @param  array<string, mixed>  $line
+     * @return list<array{product_id: string, variant_id: ?string, qty: float, key: string, reason: ?string}>
+     */
+    private static function stockDraw(array $line): array
     {
-        return $this->onlineBranch[$shop->id] ??= Branch::withoutTenancy()
-            ->where('tenant_id', $shop->id)
-            ->where('is_default', true)
-            ->value('id');
+        /** @var Product $product */
+        $product = $line['product'];
+
+        if ($product->isCombo()) {
+            $draws = [];
+            foreach ($product->comboItems()->with('component')->get() as $ci) {
+                $component = $ci->component;
+                if ($component === null || ! $component->track_inventory) {
+                    continue;
+                }
+                $draws[] = [
+                    'product_id' => $component->id,
+                    'variant_id' => $ci->variant_id,
+                    'qty' => round((float) $ci->quantity * $line['qty'], 3),
+                    'key' => "-c{$component->id}",
+                    'reason' => $product->name,
+                ];
+            }
+
+            return $draws;
+        }
+
+        if (! $product->track_inventory) {
+            return [];
+        }
+
+        return [[
+            'product_id' => $product->id,
+            'variant_id' => $line['variant']?->id,
+            'qty' => round((float) $line['qty'] * (float) $line['factor'], 3),
+            'key' => '',
+            'reason' => null,
+        ]];
+    }
+
+    /**
+     * The whole basket as "how much of what", for `FulfillingBranch::holdingAll`.
+     *
+     * Summed across lines, because two lines of the same product are two draws
+     * on one shelf. A branch holding three when the basket wants two-and-two has
+     * enough for either line on its own and not for the order, and choosing it
+     * would produce a refusal after the customer had been told yes.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @return array<string, float>
+     */
+    private static function needFrom(array $lines): array
+    {
+        $need = [];
+        foreach ($lines as $line) {
+            foreach (self::stockDraw($line) as $draw) {
+                $key = $draw['product_id'].($draw['variant_id'] === null ? '' : ':'.$draw['variant_id']);
+                $need[$key] = ($need[$key] ?? 0.0) + $draw['qty'];
+            }
+        }
+
+        return $need;
     }
 }

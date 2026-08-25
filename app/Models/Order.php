@@ -35,6 +35,16 @@ class Order extends Model
         return $this->belongsTo(Rider::class);
     }
 
+    /**
+     * The branch that filled it — null for orders placed before shops tracked
+     * this, which genuinely came out of the default one and cannot honestly be
+     * relabelled now.
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);

@@ -19,7 +19,7 @@ class OrderController extends Controller
     public function index(Request $request): JsonResponse
     {
         $orders = Order::query()
-            ->with('items', 'rider')
+            ->with('items', 'rider', 'branch')
             ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))
             // Which door it came through. A shop wants to know whether the
             // online storefront is earning its keep, and that question cannot
@@ -35,7 +35,7 @@ class OrderController extends Controller
 
     public function show(string $id): JsonResponse
     {
-        return ApiResponse::ok(Order::query()->with('items', 'rider')->findOrFail($id));
+        return ApiResponse::ok(Order::query()->with('items', 'rider', 'branch')->findOrFail($id));
     }
 
     /**

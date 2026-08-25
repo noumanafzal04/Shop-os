@@ -18,7 +18,7 @@ class CustomerOrderController extends Controller
     {
         $orders = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name'])
+            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name', 'branch:id,name,address,phone'])
             ->orderByDesc('placed_at')
             ->paginate(min((int) $request->query('per_page', 15), 100))
             ->through(fn (Order $o) => $this->serialize($o));
@@ -30,7 +30,7 @@ class CustomerOrderController extends Controller
     {
         $order = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name'])
+            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name', 'branch:id,name,address,phone'])
             ->findOrFail($id);
 
         return ApiResponse::ok($this->serialize($order));
@@ -61,14 +61,14 @@ class CustomerOrderController extends Controller
 
         $order = $service->place($request->user(), $shop, $data);
 
-        return ApiResponse::created($this->serialize($order->load('tenant:id,business_name,slug')), "Order {$order->order_number} placed");
+        return ApiResponse::created($this->serialize($order->load('tenant:id,business_name,slug', 'branch:id,name,address,phone')), "Order {$order->order_number} placed");
     }
 
     public function cancel(Request $request, string $id, OrderService $service): JsonResponse
     {
         $order = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with('items')
+            ->with('items', 'branch:id,name,address,phone')
             ->findOrFail($id);
 
         // Customers may only cancel before the shop starts preparing.
@@ -92,6 +92,23 @@ class CustomerOrderController extends Controller
             'payment_method' => $o->payment_method,
             'payment_status' => $o->payment_status,
             'delivery_address' => $o->delivery_address,
+            // WHERE IT IS COMING FROM — and for a pickup, where to walk to.
+            //
+            // The branch that fills an order is chosen by distance now, so a
+            // customer collecting one has no way of knowing which shop to go to
+            // unless it is on the order. Before this it was always the default
+            // branch and nobody had to be told; that is not a reason to leave a
+            // pickup customer guessing now that it varies.
+            //
+            // Name, address and phone only. This is the allow-list that keeps a
+            // marketplace response from carrying a shop's internals, and what a
+            // customer needs is what they would need to walk there and ring the
+            // bell.
+            'branch' => $o->branch !== null ? [
+                'name' => $o->branch->name,
+                'address' => $o->branch->address,
+                'phone' => $o->branch->phone,
+            ] : null,
             'subtotal' => $o->subtotal,
             'discount' => $o->discount,
             'coupon_code' => $o->coupon_code,
