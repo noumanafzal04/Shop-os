@@ -276,7 +276,49 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-25 (latest) — the machine slept
+### 2026-08-25 (latest) — the nearest branch that can actually fill it
+
+Full write-up: `docs/decisions/shopos-nearest-branch-fills-it.md`.
+
+Nothing on `orders` named a branch, so every online order in a chain was
+answered by, held against and deducted from the tenant's DEFAULT branch. Ten in
+Gulberg and none in Main refused the order and told the customer "only 0 in
+stock" about a shelf the goods were never going to come off. **That gap is now
+closed** — the previous entry in `shopos-one-branch-runs-out.md` recorded it as
+a consequence rather than a design, and this is the design.
+
+**The rule: the nearest branch that holds the WHOLE basket.** Nearest alone
+would turn a customer away whenever the shop round the corner is short one line,
+and filling from the next one along is the entire reason a business opens a
+second shop. One branch fills the whole basket — splitting it is two riders and
+two delivery fees — and when no single branch can, the nearest is chosen anyway
+so the refusal names the ITEM rather than saying something true and useless.
+
+**No pin, no change.** A phone order or a customer who never shared a location
+cannot be measured, so ranking falls back to the default branch: the OLD
+behaviour, not a silent reshuffle. A single-branch business is untouched.
+
+Two halves that would have gone wrong quietly. `stockDraw()` is the one answer
+to "what does this line take off a shelf" and both the hold and the branch
+chooser use it — two copies would have parted company on the first deal or pack
+sold, choosing a branch against one basket and debiting another. And a release
+now reads `$mv->branch_id` **off the movement** rather than re-deriving it, so
+stock goes back exactly where it came from instead of putting a Gulberg hold on
+Main's shelf.
+
+**A collecting customer is told which shop.** Pickup was always the default
+branch, so nobody had to be told; now the system chooses, and the marketplace
+allow-list carries the branch name, address and phone. Creating that obligation
+and not meeting it would have been the worse half of the change.
+
+Six tests, four mutations. One caught the TEST rather than the code: *the
+nearest branch fills it* passed with distance sorting switched off, because the
+fallback order is `is_default` then NAME and the branches were called "Gulberg"
+and "Johar Town" — the alphabet agreed with the geography. They are now Zamzama
+and Airport Road, which disagree. Second time in one day a test of mine passed
+against the thing it named.
+
+### 2026-08-25 — the machine slept
 
 Full write-up: `docs/decisions/shopos-the-machine-slept.md`.
 

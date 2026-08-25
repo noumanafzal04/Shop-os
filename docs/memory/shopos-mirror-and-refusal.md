@@ -45,6 +45,22 @@ non-dismissible red strip + "See which" (slip no, amount, the server's OWN
 words). Unreadable amount says so, never "Rs 0". Drawn in BOTH panes —
 [[shopos-offline-drawer-in-a-browser]].
 
+## 3. The new strip was CRUSHED on a phone (and so was posNotice)
+
+The browser suite failed my own strip first: a pink sliver a few px tall,
+"visible" by every check, unpressable. The till's workspace grid declares 3 rows
+(`auto`, `minmax(0,1fr)`, `auto`) and a phone hands it exactly 3 children
+(switcher, one visible pane, footer). A FOURTH child shifts every assignment: the
+strip took `1fr`, the product list took `auto`, and `auto` ate everything.
+
+**`posNotice` had the same bug already** — the till's only way of speaking (Rx,
+near-expiry, why a line can't be rung). It survived because `data-pos-notice` was
+added as a test hook **that no test ever used**. Fixed by grouping switcher +
+both strips into ONE grid child.
+
+1151 unit tests were blind: jsdom has no layout engine. See
+[[shopos-screen-testing]], [[shopos-cart-hid-its-lines]].
+
 **How to apply:** ask what a mirror was never TOLD had changed (sibling of
 [[shopos-member-discount-offline]]); and one status answering two questions is
 the `*.manage` shape — [[shopos-read-vs-manage]].

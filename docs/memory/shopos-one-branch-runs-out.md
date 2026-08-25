@@ -1,6 +1,6 @@
 ---
 name: shopos-one-branch-runs-out
-description: per-branch 86 SHIPPED — branch_sold_out table replaced the columns (ONE source of truth); online door answers from Main because orders name no branch; the silent press was found only in a browser
+description: per-branch 86 SHIPPED — branch_sold_out table replaced the columns (ONE source of truth); online-door gap CLOSED 2026-08-25 by [[shopos-nearest-branch-fills-it]]; the silent press was found only in a browser
 metadata:
   type: project
 ---
@@ -48,3 +48,10 @@ still named it (the CI down-migration gate's exact shape), and `pint app/` was
 run against the standing paths-only rule and reformatted 27 unrelated files.
 
 Doc: `docs/decisions/shopos-one-branch-runs-out.md`.
+
+
+## The online-door gap is CLOSED (2026-08-25)
+
+`orders.branch_id` exists and an order is filled by **the nearest branch that
+holds the whole basket** — see [[shopos-nearest-branch-fills-it]]. This file's
+"answers from Main" is now history, not current behaviour.

@@ -118,7 +118,8 @@
 - [When A Large Uses More](shopos-large-uses-more.md) — per-size recipes shipped; RecipeFor = one answer for 4 readers; size rows OVERRIDE not add; e2e fixture shop is a MART so food specs can never run
 - [A Docket Outlived Its Tab](shopos-docket-outlived-tab.md) — cancelled tabs left dockets on the kitchen pass forever + inflated kot_waiting; one shared scopeForAnOpenTab; e2e finally has a RESTAURANT project
 - [Screens Nobody Opened](shopos-screens-nobody-opened.md) — chrome.spec walked 14 of 48 shop screens; walking 20 more found a modal-blind rule and 8 controls that say "edit text, blank", two of them money boxes
-- [One Branch Runs Out](shopos-one-branch-runs-out.md) — per-branch 86; branch_sold_out REPLACED the columns (one source of truth); online door answers from Main and that gap is still open
+- [One Branch Runs Out](shopos-one-branch-runs-out.md) — per-branch 86; branch_sold_out REPLACED the columns (one source of truth); the online-door gap it left is now CLOSED
 - [Header Would Not Yield](shopos-header-would-not-yield.md) — 5 trade e2e projects; 9 never-walked screens; 7 failed on ONE header bug; the sideways rule named the wrong thing twice more
 - [The Machine Slept](shopos-the-machine-slept.md) — STANDING: a test cannot outlast its own timeout; 18 "failures" were one closed lid + a dead token
 - [Mirror & Refusal](shopos-mirror-and-refusal.md) — FIXED: size stock/price never reached the offline till; a refused sale vanished silently (drawer over, cause unknowable)
+- [Nearest Branch Fills It](shopos-nearest-branch-fills-it.md) — online orders: nearest branch that holds the WHOLE basket; release reads branch off the movement; a mutation caught my test, not my code
