@@ -1,3 +1,4 @@
+import { cartTotal, rupees, TRADE_CART } from "./tradeCarts";
 import { TRADE_ICON, type TradeCode } from "./tradeIcon";
 
 /**
@@ -8,126 +9,137 @@ import { TRADE_ICON, type TradeCode } from "./tradeIcon";
  * till reduced to the four things a shopkeeper looks for — what went in, what
  * it costs, that it is still working offline, and that the money is counted.
  *
- * The "Offline" pill is the whole argument of the product and it is why this
- * mock exists at all: every POS can show a cart, and this one can show a cart
- * with no internet behind it.
+ * It stands on a near-black band on purpose. The pitch is a shop whose lights
+ * have gone and whose counter has not, so the one lit thing on the screen
+ * should be the till. Everything around it is dark; this glows.
+ *
+ * The trade is a prop because the page's other claim — that it knows a
+ * pharmacy from a tyre shop — is only worth making if you can watch the till
+ * change. Same component, same layout, different trade: that is the evidence.
  */
-const LINES: Array<{ name: string; qty: string; price: string }> = [
-  { name: "Chicken Karahi", qty: "1 plate", price: "1,450" },
-  { name: "Garlic Naan", qty: "4 pcs", price: "320" },
-  { name: "Mineral Water", qty: "2 btl", price: "160" },
-];
+export function TillMock({ trade, className = "", compact = false }: {
+  trade: TradeCode;
+  className?: string;
+  /**
+   * The corner-of-the-hero size: narrower, two lines instead of three, and no
+   * glow of its own. It sits ON the app window there, and a second soft light
+   * behind a card that is already lit reads as a smudge rather than as depth.
+   */
+  compact?: boolean;
+}) {
+  const cart = TRADE_CART[trade];
+  const Icon = TRADE_ICON[trade];
+  const total = cartTotal(cart);
+  const lines = compact ? cart.lines.slice(0, 2) : cart.lines;
 
-export function TillMock() {
   return (
-    <div className="relative">
-      {/* A soft light behind the card, so it sits on the page rather than on
-          top of it. Purely decorative and hidden from the reader. */}
-      <div
-        aria-hidden="true"
-        className="absolute -inset-8 -z-10 rounded-[3rem] bg-brand-500/10 blur-3xl dark:bg-brand-500/20"
-      />
+    <div className={`relative ${className}`}>
+      {/* The light the card throws. Decorative, and hidden from the reader. */}
+      {!compact && (
+        <div
+          aria-hidden="true"
+          className="absolute -inset-10 -z-10 rounded-[4rem] bg-brand-500/25 blur-[80px]"
+        />
+      )}
 
-      {/* THE RECEIPT, half behind the till.
-          The till alone was a screenshot of a cart, which every POS has. What
-          makes this one worth a picture is that the sale COMPLETED with no
-          line behind it — so the slip carries an OFF- number, which is the
-          thing a shop can find a customer by afterwards. Tucked behind and
-          rotated, because it is the second thing you read, not the first. */}
-      <div
-        aria-hidden="true"
-        className="absolute -right-2 -top-24 hidden w-44 rotate-6 rounded-lg bg-white p-3.5 shadow-xl ring-1 ring-gray-900/5 lg:block dark:bg-gray-100"
-      >
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Receipt</p>
-        <p className="mt-1 font-mono text-[11px] font-semibold text-gray-800">OFF-TILL-7K2M-000118</p>
-        <div className="my-2 border-t border-dashed border-gray-300" />
-        <div className="space-y-1">
-          {[["Chicken Karahi", "1,450"], ["Garlic Naan", "320"], ["Mineral Water", "160"]].map(([n, v]) => (
-            <div key={n} className="flex justify-between text-[10px] text-gray-500">
-              <span className="truncate pr-2">{n}</span>
-              <span className="tabular-nums">{v}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-2 flex justify-between border-t border-gray-300 pt-1.5 text-[11px] font-bold text-gray-800">
-          <span>Total</span>
-          <span className="tabular-nums">Rs 1,930</span>
-        </div>
-      </div>
+      <div className={`relative overflow-hidden bg-pos-ground shadow-[0_40px_90px_-20px_rgba(0,0,0,0.65)] ring-1 ring-white/15 ${
+        compact ? "rounded-2xl" : "rounded-3xl"
+      }`}>
+        {/* The lit edge along the top — a screen that is on. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent"
+        />
 
-      <div className="breathes relative overflow-hidden rounded-2xl bg-pos-ground shadow-2xl ring-1 ring-white/10">
-        {/* Till header — register name, and the state of the line. */}
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500/20 text-brand-300">
-              {(() => {
-                const Icon = TRADE_ICON["food" as TradeCode];
-
-                return <Icon className="h-4 w-4" />;
-              })()}
+        {/* Till header — which register, and the state of the line. */}
+        <div className={`flex items-center justify-between gap-3 border-b border-white/10 ${
+          compact ? "px-3.5 py-2.5" : "px-5 py-4"
+        }`}>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className={`flex shrink-0 items-center justify-center rounded-xl bg-brand-500/20 text-brand-300 ${
+              compact ? "h-7 w-7" : "h-9 w-9"
+            }`}>
+              <Icon className={compact ? "h-4 w-4" : "h-5 w-5"} />
             </span>
-            <span className="text-sm font-semibold text-white/90">Counter 1</span>
+            <div className="min-w-0">
+              <p className={`truncate font-semibold text-white ${compact ? "text-[13px]" : "text-sm"}`}>
+                {cart.register}
+              </p>
+              {!compact && <p className="truncate text-[11px] text-white/45">{cart.label}</p>}
+            </div>
           </div>
 
           {/* THE POINT OF THE WHOLE PICTURE. */}
-          <span className="flex items-center gap-1.5 rounded-full bg-warning-500/15 px-2.5 py-1 text-[11px] font-semibold text-warning-400">
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-warning-500/15 px-2.5 py-1 text-[11px] font-semibold text-warning-400 ring-1 ring-warning-500/25">
             <span className="h-1.5 w-1.5 rounded-full bg-warning-400" />
-            Offline · 3 saved here
+            Offline
           </span>
         </div>
 
-        {/* The cart. Each line arrives after the one above it. */}
-        <div className="space-y-1 p-3">
-          {LINES.map((line, i) => (
+        {/* The cart. Each line arrives after the one above it — and the whole
+            set re-keys on the trade, so switching trade rings the sale again. */}
+        <div className={compact ? "space-y-1 p-2.5" : "space-y-1.5 p-3.5"}>
+          {lines.map((line, i) => (
             <div
-              key={line.name}
-              className="rings-up flex items-center justify-between rounded-xl bg-pos-card px-3.5 py-2.5"
-              style={{ "--ring-delay": `${400 + i * 260}ms` } as React.CSSProperties}
+              key={`${trade}-${line.name}`}
+              className={`rings-up flex items-center justify-between gap-3 bg-pos-card ${
+                compact ? "rounded-xl px-3 py-2" : "rounded-2xl px-4 py-3"
+              }`}
+              style={{ "--ring-delay": `${120 + i * 130}ms` } as React.CSSProperties}
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-gray-800">{line.name}</p>
+                <p className={`truncate font-semibold text-gray-900 ${compact ? "text-[12.5px]" : "text-sm"}`}>
+                  {line.name}
+                </p>
                 <p className="text-[11px] text-gray-500">{line.qty}</p>
               </div>
-              <span className="shrink-0 text-sm font-semibold tabular-nums text-gray-800">
-                Rs {line.price}
+              <span className={`shrink-0 font-semibold tabular-nums text-gray-900 ${
+                compact ? "text-[12.5px]" : "text-sm"
+              }`}>
+                Rs {rupees(line.price)}
               </span>
             </div>
           ))}
+
+          {/* THE LINE ONLY THIS TRADE HAS. A batch number, a meter reading, a
+              KOT — the till's own answer to "does it understand my shop".
+
+              Not at the compact size: there it stands ON the app window, and
+              every row it grows by is a row of the console it hides. The trade
+              switcher further down the page makes this point properly. */}
+          {!compact && <div
+            key={`${trade}-note`}
+            className={`rings-up flex items-center gap-2.5 border border-dashed border-white/15 ${
+              compact ? "rounded-xl px-3 py-2" : "rounded-2xl px-4 py-2.5"
+            }`}
+            style={{ "--ring-delay": `${120 + lines.length * 130}ms` } as React.CSSProperties}
+          >
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
+            <p className="truncate text-[12px] text-white/60">{cart.note}</p>
+          </div>}
         </div>
 
         {/* The total, and the button a thumb actually presses. */}
-        <div
-          className="rings-up border-t border-white/10 p-4"
-          style={{ "--ring-delay": "1180ms" } as React.CSSProperties}
-        >
-          <div className="mb-3 flex items-baseline justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-              Grand total
+        <div className={`border-t border-white/10 ${compact ? "p-3.5" : "p-5"}`}>
+          <div className={`flex items-baseline justify-between ${compact ? "mb-2.5" : "mb-4"}`}>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
+              {compact ? "Total" : "Grand total"}
             </span>
-            <span className="text-2xl font-bold tabular-nums text-white">Rs 1,930</span>
+            <span
+              key={`${trade}-total`}
+              className={`rings-up font-bold tabular-nums tracking-tight text-white ${
+                compact ? "text-xl" : "text-3xl"
+              }`}
+              style={{ "--ring-delay": "260ms" } as React.CSSProperties}
+            >
+              Rs {rupees(compact ? lines.reduce((sum, l) => sum + l.price, 0) : total)}
+            </span>
           </div>
-          <div className="rounded-xl bg-brand-500 py-3 text-center text-sm font-semibold text-white">
+          <div className={`bg-brand-500 text-center font-semibold text-white shadow-lg shadow-brand-500/30 ${
+            compact ? "rounded-xl py-2.5 text-[13px]" : "rounded-2xl py-3.5 text-sm"
+          }`}>
             Tender / Pay
           </div>
-        </div>
-      </div>
-
-      {/* THE END OF THE STORY, and the reason a shopkeeper would switch: the
-          line came back and the queue emptied itself. Arrives last, after the
-          cart and the total, because it only means anything once you have seen
-          what was being held. */}
-      <div
-        className="rings-up absolute -bottom-7 left-6 flex items-center gap-2.5 rounded-xl bg-white px-4 py-3 shadow-xl ring-1 ring-gray-900/5 dark:bg-gray-900 dark:ring-white/10"
-        style={{ "--ring-delay": "1600ms" } as React.CSSProperties}
-      >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400">
-          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-            <path d="m4.5 10.5 3.5 3.5 7.5-8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
-        <div>
-          <p className="text-xs font-semibold text-gray-800 dark:text-white/90">Line back — 3 sent</p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400">Nothing was lost</p>
         </div>
       </div>
     </div>

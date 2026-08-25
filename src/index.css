@@ -968,6 +968,20 @@ span.flatpickr-weekday,
 }
 .shine-crosses { animation: shine-crosses 3.6s ease-in-out infinite; }
 
+/* A bar chart drawing itself from the axis up.
+   `transform-origin: bottom` is the whole trick — scaling from the middle
+   makes a bar grow downwards through its own baseline, which reads as a
+   rendering fault rather than as a chart arriving. */
+@keyframes grows-up {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.grows-up {
+  transform-origin: bottom;
+  animation: grows-up 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--grow-delay, 0ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .settling .settles { opacity: 1; }
   .settling .settles.is-in { animation: none; }
@@ -975,4 +989,5 @@ span.flatpickr-weekday,
   .rings-up { opacity: 1; animation: none; }
   .calls-you-over::after { animation: none; opacity: 0; }
   .shine-crosses { animation: none; opacity: 0; }
+  .grows-up { animation: none; transform: none; }
 }
