@@ -10,6 +10,8 @@ import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import Input from "../../../components/form/input/InputField";
+import { Waiting } from "../components/Waiting";
+import { howLong } from "../components/waitingTime";
 
 /**
  * Demos asking to become businesses.
@@ -35,36 +37,6 @@ type ShopRequest = {
   decline_reason: string | null;
   tenant?: { id: string; business_name: string; business_type: string; slug: string } | null;
 };
-
-const daysWaiting = (iso: string) =>
-  Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
-
-/**
- * The whole phrase, built in one place.
- *
- * Assembled inline first — `{days || "less than a"} day{days === 1 ? "" : "s"}`
- * — which reads "less than a days" on the only day most requests are ever
- * looked at. Three fragments deciding one sentence between them is how that
- * happens; one function returning the sentence is how it stops.
- */
-const howLong = (iso: string): string => {
-  const days = daysWaiting(iso);
-  if (days < 1) return "less than a day";
-
-  return `${days} day${days === 1 ? "" : "s"}`;
-};
-
-/** "3 days" — and it is deliberately blunt once it is more than a couple. */
-function Waiting({ since }: { since: string }) {
-  const days = daysWaiting(since);
-  if (days < 1) return <span className="text-gray-500 dark:text-gray-400">today</span>;
-
-  return (
-    <span className={days >= 3 ? "font-semibold text-error-600 dark:text-error-400" : "text-gray-500 dark:text-gray-400"}>
-      waiting {howLong(since)}
-    </span>
-  );
-}
 
 export default function AdminShopRequestsPage() {
   const toast = useToast();

@@ -352,7 +352,11 @@ function filterByPermission(items: NavItem[], can: (permission: string) => boole
 const adminMainItems: NavItem[] = [
   { icon: <GridIcon />, name: "Dashboard", path: "/admin" },
   { icon: <GroupIcon />, name: "Tenants", path: "/admin/tenants" },
-  { icon: <GroupIcon />, name: "Shop requests", path: "/admin/shop-requests" },
+  // NOT GroupIcon. It was the same glyph as Tenants directly above it, which
+  // is the collision this rail has already been swept for once: two rows
+  // wearing one icon is a rail you have to read word by word.
+  { icon: <TaskIcon />, name: "Shop requests", path: "/admin/shop-requests" },
+  { icon: <PaperPlaneIcon />, name: "Enquiries", path: "/admin/enquiries" },
   { icon: <ListIcon />, name: "Plans", path: "/admin/plans" },
   { icon: <DollarLineIcon />, name: "Billing & Payments", path: "/admin/payments" },
 ];

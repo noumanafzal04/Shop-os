@@ -29,6 +29,7 @@ const RidersPage = lazy(() => import("./modules/orders/pages/RidersPage"));
 const AdminDashboard = lazy(() => import("./pages/Dashboard/AdminDashboard"));
 const AdminTenantsPage = lazy(() => import("./modules/admin/pages/AdminTenantsPage"));
 const AdminShopRequestsPage = lazy(() => import("./modules/admin/pages/AdminShopRequestsPage"));
+const AdminEnquiriesPage = lazy(() => import("./modules/admin/pages/AdminEnquiriesPage"));
 const AdminTenantCreatePage = lazy(() => import("./modules/admin/pages/AdminTenantCreatePage"));
 const AdminTenantDetailPage = lazy(() => import("./modules/admin/pages/AdminTenantDetailPage"));
 const AdminPaymentsPage = lazy(() => import("./modules/admin/pages/AdminPaymentsPage"));
@@ -150,6 +151,9 @@ export default function App() {
                 </Route>
                 <Route element={<RequireAdminScreen path="/admin/shop-requests" />}>
                   <Route path="shop-requests" element={<AdminShopRequestsPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/enquiries" />}>
+                  <Route path="enquiries" element={<AdminEnquiriesPage />} />
                 </Route>
                 <Route element={<RequireAdminScreen path="/admin/tenants/new" />}>
                   <Route path="tenants/new" element={<AdminTenantCreatePage />} />
