@@ -26,18 +26,23 @@ const RESTAURANT_ONLY = /food\..*\.spec\.ts|recipe-size\.spec\.ts/;
 // walked by a project signed in as a shop that HAS that trade — asking the mart
 // would be refused and skip, and a guaranteed skip is a check deleted quietly.
 const TRADE_ONLY = /trade\.chrome\.spec\.ts/;
-const TRADES = ["petroleum", "pharmacy", "automotive", "retail", "services"];
+const TRADES = ["petroleum", "pharmacy", "automotive", "retail", "services", "finance"];
 
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
-  // Beside whichever reporter is reading the run, one that names the checks
-  // which did NOT run. "30 skipped" hides a spec that skips itself out of
-  // existence — see e2e/skipReporter.ts.
+  // Beside whichever reporter is reading the run, two that describe the run
+  // itself rather than its assertions:
+  //
+  //   skipReporter  — names the checks which did NOT run. "30 skipped" hides a
+  //                   spec that skips itself out of existence.
+  //   clockReporter — names the two ways a run can report failures that are not
+  //                   about the product at all: the machine slept mid-run, or
+  //                   the run took longer than its login is valid for.
   reporter: process.env.CI
-    ? [["line"], ["./e2e/skipReporter.ts"]]
-    : [["list"], ["./e2e/skipReporter.ts"]],
+    ? [["line"], ["./e2e/skipReporter.ts"], ["./e2e/clockReporter.ts"]]
+    : [["list"], ["./e2e/skipReporter.ts"], ["./e2e/clockReporter.ts"]],
   // A whole minute of it can be waiting out `throttle:auth` while the QA sweep
   // is running against the same API. See e2e/auth.setup.ts.
   timeout: 300_000,

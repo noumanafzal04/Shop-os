@@ -27,7 +27,18 @@ export default mergeConfig(
       environment: "jsdom",
       globals: true,
       setupFiles: ["./src/test/setup.ts"],
-      include: ["src/**/*.{test,spec}.{ts,tsx}"],
+      // `e2e/*.guard.ts` too: a couple of guards read the browser specs as
+      // FILES — "is every screen walked by something" — and belong beside what
+      // they read rather than in `src`, which is compiled for a browser and has
+      // no `node:fs`.
+      //
+      // `.guard.ts`, NOT `.test.ts`: Playwright's testDir is `e2e` and its
+      // default match takes any `.test.ts`, so a file importing `vitest` took
+      // the entire browser run down before a single browser opened — collection
+      // dies while enumerating. A project-level `testIgnore` does not save it
+      // either, because a project that sets its own replaces the top-level one.
+      // A name Playwright never looks at cannot be swept up by one.
+      include: ["src/**/*.{test,spec}.{ts,tsx}", "e2e/**/*.guard.ts"],
       css: false,
       restoreMocks: true,
     },

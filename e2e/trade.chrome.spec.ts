@@ -38,6 +38,9 @@ const BY_TRADE: Record<string, Array<{ path: string; name: string }>> = {
   services: [
     { path: "/tenant/reservations", name: "reservations" },
   ],
+  finance: [
+    { path: "/tenant/portfolio", name: "the portfolio" },
+  ],
 };
 
 for (const [trade, screens] of Object.entries(BY_TRADE)) {

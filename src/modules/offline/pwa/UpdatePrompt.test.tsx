@@ -63,13 +63,20 @@ describe("when a new version is waiting", () => {
     expect(updateServiceWorker).not.toHaveBeenCalled();
   });
 
-  it("says when to do it, and that nothing is at risk either way", async () => {
+  it("says what pressing it DOES, and when not to", async () => {
     render(<UpdatePrompt />);
     const text = screen.getByRole("status").textContent ?? "";
 
-    // A cashier needs to know it can wait, and that waiting costs nothing.
-    expect(text).toMatch(/between customers/i);
-    expect(text).toMatch(/nothing is lost/i);
+    // The card used to say "install it between customers — nothing is lost
+    // either way", which told a cashier neither what would happen nor what was
+    // at stake: lost WHAT, and which two ways? The one fact worth the space is
+    // that pressing it RELOADS the till, because that is the thing you must
+    // not do with a customer waiting.
+    //
+    // Pinned as two facts rather than a sentence, so the wording can be
+    // improved without a test standing in the way of it.
+    expect(text, "does not say the till reloads").toMatch(/reloads?/i);
+    expect(text, "does not say when to do it").toMatch(/finish the sale/i);
   });
 
   it("updates only when somebody chooses to", async () => {

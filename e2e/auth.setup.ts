@@ -37,6 +37,7 @@ const TRADES: Array<{ key: string; owner: string }> = [
   { key: "automotive", owner: "sweep-automotive@qa.test" },
   { key: "retail", owner: "sweep-retail@qa.test" },
   { key: "services", owner: "sweep-services@qa.test" },
+  { key: "finance", owner: "sweep-finance@qa.test" },
 ];
 
 /**

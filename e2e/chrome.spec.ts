@@ -69,6 +69,8 @@ const SCREENS: Array<{ path: string; name: string }> = [
   { path: "/tenant/activity", name: "activity" },
   { path: "/tenant/security", name: "security" },
   { path: "/tenant/subscription", name: "subscription" },
+  { path: "/tenant/bank-offers", name: "bank offers" },
+  { path: "/tenant/riders", name: "riders" },
 ];
 
 for (const screen of SCREENS) {
