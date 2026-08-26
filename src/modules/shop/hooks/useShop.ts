@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { applyTenantTheme } from "../../../common/theme/tenantTheme";
 import { useAuthStore } from "../../../stores/authStore";
 import { shopService, type SetupPayload, type ShopSettings } from "../services/shopService";
+import { formatMoney } from "../../../common/format/money";
 
 export function useShopSettings() {
   // /shop/settings is owner/staff-only — don't fire it for admins or customers
@@ -46,7 +47,7 @@ export function useMoney() {
   const settings = useShopSettings();
   const symbol = settings.data?.currency_symbol ?? "Rs";
 
-  return (n: string | number) => `${symbol} ${Number(n).toLocaleString()}`;
+  return (n: string | number) => formatMoney(symbol, n);
 }
 
 export function useUpdateShopSettings() {

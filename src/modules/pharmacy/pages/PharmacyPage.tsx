@@ -8,8 +8,9 @@ import Badge from "../../../components/ui/badge/Badge";
 import Alert from "../../../components/ui/alert/Alert";
 import { useDispensingRegister, useRecall } from "../hooks/usePharmacy";
 import type { DispensingRow } from "../services/pharmacyService";
+import { toIsoDate } from "../../../components/ui/filters";
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = (d: Date) => toIsoDate(d);
 
 const TABS = [
   ["register", "Dispensing register"],

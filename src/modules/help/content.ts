@@ -790,7 +790,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: ["expense", "bill", "spend", "rent", "salary", "budget", "recurring", "receipt"],
     body: [
       { type: "h", text: "Filing a bill" },
-      { type: "p", text: "Expenses → + Add expense. Date, category, amount, how it was paid, and who it was paid to." },
+      { type: "p", text: "Expenses → Add expense. Date, category, amount, how it was paid, and who it was paid to." },
       {
         type: "list",
         items: [
@@ -799,17 +799,31 @@ export const HELP_ARTICLES: HelpArticle[] = [
           "Attach a photo of the bill. It is private, and is only ever served to someone who could already read the row.",
         ],
       },
+      { type: "h", text: "The three figures above the list" },
+      { type: "p", text: "They describe WHAT YOU HAVE FILTERED TO, not the whole book — narrow to \u201crent, this quarter\u201d and all three answer for that." },
+      {
+        type: "table",
+        head: ["Figure", "What it counts"],
+        rows: [
+          ["Total out", "What the filtered rows add up to. The caption under it names the period it covers."],
+          ["Entries", "How many rows that is — the same number the pager at the bottom shows."],
+          ["Average", "Total \u00f7 entries. Worth a glance: a shop that averages Rs 3,000 a bill and suddenly averages Rs 30,000 has a stray zero somewhere in the month."],
+        ],
+      },
+      { type: "p", text: "Click Date or Amount in the header to sort by it, and again to reverse — that is how you find the biggest bill of a quarter without reading four pages." },
       { type: "h", text: "Recurring, budgets and categories" },
       { type: "p", text: "Three more tabs on the same screen:" },
       {
         type: "table",
         head: ["Tab", "What it does"],
         rows: [
-          ["Recurring", "Rent, salaries, the internet bill — and on the income side, the flat upstairs or a let shutter. A template falls DUE and you post it; nothing files itself on a schedule. A posted row is marked so you can tell it from one you typed."],
-          ["Budgets", "A ceiling per category per month, warning you when you go past it."],
+          ["Recurring", "Rent, salaries, the internet bill — and on the income side, the flat upstairs or a let shutter. A template falls DUE and you post it; nothing files itself on a schedule. A posted row is marked so you can tell it from one you typed. The Status column pauses one that has outlived its bill without deleting the schedule."],
+          ["Budgets", "A ceiling per category per month, warning you when you go past it. A category with no ceiling reads \u201cNot watched\u201d — nothing is wrong with it, nobody is watching it."],
           ["Categories", "Your own vocabulary, seeded from your business type."],
         ],
       },
+      { type: "h", text: "Every month, or one month" },
+      { type: "p", text: "A ceiling can be the standing one — the same figure every month — or a figure for one month alone, which is how you budget the month a licence renews. The small line under the box says which of the two you are editing; press it to switch. Move the month with the arrows and the whole tab answers for that month." },
       { type: "h", text: "Picking a period" },
       { type: "p", text: "The date shortcuts above the list include Tax year — 1 July to 30 June, the twelve months your return is filed against. This year, next to it, is the calendar year. Both are kept because they answer different questions; use Tax year for anything that goes to FBR or an auditor." },
     ],
@@ -824,7 +838,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/income",
     keywords: ["income", "rent received", "investment", "other income"],
     body: [
-      { type: "p", text: "Rent received, owner investment, a refund from a supplier — anything that brought money in without being a sale." },
+      { type: "p", text: "Rent received, owner investment, a refund from a supplier — anything that brought money in without being a sale. Income \u2192 Add income." },
+      { type: "p", text: "The list works exactly like Expenses: the same filter bar, the same three figures above it, and the same sortable Date and Amount headers. Learn one and you have learnt both." },
       {
         type: "warn",
         text: "Do not enter sales here. They are already counted from the sales themselves, and typing them again doubles your month.",

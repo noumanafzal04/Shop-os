@@ -22,14 +22,15 @@ import { CategoryManager } from "../../expenses/components/CategoryManager";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { RecurringIncomeTab } from "../components/RecurringIncomeTab";
 import { MoneyFilterBar } from "../../expenses/components/MoneyFilterBar";
+import { MoneySummary } from "../../expenses/components/MoneySummary";
+import { MoneyEntryTable, type MoneyEntryView } from "../../expenses/components/MoneyEntryTable";
 import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../../expenses/services/moneyFilters";
 import { downloadFile, openAuthedFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
-import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
-import Pager from "../../../components/ui/pager";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
+import { toIsoDate } from "../../../components/ui/filters";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => toIsoDate(new Date());
 
 const TABS = [
   { key: "entries", label: "Income" },
@@ -38,6 +39,17 @@ const TABS = [
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
+
+/**
+ * What each tab is for — the mirror of the expense side, which carried one
+ * sentence over all of its tabs and so described the wrong screen on three of
+ * them.
+ */
+const BLURB: Record<TabKey, string> = {
+  entries: "Money in that isn't a sale — rent received, an owner putting money in, a refund from a supplier. Your sales revenue is counted automatically in the Cashbook.",
+  recurring: "Money that arrives on a schedule, like a monthly sublet. Nothing posts on its own; you confirm the real figure.",
+  categories: "Where money in that isn't a sale gets filed. Yours to change — one with entries under it is turned off rather than deleted.",
+};
 
 /**
  * How money arrived. No `credit` — a promise to pay is not money in.
@@ -96,6 +108,34 @@ export default function IncomePage() {
 
   const rows = incomes.data?.data ?? [];
   const pagination = incomes.data?.meta.pagination;
+
+  // The server sorts (MoneyEntryFilters::sort) and the headers now ask, the
+  // same way the expense side does. One list learning a trick the other one
+  // does not is how the two halves of a books module drift apart.
+  const sort = filters.sort ?? "date";
+  const dir = filters.dir ?? "desc";
+  const sortBy = (key: MoneyFilters["sort"]) =>
+    setFilters((f) => ({
+      ...f,
+      sort: key,
+      dir: (f.sort ?? "date") === key && (f.dir ?? "desc") === "desc" ? "asc" : "desc",
+      page: 1,
+    }));
+
+  const byId = (id: string): Income | undefined => rows.find((row) => row.id === id);
+
+  const asEntry = (income: Income): MoneyEntryView => ({
+    id: income.id,
+    date: income.income_date,
+    title: income.description,
+    category: income.category?.name ?? null,
+    branch: branchCol.label(income.branch_id),
+    method: income.payment_method ?? "cash",
+    toTill: !!income.cash_movement_id,
+    amount: income.amount,
+    attachmentUrl: income.attachment_url,
+    meta: income.reference ? <span>{income.reference}</span> : undefined,
+  });
 
   const active = editing ? update : create;
   const apiError = active.error instanceof ApiError ? active.error : null;
@@ -194,17 +234,9 @@ export default function IncomePage() {
         onChange={(e) => { onFilePicked(e.target.files?.[0]); e.currentTarget.value = ""; }}
       />
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Income</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Money in that isn't a sale — rent received, owner investment, refunds from suppliers.
-            Your sales revenue is tracked automatically in the Cashbook.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={openAdd}>+ Add Income</Button>
-        </div>
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Income</h2>
+        <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">{BLURB[tab]}</p>
       </div>
 
       {/* The same three tabs the Expenses page has, in the same order.
@@ -241,6 +273,15 @@ export default function IncomePage() {
         />
       ) : tab === "entries" ? (
       <>
+      <MoneySummary
+        totals={totals}
+        money={money}
+        direction="in"
+        range={{ from: filters.from || null, to: filters.to || null }}
+        filtered={activeFilterCount(filters) > 0}
+        loading={incomes.isLoading}
+      />
+
       <MoneyFilterBar
         filters={filters}
         onChange={setFilters}
@@ -256,120 +297,55 @@ export default function IncomePage() {
           { value: "created", label: "Recently added" },
         ]}
         action={
-          <button
-            type="button"
-            onClick={() => downloadFile("/incomes/export", toParams(query), "income.csv")}
-            className="rounded-lg border border-gray-300 px-3 py-2.5 text-theme-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
-          >
-            Export
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => downloadFile("/incomes/export", toParams(query), "income.csv")}
+              className="rounded-lg border border-gray-300 px-3 py-2.5 text-theme-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+            >
+              Export
+            </button>
+            <Button size="sm" onClick={openAdd}>Add income</Button>
+          </div>
         }
       />
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                <th className="px-6 py-3 font-medium">Date</th>
-                <th className="px-6 py-3 font-medium">Description</th>
-                <th className="px-6 py-3 font-medium">Category</th>
-                {branchCol.show && <th className="px-6 py-3 font-medium">Branch</th>}
-                <th className="px-6 py-3 font-medium">Received</th>
-                <th className="px-6 py-3 font-medium text-right">Amount</th>
-                <th className="px-6 py-3 font-medium text-right">Receipt</th>
-                <th className="px-6 py-3 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {incomes.isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={branchCol.show ? 8 : 7} className="px-6 py-4">
-                      <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
-                    </td>
-                  </tr>
-                ))
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={branchCol.show ? 8 : 7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                    {activeFilterCount(filters) > 0 ? "No income matches these filters." : "No income recorded yet."}
-                  </td>
-                </tr>
-              ) : (
-                rows.map((e) => (
-                  <tr key={e.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
-                    <td className="px-6 py-4">{e.income_date.slice(0, 10)}</td>
-                    <td className="px-6 py-4 font-medium text-gray-800 dark:text-white/90">{e.description}</td>
-                    <td className="px-6 py-4">{e.category?.name ?? "—"}</td>
-                    {branchCol.show && (
-                      <td className="px-6 py-4 text-theme-xs">{branchCol.label(e.branch_id)}</td>
-                    )}
-                    <td className="px-6 py-4">
-                      <span className="text-theme-xs capitalize text-gray-500">
-                        {(e.payment_method ?? "cash").replace("_", " ")}
-                      </span>
-                      {/* This income really did land in a drawer, and the
-                          shift knows about it — the mirror of the expense
-                          side's till badge. */}
-                      {e.cash_movement_id && (
-                        <span className="ml-1.5 rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
-                          till
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right text-success-600 dark:text-success-500">{money(e.amount)}</td>
-                    <td className="px-6 py-4 text-right">
-                      {e.attachment_url ? (
-                        <span className="inline-flex items-center gap-2">
-                          {/* See ExpensesPage — the receipt is behind the API
-                              now, so it is fetched with the token. */}
-                          <button
-                            type="button"
-                            className={ROW_ACTION}
-                            onClick={() => void openAuthedFile(e.attachment_url!)}
-                          >
-                            View
-                          </button>
-                          <button
-                            className={ROW_ACTION_DANGER}
-                            aria-label={`Remove the receipt on ${e.description}`}
-                            onClick={() => detach.mutate(e.id)}
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          className={ROW_ACTION}
-                          aria-label={`Attach a receipt to ${e.description}`}
-                          onClick={() => { setAttachTo(e.id); fileRef.current?.click(); }}
-                        >
-                          Attach
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-3">
-                        <button className={ROW_ACTION} onClick={() => openEdit(e)}>Edit</button>
-                        <button className={ROW_ACTION_DANGER} onClick={() => confirmDelete(e)}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <Pager pagination={pagination} onPage={setPage} noun="entries" />
-      </div>
+      <MoneyEntryTable
+        rows={rows.map(asEntry)}
+        loading={incomes.isLoading}
+        money={money}
+        direction="in"
+        showBranch={branchCol.show}
+        pagination={pagination}
+        onPage={setPage}
+        noun="entries"
+        sort={{ key: sort, dir, onSort: sortBy }}
+        empty={
+          activeFilterCount(filters) > 0
+            ? {
+                filtered: true,
+                title: "Nothing matches these filters",
+                hint: "Widen the date range, or clear a filter above to see the rest of the book.",
+              }
+            : {
+                filtered: false,
+                title: "No income recorded yet",
+                hint: "Money in that isn't a sale — rent received, an owner putting money in, a refund from a supplier.",
+                action: <Button size="sm" onClick={openAdd}>Add income</Button>,
+              }
+        }
+        onEdit={(id) => { const row = byId(id); if (row) openEdit(row); }}
+        onDelete={(id) => { const row = byId(id); if (row) void confirmDelete(row); }}
+        onAttach={(id) => { setAttachTo(id); fileRef.current?.click(); }}
+        onView={(url) => void openAuthedFile(url)}
+        onDetach={(id) => detach.mutate(id)}
+      />
       </>
       ) : null}
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          {editing ? "Edit Income" : "Add Income"}
+          {editing ? "Edit income" : "Add income"}
         </h3>
 
         <div className="space-y-4">

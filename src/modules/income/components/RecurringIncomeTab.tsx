@@ -11,8 +11,9 @@ import { useToast } from "../../../components/ui/toast";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { useIncomeCategories, useRecurringIncomeMutations, useRecurringIncomes } from "../hooks/useIncome";
 import type { RecurringIncome } from "../services/incomeService";
+import { toIsoDate } from "../../../components/ui/filters";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => toIsoDate(new Date());
 
 const FREQUENCIES = [
   { value: "weekly", label: "Weekly" },

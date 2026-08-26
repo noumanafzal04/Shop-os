@@ -10,6 +10,7 @@ import { ApiError } from "../../../common/types/api";
 import { useAdminCities, useModuleCatalog, usePlans, useTenantMutations } from "../hooks/useAdmin";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import type { ModuleInfo } from "../services/adminService";
+import { toIsoDate } from "../../../components/ui/filters";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
@@ -407,7 +408,7 @@ export default function AdminTenantCreatePage() {
                   <Input
                     type="date"
                     value={form.payment_paid_at}
-                    max={new Date().toISOString().slice(0, 10)}
+                    max={toIsoDate(new Date())}
                     onChange={(e) => set("payment_paid_at", e.target.value)}
                   />
                   {errorFor("payment.paid_at") && (

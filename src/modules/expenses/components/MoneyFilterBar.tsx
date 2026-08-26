@@ -31,6 +31,11 @@ interface Props {
   onChange: (next: MoneyFilters) => void;
   categories: Option[];
   methods: Option[];
+  /**
+   * Only for the drawer's own footer: "Show 178 entries" is what tells you
+   * what a filter will DO before you commit to it. The figure itself belongs
+   * to MoneySummary above the bar — same source, so the two cannot disagree.
+   */
   totals?: MoneyTotals;
   money: (n: number | string) => string;
   /** Rendered on the right of the bar — the export button, usually. */
@@ -71,10 +76,13 @@ interface Props {
  * hundred and fifty, and their filter bar was a wall. They are a type-ahead
  * multi-select now, which is the same control at eight and at three hundred.
  *
- * The totals stay where they were: in the bar, above the rows. A merchant
- * filtering to "rent, this quarter" is asking a question whose answer is the
- * total, and burying it under fifteen rows makes them scroll to find out what
- * they asked.
+ * THE TOTALS ARE NOT IN HERE ANY MORE. They used to be, as two lines of grey
+ * caption under the search box, and that was still burying the answer to the
+ * question the filter had just asked. They are a card of their own above this
+ * bar now — see MoneySummary — which is the same argument carried one step
+ * further, not a reversal of it. The ledger never passed them and still
+ * doesn't: it carries a running balance, and a "total" over a running balance
+ * is not a number.
  */
 export function MoneyFilterBar({
   filters,
@@ -199,20 +207,6 @@ export function MoneyFilterBar({
 
           {action}
         </div>
-
-        {/* What the filtered set comes to — the answer to the question the
-            filter just asked. Always visible, filtered or not. */}
-        {totals && (
-          <div className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-              {totals.count} {totals.count === 1 ? "entry" : "entries"}
-              {active > 0 ? " matching" : ""}
-            </p>
-            <p className="text-theme-sm font-semibold tabular-nums text-gray-800 dark:text-white/90">
-              {money(totals.total)}
-            </p>
-          </div>
-        )}
 
         {/* Applied, and removable one at a time. The single most important
             part of this bar: a filter you cannot see is a filter you cannot

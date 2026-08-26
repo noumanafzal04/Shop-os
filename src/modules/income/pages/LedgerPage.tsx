@@ -16,6 +16,7 @@ import {
 import { useMoney } from "../../shop/hooks/useShop";
 import { useIncomeCategories, useLedger } from "../hooks/useIncome";
 import { LEDGER_TYPES, type LedgerFilters, type LedgerType } from "../services/ledgerService";
+import { formatEntryDate } from "../../../components/ui/filters";
 
 const TYPE_FILTERS: Array<{ value: LedgerType; label: string }> = [
   { value: "sale", label: "Sales" },
@@ -232,7 +233,7 @@ export default function LedgerPage() {
               ) : (
                 rows.map((row) => (
                   <tr key={`${row.type}-${row.id}`} className="text-theme-sm text-gray-700 dark:text-gray-300">
-                    <td className="whitespace-nowrap px-5 py-3 tabular-nums">{row.date}</td>
+                    <td className="whitespace-nowrap px-5 py-3 tabular-nums">{formatEntryDate(row.date)}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <Badge size="sm" color={badgeColor(row.type)}>{LEDGER_TYPES[row.type].label}</Badge>

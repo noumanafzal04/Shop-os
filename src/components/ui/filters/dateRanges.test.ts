@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatEntryDate,
   formatRange,
   fromIsoDate,
   matchPreset,
@@ -156,5 +157,37 @@ describe("monthGrid", () => {
     const grid = monthGrid(2028, 1);
 
     expect(grid.filter((cell) => cell.inMonth)).toHaveLength(29);
+  });
+});
+
+describe("formatEntryDate", () => {
+  it("names the two days a merchant is actually looking for", () => {
+    expect(formatEntryDate("2026-08-26", { today: TODAY })).toBe("Today");
+    expect(formatEntryDate("2026-08-25", { today: TODAY })).toBe("Yesterday");
+  });
+
+  it("drops the year when it is the one we are standing in", () => {
+    expect(formatEntryDate("2026-08-24", { today: TODAY })).toBe("24 Aug");
+  });
+
+  it("keeps the year when it is not", () => {
+    expect(formatEntryDate("2025-12-31", { today: TODAY })).toBe("31 Dec 2025");
+  });
+
+  it("reads a timestamp as the day it names, not the day before", () => {
+    // The Karachi trap: `new Date("2026-08-26T00:00:00.000000Z")` in +5 is
+    // still the 26th, but `new Date("2026-08-26")` parsed as UTC and then
+    // read back through toISOString() in a negative offset is the 25th.
+    // fromIsoDate never touches either, so the string decides.
+    expect(formatEntryDate("2026-08-24T19:30:00.000000Z", { today: TODAY })).toBe("24 Aug");
+  });
+
+  it("can be asked for the date and nothing else", () => {
+    // A column sorted by amount has no use for "Today" among the numbers.
+    expect(formatEntryDate("2026-08-26", { today: TODAY, relative: false })).toBe("26 Aug");
+  });
+
+  it("says nothing rather than NaN when there is no date", () => {
+    expect(formatEntryDate("", { today: TODAY })).toBe("—");
   });
 });

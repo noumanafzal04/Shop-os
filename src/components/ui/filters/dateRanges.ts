@@ -177,6 +177,44 @@ export function formatDay(iso: string): string {
 }
 
 /**
+ * The date on a row of a list.
+ *
+ * Every money screen in the product printed `2026-08-24` — the wire format,
+ * straight out of the JSON, fifteen times down a page. It is the one thing on
+ * a books screen nobody can take in at a glance: the month is a number, the
+ * year is repeated on every line whether or not it has changed, and the two
+ * dates a merchant actually cares about — today and yesterday — look exactly
+ * like the fortnight above them.
+ *
+ *   today              → "Today"
+ *   yesterday          → "Yesterday"
+ *   this year          → "24 Aug"
+ *   any other year     → "24 Aug 2025"
+ *
+ * `relative: false` drops Today/Yesterday, for a column that is sorted by
+ * something other than date and where a word among the numbers reads as noise.
+ */
+export function formatEntryDate(
+  iso: string,
+  { today = new Date(), relative = true }: { today?: Date; relative?: boolean } = {},
+): string {
+  if (!iso) return "—";
+  const day = iso.slice(0, 10);
+  const date = fromIsoDate(day);
+
+  if (Number.isNaN(date.getTime())) return iso;
+
+  if (relative) {
+    if (day === toIsoDate(today)) return "Today";
+    if (day === toIsoDate(shift(today, -1))) return "Yesterday";
+  }
+
+  const year = date.getFullYear() === today.getFullYear() ? "" : ` ${date.getFullYear()}`;
+
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}${year}`;
+}
+
+/**
  * A range in as few characters as it can honestly be written.
  *
  *   one day            → "26 Aug"

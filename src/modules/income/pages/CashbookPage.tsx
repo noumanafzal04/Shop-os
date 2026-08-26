@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import { useCashbook } from "../hooks/useIncome";
+import { formatEntryDate } from "../../../components/ui/filters";
 
 const PERIODS = [
   { value: "daily", label: "Today" },
@@ -46,8 +47,10 @@ export default function CashbookPage() {
           {PERIODS.map((p) => (
             <button
               key={p.value}
+              type="button"
+              aria-pressed={period === p.value}
               onClick={() => setPeriod(p.value)}
-              className={`rounded-md px-3 py-1.5 text-theme-sm font-medium transition-colors ${
+              className={`min-h-9 rounded-md px-3 py-1.5 text-theme-sm font-medium transition-colors ${
                 period === p.value
                   ? "bg-brand-500 text-white"
                   : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -114,7 +117,7 @@ export default function CashbookPage() {
                           to={`/tenant/ledger?date=${d.date}`}
                           className="text-brand-600 hover:underline dark:text-brand-400"
                         >
-                          {d.date}
+                          {formatEntryDate(d.date)}
                         </Link>
                       </td>
                       <td className="px-6 py-4 text-right">{d.sales_revenue ? money(d.sales_revenue) : "—"}</td>

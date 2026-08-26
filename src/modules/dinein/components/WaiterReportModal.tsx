@@ -5,6 +5,7 @@ import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import { useMoney } from "../../shop/hooks/useShop";
 import { dineInService } from "../services/dineInService";
+import { toIsoDate } from "../../../components/ui/filters";
 
 /**
  * How each section did.
@@ -21,7 +22,7 @@ import { dineInService } from "../services/dineInService";
  */
 export default function WaiterReportModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const money = useMoney();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toIsoDate(new Date());
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
 

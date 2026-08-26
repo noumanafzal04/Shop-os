@@ -16,6 +16,7 @@ import type { Plan } from "../services/adminService";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
 import type { Tenant } from "../../auth/types";
+import { toIsoDate } from "../../../components/ui/filters";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
@@ -975,7 +976,7 @@ export default function AdminTenantDetailPage() {
                   <Input
                     type="date"
                     value={paidAt}
-                    max={new Date().toISOString().slice(0, 10)}
+                    max={toIsoDate(new Date())}
                     onChange={(e) => setPaidAt(e.target.value)}
                   />
                 </div>

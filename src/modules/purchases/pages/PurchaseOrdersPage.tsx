@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import { uuid } from "../../../common/uuid";
 import PageMeta from "../../../components/common/PageMeta";
-import { FilterChips } from "../../../components/ui/filters";
+import { FilterChips, toIsoDate } from "../../../components/ui/filters";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Badge from "../../../components/ui/badge/Badge";
@@ -108,7 +108,7 @@ export default function PurchaseOrdersPage() {
 
   // Create form
   const [supplierId, setSupplierId] = useState("");
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
+  const [orderDate, setOrderDate] = useState(toIsoDate(new Date()));
   const [lines, setLines] = useState<Line[]>([]);
   const [prodSearch, setProdSearch] = useState("");
   const products = useProducts({ search: prodSearch || undefined });
@@ -117,7 +117,7 @@ export default function PurchaseOrdersPage() {
   const total = useMemo(() => lines.reduce((s, l) => s + l.quantity * l.unit_cost, 0), [lines]);
 
   const openCreate = () => {
-    setSupplierId(""); setOrderDate(new Date().toISOString().slice(0, 10)); setLines([]); setProdSearch("");
+    setSupplierId(""); setOrderDate(toIsoDate(new Date())); setLines([]); setProdSearch("");
     createModal.openModal();
   };
 
@@ -140,7 +140,7 @@ export default function PurchaseOrdersPage() {
     if (!handoff?.length) return;
 
     setSupplierId("");
-    setOrderDate(new Date().toISOString().slice(0, 10));
+    setOrderDate(toIsoDate(new Date()));
     setProdSearch("");
     setLines(handoff.map((p) => ({
       key: `l${++lk}`,
