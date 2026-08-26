@@ -88,12 +88,22 @@ class MoneyEntryFilters
      * what the whole book adds up to. A page of 15 rows out of 400 with a
      * grand total underneath is a number nobody can reconcile.
      *
+     * `toBase()`, NOT `getQuery()`.
+     *
+     * The two look interchangeable and are not: `getQuery()` hands back the
+     * underlying query builder as it stands, and Eloquent has not yet applied
+     * its global scopes — the tenant fence among them. The rows underneath
+     * were always scoped, because the paginator goes through `toBase()`; this
+     * figure was not. A shop with 178 bills read "1,096 entries ·
+     * Rs 4,678,156" over its own list: the headcount and the sum of every
+     * business on the platform.
+     *
      * @param  Builder<covariant \Illuminate\Database\Eloquent\Model>  $query
      * @return array{count: int, total: float}
      */
     public static function totals(Builder $query): array
     {
-        $scoped = (clone $query)->getQuery();
+        $scoped = (clone $query)->toBase();
         $scoped->orders = null;
 
         return [

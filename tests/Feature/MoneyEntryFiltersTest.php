@@ -222,4 +222,79 @@ class MoneyEntryFiltersTest extends TestCase
         $this->assertCount(2, $body['data']);
         $this->assertEquals(4900, $body['meta']['totals']['total']);
     }
+
+    /**
+     * THE TOTAL BELONGED TO EVERY SHOP AT ONCE.
+     *
+     * `totals()` cloned the query and then called `getQuery()`, which hands
+     * back the underlying query builder BEFORE Eloquent applies its global
+     * scopes. The rows on screen were tenant-scoped, because the paginator
+     * goes through `toBase()`; the figure above them was not. So a shop with
+     * 178 bills of its own read "1,096 entries · Rs 4,678,156" — a headcount
+     * and a sum of every business on the platform, printed on its own books.
+     *
+     * Two failures in one. The number is wrong, which a merchant reconciling
+     * a month will chase for an afternoon. And it is somebody else's number,
+     * which is the part that matters.
+     */
+    public function test_the_total_counts_this_shop_and_no_other(): void
+    {
+        $this->expense('2026-03-02', 4000, $this->rent);
+        $this->expense('2026-03-03', 900, $this->utilities);
+
+        // Another business, on the same platform, with far more on its books.
+        $other = Tenant::factory()->provisioned()->create();
+        $theirCategory = ExpenseCategory::withoutTenancy()->create([
+            'tenant_id' => $other->id, 'name' => 'Theirs',
+        ]);
+        foreach ([50000, 60000, 70000] as $amount) {
+            Expense::withoutTenancy()->create([
+                'tenant_id' => $other->id,
+                'expense_category_id' => $theirCategory->id,
+                'description' => 'Not ours',
+                'amount' => $amount,
+                'payment_method' => 'cash',
+                'expense_date' => '2026-03-02',
+            ]);
+        }
+
+        $body = $this->list();
+
+        $this->assertCount(2, $body['data'], 'the ROWS were always scoped — only the total was not');
+        $this->assertSame(2, $body['meta']['totals']['count']);
+        $this->assertEquals(4900, $body['meta']['totals']['total']);
+        // The two figures on the screen describe the same set of rows.
+        $this->assertSame(
+            $body['meta']['pagination']['total'],
+            $body['meta']['totals']['count'],
+            'the bar and the pager must be counting the same book',
+        );
+    }
+
+    public function test_income_totals_are_scoped_to_this_shop_too(): void
+    {
+        Income::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id,
+            'income_category_id' => $this->investment->id,
+            'description' => 'Ours', 'amount' => 1000,
+            'payment_method' => 'cash', 'income_date' => '2026-03-02',
+        ]);
+
+        $other = Tenant::factory()->provisioned()->create();
+        $theirs = IncomeCategory::withoutTenancy()->create([
+            'tenant_id' => $other->id, 'name' => 'Theirs',
+        ]);
+        Income::withoutTenancy()->create([
+            'tenant_id' => $other->id,
+            'income_category_id' => $theirs->id,
+            'description' => 'Not ours', 'amount' => 99000,
+            'payment_method' => 'cash', 'income_date' => '2026-03-02',
+        ]);
+
+        $body = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/incomes')->assertOk()->json();
+
+        $this->assertSame(1, $body['meta']['totals']['count']);
+        $this->assertEquals(1000, $body['meta']['totals']['total']);
+    }
 }
