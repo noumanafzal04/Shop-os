@@ -2,9 +2,9 @@ import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { useState } from "react";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
+import { FilterChips } from "../../../components/ui/filters";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
-import Select from "../../../components/form/Select";
 import Alert from "../../../components/ui/alert/Alert";
 import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
@@ -33,6 +33,17 @@ function nextStep(o: OwnerOrder): { label: string; status: OrderStatus } | null 
     default: return null;
   }
 }
+
+const ORDER_STATUSES = [
+  { value: "", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "preparing", label: "Preparing" },
+  { value: "ready", label: "Ready" },
+  { value: "out_for_delivery", label: "Out for delivery" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
 export default function OwnerOrdersPage() {
   const money = useMoney();
@@ -67,23 +78,18 @@ export default function OwnerOrdersPage() {
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={takeModal.openModal}>Take an order</Button>
         </div>
-        <div className="w-48">
-          <Select
-            aria-label="Which orders to show"
-            options={[
-              { value: "", label: "All statuses" },
-              { value: "pending", label: "Pending" },
-              { value: "confirmed", label: "Confirmed" },
-              { value: "preparing", label: "Preparing" },
-              { value: "out_for_delivery", label: "Out for delivery" },
-              { value: "ready", label: "Ready" },
-              { value: "completed", label: "Completed" },
-              { value: "cancelled", label: "Cancelled" },
-            ]}
-            placeholder="All statuses"
-            onChange={(v) => { setStatus(v); setPage(1); }}
-          />
-        </div>
+      </div>
+
+      {/* A queue, so the statuses are a TRACK rather than a dropdown: which
+          stage a shop is looking at is the whole of how this screen is used,
+          and it was folded away behind a select that showed one word. */}
+      <div className="mb-4">
+        <FilterChips
+          options={ORDER_STATUSES}
+          value={status}
+          ariaLabel="Which orders to show"
+          onChange={(value) => { setStatus(value); setPage(1); }}
+        />
       </div>
 
       {error && <div className="mb-4"><Alert variant="error" title="Blocked" message={error} /></div>}

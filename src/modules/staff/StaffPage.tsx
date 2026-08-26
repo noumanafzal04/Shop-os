@@ -3,6 +3,7 @@ import PageMeta from "../../components/common/PageMeta";
 import Button from "../../components/ui/button/Button";
 import Badge from "../../components/ui/badge/Badge";
 import Input from "../../components/form/input/InputField";
+import { FilterBar } from "../../components/ui/filters";
 import Label from "../../components/form/Label";
 import Alert from "../../components/ui/alert/Alert";
 import { Modal, ModalForm } from "../../components/ui/modal";
@@ -209,9 +210,15 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
         <Button size="sm" onClick={openCreate}>+ Add Staff</Button>
       </div>
 
-      <div className="mb-4 max-w-sm">
-        <Input placeholder="Search name, email, phone…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-      </div>
+      <FilterBar
+        search={{
+          value: search,
+          onChange: (value) => { setSearch(value); setPage(1); },
+          placeholder: "Search name, email, phone…",
+          label: "Search staff",
+        }}
+        results={{ count: pagination?.total, noun: "people", loading: list.isLoading }}
+      />
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">

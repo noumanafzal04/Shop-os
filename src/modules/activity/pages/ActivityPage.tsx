@@ -1,11 +1,16 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
+import {
+  DateRangeFilter,
+  FilterBar,
+  FilterSelect,
+  formatRange,
+  type AppliedFilter,
+} from "../../../components/ui/filters";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
 import Pager from "../../../components/ui/pager";
-import Select from "../../../components/form/Select";
-import Input from "../../../components/form/input/InputField";
 import { apiGet } from "../../../common/api/client";
 
 /**
@@ -138,6 +143,26 @@ function Changes({ log }: { log: AuditLog }) {
   );
 }
 
+/* Shop words. Somebody looking for who raised a limit is not looking for
+   "Customer" — they are looking for the limit. */
+const KINDS = [
+  { value: "Customer", label: "Credit limits" },
+  { value: "TaxGroup", label: "Tax rates" },
+  { value: "CustomerGroup", label: "Customer groups" },
+  { value: "Coupon", label: "Coupons" },
+  { value: "User", label: "Staff & permissions" },
+  { value: "Tenant", label: "Shop settings" },
+  { value: "Sale", label: "Sales" },
+  { value: "StockDisposal", label: "Stock written off" },
+  { value: "BankDeposit", label: "Banking" },
+];
+
+const EVENTS = [
+  { value: "created", label: "Added" },
+  { value: "updated", label: "Changed" },
+  { value: "deleted", label: "Removed" },
+];
+
 export default function ActivityPage() {
   const [event, setEvent] = useState("");
   const [type, setType] = useState("");
@@ -175,6 +200,35 @@ export default function ActivityPage() {
   const pagination = logs.data?.meta.pagination;
   const reset = (fn: (v: string) => void) => (v: string) => { fn(v); setPage(1); };
 
+  const applied: AppliedFilter[] = [
+    type && {
+      key: "type",
+      label: "",
+      value: KINDS.find((k) => k.value === type)?.label ?? type,
+      onRemove: () => reset(setType)(""),
+    },
+    event && {
+      key: "event",
+      label: "",
+      value: EVENTS.find((e) => e.value === event)?.label ?? event,
+      onRemove: () => reset(setEvent)(""),
+    },
+    (from || to) && {
+      key: "range",
+      label: "Changed",
+      value: formatRange({ from: from || null, to: to || null }),
+      onRemove: () => { setFrom(""); setTo(""); setPage(1); },
+    },
+  ].filter(Boolean) as AppliedFilter[];
+
+  const clearFilters = () => {
+    setType("");
+    setEvent("");
+    setFrom("");
+    setTo("");
+    setPage(1);
+  };
+
   return (
     <>
       <PageMeta title="Activity | CartZe" description="Who changed what in your shop" />
@@ -202,40 +256,36 @@ export default function ActivityPage() {
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Select
-          options={[
-            { value: "", label: "Everything" },
-            /* Shop words. Somebody looking for who raised a limit is not
-               looking for "Customer" — they are looking for the limit. */
-            { value: "Customer", label: "Credit limits" },
-            { value: "TaxGroup", label: "Tax rates" },
-            { value: "CustomerGroup", label: "Customer groups" },
-            { value: "Coupon", label: "Coupons" },
-            { value: "User", label: "Staff & permissions" },
-            { value: "Tenant", label: "Shop settings" },
-            { value: "Sale", label: "Sales" },
-            { value: "StockDisposal", label: "Stock written off" },
-            { value: "BankDeposit", label: "Banking" },
-          ]}
-          placeholder="Everything"
-          aria-label="What kind of change"
+      <FilterBar
+        applied={applied}
+        onClearAll={clearFilters}
+        results={{ count: pagination?.total, noun: "changes", loading: logs.isLoading }}
+      >
+        <FilterSelect
+          label="Everything"
+          value={type}
           onChange={reset(setType)}
+          options={KINDS}
         />
-        <Select
-          options={[
-            { value: "", label: "Added, changed & removed" },
-            { value: "created", label: "Added" },
-            { value: "updated", label: "Changed" },
-            { value: "deleted", label: "Removed" },
-          ]}
-          placeholder="Added, changed & removed"
-          aria-label="Added, changed or removed"
+        <FilterSelect
+          label="Added, changed & removed"
+          value={event}
           onChange={reset(setEvent)}
+          options={EVENTS}
         />
-        <Input type="date" aria-label="Changed on or after" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
-        <Input type="date" aria-label="Changed on or before" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
-      </div>
+        {/* One named range instead of two bare date boxes. "The week something
+            went wrong" is how somebody describes what they are looking for,
+            and it used to mean working out two dates and typing both. */}
+        <DateRangeFilter
+          label="Any time"
+          value={{ from: from || null, to: to || null }}
+          onChange={(range) => {
+            setFrom(range.from ?? "");
+            setTo(range.to ?? "");
+            setPage(1);
+          }}
+        />
+      </FilterBar>
 
       <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">

@@ -1,8 +1,9 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import SearchableSelect from "../../../components/form/SearchableSelect";
+import { DateRangeFilter, formatRange } from "../../../components/ui/filters";
 import {
   activeFilterCount,
   DATE_PRESETS,
@@ -89,18 +90,6 @@ export function MoneyFilterBar({
 }: Props) {
   const [open, setOpen] = useState(false);
   const active = activeFilterCount(filters);
-  // The two date boxes on the bar carry no visible caption — the arrow between
-  // them says what they are — so they get real labels a screen reader can read.
-  const fromId = useId();
-  const toId = useId();
-  // The drawer draws the SAME two fields again, and needs its own ids: two
-  // elements cannot share one. The desktop bar has always tied its labels with
-  // sr-only + htmlFor; the drawer had a VISIBLE label that was never associated
-  // with anything, so a sighted user read it and a screen reader met a nameless
-  // date box. Same two fields, one component, two paths — and only one of them
-  // answering, which is this codebase's oldest bug shape wearing a new hat.
-  const drawerFromId = useId();
-  const drawerToId = useId();
 
   const set = (patch: Partial<MoneyFilters>) => onChange({ ...filters, ...patch, page: 1 });
   const clearAll = () => onChange({ page: 1, sort: filters.sort, dir: filters.dir });
@@ -127,9 +116,10 @@ export function MoneyFilterBar({
   if (filters.from || filters.to) {
     chips.push({
       key: "dates",
-      label: filters.from && filters.to
-        ? (filters.from === filters.to ? filters.from : `${filters.from} → ${filters.to}`)
-        : filters.from ? `from ${filters.from}` : `up to ${filters.to}`,
+      // "1 – 26 Aug", not "2026-08-01 → 2026-08-26". The chip is read at a
+      // glance beside five others; a pair of ISO dates is the one thing on
+      // this bar nobody can take in without stopping.
+      label: formatRange({ from: filters.from || null, to: filters.to || null }),
       clear: () => set({ from: "", to: "" }),
     });
   }
@@ -175,29 +165,17 @@ export function MoneyFilterBar({
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <label htmlFor={fromId} className="sr-only">From date</label>
-            <div className="w-36">
-              <Input
-                id={fromId}
-                type="date"
-                value={filters.from ?? ""}
-                max={filters.to || undefined}
-                onChange={(e) => set({ from: e.target.value })}
-              />
-            </div>
-            <span aria-hidden className="text-theme-xs text-gray-400">→</span>
-            <label htmlFor={toId} className="sr-only">To date</label>
-            <div className="w-36">
-              <Input
-                id={toId}
-                type="date"
-                value={filters.to ?? ""}
-                min={filters.from || undefined}
-                onChange={(e) => set({ to: e.target.value })}
-              />
-            </div>
-          </div>
+          {/* One named range instead of two bare date boxes.
+              Somebody who wants last month had to know what month it is, how
+              many days it had, and type both ends without a typo — with the
+              presets that would have saved them folded away inside the drawer
+              beside this button. The control now carries both: the NAME they
+              think in, and the dates it resolves to. */}
+          <DateRangeFilter
+            label="Any date"
+            value={{ from: filters.from || null, to: filters.to || null }}
+            onChange={(range) => set({ from: range.from ?? "", to: range.to ?? "" })}
+          />
 
           <button
             type="button"
@@ -311,52 +289,38 @@ export function MoneyFilterBar({
         </header>
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
-          <div>
-            <Label>Period</Label>
-            <div className="flex flex-wrap gap-2">
-              {DATE_PRESETS.map(([key, label]) => {
-                const on = chosenPreset === key;
+          {/* The period is NOT repeated here. It used to be — preset pills and
+              two date boxes in the drawer, two more date boxes on the bar —
+              which is two controls for one question, and the drawer's copy was
+              the one whose visible label was tied to nothing. The bar's named
+              range now answers it in one place, and the shop's own tax year
+              stays among its presets. */}
+          {DATE_PRESETS.length > 0 && (
+            <div>
+              <Label>Period</Label>
+              <div className="flex flex-wrap gap-2">
+                {DATE_PRESETS.map(([key, label]) => {
+                  const on = chosenPreset === key;
 
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => set(presetRange(key))}
-                    className={`rounded-full border px-3 py-1.5 text-theme-xs font-medium transition-colors ${
-                      on
-                        ? "border-brand-500 bg-brand-500 text-white"
-                        : "border-gray-300 text-gray-600 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor={drawerFromId}>From</Label>
-                <Input
-                  id={drawerFromId}
-                  type="date"
-                  value={filters.from ?? ""}
-                  max={filters.to || undefined}
-                  onChange={(e) => set({ from: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor={drawerToId}>To</Label>
-                <Input
-                  id={drawerToId}
-                  type="date"
-                  value={filters.to ?? ""}
-                  min={filters.from || undefined}
-                  onChange={(e) => set({ to: e.target.value })}
-                />
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => set(presetRange(key))}
+                      className={`rounded-full border px-3 py-1.5 text-theme-xs font-medium transition-colors ${
+                        on
+                          ? "border-brand-500 bg-brand-500 text-white"
+                          : "border-gray-300 text-gray-600 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          </div>
+          )}
 
           {categories.length > 0 && (
             <div>

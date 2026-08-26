@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
+import { nextParams, type FilterValue } from "../../../common/hooks/useUrlFilters";
 import PageMeta from "../../../components/common/PageMeta";
 import Pager from "../../../components/ui/pager";
 import { FilterRail } from "../components/FilterRail";
@@ -71,13 +72,11 @@ export default function BrowsePage() {
    */
   const patch = useCallback(
     (next: Partial<AisleFilters>) => {
-      const merged = new URLSearchParams(params);
-      for (const [key, value] of Object.entries(next)) {
-        if (value === undefined || value === null || value === "" || value === false) merged.delete(key);
-        else merged.set(key, value === true ? "1" : String(value));
-      }
-      if (!("page" in next)) merged.delete("page");
-      setParams(merged, { replace: false });
+      // The rule — and its one exception for `page` — lives in nextParams.
+      // This screen had the only correct copy of it; the admin tenant list
+      // wrote a second one weeks later and left the exception out, so its
+      // pager did nothing. One implementation now, tested on its own.
+      setParams(nextParams(params, next as Record<string, FilterValue>), { replace: false });
     },
     [params, setParams],
   );

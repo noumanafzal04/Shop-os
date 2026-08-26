@@ -7,22 +7,40 @@ import {
 import {
   adminService,
   type BillingPeriodInput,
+  type PaymentFilters,
   type PlanInput,
   type SubscriptionPaymentInput,
+  type TenantFilters,
   type TenantInput,
 } from "../services/adminService";
-import type { PaymentStatus } from "../../auth/types";
 
-export function useAdminTenants(params: {
-  search?: string;
-  status?: string;
-  payment_status?: PaymentStatus | "";
-  page?: number;
-}) {
+export function useAdminTenants(params: TenantFilters) {
   return useQuery({
     queryKey: ["admin", "tenants", params],
     queryFn: () => adminService.tenants(params),
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * HOW MANY PEOPLE ARE WAITING, for the rail to badge.
+ *
+ * Polled on a slow timer rather than only on mount: an admin leaves this
+ * console open all day, and a queue whose count was fetched once at 9am is a
+ * badge that says nobody is waiting for the rest of it.
+ *
+ * `staleTime` is deliberately shorter than the interval, so a screen that
+ * answers a request also refreshes the number rather than showing the count
+ * from before it was answered.
+ */
+export function useAdminInbox(enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "inbox"],
+    queryFn: async () => (await adminService.inbox()).data,
+    enabled,
+    staleTime: 30 * 1000,
+    refetchInterval: 2 * 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -159,7 +177,7 @@ export function useBillingSummary() {
   });
 }
 
-export function usePayments(params: { tenant_id?: string; page?: number }) {
+export function usePayments(params: PaymentFilters) {
   return useQuery({
     queryKey: ["admin", "payments", params],
     queryFn: () => adminService.payments(params),

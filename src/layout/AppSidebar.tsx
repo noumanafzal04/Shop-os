@@ -35,6 +35,7 @@ import { useAuthStore } from "../stores/authStore";
 import { homeForRole } from "../common/routing/guards";
 import { canVisit } from "../common/routing/screenPermissions";
 import { canVisitAdmin } from "../common/routing/adminScreenPermissions";
+import { useAdminInbox } from "../modules/admin/hooks/useAdmin";
 import { tracksSerials, usePrimaryBusinessType } from "../common/tenant/businessType";
 import { boardWords, hasJobBoard } from "../modules/workshop/words";
 
@@ -45,6 +46,19 @@ export type NavItem = {
   icon: React.ReactNode;
   path?: string;
   subItems?: SubItem[];
+  /**
+   * HOW MANY PEOPLE ARE WAITING BEHIND THIS ITEM.
+   *
+   * Only ever a count of things a person is waiting on — never a total, never
+   * a "new since you last looked". Two queues on this platform hold a human
+   * being rather than a record, both sort oldest-first because a slow reply
+   * costs the customer nothing, and neither of them nags. So the number moves
+   * to where the admin already is.
+   *
+   * Zero and undefined both draw nothing. A badge showing "0" is a permanent
+   * mark on the rail that doing the job cannot clear.
+   */
+  badge?: number;
 };
 
 /**
@@ -374,13 +388,26 @@ const adminPlatformItems: NavItem[] = [
  * The admin rail this person is actually offered. The rule itself lives in
  * adminScreenPermissions — the dashboard's Quick Actions offer the same nine
  * screens, and two lists of one rule is how they drift apart.
+ *
+ * `waiting` badges the two queues that hold a person. It is applied AFTER the
+ * permission filter on purpose: a count belongs to a screen somebody can open,
+ * and the server withholds the number from anyone who cannot — see
+ * InboxController, which returns an absent key rather than a zero.
  */
 export function adminNav(
   items: NavItem[],
   isSuperAdmin: boolean,
   permissions: string[] | undefined,
+  waiting?: { shop_requests?: number; enquiries?: number },
 ): NavItem[] {
-  return items.filter((item) => !item.path || canVisitAdmin(item.path, isSuperAdmin, permissions));
+  const badges: Record<string, number | undefined> = {
+    "/admin/shop-requests": waiting?.shop_requests,
+    "/admin/enquiries": waiting?.enquiries,
+  };
+
+  return items
+    .filter((item) => !item.path || canVisitAdmin(item.path, isSuperAdmin, permissions))
+    .map((item) => (item.path && badges[item.path] ? { ...item, badge: badges[item.path] } : item));
 }
 
 /** Section roots would swallow every child route in a prefix match. */
@@ -414,8 +441,11 @@ const AppSidebar: React.FC = () => {
   // (max_branches null = unlimited → true; 1 → false).
   const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
   const isAdmin = role === "super_admin" || role === "admin_staff";
+  // Only asked for on the platform side, and only then — the shop rail has no
+  // use for it and an enabled:false query is how a hook stays a hook.
+  const inbox = useAdminInbox(isAdmin);
   const navItems = isAdmin
-    ? adminNav(adminMainItems, role === "super_admin", permissions)
+    ? adminNav(adminMainItems, role === "super_admin", permissions, inbox.data)
     : shopNav(features, businessType, mode, multiBranch, can);
   // Second group: platform config for admins; unused on the shop side.
   const othersItems: NavItem[] = isAdmin
@@ -581,15 +611,29 @@ const AppSidebar: React.FC = () => {
                   } ${showLabels ? "lg:justify-start" : "lg:justify-center"}`}
                 >
                   <span
-                    className={`menu-item-icon-size ${
+                    className={`menu-item-icon-size relative ${
                       isActive(nav.path)
                         ? "menu-item-icon-active"
                         : "menu-item-icon-inactive"
                     }`}
                   >
                     {nav.icon}
+                    {/* On a COLLAPSED rail the number has nowhere to sit, so
+                        the icon carries a dot. Losing the count is fine;
+                        losing the fact that somebody is waiting is not. */}
+                    {!showLabels && (nav.badge ?? 0) > 0 && (
+                      <span className="absolute -right-1 -top-0.5 size-2 rounded-full bg-brand-500 ring-2 ring-white dark:ring-gray-900" />
+                    )}
                   </span>
                   {showLabels && <span className="menu-item-text truncate">{nav.name}</span>}
+                  {showLabels && (nav.badge ?? 0) > 0 && (
+                    <span
+                      className="ml-auto grid min-w-5 shrink-0 place-items-center rounded-full bg-brand-500 px-1.5 text-[11px] font-bold tabular-nums text-white"
+                      aria-label={`${nav.badge} waiting`}
+                    >
+                      {(nav.badge ?? 0) > 99 ? "99+" : nav.badge}
+                    </span>
+                  )}
                 </Link>
               )
             )}

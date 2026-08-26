@@ -33,8 +33,18 @@ const LayoutContent: React.FC = () => {
           or wider the rail drew 290 while the page moved 90. The dashboard ran
           underneath the sidebar, and a tablet turned upright was how the shop
           met it. */}
+      {/* `min-w-0`, and it is load-bearing.
+          A flex child's default `min-width: auto` refuses to shrink below its
+          own content, so ONE wide table anywhere inside pushed the entire
+          shell — header included — past the right edge of the window. The page
+          then scrolled sideways with no scrollbar to say so, and the last
+          column of every table on it simply was not there.
+          It only ever showed at `xl` and up, because that is where this
+          container becomes a flex row at all; below it the same markup is a
+          block and behaves. So the widest screens were the broken ones, which
+          is the opposite of where anybody looks. */}
       <div
-        className={`flex-1 transition-all duration-300 ease-in-out ${
+        className={`flex-1 min-w-0 transition-all duration-300 ease-in-out ${
           railWide ? "lg:ml-[290px]" : "lg:ml-[90px]"
         } ${isMobileOpen ? "ml-0" : ""}`}
       >

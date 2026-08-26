@@ -6,6 +6,7 @@ import { useToast } from "../../../components/ui/toast";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
+import { FilterBar } from "../../../components/ui/filters";
 import TextArea from "../../../components/form/input/TextArea";
 import Select from "../../../components/form/Select";
 import Alert from "../../../components/ui/alert/Alert";
@@ -134,6 +135,7 @@ export default function CustomersPage() {
   }
 
   const rows = customers.data?.data ?? [];
+  const pagination = customers.data?.meta.pagination;
   const d = detail.data;
 
   return (
@@ -153,9 +155,15 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <div className="mb-4 max-w-xs">
-        <Input placeholder="Search name or phone…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-      </div>
+      <FilterBar
+        search={{
+          value: search,
+          onChange: (value) => { setSearch(value); setPage(1); },
+          placeholder: "Search name, phone or email…",
+          label: "Search customers",
+        }}
+        results={{ count: pagination?.total, noun: "customers", loading: customers.isLoading }}
+      />
 
       <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">

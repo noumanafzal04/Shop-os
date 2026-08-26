@@ -7,6 +7,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import TextArea from "../../../components/form/input/TextArea";
 import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
+import { FilterChips } from "../../../components/ui/filters";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import { Waiting } from "../components/Waiting";
@@ -52,6 +53,15 @@ const when = (iso: string) =>
     hour: "numeric", minute: "2-digit",
   });
 
+const QUEUES = [
+  { value: "open" as const, label: "Open" },
+  // Two kinds, and they want different halves of a week: a question wants
+  // answering today, a walkthrough wants half an hour booked next week.
+  { value: "walkthrough" as const, label: "Walkthroughs" },
+  { value: "question" as const, label: "Questions" },
+  { value: "all" as const, label: "All" },
+];
+
 export default function AdminEnquiriesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -85,6 +95,9 @@ export default function AdminEnquiriesPage() {
 
   const list = rows.data?.data ?? [];
   const oldest = list.find((r) => r.status === "new");
+  // Only while "Open" is the tab in force: the other tabs hold answered rows,
+  // and a count taken from them would be a different number under one word.
+  const unanswered = filter === "open" ? list.length : undefined;
 
   return (
     <>
@@ -100,22 +113,13 @@ export default function AdminEnquiriesPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          {(["open", "walkthrough", "question", "all"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={`rounded-lg px-3 py-1.5 text-theme-sm font-medium capitalize transition ${
-                filter === f
-                  ? "bg-brand-500 text-white"
-                  : "border border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-white/15 dark:text-gray-300 dark:hover:bg-white/5"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
+        <FilterChips
+          options={QUEUES}
+          value={filter}
+          counts={{ open: unanswered }}
+          ariaLabel="Which enquiries to show"
+          onChange={setFilter}
+        />
       </div>
 
       {rows.isLoading && <p className="text-theme-sm text-gray-500">Loading…</p>}

@@ -168,24 +168,101 @@ export interface Payment {
   paid_at: string;
 }
 
+/** What one bucket of late shops is worth. `unpriced` are the shops with no
+ *  plan on them yet — they owe nothing and they are the list worth having. */
+export interface OutstandingBucket {
+  shops: number;
+  amount: number;
+  unpriced: number;
+}
+
+export interface ChaseRow {
+  id: string;
+  business_name: string;
+  phone: string | null;
+  email: string | null;
+  plan_name: string | null;
+  amount: number | null;
+  payment_status: "grace" | "unpaid";
+  ends_at: string | null;
+  /** Worked out on the server, so two screens can never disagree about how
+   *  late somebody is. */
+  days_late: number | null;
+}
+
 export interface BillingSummary {
   revenue: { this_month: number; this_year: number; all_time: number };
   subscriptions: { active: number; expiring_soon: number; expired: number; suspended: number };
   recent_payments: Array<{ tenant: string; plan_name: string; amount: string; paid_at: string }>;
+  revenue_series: Array<{ month: string; ym: string; total: number }>;
+  outstanding: { unpaid: OutstandingBucket; grace: OutstandingBucket; suspended: OutstandingBucket };
+  chase: ChaseRow[];
+}
+
+export interface PaymentFilters {
+  tenant_id?: string;
+  search?: string;
+  method?: string;
+  from?: string | null;
+  to?: string | null;
+  page?: number;
+}
+
+/** Totals for the WHOLE filtered ledger, not the page on screen. */
+export interface PaymentTotals {
+  payments: number;
+  amount: number;
+}
+
+export interface MethodSplit {
+  method: string;
+  payments: number;
+  amount: number;
+}
+
+/** Which door a shop came in through — see Tenant::origin() on the server. */
+export type TenantOrigin = "demo" | "converted" | "direct";
+
+export type OriginCounts = Record<TenantOrigin | "all", number>;
+
+/**
+ * Every axis the tenant list can be narrowed by.
+ *
+ * Five of these — status, city, plan, business type, online-only — have been
+ * accepted by the server since the list was written, and the screen in front
+ * of it sent exactly two. An admin with four hundred shops had a search box.
+ */
+export interface TenantFilters {
+  search?: string;
+  status?: string;
+  payment_status?: PaymentStatus | "";
+  origin?: TenantOrigin | "";
+  business_type?: string;
+  city_id?: string;
+  /** A plan id, or the literal "none" for shops not priced yet. */
+  plan_id?: string;
+  setup?: "pending" | "done" | "";
+  online_only?: boolean;
+  sort?: string;
+  page?: number;
 }
 
 export const adminService = {
-  tenants: (params: {
-    search?: string;
-    status?: string;
-    payment_status?: PaymentStatus | "";
-    page?: number;
-  }) =>
+  tenants: (params: TenantFilters) =>
     apiGet<Tenant[]>("/admin/tenants", {
       params: {
         search: params.search || undefined,
         status: params.status || undefined,
         payment_status: params.payment_status || undefined,
+        origin: params.origin || undefined,
+        business_type: params.business_type || undefined,
+        city_id: params.city_id || undefined,
+        plan_id: params.plan_id || undefined,
+        setup: params.setup || undefined,
+        // `undefined`, never `false`: the server reads this with
+        // `$request->boolean()`, and sending "false" as a string is true.
+        online_only: params.online_only ? true : undefined,
+        sort: params.sort || undefined,
         with_deleted: true,
         page: params.page ?? 1,
       },
@@ -255,10 +332,21 @@ export const adminService = {
   deletePlan: (id: string) => apiDelete<null>(`/admin/plans/${id}`),
   cities: () => apiGet<Array<{ id: string; name: string }>>("/cities"),
 
-  payments: (params: { tenant_id?: string; page?: number }) =>
+  payments: (params: PaymentFilters) =>
     apiGet<Payment[]>("/admin/billing/payments", {
-      params: { tenant_id: params.tenant_id || undefined, page: params.page ?? 1 },
+      params: {
+        tenant_id: params.tenant_id || undefined,
+        search: params.search || undefined,
+        method: params.method || undefined,
+        from: params.from || undefined,
+        to: params.to || undefined,
+        page: params.page ?? 1,
+      },
     }),
 
   billingSummary: () => apiGet<BillingSummary>("/admin/billing/summary"),
+
+  /** How many people are waiting on a reply, for the rail's badges. Absent
+   *  keys mean "you may not read that queue" — never zero. */
+  inbox: () => apiGet<{ shop_requests?: number; enquiries?: number }>("/admin/inbox"),
 };

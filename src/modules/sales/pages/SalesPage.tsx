@@ -17,16 +17,65 @@ import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 import { useSale, useSaleMutations, useSales } from "../hooks/useSales";
 import { useProducts } from "../../catalog/hooks/useCatalog";
+import { useQuery } from "@tanstack/react-query";
+import { posService } from "../../pos/services/posService";
 import { NoAccess } from "../../../common/ui/NoAccess";
 import { deniedReason } from "../../../common/api/denied";
 import { useAuthStore } from "../../../stores/authStore";
 import { ApiError } from "../../../common/types/api";
 import type { SaleStatus } from "../types";
-import { VOID_REASONS, type VoidReasonCode } from "../services/salesService";
+import { saleParams, VOID_REASONS, type VoidReasonCode } from "../services/salesService";
+import {
+  DateRangeFilter,
+  EMPTY_RANGE,
+  FilterBar,
+  FilterSelect,
+  formatRange,
+  type AppliedFilter,
+  type DateRange,
+} from "../../../components/ui/filters";
 import { receiptService } from "../../receipts/services/receiptService";
 import { useReceiptTrail } from "../../receipts/hooks/useReceipts";
 import { useConnectionStore } from "../../../stores/connectionStore";
 import { MONEY_BACK_OFFLINE } from "../../offline/outbox/canSellOffline";
+
+const STATUSES = [
+  { value: "completed", label: "Completed" },
+  { value: "partially_refunded", label: "Partially refunded" },
+  { value: "refunded", label: "Refunded" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+/**
+ * WHERE THE SALE WAS RUNG. The server has filtered on this since the ledger
+ * was written; nothing on screen had ever offered it, so "how much did the
+ * shop take at the counter versus online" was a question the app could answer
+ * and could not be asked.
+ */
+const CHANNELS = [
+  { value: "pos", label: "At the till" },
+  { value: "walk_in", label: "Walk-in" },
+  { value: "phone", label: "Phone order" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "online", label: "Online order" },
+];
+
+/**
+ * How the bill was settled. `deposit`, `trade_in` and `split` are on sales the
+ * server writes itself and are worth filtering FOR — a shop reconciling a day
+ * needs to find the split-tender ones — but they are never something a client
+ * may send as a tender. See PaymentMethod on the server.
+ */
+const SALE_PAYMENTS = [
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "credit", label: "On account (khata)" },
+  { value: "split", label: "Split across tenders" },
+  { value: "deposit", label: "Against a deposit" },
+  { value: "trade_in", label: "Part-exchange" },
+  { value: "other", label: "Other" },
+];
 
 const STATUS_COLOR: Record<SaleStatus, "success" | "error" | "warning" | "info"> = {
   completed: "success",
@@ -46,15 +95,48 @@ export default function SalesPage() {
     if (qParam) setSearch(qParam);
   }, [qParam]);
   const [status, setStatus] = useState("");
+  const [channel, setChannel] = useState("");
+  const [method, setMethod] = useState("");
+  const [seller, setSeller] = useState("");
+  const [range, setRange] = useState<DateRange>(EMPTY_RANGE);
   const [page, setPage] = useState(1);
   const debounced = useDebouncedValue(search, 350);
+
+  const filters = {
+    search: debounced,
+    status,
+    channel,
+    payment_method: method,
+    served_by: seller,
+    from: range.from,
+    to: range.to,
+  };
+
+  /**
+   * WHO RANG IT — offered only where the shop asks the question.
+   *
+   * The server returns an empty list unless `pos_ask_who_served` is on, so a
+   * shop that never records a seller would otherwise get a filter with nothing
+   * in it. A control offering no options is not a smaller feature; it is a
+   * feature that looks broken.
+   */
+  const sellers = useQuery({
+    queryKey: ["pos", "sellers"],
+    queryFn: async () => (await posService.sellers()).data,
+    staleTime: 30 * 60 * 1000,
+  });
+  const sellerOptions = (sellers.data ?? []).map((p) => ({ value: p.id, label: p.name }));
 
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
   const exportCsv = async () => {
     setExporting(true);
     try {
-      await downloadFile("/sales/export", { search: debounced || undefined, status: status || undefined });
+      // The SAME filters the list is showing. The export has always honoured
+      // channel and a date range; the screen simply never had a way to say
+      // either, so its own docblock promised "export this month's card sales"
+      // over a form that could ask for neither.
+      await downloadFile("/sales/export", saleParams({ ...filters, page: undefined }));
     } catch {
       toast.error("Export failed. Please try again.");
     } finally {
@@ -62,7 +144,7 @@ export default function SalesPage() {
     }
   };
 
-  const sales = useSales({ search: debounced, status, page });
+  const sales = useSales({ ...filters, page });
   const { cancel, processReturn, exchange } = useSaleMutations();
 
   /**
@@ -212,6 +294,49 @@ export default function SalesPage() {
   const exTotal = exItems.reduce((s, i) => s + i.price * i.quantity, 0);
   const exDiff = Math.round((exTotal - exCredit) * 100) / 100;
 
+  const applied: AppliedFilter[] = [
+    status && {
+      key: "status",
+      label: "Status",
+      value: STATUSES.find((s) => s.value === status)?.label ?? status,
+      onRemove: () => { setStatus(""); setPage(1); },
+    },
+    channel && {
+      key: "channel",
+      label: "Channel",
+      value: CHANNELS.find((c) => c.value === channel)?.label ?? channel,
+      onRemove: () => { setChannel(""); setPage(1); },
+    },
+    method && {
+      key: "payment_method",
+      label: "Paid by",
+      value: SALE_PAYMENTS.find((m) => m.value === method)?.label ?? method,
+      onRemove: () => { setMethod(""); setPage(1); },
+    },
+    seller && {
+      key: "served_by",
+      label: "Sold by",
+      value: sellerOptions.find((p) => p.value === seller)?.label ?? seller,
+      onRemove: () => { setSeller(""); setPage(1); },
+    },
+    (range.from !== null || range.to !== null) && {
+      key: "range",
+      label: "Sold",
+      value: formatRange(range),
+      onRemove: () => { setRange(EMPTY_RANGE); setPage(1); },
+    },
+  ].filter(Boolean) as AppliedFilter[];
+
+  const clearAll = () => {
+    setSearch("");
+    setStatus("");
+    setChannel("");
+    setMethod("");
+    setSeller("");
+    setRange(EMPTY_RANGE);
+    setPage(1);
+  };
+
   return (
     <>
       <PageMeta title="Sales | CartZe" description="Sales and invoices" />
@@ -233,25 +358,49 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Input
-          placeholder="Search invoice #, slip #, customer…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+      <FilterBar
+        search={{
+          value: search,
+          onChange: (value) => { setSearch(value); setPage(1); },
+          placeholder: "Search invoice #, slip #, customer…",
+          label: "Search sales",
+        }}
+        applied={applied}
+        onClearAll={clearAll}
+        results={{ count: pagination?.total, noun: "sales", loading: sales.isLoading }}
+      >
+        <DateRangeFilter
+          label="Any date"
+          value={range}
+          onChange={(next) => { setRange(next); setPage(1); }}
         />
-        <Select
-          aria-label="Filter by sale status"
-          options={[
-            { value: "", label: "All statuses" },
-            { value: "completed", label: "Completed" },
-            { value: "partially_refunded", label: "Partially refunded" },
-            { value: "refunded", label: "Refunded" },
-            { value: "cancelled", label: "Cancelled" },
-          ]}
-          placeholder="All statuses"
-          onChange={(v) => { setStatus(v); setPage(1); }}
+        <FilterSelect
+          label="All statuses"
+          value={status}
+          onChange={(value) => { setStatus(value); setPage(1); }}
+          options={STATUSES}
         />
-      </div>
+        <FilterSelect
+          label="Any channel"
+          value={channel}
+          onChange={(value) => { setChannel(value); setPage(1); }}
+          options={CHANNELS}
+        />
+        <FilterSelect
+          label="Any payment"
+          value={method}
+          onChange={(value) => { setMethod(value); setPage(1); }}
+          options={SALE_PAYMENTS}
+        />
+        {sellerOptions.length > 0 && (
+          <FilterSelect
+            label="Anyone"
+            value={seller}
+            onChange={(value) => { setSeller(value); setPage(1); }}
+            options={sellerOptions}
+          />
+        )}
+      </FilterBar>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">

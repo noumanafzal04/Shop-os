@@ -111,3 +111,43 @@ describe("one pager", () => {
     expect(users().length).toBeGreaterThanOrEqual(20);
   });
 });
+
+/**
+ * A HANDLER THAT TURNS THE PAGE, RATHER THAN CLEARING IT.
+ *
+ * The guard above proves nobody hand-rolls a pager. It says nothing about what
+ * the `onPage` handler DOES, and that is where the next one landed: the admin
+ * tenant list used the shared <Pager> correctly and routed it into the same
+ * function its filters used — one that resets to page one on every change. So
+ * Next and Previous set the page and dropped it in the same call, and did
+ * nothing at all.
+ *
+ * A URL-backed screen must reach for `nextParams`/`useUrlFilters`, where the
+ * rule and its one exception are written once and tested on their own.
+ */
+describe("a screen whose filters live in the URL", () => {
+  const urlBacked = (): string[] =>
+    Object.entries(SOURCES)
+      .filter(([path]) => !isThePager(path) && !path.endsWith(".test.ts") && !path.endsWith(".test.tsx"))
+      .filter(([, src]) => src.includes("useSearchParams") && src.includes("<Pager"))
+      .map(([path]) => path);
+
+  it("finds screens that do this at all, so a silent zero cannot pass", () => {
+    // The denominator. Without it a glob or an idiom change would make the
+    // assertion below vacuous and it would keep printing green.
+    expect(urlBacked().length).toBeGreaterThan(0);
+  });
+
+  it("does not write the page rule a second time", () => {
+    const offenders = Object.entries(SOURCES)
+      .filter(([path]) => urlBacked().includes(path))
+      .filter(([, src]) => !src.includes("nextParams") && !src.includes("useUrlFilters"))
+      .filter(([, src]) => /delete\(\s*["']page["']\s*\)/.test(src))
+      .map(([path]) => path);
+
+    expect(
+      offenders,
+      `these clear "page" themselves instead of using nextParams: ${offenders.join(", ")}`,
+    ).toEqual([]);
+  });
+});

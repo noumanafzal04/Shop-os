@@ -10,6 +10,7 @@ import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import Input from "../../../components/form/input/InputField";
+import { FilterChips } from "../../../components/ui/filters";
 import { Waiting } from "../components/Waiting";
 import { howLong } from "../components/waitingTime";
 
@@ -37,6 +38,11 @@ type ShopRequest = {
   decline_reason: string | null;
   tenant?: { id: string; business_name: string; business_type: string; slug: string } | null;
 };
+
+const QUEUE = [
+  { value: "pending" as const, label: "Waiting" },
+  { value: "all" as const, label: "All" },
+];
 
 export default function AdminShopRequestsPage() {
   const toast = useToast();
@@ -75,7 +81,12 @@ export default function AdminShopRequestsPage() {
   });
 
   const list = rows.data?.data ?? [];
-  const oldest = list.filter((r) => r.status === "pending")[0];
+  const pending = list.filter((r) => r.status === "pending");
+  const oldest = pending[0];
+  // How many are actually waiting, on the chip. `undefined` while the "all"
+  // tab is showing, because that list holds answered rows too and a count
+  // taken from it would be a different number under the same word.
+  const waiting = status === "pending" ? pending.length : undefined;
 
   return (
     <>
@@ -92,22 +103,13 @@ export default function AdminShopRequestsPage() {
           </p>
         </div>
 
-        <div className="flex gap-1.5">
-          {(["pending", "all"] as const).map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setStatus(s)}
-              className={`rounded-lg px-3 py-1.5 text-theme-sm font-medium capitalize transition ${
-                status === s
-                  ? "bg-brand-500 text-white"
-                  : "border border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-white/15 dark:text-gray-300 dark:hover:bg-white/5"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+        <FilterChips
+          options={QUEUE}
+          value={status}
+          counts={{ pending: waiting }}
+          ariaLabel="Which requests to show"
+          onChange={setStatus}
+        />
       </div>
 
       {rows.isLoading && <p className="text-theme-sm text-gray-500">Loading…</p>}

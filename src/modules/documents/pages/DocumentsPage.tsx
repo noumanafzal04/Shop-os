@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
-import Input from "../../../components/form/input/InputField";
+import { FilterBar, FilterSelect } from "../../../components/ui/filters";
 import Badge from "../../../components/ui/badge/Badge";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useDocumentSummary, useDocuments } from "../hooks/useDocuments";
@@ -20,6 +20,13 @@ const TABS = [
  * till, it isn't revenue, and it is the one number a shopkeeper running layaway
  * has no other way to see.
  */
+const DOC_STATUSES = [
+  { value: "open", label: "Open" },
+  { value: "lapsed", label: "Overdue" },
+  { value: "converted", label: "Collected" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
 export default function DocumentsPage() {
   const [kind, setKind] = useState<DocumentKind>("layaway");
   const [status, setStatus] = useState<string>("open");
@@ -86,27 +93,23 @@ export default function DocumentsPage() {
           ))}
         </div>
 
-        <select
-          value={status}
-          aria-label="Which documents to show"
-          onChange={(e) => setStatus(e.target.value)}
-          className="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-theme-sm text-gray-700 dark:border-gray-700 dark:text-gray-300"
-        >
-          <option value="open">Open</option>
-          <option value="lapsed">Overdue</option>
-          <option value="converted">Collected</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="">All</option>
-        </select>
-
-        <div className="min-w-[16rem] flex-1">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Number, customer or phone…"
-          />
-        </div>
       </div>
+
+      <FilterBar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Number, customer or phone…",
+          label: "Search documents",
+        }}
+      >
+        <FilterSelect
+          label="All"
+          value={status}
+          onChange={setStatus}
+          options={DOC_STATUSES}
+        />
+      </FilterBar>
 
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03]">
         {list.isLoading ? (

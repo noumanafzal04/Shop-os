@@ -11,12 +11,11 @@ import Badge from "../../../components/ui/badge/Badge";
 import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
-import Select from "../../../components/form/Select";
-import Input from "../../../components/form/input/InputField";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCategories, useProductMutations, useProducts, useSoldOut, useVariantSoldOut } from "../hooks/useCatalog";
 import type { ItemTypeCode, Product } from "../types";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
+import { FilterBar, FilterSelect, type AppliedFilter } from "../../../components/ui/filters";
 import { ApiError } from "../../../common/types/api";
 import { api } from "../../../common/api/client";
 import { downloadFile } from "../../../common/api/download";
@@ -51,6 +50,11 @@ function Thumb({ product }: { product: Product }) {
     </div>
   );
 }
+
+const ITEM_TYPES = [
+  { value: "product", label: "Products" },
+  { value: "service", label: "Services" },
+];
 
 export default function ProductsPage() {
   const money = useMoney();
@@ -90,6 +94,51 @@ export default function ProductsPage() {
   });
   const categories = useCategories();
   const { remove, importCsv } = useProductMutations();
+
+  /** Parents and their children, flattened once — the picker and the pill that
+   *  names the current choice must read the same list. */
+  const categoryOptions = (categories.data ?? []).flatMap((c) => [
+    { value: c.id, label: c.name },
+    ...(c.children ?? []).map((ch) => ({ value: ch.id, label: `— ${ch.name}` })),
+  ]);
+
+  const applied: AppliedFilter[] = [
+    type && {
+      key: "type",
+      label: "Type",
+      value: ITEM_TYPES.find((t) => t.value === type)?.label ?? type,
+      onRemove: () => {
+        setType("");
+        setPage(1);
+      },
+    },
+    categoryId && {
+      key: "category",
+      label: "Category",
+      value: (categoryOptions.find((c) => c.value === categoryId)?.label ?? categoryId).replace("— ", ""),
+      onRemove: () => {
+        setCategoryId("");
+        setPage(1);
+      },
+    },
+    lowStock && {
+      key: "low_stock",
+      label: "",
+      value: "Low stock only",
+      onRemove: () => {
+        setLowStock(false);
+        setPage(1);
+      },
+    },
+  ].filter(Boolean) as AppliedFilter[];
+
+  const clearAll = () => {
+    setSearch("");
+    setType("");
+    setCategoryId("");
+    setLowStock(false);
+    setPage(1);
+  };
 
   const confirmModal = useModal();
   const [target, setTarget] = useState<Product | null>(null);
@@ -199,50 +248,50 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Input
-          placeholder="Search name or SKU…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
+      <FilterBar
+        search={{
+          value: search,
+          onChange: (value) => {
+            setSearch(value);
             setPage(1);
-          }}
-        />
+          },
+          placeholder: "Search name or SKU…",
+          label: "Search the catalogue",
+        }}
+        applied={applied}
+        onClearAll={clearAll}
+        results={{
+          count: pagination?.total ?? rows.length,
+          noun: (pagination?.total ?? rows.length) === 1 ? "item" : "items",
+          loading: products.isLoading,
+        }}
+      >
         {/* Product vs service only matters for shops that offer services. */}
         {servicesEnabled && (
-          <Select
-            aria-label="Filter by item type"
-            options={[
-              { value: "", label: "All types" },
-              { value: "product", label: "Products" },
-              { value: "service", label: "Services" },
-            ]}
-            placeholder="All types"
-            onChange={(v) => {
-              setType(v);
+          <FilterSelect
+            label="All types"
+            value={type}
+            onChange={(value) => {
+              setType(value);
               setPage(1);
             }}
+            options={ITEM_TYPES}
           />
         )}
-        <Select
-          aria-label="Filter by category"
-          options={[
-            { value: "", label: "All categories" },
-            ...(categories.data ?? []).flatMap((c) => [
-              { value: c.id, label: c.name },
-              ...(c.children ?? []).map((ch) => ({ value: ch.id, label: `— ${ch.name}` })),
-            ]),
-          ]}
-          placeholder="All categories"
-          onChange={(v) => {
-            setCategoryId(v);
+
+        <FilterSelect
+          label="All categories"
+          value={categoryId}
+          onChange={(value) => {
+            setCategoryId(value);
             setPage(1);
           }}
+          options={categoryOptions}
         />
+
         {/* Low-stock only makes sense when the shop tracks inventory. */}
         {inventoryEnabled && (
-          <label className="flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">
+          <label className="flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3.5 text-theme-sm font-medium text-gray-600 transition hover:border-gray-300 dark:border-gray-800 dark:text-gray-300">
             <input
               type="checkbox"
               checked={lowStock}
@@ -250,19 +299,12 @@ export default function ProductsPage() {
                 setLowStock(e.target.checked);
                 setPage(1);
               }}
-              className="h-4 w-4"
+              className="size-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
             />
             Low stock only
           </label>
         )}
-      </div>
-
-      {/* Result count */}
-      {!products.isLoading && (
-        <p className="mb-3 text-theme-xs text-gray-400">
-          {pagination?.total ?? rows.length} {(pagination?.total ?? rows.length) === 1 ? "item" : "items"}
-        </p>
-      )}
+      </FilterBar>
 
       {products.isError && (
         <div className="mb-4">

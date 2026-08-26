@@ -4,10 +4,10 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { salesService, type VoidReasonCode } from "../services/salesService";
+import { salesService, type SaleFilters, type VoidReasonCode } from "../services/salesService";
 import type { SaleInput } from "../types";
 
-export function useSales(params: { search?: string; status?: string; page?: number }) {
+export function useSales(params: SaleFilters) {
   return useQuery({
     queryKey: ["sales", params],
     queryFn: () => salesService.list(params),

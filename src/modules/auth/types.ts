@@ -58,6 +58,19 @@ export interface Tenant {
   is_demo?: boolean;
   /** When that demo clears itself away. Absolute, so it can be printed. */
   demo_expires_at?: string | null;
+  /**
+   * WHICH DOOR THIS SHOP CAME IN THROUGH.
+   *
+   *   demo      — somebody is trying it right now
+   *   converted — they tried it, pressed "Keep this shop", and were approved
+   *   direct    — an admin opened it by hand
+   *
+   * Optional because older responses do not carry it; a row with no origin is
+   * drawn without a badge rather than being guessed at.
+   */
+  origin?: "demo" | "converted" | "direct";
+  /** When a demo became a business. Null for every other door. */
+  converted_at?: string | null;
   subscription_starts_at?: string | null;
   subscription_ends_at: string | null;
   subscription_expired: boolean;

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 
+import { nextParams } from "../../../common/hooks/useUrlFilters";
 import PageMeta from "../../../components/common/PageMeta";
 import Pager from "../../../components/ui/pager";
 import { useAuthStore } from "../../../stores/authStore";
@@ -70,13 +71,10 @@ export default function MarketShopPage() {
 
   const isFavorite = (favorites.data ?? []).some((f) => f.slug === slug);
 
-  const setParam = (key: string, value: string) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    next.delete("page");
-    setParams(next);
-  };
+  // One rule for what a URL filter does to the page — see nextParams. Written
+  // by hand here, and in two other screens, until one of those copies left out
+  // the exception for `page` itself and its pager stopped working.
+  const setParam = (key: string, value: string) => setParams(nextParams(params, { [key]: value }));
 
   if (shop.isError) {
     return (
@@ -257,9 +255,7 @@ export default function MarketShopPage() {
             pagination={pagination}
             noun="products"
             onPage={(next) => {
-              const merged = new URLSearchParams(params);
-              merged.set("page", String(next));
-              setParams(merged);
+              setParams(nextParams(params, { page: next <= 1 ? null : next }));
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
           />

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import { uuid } from "../../../common/uuid";
 import PageMeta from "../../../components/common/PageMeta";
+import { FilterChips } from "../../../components/ui/filters";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Badge from "../../../components/ui/badge/Badge";
@@ -30,6 +31,15 @@ let lk = 0;
 
 /** What the Inventory reorder view hands over when it sends the shop here. */
 interface ReorderItem { id: string; name: string; cost: string | number | null; units?: ProductUnit[] }
+
+const PO_STATUSES = [
+  { value: "", label: "All" },
+  { value: "draft", label: "Draft" },
+  { value: "ordered", label: "Ordered" },
+  { value: "partially_received", label: "Partly received" },
+  { value: "received", label: "Received" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
 export default function PurchaseOrdersPage() {
   const confirm = useConfirm();
@@ -185,18 +195,19 @@ export default function PurchaseOrdersPage() {
         <Button size="sm" onClick={openCreate}>+ New purchase order</Button>
       </div>
 
-      {/* `flex-wrap`. Six status chips — one of them "partially received" — do
-          not fit across a 390px phone, and without wrapping they pushed the
-          whole PAGE 59px wider than the window. A page that scrolls sideways
+      {/* The segmented track scrolls sideways INSIDE itself rather than
+          wrapping. Six statuses — one of them "partially received" — do not
+          fit across a 390px phone, and the version before this pushed the
+          whole PAGE 59px wider than the window: a page that scrolls sideways
           has no scrollbar to say so, so the right-hand column of the table
-          below simply is not there. */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        {["", "draft", "ordered", "partially_received", "received", "cancelled"].map((s) => (
-          <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }}
-            className={`rounded-full border px-3 py-1 text-theme-xs capitalize transition ${statusFilter === s ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10" : "border-gray-200 text-gray-500 dark:border-gray-700"}`}>
-            {s === "" ? "All" : s.replace(/_/g, " ")}
-          </button>
-        ))}
+          below simply was not there. */}
+      <div className="mb-4">
+        <FilterChips
+          options={PO_STATUSES}
+          value={statusFilter}
+          ariaLabel="Purchase order status"
+          onChange={(value) => { setStatusFilter(value); setPage(1); }}
+        />
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">

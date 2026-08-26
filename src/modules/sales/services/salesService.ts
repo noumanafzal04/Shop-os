@@ -13,14 +13,46 @@ export const VOID_REASONS = [
 
 export type VoidReasonCode = (typeof VOID_REASONS)[number]["value"];
 
+/**
+ * Every axis the ledger can be narrowed by.
+ *
+ * `channel`, `from` and `to` have been honoured by the server — and by its CSV
+ * export — since the day both were written. The screen sent search and status.
+ * So the export's own docblock promised "export this month's card sales" over
+ * a screen with no way to say either word.
+ */
+export interface SaleFilters {
+  search?: string;
+  status?: string;
+  channel?: string;
+  /** cash / card / bank_transfer / credit / … — see PaymentMethod on the server. */
+  payment_method?: string;
+  /** Who rang it. Only meaningful where the shop asks. */
+  served_by?: string;
+  from?: string | null;
+  to?: string | null;
+  page?: number;
+}
+
+/** One place the filters become query parameters, so the list and the export
+ *  can never send different ones. */
+export function saleParams(params: SaleFilters): Record<string, string | number | undefined> {
+  return {
+    search: params.search || undefined,
+    status: params.status || undefined,
+    channel: params.channel || undefined,
+    payment_method: params.payment_method || undefined,
+    served_by: params.served_by || undefined,
+    from: params.from || undefined,
+    to: params.to || undefined,
+    page: params.page ?? 1,
+  };
+}
+
 export const salesService = {
-  list: (params: { search?: string; status?: string; page?: number }) =>
+  list: (params: SaleFilters) =>
     apiGet<Sale[]>("/sales", {
-      params: {
-        search: params.search || undefined,
-        status: params.status || undefined,
-        page: params.page ?? 1,
-      },
+      params: saleParams(params),
     }),
 
   show: (id: string) => apiGet<Sale>(`/sales/${id}`),

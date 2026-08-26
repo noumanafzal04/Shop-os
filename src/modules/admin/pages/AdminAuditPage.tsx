@@ -3,8 +3,17 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
 import Pager from "../../../components/ui/pager";
-import Select from "../../../components/form/Select";
 import { apiGet } from "../../../common/api/client";
+import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
+import {
+  DateRangeFilter,
+  EMPTY_RANGE,
+  FilterBar,
+  FilterSelect,
+  formatRange,
+  type AppliedFilter,
+  type DateRange,
+} from "../../../components/ui/filters";
 
 interface AuditLog {
   id: string;
@@ -56,22 +65,76 @@ function format(v: unknown): string {
   return String(v);
 }
 
+const EVENTS = [
+  { value: "created", label: "Created" },
+  { value: "updated", label: "Updated" },
+  { value: "deleted", label: "Deleted" },
+];
+
 export default function AdminAuditPage() {
   const [event, setEvent] = useState("");
   const [type, setType] = useState("");
+  const [search, setSearch] = useState("");
+  const [range, setRange] = useState<DateRange>(EMPTY_RANGE);
   const [page, setPage] = useState(1);
+  const debounced = useDebouncedValue(search, 350);
 
   const logs = useQuery({
-    queryKey: ["admin", "audit", { event, type, page }],
+    queryKey: ["admin", "audit", { event, type, search: debounced, range, page }],
     queryFn: () =>
       apiGet<AuditLog[]>("/admin/audit-logs", {
-        params: { event: event || undefined, type: type || undefined, page },
+        params: {
+          event: event || undefined,
+          type: type || undefined,
+          search: debounced || undefined,
+          from: range.from ?? undefined,
+          to: range.to ?? undefined,
+          page,
+        },
       }),
     placeholderData: keepPreviousData,
   });
 
   const rows = logs.data?.data ?? [];
   const pagination = logs.data?.meta.pagination;
+  /**
+   * The entity types the TRAIL actually holds, counted server-side.
+   *
+   * This list used to be three names typed in by hand — Tenant, User, Sale —
+   * over a trail that records more than three. A list of guesses is worse than
+   * no list: it looks like the complete set, so anything filed against a type
+   * nobody remembered to add reads as a change that was never recorded.
+   */
+  const entities = (logs.data?.meta.entities ?? []) as Array<{ value: string; label: string }>;
+
+  const applied: AppliedFilter[] = [
+    event && {
+      key: "event",
+      label: "Event",
+      value: EVENTS.find((e) => e.value === event)?.label ?? event,
+      onRemove: () => { setEvent(""); setPage(1); },
+    },
+    type && {
+      key: "type",
+      label: "Entity",
+      value: entities.find((e) => e.value === type)?.label ?? type,
+      onRemove: () => { setType(""); setPage(1); },
+    },
+    (range.from !== null || range.to !== null) && {
+      key: "range",
+      label: "When",
+      value: formatRange(range),
+      onRemove: () => { setRange(EMPTY_RANGE); setPage(1); },
+    },
+  ].filter(Boolean) as AppliedFilter[];
+
+  const clearAll = () => {
+    setEvent("");
+    setType("");
+    setSearch("");
+    setRange(EMPTY_RANGE);
+    setPage(1);
+  };
 
   return (
     <>
@@ -82,28 +145,37 @@ export default function AdminAuditPage() {
         <p className="text-sm text-gray-500 dark:text-gray-400">Who changed what, across the platform</p>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Select
-          options={[
-            { value: "", label: "All events" },
-            { value: "created", label: "Created" },
-            { value: "updated", label: "Updated" },
-            { value: "deleted", label: "Deleted" },
-          ]}
-          placeholder="All events"
-          onChange={(v) => { setEvent(v); setPage(1); }}
+      <FilterBar
+        search={{
+          value: search,
+          onChange: (value) => { setSearch(value); setPage(1); },
+          placeholder: "Search who did it…",
+          label: "Search by the person who made the change",
+        }}
+        applied={applied}
+        onClearAll={clearAll}
+        results={{ count: pagination?.total, noun: "entries", loading: logs.isLoading }}
+      >
+        {/* The one question anybody opens an audit log with, and the one it
+            could not be asked: what happened on a particular day. */}
+        <DateRangeFilter
+          label="Any time"
+          value={range}
+          onChange={(next) => { setRange(next); setPage(1); }}
         />
-        <Select
-          options={[
-            { value: "", label: "All entities" },
-            { value: "Tenant", label: "Tenants" },
-            { value: "User", label: "Users / staff" },
-            { value: "Sale", label: "Sales" },
-          ]}
-          placeholder="All entities"
-          onChange={(v) => { setType(v); setPage(1); }}
+        <FilterSelect
+          label="All events"
+          value={event}
+          onChange={(value) => { setEvent(value); setPage(1); }}
+          options={EVENTS}
         />
-      </div>
+        <FilterSelect
+          label="All entities"
+          value={type}
+          onChange={(value) => { setType(value); setPage(1); }}
+          options={entities}
+        />
+      </FilterBar>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
