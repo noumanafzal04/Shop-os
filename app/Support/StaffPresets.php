@@ -303,6 +303,58 @@ class StaffPresets
     }
 
     /**
+     * WHICH JOB A PERSON'S PERMISSIONS DESCRIBE, if any.
+     *
+     * Derived, never stored. A preset ticks boxes and is forgotten — that is
+     * the whole design, and it is what keeps a preset from rotting into a
+     * shadow role. So "what does this person do" is answered by looking at
+     * what they hold, and one box off the set reads as null, which is the
+     * honest answer.
+     *
+     * Matched against the UNTRIMMED lists on purpose: a shop that switched
+     * dine-in off should still see its old waiters described as waiters,
+     * rather than have thirty people silently become "Custom" because the
+     * shop changed and they did not.
+     */
+    public static function matching(array $permissions): ?array
+    {
+        foreach (self::all() as $preset) {
+            if (self::sameSet($preset['permissions'], $permissions)) {
+                return $preset;
+            }
+        }
+
+        return null;
+    }
+
+    /** Does this person do that job — exactly, not approximately? */
+    public static function isJob(string $code, array $permissions): bool
+    {
+        foreach (self::all() as $preset) {
+            if ($preset['code'] === $code) {
+                return self::sameSet($preset['permissions'], $permissions);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Two permission lists holding the same things.
+     *
+     * Order and duplicates are meaningless here — `["a","b"]` and
+     * `["b","a","b"]` are one job — so this compares SETS rather than arrays.
+     * A plain `==` would call those two people different.
+     */
+    private static function sameSet(array $a, array $b): bool
+    {
+        $left = array_unique($a);
+        $right = array_unique($b);
+
+        return count($left) === count($right) && array_diff($left, $right) === [];
+    }
+
+    /**
      * One preset's permissions, UNTRIMMED — the canonical list for a job,
      * with no shop in the question.
      *

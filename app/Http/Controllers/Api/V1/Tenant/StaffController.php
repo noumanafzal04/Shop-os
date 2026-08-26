@@ -27,11 +27,24 @@ class StaffController extends Controller
 {
     public function __construct(private readonly TenantContext $context) {}
 
+    /**
+     * THE SHOP'S PEOPLE.
+     *
+     * `status` has been accepted since this was written and the screen sent a
+     * search box, so an owner could not ask the one question a staff list is
+     * opened with after somebody leaves: who is still switched on.
+     *
+     * `branch` and `job` are new. Which branch somebody works in decides which
+     * stock they ring against, and what job they do is the word an owner
+     * actually thinks in — nobody looks for "the people holding sales.void".
+     */
     public function index(Request $request): JsonResponse
     {
-        $staff = User::query()
+        $mine = fn () => User::query()
             ->where('role', UserRole::Staff)
-            ->where('tenant_id', $this->context->id())
+            ->where('tenant_id', $this->context->id());
+
+        $staff = $mine()
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('name', 'like', "%{$search}%")
@@ -40,10 +53,49 @@ class StaffController extends Controller
                 });
             })
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
+            // Where they work. "Main" is spelled out rather than left as the
+            // absence of a value, because a shop with three branches has
+            // people pinned to each and people pinned to none, and those are
+            // different answers.
+            ->when($request->query('branch_id') === 'none', fn ($q) => $q->whereNull('branch_id'))
+            ->when(
+                $request->query('branch_id') && $request->query('branch_id') !== 'none',
+                fn ($q) => $q->where('branch_id', $request->query('branch_id')),
+            )
+            ->when($request->query('permission'), fn ($q, $key) => $q->whereJsonContains('permissions', $key))
+            ->when($request->query('job'), fn ($q, $job) => $q->whereIn('id', $this->doingTheJob($job)))
             ->orderByDesc('created_at')
             ->paginate(min((int) $request->query('per_page', 15), 100));
 
         return ApiResponse::paginated(UserResource::collection($staff));
+    }
+
+    /**
+     * The ids of people whose permissions are EXACTLY that job.
+     *
+     * Worked out in PHP rather than in SQL, and deliberately: the rule is
+     * StaffPresets::isJob — a set comparison, order and duplicates
+     * meaningless — and expressing that over a JSON column means
+     * `JSON_LENGTH` on MySQL and `json_array_length` on SQLite, two dialects
+     * of one question with nothing to check the second against.
+     *
+     * The bound that makes this safe is the shop itself: staff are capped per
+     * tenant by an assigned limit, so this reads tens of rows and never
+     * thousands. If that ever stops being true, the fix is a stored job
+     * column, not a cleverer query — and it would need a migration, which is
+     * the right amount of friction for a decision like that.
+     *
+     * @return array<int, string>
+     */
+    private function doingTheJob(string $job): array
+    {
+        return User::query()
+            ->where('role', UserRole::Staff)
+            ->where('tenant_id', $this->context->id())
+            ->get(['id', 'permissions'])
+            ->filter(fn (User $user): bool => StaffPresets::isJob($job, $user->permissions ?? []))
+            ->pluck('id')
+            ->all();
     }
 
     public function store(StoreTenantStaffRequest $request, CreateStaffAction $action): JsonResponse

@@ -273,4 +273,42 @@ class InventoryTest extends TestCase
 
         $this->assertCount(0, $foreign);
     }
+
+    /**
+     * A REFUSAL HAS TO SAY WHICH THING.
+     *
+     * "Insufficient stock: only 0 in stock." reached the counter, the order
+     * form and the transfer screen with nothing in it anybody could act on. A
+     * basket of nine items told the shop one of them was short and would not
+     * say which, so the only way through was to pull lines out one at a time
+     * until it stopped complaining.
+     */
+    public function test_a_stock_refusal_names_the_item_it_is_about(): void
+    {
+        $rice = Product::withoutTenancy()->create([
+            'tenant_id' => $this->product->tenant_id,
+            'type' => 'product',
+            'name' => 'Basmati Rice 1kg',
+            'sku' => 'RICE-1',
+            'price' => 520,
+            'stock_quantity' => 2,
+        ]);
+
+        $response = $this->actingAsUser($this->owner)->postJson('/api/v1/inventory/adjust', [
+            'product_id' => $rice->id,
+            'type' => 'out',
+            'quantity' => 5,
+            'reason' => 'Sold more than the shelf held',
+        ])->assertStatus(422);
+
+        $response->assertJsonPath('meta.error_code', 'INSUFFICIENT_STOCK');
+        $this->assertStringContainsString(
+            'Basmati Rice 1kg',
+            $response->json('message'),
+            'the refusal must name the item — a shop cannot act on "only 0 in stock"',
+        );
+        // …and it still says how many there are, which is the other half of
+        // what makes it actionable.
+        $this->assertStringContainsString('2', $response->json('message'));
+    }
 }

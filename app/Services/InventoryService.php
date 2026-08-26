@@ -146,8 +146,16 @@ class InventoryService
                 $allowNegative = ! empty($data['allow_negative']);
 
                 if ($newQuantity < 0 && ! $allowNegative) {
+                    // NAME THE ITEM. This message reached the counter, the
+                    // order form and the transfer screen as "Insufficient
+                    // stock: only 0 in stock." — a refusal with nothing in it
+                    // anybody could act on. A basket of nine things told the
+                    // shop one of them was short and would not say which, so
+                    // the only way through was to remove lines one at a time.
+                    $named = trim($product->name.($variant !== null ? ' ('.$variant->name.')' : ''));
+
                     throw DomainException::unprocessable(
-                        "Insufficient stock: only {$current} in stock.",
+                        "Not enough {$named}: only {$current} in stock.",
                         'INSUFFICIENT_STOCK',
                     );
                 }

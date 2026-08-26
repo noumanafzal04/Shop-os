@@ -6,6 +6,7 @@ use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Permissions;
+use App\Support\StaffPresets;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -377,5 +378,136 @@ class StaffManagementTest extends TestCase
         $this->actingAsUser($manager)->putJson("/api/v1/staff/{$cashier->id}", [
             'name' => 'Corrected Spelling',
         ])->assertOk();
+    }
+
+    // ── Finding somebody ───────────────────────────────────────────────
+
+    /** @return array{0: Tenant, 1: User} a shop and the owner reading its list */
+    private function aShop(): array
+    {
+        $tenant = Tenant::factory()->create();
+
+        return [$tenant, User::factory()->shopOwner($tenant)->create()];
+    }
+
+    /**
+     * THE QUESTION A STAFF LIST IS OPENED WITH.
+     *
+     * `status` has been accepted by this endpoint since it was written and the
+     * screen sent a search box — so after somebody leaves, "who is still
+     * switched on" could not be asked at all.
+     */
+    public function test_the_list_can_be_narrowed_to_who_is_still_switched_on(): void
+    {
+        [$tenant, $owner] = $this->aShop();
+
+        $working = User::factory()->tenantStaff($tenant, [Permissions::SALES_MANAGE])->create(['name' => 'Still Here']);
+        User::factory()->tenantStaff($tenant, [Permissions::SALES_MANAGE])->create([
+            'name' => 'Left Last Month',
+            'status' => 'suspended',
+        ]);
+
+        $names = array_column(
+            $this->actingAsUser($owner)->getJson('/api/v1/staff?status=active')->assertOk()->json('data'),
+            'name',
+        );
+
+        $this->assertSame(['Still Here'], $names);
+        $this->assertNotNull($working);
+        // The denominator: two people exist, so this picked one out of two.
+        $this->assertCount(2, $this->actingAsUser($owner)->getJson('/api/v1/staff')->json('data'));
+    }
+
+    public function test_the_list_can_be_narrowed_to_what_somebody_does(): void
+    {
+        [$tenant, $owner] = $this->aShop();
+
+        $cashier = User::factory()
+            ->tenantStaff($tenant, StaffPresets::permissionsFor('cashier'))
+            ->create(['name' => 'A Cashier']);
+        User::factory()
+            ->tenantStaff($tenant, StaffPresets::permissionsFor('stock_keeper'))
+            ->create(['name' => 'A Stock Keeper']);
+
+        $names = array_column(
+            $this->actingAsUser($owner)->getJson('/api/v1/staff?job=cashier')->assertOk()->json('data'),
+            'name',
+        );
+
+        $this->assertSame(['A Cashier'], $names);
+        $this->assertNotNull($cashier);
+    }
+
+    public function test_one_box_off_the_set_is_not_that_job(): void
+    {
+        // A preset is a starting point that is forgotten, so the job is
+        // DERIVED. Somebody edited away from the template is honestly not a
+        // cashier any more, and saying otherwise would make this filter a
+        // shadow role — the one thing the preset design exists to avoid.
+        [$tenant, $owner] = $this->aShop();
+
+        User::factory()
+            ->tenantStaff($tenant, [...StaffPresets::permissionsFor('cashier'), Permissions::SALES_VOID])
+            ->create(['name' => 'Cashier Plus Voids']);
+
+        $this->assertSame(
+            [],
+            $this->actingAsUser($owner)->getJson('/api/v1/staff?job=cashier')->assertOk()->json('data'),
+        );
+    }
+
+    public function test_the_list_can_be_narrowed_to_one_thing_somebody_may_do(): void
+    {
+        [$tenant, $owner] = $this->aShop();
+
+        User::factory()->tenantStaff($tenant, [Permissions::SALES_MANAGE, Permissions::SALES_REFUND])
+            ->create(['name' => 'Can Refund']);
+        User::factory()->tenantStaff($tenant, [Permissions::SALES_MANAGE])
+            ->create(['name' => 'Cannot Refund']);
+
+        $names = array_column(
+            $this->actingAsUser($owner)
+                ->getJson('/api/v1/staff?permission='.Permissions::SALES_REFUND)
+                ->assertOk()
+                ->json('data'),
+            'name',
+        );
+
+        $this->assertSame(['Can Refund'], $names);
+    }
+
+    public function test_every_row_says_what_that_person_does(): void
+    {
+        [$tenant, $owner] = $this->aShop();
+
+        User::factory()
+            ->tenantStaff($tenant, StaffPresets::permissionsFor('cashier'))
+            ->create(['name' => 'A Cashier']);
+        User::factory()
+            ->tenantStaff($tenant, [Permissions::SALES_MANAGE, Permissions::SETTINGS_MANAGE])
+            ->create(['name' => 'Somebody Bespoke']);
+
+        $rows = $this->actingAsUser($owner)->getJson('/api/v1/staff')->assertOk()->json('data');
+        $jobs = array_column($rows, 'job', 'name');
+
+        $this->assertSame('Cashier', $jobs['A Cashier']);
+        // Null, not a guess. The screen says "Custom", which tells the owner
+        // their edit landed rather than quietly rounding it to the nearest job.
+        $this->assertNull($jobs['Somebody Bespoke']);
+    }
+
+    public function test_the_order_of_the_permission_list_does_not_change_the_job(): void
+    {
+        // Sets, not arrays. Two people given the same boxes in a different
+        // order are doing the same job, and a plain array comparison would
+        // call them different.
+        [$tenant, $owner] = $this->aShop();
+
+        $shuffled = array_reverse(StaffPresets::permissionsFor('cashier'));
+        User::factory()->tenantStaff($tenant, $shuffled)->create(['name' => 'Same Job']);
+
+        $rows = $this->actingAsUser($owner)->getJson('/api/v1/staff?job=cashier')->assertOk()->json('data');
+
+        $this->assertSame(['Same Job'], array_column($rows, 'name'));
     }
 }

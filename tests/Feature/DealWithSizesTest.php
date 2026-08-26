@@ -21,7 +21,7 @@ use Tests\TestCase;
  * Measured before it was fixed, on a shop holding ten Small and ten Large:
  *
  *     PARENT stock: 0 · effective: 20
- *     SALE → 422  "Insufficient stock: only 0 in stock."
+ *     SALE → 422  "Not enough Pizza: only 0 in stock."
  *
  * Not a wrong number — a REFUSAL, on a full shelf. A deal containing any sized
  * product could not be sold at all.
