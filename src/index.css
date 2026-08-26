@@ -962,6 +962,29 @@ span.flatpickr-weekday,
   z-index: -1;
 }
 
+/* THE ONE NAV ITEM THAT IS A DESTINATION.
+   A ring that grows OUT OF THE BORDER and fades — an outline, not a filled
+   glow, which is what keeps it from competing with `calls-you-over` on the
+   demo button a few pixels away. Two things pulsing the same way in one header
+   is two things nobody looks at.
+
+   `::before` rather than `::after`: the demo button already owns `::after`,
+   and a shared idiom that collides on one element is a bug waiting for the day
+   somebody puts both classes on the same thing. */
+@keyframes ring-expands {
+  0%        { transform: scale(1);    opacity: 0.75; }
+  70%, 100% { transform: scale(1.45); opacity: 0; }
+}
+.ring-expands::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid var(--color-brand-500);
+  animation: ring-expands 2.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  pointer-events: none;
+}
+
 @keyframes shine-crosses {
   0%       { transform: translateX(-140%); }
   55%,100% { transform: translateX(240%); }
@@ -988,6 +1011,7 @@ span.flatpickr-weekday,
   .breathes { animation: none; }
   .rings-up { opacity: 1; animation: none; }
   .calls-you-over::after { animation: none; opacity: 0; }
+  .ring-expands::before { animation: none; opacity: 0; }
   .shine-crosses { animation: none; opacity: 0; }
   .grows-up { animation: none; transform: none; }
 }

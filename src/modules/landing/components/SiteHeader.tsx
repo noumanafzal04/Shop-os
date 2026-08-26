@@ -24,6 +24,23 @@ const LINKS: Array<{ id: string; label: string }> = [
 ];
 
 /**
+ * THE ONE ITEM IN THE NAV THAT LEAVES THE PAGE.
+ *
+ * Marketplace is a destination, not a section: it goes straight to `/shops`.
+ *
+ * Kept out of LINKS because every entry there is an in-page anchor watched by
+ * the section observer, and a route link has no section to observe — put in
+ * that list it would simply never light, which reads as a broken menu item
+ * rather than as a different KIND of item. So it gets its own treatment: a
+ * real Link, marked with the brand instead of with the "you are here" pill.
+ *
+ * The landing page still HAS a marketplace section (`#market`, the live
+ * products). It is reached by scrolling and by its own "Visit the marketplace"
+ * button — the menu is for going there, not for stopping halfway.
+ */
+const STOREFRONT = { to: "/shops", label: "Marketplace" };
+
+/**
  * THE HEADER, INCLUDING FOR SOMEBODY WHO ALREADY HAS A SHOP.
  *
  * A landing page is written for strangers, and this one used to behave as
@@ -204,6 +221,18 @@ export function SiteHeader({ overDark = false }: { overDark?: boolean }) {
               {item.label}
             </a>
           ))}
+          {/* Marked as the destination it is: a filled pill inside the pill,
+              with a ring growing out of its border. See `ring-expands`. */}
+          <Link
+            to={STOREFRONT.to}
+            className={`ring-expands relative isolate rounded-full px-4 py-2 text-sm font-semibold transition ${
+              onDark
+                ? "bg-brand-500 text-white hover:bg-brand-400"
+                : "bg-brand-500 text-white shadow-sm shadow-brand-500/25 hover:bg-brand-600"
+            }`}
+          >
+            {STOREFRONT.label}
+          </Link>
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2 lg:ml-0">
@@ -278,11 +307,11 @@ export function SiteHeader({ overDark = false }: { overDark?: boolean }) {
             </a>
           ))}
           <Link
-            to="/shops"
+            to={STOREFRONT.to}
             onClick={() => setOpen(false)}
-            className="flex min-h-12 items-center rounded-xl px-4 text-[15px] font-medium text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/5"
+            className="mt-1 flex min-h-12 items-center justify-center rounded-xl bg-brand-500 px-4 text-[15px] font-semibold text-white transition hover:bg-brand-600"
           >
-            Marketplace
+            {STOREFRONT.label}
           </Link>
           {!user && (
             <Link
