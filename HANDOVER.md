@@ -5089,6 +5089,59 @@ Backend verified green at 1258 / 5288 with the WIP applied.
 
 ---
 
+### 2026-08-26 — The Expense Manager, and a total that belonged to everyone
+
+A UI pass over the four money screens — Cashbook, Ledger, Income, Expenses —
+that found two real defects on the way.
+
+**The total was the whole platform's.** `MoneyEntryFilters::totals()` cloned the
+query and called `->getQuery()`, which hands back the underlying query builder
+*before* Eloquent applies its global scopes — the tenant fence among them. The
+rows underneath were always scoped, because the paginator goes through
+`toBase()`; the figure above them was not. A shop with 178 bills read
+"1,096 entries · Rs 4,678,156" over its own list: the headcount and the sum of
+every business on the platform. Income read 555 / Rs 452,268 against 65 real
+entries. `toBase()` is the fix and the two figures on the screen now describe
+the same set of rows — which is also the assertion that catches it coming back.
+
+**Today was the day it was in London.** `new Date().toISOString().slice(0, 10)`
+was spelled by hand in eleven places across nine files. In Karachi (UTC+5) every
+moment before 05:00 local is still yesterday in UTC, so between midnight and
+five in the morning a new expense defaulted to yesterday, the `max` on the date
+box refused today, and "this month" started on the last day of the month before.
+`toIsoDate()` has existed in `dateRanges.ts` for exactly this reason.
+`common/format/localDate.test.ts` is now a lint rule wearing a test's clothes, so
+the twelfth cannot be — mutation-proven.
+
+**An accessibility helper widened the page by 84px.** `sr-only` is
+`position: absolute`, so a `<span className="sr-only">Actions</span>` in a `<th>`
+with no positioned ancestor has the *page* as its containing block — which puts
+it outside the scroll container's clipping chain. At 390px the table lays out
+477px wide inside a 356px scroller, the span sits at x=474, and one invisible
+pixel of helper text pushed the whole page sideways. `relative` on the `<th>`.
+The existing e2e sideways-scroll rule catches it: proven by putting the bug back
+and watching `[phone] expenses` fail, then pass.
+
+The UI work itself: expenses and income were two hand-written tables with the
+same eight columns and a different opinion about every one of them; they render
+through one `MoneyEntryTable` now. Money is formatted once
+(`Rs 2,350,196.50`, never `Rs 2,350,196.5`), dates are read by humans, the
+filtered totals are a card of three figures rather than two lines of grey
+caption, both lists sort by clicking Date or Amount, budgets say "Not watched"
+rather than showing twelve empty boxes, and all three tabs fit a 390px phone
+with **no sideways scroll at all** — where before Edit and Delete lived off the
+right edge of the card.
+
+Also fixed: the page carried one subtitle over all four tabs, and it described
+the fourth. And on Budgets, "Budgeted Rs 100" sat beside "Spent Rs 960,318" —
+the spend summed over twelve categories, the budget over the one that had a
+ceiling.
+
+Backend 2354 green on SQLite and MySQL. Panel 1250 unit, 0 lint errors, build
+clean, 26 e2e across four device sizes.
+
+---
+
 ## 8. Rules that must not be broken
 
 These are settled decisions, not preferences — most of them were paid for with a

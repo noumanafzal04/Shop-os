@@ -135,4 +135,10 @@
 - [One Filter Bar](shopos-one-filter-bar.md) — site-wide filter kit + named date ranges; tenant origin (Keep-this-shop flag), rail badges, billing says how much
 - [Page Rule, One Copy](shopos-page-rule-one-copy.md) — STANDING: filter-reset swallowed the page change; useUrlFilters/nextParams is the only copy; verify pagination in a browser
 - [Shell Widened The Page](shopos-shell-widened-the-page.md) — FIXED: flex-1 with no min-w-0 pushed the whole page sideways, only at xl+; jsdom was blind
-\n- [Half A Rule](shopos-half-a-rule.md) — STANDING: a rule applied to one half of a screen; the missed half is a smaller TRUE thing so it never looks broken\n- [Guards Share A Blind Spot](shopos-guards-share-a-blind-spot.md) — STANDING: 4 guards read one route list; adding a screen = 6 places; mutate every new guard\n- [Take Order Page](shopos-take-order-page.md) — modal→page, browsable catalogue, stock on the tile, stock refusal names the item; orders list is a table\n
+- [Half A Rule](shopos-half-a-rule.md) — STANDING: a rule applied to one half of a screen; the missed half is a smaller TRUE thing so it never looks broken
+- [Guards Share A Blind Spot](shopos-guards-share-a-blind-spot.md) — STANDING: 4 guards read one route list; adding a screen = 6 places; mutate every new guard
+- [Take Order Page](shopos-take-order-page.md) — modal→page, browsable catalogue, stock on the tile, stock refusal names the item; orders list is a table
+- [The Total Belonged To Everyone](shopos-total-belonged-to-everyone.md) — FIXED: expense/income totals summed EVERY tenant; getQuery() skips global scopes, toBase() applies them; a one-tenant fixture cannot see it
+- [Today In UTC](shopos-today-in-utc.md) — STANDING: toISOString().slice(0,10) is yesterday before 05:00 in Karachi; use toIsoDate(); guarded + mutation-proven
+- [sr-only Widened The Page](shopos-sr-only-widened-page.md) — FIXED: an sr-only span in a <th> pushed the page 84px sideways; position:absolute escapes a scroller with no positioned ancestor
+- [Expense Manager UI](shopos-expense-manager-ui.md) — 2026-08-26: one shared MoneyEntryTable + MoneySummary, formatMoney/formatEntryDate, all tabs fit a phone
