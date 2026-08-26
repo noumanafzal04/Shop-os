@@ -49,6 +49,134 @@ class StaffPresetTest extends TestCase
         return array_column(StaffPresets::for($tenant), 'code');
     }
 
+    /** @return array<int, string> the permission keys this shop is OFFERED */
+    private function offered(Tenant $tenant): array
+    {
+        return array_column(
+            array_filter(Permissions::tenantCatalogFor($tenant), fn (array $row): bool => $row['available']),
+            'key',
+        );
+    }
+
+    // ── The checkboxes the presets tick ────────────────────────────────
+
+    /**
+     * THE LIST UNDERNEATH THE PRESETS GOT THE SAME RULE.
+     *
+     * "Offering Waiter to a pharmacy is noise, and noise on a permission
+     * screen is how the wrong box gets ticked" — the argument this file opens
+     * with, applied to the presets and, until now, not to the nineteen
+     * checkboxes they tick. A mart hiring a cashier was offered Kitchen board,
+     * Serve any table and Reservations: three boxes granting access to screens
+     * that shop does not have.
+     */
+    public function test_a_shop_with_no_tables_is_not_offered_the_kitchen_or_the_floor(): void
+    {
+        $mart = $this->tenantWith(['pos' => true, 'products' => true, 'inventory' => true], 'mart');
+
+        $offered = $this->offered($mart);
+
+        $this->assertNotContains(Permissions::KITCHEN_MANAGE, $offered);
+        $this->assertNotContains(Permissions::TABLES_SERVE_ANY, $offered);
+        $this->assertNotContains(Permissions::RESERVATIONS_MANAGE, $offered);
+        // The denominator: it is still offering the boxes a mart DOES need,
+        // so this is a filter rather than a list that has learned to be empty.
+        $this->assertContains(Permissions::SALES_MANAGE, $offered);
+        $this->assertContains(Permissions::INVENTORY_MANAGE, $offered);
+        $this->assertGreaterThanOrEqual(10, count($offered));
+    }
+
+    public function test_a_restaurant_is_offered_the_kitchen_and_the_floor(): void
+    {
+        $food = $this->tenantWith(
+            ['pos' => true, 'products' => true, 'dine_in' => true],
+            'food',
+        );
+
+        $offered = $this->offered($food);
+
+        $this->assertContains(Permissions::KITCHEN_MANAGE, $offered);
+        $this->assertContains(Permissions::TABLES_SERVE_ANY, $offered);
+    }
+
+    public function test_a_shop_that_does_not_sell_online_is_not_offered_online_orders(): void
+    {
+        $offline = $this->tenantWith(['pos' => true, 'products' => true], 'mart');
+        $online = $this->tenantWith(['pos' => true, 'products' => true, 'marketplace' => true], 'mart');
+
+        $this->assertNotContains(Permissions::ORDERS_MANAGE, $this->offered($offline));
+        $this->assertContains(Permissions::ORDERS_MANAGE, $this->offered($online));
+    }
+
+    public function test_permissions_that_belong_to_no_module_are_offered_to_everybody(): void
+    {
+        // Staff, customers, expenses, reports and settings are not about a
+        // module at all, and a shop with almost nothing switched on still
+        // needs to be able to hire somebody.
+        $bare = $this->tenantWith(['expenses' => true], 'mart');
+
+        foreach ([
+            Permissions::STAFF_MANAGE,
+            Permissions::CUSTOMERS_MANAGE,
+            Permissions::EXPENSES_MANAGE,
+            Permissions::REPORTS_VIEW,
+            Permissions::SETTINGS_MANAGE,
+        ] as $always) {
+            $this->assertContains($always, $this->offered($bare), "{$always} should be offered to every shop");
+        }
+    }
+
+    /**
+     * FLAGGED, NEVER DROPPED.
+     *
+     * The irrelevant rows still come back, marked unavailable. Removing them
+     * from the payload is what would make this a bug rather than a fix: the
+     * form submits the boxes it drew, so a staff member hired while the shop
+     * had dine-in would quietly lose `tables.serve_any` the next time anybody
+     * corrected their phone number.
+     */
+    public function test_a_permission_this_shop_cannot_use_is_still_returned_so_it_cannot_be_silently_revoked(): void
+    {
+        $mart = $this->tenantWith(['pos' => true, 'products' => true], 'mart');
+
+        $catalog = Permissions::tenantCatalogFor($mart);
+        $keys = array_column($catalog, 'key');
+
+        $this->assertContains(Permissions::TABLES_SERVE_ANY, $keys, 'it must be in the payload');
+        $this->assertCount(count(Permissions::tenant()), $catalog, 'every permission is described');
+
+        $tables = array_values(array_filter(
+            $catalog,
+            fn (array $row): bool => $row['key'] === Permissions::TABLES_SERVE_ANY,
+        ))[0];
+        $this->assertFalse($tables['available'], '…and marked as one this shop cannot use');
+    }
+
+    public function test_every_preset_only_ticks_boxes_its_own_shop_is_offered(): void
+    {
+        // The invariant that ties the two halves together. A preset offered to
+        // a shop must not tick a box that shop is not shown — the form would
+        // hold a permission with no checkbox to see it by.
+        foreach ([
+            ['mart', ['pos' => true, 'products' => true, 'inventory' => true, 'marketplace' => true]],
+            ['food', ['pos' => true, 'products' => true, 'dine_in' => true, 'inventory' => true]],
+            ['pharmacy', ['pos' => true, 'products' => true, 'inventory' => true]],
+        ] as [$trade, $features]) {
+            $tenant = $this->tenantWith($features, $trade);
+            $offered = $this->offered($tenant);
+
+            foreach (StaffPresets::for($tenant) as $preset) {
+                $unshown = array_diff($preset['permissions'], $offered);
+
+                $this->assertSame(
+                    [],
+                    array_values($unshown),
+                    "{$trade}: the {$preset['code']} preset ticks a box this shop is never shown",
+                );
+            }
+        }
+    }
+
     // ── What a shop is offered ──────────────────────────────────────
 
     public function test_a_pharmacy_is_never_offered_a_waiter(): void

@@ -25,12 +25,24 @@ use App\Models\Tenant;
  * ticked. Presets are filtered by the tenant's granted modules and, where the
  * job only exists in one trade, by the trade itself.
  *
- * A preset grants its full list even where a module is off. The module gate is
- * the real boundary and it is enforced server-side on every request, so such a
- * permission is inert by construction — and it means what the owner intended if
- * that module is switched on later. Trimming the list instead would leave an
- * invisible gap that surfaces months afterwards as "why can't my manager see
- * online orders".
+ * A preset ticks EXACTLY the boxes this shop is shown, and no others.
+ *
+ * That is a reversal, and the reason is worth writing down. This used to grant
+ * the full list even where a module was off, on the argument that the module
+ * gate is the real boundary — such a permission is inert by construction, and
+ * it means what the owner intended if the module is switched on later.
+ *
+ * That argument held while the checkbox list underneath showed EVERY
+ * permission: whatever a preset ticked, the owner could see and change. The
+ * list is now filtered to the shop, so an untrimmed preset would grant a
+ * permission with no checkbox to see it by — it would appear only as a chip on
+ * the staff list, reading "Serve any table" against a mart that has never had
+ * a table. That is exactly the invisible gap the old note was trying to avoid,
+ * arriving through the other door.
+ *
+ * The cost is small and visible: a shop that switches dine-in on later re-picks
+ * the preset, or ticks the box that has just appeared. StaffPresetTest asserts
+ * the invariant directly — no preset may tick a box its own shop is not shown.
  */
 class StaffPresets
 {
@@ -250,7 +262,15 @@ class StaffPresets
             ? BusinessTypes::primary($tenant->business_type)
             : null;
 
-        return array_values(array_filter(
+        $offered = array_column(
+            array_filter(
+                Permissions::tenantCatalogFor($tenant),
+                static fn (array $row): bool => $row['available'],
+            ),
+            'key',
+        );
+
+        $shown = array_values(array_filter(
             self::all(),
             function (array $preset) use ($modules, $trade): bool {
                 if ($preset['trades'] !== [] && ! in_array($trade, $preset['trades'], true)) {
@@ -270,9 +290,27 @@ class StaffPresets
                 return false;
             },
         ));
+
+        // Trimmed to what this shop's own form will draw — see the note at the
+        // top of this file for why that is a reversal and why it is right now.
+        return array_map(
+            static fn (array $preset): array => [
+                ...$preset,
+                'permissions' => array_values(array_intersect($preset['permissions'], $offered)),
+            ],
+            $shown,
+        );
     }
 
-    /** One preset's permissions, or an empty list for an unknown code. */
+    /**
+     * One preset's permissions, UNTRIMMED — the canonical list for a job,
+     * with no shop in the question.
+     *
+     * Not what the staff form applies. That comes from `for()`, which trims to
+     * the boxes a given shop is shown. The two are deliberately different and
+     * neither is a mistake: this one answers "what is a cashier", `for()`
+     * answers "what may THIS shop make one".
+     */
     public static function permissionsFor(string $code): array
     {
         foreach (self::all() as $preset) {

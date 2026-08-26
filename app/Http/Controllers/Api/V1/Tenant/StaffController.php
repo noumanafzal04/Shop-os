@@ -77,12 +77,22 @@ class StaffController extends Controller
         return ApiResponse::noContent('Staff deleted');
     }
 
+    /**
+     * The permission checkboxes, each saying whether THIS shop can use it.
+     *
+     * The presets directly above this list have been filtered by the shop's
+     * modules and trade since they were written. The checkboxes never were, so
+     * a mart hiring a cashier was offered Kitchen board, Serve any table and
+     * Reservations — three boxes granting access to screens that shop does not
+     * have. One rule, applied to the presets and not to the thing they tick.
+     *
+     * Irrelevant rows are FLAGGED, not dropped: see the note on
+     * Permissions::tenantCatalogFor for why removing them from the payload
+     * would silently revoke a permission somebody still holds.
+     */
     public function permissions(): JsonResponse
     {
-        // Dressed for the screen — key, label and any hint. The label travels
-        // with the permission so a new one cannot reach the staff form with
-        // nothing but a humanised slug to explain it.
-        return ApiResponse::ok(Permissions::describe(Permissions::tenant()));
+        return ApiResponse::ok(Permissions::tenantCatalogFor($this->context->get()));
     }
 
     /**

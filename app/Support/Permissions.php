@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\Tenant;
+
 /**
  * Central permission registry. Staff users hold a subset of these in their
  * `permissions` column; scope owners hold all implicitly:
@@ -323,6 +325,75 @@ class Permissions
         self::ORDERS_MANAGE => ['label' => 'Online orders'],
         self::SETTINGS_MANAGE => ['label' => 'Shop settings'],
     ];
+
+    /**
+     * WHICH MODULE A TENANT PERMISSION IS ABOUT.
+     *
+     * The presets beside these checkboxes have been filtered by the shop's
+     * modules and trade since they were written — "offering Waiter to a
+     * pharmacy is noise, and noise in a permission screen is how the wrong box
+     * gets ticked", says StaffPresets in as many words. The CHECKBOX LIST
+     * underneath them never got the same treatment, so a mart hiring a cashier
+     * was offered Kitchen board, Serve any table and Reservations: three boxes
+     * that grant access to screens that shop does not have.
+     *
+     * ANY-of, like the presets: a permission is relevant when the shop holds
+     * at least one of the modules named here. A key absent from this map is
+     * relevant to every shop — staff, customers, expenses, settings and
+     * reports are not about a module at all.
+     *
+     * @var array<string, string[]>
+     */
+    public const NEEDS_MODULE = [
+        self::PRODUCTS_MANAGE => ['products', 'services'],
+        self::INVENTORY_MANAGE => ['inventory'],
+        self::SUPPLIERS_MANAGE => ['inventory'],
+        self::PURCHASES_MANAGE => ['inventory'],
+        self::SALES_MANAGE => ['pos', 'marketplace', 'dine_in'],
+        self::KITCHEN_MANAGE => ['dine_in'],
+        self::DISCOUNTS_APPLY => ['pos', 'marketplace', 'dine_in'],
+        self::DISCOUNTS_OVERRIDE => ['pos', 'marketplace', 'dine_in'],
+        self::SALES_VOID => ['pos', 'marketplace', 'dine_in'],
+        self::SALES_REFUND => ['pos', 'marketplace', 'dine_in'],
+        self::TABLES_SERVE_ANY => ['dine_in'],
+        self::COUPONS_MANAGE => ['pos', 'marketplace'],
+        self::RESERVATIONS_MANAGE => ['reservations'],
+        self::ORDERS_MANAGE => ['marketplace', 'delivery'],
+    ];
+
+    /**
+     * The tenant catalog, each row saying whether THIS shop can use it.
+     *
+     * ── Flagged, never removed ─────────────────────────────────────────
+     *
+     * The irrelevant rows are still returned, marked `available: false`. The
+     * screen hides them — but a staff member hired while the shop had dine-in
+     * may still HOLD `tables.serve_any` today, and a form that silently drops
+     * every permission it did not draw would revoke it the next time anybody
+     * corrected that person's phone number.
+     *
+     * That is the same trap `categoryOptions(keepId)` avoids on the expense
+     * form: filtering a list of choices is safe, filtering a list that is also
+     * the SUBMITTED STATE is a silent edit. Returning everything and letting
+     * the form decide keeps the decision where the context is.
+     *
+     * @return list<array{key: string, label: string, hint: string|null, available: bool}>
+     */
+    public static function tenantCatalogFor(?Tenant $tenant): array
+    {
+        $modules = $tenant?->moduleMap() ?? [];
+
+        return array_map(function (array $row) use ($modules): array {
+            $needs = self::NEEDS_MODULE[$row['key']] ?? [];
+
+            $available = $needs === [] || array_filter(
+                $needs,
+                static fn (string $module): bool => ! empty($modules[$module]),
+            ) !== [];
+
+            return $row + ['available' => $available];
+        }, self::describe(self::tenant()));
+    }
 
     /**
      * A permission list dressed for a screen: key, label and any hint.
