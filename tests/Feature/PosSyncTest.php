@@ -518,10 +518,20 @@ class PosSyncTest extends TestCase
         $log = DB::getQueryLog();
         DB::disableQueryLog();
 
+        // The log is read WITHOUT identifier quotes, because they are the
+        // engine's and not the query's: SQLite writes `from "products"` and
+        // MySQL writes `from ``products```. Matching one of them made this
+        // check find nothing at all on the engine shops actually run on — and
+        // a detector that counts zero occurrences of a thing it cannot see
+        // reports the same number as a detector watching a fixed bug.
+        $bare = fn (string $sql): string => str_replace(['"', '`'], '', $sql);
+
+        $this->assertNotEmpty($log, 'nothing was logged — this measures the wrong thing if the log is empty');
+
         $lookups = count(array_filter(
             $log,
-            fn (array $q): bool => str_contains($q['query'], 'from "products"')
-                && str_contains($q['query'], '"id" in ('),
+            fn (array $q): bool => str_contains($bare($q['query']), 'from products')
+                && str_contains($bare($q['query']), 'id in ('),
         ));
 
         $this->assertSame(1, $lookups, 'the refusal map is resolved once per request, not once per sale');

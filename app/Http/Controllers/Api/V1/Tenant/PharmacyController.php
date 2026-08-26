@@ -196,9 +196,21 @@ class PharmacyController extends Controller
 
         // A JSON LIKE is deliberate: the allocation set per movement is tiny,
         // and this runs once during an incident, never on a hot path.
+        //
+        // LOWER on BOTH SIDES, and this is not tidiness. The pre-filter used
+        // the manufacturer's casing as typed while the authoritative match
+        // below lowercases, so on MySQL — where a LIKE against a JSON column
+        // compares binary — a lot received as "Bad-77" and recalled as
+        // "BAD-77" matched NOTHING. SQLite's LIKE is case-insensitive for
+        // ASCII, so every test agreed it worked.
+        //
+        // The failure was the bad kind: `on_hand` below already lowercases, so
+        // a recall would correctly list the stock to pull off the shelf and
+        // show an EMPTY list of people who had already taken it home. A screen
+        // that looks like it worked is how somebody stops looking.
         $movements = StockMovement::query()
             ->whereNotNull('batch_allocations')
-            ->where('batch_allocations', 'like', '%'.$data['batch_number'].'%')
+            ->whereRaw('LOWER(batch_allocations) LIKE ?', ['%'.$needle.'%'])
             ->get();
 
         $matched = $movements->filter(fn (StockMovement $m) => collect($m->batch_allocations ?? [])

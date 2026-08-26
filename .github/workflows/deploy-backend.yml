@@ -117,12 +117,106 @@ jobs:
           php artisan migrate --force
           rm -f database/audit.sqlite
 
+  # ── THE ENGINE THE PRODUCT ACTUALLY RUNS ON ──────────────────────────
+  #
+  # `gate` above runs on SQLite because phpunit.xml pins it and it is fast.
+  # Shops run on MySQL, and the two disagree in ways that are invisible until
+  # a real request arrives:
+  #
+  #   · MySQL's ONLY_FULL_GROUP_BY refuses an aggregate beside a
+  #     non-aggregated column; SQLite allows it. The marketplace facets
+  #     endpoint shipped green and answered 500 on its first real call.
+  #   · SQLite orders every NUMBER below every STRING, so a float bound as a
+  #     string made "under Rs 500" match everything. MySQL coerces and hides
+  #     THAT one — the deceit runs in both directions.
+  #
+  # So the suite runs twice, on both engines, and the deploy waits for both.
+  # A test that only ever ran on the engine the product does not use is a test
+  # whose green means less than it looks.
+  gate-mysql:
+    name: Test suite (MySQL)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: shopos_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_mysql, bcmath, intl, gd, zip
+          coverage: none
+
+      - name: Cache composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: App key
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Strict mode, exactly as a shop's server has it
+        # Asserted rather than assumed: the whole point of this job is the
+        # difference between the engines, and a MySQL running without
+        # ONLY_FULL_GROUP_BY would pass everything and prove nothing.
+        run: |
+          MODE=$(mysql -h 127.0.0.1 -uroot -proot -N -B -e 'SELECT @@sql_mode')
+          echo "sql_mode = $MODE"
+          case "$MODE" in
+            *ONLY_FULL_GROUP_BY*) echo "strict grouping is on" ;;
+            *) echo "::error::MySQL is not enforcing ONLY_FULL_GROUP_BY — this job would prove nothing"; exit 1 ;;
+          esac
+
+      - name: Tests
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: shopos_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        run: |
+          set -o pipefail
+          php artisan test 2>&1 | tee /tmp/mysql-test-output.txt
+
+      - name: Which tests failed
+        if: failure()
+        run: |
+          {
+            echo "### MySQL suite failed"
+            echo ''
+            echo 'These pass on SQLite and fail on the engine shops actually run:'
+            echo ''
+            echo '```'
+            grep -E '^\s*(FAILED|⨯|Error)' /tmp/mysql-test-output.txt | head -40 || tail -40 /tmp/mysql-test-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   deploy:
     name: Deploy to droplet
-    needs: gate
-    # The release branch and nothing else. `needs: gate` says the tests must
-    # pass; this says where a passing test run is allowed to reach a server that
-    # holds shops' takings.
+    needs: [gate, gate-mysql]
+    # The release branch and nothing else. `needs` says the tests must pass on
+    # BOTH engines; this says where a passing test run is allowed to reach a
+    # server that holds shops' takings.
     if: github.ref == 'refs/heads/backend'
     runs-on: ubuntu-latest
     steps:
