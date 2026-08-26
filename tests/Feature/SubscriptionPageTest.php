@@ -86,4 +86,58 @@ class SubscriptionPageTest extends TestCase
         $this->assertTrue($usage->where('owner', 'plan')->every(fn ($u) => $u['unlimited']));
         $this->assertTrue($usage->where('owner', 'tenant')->every(fn ($u) => ! $u['unlimited']));
     }
+
+    /**
+     * WHAT THE SHOP RUNS — all of it.
+     *
+     * The screen translated three module keys out of a map that holds eleven,
+     * so a restaurant saw nothing about its dine-in, a chemist nothing about
+     * its inventory and a station nothing about its forecourt. "What your shop
+     * runs", showing a third of it, under a heading that claims otherwise.
+     */
+    public function test_every_module_the_shop_has_is_named_not_the_three_a_screen_remembered(): void
+    {
+        $tenant = Tenant::factory()->create([
+            'features' => [
+                'pos' => true,
+                'products' => true,
+                'inventory' => true,
+                'dine_in' => true,
+                'expenses' => false,
+            ],
+        ]);
+        $owner = User::factory()->shopOwner($tenant)->create();
+
+        $on = $this->actingAsUser($owner)
+            ->getJson('/api/v1/shop/subscription')
+            ->assertOk()
+            ->json('data.modules_on');
+
+        $keys = array_column($on, 'key');
+
+        $this->assertContains('dine_in', $keys, 'a restaurant must be told it has dine-in');
+        $this->assertContains('inventory', $keys);
+        $this->assertContains('pos', $keys);
+        // Off means absent, not greyed: this list is "what your shop runs".
+        $this->assertNotContains('expenses', $keys);
+        $this->assertNotContains('fuel', $keys);
+
+        // Every row carries the registry's own words, so the panel never
+        // needs a second copy of them — which is what produced the gap.
+        foreach ($on as $module) {
+            $this->assertNotEmpty($module['label'], $module['key'].' has no label');
+            $this->assertNotEmpty($module['description'], $module['key'].' has no description');
+        }
+    }
+
+    public function test_a_shop_with_nothing_switched_on_is_told_so_rather_than_shown_a_wrong_list(): void
+    {
+        $tenant = Tenant::factory()->create(['features' => []]);
+        $owner = User::factory()->shopOwner($tenant)->create();
+
+        $this->assertSame(
+            [],
+            $this->actingAsUser($owner)->getJson('/api/v1/shop/subscription')->json('data.modules_on'),
+        );
+    }
 }
