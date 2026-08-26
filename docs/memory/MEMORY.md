@@ -131,3 +131,4 @@
 - [Dashboards — consistency pass DONE](shopos-dashboards-redesign-pending.md) — one shared Surface, no truncated labels; NEVER interpolate a Tailwind class; structure left alone on purpose
 - [Asking For A Newer Version](shopos-asking-for-a-newer-version.md) — header refresh control with 5 honest answers; SW registration lives in AppLayout, not the update strip
 - [Demo World Went Stale](shopos-demo-world-stale.md) — FIXED: seeder ran green while covering none of 2.5 weeks of product; 2 modules ON with empty tables; guard is now a module→table MAP with a denominator
+- [The Aisle](shopos-the-aisle.md) — marketplace rebuilt as a product aisle (browse/product/cart/checkout); multi-shop basket; facet-counted filters; STANDING: run the suite on BOTH SQLite and MySQL — each engine hides the other's bugs

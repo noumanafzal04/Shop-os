@@ -290,7 +290,68 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-26 (latest) — the demo world catches up with the product
+### 2026-08-26 (latest) — the marketplace becomes a marketplace
+
+`/shops` listed SHOPS: city chips, a search box, a grid of shop cards, and a
+744-line page behind each one carrying its own header, cart, checkout form and
+modifier dialog. The backend matched — it could answer "what does this shop
+sell" and nothing else. There was no endpoint for a single product, so an item
+could not be linked to, shared, or opened from a search result.
+
+A customer does not shop for a shop.
+
+New: `/browse` (every product from every shop, with a filter rail), `/p/:id`
+(gallery, sizes, options, quantity), `/cart`, `/checkout`, `/saved`, and a
+rebuilt `/shops` that leads with goods. Header, basket sheet and footer are
+declared once by `MarketLayout` — every page brought its own before, which is
+how the shop page ended up owning the only basket in the product.
+
+Three decisions worth the argument, written up in
+`docs/decisions/shopos-the-aisle.md`:
+
+- **The basket spans shops; an order does not.** It used to empty itself when
+  anything from a second shop was added. The split is now SHOWN rather than
+  hidden, because it is real — three shops is three orders, three delivery fees
+  and three deliveries. Checkout places them one at a time and removes each
+  shop from the basket the moment its order is real, so a half-succeeded
+  checkout cannot end in two vans.
+- **The rail is counted, never written down.** Every option comes back with the
+  number of products behind it, from the same query the listing runs. A count
+  that turns out wrong is worse than no count.
+- **A card may add what it can fully specify.** Sizes are on the card; modifier
+  groups are a form and go to the product's page.
+
+The two database engines lied in opposite directions, and each hid the other:
+
+- SQLite hid a MySQL bug. `selectRaw` APPENDS, so the facets' price range
+  arrived on top of `products.*` and a subselect — which MySQL refuses under
+  ONLY_FULL_GROUP_BY. Nineteen green tests and a 500 on the first real request.
+- MySQL would have hidden a SQLite bug. A PHP float binds as a STRING, and
+  SQLite orders every number below every string, so `2400 <= '500'` is true and
+  "under Rs 500" returned the whole aisle.
+
+So the suite runs on **both** now and the deploy waits for both (`gate` +
+`gate-mysql`). The MySQL job asserts ONLY_FULL_GROUP_BY is actually on first,
+because a MySQL without it would pass everything and prove nothing.
+
+That second run immediately found two more, neither of them from this work.
+**A pharmacy recall could not find who took the bad lot home**: the JSON
+pre-filter used the casing as typed while the match lowercased, so `Bad-77`
+recalled as `BAD-77` found nobody — and the on-hand query already lowercased,
+so the screen listed the stock to pull beside an EMPTY list of people. And a
+query-count test grepped for `from "products"`, which is SQLite's quoting, so
+it counted zero on the engine that mattered.
+
+`e2e/market.spec.ts` walks the storefront in a browser with NO SESSION — a new
+project, because every other one signs in first and the marketplace's reader is
+a customer who has never had an account. Its first two runs failed on the
+harness, not the product: both filter rails are in the DOM at once (the `aside`
+is hidden by CSS, not unmounted), so `.first()` clicked the invisible one.
+
+Backend 2289 tests on both engines, exit 0. Panel 1165 tests, 0 lint errors,
+14/14 storefront e2e on desktop and phone.
+
+### 2026-08-26 — the demo world catches up with the product
 
 Asked whether the demo seeder needed anything. It ran fine — `migrate:fresh
 --seed`, exit 0, nine shops — and had not been touched since 9 August while
