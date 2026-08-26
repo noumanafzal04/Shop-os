@@ -290,7 +290,111 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-26 (latest) — the marketplace becomes a marketplace
+### 2026-08-26 (latest) — one filter bar, and a shop that remembers it was kept
+
+**The complaint was "the whole site's filters don't look good".** It was right,
+and it was the smaller half of the problem.
+
+**What the filters were.** Every list drew its own: a bare grid of inputs on
+one screen, a row of square chips on another, three different heights of
+select, two bare `<input type="date">` boxes wherever a date range was wanted.
+None of them had the part that matters — you could set four filters, scroll
+past them, and have no way to see what was in force. An empty table then reads
+as "there is nothing here" rather than "you filtered it all away", which is the
+most common way a working screen gets reported as broken.
+
+**What is there now** — `src/components/ui/filters/`:
+
+- **`FilterBar`** — search, the controls, and a row that always says three
+  things: what is applied (a removable pill per filter, each naming its axis
+  and its value), one Clear all, and the result count in the noun of the thing
+  listed.
+- **`DateRangeFilter`** — named ranges with the dates they resolve to printed
+  beside them (`Last 30 days · 28 Jul – 26 Aug`), a tick on the one in force,
+  and a two-month custom dialog that changes nothing behind it until Apply.
+  `matchPreset` names a range restored from a URL, so a bookmarked screen ticks
+  the right row. The arithmetic is a pure module with 19 tests standing on
+  month ends, leap years, quarter boundaries and Karachi's +5 offset — the one
+  that turns midnight on the 1st into the last day of the month before if
+  anything ever reaches for `toISOString()`.
+- **`FilterChips`** — mutually exclusive buckets carrying counts.
+- **`FilterSelect` / `FilterPopover` / `FilterOption`** — one treatment, one
+  click-away, one Escape that returns the focus to the trigger.
+
+Rolled onto: tenants, billing, the audit log, shop requests, enquiries, sales,
+products, purchase orders, online orders, documents, customers, staff, the
+activity trail, and the expenses/income money bar.
+
+**The filters that already existed and could never be reached.** This is the
+larger half. `TenantController@index` had accepted `status`, `city_id`,
+`plan_id` and `online_only` since it was written and the screen sent two
+parameters. The billing ledger had `tenant_id`, `from` and `to` and the screen
+sent none. The sales ledger had `channel`, `from` and `to`, and its Help Centre
+article promised filtering "by date, payment method or who rang it" — over a
+server that had only the date. That last one is the worst shape: a help page
+describing a control that is not there reads as a control the shopkeeper
+failed to find.
+
+So `payment_method` and `served_by` are now real, the sales list and its CSV
+export share **one** filter method rather than two copies under a docblock
+promising they matched, and the article says what the screen does.
+
+**Which door a shop came in through.** `tenants.converted_at`, stamped by
+`ApproveShopRequestAction`. Three origins — `demo`, `converted`, `direct` —
+filterable, countable and sortable, with the counts computed per axis with
+every OTHER filter applied but not its own (the marketplace facet rule). A shop
+someone kept after trying a demo has an owner who has never spoken to anybody
+and is sitting in the setup wizard under a generated name; it used to look
+exactly like a shop opened by hand a year ago. The list now opens with a
+callout that says how many there are and shows them in one press.
+
+**How many people are waiting.** `GET /admin/inbox` → pending shop requests and
+new enquiries, badged on the rail. Both queues sort oldest-first *because* a
+slow reply costs the customer nothing, which means the only thing that ever got
+them answered was somebody choosing to open the screen. A count withheld from
+staff who may not read the queue is **absent**, never zero — a zero draws no
+badge, which is indistinguishable from the truth until someone asks why nobody
+replied.
+
+**Billing learns to say how much.** Seven numbers and an unfilterable table,
+four of them headcounts. Nobody chasing subscriptions is chasing heads.
+`outstanding` totals late money at each shop's own plan price (per-plan, and a
+test fails if the two plans are ever priced the same, so it cannot pass by
+accident); shops with no plan are counted apart rather than folded in as zeroes
+— they are every converted demo waiting to be priced. `chase` is who to ring
+today, in grace first. Plus the same twelve-month trend the dashboard draws,
+from the same method.
+
+**Three defects found while doing it, two of them pre-existing:**
+
+- **The app shell widened the page.** `AppLayout`'s content column was a plain
+  `flex-1`, and a flex child's `min-width: auto` will not shrink below its
+  content — so one table wider than the window pushed the whole shell, header
+  included, past the right edge. The page scrolled sideways with no scrollbar
+  to say so, and the last column of the table simply was not there. It only
+  appeared at `xl` and up, because below that the same markup is a block: the
+  **widest** screens were the broken ones. Found by a browser; jsdom has no
+  layout engine and never could have seen it. `min-w-0`, and a guard.
+- **Two buttons, one name.** The custom-range dialog draws two months, so "10"
+  is 10 August *and* 10 September — a screen reader heard a list of numbers
+  repeated twice. Found by the component test failing with "found multiple
+  elements", which is the test finding a real bug while looking for a locator.
+- **The pager did nothing.** Mine, reported by the user within the hour. The
+  tenant list routed `<Pager onPage>` into the same function its filters used —
+  one that resets to page one on every change — so Next set the page and
+  dropped it in the same call. The marketplace's copy, written weeks earlier,
+  had the missing line. **Two implementations of one rule, and the newer one
+  lacking the fix the older one already carried.** There is now one
+  (`nextParams` / `useUrlFilters`), tested on its own, used by all three
+  screens, and a guard that fails if a fourth writes its own.
+
+**Gates.** Backend **2322 on SQLite / 2327 on MySQL, exit 0 on both**. Panel
+**1198 unit tests**, 0 lint errors (21 pre-existing warnings), `tsc` clean,
+build clean. Every new rule mutation-tested: break it and the test fails.
+
+---
+
+### 2026-08-26 — the marketplace becomes a marketplace
 
 `/shops` listed SHOPS: city chips, a search box, a grid of shop cards, and a
 744-line page behind each one carrying its own header, cart, checkout form and

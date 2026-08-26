@@ -132,3 +132,6 @@
 - [Asking For A Newer Version](shopos-asking-for-a-newer-version.md) — header refresh control with 5 honest answers; SW registration lives in AppLayout, not the update strip
 - [Demo World Went Stale](shopos-demo-world-stale.md) — FIXED: seeder ran green while covering none of 2.5 weeks of product; 2 modules ON with empty tables; guard is now a module→table MAP with a denominator
 - [The Aisle](shopos-the-aisle.md) — marketplace rebuilt as a product aisle (browse/product/cart/checkout); multi-shop basket; facet-counted filters; STANDING: run the suite on BOTH SQLite and MySQL — each engine hides the other's bugs
+- [One Filter Bar](shopos-one-filter-bar.md) — site-wide filter kit + named date ranges; tenant origin (Keep-this-shop flag), rail badges, billing says how much
+- [Page Rule, One Copy](shopos-page-rule-one-copy.md) — STANDING: filter-reset swallowed the page change; useUrlFilters/nextParams is the only copy; verify pagination in a browser
+- [Shell Widened The Page](shopos-shell-widened-the-page.md) — FIXED: flex-1 with no min-w-0 pushed the whole page sideways, only at xl+; jsdom was blind
