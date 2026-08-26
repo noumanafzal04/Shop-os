@@ -90,11 +90,34 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
   const label = (key: string) => described.get(key)?.label ?? labelFor(key);
   const hint = (key: string) => described.get(key)?.hint ?? hintFor(key);
 
-  // "Everything" means every box the catalog offers, not merely a non-empty
+  /**
+   * THE BOXES THIS SHOP CAN ACTUALLY USE.
+   *
+   * The job presets above have been filtered by the shop's modules and trade
+   * since they were written; the checkboxes they tick never were. So a mart
+   * hiring a cashier was offered Kitchen board, Serve any table and
+   * Reservations — three boxes granting access to screens that shop does not
+   * have, on the one screen where a wrongly-ticked box matters.
+   */
+  const offered = catalog.filter((p) => p.available !== false);
+
+  /**
+   * …and the ones somebody already HOLDS that this shop no longer uses.
+   *
+   * Hidden entirely, they would be submitted away: the form sends the boxes it
+   * drew, so a staff member hired while the shop had dine-in would quietly
+   * lose `tables.serve_any` the next time anybody corrected their phone
+   * number. They are shown apart, greyed, and can only be given up on purpose.
+   */
+  const heldButUnused = catalog.filter(
+    (p) => p.available === false && form.permissions.includes(p.key),
+  );
+
+  // "Everything" means every box this shop is OFFERED, not merely a non-empty
   // list — so the warning below cannot fire on a staffer who happens to hold
   // a lot of permissions.
   const allChecked =
-    catalog.length > 0 && catalog.every((p) => form.permissions.includes(p.key));
+    offered.length > 0 && offered.every((p) => form.permissions.includes(p.key));
   const jobs = presets.data ?? [];
 
   /**
@@ -415,7 +438,10 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
                   type="button"
                   className="font-medium text-brand-500 hover:text-brand-600 disabled:opacity-40 dark:text-brand-400"
                   disabled={allChecked}
-                  onClick={() => setForm((f) => ({ ...f, permissions: catalog.map((p) => p.key) }))}
+                  // Every box THIS SHOP is offered. Handing out a permission
+                  // for a module it does not have is not "everything", it is
+                  // noise nobody asked for.
+                  onClick={() => setForm((f) => ({ ...f, permissions: offered.map((p) => p.key) }))}
                 >
                   Select all
                 </button>
@@ -436,7 +462,7 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
               </p>
             )}
             <div className="mt-1 grid grid-cols-1 gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800 sm:grid-cols-2">
-              {catalog.map(({ key }) => {
+              {offered.map(({ key }) => {
                 const explanation = hint(key);
                 return (
                   <label key={key} className="flex cursor-pointer items-start gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
@@ -449,6 +475,27 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
                 );
               })}
             </div>
+
+            {/* Held from a module this shop no longer has. Shown so it can be
+                taken away deliberately rather than by a save nobody read. */}
+            {heldButUnused.length > 0 && (
+              <div className="mt-2 rounded-lg border border-warning-200 bg-warning-25 p-3 dark:border-warning-500/30 dark:bg-warning-500/10">
+                <p className="mb-2 text-theme-xs font-medium text-warning-700 dark:text-warning-400">
+                  Held from a part of the shop you no longer use
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {heldButUnused.map(({ key }) => (
+                    <label key={key} className="flex cursor-pointer items-start gap-2 text-theme-sm text-gray-600 dark:text-gray-400">
+                      <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked onChange={() => togglePerm(key)} />
+                      <span>{label(key)}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-theme-xs text-warning-700/80 dark:text-warning-400/80">
+                  Nothing happens while that part is switched off. Untick to take it away for good.
+                </p>
+              </div>
+            )}
             {errorFor("permissions") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("permissions")}</p>}
           </div>
         </ModalForm>

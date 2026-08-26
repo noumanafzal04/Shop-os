@@ -4,7 +4,13 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { ordersService, type CounterOrderPayload, type OrderStatus, type PlaceOrderPayload } from "../services/ordersService";
+import {
+  ordersService,
+  type CounterOrderPayload,
+  type OrderQueueFilters,
+  type OrderStatus,
+  type PlaceOrderPayload,
+} from "../services/ordersService";
 import { uuid } from "../../../common/uuid";
 
 export function useMyOrders(page = 1) {
@@ -50,7 +56,7 @@ export function useTakeOrder() {
 }
 
 // owner
-export function useShopOrders(params: { status?: string; page?: number }) {
+export function useShopOrders(params: OrderQueueFilters) {
   return useQuery({
     queryKey: ["orders", "shop", params],
     queryFn: () => ordersService.shopOrders(params),

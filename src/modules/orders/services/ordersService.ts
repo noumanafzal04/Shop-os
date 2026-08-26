@@ -102,6 +102,32 @@ export interface OwnerOrder {
   branch?: { id: string; name: string } | null;
 }
 
+/**
+ * Every axis the shop's order queue can be narrowed by.
+ *
+ * `channel` and `open_only` were accepted by the server from the day it was
+ * written and the screen sent neither — so "how much did the storefront bring
+ * in against the phone" was a question the app could answer and could not be
+ * asked.
+ */
+export interface OrderQueueFilters {
+  status?: string;
+  search?: string;
+  channel?: string;
+  fulfillment?: "delivery" | "pickup" | "";
+  rider_id?: string;
+  /** Deliveries nobody is carrying — the one that costs money. */
+  unassigned?: boolean;
+  from?: string | null;
+  to?: string | null;
+  page?: number;
+}
+
+/** How many orders sit at each stage. Every stage is present, including the
+ *  empty ones — a missing key would draw a chip with no number, and that reads
+ *  as "not counted" rather than as "none". */
+export type OrderStageCounts = Record<string, number>;
+
 export const ordersService = {
   // customer
   myOrders: (page = 1) => apiGet<CustomerOrder[]>("/customer/orders", { params: { page } }),
@@ -109,9 +135,21 @@ export const ordersService = {
   cancelMine: (id: string) => apiPost<CustomerOrder>(`/customer/orders/${id}/cancel`),
 
   // owner
-  shopOrders: (params: { status?: string; page?: number }) =>
+  shopOrders: (params: OrderQueueFilters) =>
     apiGet<OwnerOrder[]>("/orders", {
-      params: { status: params.status || undefined, page: params.page ?? 1 },
+      params: {
+        status: params.status || undefined,
+        search: params.search || undefined,
+        channel: params.channel || undefined,
+        fulfillment: params.fulfillment || undefined,
+        rider_id: params.rider_id || undefined,
+        // `undefined`, never `false`: the server reads this with
+        // `$request->boolean()`, and the string "false" is true.
+        unassigned: params.unassigned ? true : undefined,
+        from: params.from || undefined,
+        to: params.to || undefined,
+        page: params.page ?? 1,
+      },
     }),
   takeOrder: (payload: CounterOrderPayload) => apiPost<OwnerOrder>("/orders", payload),
   advance: (id: string, status: OrderStatus) => apiPost<OwnerOrder>(`/orders/${id}/advance`, { status }),

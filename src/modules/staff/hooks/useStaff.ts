@@ -28,6 +28,16 @@ export interface PermissionInfo {
   key: string;
   label: string;
   hint: string | null;
+  /**
+   * Whether THIS shop can use it — a mart has no kitchen board and no tables.
+   *
+   * The server flags rather than removes, so the form can still show a
+   * permission somebody already HOLDS from a module since switched off.
+   * Dropping it from the payload would revoke it the next time anybody
+   * corrected that person's phone number. Optional because an older response
+   * carries no flag; absent reads as available.
+   */
+  available?: boolean;
 }
 
 export interface StaffInput {

@@ -15,6 +15,8 @@ import { receiptService } from "../../receipts/services/receiptService";
 import { useDocument, useDocumentMutations } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
 import { uuid } from "../../../common/uuid";
+import { formatQuantity } from "../../../common/format/quantity";
+
 
 /**
  * One promise, in full: what was quoted or held, what has been paid against it,
@@ -161,7 +163,7 @@ export default function DocumentDetailPage() {
                       )}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
-                      {trimQty(item.quantity)}
+                      {formatQuantity(item.quantity)}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
                       {money(item.unit_price)}
@@ -607,4 +609,4 @@ function Row({
 const methodLabel = (m: string) => DEPOSIT_METHODS.find((x) => x.value === m)?.label ?? m;
 
 /** 2.000 reads wrong next to a quantity; 2 does. Real fractions survive. */
-const trimQty = (n: string) => String(Number(n));
+

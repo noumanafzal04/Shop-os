@@ -21,11 +21,13 @@ import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowA
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
+import { formatQuantity, formatQuantityWithUnit } from "../../../common/format/quantity";
+
 
 type AdjustType = "in" | "out" | "set";
 
 // Decimal stock renders clean: 5.000 → 5, 2.500 → 2.5
-const qty = (n: number | string) => String(parseFloat(String(Number(n).toFixed(3))));
+
 
 export default function InventoryPage() {
   const confirm = useConfirm();
@@ -226,7 +228,7 @@ export default function InventoryPage() {
             {expiring.data!.slice(0, 6).map((b) => (
               <div key={b.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  {b.product?.name} · batch <span className="font-mono">{b.batch_number}</span> · {qty(b.quantity)} left
+                  {b.product?.name} · batch <span className="font-mono">{b.batch_number}</span> · {formatQuantity(b.quantity)} left
                 </span>
                 <span className="flex items-center gap-2">
                   <Badge size="sm" color={b.expired ? "error" : "warning"}>
@@ -293,7 +295,7 @@ export default function InventoryPage() {
               <div key={b.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span>
                   {b.product?.name} · lot <span className="font-mono">{b.batch_number}</span>
-                  {b.dot_code && <> · DOT <span className="font-mono">{b.dot_code}</span></>} · {qty(b.quantity)} left
+                  {b.dot_code && <> · DOT <span className="font-mono">{b.dot_code}</span></>} · {formatQuantity(b.quantity)} left
                 </span>
                 <Badge size="sm" color={b.age_status === "old" ? "warning" : "light"}>
                   {b.age}{b.age_status === "old" ? " · old" : ""}
@@ -386,12 +388,12 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-6 py-4">
                       {p.low_stock_threshold !== null && Number(p.stock_quantity) <= Number(p.low_stock_threshold) ? (
-                        <Badge size="sm" color="warning">{qty(p.stock_quantity)} low</Badge>
+                        <Badge size="sm" color="warning">{formatQuantity(p.stock_quantity)} low</Badge>
                       ) : (
-                        <>{qty(p.stock_quantity)}{p.sold_by === "weight" && p.unit ? ` ${p.unit}` : ""}</>
+                        <>{formatQuantityWithUnit(p.stock_quantity, p.sold_by, p.unit)}</>
                       )}
                     </td>
-                    <td className="px-6 py-4">{p.low_stock_threshold != null ? qty(p.low_stock_threshold) : "—"}</td>
+                    <td className="px-6 py-4">{p.low_stock_threshold != null ? formatQuantity(p.low_stock_threshold) : "—"}</td>
                     {reorderOnly && (
                       <td className="px-6 py-4">
                         {p.last_supplier_name ? (
@@ -431,12 +433,12 @@ export default function InventoryPage() {
                       </td>
                       <td className="px-6 py-3">
                         {v.low_stock_threshold !== null && Number(v.stock_quantity) <= Number(v.low_stock_threshold) ? (
-                          <Badge size="sm" color="warning">{qty(v.stock_quantity)} low</Badge>
+                          <Badge size="sm" color="warning">{formatQuantity(v.stock_quantity)} low</Badge>
                         ) : (
-                          qty(v.stock_quantity)
+                          formatQuantity(v.stock_quantity)
                         )}
                       </td>
-                      <td className="px-6 py-3">{v.low_stock_threshold != null ? qty(v.low_stock_threshold) : "—"}</td>
+                      <td className="px-6 py-3">{v.low_stock_threshold != null ? formatQuantity(v.low_stock_threshold) : "—"}</td>
                       <td className="px-6 py-3 text-right">
                         <button
                           className={ROW_ACTION}
@@ -463,8 +465,10 @@ export default function InventoryPage() {
           {variant && <span className="text-gray-500"> / {variant.name}</span>}
         </h3>
         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-          Current stock: <span className="font-semibold">{qty(currentStock)}</span>
-          {target?.sold_by === "weight" && target.unit ? ` ${target.unit}` : ""}
+          Current stock:{" "}
+          <span className="font-semibold">
+            {formatQuantityWithUnit(currentStock, target?.sold_by, target?.unit)}
+          </span>
         </p>
 
         {adjustError && (
@@ -627,7 +631,7 @@ export default function InventoryPage() {
                 return (
                   <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 px-3 py-2 text-theme-sm dark:border-gray-800">
                     <span className="text-gray-700 dark:text-gray-300">
-                      <span className="font-mono">{b.batch_number}</span> · {qty(b.quantity)} left
+                      <span className="font-mono">{b.batch_number}</span> · {formatQuantity(b.quantity)} left
                       {expired && <span className="ml-2 text-error-500">EXPIRED</span>}
                       {/* Age, not expiry. "old" is a nudge to price it or send
                           it back — never a block on selling it. */}
