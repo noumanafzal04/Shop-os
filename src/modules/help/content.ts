@@ -656,7 +656,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/orders",
     keywords: ["online", "delivery", "rider", "dispatch", "marketplace", "cod"],
     body: [
-      { type: "p", text: "Orders placed on your online shop arrive here. Accept, prepare, then dispatch — assign a rider if you deliver." },
+      { type: "p", text: "Orders placed on your online shop arrive here, along with any you take yourself over the phone or on WhatsApp. Accept, prepare, then dispatch \u2014 assign a rider if you deliver." },
+      { type: "h", text: "Working the queue" },
+      { type: "p", text: "The stages across the top each carry a count, so you can see how many are waiting to be confirmed without opening anything. Every row shows how long that order has been waiting; it turns amber and then red when it has been too long, and \u201ctoo long\u201d means something different at each stage \u2014 five minutes unconfirmed matters more than fifteen minutes already on a bike." },
+      { type: "p", text: "Each row carries the one next step, so a whole morning can be worked without opening a single order. Click the row for everything else: the full list, the address, the note the customer left, the rider, and Cancel." },
+      { type: "note", text: "If a delivery has nobody carrying it, a strip appears at the top saying how many \u2014 one press shows just those. That is the one thing on this screen that costs money if it is missed: a customer waiting for a bike that was never sent." },
+      { type: "h", text: "Finding one order" },
+      { type: "p", text: "Search by order number, the customer\u2019s name or the number they rang from. You can also narrow by date, by delivery or pickup, and by where the order came from \u2014 your online shop, the phone, WhatsApp or the counter. That last one answers whether the online shop is earning its keep." },
       { type: "note", text: "Payment is cash on delivery. It is recorded when the money actually reaches you, not when the order is placed." },
     ],
   },
@@ -1084,7 +1090,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/subscription",
     keywords: ["subscription", "plan", "billing", "renew", "expiry", "payment", "invoice"],
     body: [
-      { type: "p", text: "Your plan, what it costs, and the date it runs to. Payments you have made are listed underneath." },
+      { type: "p", text: "Where your shop stands is the first thing on the screen, in plain words: up to date, overdue, or run out \u2014 and how long you have, counted in days rather than left as a date to work out." },
+      { type: "p", text: "Underneath: the plan and what it costs, everything your shop runs, and how close you are to any ceiling on it. A bar that has filled up says so in words too, because a bar at 96% and a bar at 100% look alike and only one of them means the next product will be refused." },
+      { type: "note", text: "\u201cWhat your shop runs\u201d is separate from the plan on purpose. Those parts are set for your business by us, and changing plan never takes one away." },
       { type: "h", text: "If the date passes" },
       {
         type: "table",
@@ -1098,6 +1106,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "note",
         text: "Your data is never deleted. Renewing restores everything exactly as it was, immediately.",
       },
+      { type: "h", text: "Your payments" },
+      { type: "p", text: "Every payment recorded against your shop, with the date the money arrived, the period it covers, how it was paid and the reference. Export CSV writes exactly what is on screen." },
+      { type: "note", text: "Plans and payments are entered by us, not from this screen \u2014 so if something here does not match your records, ask support rather than looking for a button." },
     ],
   },
   {

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router";
 
 import { ApiError } from "../../../common/types/api";
 import PageMeta from "../../../components/common/PageMeta";
@@ -21,9 +20,11 @@ import { useModal } from "../../../hooks/useModal";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { useMoney } from "../../shop/hooks/useShop";
 import TakeOrderModal from "../components/TakeOrderModal";
-import { OrderCard, OrderCardSkeleton } from "../components/OrderCard";
+import { OrderDetail } from "../components/OrderDetail";
+import { OrderRow, ORDER_COLUMNS } from "../components/OrderRow";
+import { nextStep } from "../orderFlow";
 import { useOrderActions, useRiders, useShopOrders } from "../hooks/useOrders";
-import type { OrderStageCounts } from "../services/ordersService";
+import type { OrderStageCounts, OwnerOrder } from "../services/ordersService";
 
 /**
  * The stages, in the order an order moves through them.
@@ -105,6 +106,7 @@ export default function OwnerOrdersPage() {
   const riders = useRiders();
   const activeRiders = (riders.data ?? []).filter((r) => r.is_active);
   const [error, setError] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const takeModal = useModal();
 
   const branchCol = useBranchColumn();
@@ -116,6 +118,17 @@ export default function OwnerOrdersPage() {
 
   const onError = (e: unknown) => setError(e instanceof ApiError ? e.message : "Action failed.");
   const busy = advance.isPending || cancel.isPending || assignRider.isPending;
+
+  /**
+   * The order the panel is showing, taken from the LIST rather than kept in
+   * state as a copy.
+   *
+   * That is what makes the panel update itself: advancing an order refetches
+   * the queue, and a snapshot stored on open would still be showing the stage
+   * it was at when it was opened — with a button offering a move it has
+   * already made.
+   */
+  const opened: OwnerOrder | null = rows.find((o) => o.id === openId) ?? null;
 
   /** Change one filter. Any change returns to page one — page 4 of a different
    *  filter is a page that usually does not exist. */
@@ -247,60 +260,133 @@ export default function OwnerOrdersPage() {
 
       {error && <div className="mb-4"><Alert variant="error" title="Blocked" message={error} /></div>}
 
-      {/* One column up to `lg`, two above it. A queue is read top to bottom,
-          so the single column is the right default — but a desktop showing one
-          narrow strip of cards down the middle of a 1440px screen is half the
-          glass spent on nothing. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {orders.isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <OrderCardSkeleton key={i} />)
-        ) : rows.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center lg:col-span-2 dark:border-gray-700">
-            <p className="text-gray-500 dark:text-gray-400">
-              {unassigned
-                ? "Every delivery has a rider on it."
-                : applied.length > 0 || debounced
-                  // An empty queue under a filter reads as "there are no
-                  // orders" unless it says otherwise.
-                  ? "No order matches these filters."
-                  : status
-                    ? "Nothing at this stage."
-                    : "No orders yet."}
-            </p>
-            {(applied.length > 0 || debounced) && (
-              <button
-                type="button"
-                onClick={clearAll}
-                className="mt-3 inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-theme-sm font-semibold text-brand-500 transition hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-500/10"
-              >
-                Clear the filters
-              </button>
-            )}
-            {!applied.length && !debounced && !status && (
-              <p className="mt-2 text-theme-xs text-gray-400">
-                They arrive here from your <Link to="/tenant/settings" className="text-brand-500 hover:text-brand-600">online shop</Link>,
-                or take one yourself with the button above.
-              </p>
-            )}
-          </div>
-        ) : (
-          rows.map((o) => (
-            <OrderCard
-              key={o.id}
-              order={o}
-              money={money}
-              riders={activeRiders}
-              branchLabel={branchCol.show && o.branch_id ? branchCol.label(o.branch_id) : null}
-              busy={busy}
-              onAdvance={(next) => { setError(null); advance.mutate({ id: o.id, status: next }, { onError }); }}
-              onCancel={() => { setError(null); cancel.mutate({ id: o.id }, { onError }); }}
-              onAssignRider={(riderId) => { setError(null); assignRider.mutate({ id: o.id, riderId }, { onError }); }}
-            />
-          ))
-        )}
+      {/* A TABLE, not a wall of cards.
+          The first version of this screen drew every item, the address, the
+          notes, the rider picker and both buttons for every order. Four orders
+          filled a laptop; a shop working a lunch rush has forty, and scrolled
+          past everything it already knew to find the one that needed doing.
+          The row carries what is needed to CHOOSE; a click opens the rest. */}
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="overflow-x-auto">
+          {/* NO `min-w` — the columns step down instead.
+              A nine-column table on a 390px phone is not a table that needs
+              scrolling sideways, it is a table with columns that have not
+              earned their place there. Items, delivery-or-pickup and payment
+              fold into the customer cell, and the next-step button moves into
+              the detail panel a tap away. What is left — who, how long, how
+              much, what stage — fits.
+              The steps are `sm` and `xl`, not `sm` and `md`, because the rail
+              takes 290px from `lg` up: a 1024px tablet has 734px of page, which
+              is less than a 768px phone-in-landscape has. The breakpoint asks
+              the VIEWPORT, so the useful width is always the viewport minus
+              whatever the rail is holding. */}
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                <th className="px-4 py-3 font-medium">Order</th>
+                <th className="px-4 py-3 font-medium">Waiting</th>
+                <th className="px-4 py-3 font-medium">Customer</th>
+                <th className="hidden px-4 py-3 font-medium sm:table-cell">Items</th>
+                <th className="hidden px-4 py-3 font-medium xl:table-cell">How</th>
+                <th className="hidden px-4 py-3 font-medium xl:table-cell">Payment</th>
+                <th className="px-4 py-3 text-right font-medium">Total</th>
+                <th className="px-4 py-3 font-medium">Stage</th>
+                <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">
+                  <span className="sr-only">Next step</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {orders.isLoading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i}>
+                    <td colSpan={ORDER_COLUMNS} className="px-4 py-4">
+                      <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
+                    </td>
+                  </tr>
+                ))
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={ORDER_COLUMNS} className="px-4 py-14 text-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {unassigned
+                        ? "Every delivery has a rider on it."
+                        : applied.length > 0 || debounced
+                          // An empty queue under a filter reads as "there are
+                          // no orders" unless it says otherwise.
+                          ? "No order matches these filters."
+                          : status
+                            ? "Nothing at this stage."
+                            : "No orders yet."}
+                    </p>
+                    {(applied.length > 0 || debounced) && (
+                      <button
+                        type="button"
+                        onClick={clearAll}
+                        className="mt-3 inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-theme-sm font-semibold text-brand-500 transition hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-500/10"
+                      >
+                        Clear the filters
+                      </button>
+                    )}
+                    {applied.length === 0 && !debounced && !status && (
+                      <p className="mt-2 text-theme-xs text-gray-400">
+                        They arrive from your online shop, or take one yourself with the button above.
+                      </p>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((o) => {
+                  const step = nextStep(o);
+
+                  return (
+                    <OrderRow
+                      key={o.id}
+                      order={o}
+                      money={money}
+                      busy={busy}
+                      nextLabel={step?.label ?? null}
+                      onOpen={() => setOpenId(o.id)}
+                      onAdvance={() => {
+                        if (step === null) return;
+                        setError(null);
+                        advance.mutate({ id: o.id, status: step.status }, { onError });
+                      }}
+                    />
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <Pager pagination={pagination} onPage={setPage} noun="orders" />
       </div>
 
-      <Pager pagination={pagination} onPage={setPage} noun="orders" />
+      <OrderDetail
+        order={opened}
+        money={money}
+        riders={activeRiders}
+        branchLabel={opened && branchCol.show && opened.branch_id ? branchCol.label(opened.branch_id) : null}
+        busy={busy}
+        onClose={() => setOpenId(null)}
+        onAdvance={(next) => {
+          if (opened === null) return;
+          setError(null);
+          advance.mutate({ id: opened.id, status: next }, { onError });
+        }}
+        onCancel={() => {
+          if (opened === null) return;
+          setError(null);
+          cancel.mutate({ id: opened.id }, { onError });
+        }}
+        onAssignRider={(riderId) => {
+          if (opened === null) return;
+          setError(null);
+          assignRider.mutate({ id: opened.id, riderId }, { onError });
+        }}
+      />
+
       <TakeOrderModal isOpen={takeModal.isOpen} onClose={takeModal.closeModal} />
     </>
   );

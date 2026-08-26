@@ -54,12 +54,22 @@ export interface SubscriptionInfo {
   state: "active" | "grace" | "read_only";
   subscription_ends_at: string | null;
   grace_ends_at: string | null;
-  modules: Record<string, boolean>;
   /**
    * The plan above says what the shop PAYS. `modules` says what it can do, and
    * no billing event ever rewrites those — so a renewal cannot take a screen
    * away from a shop that was using it yesterday.
    */
+  modules: Record<string, boolean>;
+  /**
+   * The same list, switched ON only, carrying the registry's own words.
+   *
+   * The screen used to translate three keys from a map of eleven, using a
+   * lookup table typed into the panel — so a restaurant was never told it had
+   * dine-in. The labels live in one place now, on the server, and the panel
+   * prints what it is given. Optional because an older response has no such
+   * key; absent falls back to naming nothing rather than naming a third.
+   */
+  modules_on?: Array<{ key: string; label: string; description: string }>;
   limits_usage: Array<{
     key: string;
     label: string;
