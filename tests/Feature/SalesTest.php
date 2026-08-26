@@ -343,6 +343,131 @@ class SalesTest extends TestCase
         $this->assertSame(1, substr_count($csv, $sale['invoice_number']));
     }
 
+    /**
+     * THE FILTERS THE HELP CENTRE HAS ALWAYS PROMISED.
+     *
+     * "Filter by date, payment method or who rang it" has been printed in the
+     * sales article since it was written, over a screen that could do none of
+     * them and a server that had only the date. A help page describing a
+     * control that is not there does not read as a missing feature — it reads
+     * as a control the shopkeeper failed to find.
+     */
+    public function test_the_ledger_can_be_narrowed_by_how_it_was_paid(): void
+    {
+        $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload([
+            'payment_method' => 'cash',
+        ]))->assertCreated();
+        $card = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload([
+            'payment_method' => 'card',
+        ]))->json('data');
+
+        $rows = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/sales?payment_method=card')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($card['invoice_number'], $rows[0]['invoice_number']);
+        // The denominator: two sales exist, so this is one picked out of two.
+        $this->assertCount(2, $this->actingAsUser($this->owner)->getJson('/api/v1/sales')->json('data'));
+    }
+
+    public function test_the_ledger_can_be_narrowed_to_who_rang_it(): void
+    {
+        $cashier = User::factory()->tenantStaff($this->tenant, [Permissions::SALES_MANAGE])->create();
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload())->assertCreated();
+        $theirs = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload([
+            'served_by' => $cashier->id,
+        ]))->json('data');
+
+        $rows = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/sales?served_by='.$cashier->id)
+            ->assertOk()
+            ->json('data');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($theirs['invoice_number'], $rows[0]['invoice_number']);
+    }
+
+    public function test_the_ledger_can_be_narrowed_to_where_it_was_rung(): void
+    {
+        $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload([
+            'channel' => 'walk_in',
+        ]))->assertCreated();
+        $pos = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload([
+            'channel' => 'pos',
+        ]))->json('data');
+
+        $rows = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/sales?channel=pos')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($pos['invoice_number'], $rows[0]['invoice_number']);
+    }
+
+    public function test_a_sale_rung_today_is_inside_a_range_that_ends_today(): void
+    {
+        $sale = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload())->json('data');
+
+        Sale::withoutGlobalScopes()->find($sale['id'])->update(['sold_at' => now()->setTime(17, 45)]);
+
+        $rows = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/sales?to='.now()->toDateString())
+            ->assertOk()
+            ->json('data');
+
+        // A `to` compared against midnight would drop every sale rung during
+        // the day it names — which is the range this screen is opened with.
+        $this->assertCount(1, $rows);
+    }
+
+    /**
+     * THE EXPORT AND THE LIST ARE ONE FILTER.
+     *
+     * They were two copies of the same seven-line chain, under an export
+     * docblock promising they matched. This is the test that fails if the
+     * eighth filter is ever added to only one of them — which would be the
+     * export, because it is the copy nobody looks at.
+     */
+    public function test_the_export_honours_every_filter_the_list_does(): void
+    {
+        $cashier = User::factory()->tenantStaff($this->tenant, [Permissions::SALES_MANAGE])->create();
+
+        $wanted = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload([
+            'payment_method' => 'card',
+            'channel' => 'pos',
+            'served_by' => $cashier->id,
+        ]))->json('data');
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload([
+            'payment_method' => 'cash',
+            'channel' => 'walk_in',
+        ]))->assertCreated();
+
+        foreach ([
+            'payment_method=card',
+            'channel=pos',
+            'served_by='.$cashier->id,
+        ] as $filter) {
+            $csv = $this->actingAsUser($this->owner)
+                ->get('/api/v1/sales/export?'.$filter)
+                ->assertOk()
+                ->streamedContent();
+
+            $this->assertSame(
+                1,
+                substr_count($csv, $wanted['invoice_number']),
+                "the export dropped the filter: {$filter}",
+            );
+            // …and it left the other sale out, or "the filter travelled" would
+            // be true of an export that simply wrote everything.
+            $this->assertSame(2, substr_count($csv, "\n"), "the export wrote more than one row for: {$filter}");
+        }
+    }
+
     public function test_dashboard_today_reflects_sales_and_profit(): void
     {
         $this->actingAsUser($this->owner)->postJson('/api/v1/sales', $this->salePayload());

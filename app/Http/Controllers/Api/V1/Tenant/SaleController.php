@@ -17,6 +17,7 @@ use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,20 +27,7 @@ class SaleController extends Controller
 {
     public function index(Request $request, BranchContext $branch): JsonResponse
     {
-        $sales = Sale::query()
-            ->withCount('items')
-            ->with('branch:id,name')
-            // Branch scope: a single branch (staff, or an owner focused on one)
-            // sees only its sales; an owner's All-Branches view sees them all.
-            ->when($branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
-            // One definition, shared with the export below and with global
-            // search — see Sale::scopeMatchingSearch. It is what makes an
-            // offline slip (`OFF-…`) findable at all.
-            ->matchingSearch($request->query('search'))
-            ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
-            ->when($request->query('channel'), fn ($q, $channel) => $q->where('channel', $channel))
-            ->when($request->query('from'), fn ($q, $from) => $q->where('sold_at', '>=', $from))
-            ->when($request->query('to'), fn ($q, $to) => $q->where('sold_at', '<=', $to.' 23:59:59'))
+        $sales = $this->filtered($request, $branch)
             ->orderByDesc('sold_at')
             ->paginate(min((int) $request->query('per_page', 15), 100));
 
@@ -55,18 +43,7 @@ class SaleController extends Controller
     {
         $header = ['invoice_number', 'offline_number', 'sold_at', 'branch', 'channel', 'status', 'customer_name', 'customer_phone', 'order_type', 'table_no', 'items', 'subtotal', 'discount', 'tax', 'total', 'payment_method', 'amount_paid', 'change_due', 'notes'];
 
-        $rows = Sale::query()
-            ->withCount('items')
-            ->with('branch:id,name')
-            ->when($branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
-            // One definition, shared with the export below and with global
-            // search — see Sale::scopeMatchingSearch. It is what makes an
-            // offline slip (`OFF-…`) findable at all.
-            ->matchingSearch($request->query('search'))
-            ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
-            ->when($request->query('channel'), fn ($q, $channel) => $q->where('channel', $channel))
-            ->when($request->query('from'), fn ($q, $from) => $q->where('sold_at', '>=', $from))
-            ->when($request->query('to'), fn ($q, $to) => $q->where('sold_at', '<=', $to.' 23:59:59'))
+        $rows = $this->filtered($request, $branch)
             ->orderByDesc('sold_at')
             ->get()
             ->map(fn (Sale $s) => [
@@ -96,6 +73,44 @@ class SaleController extends Controller
             ->all();
 
         return CsvExport::stream('sales-'.now()->format('Y-m-d').'.csv', $header, $rows);
+    }
+
+    /**
+     * THE LEDGER'S FILTERS, WRITTEN ONCE.
+     *
+     * The list and the CSV export had the same seven-line chain typed out
+     * twice, under an export docblock that promised in as many words to
+     * "honour the same filters as index()". Two copies of one rule is how that
+     * promise gets quietly broken by whoever adds the eighth filter to only
+     * one of them — and the export is the copy nobody would notice.
+     *
+     * `payment_method` and `served_by` are new here, and they are not new to
+     * the product: the Help Centre has told shopkeepers this screen filters by
+     * both since it was written. A help page describing a control that is not
+     * there does not read as a missing feature. It reads as a control the
+     * shopkeeper failed to find.
+     */
+    private function filtered(Request $request, BranchContext $branch): Builder
+    {
+        return Sale::query()
+            ->withCount('items')
+            ->with('branch:id,name')
+            // Branch scope: a single branch (staff, or an owner focused on one)
+            // sees only its sales; an owner's All-Branches view sees them all.
+            ->when($branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
+            // One definition, shared with global search — see
+            // Sale::scopeMatchingSearch. It is what makes an offline slip
+            // (`OFF-…`) findable at all.
+            ->matchingSearch($request->query('search'))
+            ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
+            ->when($request->query('channel'), fn ($q, $channel) => $q->where('channel', $channel))
+            ->when($request->query('payment_method'), fn ($q, $method) => $q->where('payment_method', $method))
+            ->when($request->query('served_by'), fn ($q, $seller) => $q->where('served_by', $seller))
+            ->when($request->query('from'), fn ($q, $from) => $q->where('sold_at', '>=', $from))
+            // The whole of the day it names. Midnight would drop everything
+            // rung during it, and "today" is the range this screen is opened
+            // with.
+            ->when($request->query('to'), fn ($q, $to) => $q->where('sold_at', '<=', $to.' 23:59:59'));
     }
 
     public function store(StoreSaleRequest $request, CreateSaleAction $action, TenantContext $tenant): JsonResponse

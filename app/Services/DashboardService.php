@@ -1175,9 +1175,14 @@ class DashboardService
      * Subscription revenue per calendar month, zero-filled so the chart has no
      * holes for months nobody paid in.
      *
+     * Public because the billing screen draws the same trend, and two copies of
+     * "revenue per month" is how two screens end up disagreeing about what the
+     * platform earned — the mistake this file's own `summary` docblock is a
+     * monument to.
+     *
      * @return array<int, array{month: string, ym: string, total: float}>
      */
-    private function revenueSeries(int $months): array
+    public function revenueSeries(int $months): array
     {
         $from = now()->startOfMonth()->subMonths($months - 1);
 

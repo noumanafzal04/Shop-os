@@ -24,8 +24,10 @@ use App\Models\Tenant;
 use App\Support\ApiResponse;
 use App\Support\Modules;
 use App\Support\PlanLimits;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TenantController extends Controller
 {
@@ -34,10 +36,19 @@ class TenantController extends Controller
      *
      * `payment_status` is the one an admin chasing money actually reaches for:
      * paid / grace / unpaid / suspended, mutually exclusive by construction
-     * (see Tenant::scopePaymentStatus). The bucket COUNTS ride along on every
-     * response, unfiltered, so the tab labels read "Unpaid (3)" without a
-     * second round trip — and so an admin who never clicks the tab still sees
-     * that three shops are behind.
+     * (see Tenant::scopePaymentStatus). `origin` is the one an admin chasing
+     * NEW BUSINESS reaches for: demo / converted / direct, where "converted"
+     * is somebody who tried a demo, pressed "Keep this shop" and was approved
+     * (see Tenant::origin).
+     *
+     * ── Every axis is counted with the OTHERS applied but not its own ──────
+     *
+     * The same rule the marketplace facets follow. A count taken with its own
+     * filter applied would read "Unpaid (3)" while showing three rows no
+     * matter how many shops are actually behind, which is worse than no count:
+     * it is a number that always agrees with the screen and never tells you
+     * anything. `$scoped($except)` is the one place the filter set is written
+     * down, so the rows and every count can never drift apart.
      */
     public function index(Request $request): JsonResponse
     {
@@ -51,7 +62,27 @@ class TenantController extends Controller
             );
         }
 
-        $filters = fn ($q) => $q
+        $origin = $request->query('origin');
+
+        if ($origin !== null && $origin !== '' && ! in_array($origin, Tenant::ORIGINS, true)) {
+            return ApiResponse::error(
+                'Unknown origin: '.$origin.'. Expected one of '.implode(', ', Tenant::ORIGINS).'.',
+                422,
+                code: 'UNKNOWN_ORIGIN',
+            );
+        }
+
+        $setup = $request->query('setup');
+
+        /**
+         * Every filter, in one place, with one axis liftable.
+         *
+         * @param  string|null  $except  the axis being COUNTED, left out so the
+         *                               count answers "how many if I clicked
+         *                               this?" rather than "how many are on
+         *                               screen?"
+         */
+        $scoped = fn (?string $except = null) => Tenant::query()
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('business_name', 'like', "%{$search}%")
@@ -61,13 +92,25 @@ class TenantController extends Controller
             })
             ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))
             ->when($request->query('city_id'), fn ($q, $cityId) => $q->where('city_id', $cityId))
-            ->when($request->query('plan_id'), fn ($q, $planId) => $q->where('plan_id', $planId))
+            // "No plan yet" is the state every converted shop starts in, so it
+            // has to be askable — and it cannot be spelled as an EMPTY
+            // plan_id, because an empty query parameter is how the panel says
+            // "no filter". Answered before the generic branch below, which
+            // would otherwise look for a plan whose id is the word "none".
+            ->when($request->query('plan_id') === 'none', fn ($q) => $q->whereNull('plan_id'))
+            ->when(
+                $request->query('plan_id') && $request->query('plan_id') !== 'none',
+                fn ($q) => $q->where('plan_id', $request->query('plan_id')),
+            )
+            ->when($request->query('business_type'), fn ($q, $type) => $q->where('business_type', $type))
+            ->when($setup === 'pending', fn ($q) => $q->where('setup_completed', false))
+            ->when($setup === 'done', fn ($q) => $q->where('setup_completed', true))
             ->when($request->boolean('online_only'), fn ($q) => $q->where('online_shop_enabled', true))
-            ->when($request->boolean('with_deleted'), fn ($q) => $q->withTrashed());
+            ->when($request->boolean('with_deleted'), fn ($q) => $q->withTrashed())
+            ->when($except !== 'origin' && $origin, fn ($q) => $q->origin($origin))
+            ->when($except !== 'payment_status' && $status, fn ($q) => $q->paymentStatus($status));
 
-        $tenants = $filters(Tenant::query()->with(['city', 'plan']))
-            ->when($status, fn ($q, $s) => $q->paymentStatus($s))
-            ->orderByDesc('created_at')
+        $tenants = $this->sorted($scoped()->with(['city', 'plan']), (string) $request->query('sort', 'newest'))
             ->paginate(min((int) $request->query('per_page', 15), 100))
             ->withQueryString();
 
@@ -76,18 +119,80 @@ class TenantController extends Controller
         // whole platform.
         $counts = [];
         foreach (Tenant::PAYMENT_STATUSES as $bucket) {
-            $counts[$bucket] = $filters(Tenant::query())->paymentStatus($bucket)->count();
+            $counts[$bucket] = $scoped('payment_status')->paymentStatus($bucket)->count();
         }
 
         // "All" cannot be read off the paginator — once a bucket is selected
         // the paginator counts that bucket — and it is not the sum of the four
         // either, because a deleted business sits in none of them.
-        $counts['all'] = $filters(Tenant::query())->count();
+        $counts['all'] = $scoped('payment_status')->count();
 
         return ApiResponse::paginated(
             TenantResource::collection($tenants),
-            meta: ['payment_counts' => $counts],
+            meta: [
+                'payment_counts' => $counts,
+                'origin_counts' => $this->originCounts($scoped('origin')),
+            ],
         );
+    }
+
+    /**
+     * The three doors, counted in one query rather than three.
+     *
+     * Conditional sums rather than a GROUP BY because the answer must contain
+     * a zero for a door nobody used — a missing key would leave the panel
+     * drawing a chip with no number beside two that have one.
+     *
+     * @return array<string, int>
+     */
+    private function originCounts(Builder $query): array
+    {
+        // select(), never selectRaw(): selectRaw APPENDS to `select *`, and
+        // MySQL's ONLY_FULL_GROUP_BY refuses an aggregate standing beside a
+        // non-aggregated column. SQLite allows it, so the failure would only
+        // ever appear in production.
+        $row = $query
+            ->select(DB::raw(implode(', ', [
+                // Literal 1/0 rather than a bound boolean, matching
+                // DashboardService::forPlatform — both engines store a
+                // boolean column as 1/0 and neither needs a binding to say so.
+                'SUM(CASE WHEN is_demo = 1 THEN 1 ELSE 0 END) as demo',
+                'SUM(CASE WHEN is_demo = 0 AND converted_at IS NOT NULL THEN 1 ELSE 0 END) as converted',
+                'SUM(CASE WHEN is_demo = 0 AND converted_at IS NULL THEN 1 ELSE 0 END) as direct',
+                'COUNT(*) as all_of_them',
+            ])))
+            ->toBase()
+            ->first();
+
+        return [
+            'demo' => (int) ($row->demo ?? 0),
+            'converted' => (int) ($row->converted ?? 0),
+            'direct' => (int) ($row->direct ?? 0),
+            'all' => (int) ($row->all_of_them ?? 0),
+        ];
+    }
+
+    /**
+     * The orders worth offering, and nothing else.
+     *
+     * An unrecognised sort falls back to newest rather than being ignored —
+     * ignoring it would order by whatever the database felt like, which is
+     * stable enough in testing to look deliberate and unstable enough in
+     * production to duplicate a row across two pages.
+     */
+    private function sorted(Builder $query, string $sort): Builder
+    {
+        return match ($sort) {
+            'oldest' => $query->orderBy('created_at'),
+            'name' => $query->orderBy('business_name'),
+            // Whoever renews soonest first, with shops that owe nothing last —
+            // a null end date is "nothing due", not "due at the dawn of time".
+            'renewal' => $query->orderByRaw('subscription_ends_at IS NULL')->orderBy('subscription_ends_at'),
+            // The newest owner on the platform, which is what "converted"
+            // is asked about in the first place.
+            'converted' => $query->orderByRaw('converted_at IS NULL')->orderByDesc('converted_at'),
+            default => $query->orderByDesc('created_at'),
+        };
     }
 
     public function store(StoreTenantRequest $request, CreateTenantAction $action): JsonResponse

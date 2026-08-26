@@ -59,6 +59,45 @@ class Tenant extends BaseModel
         return $this->hasMany(ShopRequest::class);
     }
 
+    /**
+     * WHICH DOOR THIS SHOP CAME IN THROUGH.
+     *
+     *   demo      — somebody is trying it right now.
+     *   converted — they tried it, pressed "Keep this shop", and were approved.
+     *   direct    — an admin opened it by hand.
+     *
+     * Answered from the tenant's own row so a list can filter and sort by it
+     * without asking another table per shop; `converted_at` is written by
+     * ApproveShopRequestAction at the moment the decision is made.
+     */
+    public const ORIGINS = ['demo', 'converted', 'direct'];
+
+    public function origin(): string
+    {
+        if ($this->is_demo) {
+            return 'demo';
+        }
+
+        return $this->converted_at !== null ? 'converted' : 'direct';
+    }
+
+    /**
+     * origin() as a query. Deliberately the same three-way split and in the
+     * same order — a shop that is still a demo is a demo even if it once had a
+     * request approved and was handed back (which cannot happen today, but a
+     * scope that disagrees with the accessor is a bug waiting for the day it
+     * can).
+     */
+    public function scopeOrigin(Builder $query, string $origin): Builder
+    {
+        return match ($origin) {
+            'demo' => $query->where('is_demo', true),
+            'converted' => $query->where('is_demo', false)->whereNotNull('converted_at'),
+            'direct' => $query->where('is_demo', false)->whereNull('converted_at'),
+            default => $query,
+        };
+    }
+
     /** Has this demo shop's day run out? Always false for a real one. */
     public function demoHasEnded(): bool
     {
@@ -76,6 +115,7 @@ class Tenant extends BaseModel
             'setup_completed' => 'boolean',
             'is_demo' => 'boolean',
             'demo_expires_at' => 'datetime',
+            'converted_at' => 'datetime',
             'subscription_starts_at' => 'datetime',
             'subscription_ends_at' => 'datetime',
             'business_hours' => 'array',

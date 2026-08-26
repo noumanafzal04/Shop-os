@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\V1\Admin\BillingController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\EnquiryController as AdminEnquiryController;
+use App\Http\Controllers\Api\V1\Admin\InboxController;
 use App\Http\Controllers\Api\V1\Admin\PlanController;
 use App\Http\Controllers\Api\V1\Admin\ShopRequestController;
 use App\Http\Controllers\Api\V1\Admin\StaffController as AdminStaffController;
@@ -1013,6 +1014,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // ── Platform side (Super Admin + platform staff) ─────────────
         Route::prefix('admin')->middleware('role:super_admin,admin_staff')->group(function (): void {
             Route::get('/dashboard', [AdminDashboardController::class, 'index']);
+            // How many people are waiting on a reply, for the rail to badge.
+            // Open to every platform role and filtered INSIDE the controller,
+            // because a 403 on the rail's own poll would log an error on every
+            // screen a banner-ads staffer opens.
+            Route::get('/inbox', [InboxController::class, 'index']);
             // Demos asking to become businesses. Gated on the permission
             // that already means "may open a shop" rather than a new one — the
             // decision here IS opening a shop, just one that already has

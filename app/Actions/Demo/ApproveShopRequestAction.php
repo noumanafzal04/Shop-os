@@ -19,6 +19,9 @@ use Illuminate\Support\Facades\DB;
  * ── Three things change, and the third is the interesting one ───────────
  *
  *   `is_demo` / `demo_expires_at`  — it stops being temporary.
+ *   `converted_at`                 — which door it came in through, kept on
+ *                                    the shop so the admin list can find the
+ *                                    newest owners without joining.
  *   `setup_completed` returns to FALSE.
  *
  * The owner's ACCOUNT is deliberately not touched. They set their own email and
@@ -46,6 +49,12 @@ class ApproveShopRequestAction
                 'demo_expires_at' => null,
                 // Their own business, named by them. See the note above.
                 'setup_completed' => false,
+                // WHICH DOOR THEY CAME IN THROUGH, kept on the shop itself.
+                // This row is now the newest owner on the platform and the one
+                // most worth a phone call; without this it would be
+                // indistinguishable in the tenant list from a shop opened by
+                // hand a year ago. See Tenant::origin().
+                'converted_at' => now(),
             ])->save();
 
             $request->forceFill([

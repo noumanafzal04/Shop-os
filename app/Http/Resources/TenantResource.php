@@ -76,6 +76,13 @@ class TenantResource extends JsonResource
             // looks like a real shop is one somebody types real products into.
             'is_demo' => (bool) $this->is_demo,
             'demo_expires_at' => $this->demo_expires_at?->toIso8601String(),
+            // Which door this shop came in through: demo / converted / direct.
+            // "converted" is the newest owner on the platform — somebody who
+            // tried a demo, pressed "Keep this shop" and was approved — and
+            // without this the list cannot tell them from a shop an admin
+            // opened by hand a year ago.
+            'origin' => $this->origin(),
+            'converted_at' => $this->converted_at?->toIso8601String(),
             'subscription_starts_at' => $this->subscription_starts_at?->toIso8601String(),
             'subscription_ends_at' => $this->subscription_ends_at?->toIso8601String(),
             'subscription_expired' => $this->subscriptionExpired(),
