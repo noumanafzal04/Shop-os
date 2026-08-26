@@ -290,7 +290,91 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-26 (latest) — one filter bar, and a shop that remembers it was kept
+### 2026-08-26 (latest) — six screens, and the rule applied to half of itself
+
+A batch of screen work, and four of the six turned out to be the same shape: a
+rule that had been applied to one half of a screen and not the other.
+
+**Staff — the permission list the presets tick.** The job presets have been
+filtered by the shop's modules and trade since they were written ("offering
+Waiter to a pharmacy is noise, and noise on a permission screen is how the
+wrong box gets ticked", says StaffPresets in as many words). The nineteen
+checkboxes underneath them never were, so a mart hiring a cashier was offered
+Kitchen board, Serve any table and Reservations.
+
+Irrelevant rows are **flagged, not dropped**: the form submits the boxes it
+drew, so hiding them would quietly revoke a permission somebody still holds.
+Any that ARE held show in a group of their own and can only be given up on
+purpose. That forced a reversal — a preset used to grant its full list even
+where a module was off, and with the list filtered that now means granting a
+permission with no checkbox to see it by. `StaffPresetTest` asserts the
+invariant directly, and it is what found it.
+
+Staff also gained the filters it never had: status (accepted by the server all
+along), branch, and **job** — the word an owner thinks in. A job is derived by
+set comparison against the preset, never stored; one box off reads as "Custom",
+which tells the owner their edit landed.
+
+**Orders — a queue that says how many are waiting.** Stage counts ride along
+per axis; a warning strip for deliveries with nobody carrying them; search,
+date, delivery/pickup and channel filters (`channel` and `open_only` were
+accepted by the server from day one and the screen sent neither).
+
+The card version was **wrong and the user said so within the hour** — four
+orders filled a laptop. It is a table now: the row carries what is needed to
+choose, a click opens the rest. The columns step down at `sm` and `xl` rather
+than scrolling sideways, and the steps are not `md` because the rail takes
+290px from `lg` up — a 1024px tablet has less page than a 768px phone in
+landscape. Measured at six widths.
+
+**Take an order — a modal became a page.** Everything a shop does while
+somebody is on the phone had been packed into a box smaller than the screen. It
+is laid out like New Sale now, the catalogue is browsable (first page on load,
+search, "Show more — N to go"), and **stock is on the tile**: an item with none
+cannot be added at all.
+
+Behind that: `Insufficient stock: only 0 in stock.` named nothing. A basket of
+nine told the shop one was short and would not say which, so the only way
+through was removing lines one at a time. It names the item now.
+
+**Subscription — leads with where you stand.** The most consequential fact on
+the screen was a badge in the corner of one of three equal cards. A read-only
+shop cannot ring a sale; it was being told so in eleven-pixel type. Renewal is
+"in 17 days" rather than a date to work out, a full usage bar says so in words,
+and "What your shop runs" listed **three modules out of eleven** because the
+labels were a lookup table typed into the panel — a restaurant was never told
+it had dine-in.
+
+**Reports — one named date control.** Six period pills and a panel of two bare
+date boxes, replaced by the shared control with the shop's own windows handed
+IN to it (the tax year is 1 July–30 June and no calendar preset expresses
+that).
+
+**Four guards, and the parser that was wrong three times.** Adding
+`/tenant/orders/new` to the shared route set made four suites fail at once —
+the browser walk, the permission map, the menu-reach guard, the permission
+count. All four ask "is every screen covered" of THAT set, so a screen missing
+from it is invisible to all of them simultaneously *and they all report
+success*. The set is now checked against the router, and getting there took
+four attempts: prefixing turned `/tenant/products/new` into `/tenant/new`; a
+tag regex could not read the file because `element={<Page />}` contains a `>`;
+a segment comparison was honest but could not have caught the bug it was
+written for. The fourth strips `element={…}` by matching braces and walks the
+tree with a stack. Mutation-proven against the exact screen that got through.
+
+**Also extracted, because each was about to be written a third time:**
+`sellingPrice` (identical in the till and New Sale — and neither was tested on
+`discount_price = 0`, which read literally gives the product away),
+`formatQuantity` (three spellings in four files, two of which disagreed on
+`0.1 + 0.2`), `elapsed`/`urgencyOf`, `orderStage`, `nextStep`.
+
+**Gates.** Backend **2352 on SQLite and MySQL, exit 0 on both**. Panel **1234
+unit tests**, 0 lint errors, tsc and build clean. Every new rule
+mutation-tested.
+
+---
+
+### 2026-08-26 — one filter bar, and a shop that remembers it was kept
 
 **The complaint was "the whole site's filters don't look good".** It was right,
 and it was the smaller half of the problem.

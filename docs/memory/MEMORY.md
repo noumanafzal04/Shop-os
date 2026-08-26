@@ -135,3 +135,4 @@
 - [One Filter Bar](shopos-one-filter-bar.md) — site-wide filter kit + named date ranges; tenant origin (Keep-this-shop flag), rail badges, billing says how much
 - [Page Rule, One Copy](shopos-page-rule-one-copy.md) — STANDING: filter-reset swallowed the page change; useUrlFilters/nextParams is the only copy; verify pagination in a browser
 - [Shell Widened The Page](shopos-shell-widened-the-page.md) — FIXED: flex-1 with no min-w-0 pushed the whole page sideways, only at xl+; jsdom was blind
+\n- [Half A Rule](shopos-half-a-rule.md) — STANDING: a rule applied to one half of a screen; the missed half is a smaller TRUE thing so it never looks broken\n- [Guards Share A Blind Spot](shopos-guards-share-a-blind-spot.md) — STANDING: 4 guards read one route list; adding a screen = 6 places; mutate every new guard\n- [Take Order Page](shopos-take-order-page.md) — modal→page, browsable catalogue, stock on the tile, stock refusal names the item; orders list is a table\n
