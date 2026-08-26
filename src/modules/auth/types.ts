@@ -115,6 +115,16 @@ export interface User {
   status: "active" | "suspended";
   permissions: string[];
   /**
+   * WHAT THIS PERSON DOES, in the word an owner thinks in — "Cashier",
+   * "Manager" — derived on the server from the permissions they hold.
+   *
+   * Null when the ticks match no job, and the screen says "Custom": that is
+   * the honest answer and it tells the owner their edit landed, rather than
+   * rounding them to the nearest template. Nothing stores it, which is what
+   * keeps a preset from rotting into a shadow role.
+   */
+  job?: string | null;
+  /**
    * The branch this person is pinned to, or null.
    *
    * The server has sent this since branches existed and this type did not have

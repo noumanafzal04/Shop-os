@@ -63,6 +63,7 @@ import { promotionsService, type PromoPreview } from "../../promotions/services/
 import { memberDiscountFor } from "../../offline/lookup/memberDiscount";
 import { asProduct, loadShelf, shelfRows } from "../../offline/lookup/browse";
 import { findByCode } from "../../offline/lookup/findByCode";
+import { onSale, sellingPrice } from "../../catalog/pricing";
 
 interface CartLine {
   /**
@@ -227,14 +228,6 @@ const lineDiscountAmt = (l: CartLine): number => {
 /** Line value the customer pays after its per-line discount. */
 const lineNet = (l: CartLine): number => Math.max(0, lineGross(l) - lineDiscountAmt(l));
 
-/** The price the buyer pays: an active sale price beats the regular price. */
-const sellingPrice = (p: { price: string | number; discount_price?: string | number | null }) => {
-  const price = Number(p.price);
-  const sale = p.discount_price != null ? Number(p.discount_price) : null;
-  return sale !== null && sale > 0 && sale < price ? sale : price;
-};
-const onSale = (p: { price: string | number; discount_price?: string | number | null }) =>
-  sellingPrice(p) < Number(p.price);
 
 export default function PosPage() {
   const hasPermission = useAuthStore((s) => s.hasPermission);

@@ -3,7 +3,7 @@ import PageMeta from "../../components/common/PageMeta";
 import Button from "../../components/ui/button/Button";
 import Badge from "../../components/ui/badge/Badge";
 import Input from "../../components/form/input/InputField";
-import { FilterBar } from "../../components/ui/filters";
+import { FilterBar, FilterSelect, type AppliedFilter } from "../../components/ui/filters";
 import Label from "../../components/form/Label";
 import Alert from "../../components/ui/alert/Alert";
 import { Modal, ModalForm } from "../../components/ui/modal";
@@ -26,15 +26,35 @@ interface Props {
   basePath: string; // "/admin/staff" | "/staff"
 }
 
+const STAFF_STATUS = [
+  { value: "active", label: "Working here" },
+  { value: "suspended", label: "Suspended" },
+];
+
 export default function StaffPage({ title, subtitle, basePath }: Props) {
   const confirm = useConfirm();
   const staff = useStaffModule(basePath);
   const permissions = staff.usePermissionCatalog();
   const presets = staff.useJobPresets();
 
+  const isTenantSide = basePath === "/staff";
+
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [job, setJob] = useState("");
   const [page, setPage] = useState(1);
-  const list = staff.useStaffList({ search: useDebouncedValue(search, 350), page });
+  const list = staff.useStaffList({
+    search: useDebouncedValue(search, 350),
+    // Only the tenant list can be narrowed this way. The platform staff list
+    // shares this component and has no branches, no shop jobs and no shop
+    // permissions — sending them would be three parameters the server would
+    // rightly ignore, on a screen that had no way to set them.
+    status: isTenantSide ? status : "",
+    branch_id: isTenantSide ? branchFilter : "",
+    job: isTenantSide ? job : "",
+    page,
+  });
 
   const modal = useModal();
   const toast = useToast();
@@ -46,8 +66,6 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
     name: "", email: "", phone: "", password: "", permissions: [], branch_id: "",
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-
-  const isTenantSide = basePath === "/staff";
 
   /**
    * WHICH BRANCH THIS PERSON WORKS AT.
@@ -221,6 +239,42 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
     }
   };
 
+  const applied: AppliedFilter[] = [
+    status && {
+      key: "status",
+      label: "",
+      value: STAFF_STATUS.find((s) => s.value === status)?.label ?? status,
+      onRemove: () => { setStatus(""); setPage(1); },
+    },
+    job && {
+      key: "job",
+      label: "Job",
+      value: jobs.find((j) => j.code === job)?.label ?? job,
+      onRemove: () => { setJob(""); setPage(1); },
+    },
+    branchFilter && {
+      key: "branch",
+      label: "Branch",
+      value: branchFilter === "none"
+        ? "No branch pinned"
+        : (branchList.find((b) => b.id === branchFilter)?.name ?? branchFilter),
+      onRemove: () => { setBranchFilter(""); setPage(1); },
+    },
+  ].filter(Boolean) as AppliedFilter[];
+
+  // One count for the header, the skeletons and the empty state. Three places
+  // counting independently is three places that can be wrong, and the symptom
+  // is a "nothing here" message sitting under half a table.
+  const COLUMNS = 5 + (picksBranch ? 1 : 0) + (isTenantSide ? 1 : 0);
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatus("");
+    setJob("");
+    setBranchFilter("");
+    setPage(1);
+  };
+
   return (
     <>
       <PageMeta title={`${title} | CartZe`} description={subtitle} />
@@ -240,8 +294,51 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
           placeholder: "Search name, email, phone…",
           label: "Search staff",
         }}
+        applied={applied}
+        onClearAll={clearFilters}
         results={{ count: pagination?.total, noun: "people", loading: list.isLoading }}
-      />
+      >
+        {isTenantSide && (
+          <>
+            {/* The question a staff list is opened with after somebody leaves,
+                and the one the server has answered all along while the screen
+                had no way to ask it. */}
+            <FilterSelect
+              label="Everyone"
+              value={status}
+              onChange={(value) => { setStatus(value); setPage(1); }}
+              options={STAFF_STATUS}
+            />
+
+            {/* WHAT THEY DO, in the word an owner thinks in. Nobody goes
+                looking for "the people holding sales.void". Only the jobs this
+                shop is actually offered — the same filtered list the form
+                uses, so a mart is never asked to find its waiters. */}
+            {jobs.length > 0 && (
+              <FilterSelect
+                label="Any job"
+                value={job}
+                onChange={(value) => { setJob(value); setPage(1); }}
+                options={jobs.map((j) => ({ value: j.code, label: j.label }))}
+              />
+            )}
+
+            {picksBranch && (
+              <FilterSelect
+                label="Any branch"
+                value={branchFilter}
+                onChange={(value) => { setBranchFilter(value); setPage(1); }}
+                options={[
+                  // "Pinned to none" is a real answer, not the absence of a
+                  // filter — those people ring against Main.
+                  { value: "none", label: "No branch pinned" },
+                  ...branchList.map((b) => ({ value: b.id, label: b.name })),
+                ]}
+              />
+            )}
+          </>
+        )}
+      </FilterBar>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
@@ -255,6 +352,11 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
                     registers, the day — so a single-site shop is never shown a
                     column that says "Main" all the way down. */}
                 {picksBranch && <th className="px-6 py-3 font-medium">Branch</th>}
+                {/* WHAT THEY DO. Derived from the boxes they hold, so it is
+                    always true — and "Custom" where somebody was edited away
+                    from a template, which tells the owner their edit landed
+                    rather than rounding them to the nearest job. */}
+                {isTenantSide && <th className="px-6 py-3 font-medium">Job</th>}
                 <th className="px-6 py-3 font-medium">Permissions</th>
                 <th className="px-6 py-3 font-medium">Status</th>
                 <th className="px-6 py-3 font-medium text-right">Actions</th>
@@ -263,10 +365,14 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {list.isLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i}><td colSpan={picksBranch ? 6 : 5} className="px-6 py-4"><div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>
+                  <tr key={i}><td colSpan={COLUMNS} className="px-6 py-4"><div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>
                 ))
               ) : rows.length === 0 ? (
-                <tr><td colSpan={picksBranch ? 6 : 5} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">No staff yet — add your first team member.</td></tr>
+                <tr><td colSpan={COLUMNS} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {applied.length > 0 || search
+                    ? "Nobody matches these filters."
+                    : "No staff yet — add your first team member."}
+                </td></tr>
               ) : (
                 rows.map((u) => (
                   <tr key={u.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
@@ -279,6 +385,17 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
                             work nowhere. */}
                         {branchName(u.branch_id) ?? (
                           <span className="text-gray-400">Main</span>
+                        )}
+                      </td>
+                    )}
+                    {isTenantSide && (
+                      <td className="px-6 py-4">
+                        {u.job ? (
+                          <span className="rounded-lg bg-brand-50 px-2 py-1 text-theme-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                            {u.job}
+                          </span>
+                        ) : (
+                          <span className="text-theme-xs text-gray-400">Custom</span>
                         )}
                       </td>
                     )}

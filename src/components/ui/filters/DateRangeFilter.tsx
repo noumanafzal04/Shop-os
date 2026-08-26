@@ -52,6 +52,7 @@ export function DateRangeFilter({
   presets = RANGE_KEYS,
   align = "left",
   allowAll = true,
+  extra = [],
 }: {
   value: DateRange;
   onChange: (range: DateRange) => void;
@@ -60,11 +61,27 @@ export function DateRangeFilter({
   align?: "left" | "right";
   /** Whether "All time" is offered. A ledger says yes; a shift report cannot. */
   allowAll?: boolean;
+  /**
+   * Ranges this SCREEN knows about and the generic list cannot.
+   *
+   * The reports screen offers the Pakistani tax year — 1 July to 30 June —
+   * which is the window behind the annual return and every advance-tax
+   * working, and which no calendar preset here can express. Rather than teach
+   * this component about FBR, the caller hands in the range it has already
+   * worked out (see reportPeriod.ts, where the boundary is tested).
+   *
+   * Shown above the standard presets, because a shop that has one of these
+   * usually wants it.
+   */
+  extra?: ReadonlyArray<{ key: string; label: string; range: DateRange }>;
 }) {
   const [custom, setCustom] = useState(false);
   const today = new Date();
   const preset = matchPreset(value, today);
   const chosen = value.from !== null || value.to !== null;
+  // A caller-supplied range is named by its own row, so it must not ALSO tick
+  // "Custom range…" — two ticks in one menu is a menu that cannot be read.
+  const named = preset !== null || extra.some((option) => isSameRange(value, option.range));
 
   return (
     <>
@@ -78,6 +95,21 @@ export function DateRangeFilter({
       >
         {(close) => (
           <div role="listbox" aria-label={label}>
+            {extra.map((option) => (
+              <FilterOption
+                key={option.key}
+                selected={isSameRange(value, option.range)}
+                hint={formatRange(option.range, today)}
+                onPick={() => {
+                  onChange(option.range);
+                  close();
+                }}
+              >
+                {option.label}
+              </FilterOption>
+            ))}
+            {extra.length > 0 && <div className="my-1.5 border-t border-gray-100 dark:border-gray-800" />}
+
             {allowAll && (
               <FilterOption
                 selected={preset === "all"}
@@ -119,14 +151,14 @@ export function DateRangeFilter({
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-theme-sm transition ${
                 // A range that is nobody's preset got there through this
                 // dialog, so this row is where the tick belongs.
-                chosen && preset === null
+                chosen && !named
                   ? "bg-brand-50 font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
                   : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
               }`}
             >
               <CalendarGlyph className="size-4 shrink-0 opacity-70" />
               <span className="flex-1">Custom range…</span>
-              {chosen && preset === null && (
+              {chosen && !named && (
                 <span className="text-theme-xs text-brand-600 dark:text-brand-300">{formatRange(value, today)}</span>
               )}
             </button>

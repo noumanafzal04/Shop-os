@@ -31,6 +31,7 @@ const CheckoutPage = lazy(() => import("./modules/marketplace/pages/CheckoutPage
 const SavedPage = lazy(() => import("./modules/marketplace/pages/SavedPage"));
 const MyOrdersPage = lazy(() => import("./modules/orders/pages/MyOrdersPage"));
 const OwnerOrdersPage = lazy(() => import("./modules/orders/pages/OwnerOrdersPage"));
+const TakeOrderPage = lazy(() => import("./modules/orders/pages/TakeOrderPage"));
 const RidersPage = lazy(() => import("./modules/orders/pages/RidersPage"));
 const AdminDashboard = lazy(() => import("./pages/Dashboard/AdminDashboard"));
 const AdminTenantsPage = lazy(() => import("./modules/admin/pages/AdminTenantsPage"));
@@ -353,6 +354,7 @@ export default function App() {
                   <Route element={<RequireFeature feature="products" />}>
                     <Route element={<RequireTenantScreen />}>
                       <Route path="orders" element={<OwnerOrdersPage />} />
+                      <Route path="orders/new" element={<TakeOrderPage />} />
                     </Route>
                   </Route>
                   {/* Riders follow DELIVERY, not marketplace: a pharmacy

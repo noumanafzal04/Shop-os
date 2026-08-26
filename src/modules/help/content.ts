@@ -647,6 +647,23 @@ export const HELP_ARTICLES: HelpArticle[] = [
     ],
   },
   {
+    id: "take-order",
+    title: "Taking an order yourself",
+    summary: "A phone call, a WhatsApp message, or somebody at the counter asking for delivery.",
+    group: "Selling",
+    parent: "orders",
+    modules: ["marketplace", "delivery"],
+    permission: "orders.manage",
+    screen: "/tenant/orders/new",
+    keywords: ["phone order", "whatsapp", "take order", "counter order", "delivery order"],
+    body: [
+      { type: "p", text: "The most common delivery order in Pakistan arrives as a call. This is where it goes \u2014 and it joins the same queue as an online order, so it can be confirmed, prepared and given to a rider like any other." },
+      { type: "p", text: "Search the catalogue or browse it, tap to add, and adjust the quantity on the line. Every item says what is on the shelf: an item with none cannot be added at all, and a line asking for more than you have says so on the line rather than waiting until you press Take order." },
+      { type: "note", text: "The price shown is the shop\u2019s own. You cannot type a price here \u2014 the shop prices the order when it is saved, exactly as it does for an online checkout, and the delivery fee and any offer are added then. So the total on screen is close, not final." },
+      { type: "warn", text: "Before this existed, a shop either rang a phone order at the till as an ordinary counter sale \u2014 losing the rider, the stages and the kitchen ticket \u2014 or kept it on a paper chit beside the phone." },
+    ],
+  },
+  {
     id: "orders",
     title: "Online orders & delivery",
     summary: "Working an order from placed to dispatched.",

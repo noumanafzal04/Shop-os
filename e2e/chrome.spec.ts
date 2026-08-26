@@ -60,6 +60,7 @@ const SCREENS: Array<{ path: string; name: string }> = [
   { path: "/tenant/orders", name: "online orders" },
   { path: "/tenant/documents", name: "quotes & invoices" },
   { path: "/tenant/sales/new", name: "a new sale" },
+  { path: "/tenant/orders/new", name: "taking an order" },
   { path: "/tenant/income", name: "other income" },
   { path: "/tenant/ledger", name: "the ledger" },
   { path: "/tenant/cashbook", name: "the cashbook" },

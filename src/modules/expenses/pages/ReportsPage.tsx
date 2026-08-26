@@ -1,13 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import { useFitsItsBox } from "../../../components/charts/useFitsItsBox";
+import { DateRangeFilter, formatRange, type RangeKey } from "../../../components/ui/filters";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { useMoney } from "../../shop/hooks/useShop";
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
 import PageMeta from "../../../components/common/PageMeta";
 import Alert from "../../../components/ui/alert/Alert";
-import Input from "../../../components/form/input/InputField";
-import Label from "../../../components/form/Label";
 import { MetricCard, MetricCardSkeleton } from "../../../common/ui/MetricCard";
 import { usePurchasesReport, useReport, useStaffReport, useTaxReport } from "../hooks/useExpenses";
 import { ReprintReportTab } from "../../receipts/components/ReprintReportTab";
@@ -17,6 +16,17 @@ import { DeadStockTab, MarginsTab, ValuationTab } from "../components/StockRepor
 import { useAuthStore } from "../../../stores/authStore";
 import { reportTabs, shopSells, SALES_TABS, STOCK_TABS } from "../reportTabs";
 import { PERIODS, rangeError, resolveReportRange, type PeriodKey, type ReportRange } from "../reportPeriod";
+
+/**
+ * The rolling windows a report screen wants and the shop's own named periods
+ * do not cover.
+ *
+ * `today`, `this_month`, `this_year` and `this_quarter` are left out because
+ * PERIODS already names three of them and the fourth is close enough to read
+ * as a duplicate — and a menu with two rows for one range cannot be trusted
+ * about either.
+ */
+const REPORT_PRESETS: readonly RangeKey[] = ["yesterday", "last_7", "last_14", "last_30", "last_month"];
 
 export default function ReportsPage() {
   const money = useMoney();
@@ -29,12 +39,23 @@ export default function ReportsPage() {
   // A books-only business (Finance Manager) sells nothing and stocks nothing.
   // Which tabs that leaves is decided in reportTabs, where it can be tested.
   const sells = shopSells(features);
-  const [period, setPeriod] = useState<PeriodKey>("monthly");
-  // Only meaningful while `period` is custom, but kept across a switch away
-  // and back so a merchant comparing "this month" against the fortnight they
-  // typed does not have to type it twice.
-  const [custom, setCustom] = useState(() => {
-    const seed = resolveReportRange("custom");
+  /**
+   * The window on screen, as two dates.
+   *
+   * It used to be a period NAME plus a stashed pair for custom, with a panel
+   * of two bare date boxes appearing underneath when "Custom range" was
+   * picked. Somebody closing their books against 1–15 had to know what month
+   * it was and type both ends without a typo, and the header printed the
+   * answer back at them as "2026-08-01 → 2026-08-26".
+   *
+   * One named control now, the same one every other list uses, carrying the
+   * dates each name resolves to. The period NAMES still come from
+   * reportPeriod — the tax year is 1 July to 30 June and no calendar preset
+   * can express it — they are just handed to the control rather than drawn as
+   * a second row of buttons.
+   */
+  const [range, setRange] = useState<{ from: string; to: string }>(() => {
+    const seed = resolveReportRange("monthly");
 
     return { from: seed.from, to: seed.to };
   });
@@ -45,17 +66,37 @@ export default function ReportsPage() {
     || (SALES_TABS.includes(selectedTab) && !sells);
   const tab = unavailable ? "overview" : selectedTab;
 
-  const range = useMemo(
-    () => resolveReportRange(period, custom.from, custom.to),
-    [period, custom.from, custom.to],
-  );
-  // Refused here in the server's own words rather than after a round trip,
-  // and — the part that matters — the half-typed range is never SENT, so the
-  // figures on screen never briefly answer a question nobody asked.
-  const invalid = rangeError(range);
-  const asked: ReportRange = invalid ? resolveReportRange("monthly") : range;
+  /**
+   * The shop's own named windows, resolved once, handed to the date control.
+   *
+   * "Custom range" is deliberately absent: the control has its own, and a row
+   * that opens the same dialog twice under two names is a menu nobody trusts.
+   */
+  const namedPeriods = useMemo(
+    () =>
+      PERIODS.filter(([key]) => key !== "custom").map(([key, label]) => {
+        const resolved = resolveReportRange(key);
 
-  const report = useReport(asked);
+        return { key, label, range: { from: resolved.from, to: resolved.to } };
+      }),
+    [],
+  );
+
+  // Whichever named window this pair of dates IS, so the request still carries
+  // a period the server recognises — and "custom" when it is nobody's.
+  const period: PeriodKey =
+    (namedPeriods.find((p) => p.range.from === range.from && p.range.to === range.to)?.key as PeriodKey | undefined)
+    ?? "custom";
+
+  const asked: ReportRange = { period, from: range.from, to: range.to };
+  // Refused in the server's own words rather than after a round trip. The
+  // control cannot produce a backwards range — it orders the two ends itself —
+  // so this now only fires on a half-open one.
+  const invalid = rangeError(asked);
+
+  // A half-open range is never SENT, so the figures on screen never briefly
+  // answer a question nobody asked.
+  const report = useReport(invalid ? resolveReportRange("monthly") : asked);
 
   const TABS = reportTabs(features);
 
@@ -101,53 +142,33 @@ export default function ReportsPage() {
               right before the first response lands rather than a request
               behind the buttons above it. */}
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {invalid ? "Choose a range" : `${asked.from} → ${asked.to}`}
+            {/* The window this screen is showing, in words rather than in two
+                ISO dates the reader has to decode. */}
+            {invalid ? "Choose a range" : formatRange({ from: asked.from, to: asked.to })}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {PERIODS.map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setPeriod(value)}
-              className={`rounded-lg border px-4 py-2 text-sm transition ${
-                period === value
-                  ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10"
-                  : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <DateRangeFilter
+          label="This month"
+          value={{ from: range.from, to: range.to }}
+          onChange={(next) => setRange({ from: next.from ?? "", to: next.to ?? "" })}
+          extra={namedPeriods}
+          // The generic list minus the four the shop's own periods already
+          // name. Offering "Today" twice, and "This Month" beside "This
+          // month", is a menu with two rows for one range and two ticks for
+          // one answer. What is left is what the report periods do NOT have:
+          // rolling windows, and the month before this one.
+          presets={REPORT_PRESETS}
+          // A report is ALWAYS about a window. There is no "all time" here:
+          // every figure on this screen is a sum over dates, and an unbounded
+          // one is a query nobody meant to run.
+          allowAll={false}
+          align="right"
+        />
       </div>
 
-      {/* A month is an accident of the calendar. A shop closing its books
-          against 1–15, a quarter, or the stretch since the last audit needs
-          to say so — the server has validated exactly this since these
-          reports were written and nothing ever asked for it. */}
-      {period === "custom" && (
-        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:max-w-lg">
-            <div>
-              <Label>From</Label>
-              <Input
-                type="date"
-                value={custom.from}
-                max={custom.to || undefined}
-                onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>To</Label>
-              <Input
-                type="date"
-                value={custom.to}
-                min={custom.from || undefined}
-                onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
-              />
-            </div>
-          </div>
-          {invalid && <p className="mt-2 text-theme-xs text-error-500">{invalid}</p>}
+      {invalid && (
+        <div className="mb-6">
+          <Alert variant="warning" title="Choose a range" message={invalid} />
         </div>
       )}
 

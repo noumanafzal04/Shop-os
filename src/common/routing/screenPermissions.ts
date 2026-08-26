@@ -41,6 +41,9 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   "/tenant/kitchen": ["sales.manage", "kitchen.manage"],
   "/tenant/sales": "sales.manage",
   "/tenant/sales/new": "sales.manage",
+  // Reached from the Orders screen. Same key as the queue it joins: taking
+  // an order by hand IS working that queue, not a separate privilege.
+  "/tenant/orders/new": "orders.manage",
   "/tenant/day": "sales.manage",
   "/tenant/documents": "sales.manage",
   // Counter lookups: the chemist's register and the warranty desk are both

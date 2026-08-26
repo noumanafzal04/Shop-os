@@ -20,6 +20,7 @@ export const TENANT_ROUTES = new Set([
   "/tenant/day",
   "/tenant/documents",
   "/tenant/orders",
+  "/tenant/orders/new",
   "/tenant/riders",
   "/tenant/fuel",
   "/tenant/fuel/deliveries",

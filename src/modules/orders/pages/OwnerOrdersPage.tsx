@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 
 import { ApiError } from "../../../common/types/api";
 import PageMeta from "../../../components/common/PageMeta";
@@ -16,10 +17,8 @@ import {
 } from "../../../components/ui/filters";
 import Pager from "../../../components/ui/pager";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
-import { useModal } from "../../../hooks/useModal";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { useMoney } from "../../shop/hooks/useShop";
-import TakeOrderModal from "../components/TakeOrderModal";
 import { OrderDetail } from "../components/OrderDetail";
 import { OrderRow, ORDER_COLUMNS } from "../components/OrderRow";
 import { nextStep } from "../orderFlow";
@@ -107,7 +106,6 @@ export default function OwnerOrdersPage() {
   const activeRiders = (riders.data ?? []).filter((r) => r.is_active);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const takeModal = useModal();
 
   const branchCol = useBranchColumn();
 
@@ -184,7 +182,9 @@ export default function OwnerOrdersPage() {
             Online checkouts and the ones you take yourself — one queue, stock held until you complete or cancel.
           </p>
         </div>
-        <Button size="sm" onClick={takeModal.openModal}>Take an order</Button>
+        <Link to="/tenant/orders/new">
+          <Button size="sm">Take an order</Button>
+        </Link>
       </div>
 
       {/* A queue, so the stages are a TRACK carrying live counts rather than a
@@ -330,7 +330,10 @@ export default function OwnerOrdersPage() {
                     )}
                     {applied.length === 0 && !debounced && !status && (
                       <p className="mt-2 text-theme-xs text-gray-400">
-                        They arrive from your online shop, or take one yourself with the button above.
+                        They arrive from your online shop, or{" "}
+                        <Link to="/tenant/orders/new" className="text-brand-500 hover:text-brand-600">
+                          take one yourself
+                        </Link>.
                       </p>
                     )}
                   </td>
@@ -387,7 +390,6 @@ export default function OwnerOrdersPage() {
         }}
       />
 
-      <TakeOrderModal isOpen={takeModal.isOpen} onClose={takeModal.closeModal} />
     </>
   );
 }

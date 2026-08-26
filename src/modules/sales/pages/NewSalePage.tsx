@@ -11,6 +11,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useProducts } from "../../catalog/hooks/useCatalog";
+import { sellingPrice } from "../../catalog/pricing";
 import type { Product, ProductVariant } from "../../catalog/types";
 import { useSaleMutations } from "../hooks/useSales";
 import type { PaymentMethod, SaleChannel } from "../types";
@@ -28,12 +29,6 @@ interface CartLine {
 }
 
 
-/** The price the buyer pays: an active sale price beats the regular price. */
-const sellingPrice = (p: { price: string | number; discount_price?: string | number | null }) => {
-  const price = Number(p.price);
-  const sale = p.discount_price != null ? Number(p.discount_price) : null;
-  return sale !== null && sale > 0 && sale < price ? sale : price;
-};
 
 /** Effective per-unit display price: deepest qty tier reached, else base. */
 const lineUnit = (l: CartLine): number => {

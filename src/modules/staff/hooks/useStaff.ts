@@ -24,6 +24,29 @@ export interface JobPreset {
  * of them by design — a hint on every row is noise, and noise on a permission
  * screen is how the wrong box gets ticked.
  */
+/**
+ * Every axis the staff list can be narrowed by.
+ *
+ * `status` has been accepted by the server since the list was written and the
+ * screen sent a search box — so after somebody leaves, "who is still switched
+ * on" could not be asked. The rest are new, and `job` is the one an owner
+ * actually thinks in: nobody looks for "the people holding sales.void".
+ *
+ * These are tenant-side only. The platform staff list uses the same hook with
+ * a different base path and simply passes none of them.
+ */
+export interface StaffFilters {
+  search?: string;
+  status?: string;
+  /** A branch id, or the literal "none" for people pinned to no branch. */
+  branch_id?: string;
+  /** A job preset code — matched EXACTLY, so one box off reads as Custom. */
+  job?: string;
+  /** One permission, for "who can refund". */
+  permission?: string;
+  page?: number;
+}
+
 export interface PermissionInfo {
   key: string;
   label: string;
@@ -98,7 +121,7 @@ export function useStaffModule(basePath: string) {
       staleTime: 30 * 60 * 1000,
     });
 
-  const useStaffList = (params: { search?: string; status?: string; page?: number }) =>
+  const useStaffList = (params: StaffFilters) =>
     useQuery({
       queryKey: [...key, params],
       queryFn: () =>
@@ -106,6 +129,9 @@ export function useStaffModule(basePath: string) {
           params: {
             search: params.search || undefined,
             status: params.status || undefined,
+            branch_id: params.branch_id || undefined,
+            job: params.job || undefined,
+            permission: params.permission || undefined,
             page: params.page ?? 1,
           },
         }),
