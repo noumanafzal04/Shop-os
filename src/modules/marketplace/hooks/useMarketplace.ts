@@ -9,6 +9,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import {
   marketplaceService,
   type AddressPayload,
+  type AisleFilters,
   type RegisterPayload,
 } from "../services/marketplaceService";
 
@@ -42,6 +43,48 @@ export function useMarketProducts(slug: string | undefined, params: { search?: s
     queryFn: () => marketplaceService.products(slug!, params),
     enabled: !!slug,
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * THE AISLE — every shop's shelves at once, narrowed by whatever is asked.
+ *
+ * `keepPreviousData` because the filter rail is used by clicking, and a grid
+ * that empties to a spinner between every click makes the page feel like it is
+ * reloading rather than filtering. The old rows stay, dimmed by the caller,
+ * until the new ones arrive.
+ */
+export function useAisle(filters: AisleFilters) {
+  return useQuery({
+    queryKey: ["market", "aisle", filters],
+    queryFn: () => marketplaceService.browse(filters),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The counts beside the rail's options.
+ *
+ * Keyed WITHOUT page or sort, matching what the service strips — neither
+ * changes which options exist, and leaving them in the key would refetch every
+ * option count each time somebody turned a page.
+ */
+export function useAisleFacets(filters: AisleFilters) {
+  const { page: _page, per_page: _perPage, sort: _sort, ...axes } = filters;
+
+  return useQuery({
+    queryKey: ["market", "facets", axes],
+    queryFn: async () => (await marketplaceService.facets(axes)).data,
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketProduct(id: string | undefined) {
+  return useQuery({
+    queryKey: ["market", "product", id],
+    queryFn: async () => (await marketplaceService.product(id!)).data,
+    enabled: !!id,
   });
 }
 

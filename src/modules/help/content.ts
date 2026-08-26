@@ -996,6 +996,18 @@ export const HELP_ARTICLES: HelpArticle[] = [
           "Reviews — what customers said. Replying is the only thing anyone does here, and a reply is public.",
         ],
       },
+      { type: "h", text: "The marketplace aisle" },
+      { type: "p", text: "Your products do not only appear on your own shop page. They sit in the marketplace aisle beside every other shop's, where a customer searches for a thing rather than for a shop — so what your product is CALLED is what gets it found." },
+      {
+        type: "list",
+        items: [
+          "Filters — a shopper narrows by city, kind of shop, category, size, price and rating. Your category names are what the aisle groups by, so two shops using the same name share a shelf.",
+          "In stock — a shopper can ask to see only what can be sent today. Anything you have marked sold out for the night drops out of that list and comes back when you turn it on again.",
+          "Sizes — a product with sizes is listed once, and the shopper picks the size on the card. A size that has run out is shown crossed through rather than hidden, so they can see you normally have it.",
+          "Options — items with choices or add-ons cannot be added straight from a card. They send the shopper to the product's own page, where the questions are asked.",
+        ],
+      },
+      { type: "note", text: "A shopper's basket can hold things from several shops at once. Each shop gets its own order, its own delivery charge and its own coupon — you only ever see your part of it." },
       { type: "note", text: "Collections are the shelves of your online shop. Group products into them to give shoppers something to browse." },
     ],
   },

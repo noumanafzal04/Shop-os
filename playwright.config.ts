@@ -26,6 +26,17 @@ const RESTAURANT_ONLY = /food\..*\.spec\.ts|recipe-size\.spec\.ts/;
 // walked by a project signed in as a shop that HAS that trade — asking the mart
 // would be refused and skip, and a guaranteed skip is a check deleted quietly.
 const TRADE_ONLY = /trade\.chrome\.spec\.ts/;
+
+/**
+ * The storefront, walked by a STRANGER.
+ *
+ * Every other project here signs in first, because every other screen belongs
+ * to somebody who works at a shop. The marketplace does not: its reader is a
+ * customer who has never had an account, and running it under an owner's
+ * session would test the one visitor it is not for — and would quietly hide
+ * anything that only breaks when `isAuthenticated` is false.
+ */
+const STOREFRONT_ONLY = /market\.spec\.ts/;
 const TRADES = ["petroleum", "pharmacy", "automotive", "retail", "services", "finance"];
 
 export default defineConfig({
@@ -65,13 +76,13 @@ export default defineConfig({
     // "below xl" is on every tablet in the shop.
     {
       name: "tablet-landscape",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7) landscape"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "tablet-portrait",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/owner.json" },
     },
@@ -83,15 +94,29 @@ export default defineConfig({
     // the catalog share a screen that is 390 points wide.
     {
       name: "phone",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPhone 14"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "desktop",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" },
+    },
+
+    // THE STOREFRONT, SIGNED OUT. No storageState and no dependency on the
+    // auth setup: that is the point. Two sizes, because a marketplace is read
+    // on a phone at least as often as on a desk.
+    {
+      name: "storefront",
+      testMatch: STOREFRONT_ONLY,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "storefront-phone",
+      testMatch: STOREFRONT_ONLY,
+      use: { ...devices["iPhone 14"] },
     },
 
     // THE RESTAURANT. A mart cannot hold a dish, so every food screen — a

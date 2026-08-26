@@ -82,12 +82,31 @@ export interface PublicProduct {
   price: string | number;
   original_price?: number | null;
   brand?: string | null;
+  generic_name?: string | null;
+  strength?: string | null;
+  dosage_form?: string | null;
+  /** A pharmacy item the counter may not hand over without a script. */
+  requires_prescription?: boolean;
   unit?: string | null;
+  sold_by?: string | null;
+  min_order_qty?: number | null;
   duration_minutes: number | null;
   category: { id: string; name: string } | null;
   images: string[];
   in_stock: boolean;
   available_now: boolean;
+  /**
+   * Turned off by the counter tonight — 86'd.
+   *
+   * Published rather than filtered out, and it is NOT the same as out of
+   * stock: the shop has this normally, and the flag is undone when the next
+   * delivery lands. These three fields were all on the wire and missing from
+   * this type, so the storefront could not tell a customer WHY something
+   * could not be bought — it could only fail at checkout.
+   */
+  sold_out?: boolean;
+  available_from?: string | null;
+  available_until?: string | null;
   variants: Array<{ id: string; name: string; price: string | number; in_stock: boolean }>;
   modifier_groups: PublicModifierGroup[];
 }
@@ -100,6 +119,102 @@ export interface RegisterPayload {
   password_confirmation: string;
 }
 
+/**
+ * A product as it appears in the AISLE — the same public payload the shop's
+ * own catalog returns, plus the shop that sells it, because a row that cannot
+ * say whose shelf it is on is not a marketplace row.
+ */
+export interface AisleProduct extends PublicProduct {
+  shop: {
+    slug: string;
+    business_name: string;
+    business_type: string | null;
+    city: { id: string; name: string } | null;
+    rating: number | null;
+    delivery_fee: number;
+  } | null;
+}
+
+/** The single product page: the item, its shop, and somewhere to go next. */
+export interface ProductDetail extends PublicProduct {
+  shop: PublicShop;
+  also_from_this_shop: Array<{
+    id: string;
+    name: string;
+    price: string | number;
+    original_price: number | null;
+    images: string[];
+    shop_slug: string;
+  }>;
+}
+
+/**
+ * Every filter the rail can offer, and how many rows each one produces.
+ *
+ * Counted server-side from the same query the listing runs — an option with a
+ * number beside it that turns out to be wrong is worse than an option with no
+ * number, because the first time it lies the whole rail stops being believed.
+ */
+export interface AisleFacets {
+  total: number;
+  cities: Array<{ id: string; name: string; products_count: number }>;
+  business_types: Array<{ type: string | null; products_count: number }>;
+  categories: Array<{ name: string; products_count: number }>;
+  sizes: Array<{ name: string; products_count: number }>;
+  price: { min: number; max: number };
+  on_sale_count: number;
+}
+
+/** Everything the aisle can be narrowed by. Every field is optional. */
+export interface AisleFilters {
+  q?: string;
+  /**
+   * A named set, comma-separated — what the saved list asks for.
+   *
+   * An EMPTY string here means "none of them", not "no filter", which is why
+   * `aisleParams` below must not strip it. A saved page whose last heart was
+   * removed asks for nothing and must be answered with nothing.
+   */
+  ids?: string;
+  city_id?: string;
+  business_type?: string;
+  shop_slug?: string;
+  category?: string;
+  item_type?: string;
+  size?: string;
+  min_price?: number;
+  max_price?: number;
+  on_sale?: boolean;
+  in_stock?: boolean;
+  rating_min?: number;
+  sort?: "name" | "price_asc" | "price_desc" | "newest" | "discount" | "rating";
+  page?: number;
+  per_page?: number;
+}
+
+/**
+ * Drop everything the server would ignore.
+ *
+ * An empty string is not "no filter" to a query string — `?category=` reaches
+ * the server as a present, empty category and validates as a string, so the
+ * request key differs from the unfiltered one and the cache treats them as two
+ * pages of the same list.
+ */
+export const aisleParams = (f: AisleFilters): Record<string, string | number | undefined> => {
+  const out: Record<string, string | number | undefined> = {};
+  for (const [key, value] of Object.entries(f)) {
+    // `ids` is the one axis where an empty string is an answer. See above.
+    if (key === "ids" && typeof value === "string") {
+      out[key] = value;
+      continue;
+    }
+    if (value === undefined || value === null || value === "" || value === false) continue;
+    out[key] = typeof value === "boolean" ? 1 : (value as string | number);
+  }
+
+  return out;
+};
+
 export const marketplaceService = {
   shops: (params: { city_id?: string; search?: string; page?: number }) =>
     apiGet<PublicShop[]>("/marketplace/shops", {
@@ -111,6 +226,19 @@ export const marketplaceService = {
     }),
 
   shop: (slug: string) => apiGet<PublicShop>(`/marketplace/shops/${slug}`),
+
+  /** The aisle: every shop's shelves at once. */
+  browse: (filters: AisleFilters) =>
+    apiGet<AisleProduct[]>("/marketplace/products", { params: aisleParams(filters) }),
+
+  /** What the rail may offer, counted from the same query the aisle runs. */
+  facets: (filters: AisleFilters) =>
+    apiGet<AisleFacets>("/marketplace/products/facets", {
+      // Paging says nothing about which options exist.
+      params: aisleParams({ ...filters, page: undefined, per_page: undefined, sort: undefined }),
+    }),
+
+  product: (id: string) => apiGet<ProductDetail>(`/marketplace/products/${id}`),
 
   banners: (placement = "home") => apiGet<PublicBanner[]>("/marketplace/banners", { params: { placement } }),
   bannerClick: (id: string) => apiPost<{ target: PublicBanner["target"] }>(`/marketplace/banners/${id}/click`),

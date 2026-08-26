@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
+import { MarketLayout } from "./modules/marketplace/components/MarketLayout";
 import {
   RedirectIfAuthenticated,
   RequireAuth,
@@ -23,6 +24,11 @@ const MarketPage = lazy(() => import("./modules/marketplace/pages/MarketPage"));
 const LandingPage = lazy(() => import("./modules/landing/pages/LandingPage"));
 const DemoPage = lazy(() => import("./modules/landing/pages/DemoPage"));
 const MarketShopPage = lazy(() => import("./modules/marketplace/pages/MarketShopPage"));
+const BrowsePage = lazy(() => import("./modules/marketplace/pages/BrowsePage"));
+const ProductPage = lazy(() => import("./modules/marketplace/pages/ProductPage"));
+const CartPage = lazy(() => import("./modules/marketplace/pages/CartPage"));
+const CheckoutPage = lazy(() => import("./modules/marketplace/pages/CheckoutPage"));
+const SavedPage = lazy(() => import("./modules/marketplace/pages/SavedPage"));
 const MyOrdersPage = lazy(() => import("./modules/orders/pages/MyOrdersPage"));
 const OwnerOrdersPage = lazy(() => import("./modules/orders/pages/OwnerOrdersPage"));
 const RidersPage = lazy(() => import("./modules/orders/pages/RidersPage"));
@@ -119,20 +125,34 @@ export default function App() {
               customer has bookmarked breaks in between. */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/demo" element={<DemoPage />} />
-          <Route path="/shops" element={<MarketPage />} />
-          <Route path="/shop/:slug" element={<MarketShopPage />} />
+
+          {/* ── The storefront, under one frame ────────────────────
+              Header, basket sheet and footer are declared once by
+              `MarketLayout` and every storefront page renders inside it.
+              They each brought their own header before, which is how the shop
+              page ended up owning the only basket in the product. */}
+          <Route element={<MarketLayout />}>
+            <Route path="/shops" element={<MarketPage />} />
+            <Route path="/browse" element={<BrowsePage />} />
+            <Route path="/shop/:slug" element={<MarketShopPage />} />
+            <Route path="/p/:id" element={<ProductPage />} />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/saved" element={<SavedPage />} />
+
+            {/* Signed-in customers, still inside the storefront frame — a
+                customer looking at their orders has a basket too. */}
+            <Route element={<RequireAuth />}>
+              <Route element={<RequireRole roles={["customer"]} />}>
+                <Route path="/my-orders" element={<MyOrdersPage />} />
+              </Route>
+            </Route>
+          </Route>
 
           {/* Public auth (bounce authenticated users to their home) */}
           <Route element={<RedirectIfAuthenticated />}>
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
-          </Route>
-
-          {/* Customer orders (auth required, lives on the storefront) */}
-          <Route element={<RequireAuth />}>
-            <Route element={<RequireRole roles={["customer"]} />}>
-              <Route path="/my-orders" element={<MyOrdersPage />} />
-            </Route>
           </Route>
 
           {/* ── Admin console: /admin ─────────────────────────────── */}
