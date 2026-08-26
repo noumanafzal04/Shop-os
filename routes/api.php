@@ -154,6 +154,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('/search', [MarketplaceController::class, 'search']);
         // Mobile home screen in one round trip
         Route::get('/home', [MarketplaceController::class, 'home']);
+        // The aisle: everything on sale anywhere, with the filter rail's own
+        // counts computed from the same query the listing runs.
+        Route::get('/products', [MarketplaceController::class, 'browse']);
+        Route::get('/products/facets', [MarketplaceController::class, 'facets']);
+        Route::get('/products/{id}', [MarketplaceController::class, 'product']);
         Route::get('/shops', [MarketplaceController::class, 'shops']);
         Route::get('/shops/{slug}', [MarketplaceController::class, 'shop']);
         Route::get('/shops/{slug}/products', [MarketplaceController::class, 'products']);

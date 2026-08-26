@@ -12,8 +12,10 @@ use App\Models\Product;
 use App\Models\Tenant;
 use App\Support\ApiResponse;
 use App\Support\Geo;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * PUBLIC marketplace — no auth required. Serialization here is deliberately
@@ -124,6 +126,366 @@ class MarketplaceController extends Controller
         }
 
         return ApiResponse::ok($payload);
+    }
+
+    /**
+     * THE AISLE. Everything on sale anywhere, not one shop at a time.
+     *
+     * `products()` below answers "what does this shop sell", which is the only
+     * question the storefront could ask — so the marketplace could only ever be
+     * a directory of shops with a catalog hidden one click inside each. A
+     * customer does not shop for a shop. They shop for a thing, and then care
+     * who has it.
+     *
+     * Every filter is optional and they compose. Sorting is explicit rather
+     * than "relevance" magic, because a customer who picks "cheapest first"
+     * has told you exactly what they want and reordering it is a bug.
+     */
+    public function browse(Request $request): JsonResponse
+    {
+        $f = $this->browseFilters($request);
+
+        $query = $this->browseQuery($f);
+
+        $sorted = match ($f['sort']) {
+            'price_asc' => $query->orderByRaw(self::SELLING_PRICE.' ASC'),
+            'price_desc' => $query->orderByRaw(self::SELLING_PRICE.' DESC'),
+            'newest' => $query->orderByDesc('products.created_at'),
+            // Deepest cut first. A zero-discount row would divide by price and
+            // sort as 0, which is where it belongs.
+            'discount' => $query->orderByRaw('((products.price - COALESCE(products.discount_price, products.price)) / NULLIF(products.price, 0)) DESC'),
+            'rating' => $query->orderByDesc('shop_rating')->orderBy('products.name'),
+            default => $query->orderBy('products.name'),
+        };
+
+        $page = $sorted
+            ->with([
+                'category:id,name', 'images',
+                'variants' => fn ($q) => $q->where('is_active', true),
+                'modifierGroups' => fn ($q) => $q->with(['options' => fn ($o) => $o->where('is_active', true)]),
+            ])
+            ->paginate(min((int) $request->query('per_page', 24), 60));
+
+        // The shops these products belong to, in ONE query rather than one per
+        // row — a page of twenty-four products from twelve shops is twelve
+        // lookups repeated twice otherwise.
+        $shops = Tenant::query()
+            ->whereIn('id', $page->getCollection()->pluck('tenant_id')->unique())
+            ->with('city:id,name')
+            ->withAvg(['reviews as rating_avg' => fn ($q) => $q->where('is_published', true)], 'rating')
+            ->withCount(['reviews as reviews_count' => fn ($q) => $q->where('is_published', true)])
+            ->get()
+            ->keyBy('id');
+
+        $page->through(fn (Product $p) => $this->publicProductAt(
+            $p,
+            $this->defaultBranchOf($p->tenant_id),
+            $shops->get($p->tenant_id)?->timezone,
+        ) + [
+            'shop' => ($shop = $shops->get($p->tenant_id)) === null ? null : [
+                'slug' => $shop->slug,
+                'business_name' => $shop->business_name,
+                'business_type' => $shop->business_type,
+                'city' => $shop->city?->only(['id', 'name']),
+                'rating' => $shop->rating_avg !== null ? round((float) $shop->rating_avg, 1) : null,
+                'delivery_fee' => (float) $shop->delivery_fee,
+            ],
+        ]);
+
+        return ApiResponse::paginated($page);
+    }
+
+    /**
+     * WHAT IS WORTH CLICKING, AND HOW MANY OF IT.
+     *
+     * A filter rail with hardcoded options is a rail that offers a city with
+     * nothing in it and hides one with forty. Every option here is counted from
+     * the same query the listing runs.
+     *
+     * Each axis is counted with every OTHER filter applied but not its own —
+     * the standard behaviour, and the reason it matters: counting a city's
+     * options with the city filter still on makes every unselected city read
+     * zero, so choosing a different one looks impossible.
+     */
+    public function facets(Request $request): JsonResponse
+    {
+        $f = $this->browseFilters($request);
+
+        $ids = fn (?string $except) => $this->browseQuery($f, $except)->reorder();
+
+        $cities = City::query()
+            ->whereIn('id', (clone $ids('city_id'))->select('tenants.city_id'))
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (City $c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'products_count' => (clone $ids('city_id'))->where('tenants.city_id', $c->id)->count(),
+            ]);
+
+        $types = (clone $ids('business_type'))
+            ->reorder()
+            ->select('tenants.business_type')
+            ->selectRaw('COUNT(*) as products_count')
+            ->groupBy('tenants.business_type')
+            ->orderByDesc('products_count')
+            ->get()
+            ->map(fn ($r) => ['type' => $r->business_type, 'products_count' => (int) $r->products_count])
+            ->values();
+
+        // Categories are per-shop rows, so across shops they can only be
+        // grouped by NAME — "Beverages" at one shop and "Beverages" at another
+        // are the same aisle to a customer and two ids to the database.
+        $categories = (clone $ids('category'))
+            ->reorder()
+            ->join('categories', 'categories.id', '=', 'products.category_id')
+            ->select('categories.name')
+            ->selectRaw('COUNT(*) as products_count')
+            ->groupBy('categories.name')
+            ->orderByDesc('products_count')
+            ->limit(40)
+            ->get()
+            ->map(fn ($r) => ['name' => $r->name, 'products_count' => (int) $r->products_count])
+            ->values();
+
+        // The sizes a customer can actually ask for, by name, across shops.
+        $sizes = (clone $ids('size'))
+            ->reorder()
+            ->join('product_variants', function ($j): void {
+                $j->on('product_variants.product_id', '=', 'products.id')
+                    ->where('product_variants.is_active', true)
+                    ->whereNull('product_variants.deleted_at');
+            })
+            ->select('product_variants.name')
+            ->selectRaw('COUNT(DISTINCT products.id) as products_count')
+            ->groupBy('product_variants.name')
+            ->orderByDesc('products_count')
+            ->limit(30)
+            ->get()
+            ->map(fn ($r) => ['name' => $r->name, 'products_count' => (int) $r->products_count])
+            ->values();
+
+        // `select`, NOT `selectRaw`. selectRaw APPENDS, so this aggregate
+        // arrived on top of the base query's `products.*` and its shop-rating
+        // subselect — and MySQL under only_full_group_by refuses an aggregate
+        // beside a non-aggregated column. SQLite allows it, which is exactly
+        // how this reached a running server: every test was green and the
+        // endpoint answered 500 on the first real request.
+        $range = (clone $ids('price'))
+            ->reorder()
+            ->select(DB::raw(
+                'MIN('.self::SELLING_PRICE.') as low, MAX('.self::SELLING_PRICE.') as high',
+            ))
+            ->first();
+
+        return ApiResponse::ok([
+            'total' => $this->browseQuery($f)->reorder()->count(),
+            'cities' => $cities,
+            'business_types' => $types,
+            'categories' => $categories,
+            'sizes' => $sizes,
+            'price' => [
+                'min' => $range?->low !== null ? (float) $range->low : 0.0,
+                'max' => $range?->high !== null ? (float) $range->high : 0.0,
+            ],
+            'on_sale_count' => (clone $ids('on_sale'))->whereNotNull('products.discount_price')
+                ->whereColumn('products.discount_price', '<', 'products.price')->count(),
+        ]);
+    }
+
+    /**
+     * One product, on its own page, with the shop that sells it.
+     *
+     * There was no public endpoint for a single item at all: the only way to
+     * see a product was to load its shop's whole catalog and find it in the
+     * array, which cannot be linked to, shared, or opened from a search
+     * result.
+     */
+    public function product(Request $request, string $id): JsonResponse
+    {
+        $visibleShopIds = Tenant::query()->marketplaceVisible()->select('id');
+
+        $product = Product::withoutTenancy()
+            ->whereIn('tenant_id', $visibleShopIds)
+            ->where('is_active', true)
+            ->where('visible_in_marketplace', true)
+            ->with([
+                'category:id,name', 'images',
+                'variants' => fn ($q) => $q->where('is_active', true),
+                'modifierGroups' => fn ($q) => $q->with(['options' => fn ($o) => $o->where('is_active', true)]),
+            ])
+            ->findOrFail($id);
+
+        $shop = Tenant::query()
+            ->with('city:id,name')
+            ->withAvg(['reviews as rating_avg' => fn ($q) => $q->where('is_published', true)], 'rating')
+            ->withCount(['reviews as reviews_count' => fn ($q) => $q->where('is_published', true)])
+            ->findOrFail($product->tenant_id);
+
+        // What else this shop sells, so the page has somewhere to go next.
+        $also = Product::withoutTenancy()
+            ->where('tenant_id', $product->tenant_id)
+            ->where('is_active', true)
+            ->where('visible_in_marketplace', true)
+            ->whereKeyNot($product->id)
+            ->when($product->category_id, fn ($q, $cid) => $q->where('category_id', $cid))
+            ->with('images')
+            ->inRandomOrder()
+            ->limit(8)
+            ->get()
+            ->map(fn (Product $p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'price' => $p->sellingPrice(),
+                'original_price' => $p->sellingPrice() < (float) $p->price ? (float) $p->price : null,
+                'images' => $p->images->map(fn ($i) => $i->url)->filter()->values()->all(),
+                'shop_slug' => $shop->slug,
+            ]);
+
+        return ApiResponse::ok(
+            $this->publicProductAt($product, $this->defaultBranchOf($product->tenant_id), $shop->timezone) + [
+                'shop' => $this->publicShop($shop),
+                'also_from_this_shop' => $also,
+            ],
+        );
+    }
+
+    /**
+     * The price a customer is actually charged, in SQL.
+     *
+     * Written once because `Product::sellingPrice()` decides the same thing in
+     * PHP, and a filter that disagrees with the price on the card is worse than
+     * no filter: "under Rs 500" would list a product whose sticker says 800.
+     * The two conditions here are that method's, exactly — a discount counts
+     * only when it is set, positive, and actually lower.
+     */
+    private const SELLING_PRICE = '(CASE WHEN products.discount_price IS NOT NULL'
+        .' AND products.discount_price > 0 AND products.discount_price < products.price'
+        .' THEN products.discount_price ELSE products.price END)';
+
+    /** @return array<string, mixed> */
+    private function browseFilters(Request $request): array
+    {
+        return $request->validate([
+            'q' => ['nullable', 'string', 'max:80'],
+            // A named set of items rather than a search — what the saved list
+            // asks for. One request instead of one per heart.
+            'ids' => ['nullable', 'string', 'max:2000'],
+            'city_id' => ['nullable', 'uuid'],
+            'business_type' => ['nullable', 'string', 'max:40'],
+            'shop_slug' => ['nullable', 'string', 'max:120'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'item_type' => ['nullable', 'string', 'max:40'],
+            'size' => ['nullable', 'string', 'max:100'],
+            'min_price' => ['nullable', 'numeric', 'min:0'],
+            'max_price' => ['nullable', 'numeric', 'min:0'],
+            'on_sale' => ['nullable', 'boolean'],
+            'in_stock' => ['nullable', 'boolean'],
+            'rating_min' => ['nullable', 'numeric', 'between:0,5'],
+            'sort' => ['nullable', 'string', 'in:name,price_asc,price_desc,newest,discount,rating'],
+        ]) + ['sort' => $request->query('sort', 'name')];
+    }
+
+    /**
+     * The one query the listing and every facet count are built from.
+     *
+     * Shared rather than written twice, because a facet that says "Lahore (12)"
+     * over a list that shows nine is a bug nobody can explain — and two copies
+     * of a filter chain is how that happens.
+     *
+     * `$except` drops a single axis, which is what a facet needs to count its
+     * own alternatives.
+     */
+    private function browseQuery(array $f, ?string $except = null): Builder
+    {
+        $on = fn (string $axis) => $except !== $axis && ($f[$axis] ?? null) !== null && ($f[$axis] ?? '') !== '';
+
+        return Product::withoutTenancy()
+            ->join('tenants', 'tenants.id', '=', 'products.tenant_id')
+            ->where('products.is_active', true)
+            ->where('products.visible_in_marketplace', true)
+            // The same fence every other marketplace read goes through — a demo
+            // shop's catalog must never appear beside a real one's.
+            ->whereIn('products.tenant_id', Tenant::query()->marketplaceVisible()->select('id'))
+            ->select('products.*')
+            ->selectSub(
+                fn ($q) => $q->from('reviews')
+                    ->selectRaw('AVG(rating)')
+                    ->whereColumn('reviews.tenant_id', 'products.tenant_id')
+                    ->where('reviews.is_published', true),
+                'shop_rating',
+            )
+            // PRESENT-BUT-EMPTY IS A REAL ANSWER for this one axis, and the
+            // only one where it is. `?ids=` means "none of them" — a saved
+            // list somebody has just emptied — while every other filter treats
+            // an empty string as "not asked". Sharing the generic test would
+            // fill that page with the entire aisle.
+            ->when($except !== 'ids' && array_key_exists('ids', $f), function ($q) use ($f): void {
+                $ids = array_slice(array_filter(array_map('trim', explode(',', (string) $f['ids']))), 0, 60);
+                // An EMPTY set is not "no filter" — it is "none of them", and
+                // answering it with the whole aisle would fill a saved list
+                // somebody had just emptied.
+                $q->whereIn('products.id', $ids === [] ? [''] : $ids);
+            })
+            ->when($on('q'), fn ($q) => $q->where(fn ($w) => $w
+                ->where('products.name', 'like', "%{$f['q']}%")
+                ->orWhere('products.brand', 'like', "%{$f['q']}%")
+                ->orWhere('products.generic_name', 'like', "%{$f['q']}%")
+                ->orWhere('products.description', 'like', "%{$f['q']}%")
+                ->orWhere('tenants.business_name', 'like', "%{$f['q']}%")))
+            ->when($on('city_id'), fn ($q) => $q->where('tenants.city_id', $f['city_id']))
+            ->when($on('business_type'), fn ($q) => $q->where('tenants.business_type', $f['business_type']))
+            ->when($on('shop_slug'), fn ($q) => $q->where('tenants.slug', $f['shop_slug']))
+            ->when($on('item_type'), fn ($q) => $q->where('products.item_type', $f['item_type']))
+            ->when($on('category'), fn ($q) => $q->whereExists(fn ($e) => $e->from('categories')
+                ->whereColumn('categories.id', 'products.category_id')
+                ->where('categories.name', $f['category'])))
+            ->when($on('size'), fn ($q) => $q->whereExists(fn ($e) => $e->from('product_variants')
+                ->whereColumn('product_variants.product_id', 'products.id')
+                ->whereNull('product_variants.deleted_at')
+                ->where('product_variants.is_active', true)
+                ->where('product_variants.name', $f['size'])))
+            // CAST, and not because the column needs it — because the BINDING
+            // does. A PHP float binds as PDO::PARAM_STR, and SQLite orders every
+            // number BELOW every string, so `2400 <= '500'` is true and a
+            // "under Rs 500" filter returned the whole aisle. MySQL coerces and
+            // hides it, so this only ever fails where the tests run.
+            ->when($except !== 'price' && ($f['min_price'] ?? null) !== null,
+                fn ($q) => $q->whereRaw(self::SELLING_PRICE.' >= CAST(? AS DECIMAL(14,2))', [(float) $f['min_price']]))
+            ->when($except !== 'price' && ($f['max_price'] ?? null) !== null,
+                fn ($q) => $q->whereRaw(self::SELLING_PRICE.' <= CAST(? AS DECIMAL(14,2))', [(float) $f['max_price']]))
+            ->when($except !== 'on_sale' && ! empty($f['on_sale']), fn ($q) => $q
+                ->whereNotNull('products.discount_price')
+                ->whereColumn('products.discount_price', '<', 'products.price'))
+            // A scalar subquery rather than EXISTS + HAVING: an aggregate needs
+            // a GROUP BY to hang off, and SQLite says so out loud ("HAVING
+            // clause on a non-aggregate query") while MySQL would quietly
+            // answer something. A shop with no reviews reads 0 and is filtered
+            // out, which is the honest answer to "4 stars and up".
+            ->when($except !== 'rating_min' && ($f['rating_min'] ?? null) !== null, fn ($q) => $q
+                ->whereRaw(
+                    'COALESCE((SELECT AVG(rating) FROM reviews WHERE reviews.tenant_id = products.tenant_id'
+                    .' AND reviews.is_published = ?), 0) >= CAST(? AS DECIMAL(4,2))',
+                    [true, (float) $f['rating_min']],
+                ))
+            // "Available" means a customer can actually put it in a basket, so
+            // it is BOTH questions: is there stock, and has the counter turned
+            // it off tonight. Answering only the first offers a basket that is
+            // refused at checkout, which is where the 86 button came from.
+            ->when($except !== 'in_stock' && ! empty($f['in_stock']), fn ($q) => $q
+                ->where(fn ($w) => $w
+                    ->where('products.track_inventory', false)
+                    ->orWhere('products.stock_quantity', '>', 0)
+                    ->orWhereExists(fn ($e) => $e->from('product_variants')
+                        ->whereColumn('product_variants.product_id', 'products.id')
+                        ->whereNull('product_variants.deleted_at')
+                        ->where('product_variants.is_active', true)
+                        ->where('product_variants.stock_quantity', '>', 0)))
+                ->whereNotExists(fn ($e) => $e->from('branch_sold_out')
+                    ->join('branches', 'branches.id', '=', 'branch_sold_out.branch_id')
+                    ->whereColumn('branch_sold_out.product_id', 'products.id')
+                    ->whereNull('branch_sold_out.variant_id')
+                    ->where('branches.is_default', true)));
     }
 
     /**
