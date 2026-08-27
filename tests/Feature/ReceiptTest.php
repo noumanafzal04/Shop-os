@@ -542,4 +542,40 @@ class ReceiptTest extends TestCase
         $this->fetchReceipt($this->ringSale())->assertOk()
             ->assertDontSee('size: 58mm auto', false);
     }
+
+    /**
+     * THE TILL COULD NOT SAY WHICH PAPER IT HAD JUST PRINTED ON.
+     *
+     * A shop picks "Thermal 80mm" in Settings, rings a sale, and nothing on
+     * the counter mentions paper — so the only way to learn whether the choice
+     * took was to print one and look at it. And the lane's own printer
+     * legitimately overrides the shop default, so the Settings screen could not
+     * have answered it either: the honest answer is per-lane and only the
+     * server knows it.
+     *
+     * It rides back on the same response as the receipt, so it cannot disagree
+     * with the page that was actually rendered.
+     */
+    public function test_the_receipt_says_which_paper_it_came_out_on(): void
+    {
+        $this->tenant->update(['settings' => ['receipt_width' => 'thermal_80']]);
+
+        $this->fetchReceipt($this->ringSale())
+            ->assertOk()
+            ->assertHeader('X-Receipt-Paper', 'thermal_80')
+            // …and it agrees with the page itself, which is the point.
+            ->assertSee('size: 80mm auto', false);
+    }
+
+    public function test_the_paper_header_follows_the_lane_not_the_shop(): void
+    {
+        // The override direction: an 80mm thermal on a lane in a shop that
+        // files A4 invoices. The header has to name what the LANE will print.
+        $this->tenant->update(['settings' => ['receipt_width' => 'standard']]);
+        $this->printerOn(null, '80mm');
+
+        $this->fetchReceipt($this->ringSale())
+            ->assertOk()
+            ->assertHeader('X-Receipt-Paper', 'thermal_80');
+    }
 }

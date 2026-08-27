@@ -39,7 +39,7 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => ['X-Receipt-Print-Id', 'X-Receipt-Kind'],
+    'exposed_headers' => ['X-Receipt-Print-Id', 'X-Receipt-Kind', 'X-Receipt-Paper'],
 
     'max_age' => 0,
 

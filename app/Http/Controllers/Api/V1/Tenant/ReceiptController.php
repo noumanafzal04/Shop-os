@@ -71,6 +71,11 @@ class ReceiptController extends Controller
         $register = $this->terminal->get();
         $printer = HardwareDevice::resolveForRegister($register?->id)['receipt_printer'] ?? null;
 
+        // Resolved once, here, because two callers need the answer: the
+        // template that lays the page out, and the till that wants to tell the
+        // cashier which paper it just went to.
+        $paper = $this->paperFor($printer) ?? (string) ($settings['receipt_width'] ?? 'standard');
+
         $print = ReceiptPrint::query()->create([
             'sale_id' => $sale->id,
             'branch_id' => $sale->branch_id ?? $this->branch->id(),
@@ -101,7 +106,7 @@ class ReceiptController extends Controller
                 //
                 // Null falls through to the shop setting inside the template,
                 // which is where every other document already resolves it.
-                'paper' => $this->paperFor($printer),
+                'paper' => $paper,
                 'kind' => $kind,
                 'copyNo' => $copyNo,
                 'cashier' => $this->cashierName($sale),
@@ -109,7 +114,20 @@ class ReceiptController extends Controller
             ])
             // The client needs the row id to report a failure against it.
             ->header('X-Receipt-Print-Id', $print->id)
-            ->header('X-Receipt-Kind', $kind);
+            ->header('X-Receipt-Kind', $kind)
+            // WHICH PAPER THIS CAME OUT ON.
+            //
+            // A shop picks "Thermal 80mm" in Settings, rings a sale, and the
+            // till says nothing about paper at all — so the only way to find
+            // out whether the choice took effect was to print one and look at
+            // it. Worse, the lane's own printer legitimately overrides the
+            // shop default (see paperFor), so the setting screen cannot answer
+            // it either: the honest answer is per-lane and only known here.
+            //
+            // Sent as a header rather than recomputed in the client, because
+            // the resolution rule already lives in one place and a second copy
+            // in TypeScript is a copy that drifts.
+            ->header('X-Receipt-Paper', $paper);
     }
 
     /**
