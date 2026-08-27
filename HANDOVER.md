@@ -5202,6 +5202,51 @@ tab 0-sideways at 1440/1024/820/390.
 
 ---
 
+### 2026-08-27 — The till had no offline shell
+
+First bug reports from the live shop (`panel.cartze.shop`). Three defects, all
+verified in a browser.
+
+**The till never registered a service worker.** `ServiceWorkerHost` was mounted
+in `AppLayout`, and the till, floor, tab and kitchen board render outside it —
+so opening `/tenant/pos` directly, which is how a till is opened, registered
+nothing and precached nothing. `/tenant` → `regs: 1`; `/tenant/pos` → `regs: 0`,
+and an offline reload died with `ERR_INTERNET_DISCONNECTED`. That is the whole
+of "products show nahi hui". It is now mounted by `TenantThemed` and
+`AdminShell` — one per console, because `useRegisterSW` registers again on a
+second call.
+
+**`offline-shift.spec.ts` had been failing on precisely this, and an earlier
+session dismissed it as pre-existing and environmental.** It passes now. A
+failing test that names the symptom exactly is not noise.
+
+**"Sync now" reported success without looking at the queue.** Two faults at
+once. The retry backoff caps at ten minutes and `dueRows` filtered on it, so a
+press after a few failures found nothing DUE and sent nothing — while
+reporting "Up to date". And the button read success off `pullNow` resolving,
+which swallows flush failures on purpose, so the catalog coming *down* was
+being reported as the sales having gone *up*. A press now forces the first
+round, the flush result is returned rather than discarded, and the label says
+`4 still to send` or `3 refused`. The old screen drew "Up to date" beside a
+badge reading 4 — both from the same component, and the false one was the
+reassuring one.
+
+**A shop could not ask whether a device was ready.** The catalog has always
+synced on its own and all of it is invisible, so the only way to find out was
+to have an outage. `OfflineReadyPanel` (Settings → POS → Lanes & PINs) states
+what THIS device holds — products, customers, and **codes separately**, because
+a till with a full catalog and an empty barcode index can be searched by hand
+and cannot be scanned.
+
+Two plausible theories checked and found wrong before being acted on: HTTPS
+(the server already redirects and serves 200 — the secure context was fine),
+and the barcode index (`1` row against 31 products was correct; exactly one
+product in that fixture carries a code).
+
+Panel 1282 unit, 0 lint errors, build clean.
+
+---
+
 ## 8. Rules that must not be broken
 
 These are settled decisions, not preferences — most of them were paid for with a

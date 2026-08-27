@@ -145,4 +145,6 @@
 - [Switch With Nothing Behind It](shopos-switch-with-nothing-behind-it.md) — FIXED: "Require open shift" read by NOTHING in the panel; shift discipline always on; a one-person shop could not sell at all
 - [Full-Screen Pinned Room](shopos-full-screen-pinned-room.md) — FIXED: install card sat on the dine-in tab's Running total/Fire/Settle; 4 pages outside AppLayout never subtracted --pinned-bottom; FULL_SCREEN_PAGE
 - [A Waiter Holds A Phone](shopos-waiter-holds-a-phone.md) — STANDING: restaurant e2e was iPad-only; restaurant-phone project added and found both dine-in bugs at once
+- [Till Had No Offline Shell](shopos-till-had-no-offline-shell.md) — FIXED (live shop): ServiceWorkerHost only in AppLayout, so /tenant/pos registered NO worker; offline reload died
+- [The Sync That Lied](shopos-sync-that-lied.md) — FIXED: "Up to date" beside a badge reading 4; a press obeyed the 10-min backoff, and success was read off the catalog pull
 

@@ -1,0 +1,23 @@
+import { chromium } from "@playwright/test";
+const BASE = "http://localhost:4173";
+const b = await chromium.launch();
+const ctx = await b.newContext({ viewport: { width: 1440, height: 950 } });
+const page = await ctx.newPage();
+await page.goto(BASE + "/signin");
+await page.getByPlaceholder("you@business.com").fill("sweep-mart@qa.test");
+await page.getByPlaceholder("Enter your password").fill("password");
+await page.getByRole("button", { name: /sign in/i }).click();
+await page.waitForURL(/\/tenant/, { timeout: 40000 });
+await page.goto(BASE + "/tenant/settings");
+await page.waitForTimeout(3000);
+await page.getByRole("button", { name: "Point of Sale", exact: true }).first().click();
+await page.waitForTimeout(1000);
+await page.getByRole("button", { name: /Lanes & PINs/i }).first().click();
+await page.waitForTimeout(3000);
+const txt = await page.evaluate(() => {
+  const el = [...document.querySelectorAll("*")].find(e => /Selling without a connection/.test(e.textContent ?? "") && e.children.length < 8);
+  return el ? el.textContent.replace(/\s+/g, " ").slice(0, 320) : "NOT FOUND";
+});
+console.log("PANEL:", txt);
+await page.screenshot({ path: "/private/tmp/claude-501/-Users-devdimensions-PhpstormProjects-shopos/a4ba9d48-2a02-4ea8-81fb-a04eeaffd6b9/scratchpad/offline-ready.png" });
+await b.close();
