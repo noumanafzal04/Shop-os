@@ -23,6 +23,7 @@ import TaxGroupsManager from "../../catalog/components/TaxGroupsManager";
 import { ReceiptPreview } from "../../receipts/components/ReceiptPreview";
 import TillPinsPanel from "../../pos/components/TillPinsPanel";
 import DeviceSessionsPanel from "../../auth/components/DeviceSessionsPanel";
+import OfflineReadyPanel from "../../offline/OfflineReadyPanel";
 import TillDevicesPanel from "../../offline/device/TillDevicesPanel";
 import PricingVariancesPanel from "../../offline/pricing/PricingVariancesPanel";
 
@@ -800,6 +801,21 @@ export default function ShopSettingsPage() {
                           cashier handovers. Both belong here, and the two
                           answer different questions — "whose login is on that
                           tablet" and "when did that tablet last reach us". */}
+                      {/* WHAT THIS DEVICE IS HOLDING, before it needs it.
+                          A shop turned its wifi off to test the till and got
+                          an empty screen — the catalog had been syncing on its
+                          own the whole time, invisibly, so the only way to
+                          learn whether a device was ready was to have the
+                          outage. First card on this tab because it is the
+                          question people arrive with. */}
+                      <SectionCard
+                        icon={<CartGlyph />}
+                        title="Selling without a connection"
+                        description="Each device keeps its own copy of your products and customers so it can carry on through an outage. This is what THIS device is holding right now."
+                      >
+                        <OfflineReadyPanel />
+                      </SectionCard>
+
                       <SectionCard
                         icon={<CartGlyph />}
                         title="Your tills"

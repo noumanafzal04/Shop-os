@@ -51,3 +51,46 @@ describe("what a press is told", () => {
     expect(ANSWER_MS).toBeLessThanOrEqual(5000);
   });
 });
+
+describe("a press reports the QUEUE, not the pull", () => {
+  /**
+   * A shop sold four offline, pressed Sync, and read "Up to date" beside a
+   * badge still showing four. Both were drawn by the same screen, one of them
+   * was false, and the false one was the reassuring one.
+   *
+   * The old control reported success whenever `pullNow` resolved — and
+   * `pullNow` swallows a flush failure on purpose, so the catalog coming down
+   * was being read as the sales having gone up.
+   */
+  const outcome = (waiting: number, refused = 0) => ({
+    sent: 0,
+    waiting,
+    refused,
+    reason: null,
+  });
+
+  it("says how many are still held, instead of claiming success", () => {
+    expect(syncLabel("stuck", true, outcome(4))).toBe("4 still to send");
+  });
+
+  it("counts refused rows in the total that is still here", () => {
+    // Both are sales this till is holding. A cashier reading the badge sees
+    // one number, so the control must not report a different one.
+    expect(syncLabel("stuck", true, outcome(2, 1))).toBe("3 still to send");
+  });
+
+  it("says so plainly when pressing again cannot help", () => {
+    // Nothing waiting, and the shop refused the rest. Telling somebody to keep
+    // pressing a button that cannot work is the failure this state exists for.
+    expect(syncLabel("stuck", true, outcome(0, 3))).toMatch(/3 refused/);
+  });
+
+  it("still says something when the outcome is missing", () => {
+    expect(syncLabel("stuck", true, null).length).toBeGreaterThan(0);
+    expect(syncLabel("stuck", true).length).toBeGreaterThan(0);
+  });
+
+  it("keeps 'Up to date' for the case where it is true", () => {
+    expect(syncLabel("done", true, outcome(0))).toBe("Up to date");
+  });
+});

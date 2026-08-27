@@ -4,6 +4,7 @@ import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import { MarketLayout } from "./modules/marketplace/components/MarketLayout";
 import {
+  AdminShell,
   RedirectIfAuthenticated,
   RequireAuth,
   RequireFeature,
@@ -159,6 +160,11 @@ export default function App() {
           {/* ── Admin console: /admin ─────────────────────────────── */}
           <Route element={<RequireAuth />}>
             <Route element={<RequireRole roles={["super_admin", "admin_staff"]} />}>
+              {/* Registers the service worker for this console. /admin/help is
+                  full screen and sits outside AppLayout, the same way the till
+                  does on the shop side — so registration cannot live in the
+                  shell. */}
+              <Route element={<AdminShell />}>
               {/* Every screen but the dashboard and your own password is gated
                   on the SAME map the rail and the quick actions read. Hiding a
                   link is a courtesy, not a lock: a banner scheduler who typed
@@ -205,6 +211,7 @@ export default function App() {
               </Route>
               {/* Full screen, so it sits OUTSIDE the AppLayout route above. */}
               <Route path="/admin/help" element={<HelpCenterPage />} />
+              </Route>
             </Route>
 
             {/* ── Shop owner/staff console: /tenant ────────────────── */}

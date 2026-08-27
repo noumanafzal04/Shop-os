@@ -5,7 +5,6 @@ import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
 import { useMe } from "../modules/auth/hooks/useAuth";
-import ServiceWorkerHost from "../modules/offline/pwa/ServiceWorkerHost";
 
 const LayoutContent: React.FC = () => {
   const { railWide, isMobileOpen } = useSidebar();
@@ -17,11 +16,13 @@ const LayoutContent: React.FC = () => {
 
   return (
     <div className="min-h-screen xl:flex">
-      {/* Registers the service worker for BOTH consoles and nowhere else. It
-          was inside the shop-side update strip, which meant the admin console
-          had no registration to ask — so the header's "check for updates"
-          answered "this copy cannot update itself" about an app that can. */}
-      <ServiceWorkerHost />
+      {/* THE SERVICE WORKER IS NOT REGISTERED HERE ANY MORE.
+          AppLayout is the shell, and the till, the floor, the tab and the
+          kitchen board all run OUTSIDE it — so a cashier who opened
+          /tenant/pos directly registered nothing, precached nothing, and had
+          no offline shell on the one screen that exists to survive an outage.
+          It is registered by TenantThemed (every shop screen, shell or not)
+          and by AdminShell. See ServiceWorkerHost. */}
       <div>
         <AppSidebar />
         <Backdrop />

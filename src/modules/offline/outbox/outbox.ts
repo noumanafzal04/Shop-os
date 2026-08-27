@@ -182,13 +182,63 @@ export async function allRows(): Promise<OutboxRow[]> {
 export async function dueRows(
   now: number = Date.now(),
   tenantId: string | null = null,
+  /**
+   * A PERSON PRESSED SYNC, so the backoff does not apply.
+   *
+   * The exponential wait is right for the automatic sync — a till back from two
+   * days away must not re-send its whole queue in its first minute. It is wrong
+   * for a press. The backoff caps at ten minutes, so a cashier who watched four
+   * sales fail, pressed "Sync now", and was told "Up to date" was reading the
+   * literal truth about a flush that found nothing DUE and sent nothing at all.
+   *
+   * A press is not a poll. Somebody is standing there, with the shop's money in
+   * the queue, asking for it to go now.
+   */
+  force = false,
 ): Promise<OutboxRow[]> {
   const pending = await getAllByIndex<OutboxRow>(STORE.OUTBOX, "by_status", OUTBOX_STATUS.PENDING);
 
   return pending
-    .filter((r) => r.nextAttemptAt === null || Date.parse(r.nextAttemptAt) <= now)
+    .filter((r) => force || r.nextAttemptAt === null || Date.parse(r.nextAttemptAt) <= now)
     .filter((r) => belongsHere(r, tenantId))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * WHY THIS DOES NOT COUNT ANYTHING ITSELF.
+ *
+ * The till badge already answers "how much is this device holding" through
+ * `pendingCount()` — which counts sales AND unsent shift events, because a
+ * drawer counted with no server is work owed exactly as much as a sale is.
+ *
+ * The first version of this function walked the outbox again and counted only
+ * sales. That would have put a second number on the same screen as the badge,
+ * disagreeing with it by however many shift events were queued — which is the
+ * precise defect this whole change exists to remove. A control that says
+ * "3 still to send" beside a badge reading 4 is no better than one that said
+ * "Up to date" beside a badge reading 4.
+ *
+ * So it reuses the counters the badge reuses, and the two cannot drift.
+ */
+export async function queueSummary(): Promise<{
+  waiting: number;
+  failed: number;
+  lastError: string | null;
+}> {
+  const { pendingCount } = await import("../db/repo");
+  const [waiting, failed, rows] = await Promise.all([
+    pendingCount(),
+    refusedCount(),
+    allRows(),
+  ]);
+
+  return {
+    waiting,
+    failed,
+    // The most recent thing the server or the link actually said. A count with
+    // no reason beside it is what sends a shopkeeper to a phone call.
+    lastError: rows.map((r) => r.error).find((e) => e !== null) ?? null,
+  };
 }
 
 /**

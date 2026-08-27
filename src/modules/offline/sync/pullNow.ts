@@ -2,7 +2,7 @@ import { applyPull, readMeta } from "./applyPull";
 import { catalogService, PROJECTIONS, type Projection } from "./catalogService";
 import { flushVariances } from "../pricing/varianceService";
 import { touchIfDue } from "../device/touch";
-import { flushOutbox } from "../outbox/flush";
+import { flushOutbox, type FlushResult } from "../outbox/flush";
 import { flushShifts } from "../shift/flushShifts";
 import { useAuthStore } from "../../../stores/authStore";
 import { useOfflineStore } from "../offlineStore";
@@ -29,6 +29,8 @@ export interface PullResult {
   rounds: number;
   /** True when the cap stopped the loop rather than the server did. */
   truncated: boolean;
+  /** What happened to the QUEUE on the way in. See the note on the flush. */
+  flushed: FlushResult;
 }
 
 /**
@@ -46,10 +48,10 @@ export interface PullResult {
  */
 let inFlight: Promise<PullResult> | null = null;
 
-export function pullNow(): Promise<PullResult> {
+export function pullNow(options: { force?: boolean } = {}): Promise<PullResult> {
   if (inFlight) return inFlight;
 
-  inFlight = run().finally(() => {
+  inFlight = run(options.force === true).finally(() => {
     inFlight = null;
   });
 
@@ -61,7 +63,7 @@ export function isPulling(): boolean {
   return inFlight !== null;
 }
 
-async function run(): Promise<PullResult> {
+async function run(force = false): Promise<PullResult> {
   // MONEY OUT BEFORE CATALOG IN, and the order is the whole point. A till that
   // reconnects for ninety seconds on a bad shop link has time for one of these.
   // A stale price costs a wrong figure on one sale; an unsent sale costs the
@@ -95,12 +97,16 @@ async function run(): Promise<PullResult> {
   // shift would not go, and the queue keeps everything it could not send.
   await flushShifts(["open"], tenantId).catch(() => ({}));
 
-  await flushOutbox(tenantId, (sent, total) => {
+  const flushed = await flushOutbox(tenantId, (sent, total) => {
     // Nothing owed is not a sync worth narrating. Announcing "Sending 0 of 0"
     // every fifteen minutes teaches a cashier to stop reading the pill.
     if (total > 0) setSyncing({ sent, total });
-  })
-    .catch(() => ({}))
+  }, force)
+    // Swallowed on purpose — a till must not stop learning its catalog because
+    // its queue would not go. But the RESULT is kept and handed back, because
+    // "Sync now" used to answer "Up to date" off the back of a pull that
+    // succeeded while the queue it had just failed to send sat untouched.
+    .catch((): FlushResult => ({ sent: 0, acked: 0, failed: 0, skipped: false }))
     .finally(() => setSyncing(null));
 
   // AND THE COUNT LAST. A close that overtook its own sales would compare the
@@ -163,5 +169,5 @@ async function run(): Promise<PullResult> {
   // denominator.
   await touchIfDue(Date.now(), { force: variances.sent > 0 });
 
-  return { applied, rounds, truncated };
+  return { applied, rounds, truncated, flushed };
 }

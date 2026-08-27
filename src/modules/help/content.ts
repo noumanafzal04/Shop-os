@@ -1446,6 +1446,20 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/settings",
     keywords: ["till", "device", "tablet", "offline", "internet", "pricing", "variance", "sign out", "lost tablet", "update", "new version", "refresh", "upgrade"],
     body: [
+      { type: "h", text: "Getting a device ready to sell offline" },
+      { type: "p", text: "Settings → Point of Sale → Lanes & PINs, at the top: \u201cSelling without a connection\u201d. It tells you what THIS device is holding right now — how many products and customers are saved on it, and when it last checked." },
+      {
+        type: "steps",
+        items: [
+          "Open the till at least once on the device while you DO have a connection. That is what stores the app itself, so it can open again with the line down.",
+          "Press \u201cSave everything on this device\u201d. Your whole product list and customer list are copied onto it.",
+          "The line at the top turns green: \u201cThis device can sell offline\u201d.",
+        ],
+      },
+      { type: "p", text: "Do it once per device. A counter tablet and an office laptop each keep their own copy, so being ready on one says nothing about the other." },
+      { type: "note", text: "It also tells you if no barcodes were saved. A till can always be searched by name; scanning only works offline once the codes are on the device, and those are two different situations worth telling apart before a queue forms." },
+      { type: "p", text: "You do not have to do any of this for it to work — the till copies your products down on its own, on opening, on reconnecting and every fifteen minutes. The button is there so you can CHECK, and so you can top a device up deliberately before a day you expect trouble." },
+
       { type: "h", text: "Your tills" },
       { type: "p", text: "Shop settings → Point of Sale → Lanes & PINs. Every device that opens the POS adds itself to this list on its own — there is nothing to register by hand. Each row shows which lane it stands at and when it last reached us." },
       { type: "p", text: "A till that goes quiet is a till that has lost its connection, so 'last reached us' is the number worth reading. It updates while the POS is open, not only when the browser is reloaded." },
@@ -1471,6 +1485,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "A till is the one screen nobody ever navigates away from — it is opened on Monday and stood on the counter until Saturday — so it will not notice a new version on its own the way an ordinary web page does. It checks once an hour instead, and when a newer one is ready a strip appears at the bottom offering it." },
       { type: "p", text: "Nothing ever updates by itself. Updating reloads the till, so the moment has to be one you chose: finish the sale you are on, then press Update. Any sales still waiting to be sent survive the reload — they are stored on the tablet, not in the page." },
       { type: "note", text: "There is a refresh button in the header, next to the bell, if you would rather ask now than wait for the hourly check — somebody has told you the new prices are live, say. It answers straight: a new version is ready, you are already on the latest, or there is no connection to check with. Pressing 'Later' on the strip is safe too: the update waits, and that header button is where you go back to it." },
+
+      { type: "h", text: "Sending what the till is holding" },
+      { type: "p", text: "The badge in the till's top bar is also a button. It says how many sales are still on the device, and pressing it tries to send them straight away rather than waiting for the next automatic attempt." },
+      { type: "keys", items: [
+        ["Up to date", "The queue is empty. Everything this device was holding has reached the server."],
+        ["4 still to send", "It tried, and four are still here. The connection is the usual reason — nothing is lost, and it keeps trying on its own."],
+        ["3 refused", "The shop would not accept these, and pressing again will not change that. Open the offline report to see why."],
+      ]},
+      { type: "note", text: "A sale that is still queued has not been lost. It lives on the device until the server has it, survives a reload and a browser restart, and the customer's slip carries an OFF- number you can look up once it lands." },
 
       { type: "h", text: "Selling when the internet is down" },
       { type: "p", text: "Once the checks above are clean and support has turned offline selling on for your shop, a till keeps trading through a power cut or a dead connection. Nothing for you to switch on at the counter — the POS notices and carries on. Your whole product list and its categories are already on the tablet, so you can browse and search them exactly as you do online; the only thing missing is product photos, which are not stored on the device." },

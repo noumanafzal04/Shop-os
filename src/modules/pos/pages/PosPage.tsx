@@ -3276,7 +3276,7 @@ export default function PosPage() {
             }`}
             title={
               manualSync.state !== "idle"
-                ? syncLabel(manualSync.state, connected)
+                ? syncLabel(manualSync.state, connected, manualSync.outcome)
                 : connected
                   ? "The till reached the server on its last request. Tap to sync now."
                   : offlineOwed > 0
@@ -3308,7 +3308,7 @@ export default function PosPage() {
                 nothing change will press it again with a queue behind them. */}
             {manualSync.state === "idle"
               ? pillLabel(connected, offlineOwed, syncing, online)
-              : syncLabel(manualSync.state, connected)}
+              : syncLabel(manualSync.state, connected, manualSync.outcome)}
           </button>
         </div>
 

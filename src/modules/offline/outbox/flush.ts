@@ -103,9 +103,11 @@ export type FlushProgress = (done: number, total: number) => void;
 export async function flushOutbox(
   tenantId: string | null = null,
   onProgress?: FlushProgress,
+  /** A person pressed Sync now — try every row, backoff or not. See dueRows. */
+  force = false,
 ): Promise<FlushResult> {
   const locks = navigator.locks;
-  if (locks === undefined) return runFlush(tenantId, onProgress);
+  if (locks === undefined) return runFlush(tenantId, onProgress, force);
 
   let result: FlushResult = { sent: 0, acked: 0, failed: 0, skipped: true };
 
@@ -113,7 +115,7 @@ export async function flushOutbox(
   // wake against rows the first tab had just retired.
   await locks.request(LOCK, { ifAvailable: true }, async (lock) => {
     if (lock === null) return;
-    result = await runFlush(tenantId, onProgress);
+    result = await runFlush(tenantId, onProgress, force);
   });
 
   return result;
@@ -126,7 +128,11 @@ export async function flushOutbox(
  */
 const MAX_ROUNDS = 200;
 
-async function runFlush(tenantId: string | null, onProgress?: FlushProgress): Promise<FlushResult> {
+async function runFlush(
+  tenantId: string | null,
+  onProgress?: FlushProgress,
+  force = false,
+): Promise<FlushResult> {
   const result: FlushResult = { sent: 0, acked: 0, failed: 0, skipped: false };
 
   /**
@@ -144,7 +150,9 @@ async function runFlush(tenantId: string | null, onProgress?: FlushProgress): Pr
     // mean one successful batch made every later all-retried batch look like
     // progress, and the loop would never end.
     let moved = 0;
-    const due = await dueRows(Date.now(), tenantId);
+    // Forced only on the FIRST round: a press means "try what is owed now",
+    // not "ignore the wait a row just earned by failing in this very flush".
+    const due = await dueRows(Date.now(), tenantId, force && round === 0);
     if (round === 0) total = due.length;
 
     const batch = due.slice(0, BATCH);

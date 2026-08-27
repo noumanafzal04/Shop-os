@@ -29,7 +29,7 @@ let pull: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  pull = vi.spyOn(puller, "pullNow").mockResolvedValue({
+  pull = vi.spyOn(puller, "pullNow" as never).mockResolvedValue({
     applied: {
       products: 0,
       categories: 0,
@@ -40,6 +40,7 @@ beforeEach(() => {
     },
     rounds: 1,
     truncated: false,
+    flushed: { sent: 0, acked: 0, failed: 0, skipped: false },
   });
   useConnectionStore.setState({ online: true, reachable: true });
 });

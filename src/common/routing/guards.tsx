@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import ThemeCustomizer from "../../components/theme/ThemeCustomizer";
+import ServiceWorkerHost from "../../modules/offline/pwa/ServiceWorkerHost";
 import UpdatePrompt from "../../modules/offline/pwa/UpdatePrompt";
 import InstallPrompt from "../../modules/offline/pwa/InstallPrompt";
 import { useKeepInSync } from "../../modules/offline/sync/useKeepInSync";
@@ -174,6 +175,23 @@ export function RequireAdminScreen({ path }: { path: string }) {
  * which device it is and whether its storage is safe wherever the cashier
  * happens to be standing, not only on the screen that sells.
  */
+/**
+ * The admin console's half of the same job.
+ *
+ * `ServiceWorkerHost` may be mounted exactly once per page — `useRegisterSW`
+ * registers again on a second call — so the two consoles get one mount each
+ * and the two never overlap. TenantThemed covers /tenant, this covers /admin,
+ * and AppLayout (which both consoles share) covers neither.
+ */
+export function AdminShell() {
+  return (
+    <>
+      <ServiceWorkerHost />
+      <Outlet />
+    </>
+  );
+}
+
 export function TenantThemed() {
   useTenantTheme();
   // Shop-side only. An admin browsing the platform console has no till, no
@@ -185,6 +203,16 @@ export function TenantThemed() {
 
   return (
     <>
+      {/* REGISTERED HERE, NOT IN AppLayout.
+          AppLayout is the shell; the till, the floor, the tab and the kitchen
+          board render outside it. A cashier who opened /tenant/pos directly —
+          which is exactly how a till is opened — registered no worker,
+          precached nothing, and got ERR_INTERNET_DISCONNECTED on the first
+          reload after the line dropped. The one screen built to survive an
+          outage was the one screen with no offline shell.
+          TenantThemed wraps every shop screen, shell or not, and already owns
+          the rest of the offline boot above. */}
+      <ServiceWorkerHost />
       <Outlet />
       {/* Appearance is reachable from every shop screen except the till — its
           rail button is `fixed right-0 top-1/2`, which lands on a page margin

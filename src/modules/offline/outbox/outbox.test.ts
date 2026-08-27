@@ -9,6 +9,7 @@ import {
   allRows,
   BACKOFF_MS,
   dueRows,
+  queueSummary,
   enqueue,
   KEEP_ACKED_MS,
   markAcked,
@@ -26,6 +27,7 @@ import {
   refusedTotal,
   type OutboxRow,
 } from "./outbox";
+import { pendingCount } from "../db/repo";
 
 /**
  * The queue of sales that have happened but not yet reached the server.
@@ -109,6 +111,45 @@ describe("what to send next", () => {
     await enqueue(row("1", { nextAttemptAt: new Date(Date.now() - 1).toISOString() }));
 
     expect(await dueRows(Date.now(), SHOP)).toHaveLength(1);
+  });
+
+  /**
+   * A SHOP PRESSED SYNC AND WAS TOLD "UP TO DATE" WITH FOUR SALES QUEUED.
+   *
+   * The backoff caps at ten minutes. After a few failed attempts the flush
+   * found nothing DUE, sent nothing, returned instantly — and the button
+   * reported success. Every part of that was working as written; the press was
+   * simply being treated as a poll.
+   */
+  it("sends a row that is waiting, when a PERSON asked", async () => {
+    await enqueue(row("1", { nextAttemptAt: new Date(Date.now() + 600_000).toISOString() }));
+
+    expect(await dueRows(Date.now(), SHOP)).toEqual([]);
+    expect(await dueRows(Date.now(), SHOP, true)).toHaveLength(1);
+  });
+
+  it("reports the queue with the same counters the badge uses", async () => {
+    // The number under "Sync now" and the number on the badge are drawn on one
+    // bar, three inches apart. If they are computed twice they disagree — and
+    // "3 still to send" beside a badge reading 4 is no better than the "Up to
+    // date" it replaced. pendingCount() counts sales AND shift events; this
+    // has to count exactly what it counts.
+    await enqueue(row("a"));
+    await enqueue(row("b", { status: OUTBOX_STATUS.FAILED, error: "Shop refused it" }));
+
+    const summary = await queueSummary();
+
+    expect(summary.waiting).toBe(await pendingCount());
+    expect(summary.failed).toBe(1);
+    expect(summary.lastError).toBe("Shop refused it");
+  });
+
+  it("still will not send another shop's row, however hard it is pressed", async () => {
+    // Forcing skips the WAIT. It must never skip the fence — a flush under the
+    // wrong token files one business's takings in another's books.
+    await enqueue(row("theirs", { tenantId: "someone-else", nextAttemptAt: null }));
+
+    expect(await dueRows(Date.now(), SHOP, true)).toEqual([]);
   });
 
   it("never offers a row that is already in flight", async () => {
