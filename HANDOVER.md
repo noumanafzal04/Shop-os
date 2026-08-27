@@ -5142,6 +5142,66 @@ clean, 26 e2e across four device sizes.
 
 ---
 
+### 2026-08-27 — A switch with nothing on the other end
+
+Asked to check "all toggles are properly integrated on their places". The
+Settings page writes **50** preferences; each was traced to a reader, because a
+count of files MENTIONING a key is not a count of readers — the migration, the
+validator and the allow-list all mention it.
+
+**49 had one. `pos_require_shift` had none in the panel.** The server honours
+it correctly (`cash_session_id` is nullable; SaleController refuses a shiftless
+counter sale only when the shop asked). The till asked
+`canRing = activeSessionId !== null` and nothing else, so shift discipline was
+always on at the counter whatever the shop had chosen — and a one-person shop
+that had never opened a drawer **could not ring a single sale**, which is
+exactly what the backend test pinning the default says must never happen. Both
+directions are now proven in a browser. It lives in `canRingASale()` beside
+`whyCannotRing()`, so the gate and the sentence under the disabled button
+cannot drift apart again.
+
+**The receipt size was not broken.** Save → persist → a real sale renders
+`@page { size: 80mm auto }`, verified end to end against the running API and
+already covered by five tests. What was missing is that the till never SAID so,
+and a lane's own printer legitimately overrides the shop default, so the
+Settings screen could not answer it either. The server now returns
+`X-Receipt-Paper` on the receipt itself and the sale-complete modal reads
+"Receipt sent to the printer · 80mm roll". The Help Centre was also sending
+readers to Point of Sale for a control that lives on the Receipt tab.
+
+**The install prompt was sitting on the dine-in tab's Settle button.** It is
+`fixed bottom-3` at `z-[99998]`; AppLayout pads by `--pinned-bottom` and
+HelpCenterPage subtracts it. The four pages that run outside the shell — till,
+floor, tab, kitchen — did neither, and a page that is exactly `h-dvh` has no
+scroll room to recover with. `FULL_SCREEN_PAGE` is now the one spelling, and
+its guard reads the ROUTER for the page list.
+
+**Dine-in on a phone.** `restaurant` and `restaurant-tablet` existed, under a
+comment saying the floor and tab are "held in a waiter's hands" — answered with
+an iPad. A waiter holds a phone. The floor's header ran 15px off a 390px screen
+with "+ Takeaway" as the half over the edge; the tab workspace was `w-3/5` /
+`w-2/5` with no breakpoint at all, 234px of menu beside 156px of tab. Both
+fixed, `restaurant-phone` added, and **the tab workspace is walked by a browser
+for the first time**.
+
+Two detectors were wrong before they were right, both failing in the direction
+that looks like success: the full-screen guard found ZERO pages because
+`App.tsx` mounts `AppLayout` twice and `indexOf` found the admin one; and
+`everyScreenIsWalked` reported the floor and kitchen as unwalked when the tab's
+`path` became a function, because its literal-only regex stopped matching the
+whole array. Only denominators caught either.
+
+Settings also rebalanced: typed values and switches are separate cards, the
+switch grid is full-width (271–491px cards instead of ~110px — `xl:` is a
+VIEWPORT query, and the column was 540px), and the expiry field is no longer a
+bare input in a grid of switch-cards.
+
+Backend 2356 green on SQLite and MySQL. Panel 1267 unit, 0 lint errors, build
+clean. 20/20 restaurant e2e across desktop, tablet and phone; every Settings
+tab 0-sideways at 1440/1024/820/390.
+
+---
+
 ## 8. Rules that must not be broken
 
 These are settled decisions, not preferences — most of them were paid for with a

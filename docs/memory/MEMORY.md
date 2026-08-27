@@ -142,3 +142,7 @@
 - [Today In UTC](shopos-today-in-utc.md) — STANDING: toISOString().slice(0,10) is yesterday before 05:00 in Karachi; use toIsoDate(); guarded + mutation-proven
 - [sr-only Widened The Page](shopos-sr-only-widened-page.md) — FIXED: an sr-only span in a <th> pushed the page 84px sideways; position:absolute escapes a scroller with no positioned ancestor
 - [Expense Manager UI](shopos-expense-manager-ui.md) — 2026-08-26: one shared MoneyEntryTable + MoneySummary, formatMoney/formatEntryDate, all tabs fit a phone
+- [Switch With Nothing Behind It](shopos-switch-with-nothing-behind-it.md) — FIXED: "Require open shift" read by NOTHING in the panel; shift discipline always on; a one-person shop could not sell at all
+- [Full-Screen Pinned Room](shopos-full-screen-pinned-room.md) — FIXED: install card sat on the dine-in tab's Running total/Fire/Settle; 4 pages outside AppLayout never subtracted --pinned-bottom; FULL_SCREEN_PAGE
+- [A Waiter Holds A Phone](shopos-waiter-holds-a-phone.md) — STANDING: restaurant e2e was iPad-only; restaurant-phone project added and found both dine-in bugs at once
+
