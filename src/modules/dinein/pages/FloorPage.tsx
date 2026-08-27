@@ -13,6 +13,7 @@ import type { DiningTable } from "../services/dineInService";
 import { useMayWorkTable } from "../ownership";
 import { useAuthStore } from "../../../stores/authStore";
 import WaiterReportModal from "../components/WaiterReportModal";
+import { FULL_SCREEN_PAGE_MIN } from "../../../layout/fullScreenPage";
 
 /** A blank area is one section ("the floor"), not a section named "". */
 const areaOf = (t: DiningTable): string | null => t.area?.trim() || null;
@@ -149,17 +150,31 @@ export default function FloorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className={`${FULL_SCREEN_PAGE_MIN} bg-gray-50 dark:bg-gray-950`}>
       <PageMeta title="Dine-in | CartZe" description="Restaurant floor" />
 
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-3 dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate("/tenant")} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">
-            ← Dashboard
+      {/* THE FLOOR IS WORKED FROM A PHONE IN AN APRON POCKET.
+          One nowrap flex row of four controls does not fit 390px: the header
+          ran 15px off the side of the screen and "+ Takeaway" — the button a
+          waiter reaches for most — was the half hanging off the edge. It wraps
+          now, and the actions take their own line below the title rather than
+          fighting it for the same one. `min-w-0` on the title group is what
+          lets it shrink at all; without it a flex child refuses to go below
+          its content width and pushes the page sideways instead. */}
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200 bg-white px-4 py-3 sm:px-5 dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <button
+            onClick={() => navigate("/tenant")}
+            aria-label="Back to the dashboard"
+            className="shrink-0 whitespace-nowrap text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
+          >
+            {/* The word costs 90px of a 390px header and says nothing the
+                arrow doesn't; it comes back as soon as there is room. */}
+            ← <span className="hidden sm:inline">Dashboard</span>
           </button>
-          <h1 className="text-lg font-semibold text-gray-800 dark:text-white/90">Dine-in Floor</h1>
+          <h1 className="truncate text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">Dine-in Floor</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {editMode && <Button size="sm" variant="outline" onClick={addTable}>+ Add table</Button>}
           {!editMode && canSeeReports && (
             <Button size="sm" variant="outline" onClick={reportModal.openModal}>
@@ -218,7 +233,7 @@ export default function FloorPage() {
                             editMode ? undefined : tab ? navigate(`/tenant/dine-in/tickets/${tab.id}`) : openFor(t)
                           }
                           disabled={editMode}
-                          className={`flex h-32 w-full flex-col items-center justify-center rounded-2xl border p-3 text-center transition-colors ${
+                          className={`flex h-32 w-full flex-col items-center justify-center gap-0.5 rounded-2xl border p-2.5 text-center transition-colors sm:p-3 ${
                             occupied && mine
                               ? "border-brand-500 bg-brand-500 text-white shadow-sm"
                               : occupied
@@ -226,7 +241,7 @@ export default function FloorPage() {
                                 : "border-gray-200 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-200"
                           } ${editMode ? "cursor-default" : ""}`}
                         >
-                          <span className="text-lg font-bold">{t.name}</span>
+                          <span className="w-full text-balance text-sm font-bold leading-tight sm:text-base lg:text-lg">{t.name}</span>
                           {t.seats != null && (
                             <span className={`text-theme-xs ${occupied && mine ? "text-white/80" : "text-gray-400"}`}>
                               {t.seats} seats

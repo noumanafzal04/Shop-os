@@ -59,6 +59,29 @@ export function isIOS(): boolean {
   return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
 }
 
+/**
+ * What to CALL the thing in the reader's hands.
+ *
+ * The install card said "Put CartZe on this iPad" to everyone on the Safari
+ * route — and `isIOS()` is true for an iPhone as well, so a waiter holding a
+ * phone was told to install it on a tablet they were not holding. The
+ * instruction that follows (Share → Add to Home Screen) is correct on both,
+ * which is what made it survive: nothing was broken, it was just addressed to
+ * the wrong person.
+ *
+ * iPadOS 13+ reports `MacIntel`, so the tablet is the branch that cannot be
+ * read off the user-agent — see isIOS. Anything that is neither gets the
+ * neutral word rather than a guess.
+ */
+export function iosDeviceName(): string {
+  if (typeof navigator === "undefined") return "device";
+  if (/iphone|ipod/i.test(navigator.userAgent)) return "iPhone";
+  if (/ipad/i.test(navigator.userAgent)) return "iPad";
+  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return "iPad";
+
+  return "device";
+}
+
 /** What to offer, given whether the browser handed us a deferred prompt. */
 export function installRoute(hasDeferredPrompt: boolean): InstallRoute {
   if (isInstalled()) return "installed";

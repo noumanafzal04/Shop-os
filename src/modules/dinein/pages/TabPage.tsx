@@ -20,6 +20,7 @@ import { useTicket, useDineInMutations, useOpenTickets, useServers, useTables } 
 import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 
 const KOT_BADGE: Record<string, { label: string; cls: string }> = {
   pending: { label: "Pending", cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" },
@@ -343,19 +344,25 @@ export default function TabPage() {
   }
 
   return (
-    <div className="flex h-dvh flex-col bg-gray-50 dark:bg-gray-950">
+    <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-gray-50 dark:bg-gray-950`}>
       <PageMeta title={`Tab ${ticket.ticket_number} | CartZe`} description="Dine-in tab" />
 
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-5 py-3 dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate("/tenant/dine-in")} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">
-            ← Floor
+      {/* Wraps, for the same reason the floor's header does — and this one
+          carries four more controls, so it ran off a phone by more. */}
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200 bg-white px-4 py-3 sm:px-5 dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <button
+            onClick={() => navigate("/tenant/dine-in")}
+            aria-label="Back to the floor"
+            className="shrink-0 whitespace-nowrap text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
+          >
+            ← <span className="hidden sm:inline">Floor</span>
           </button>
-          <div>
-            <h1 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">
               {ticket.table?.name ?? "Takeaway"} · {ticket.ticket_number}
             </h1>
-            <p className="text-theme-xs text-gray-400">
+            <p className="truncate text-theme-xs text-gray-400">
               {ticket.order_type === "dine_in" ? "Dine-in" : "Takeaway"}
               {ticket.guest_count ? ` · ${ticket.guest_count} guests` : ""}
               {ticket.waiter ? ` · ${ticket.waiter.name}` : ""}
@@ -363,7 +370,7 @@ export default function TabPage() {
           </div>
         </div>
         {mine && (
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-2">
             {/* A floor moves: a party changes table, and two tables turn out to
                 be one party. Both used to mean voiding the tab and re-ringing
                 the meal, which loses the KOTs already fired. */}
@@ -394,9 +401,23 @@ export default function TabPage() {
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      {/* TWO SHAPES, BECAUSE A TAB IS WORKED ON TWO KINDS OF SCREEN.
+       *
+       * This was `w-3/5` / `w-2/5` at every width, with no breakpoint at all —
+       * so a waiter on a 390px phone got 234px of menu and 156px of tab, and
+       * the tab pane carries a name, a quantity, a KOT badge and a price on
+       * every line. The till learned this lesson already (PosPage's three
+       * shapes); the tab workspace never had it applied.
+       *
+       * Below `lg` the two stack and each scrolls on its own, so the menu can
+       * use the whole width and the tab is a full-width list underneath rather
+       * than a column too narrow to read. `lg` is the tablet-landscape
+       * breakpoint in this codebase, which is the smallest screen the side-by-
+       * side layout is honest on.
+       */}
+      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
         {/* Menu */}
-        <div className="flex w-3/5 flex-col border-r border-gray-200 dark:border-gray-800">
+        <div className="flex min-h-0 flex-1 flex-col border-b border-gray-200 lg:w-3/5 lg:flex-none lg:border-b-0 lg:border-r dark:border-gray-800">
           <div className="flex flex-wrap gap-2 border-b border-gray-200 p-3 dark:border-gray-800">
             <Input placeholder="Search menu…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
             <div className="flex flex-wrap gap-1">
@@ -449,7 +470,7 @@ export default function TabPage() {
         </div>
 
         {/* Tab */}
-        <div className="flex w-2/5 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col lg:w-2/5 lg:flex-none">
           <div className="flex-1 overflow-y-auto p-4">
             {liveItems.length === 0 ? (
               <p className="py-10 text-center text-sm text-gray-400">Tap menu items to start the tab.</p>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 
-import { installRoute, isInstalled } from "./installable";
+import { installRoute, iosDeviceName, isInstalled } from "./installable";
 import { useReservesBottomRoom } from "./useReservesBottomRoom";
 
 /**
@@ -115,7 +115,7 @@ export default function InstallPrompt() {
           </>
         ) : (
           <>
-            Put CartZe on this iPad: tap{" "}
+            Put CartZe on this {iosDeviceName()}: tap{" "}
             <span className="font-semibold">Share</span>, then{" "}
             <span className="font-semibold">Add to Home Screen</span>. It then
             opens from an icon and keeps working when the line drops.

@@ -6,6 +6,7 @@ import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useBumpKot, useKitchenBoard } from "../hooks/useKitchen";
 import { KotCardTile } from "../components/KotCard";
+import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 
 /** A screen bolted over the grill is the grill screen forever. */
 const STATION_KEY = "shopos-kitchen-station";
@@ -71,7 +72,7 @@ export default function KitchenPage() {
     }`;
 
   return (
-    <div className="flex h-dvh flex-col bg-gray-50 dark:bg-gray-950">
+    <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-gray-50 dark:bg-gray-950`}>
       <PageMeta title="Kitchen | CartZe" description="Kitchen display" />
 
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]">

@@ -20,9 +20,19 @@ import { everyRule, everythingHasAName, renderedSize, report } from "./rules";
  * forgiving reading distance in the shop.
  */
 
-const SCREENS: Array<{ path: string; name: string }> = [
-  { path: "/tenant/dine-in", name: "the floor" },
-  { path: "/tenant/kitchen", name: "the kitchen board" },
+/**
+ * `path` takes the fixture ticket, because one of these screens IS a ticket.
+ *
+ * The tab workspace — where a waiter spends the entire service — had never
+ * been opened by a browser at all. The floor and the board were walked; the
+ * screen between them was not, and it was laid out `w-3/5` / `w-2/5` with no
+ * breakpoint anywhere, so a waiter on a phone got 234px of menu beside 156px
+ * of tab. Nothing failed, because nothing looked.
+ */
+const SCREENS: Array<{ path: (ticketId: string) => string; name: string }> = [
+  { path: () => "/tenant/dine-in", name: "the floor" },
+  { path: () => "/tenant/kitchen", name: "the kitchen board" },
+  { path: (id) => `/tenant/dine-in/tickets/${id}`, name: "the tab" },
 ];
 
 /**
@@ -118,7 +128,8 @@ for (const screen of SCREENS) {
     expect(ticket, "could not put a ticket on the pass — the board would be measured empty")
       .not.toBeNull();
 
-    await page.goto(screen.path);
+    const path = screen.path(ticket!.id);
+    await page.goto(path);
     await page.waitForLoadState("networkidle").catch(() => {});
     await page.waitForTimeout(800);
 
@@ -126,9 +137,9 @@ for (const screen of SCREENS) {
     // nothing off its edge, and passes every rule below — which is how the
     // till check once ran fourteen times against a redirect.
     const size = await renderedSize(page);
-    expect(size.elements, `${screen.name} (${screen.path}) rendered almost nothing`)
+    expect(size.elements, `${screen.name} (${path}) rendered almost nothing`)
       .toBeGreaterThan(40);
-    expect(size.text, `${screen.name} (${screen.path}) rendered no words`)
+    expect(size.text, `${screen.name} (${path}) rendered no words`)
       .toBeGreaterThan(60);
 
     // AND THE THING ITSELF IS ON IT. A size assertion catches a blank page; it
@@ -136,7 +147,7 @@ for (const screen of SCREENS) {
     // empty-pass message while the ticket sits somewhere the cook cannot see.
     // The counter is the board's own claim about how much work is on the pass,
     // so it is what gets read.
-    if (screen.path.endsWith("/kitchen")) {
+    if (path.endsWith("/kitchen")) {
       await expect(
         page.getByRole("article").filter({ hasText: ticket!.table }),
         `the docket this test fired (${ticket!.table}) is not on the board — `
@@ -149,7 +160,7 @@ for (const screen of SCREENS) {
 
     report(
       findings,
-      `${screen.name} (${screen.path}) · ${size.elements} elements, ${size.text} chars`,
+      `${screen.name} (${path}) · ${size.elements} elements, ${size.text} chars`,
     );
   });
 }
@@ -162,10 +173,12 @@ test("every control on the food screens can be called by name", async ({ page, r
   // never looked at.
   const worse: string[] = [];
   let measured = 0;
-  await aFiredTicket(request);
+  const ticket = await aFiredTicket(request);
+  expect(ticket, "could not open a tab — the tab screen would be measured as a redirect")
+    .not.toBeNull();
 
   for (const screen of SCREENS) {
-    await page.goto(screen.path);
+    await page.goto(screen.path(ticket!.id));
     await page.waitForLoadState("networkidle").catch(() => {});
     await page.waitForTimeout(800);
 

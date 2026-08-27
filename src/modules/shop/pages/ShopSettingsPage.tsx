@@ -128,7 +128,7 @@ function ToggleRow({ checked, onChange, label, hint }: {
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-start gap-3 rounded-xl border border-gray-200 p-3.5 text-left transition hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
+      className="flex h-full w-full items-start gap-3 rounded-xl border border-gray-200 p-3.5 text-left transition hover:border-brand-300 hover:bg-brand-50/30 dark:border-gray-800 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/5"
     >
       <span className={`mt-0.5 h-5 w-9 shrink-0 rounded-full p-0.5 transition ${checked ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-700"}`}>
         <span className={`block h-4 w-4 rounded-full bg-white transition ${checked ? "translate-x-4" : ""}`} />
@@ -593,6 +593,7 @@ export default function ShopSettingsPage() {
               </div>
 
               {activePosTab === "till" && (
+                <div className="space-y-5">
                 <TwoCol
                   left={
                     <SectionCard icon={<CartGlyph />} title="Point of sale" description="Defaults for the counter till.">
@@ -630,24 +631,9 @@ export default function ShopSettingsPage() {
                             onChange={(v) => setP("cash_rounding", Number(v))}
                           />
                         </Field>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <ToggleRow
-                          checked={!!prefs.pos_require_shift}
-                          onChange={(v) => setP("pos_require_shift", v)}
-                          label="Require open shift"
-                          hint="Refuses a counter sale unless the cashier has a drawer open, so every rupee belongs to a shift that gets counted. Recommended once you have staff."
-                        />
-                        <ToggleRow
-                          checked={!!prefs.pos_auto_print}
-                          onChange={(v) => setP("pos_auto_print", v)}
-                          label="Auto-print receipt"
-                          hint="Sends the receipt to the printer the moment a sale is paid, without asking."
-                        />
                         <Field
                           label="Warn about expiry this many days ahead"
-                          hint="Leave blank for your trade's own answer — 90 days for a medical store, 30 for everyone else. A distributor takes stock back for credit inside a window that closes months before the printed date, so set your own number if theirs is different."
+                          hint="Blank uses your trade's own answer — 90 days for a medical store, 30 for everyone else. A distributor takes stock back for credit inside a window that closes months before the printed date, so set your own number if theirs is different."
                         >
                           <Input
                             value={prefs.expiring_soon_days == null ? "" : String(prefs.expiring_soon_days)}
@@ -660,36 +646,6 @@ export default function ShopSettingsPage() {
                             }}
                           />
                         </Field>
-                        <ToggleRow
-                          checked={!!prefs.pos_ask_who_served}
-                          onChange={(v) => setP("pos_ask_who_served", v)}
-                          label="Ask who served the customer"
-                          hint="For a shop where the salesman and the counter are different people. The till adds a 'Served by' box, and Reports → Staff then shows who SOLD each sale as well as who rang it. Leave it off if one person does both — that is most shops."
-                        />
-                        <ToggleRow
-                          checked={!!prefs.pos_drawer_kick}
-                          onChange={(v) => setP("pos_drawer_kick", v)}
-                          label="Open drawer on cash"
-                          hint="Only works where the drawer — or the printer it plugs into — is wired over a direct connection. Set that up under Hardware."
-                        />
-                        <ToggleRow
-                          checked={prefs.pos_denomination_count !== false}
-                          onChange={(v) => setP("pos_denomination_count", v)}
-                          label="Count by note & coin"
-                          hint="Adds the closing total up from the drawer itself, so a second person can re-check it."
-                        />
-                        <ToggleRow
-                          checked={!!prefs.pos_blind_close}
-                          onChange={(v) => setP("pos_blind_close", v)}
-                          label="Blind close"
-                          hint="Hides expected cash until the count is submitted — a till that says it expects 47,320 tends to get a count of 47,320. Turn it on the day someone else counts your drawer."
-                        />
-                        <ToggleRow
-                          checked={!!prefs.pos_declare_tenders}
-                          onChange={(v) => setP("pos_declare_tenders", v)}
-                          label="Declare card totals"
-                          hint="Asks for the card machine's own total at close, so a mis-keyed tender is caught the same day."
-                        />
                       </div>
                     </SectionCard>
                   }
@@ -754,6 +710,66 @@ export default function ShopSettingsPage() {
                     </>
                   }
                 />
+
+                <SectionCard
+                  icon={<CartGlyph />}
+                  title="How the counter behaves"
+                  description="Switches that change what the till does during a sale and at close."
+                >
+
+                  {/* SWITCHES, SEPARATELY FROM VALUES.
+                      Seven toggles and a text box in one grid is why this
+                      card read as a jumble: a bare labelled input among
+                      bordered switch-cards lines up with none of them. The
+                      things you TYPE are above; the things you turn on are
+                      here, three across on a wide screen instead of two so
+                      the card stops running to four screens of scroll. */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                    <ToggleRow
+                      checked={!!prefs.pos_require_shift}
+                      onChange={(v) => setP("pos_require_shift", v)}
+                      label="Require open shift"
+                      hint="Refuses a counter sale unless the cashier has a drawer open, so every rupee belongs to a shift that gets counted. Recommended once you have staff."
+                    />
+                    <ToggleRow
+                      checked={!!prefs.pos_auto_print}
+                      onChange={(v) => setP("pos_auto_print", v)}
+                      label="Auto-print receipt"
+                      hint="Sends the receipt to the printer the moment a sale is paid, without asking."
+                    />
+                    <ToggleRow
+                      checked={!!prefs.pos_ask_who_served}
+                      onChange={(v) => setP("pos_ask_who_served", v)}
+                      label="Ask who served the customer"
+                      hint="For a shop where the salesman and the counter are different people. The till adds a 'Served by' box, and Reports → Staff then shows who SOLD each sale as well as who rang it. Leave it off if one person does both — that is most shops."
+                    />
+                    <ToggleRow
+                      checked={!!prefs.pos_drawer_kick}
+                      onChange={(v) => setP("pos_drawer_kick", v)}
+                      label="Open drawer on cash"
+                      hint="Only works where the drawer — or the printer it plugs into — is wired over a direct connection. Set that up under Hardware."
+                    />
+                    <ToggleRow
+                      checked={prefs.pos_denomination_count !== false}
+                      onChange={(v) => setP("pos_denomination_count", v)}
+                      label="Count by note & coin"
+                      hint="Adds the closing total up from the drawer itself, so a second person can re-check it."
+                    />
+                    <ToggleRow
+                      checked={!!prefs.pos_blind_close}
+                      onChange={(v) => setP("pos_blind_close", v)}
+                      label="Blind close"
+                      hint="Hides expected cash until the count is submitted — a till that says it expects 47,320 tends to get a count of 47,320. Turn it on the day someone else counts your drawer."
+                    />
+                    <ToggleRow
+                      checked={!!prefs.pos_declare_tenders}
+                      onChange={(v) => setP("pos_declare_tenders", v)}
+                      label="Declare card totals"
+                      hint="Asks for the card machine's own total at close, so a mis-keyed tender is caught the same day."
+                    />
+                  </div>
+                </SectionCard>
+                </div>
               )}
 
               {activePosTab === "registers" && (

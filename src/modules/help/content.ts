@@ -466,7 +466,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
         text: "The POS runs full screen with no sidebar, because a cashier serving a queue should not be one mis-click from the settings page. Esc leaves it.",
       },
       { type: "h", text: "Opening and closing a shift" },
-      { type: "p", text: "Before you can sell, a shift must be open:" },
+      { type: "p", text: "A shift is a drawer, opened with a float and counted at the end. Whether one is REQUIRED before you can sell is your own choice — Settings → Point of Sale → \u201cRequire open shift\u201d. It ships off, so a one-person shop can ring a sale on its first day without setting anything up; turn it on the day you have staff and every rupee then belongs to a shift that gets counted." },
+      { type: "p", text: "Either way, this is how one runs:" },
       {
         type: "steps",
         items: [
@@ -477,6 +478,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ],
       },
       { type: "p", text: "An X-read counts the drawer mid-shift without closing it." },
+      { type: "note", text: "With \u201cRequire open shift\u201d on and no drawer open, the till says so under the Pay button and will not take a payment. Without it, you can sell straight away and the sale simply belongs to no shift — which also means no shift report will account for it." },
       { type: "h", text: "The screen" },
       { type: "p", text: "The screen is three parts: the product browser on the left with search and category tabs, the cart on the right, and the total with the pay button running full width along the bottom. A barcode scanner types into the search box and adds the item on Enter." },
       { type: "p", text: "Two buttons beside the search box switch the browser between picture tiles and compact rows. Tiles answer \"which one is it?\", rows answer \"is it in stock, and at what price?\" — a kitchen usually wants the first, a shop with thousands of lines the second. Your shop starts on whichever suits its trade, and the choice is remembered on this device only, so the touchscreen at the counter and the computer in the back office can each be set the way the person using it works." },
@@ -1424,13 +1426,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
       ]},
 
       { type: "h", text: "Which paper size actually gets used" },
-      { type: "p", text: "There are two places a paper size can be set, and they answer different questions. Shop settings → Point of Sale sets the size for the WHOLE shop. The size on a registered printer, here, is for THAT printer." },
+      { type: "p", text: "There are two places a paper size can be set, and they answer different questions. Settings → Receipt sets the size for the WHOLE shop. The size on a registered printer, here, is for THAT printer." },
       { type: "keys", items: [
         ["A printer with a size set", "That printer's size wins for the receipts it prints. This is what you want when the shop issues A4 invoices from the office but the counter has an 80mm roll."],
         ["A printer with no size set", "The shop-wide setting decides, exactly as before. Leaving it alone is a perfectly good answer."],
         ["No printer registered at all", "The shop-wide setting decides. Most shops never register a printer and never need to."],
       ]},
-      { type: "note", text: "The receipt you see in the preview under Point of Sale is the real receipt — the same page the counter prints, not a drawing of one. What it cannot know is which lane you will print from, so if one counter has a different roll to the shop default, set that size on the printer here." },
+      { type: "note", text: "The receipt you see in the preview under Settings → Receipt is the real receipt — the same page the counter prints, not a drawing of one. What it cannot know is which lane you will print from, so if one counter has a different roll to the shop default, set that size on the printer here." },
+      { type: "note", text: "You do not have to print one to find out which size won. After a sale the till says \u201cReceipt sent to the printer · 80mm roll\u201d — the paper the server actually laid the page out for, on that lane." },
     ],
   },
   {

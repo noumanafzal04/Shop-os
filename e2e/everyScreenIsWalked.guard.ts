@@ -27,12 +27,31 @@ import { TENANT_ROUTES } from "../src/test/routes";
 
 const E2E = __dirname;
 
-/** Every `{ path: "…" }` in the three specs that WALK screens. */
+/**
+ * Every screen the three walking specs open.
+ *
+ * Two shapes, because one of these screens IS a record: the dine-in tab is
+ * `/tenant/dine-in/tickets/:id`, so its spec writes `path: (id) => \`…\`` and
+ * a literal-only reader saw nothing there. When that shape arrived this guard
+ * did not report the tab as unwalked — it reported the FLOOR and the KITCHEN
+ * as unwalked, because the whole array had stopped matching. A parser that
+ * silently stops reading a file is the failure this codebase keeps meeting; it
+ * happened to fail loudly here only because those two were already covered.
+ *
+ * `:id` is what the router calls the parameter, so a templated path is
+ * normalised back to the route it belongs to rather than to whatever id the
+ * fixture happened to create.
+ */
 function walked(): Set<string> {
   const out = new Set<string>();
   for (const file of ["chrome.spec.ts", "food.chrome.spec.ts", "trade.chrome.spec.ts"]) {
     const src = fs.readFileSync(path.join(E2E, file), "utf8");
+    // { path: "/tenant/x" }
     for (const m of src.matchAll(/path: "([^"]+)"/g)) out.add(m[1]);
+    // { path: () => "/tenant/x" } and { path: (id) => `/tenant/x/${id}` }
+    for (const m of src.matchAll(/path: \([^)]*\) =>\s*[`"]([^`"]+)[`"]/g)) {
+      out.add(m[1].replace(/\$\{[^}]*\}/g, ":id"));
+    }
   }
 
   return out;
@@ -68,7 +87,25 @@ describe("every shop-side screen is walked by a browser", () => {
     // The other direction, and the one that rots quietly: a path renamed in
     // App.tsx leaves the walk loading a 404 forever, which renders a heading
     // and passes every rule about what is covered and off the edge.
-    const stray = [...walked()].filter((p) => !TENANT_ROUTES.has(p));
+    //
+    // A PARAMETERISED CHILD IS A REAL SCREEN, JUST NOT A MENU ITEM.
+    //
+    // TENANT_ROUTES is the list two menus and a permission map are checked
+    // against, and it says so itself: parameterised children are left out
+    // because no menu ever produces one. The dine-in tab is exactly that —
+    // reached by tapping an occupied table, never from the rail — so it is
+    // walked without being declared, and neither of those is a mistake.
+    //
+    // Checked against App.tsx instead, which is the thing that actually knows
+    // whether the route exists. A renamed path still leaves the walk loading a
+    // 404 forever, which is what this check is for.
+    const routerSrc = fs.readFileSync(path.join(E2E, "..", "src", "App.tsx"), "utf8");
+    const declaredInRouter = (p: string): boolean =>
+      routerSrc.includes(`path="${p.replace(/:id$/, "")}`);
+
+    const stray = [...walked()].filter(
+      (p) => !TENANT_ROUTES.has(p) && !(p.includes(":id") && declaredInRouter(p)),
+    );
 
     expect(stray, "the walk opens paths that are not declared screens").toEqual([]);
   });

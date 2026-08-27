@@ -148,6 +148,24 @@ export default defineConfig({
       use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/food.json" },
     },
 
+    // …AND A WAITER'S HANDS USUALLY HOLD A PHONE.
+    //
+    // "Held in a waiter's hands" was answered with an iPad and stopped there,
+    // so the two screens a waiter lives in were measured at 810px and never
+    // narrower. Both were broken below it and neither failed anything: the
+    // floor's header ran 15px off the side of a 390px screen with "+ Takeaway"
+    // — the button reached for most — as the half hanging over the edge, and
+    // the tab workspace was `w-3/5` / `w-2/5` with no breakpoint at all, which
+    // is 234px of menu beside 156px of tab.
+    //
+    // The board is exempt on purpose: it hangs on a wall.
+    {
+      name: "restaurant-phone",
+      testMatch: RESTAURANT_ONLY,
+      dependencies: ["setup"],
+      use: { ...devices["iPhone 14"], storageState: "e2e/.auth/food.json" },
+    },
+
     // One per trade. Cheap — a handful of page loads each — and the only way
     // these screens are looked at by anything at all.
     ...TRADES.map((trade) => ({

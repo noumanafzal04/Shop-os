@@ -43,9 +43,9 @@ import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
 import CloseShiftModal from "../components/CloseShiftModal";
 import { useQuickKeys, useCoverMutations, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
-import { isCover, isTraining, ringableSessionId, type ActiveCover, type CashSession } from "../services/posService";
+import { canRingASale, isCover, isTraining, ringableSessionId, whyCannotRing, type ActiveCover, type CashSession } from "../services/posService";
 import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
-import { receiptService, type ReceiptKind } from "../../receipts/services/receiptService";
+import { paperLabel, receiptService, type ReceiptKind, type ReceiptPaper } from "../../receipts/services/receiptService";
 import { useFailedReceipts } from "../../receipts/hooks/useReceipts";
 import { useTillStore } from "../../../stores/tillStore";
 import { useConnectionStore } from "../../../stores/connectionStore";
@@ -64,6 +64,7 @@ import { memberDiscountFor } from "../../offline/lookup/memberDiscount";
 import { asProduct, loadShelf, shelfRows } from "../../offline/lookup/browse";
 import { findByCode } from "../../offline/lookup/findByCode";
 import { onSale, sellingPrice } from "../../catalog/pricing";
+import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 
 interface CartLine {
   /**
@@ -297,24 +298,9 @@ export default function PosPage() {
   const open = covering ? null : ((session.data as CashSession | null) ?? null);
   // The drawer a sale must be rung into — mine, or the one I'm standing at.
   const activeSessionId = ringableSessionId(session.data ?? null);
-  /**
-   * May this till ring a sale at all?
-   *
-   * "Is there a drawer to ring into", which is NOT "do I have a drawer of my
-   * own". The selling gates used to ask `!!open`, and `open` is null under
-   * cover by design — so a reliever standing at somebody else's till was shown
-   * "Open a shift to sell." with Tender disabled, while `activeSessionId` and
-   * the sale payload were both already built to ring under the cashier's
-   * drawer. The whole point of relief cover is that the reliever rings.
-   *
-   * `cover.test.ts` names this failure in its own opening comment — "leave them
-   * unable to ring at all" — and then tests only the type narrowing, which was
-   * never the part that was wrong.
-   *
-   * Deliberately a separate name from `open`: reconcile actions must keep
-   * asking `open`, because a cover may sell and must never count the drawer.
-   */
-  const canRing = activeSessionId !== null;
+  // Deliberately a separate name from `open`: reconcile actions must keep
+  // asking `open`, because a cover may sell and must never count the drawer.
+  // Whether this till may SELL is canRing, below — see canRingASale.
   // A practice shift. Server-decided and fixed at open; the till only reports
   // it. A reliever covering a training drawer is training too — the flag
   // belongs to the drawer, not the person standing at it.
@@ -331,6 +317,15 @@ export default function PosPage() {
       : null;
   const laneLabel = myLane?.name ?? terminalName ?? null;
   const settings = useShopSettings();
+
+  /*
+   * The shop's own answer to "must a drawer be open to sell?" — see
+   * canRingASale. Absent while settings load, and absent must not mean
+   * "required": a till that refuses for the second before its settings arrive
+   * flashes a refusal at a shop that never asked for one.
+   */
+  const requireShift = settings.data?.pos_require_shift === true;
+  const canRing = canRingASale(session.data ?? null, requireShift);
   const cur = settings.data?.currency_symbol ?? "Rs";
   // Settings → Point of Sale → Default payment. The setting was saved, typed
   // and validated, and then read by nobody: the till always opened on cash. A
@@ -441,7 +436,12 @@ export default function PosPage() {
     setPrinting(true);
     try {
       const attempt = await receiptService.printReceipt(saleId, copy ? { copy } : {});
-      setLastPrint({ printId: attempt.printId, kind: attempt.kind, failed: !!attempt.handoffError });
+      setLastPrint({
+        printId: attempt.printId,
+        kind: attempt.kind,
+        paper: attempt.paper,
+        failed: !!attempt.handoffError,
+      });
       if (attempt.handoffError) setPosNotice(`Receipt didn't print — ${attempt.handoffError}`);
     } catch {
       setLastPrint(null);
@@ -698,7 +698,12 @@ export default function PosPage() {
   const [substituteFor, setSubstituteFor] = useState<string | null>(null);
   // The last print attempt, so the receipt modal can ask "did it come out?"
   // and report the answer. A browser never tells us on its own.
-  const [lastPrint, setLastPrint] = useState<{ printId: string | null; kind: ReceiptKind; failed: boolean } | null>(null);
+  const [lastPrint, setLastPrint] = useState<{
+    printId: string | null;
+    kind: ReceiptKind;
+    paper: ReceiptPaper | null;
+    failed: boolean;
+  } | null>(null);
   const [printing, setPrinting] = useState(false);
   const [couponInput, setCouponInput] = useState("");
   const [couponCode, setCouponCode] = useState<string | null>(null);
@@ -1785,7 +1790,7 @@ export default function PosPage() {
      * address bar hidden, and on a tablet it is not hidden, so the column was
      * laid out taller than the glass and the band that fell past the bottom
      * edge was the one with the buttons on it. */
-    <div className="flex h-dvh flex-col bg-gray-50 dark:bg-gray-900">
+    <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-gray-50 dark:bg-gray-900`}>
       <PageMeta title="POS | CartZe" description="Point of sale terminal" />
 
       {/* Covers the till, keeping the cart intact underneath: locking is not
@@ -3209,7 +3214,11 @@ export default function PosPage() {
                       key hint nobody can press is a promise the screen breaks. */}
                   <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px] xl:inline">F9</kbd>
               </button>
-              {!canRing && <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">Open a shift to sell.</p>}
+              {!canRing && (
+                <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">
+                  {whyCannotRing(session.data ?? null, requireShift)}
+                </p>
+              )}
             </div>
         </div>
       </div>
@@ -3999,7 +4008,16 @@ export default function PosPage() {
                 answer is what puts a receipt in the reprint tray. */}
             {lastPrint && !lastPrint.failed && (
               <div className="mt-3 flex items-center justify-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                <span>{lastPrint.kind === "gift" ? "Gift copy sent" : lastPrint.kind === "reprint" ? "Copy sent" : "Receipt sent"} to the printer.</span>
+                <span>
+                  {lastPrint.kind === "gift" ? "Gift copy sent" : lastPrint.kind === "reprint" ? "Copy sent" : "Receipt sent"} to the printer
+                  {/* WHICH PAPER. A shop that picks "Thermal 80mm" in Settings
+                      had no way to confirm the choice took hold except by
+                      printing one and looking at it — and the lane's own
+                      printer legitimately overrides the shop default, so the
+                      Settings screen could not have answered it either. The
+                      server resolves it and says so on the same response. */}
+                  {paperLabel(lastPrint.paper) && <> · {paperLabel(lastPrint.paper)}</>}.
+                </span>
                 <button type="button" className="font-medium text-error-500 hover:text-error-600" onClick={() => reportPrint("failed")}>
                   Didn't print
                 </button>

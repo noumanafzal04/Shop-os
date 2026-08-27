@@ -32,12 +32,28 @@ export interface ReprintReport {
   }>;
 }
 
+/** The three paper sizes, as the shop setting and the templates name them. */
+export type ReceiptPaper = "standard" | "thermal_80" | "thermal_58";
+
+/** "80mm roll" — what a cashier calls it, not what the column stores. */
+export function paperLabel(paper: ReceiptPaper | null): string | null {
+  if (paper === null) return null;
+
+  return paper === "thermal_80" ? "80mm roll" : paper === "thermal_58" ? "58mm roll" : "A4 / Letter";
+}
+
 /** What a print attempt produced, so the till can say something true about it. */
 export interface PrintAttempt {
   /** The row this attempt was logged as — report the outcome against it. */
   printId: string | null;
   /** What the SERVER decided this copy is. The client never gets to choose. */
   kind: ReceiptKind;
+  /**
+   * Which paper it was laid out for — the lane's own printer where it has one,
+   * otherwise the shop setting. Resolved server-side so the till never holds a
+   * second copy of that rule; null only if a proxy strips the header.
+   */
+  paper: ReceiptPaper | null;
   /** The handoff itself failed (no print dialog at all). */
   handoffError: string | null;
 }
@@ -51,7 +67,7 @@ export const receiptService = {
   fetch: async (
     saleId: string,
     opts: { copy?: "gift"; reason?: string } = {},
-  ): Promise<{ html: string; printId: string | null; kind: ReceiptKind }> => {
+  ): Promise<{ html: string; printId: string | null; kind: ReceiptKind; paper: ReceiptPaper | null }> => {
     const res = await api.get<string>(`/sales/${saleId}/invoice`, {
       params: { copy: opts.copy, reason: opts.reason },
       responseType: "text",
@@ -64,6 +80,7 @@ export const receiptService = {
       // costs us the ability to report an outcome — never the receipt.
       printId: (res.headers["x-receipt-print-id"] as string) ?? null,
       kind: ((res.headers["x-receipt-kind"] as string) ?? "original") as ReceiptKind,
+      paper: ((res.headers["x-receipt-paper"] as string) ?? null) as ReceiptPaper | null,
     };
   },
 
@@ -76,15 +93,15 @@ export const receiptService = {
     saleId: string,
     opts: { copy?: "gift"; reason?: string } = {},
   ): Promise<PrintAttempt> => {
-    const { html, printId, kind } = await receiptService.fetch(saleId, opts);
+    const { html, printId, kind, paper } = await receiptService.fetch(saleId, opts);
     try {
       await printHtmlDocument(html);
-      return { printId, kind, handoffError: null };
+      return { printId, kind, paper, handoffError: null };
     } catch (e) {
       const message = e instanceof Error ? e.message : "Print failed";
       // Tell the server straight away — this one we know for certain failed.
       if (printId) void receiptService.reportOutcome(printId, "failed", message);
-      return { printId, kind, handoffError: message };
+      return { printId, kind, paper, handoffError: message };
     }
   },
 

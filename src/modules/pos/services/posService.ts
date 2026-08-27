@@ -96,6 +96,50 @@ export const ringableSessionId = (s: SessionState): string | null =>
   s === null ? null : isCover(s) ? s.session_id : s.status === "open" ? s.id : null;
 
 /**
+ * May this till ring a sale right now?
+ *
+ * ── The rule the shop was given, and the one the till applied ───────────
+ *
+ * "Require open shift" is a shop setting. Its own words on the Settings
+ * screen are "Refuses a counter sale unless the cashier has a drawer open",
+ * and it ships OFF — deliberately. The backend test that pins the default says
+ * why in one line: *"Shift discipline is opt-in: enforcing it by default would
+ * stop a one-person shop from selling the day the check went live."*
+ *
+ * The server honours it exactly that way — `cash_session_id` is `nullable`,
+ * and SaleController refuses a shiftless counter sale only when the setting is
+ * on.
+ *
+ * The till never read the setting at all. It asked `activeSessionId !== null`
+ * and nothing else, so shift discipline was **always on at the counter** no
+ * matter what the shop had chosen. Turning the switch off changed nothing a
+ * cashier could observe, and a one-person shop that had never opened a drawer
+ * could not ring a single sale — the precise outcome the default exists to
+ * prevent.
+ *
+ * A drawer to ring into always wins. The setting only decides what happens
+ * when there is none.
+ */
+export function canRingASale(session: SessionState, requireShift: boolean): boolean {
+  if (ringableSessionId(session) !== null) return true;
+
+  return !requireShift;
+}
+
+/**
+ * Why the till will not ring, in the shop's own terms — or null when it will.
+ *
+ * Kept beside the rule rather than in the page, because the message and the
+ * gate disagreeing is its own bug: "Open a shift to sell." was printed under a
+ * disabled Tender button on shops that had never asked for shifts.
+ */
+export function whyCannotRing(session: SessionState, requireShift: boolean): string | null {
+  if (canRingASale(session, requireShift)) return null;
+
+  return "Open a shift to sell — this shop requires one.";
+}
+
+/**
  * Is this till practising?
  *
  * The flag belongs to the DRAWER, not the person standing at it — so a

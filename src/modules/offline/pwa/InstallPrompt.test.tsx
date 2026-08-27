@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
 import InstallPrompt from "./InstallPrompt";
+import { iosDeviceName } from "./installable";
 
 /**
  * The offer to put the till on the home screen.
@@ -188,5 +189,47 @@ describe("dismissing", () => {
     show();
 
     expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("the card names the device the reader is actually holding", () => {
+  /**
+   * "Put CartZe on this iPad" was shown on the Safari route to everyone, and
+   * `isIOS()` is true for an iPhone too — so a waiter holding a phone was told
+   * to install it on a tablet they did not have. The instruction that follows
+   * is right on both, which is exactly why nobody caught it: nothing was
+   * broken, it was addressed to the wrong person.
+   */
+  const asDevice = (ua: string, platform = "iPhone", touch = 5) => {
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      userAgent: ua,
+      platform,
+      maxTouchPoints: touch,
+    });
+  };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("says iPhone to a phone", () => {
+    asDevice("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15");
+    expect(iosDeviceName()).toBe("iPhone");
+  });
+
+  it("says iPad to a tablet that admits it", () => {
+    asDevice("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15", "iPad");
+    expect(iosDeviceName()).toBe("iPad");
+  });
+
+  it("says iPad to a tablet that claims to be a Mac", () => {
+    // iPadOS 13+ reports MacIntel. This is the branch the whole feature exists
+    // for, and the one no user-agent string can answer.
+    asDevice("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15", "MacIntel", 5);
+    expect(iosDeviceName()).toBe("iPad");
+  });
+
+  it("guesses nothing when it cannot tell", () => {
+    asDevice("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Win32", 0);
+    expect(iosDeviceName()).toBe("device");
   });
 });
