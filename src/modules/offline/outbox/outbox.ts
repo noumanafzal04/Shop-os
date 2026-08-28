@@ -220,21 +220,25 @@ export async function dueRows(
  *
  * So it reuses the counters the badge reuses, and the two cannot drift.
  */
-export async function queueSummary(): Promise<{
+export async function queueSummary(tenantId: string | null = null): Promise<{
   waiting: number;
   failed: number;
+  /** Of the waiting, how many the fence will never let go. See strandedRows. */
+  stranded: number;
   lastError: string | null;
 }> {
   const { pendingCount } = await import("../db/repo");
-  const [waiting, failed, rows] = await Promise.all([
+  const [waiting, failed, rows, stranded] = await Promise.all([
     pendingCount(),
     refusedCount(),
     allRows(),
+    strandedRows(tenantId),
   ]);
 
   return {
     waiting,
     failed,
+    stranded: stranded.length,
     // The most recent thing the server or the link actually said. A count with
     // no reason beside it is what sends a shopkeeper to a phone call.
     lastError: rows.map((r) => r.error).find((e) => e !== null) ?? null,
@@ -261,6 +265,70 @@ export async function queueSummary(): Promise<{
  */
 export function belongsHere(row: OutboxRow, tenantId: string | null): boolean {
   return tenantId !== null && row.tenantId === tenantId;
+}
+
+/**
+ * SALES THIS TILL IS HOLDING THAT NO AMOUNT OF SYNCING WILL SEND.
+ *
+ * The tenant fence is right, and its reasoning is worth repeating: a stuck row
+ * can be read, counted and recovered; a row filed under the wrong business
+ * cannot. So a row that names another shop — or names none at all, because the
+ * auth store had not hydrated when Complete was pressed — is held rather than
+ * guessed at.
+ *
+ * What was NOT true is the first half of that sentence. Nothing read them.
+ * `owedCount` counted them, `dueRows` never offered them, and every press of
+ * Sync came back having sent nothing with no explanation available anywhere.
+ * A shop watched "7 still to send" for days while the till did exactly what it
+ * was designed to do, silently.
+ *
+ * Being held is a decision. It has to be a VISIBLE one.
+ */
+export async function strandedRows(tenantId: string | null): Promise<OutboxRow[]> {
+  const rows = await allRows();
+  const finished: string[] = [OUTBOX_STATUS.ACKED, OUTBOX_STATUS.FAILED];
+
+  return rows.filter((r) => !finished.includes(r.status) && !belongsHere(r, tenantId));
+}
+
+/**
+ * THE RECOVERY THE FENCE ALWAYS PROMISED.
+ *
+ * "A stuck row can be read, counted and recovered" is the sentence the tenant
+ * fence is justified by. Reading and counting arrived with `strandedRows`;
+ * this is the recovering, and it is deliberately narrow.
+ *
+ * It adopts ONLY rows that name no shop at all — sales this device rang while
+ * the auth store had not hydrated its tenant, which is a bug of ours and not
+ * anything a shopkeeper did. A row that names a DIFFERENT shop is never
+ * touched: that is the case the fence exists for, and no button should be able
+ * to move one business's takings into another's books.
+ *
+ * Never automatic. A person has to ask for it, having been shown what they are
+ * about to claim — because the till genuinely cannot know, and a silent guess
+ * is the exact failure being guarded against.
+ */
+export async function adoptStranded(tenantId: string | null): Promise<number> {
+  if (tenantId === null) return 0;
+
+  const orphans = (await strandedRows(tenantId)).filter((r) => r.tenantId == null);
+  for (const row of orphans) {
+    await put(STORE.OUTBOX, {
+      ...row,
+      tenantId,
+      // Clear the wait too: the shop has just asked for these to go.
+      nextAttemptAt: null,
+    });
+  }
+
+  return orphans.length;
+}
+
+/** Why this row is going nowhere, in words a shopkeeper can act on. */
+export function strandedReason(row: OutboxRow): string {
+  return row.tenantId == null
+    ? "This sale was saved without recording which shop it belongs to, so the till will not guess."
+    : "This sale belongs to a different shop that was signed in on this device.";
 }
 
 /**

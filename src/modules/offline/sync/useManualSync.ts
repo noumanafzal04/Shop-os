@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { queueSummary } from "../outbox/outbox";
+import { useAuthStore } from "../../../stores/authStore";
 import { pullNow } from "./pullNow";
 
 /**
@@ -39,6 +40,12 @@ export interface SyncOutcome {
   waiting: number;
   /** Sales the shop refused — pressing again will not move these. */
   refused: number;
+  /**
+   * Sales held by the tenant fence: they name another shop, or name none.
+   * Counted apart because pressing Sync will never move them and the old
+   * control gave a shop no way to find that out.
+   */
+  stranded: number;
   /** The most recent reason, when there is one. */
   reason: string | null;
 }
@@ -86,9 +93,11 @@ export function useManualSync(): { state: SyncPress; sync: () => void; outcome: 
         // not is the one thing this control must never do.
         // The same counters the till badge reads, so the two numbers on that
         // bar cannot disagree — see queueSummary.
-        const queue = await queueSummary().catch(() => ({
+        const tenantId = useAuthStore.getState().user?.tenant?.id ?? null;
+        const queue = await queueSummary(tenantId).catch(() => ({
           waiting: 0,
           failed: 0,
+          stranded: 0,
           lastError: null as string | null,
         }));
 
@@ -96,6 +105,7 @@ export function useManualSync(): { state: SyncPress; sync: () => void; outcome: 
           sent: result.flushed.acked,
           waiting: queue.waiting,
           refused: queue.failed,
+          stranded: queue.stranded,
           reason: queue.lastError,
         });
 
@@ -129,6 +139,14 @@ export function syncLabel(state: SyncPress, connected: boolean, outcome?: SyncOu
       // badge still showing four. Both were drawn by the same screen, one of
       // them was false, and the false one was the reassuring one.
       const held = (outcome?.waiting ?? 0) + (outcome?.refused ?? 0);
+      // STUCK IS NOT THE SAME AS WAITING, and telling somebody to keep
+      // pressing a button that can never work is the worse of the two. A
+      // stranded row names another shop, or names none — the fence will hold
+      // it however many times Sync is pressed, and a shop watched "7 still to
+      // send" for days before anything said so.
+      if ((outcome?.stranded ?? 0) > 0) {
+        return `${outcome!.stranded} stuck — needs attention`;
+      }
       if ((outcome?.refused ?? 0) > 0 && (outcome?.waiting ?? 0) === 0) {
         return `${outcome!.refused} refused — open the queue`;
       }

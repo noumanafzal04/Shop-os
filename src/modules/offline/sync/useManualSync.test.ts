@@ -62,10 +62,11 @@ describe("a press reports the QUEUE, not the pull", () => {
    * `pullNow` swallows a flush failure on purpose, so the catalog coming down
    * was being read as the sales having gone up.
    */
-  const outcome = (waiting: number, refused = 0) => ({
+  const outcome = (waiting: number, refused = 0, stranded = 0) => ({
     sent: 0,
     waiting,
     refused,
+    stranded,
     reason: null,
   });
 
@@ -93,4 +94,17 @@ describe("a press reports the QUEUE, not the pull", () => {
   it("keeps 'Up to date' for the case where it is true", () => {
     expect(syncLabel("done", true, outcome(0))).toBe("Up to date");
   });
+
+  it("says STUCK, not 'still to send', when the fence is holding them", () => {
+    // A stranded row names another shop, or names none. Sync will never move
+    // it, however many times it is pressed — and a shop watched "7 still to
+    // send" for days before anything on the screen said so.
+    expect(syncLabel("stuck", true, outcome(7, 0, 7))).toMatch(/stuck/i);
+    expect(syncLabel("stuck", true, outcome(7, 0, 7))).not.toMatch(/still to send/i);
+  });
+
+  it("keeps 'still to send' for the ordinary case of a bad line", () => {
+    expect(syncLabel("stuck", true, outcome(7, 0, 0))).toBe("7 still to send");
+  });
+
 });

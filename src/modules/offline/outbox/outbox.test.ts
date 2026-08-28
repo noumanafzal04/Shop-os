@@ -19,6 +19,7 @@ import {
   newRow,
   OUTBOX_STATUS,
   owedCount,
+  strandedRows,
   pruneAcked,
   readRow,
   recoverInFlight,
@@ -361,5 +362,41 @@ describe("a status this build does not recognise", () => {
     await enqueue(row("2", { status: OUTBOX_STATUS.FAILED }));
 
     expect(await owedCount()).toBe(0);
+  });
+});
+
+describe("a row nobody stamped is money nobody can send", () => {
+  /**
+   * `tenantId: user?.tenant?.id ?? null` is how the till stamps a queued sale.
+   * If the auth store has not hydrated its tenant at the moment Complete is
+   * pressed — an offline boot, a reload mid-outage — the row is written with
+   * NO shop on it.
+   *
+   * `owedCount()` then counts it, because it counts everything unfinished.
+   * `dueRows()` never returns it, because `belongsHere` demands an exact
+   * match. So the badge says 7, every press of Sync sends nothing, and there
+   * is no screen anywhere that explains why.
+   */
+  it("is counted by the badge and never offered to the flush", async () => {
+    // HELD ON PURPOSE — see the fence in flush.test.ts: a stuck row can be
+    // read and recovered, a row filed under the wrong business cannot. What
+    // was wrong is that "can be read and recovered" was not true of anything:
+    // the badge counted it, Sync silently did nothing, and no screen said why.
+    // `strandedRows()` is what makes the promise good.
+    await enqueue(row("unstamped", { tenantId: null }));
+
+    expect(await owedCount()).toBe(1);
+    expect(await dueRows(Date.now(), SHOP)).toEqual([]);
+    expect(await dueRows(Date.now(), SHOP, true)).toEqual([]);
+  });
+
+  it("names the rows that are stuck, so the count can be explained", async () => {
+    await enqueue(row("mine"));
+    await enqueue(row("unstamped", { tenantId: null }));
+    await enqueue(row("theirs", { tenantId: "another-shop" }));
+
+    const stranded = await strandedRows(SHOP);
+
+    expect(stranded.map((r) => r.op).sort()).toEqual(["theirs", "unstamped"]);
   });
 });
