@@ -147,4 +147,6 @@
 - [A Waiter Holds A Phone](shopos-waiter-holds-a-phone.md) — STANDING: restaurant e2e was iPad-only; restaurant-phone project added and found both dine-in bugs at once
 - [Till Had No Offline Shell](shopos-till-had-no-offline-shell.md) — FIXED (live shop): ServiceWorkerHost only in AppLayout, so /tenant/pos registered NO worker; offline reload died
 - [The Sync That Lied](shopos-sync-that-lied.md) — FIXED: "Up to date" beside a badge reading 4; a press obeyed the 10-min backoff, and success was read off the catalog pull
+- [Stranded Sales](shopos-stranded-sales.md) — FIXED: rows stamped with NO tenant were counted for ever and never sent; the fence was right, its "can be recovered" promise was not
+- [POS Trade Coverage](shopos-pos-trade-coverage.md) — REFERENCE: 27-trade audit; core complete; all gaps collapse to 3 mechanisms (job ticket, measured lines, rate-driven pricing); NO appointments
 
