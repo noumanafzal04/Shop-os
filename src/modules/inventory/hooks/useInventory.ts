@@ -19,10 +19,28 @@ export function useMovements(params: { product_id?: string; page?: number }) {
   });
 }
 
+/**
+ * The reorder list, AND how many items are being watched at all.
+ *
+ * The count matters because an empty list has two unrelated causes: nothing is
+ * low (good), or no product in this shop has a reorder level set, in which case
+ * this screen can never show anything and saying "fully stocked" is a lie of
+ * omission. The hook used to drop `meta`, so the screen had no way to tell.
+ */
 export function useLowStock() {
   return useQuery({
     queryKey: ["inventory", "low-stock"],
-    queryFn: async () => (await inventoryService.lowStock()).data,
+    queryFn: async () => {
+      const res = await inventoryService.lowStock();
+
+      return {
+        rows: res.data,
+        // `?? null` and not `?? 0`: an older server sends no meta at all, and
+        // "zero items are watched" would put a setup message in front of a shop
+        // that has set its levels perfectly well.
+        watched: (res.meta as { watched?: number } | undefined)?.watched ?? null,
+      };
+    },
   });
 }
 

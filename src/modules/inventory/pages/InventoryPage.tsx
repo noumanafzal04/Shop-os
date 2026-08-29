@@ -124,7 +124,9 @@ export default function InventoryPage() {
 
   // In the reorder view the server decides the rows, so there is no paging and
   // no client-side search — the whole point is that the list is already short.
-  const lowRows = lowStock.data ?? [];
+  const lowRows = lowStock.data?.rows ?? [];
+  /** How many items have a reorder level at all — see the empty state below. */
+  const watched = lowStock.data?.watched ?? null;
   const rows = reorderOnly ? lowRows : products.data?.data ?? [];
   const pagination = reorderOnly ? undefined : products.data?.meta.pagination;
 
@@ -342,11 +344,21 @@ export default function InventoryPage() {
 
       {reorderOnly && (
         <p className="mb-3 text-theme-sm text-gray-500 dark:text-gray-400">
+          {/* EMPTY HAS TWO CAUSES AND THEY ARE NOT THE SAME NEWS.
+              "Fully stocked" was said to shops that had never set a reorder
+              level on anything — for whom this screen can never show a single
+              row. It was reported as a breakage, reasonably: the list used to
+              be full, because every sized product appeared in it whether it was
+              low or not. */}
           {lowStock.isPending
             ? "Checking the shelf…"
-            : lowRows.length === 0
-              ? "Nothing is below its reorder level. This branch is fully stocked."
-              : `${lowRows.length} item${lowRows.length > 1 ? "s are" : " is"} at or below the reorder level you set.`}
+            : lowRows.length > 0
+              ? `${lowRows.length} item${lowRows.length > 1 ? "s are" : " is"} at or below the reorder level you set.`
+              : watched === 0
+                ? "No item has a reorder level yet, so there is nothing to watch. Open an item and set “Low stock alert at” — that is the number this list compares against."
+                : watched === null
+                  ? "Nothing is below its reorder level."
+                  : `Nothing is below its reorder level. All ${watched} item${watched === 1 ? "" : "s"} with a reorder level are above it.`}
         </p>
       )}
 
@@ -662,7 +674,15 @@ export default function InventoryPage() {
                         className="rounded border border-gray-300 px-1.5 py-0.5 text-theme-xs dark:border-gray-700 dark:bg-gray-900"
                         value={b.expiry_date ? b.expiry_date.slice(0, 10) : ""}
                         disabled={updateBatch.isPending}
-                        onChange={(e) => updateBatch.mutate({ id: b.id, expiry_date: e.target.value || null })}
+                        /* A DATE THAT DID NOT SAVE MUST NOT LOOK SAVED.
+                           This writes on change and said nothing either way. A
+                           refused expiry leaves the field showing what was
+                           typed while the lot keeps its old date — and an
+                           expiry is a fence a pharmacy dispenses against. */
+                        onChange={(e) => updateBatch.mutate(
+                          { id: b.id, expiry_date: e.target.value || null },
+                          { onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't save that date.") },
+                        )}
                       />
                       <button
                         className={ROW_ACTION_DANGER}
@@ -679,7 +699,10 @@ export default function InventoryPage() {
                               })
                             // An empty lot is housekeeping — a mis-keyed batch
                             // number being tidied away. Nothing to explain.
-                            : void confirm({ title: "Remove this empty batch?", message: "It holds no stock, so nothing moves.", confirmLabel: "Remove", tone: "danger" }).then((ok) => ok && removeBatch.mutate({ id: b.id }))
+                            : void confirm({ title: "Remove this empty batch?", message: "It holds no stock, so nothing moves.", confirmLabel: "Remove", tone: "danger" }).then((ok) => ok && removeBatch.mutate(
+                              { id: b.id },
+                              { onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't remove that batch.") },
+                            ))
                         }
                       >
                         Remove
@@ -703,7 +726,10 @@ export default function InventoryPage() {
           onConfirm={(disposal) =>
             removeBatch.mutate(
               { id: disposing.batch.id, disposal },
-              { onSuccess: () => setDisposing(null) },
+              {
+                onSuccess: () => setDisposing(null),
+                onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't write off that stock."),
+              },
             )
           }
         />

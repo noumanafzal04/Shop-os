@@ -8,6 +8,7 @@ import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Badge from "../../../components/ui/badge/Badge";
 import Alert from "../../../components/ui/alert/Alert";
+import { useToast } from "../../../components/ui/toast";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
@@ -43,6 +44,7 @@ const PO_STATUSES = [
 
 export default function PurchaseOrdersPage() {
   const confirm = useConfirm();
+  const toast = useToast();
   const money = useMoney();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const [statusFilter, setStatusFilter] = useState("");
@@ -344,12 +346,27 @@ export default function PurchaseOrdersPage() {
               <span className="font-bold text-gray-800 dark:text-white/90">Total {money(d.total)}</span>
             </div>
 
+            {/* PLACE HAD NO FAILURE PATH AT ALL.
+                Cancel and receive each showed their refusal here; placing —
+                the action that turns a draft into a real order, and the one
+                most likely to be pressed twice — showed nothing. The server
+                refuses a non-draft with PO_NOT_DRAFT, which is what a second
+                tab or a stale list produces, and the button simply
+                un-disabled itself. Nothing happened, and nothing said so. */}
+            {place.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Couldn't place the order" message={place.error.message} /></div>}
             {cancel.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Action failed" message={cancel.error.message} /></div>}
             {receive.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Action failed" message={receive.error.message} /></div>}
 
             <div className="flex flex-wrap justify-end gap-3">
               {d.status === "draft" && (
-                <Button size="sm" variant="outline" onClick={() => place.mutate(d.id)} disabled={place.isPending}>Place order</Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => place.mutate(d.id, { onSuccess: (res) => toast.success(res.message) })}
+                  disabled={place.isPending}
+                >
+                  {place.isPending ? "Placing…" : "Place order"}
+                </Button>
               )}
               {(d.status === "ordered" || d.status === "partially_received") && (
                 <>

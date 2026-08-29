@@ -72,6 +72,9 @@ export default function SuppliersPage() {
       whatsapp: form.whatsapp || null, email: form.email || null,
       address: form.address || null, notes: form.notes || null,
     };
+    // No onError here on purpose: the modal already renders `err` above the
+    // form, and it uses firstFieldError(), which names the field. A toast
+    // would say less, somewhere else, at the same time.
     const opts = { onSuccess: () => editor.closeModal() };
     if (editing) update.mutate({ id: editing.id, ...payload }, opts);
     else create.mutate(payload, opts);
@@ -82,7 +85,13 @@ export default function SuppliersPage() {
     if (!target || !payAmount || pay.isPending) return;
     pay.mutate(
       { supplierId: target.id, amount: Number(payAmount), method: payMethod as never },
-      { onSuccess: () => payModal.closeModal() },
+      {
+        // The modal shows `pay.error` itself, so a refusal is already covered.
+        // What was missing is the other half: on success the dialog just
+        // vanished, and money that leaves without a word is money a shopkeeper
+        // pays twice.
+        onSuccess: () => { payModal.closeModal(); toast.success(`Payment to ${target.name} recorded`); },
+      },
     );
   };
 
