@@ -32,6 +32,7 @@ use App\Models\SaleItem;
 use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
 use App\Support\BusinessTypes;
+use App\Support\LowStock;
 use App\Support\Modules;
 use App\Support\ShopSettings;
 use Illuminate\Database\Eloquent\Builder;
@@ -425,26 +426,18 @@ class DashboardService
      */
     private function lowStockCount(Tenant $tenant, ?string $branchId): int
     {
-        if ($branchId === null) {
-            return Product::query()
-                ->where('tenant_id', $tenant->id)
-                ->where('track_inventory', true)
-                ->whereNotNull('low_stock_threshold')
-                ->whereColumn('stock_quantity', '<=', 'low_stock_threshold')
-                ->count();
-        }
-
-        return Product::query()
-            ->where('products.tenant_id', $tenant->id)
-            ->where('track_inventory', true)
-            ->whereNotNull('low_stock_threshold')
-            ->leftJoin('branch_stock', function ($join) use ($branchId): void {
-                $join->on('branch_stock.product_id', '=', 'products.id')
-                    ->whereNull('branch_stock.variant_id')
-                    ->where('branch_stock.branch_id', '=', $branchId);
-            })
-            ->whereRaw('COALESCE(branch_stock.quantity, 0) <= products.low_stock_threshold')
-            ->count();
+        // THE SAME RULE THE LIST USES — see LowStock.
+        //
+        // Both arms of this were blind to sizes, and the branch arm doubly so:
+        // `whereNull('branch_stock.variant_id')` skips exactly the rows a
+        // varianted product's stock lives on, so the join found nothing, the
+        // COALESCE made it nought, and every sized product was counted as low.
+        // The number on the dashboard and the rows on the screen it links to
+        // have to be the same question.
+        return LowStock::apply(
+            Product::query()->where('products.tenant_id', $tenant->id),
+            $branchId,
+        )->count();
     }
 
     /**

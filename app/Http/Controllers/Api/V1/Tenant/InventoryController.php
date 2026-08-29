@@ -10,6 +10,7 @@ use App\Services\InventoryService;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\LastBoughtFrom;
+use App\Support\LowStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -83,21 +84,12 @@ class InventoryController extends Controller
     {
         $branchId = $branch->scopeId();
 
-        $products = Product::query()
-            ->where('track_inventory', true)
-            ->whereNotNull('low_stock_threshold')
-            ->when(
-                $branchId === null,
-                fn ($q) => $q->whereColumn('stock_quantity', '<=', 'low_stock_threshold'),
-                // A correlated subquery rather than a join: a product with no
-                // row on this branch's shelf holds none of it, which is the
-                // most urgent case of all and a join would drop it.
-                fn ($q) => $q->whereRaw(
-                    '(select coalesce(sum(bs.quantity), 0) from branch_stock bs'
-                    .' where bs.product_id = products.id and bs.branch_id = ?) <= products.low_stock_threshold',
-                    [$branchId],
-                ),
-            )
+        // THE SAME RULE THE CATALOGUE USES.
+        //
+        // This read `products.stock_quantity` on its own, which is nought for
+        // anything sold in sizes — so a shop holding two hundred shirts was
+        // told to reorder every one of them. See LowStock.
+        $products = LowStock::apply(Product::query(), $branchId)
             ->with('category:id,name')
             ->orderBy('stock_quantity')
             ->get();

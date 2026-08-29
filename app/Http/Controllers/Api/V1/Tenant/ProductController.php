@@ -24,6 +24,7 @@ use App\Support\BranchContext;
 use App\Support\BusinessTypes;
 use App\Support\CsvExport;
 use App\Support\ItemTypes;
+use App\Support\LowStock;
 use App\Support\ProductCsv;
 use App\Support\RecipeCost;
 use App\Support\TenantContext;
@@ -61,24 +62,10 @@ class ProductController extends Controller
             ->when($request->query('collection_id'), fn ($q, $cid) => $q->whereHas('collections', fn ($c) => $c->where('collections.id', $cid)))
             ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
             ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
-            ->when($request->boolean('low_stock'), function ($q): void {
-                $q->where('track_inventory', true)
-                    ->whereNotNull('low_stock_threshold')
-                    ->where(function ($w): void {
-                        // No variants → the product's own stock is the truth.
-                        $w->where(function ($x): void {
-                            $x->whereDoesntHave('variants')
-                                ->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
-                        })
-                            // Has variants → stock lives on the variants; the
-                            // parent stock_quantity is orphaned, so compare the
-                            // live variant sum against the threshold instead.
-                            ->orWhere(function ($x): void {
-                                $x->whereHas('variants')
-                                    ->whereRaw('(select coalesce(sum(pv.stock_quantity), 0) from product_variants pv where pv.product_id = products.id and pv.deleted_at is null) <= low_stock_threshold');
-                            });
-                    });
-            })
+            // One rule, shared with the reorder list — see LowStock. These
+            // two were copies of each other and a third, divergent copy on the
+            // inventory screen answered the same question differently.
+            ->when($request->boolean('low_stock'), fn ($q) => LowStock::apply($q))
             ->orderByDesc('created_at')
             ->paginate(min((int) $request->query('per_page', 15), 100));
 
@@ -306,24 +293,10 @@ class ProductController extends Controller
             ->when($request->query('item_type'), fn ($q, $t) => $q->where('item_type', $t))
             ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
             ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
-            ->when($request->boolean('low_stock'), function ($q): void {
-                $q->where('track_inventory', true)
-                    ->whereNotNull('low_stock_threshold')
-                    ->where(function ($w): void {
-                        // No variants → the product's own stock is the truth.
-                        $w->where(function ($x): void {
-                            $x->whereDoesntHave('variants')
-                                ->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
-                        })
-                            // Has variants → stock lives on the variants; the
-                            // parent stock_quantity is orphaned, so compare the
-                            // live variant sum against the threshold instead.
-                            ->orWhere(function ($x): void {
-                                $x->whereHas('variants')
-                                    ->whereRaw('(select coalesce(sum(pv.stock_quantity), 0) from product_variants pv where pv.product_id = products.id and pv.deleted_at is null) <= low_stock_threshold');
-                            });
-                    });
-            })
+            // One rule, shared with the reorder list — see LowStock. These
+            // two were copies of each other and a third, divergent copy on the
+            // inventory screen answered the same question differently.
+            ->when($request->boolean('low_stock'), fn ($q) => LowStock::apply($q))
             ->orderBy('name')
             ->get()
             ->map(fn (Product $p) => [

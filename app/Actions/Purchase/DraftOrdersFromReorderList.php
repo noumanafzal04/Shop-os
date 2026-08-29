@@ -133,8 +133,11 @@ class DraftOrdersFromReorderList
      */
     private function shortfall(Product $product): float
     {
+        // `effectiveStock`, not the column: for a product sold in sizes the
+        // parent's `stock_quantity` is an orphaned nought, and ordering
+        // `threshold - 0` buys a full threshold of shirts the shop already has.
         $onHand = $this->branch->scopeId() === null
-            ? (float) $product->stock_quantity
+            ? $product->effectiveStock()
             : (float) DB::table('branch_stock')
                 ->where('product_id', $product->id)
                 ->where('branch_id', $this->branch->scopeId())
