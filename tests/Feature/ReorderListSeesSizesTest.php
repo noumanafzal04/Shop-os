@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Branch;
+use App\Models\BranchStock;
 use App\Models\City;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -192,6 +194,65 @@ class ReorderListSeesSizesTest extends TestCase
             0.001,
             'the order asked for a full threshold instead of the shortfall',
         );
+    }
+
+    public function test_the_branch_view_sees_sizes_too(): void
+    {
+        // THE ARM NOBODY TESTED.
+        //
+        // An owner with no X-Branch-Id is scopeAll, so every test above took the
+        // shop-wide path. A STAFF member is always pinned to a branch, and an
+        // owner who has picked one is too — so the branch arm is what most of
+        // the shop actually sees, and it had no test at all.
+        $branch = Branch::withoutTenancy()->where('tenant_id', $this->shop->id)
+            ->where('is_default', true)->firstOrFail();
+
+        $stocked = $this->sized('Oxford Shirt', 10, ['Small' => 60, 'Medium' => 80]);
+        $low = $this->sized('Linen Shirt', 10, ['Small' => 2, 'Medium' => 1]);
+
+        // branch_stock holds one row per SIZE per branch — that is why the
+        // branch arm needs no variant clause of its own: the sizes ARE the rows.
+        foreach ([[$stocked, [60, 80]], [$low, [2, 1]]] as [$product, $quantities]) {
+            foreach ($product->variants()->get()->values() as $i => $variant) {
+                BranchStock::withoutTenancy()->updateOrCreate(
+                    ['tenant_id' => $this->shop->id, 'branch_id' => $branch->id,
+                        'product_id' => $product->id, 'variant_id' => $variant->id],
+                    ['quantity' => $quantities[$i]],
+                );
+            }
+        }
+
+        $names = collect(
+            $this->actingAsUser($this->owner)
+                ->withHeader('X-Branch-Id', $branch->id)
+                ->getJson('/api/v1/inventory/low-stock')
+                ->assertOk()
+                ->json('data')
+        )->pluck('name')->all();
+
+        $this->assertContains('Linen Shirt', $names, 'the branch view missed a size that really is low');
+        $this->assertNotContains('Oxford Shirt', $names, 'the branch view listed a fully stocked rail');
+    }
+
+    public function test_an_empty_list_says_which_kind_of_empty_it_is(): void
+    {
+        // Reported the day the list stopped showing false positives: it went
+        // from full to empty and read as a breakage. Empty has two causes and
+        // only one of them is good news — a shop that has never set a reorder
+        // level cannot ever see a row here, and was being told it was "fully
+        // stocked".
+        $none = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/inventory/low-stock')->assertOk();
+        $this->assertSame([], $none->json('data'));
+        $this->assertSame(0, $none->json('meta.watched'), 'nothing is watched yet, and the screen must be able to say so');
+
+        // One item given a level, and it is comfortably above it.
+        $this->sized('Oxford Shirt', 10, ['Small' => 60, 'Medium' => 80]);
+
+        $watched = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/inventory/low-stock')->assertOk();
+        $this->assertSame([], $watched->json('data'), 'a well stocked rail is not low');
+        $this->assertSame(1, $watched->json('meta.watched'), 'one item IS being watched — a different sentence entirely');
     }
 
     public function test_the_catalogue_and_the_reorder_list_agree(): void

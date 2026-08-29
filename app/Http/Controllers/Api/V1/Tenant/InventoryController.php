@@ -115,6 +115,23 @@ class InventoryController extends Controller
             $p->setAttribute('last_unit_cost', $last?->unit_cost);
         });
 
-        return ApiResponse::ok($products);
+        // ── WHY THE LIST IS EMPTY ───────────────────────────────────
+        //
+        // Empty has two completely different causes and the screen said the
+        // same thing for both: "nothing is below its reorder level" — which is
+        // good news — and "no product in this shop has a reorder level set at
+        // all", which means this screen can NEVER show anything and nobody is
+        // being told.
+        //
+        // The second is the common one in a young shop, and it was reported as
+        // a bug the day the list stopped showing false positives: every sized
+        // product used to appear here regardless, so an empty list looked like
+        // a breakage rather than an unconfigured feature.
+        $watched = Product::query()
+            ->where('track_inventory', true)
+            ->whereNotNull('low_stock_threshold')
+            ->count();
+
+        return ApiResponse::ok($products, meta: ['watched' => $watched]);
     }
 }
