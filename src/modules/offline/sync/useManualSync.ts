@@ -67,9 +67,22 @@ export function useManualSync(): { state: SyncPress; sync: () => void; outcome: 
     [],
   );
 
-  const settle = useCallback((next: SyncPress) => {
+  /**
+   * `hold` keeps the answer on screen instead of letting it expire.
+   *
+   * Proven against the deployed build: the stranded answer appeared 505ms
+   * after the press and was gone 2,500ms later, and the badge went back to
+   * reading "1 still to send" — the precise misleading sentence this whole
+   * change exists to stop telling. For a queue that is merely waiting on a bad
+   * line that is right, because the situation is temporary and the pill's own
+   * label is true. A stranded row is neither: it is permanent until a person
+   * acts, and pressing again cannot change it. So it stays up.
+   */
+  const settle = useCallback((next: SyncPress, hold = false) => {
     setState(next);
     if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    if (hold) return;
     timer.current = setTimeout(() => setState("idle"), ANSWER_MS);
   }, []);
 
@@ -113,7 +126,11 @@ export function useManualSync(): { state: SyncPress; sync: () => void; outcome: 
           reason: queue.lastError,
         });
 
-        settle(queue.waiting > 0 || queue.failed > 0 ? "stuck" : "done");
+        settle(
+          queue.waiting > 0 || queue.failed > 0 ? "stuck" : "done",
+          // Held only for the case a person has to DO something about.
+          queue.stranded > 0,
+        );
       },
       () => {
         setOutcome(null);

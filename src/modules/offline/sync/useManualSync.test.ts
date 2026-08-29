@@ -227,3 +227,50 @@ describe("why it is stuck", () => {
     expect(syncDetail("stuck", outcome())).toBeNull();
   });
 });
+
+
+/**
+ * AN ANSWER THAT OUTLASTS A GLANCE.
+ *
+ * Measured on the deployed build: the stranded answer appeared 505ms after the
+ * press and was gone 2,500ms later, leaving the badge reading "1 still to
+ * send" again — the exact sentence the whole change exists to stop telling. A
+ * cashier who presses Sync and looks up at a customer misses it entirely.
+ */
+describe("how long the answer stays up", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    useAuthStore.setState({ user: { tenant: { id: "shop-a" } } } as never);
+  });
+
+  const press = async (summary: { waiting: number; failed: number; stranded: number }) => {
+    vi.spyOn(puller, "pullNow").mockResolvedValue({
+      applied: {} as never, rounds: 1, truncated: false,
+      flushed: { sent: 0, acked: 0, failed: 0, skipped: false },
+      shifts: { sent: 0, acked: 0, failed: 0 },
+    });
+    vi.spyOn(outbox, "queueSummary").mockResolvedValue({ ...summary, lastError: null });
+
+    const { result } = renderHook(() => useManualSync());
+    act(() => result.current.sync());
+    await waitFor(() => expect(result.current.state).toBe("stuck"));
+    return result;
+  };
+
+  it("holds a stranded answer up, because pressing again cannot help", async () => {
+    const result = await press({ waiting: 1, failed: 0, stranded: 1 });
+
+    await new Promise((r) => setTimeout(r, ANSWER_MS + 400));
+    expect(result.current.state, "the answer expired and the badge went back to lying").toBe("stuck");
+  });
+
+  it("still lets an ordinary bad line expire", async () => {
+    // The denominator. Holding EVERY answer would pin the badge on its last
+    // result and stop it reporting the connection at all.
+    const result = await press({ waiting: 1, failed: 0, stranded: 0 });
+
+    await new Promise((r) => setTimeout(r, ANSWER_MS + 400));
+    expect(result.current.state).toBe("idle");
+  });
+});
