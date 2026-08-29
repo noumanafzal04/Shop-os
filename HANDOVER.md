@@ -5415,6 +5415,44 @@ them back.
 
 ---
 
+### 2026-08-30 — empty has two meanings, and silence has one
+
+The reorder list came back **empty** on the live shop and was reported as a
+breakage. It was not: it was correct for the first time. What was wrong is that
+the screen said the same sentence for two unrelated situations — *nothing is
+below its level* (good news) and *no item has a level set at all*, for which
+this screen can never show a row and nobody was being told. `meta.watched` now
+carries the count and the empty state names which one it is.
+
+**And the arm nobody had tested.** An owner with no `X-Branch-Id` is `scopeAll`,
+so every test written the day before took the shop-wide path. A staff member is
+always pinned to a branch. The branch arm — what most of the shop actually sees
+— had no test at all; it does now, and it was correct.
+
+**Silence, measured.** 66 of 191 mutation call sites have no visible failure
+path, and there is no global handler (`queryClient` declares no `MutationCache`).
+Fixed where it was worst and where it was asked about: purchases' **Place
+order** showed neither its refusal nor its success — `PO_NOT_DRAFT` is what a
+second tab produces, and the button just un-disabled itself; a medicine's
+**expiry date** wrote on change and said nothing either way; a **supplier
+payment** closed its dialog without a word, which is how a shop pays twice. The
+remaining 66 want one `MutationCache.onError`, not 66 edits — left for the
+owner to decide, because it changes every screen at once.
+
+**A correction of my own.** I reported the supplier payment as failing silently.
+It was not: the modal renders `pay.error`, and the save path renders
+`firstFieldError()`, which names the field — better than a toast. I had read the
+`mutate()` call site and not the render, and briefly shipped duplicate
+messaging on a page that was already right. Read the render, not the call.
+
+**Responsiveness, with the work open.** `chrome.spec` walks every screen at four
+widths and passes — *at rest*. It opens nothing, so `openThingsFit` had never
+fired on a dialog. `e2e/modules-on-a-phone.spec.ts` opens the form on suppliers
+and purchases and measures the labels sheet; all three fit at 390px, proven by
+injecting a 3000px element and watching both fail.
+
+---
+
 ### 2026-08-29 — the reorder list that listed everything
 
 A shop said *"in inventory need reordering not working"* and it was one question
