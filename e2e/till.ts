@@ -23,6 +23,14 @@ import { expect, type Page } from "@playwright/test";
  */
 export const PLAIN_ITEM = "[data-pos-item]:not([disabled]):not([data-pos-sized])";
 
+/**
+ * The shelf fixture's own products, by the name `shelf.setup` gives them.
+ *
+ * Kept beside PLAIN_ITEM because the two are one rule: fill a cart from stock
+ * this suite controls, never from whatever a sibling spec left lying about.
+ */
+export const SHELF_ITEM = /E2E Shelf Item/;
+
 export async function openTill(page: Page): Promise<void> {
   await page.goto("/tenant/pos");
   await page.waitForLoadState("networkidle").catch(() => {});
@@ -84,10 +92,37 @@ export async function fillCart(page: Page, want: number): Promise<number> {
    * A fixture addition must not change what other specs exercise. `data-pos-sized`
    * is on the tile and the row for exactly this, and `size-picker.spec` reaches
    * the sized product by name.
+   *
+   * ── AND ONLY THE SHELF'S OWN ITEMS ───────────────────────────────────
+   *
+   * "Any plain product" is not a shelf, it is whatever the database happens to
+   * hold — and by now that is twenty `E2E …` products left behind by other
+   * specs, every one of the strays sitting at ZERO stock while the shelf's own
+   * fourteen hold 240 each.
+   *
+   * `E2E Family Deal` is the one that bit: a DEAL is not sized, so it looks
+   * plain, and this helper rang it. Offline that works — the till sells from
+   * the mirror it pulled at boot — and then the server refuses the sync,
+   * correctly, because the pizza inside the deal has none left:
+   *
+   *     Not enough E2E Deal Pizza (Large): only 0 in stock.
+   *
+   * Two projects failed on that and neither was about deals, sizes or stock.
+   * The one before them had sold the last of it and passed; the one after ran
+   * `deal-size.spec` first, which restocks, and passed too. A suite whose
+   * result depends on which project ran first is not measuring the product.
+   *
+   * So this asks for the shelf BY NAME. The shelf is topped up before every
+   * run and belongs to nobody else.
    */
-  const items = page.locator(PLAIN_ITEM);
+  const items = page.locator(PLAIN_ITEM).filter({ hasText: SHELF_ITEM });
   const available = await items.count();
-  expect(available, "the till listed no sellable products").toBeGreaterThanOrEqual(want);
+  expect(
+    available,
+    `the till listed no sellable shelf items (looking for "${SHELF_ITEM}"). `
+      + "The shelf fixture tops these up before every run — if this is zero the "
+      + "setup project did not run, or the till's catalog has not arrived yet.",
+  ).toBeGreaterThanOrEqual(want);
 
   for (let i = 0; i < want; i++) {
     await items.nth(i).click();

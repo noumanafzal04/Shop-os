@@ -316,6 +316,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
         text: "Set a reorder level on a product and it appears here the moment stock falls to it. The count on your dashboard — “12 items are running low” — opens this list directly.",
       },
       {
+        type: "p",
+        text: "If the item is sold in sizes, set the level on the product, not on each size. The list adds the sizes together and compares the total: a shirt with 60 small, 80 medium and 60 large counts as 200 against your level, so it stays off the list until the rail as a whole runs down. The order it raises asks for the shortfall — enough to get the total back above your level.",
+      },
+      {
         type: "steps",
         items: [
           "Inventory → Needs reordering. Only the short items, not the whole catalog.",

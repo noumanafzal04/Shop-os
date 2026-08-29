@@ -8,6 +8,7 @@ import { Link, Outlet, useNavigate, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
+import { catalogStock } from "../../pos/availability";
 import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
@@ -395,11 +396,17 @@ export default function ProductsPage() {
                       <td className="px-6 py-4">
                         {!p.track_inventory ? (
                           <span className="text-gray-400">—</span>
-                        ) : p.low_stock_threshold !== null && p.stock_quantity <= p.low_stock_threshold ? (
-                          <Badge size="sm" color="warning">{p.stock_quantity} low</Badge>
-                        ) : (
-                          p.stock_quantity
-                        )}
+                        ) : p.low_stock_threshold !== null
+                          && catalogStock(p) <= Number(p.low_stock_threshold) ? (
+                            /* `catalogStock`, never `stock_quantity`: a product
+                               sold in sizes keeps its stock on the variants and
+                               its own column stays at nought, so a rail full of
+                               shirts was badged "0 low". Same rule the till and
+                               the server's LowStock use. */
+                            <Badge size="sm" color="warning">{catalogStock(p)} low</Badge>
+                          ) : (
+                            catalogStock(p)
+                          )}
                       </td>
                     )}
                     <td className="px-6 py-4">

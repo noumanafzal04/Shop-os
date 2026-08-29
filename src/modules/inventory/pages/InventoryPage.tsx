@@ -4,6 +4,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import { uuid } from "../../../common/uuid";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
+import { catalogStock } from "../../pos/availability";
 import Alert from "../../../components/ui/alert/Alert";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
@@ -387,10 +388,14 @@ export default function InventoryPage() {
                       {p.sku && <span className="ml-2 text-theme-xs text-gray-400">SKU {p.sku}</span>}
                     </td>
                     <td className="px-6 py-4">
-                      {p.low_stock_threshold !== null && Number(p.stock_quantity) <= Number(p.low_stock_threshold) ? (
-                        <Badge size="sm" color="warning">{formatQuantity(p.stock_quantity)} low</Badge>
+                      {/* The PARENT row of a sized product holds no stock of
+                          its own — `catalogStock` sums the sizes, the same way
+                          the till and the server's LowStock rule do. Reading
+                          `stock_quantity` badged a full rail of shirts "0 low". */}
+                      {p.low_stock_threshold !== null && catalogStock(p) <= Number(p.low_stock_threshold) ? (
+                        <Badge size="sm" color="warning">{formatQuantity(catalogStock(p))} low</Badge>
                       ) : (
-                        <>{formatQuantityWithUnit(p.stock_quantity, p.sold_by, p.unit)}</>
+                        <>{formatQuantityWithUnit(catalogStock(p), p.sold_by, p.unit)}</>
                       )}
                     </td>
                     <td className="px-6 py-4">{p.low_stock_threshold != null ? formatQuantity(p.low_stock_threshold) : "—"}</td>
