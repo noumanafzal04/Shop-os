@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\ProductUnit;
+use App\Models\ProductVariant;
 use App\Models\TaxGroup;
 use App\Services\InventoryService;
 use App\Support\BusinessTypes;
@@ -55,11 +56,16 @@ class ImportProductsAction
         'description', 'strength', 'dosage_form', 'drug_schedule', 'kitchen_station',
         'tracks_serial', 'warranty_months', 'wholesale_price', 'duration_minutes',
         'track_inventory', 'tax_group',
+        // A SIZE, not a product. See importVariants: a row carrying this is a
+        // variant of the product with that SKU, and the file never contains an
+        // id — a shopkeeper knows their own SKU and cannot know a uuid.
+        'parent_sku',
     ];
 
     public function __construct(
         private readonly CreateProductAction $create,
         private readonly UpdateProductAction $update,
+        private readonly SyncProductVariantsAction $variants,
         private readonly InventoryService $inventory,
         private readonly TenantContext $context,
     ) {}
@@ -97,8 +103,21 @@ class ImportProductsAction
          */
         $before = Product::query()->count();
 
-        Product::withoutAuditing(function () use ($rows, &$summary): void {
-            $this->importRows($rows, $summary);
+        /**
+         * TWO PASSES, so the order of the file does not matter.
+         *
+         * A variant names its parent by SKU, and a merchant sorting the sheet
+         * by price — or by name, which puts "Large" above "T-Shirt" — would
+         * otherwise send a size in before the product it belongs to. One pass
+         * would refuse those rows for a reason the merchant cannot see in the
+         * file, and the fix would be "re-sort your spreadsheet".
+         */
+        $products = array_values(array_filter($rows, fn (array $r): bool => trim((string) ($r['parent_sku'] ?? '')) === ''));
+        $variants = array_values(array_filter($rows, fn (array $r): bool => trim((string) ($r['parent_sku'] ?? '')) !== ''));
+
+        Product::withoutAuditing(function () use ($products, $variants, $rows, &$summary): void {
+            $this->importRows($products, $summary, $rows);
+            $this->importVariants($variants, $summary, $rows);
         });
 
         $this->recordTheImport($summary, $before);
@@ -106,12 +125,17 @@ class ImportProductsAction
         return $summary;
     }
 
-    /** @param array<int, array<string, string>> $rows */
-    private function importRows(array $rows, array &$summary): void
+    /**
+     * @param  array<int, array<string, string>>  $rows  the subset being imported
+     * @param  array<int, array<string, string>>  $all  the whole file, for line numbers
+     */
+    private function importRows(array $rows, array &$summary, array $all): void
     {
-        foreach ($rows as $i => $row) {
-            // +2 = 1 for the header line, 1 for 1-based line numbers a user sees.
-            $lineNo = $i + 2;
+        foreach ($rows as $row) {
+            // The line in the MERCHANT'S file, not this subset's index. Once
+            // the file is split into products and sizes, an index here is a
+            // number pointing at somebody else's row.
+            $lineNo = $this->lineOf($row, $all);
             $summary['total']++;
 
             try {
@@ -133,6 +157,145 @@ class ImportProductsAction
                         ? 'A unique value in this row (barcode / PLU / SKU) is already in use.'
                         : 'Database error while saving this row.',
                 ]];
+            }
+        }
+    }
+
+    /** Which line of the merchant's own file this row came from. */
+    private function lineOf(array $row, array $all): int
+    {
+        foreach ($all as $i => $candidate) {
+            if ($candidate === $row) {
+                // +2 = 1 for the header line, 1 for 1-based line numbers.
+                return $i + 2;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * SIZES, IN THE SAME FILE AS THEIR PRODUCTS.
+     *
+     * ── Why a row and not a cell ────────────────────────────────────────
+     *
+     * A product with sizes could not be bulk-loaded at all: there was no
+     * variant column, so a garment shop imported five hundred shirts and then
+     * added every Small, Medium and Large by hand, one screen at a time. The
+     * obvious fix is a cell like `Small=900|Large=1000`, and it is the wrong
+     * one — a size has a price, a cost, a stock figure, a barcode and a SKU,
+     * and packing five fields into one cell means a merchant editing a price
+     * in Excel is editing a string, with no column to sort or filter by.
+     *
+     * So a size is a ROW, named by `parent_sku`. It is the same shape as
+     * everything else in the file.
+     *
+     * ── Why it MERGES rather than replacing ─────────────────────────────
+     *
+     * `SyncProductVariantsAction` is given the whole desired list and retires
+     * whatever is missing from it — correct for the edit screen, wrong here. A
+     * merchant who imports a corrected price for Large only would otherwise
+     * retire Small and Medium, silently, and find out when the till refused to
+     * sell them. Removing a size stays a deliberate act on the product screen.
+     *
+     * @param  array<int, array<string, string>>  $rows
+     * @param  array<int, array<string, string>>  $all
+     */
+    private function importVariants(array $rows, array &$summary, array $all): void
+    {
+        // Grouped, because the sync action works on one product's whole list.
+        $byParent = [];
+        foreach ($rows as $row) {
+            $byParent[trim((string) $row['parent_sku'])][] = $row;
+        }
+
+        foreach ($byParent as $parentSku => $group) {
+            $parent = Product::query()->where('sku', $parentSku)->first();
+
+            if ($parent === null) {
+                foreach ($group as $row) {
+                    $summary['total']++;
+                    $summary['failed']++;
+                    $summary['errors'][] = [
+                        'row' => $this->lineOf($row, $all),
+                        'messages' => ["No product in this shop has the SKU \"{$parentSku}\", so this size has nothing to belong to."],
+                    ];
+                }
+
+                continue;
+            }
+
+            // What the product already has, kept — see the note above.
+            $desired = $parent->variants()->get()
+                ->map(fn (ProductVariant $v): array => [
+                    'id' => $v->id,
+                    'name' => $v->name,
+                    'sku' => $v->sku,
+                    'price' => $v->price,
+                    'cost' => $v->cost,
+                    'low_stock_threshold' => $v->low_stock_threshold,
+                    'is_active' => $v->is_active,
+                ])
+                ->all();
+
+            $failedHere = false;
+            foreach ($group as $row) {
+                $summary['total']++;
+                $line = $this->lineOf($row, $all);
+
+                $data = $this->normalize($row);
+                $validator = Validator::make($data, [
+                    'name' => ['required', 'string', 'max:255'],
+                    'price' => ['required', 'numeric', 'min:0', 'max:99999999'],
+                    'sku' => ['nullable', 'string', 'max:64'],
+                    'cost' => ['nullable', 'numeric', 'min:0'],
+                    'stock_quantity' => ['nullable', 'numeric', 'min:0'],
+                ]);
+
+                if ($validator->fails()) {
+                    $summary['failed']++;
+                    $failedHere = true;
+                    $summary['errors'][] = ['row' => $line, 'messages' => $validator->errors()->all()];
+
+                    continue;
+                }
+
+                // A size already on this product — matched by SKU where it has
+                // one, else by name, which is what the merchant typed.
+                $at = null;
+                foreach ($desired as $i => $existing) {
+                    $sameSku = ! empty($data['sku']) && $existing['sku'] === $data['sku'];
+                    $sameName = empty($data['sku']) && strcasecmp((string) $existing['name'], $data['name']) === 0;
+                    if ($sameSku || $sameName) {
+                        $at = $i;
+                        break;
+                    }
+                }
+
+                $fields = [
+                    'name' => $data['name'],
+                    'sku' => $data['sku'] ?? null,
+                    'price' => $data['price'],
+                    'cost' => $data['cost'] ?? null,
+                    'low_stock_threshold' => $data['low_stock_threshold'] ?? null,
+                    'is_active' => $data['is_active'] ?? true,
+                    'barcode' => $data['barcode'] ?? null,
+                ];
+
+                if ($at !== null) {
+                    $desired[$at] = [...$desired[$at], ...$fields];
+                    $summary['updated']++;
+                } else {
+                    // Stock only on the way IN. An existing size's quantity
+                    // goes through InventoryService or not at all, which is
+                    // the same rule the product path follows above.
+                    $desired[] = [...$fields, 'stock_quantity' => $data['stock_quantity'] ?? 0];
+                    $summary['created']++;
+                }
+            }
+
+            if ($desired !== [] && ! $failedHere) {
+                $this->variants->execute($parent, $desired);
             }
         }
     }
@@ -333,6 +496,7 @@ class ImportProductsAction
             'name' => $get('name'),
             'item_type' => $get('item_type') ?? ItemTypes::PHYSICAL,
             'sku' => $get('sku'),
+            'parent_sku' => $get('parent_sku'),
             'barcode' => $get('barcode'),
             'plu_code' => $get('plu_code'),
             'brand' => $get('brand'),

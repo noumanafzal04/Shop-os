@@ -71,15 +71,38 @@ class BulkExportTest extends TestCase
         $csv = $this->csv($this->owner, '/api/v1/products/export');
         $lines = array_values(array_filter(explode("\n", trim($csv))));
 
-        // An export must round-trip straight back through /products/import, so
-        // the two headers have to be identical — asked of the endpoints
-        // themselves rather than of a literal copied between them, which is
-        // what a column added to one and forgotten on the other looks like.
+        // THE TEMPLATE IS NARROWER THAN THE EXPORT NOW, ON PURPOSE.
+        //
+        // These headers used to be asserted identical. They no longer are, and
+        // the change is deliberate: an export is a BACKUP and must carry every
+        // column a shop has, while the template is a blank a person fills in by
+        // hand — and a restaurant handed `Dosage Form` and `Warranty Months` is
+        // a restaurant being invited to make mistakes.
+        //
+        // What still has to hold is the direction that matters: everything the
+        // template offers must be a column the export knows, so a file built
+        // from the template can always be read back. A template column absent
+        // from the export is a field the importer would silently drop.
         $template = $this->csv($this->owner, '/api/v1/products/import/template');
         $templateHeader = ltrim(explode("\n", trim($template))[0], "\xEF\xBB\xBF");
         $header = ltrim($lines[0], "\xEF\xBB\xBF");
 
-        $this->assertSame(trim($templateHeader), trim($header));
+        $templateCols = str_getcsv(trim($templateHeader));
+        $exportCols = str_getcsv(trim($header));
+
+        $this->assertSame(
+            [],
+            array_values(array_diff($templateCols, $exportCols)),
+            'the template offers a column the export does not know',
+        );
+        // …and the narrowing is REAL. Without this the assertion above passes
+        // against a template that has quietly become empty.
+        $this->assertNotEmpty($templateCols);
+        $this->assertLessThan(
+            count($exportCols),
+            count($templateCols),
+            'the template was not narrowed for this trade at all',
+        );
 
         // The columns each trade cannot bulk-load without. Asked of the FIELD
         // each header maps back to rather than of the header text, because the

@@ -21,10 +21,12 @@ use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\BusinessTypes;
 use App\Support\CsvExport;
 use App\Support\ItemTypes;
 use App\Support\ProductCsv;
 use App\Support\RecipeCost;
+use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -205,32 +207,76 @@ class ProductController extends Controller
     }
 
     /** A ready-to-fill CSV template with the supported columns + one example row. */
-    public function importTemplate(): StreamedResponse
+    /**
+     * A blank catalog file, in THIS shop's own shape.
+     *
+     * ── The bug this replaces ───────────────────────────────────────────
+     *
+     * One template went to every trade: thirty-two columns and six worked
+     * rows — a sugar, a Panadol, a karahi, a phone, a service — whatever the
+     * shop actually sold. Meanwhile the importer refuses an item type the
+     * trade may not catalog, read from `BusinessTypes::itemTypesFor()`.
+     *
+     * Two lists, and they disagreed. Proven against the live panel: a
+     * restaurant downloaded this file and uploaded it back UNCHANGED —
+     *
+     *     Imported 4 new, 2 failed.
+     *       row 3 -> Item type "medicine" isn't available for this business type.
+     *       row 7 -> Item type "service" isn't available for this business type.
+     *
+     * — and the four that succeeded put Loose Sugar and a Galaxy A16 into a
+     * restaurant's catalog. Both halves of that are bugs: a file we hand out
+     * that we then refuse, and sample data that quietly becomes real stock.
+     *
+     * ── Why it is generated, not eight files ────────────────────────────
+     *
+     * Eight hand-written templates would drift from the validator exactly as
+     * this one did. The rows come off `itemTypesFor()` — the same list the
+     * importer checks against — so the template CANNOT offer a row the
+     * importer will refuse. There is no second list to drift from, and a trade
+     * added next year gets a correct template without anybody writing one.
+     */
+    public function importTemplate(TenantContext $context): StreamedResponse
     {
-        // Title Case headers a merchant can read. The importer lowercases and
-        // swaps spaces for underscores, so this round-trips unchanged.
-        $header = ProductCsv::headerRow();
+        $tenant = $context->get();
+        $type = $tenant?->business_type;
 
-        // A few worked examples so a merchant sees how each column is filled:
-        // a retail item, a weight-sold grocery item with a scale PLU code, a
-        // discounted item, and a prescription medicine with two extra barcodes.
-        // One worked row per trade, so a merchant can see which columns are
-        // theirs and leave the rest blank. Every column is optional except
-        // `name` and `price`.
-        $samples = [
-            //  name  item_type  sku  barcode  barcodes  plu  brand  category  unit  sold_by  price  cost  wholesale  discount  tax_rate  tax_group  stock  low_stock  min_qty  track_inv | generic  strength  form  schedule  rx | station | serial  warranty | duration | description  active  marketplace
-            ['Loose Sugar', 'physical_product', 'SUG-KG', '', '', '21', '', 'Grocery', 'kg', 'weight', '180', '150', '', '', '0', '', '100', '10', '', '1', '', '', '', '', '0', '', '0', '', '', 'Sold loose by the kilo', '1', '1'],
-            ['Panadol 500mg', 'medicine', 'PAN-500', '8964000111', '8964000112|8964000113', '', 'GSK', 'Medicines', 'strip', 'unit', '120', '90', '', '', '0', '', '200', '20', '', '1', 'Paracetamol', '500mg', 'Tablet', 'OTC', '0', '', '0', '', '', '', '1', '1'],
-            ['Chicken Karahi', 'food_item', 'KAR-01', '', '', '', '', 'Main Course', 'plate', 'unit', '1400', '600', '', '', '0', '', '', '', '', '0', '', '', '', '', '0', 'Kitchen', '0', '', '', 'Serves two', '1', '1'],
-            ['Fresh Lime Soda', 'food_item', 'LIME-01', '', '', '', '', 'Drinks', 'glass', 'unit', '250', '60', '', '', '0', '', '', '', '', '0', '', '', '', '', '0', 'Bar', '0', '', '', '', '1', '1'],
-            ['Galaxy A16', 'physical_product', 'SGA16', '8964000200', '', '', 'Samsung', 'Mobiles', 'pcs', 'unit', '52000', '46000', '49000', '', '0', '', '12', '3', '', '1', '', '', '', '', '0', '', '1', '12', '', '', '1', '1'],
-            ['Full Service', 'service', 'SRV-FULL', '', '', '', '', 'Workshop', 'job', 'unit', '3500', '1200', '', '', '0', '', '', '', '', '', '', '', '', '', '0', '', '0', '', '90', 'Oil, filter and a check over', '1', '1'],
-        ];
+        // Only the columns this trade has. A restaurant filling in Dosage Form
+        // and Warranty Months is a restaurant being invited to make mistakes.
+        $columns = ProductCsv::headersFor($type);
+
+        // The shop's own words for a shelf and a unit, so the example reads
+        // like something it might actually sell.
+        // `product_categories`, NOT `categoriesFor()` — the latter returns
+        // value/label pairs describing sub-trades ("Fast Food", "Bakery"),
+        // which are not shelves and would read as nonsense in a Category cell.
+        $shelves = $type !== null ? (BusinessTypes::get($type)['product_categories'] ?? []) : [];
+        $units = $type !== null ? BusinessTypes::unitsFor($type) : [];
+        $category = is_string($shelves[0] ?? null) ? $shelves[0] : 'General';
+        $unit = is_string($units[0] ?? null) ? $units[0] : 'Piece';
+
+        // ONE example per item type the shop may actually catalog. A trade that
+        // sells neither goods nor labour gets a header row and nothing else,
+        // which is the honest answer rather than an example it cannot use.
+        $types = $type !== null
+            ? BusinessTypes::itemTypesFor($type, $tenant?->moduleMap())
+            : [ItemTypes::PHYSICAL];
+
+        $samples = array_map(
+            fn (string $itemType): array => ProductCsv::exampleRow($itemType, $category, $unit, $columns),
+            $types,
+        );
+
+        // …and one worked SIZE, for the trades that have them, because a
+        // product with sizes could not be bulk-loaded at all before this.
+        if ($types !== [] && BusinessTypes::variantAttributesFor((string) $type) !== []) {
+            $samples[] = ProductCsv::exampleVariantRow($category, $unit, $columns);
+        }
 
         // Through the same helper as the export, which writes the UTF-8 BOM.
         // Hand-rolled, this file was the ONE a merchant types into — and the
         // one without the marker that makes Excel read Urdu names correctly.
-        return CsvExport::stream('products-import-template.csv', $header, $samples);
+        return CsvExport::stream('products-import-template.csv', array_values($columns), $samples);
     }
 
     /**
@@ -284,6 +330,12 @@ class ProductController extends Controller
                 $p->name,
                 $p->item_type,
                 $p->sku,
+                // Blank, and it has to BE here: these rows are positional, so
+                // a header with no cell under it shifts every column after it
+                // — an export whose Barcode column holds barcodes under the
+                // wrong heading, which re-imports as the wrong field.
+                // Products have no parent; only sizes do.
+                '',
                 $p->barcode,
                 $p->barcodes->pluck('barcode')->reject(fn ($b) => $b === $p->barcode)->implode('|'),
                 $p->plu_code,
