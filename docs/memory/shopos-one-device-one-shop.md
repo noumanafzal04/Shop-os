@@ -36,13 +36,25 @@ Two things it must NOT do, both mutation-proven:
 while leaving cursors → next pull asks for a DELTA against the other shop's
 position → healthy-looking sync, empty shelf. Cursors must reset too.
 
-**TWO of my own test bugs, in one session:**
+**THREE of my own test bugs, in one session — all the same family:**
 1. `hasText` locators re-evaluate — a badge located by its text stops matching
    the instant its label changes, so it can never observe the states under test.
 2. `addInitScript` re-runs on EVERY navigation — it kept restoring shop one's
    token, so the first leak "proof" could not have observed what it reported.
    **STANDING: assert which tenant the page is signed in as before believing
    anything a two-tenant test says.**
+3. `request.postData()` returns **null** for some requests, so a check written
+   as `posts.push(r.postData() ?? "")` then `.includes("my-op")` silently never
+   matches. It reported the force-on-press fix as broken when the request had
+   plainly gone out. **Count requests to the ENDPOINT; treat the body as a
+   bonus, never as the assertion.**
+
+**The pattern across all three: I asserted on a DERIVED value (a matched
+locator, an init-script's leftovers, a body string) when the direct observable
+was available.** Each produced a confident, specific, wrong answer — and two of
+them accused working code. Prefer the most direct observable there is: a
+MutationObserver over polled text, a URL over a body, the store itself over the
+screen.
 
 Related: [[shopos-half-the-sync]], [[shopos-measurement-that-lied]],
 [[shopos-offline-plan]].
