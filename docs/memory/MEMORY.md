@@ -153,3 +153,4 @@
 - [Arti / Mandi](shopos-arti-mandi.md) — BACKLOG vertical: grain commission agent; arrivals→weighing→settlement→khata, not a cart
 - [Half The Sync](shopos-half-the-sync.md) — FIXED: shift queue never got the sale queue's force+stranded fixes; a sum of two stores needs both halves
 - [One Device, One Shop](shopos-one-device-one-shop.md) — FIXED CRITICAL: offline catalog had no tenant fence; a 2nd shop saw+sold the 1st's products
+- [Import Per Trade](shopos-import-per-trade.md) — FIXED: one template for all trades; importer refused its own rows; + variants via parent_sku, no IDs in CSV
