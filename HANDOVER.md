@@ -290,7 +290,37 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-26 (latest) — six screens, and the rule applied to half of itself
+### 2026-08-29 — Half the sync obeyed the button
+
+A shop pressed Sync on a till reading "7 still to send" and the number never
+moved. **Checked the deployed bundle first**: `panel.cartze.shop` was serving
+the latest commit's own strings, so the bug was real, not a stale deploy — and
+that also ruled out stranded sales, which the live build already labels
+differently.
+
+The badge is the SUM OF TWO STORES — `owedCount()` (sales) plus
+`owedShiftOps()` (drawer events). The sale queue had learned that a press
+ignores the backoff and that a fenced row must be visible. **Neither lesson
+reached `shiftQueue.ts`**, so a till holding drawer events was forced by
+nothing and had no reason available anywhere. Fixed on both sides, plus
+`lastError` — captured since `queueSummary` was written and displayed by
+nothing, which made a bad line and a refusing server read identically.
+
+Five mutations, five failures. 1310 unit tests (was 1287), 0 lint errors,
+build clean. See `docs/decisions/shopos-half-the-sync.md`.
+
+**Not yet deployed** — the fix is on `origin/offline/v1/admin-panel`; the live
+panel still serves the previous build.
+
+Also recorded, no code written: the multi-packaging proposal
+(single/pack/box/carton) is **already built** as `ProductUnit` — factor,
+explicit pack price, own barcode, one base-unit stock pool — with the single
+real gap being a printed label per pack rather than per product. And
+**Arti/Mandi** (grain commission agent) is logged as a backlog vertical: real
+market, large reuse of khata/parties/expenses, but a whole vertical whose main
+screen is arrivals→weighing→settlement, not a cart.
+
+## 2026-08-26 (latest) — six screens, and the rule applied to half of itself
 
 A batch of screen work, and four of the six turned out to be the same shape: a
 rule that had been applied to one half of a screen and not the other.
