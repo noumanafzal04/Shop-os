@@ -237,6 +237,23 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "If the item comes in sizes, the same button asks which one has run out. Marking the Large off leaves Small and Medium selling all evening — a kitchen runs out of large bases, not of pizza, and taking the whole item off used to cost you every other size on your busiest line." },
       { type: "note", text: "\"All of it — take the item off\" is still there at the bottom of that list, because \"no pizza tonight\" is a real sentence and it is not the same one as \"no large\"." },
       { type: "warn", text: "Nothing turns it back on by itself. That is on purpose: an item that un-sold-out overnight while the kitchen still had none puts a customer in front of a dish that never arrives. The row shows how long it has been off, so a forgotten one is easy to spot." },
+
+      { type: "h", text: "Loading your whole catalogue from a file" },
+      { type: "p", text: "Products \u2192 Import. Start by pressing \u201cDownload sample CSV template\u201d \u2014 the file you get is built for YOUR trade, so a restaurant gets Kitchen Station and no Dosage Form, and a chemist gets the opposite. Fill it in, upload it, and every row is checked on its own: one bad line never stops the good ones, and anything refused comes back with its line number and the reason." },
+      { type: "keys", items: [
+        ["Name and Price", "The only two columns that must be filled in. Everything else can be left blank."],
+        ["SKU", "Your own code for the item. It is also how a re-import knows to UPDATE an item instead of adding a second one."],
+        ["Category", "Just the name \u2014 \u201cMain Course\u201d, \u201cMedicines\u201d. If you do not have that category yet it is created for you. You never type an id anywhere in this file."],
+        ["Tax Group", "By name too, but an unknown name is left blank rather than invented \u2014 a made-up tax rate would price a whole import wrong and look deliberate."],
+        ["Parent SKU", "What turns a row into a SIZE of another item. See below."],
+      ]},
+      { type: "note", text: "The sample rows are named \u201cEXAMPLE \u2014 delete this row\u201d. If you upload the template without touching them they will import as real products, so they are named to be easy to spot and delete." },
+
+      { type: "h", text: "Importing items that come in sizes" },
+      { type: "p", text: "A size is its own ROW, not a squashed-up cell. Put the parent item's SKU in the Parent SKU column and the row becomes a size of that item, with its own price, cost, stock and barcode." },
+      { type: "note", text: "Order does not matter. You can sort the sheet however you like \u2014 a size listed above the item it belongs to still lands correctly, because the file is read in two passes." },
+      { type: "warn", text: "An import only ADDS and UPDATES sizes; it never removes one. A file that mentions only Large will not retire Small and Medium \u2014 removing a size stays something you do on the item's own screen, so a partial price update can never quietly take stock off your till." },
+      { type: "p", text: "A row whose Parent SKU names an item you do not have is refused by name, so you can see which SKU was wrong rather than hunting for it." },
 ],
   },
   {

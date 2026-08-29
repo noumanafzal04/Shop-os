@@ -608,18 +608,36 @@ export default function ProductsPage() {
           ↓ Download sample CSV template
         </button>
 
-        {/* Expected format — so the columns are clear before downloading. */}
+        {/* WHY THIS NO LONGER LISTS THE COLUMNS OR THE ITEM TYPES.
+            It used to, and it was a THIRD copy of a list the server already
+            holds twice — the template that hands them out and the importer
+            that checks them. Those two had already drifted: the template gave
+            every trade a medicine row and a service row, and the importer
+            refused them, so a restaurant that downloaded this file and
+            uploaded it back unchanged got two rows rejected and four sample
+            products it never asked for.
+            The template is now built for the shop that asks for it, which
+            makes it the one place the answer lives. A panel that recites the
+            columns beside it is the next copy to go stale. */}
         <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-theme-xs dark:border-gray-800 dark:bg-white/[0.03]">
-          <p className="mb-1.5 font-medium text-gray-700 dark:text-gray-300">Expected columns</p>
+          <p className="mb-1.5 font-medium text-gray-700 dark:text-gray-300">Start from the template</p>
           <p className="mb-2 text-gray-500 dark:text-gray-400">
-            <span className="rounded bg-error-50 px-1 font-medium text-error-600 dark:bg-error-500/10">name</span> and{" "}
-            <span className="rounded bg-error-50 px-1 font-medium text-error-600 dark:bg-error-500/10">price</span> are required. Rows match by <strong>sku</strong> (updates if it exists). <code>item_type</code>: physical_product · food_item · medicine · service. <code>sold_by</code>: unit · weight. <code>barcodes</code>: extra codes separated by <code>|</code>. Boolean columns (requires_prescription, is_active, visible_in_marketplace): 1/0.
+            It is built for <strong>your shop</strong> — only the columns your trade uses, with a worked example in each.{" "}
+            <span className="rounded bg-error-50 px-1 font-medium text-error-600 dark:bg-error-500/10">Name</span> and{" "}
+            <span className="rounded bg-error-50 px-1 font-medium text-error-600 dark:bg-error-500/10">Price</span> are the only
+            columns you must fill in. <strong>Category</strong> is matched by name and created if you do not have it yet.
+          </p>
+          <p className="mb-1.5 font-medium text-gray-700 dark:text-gray-300">Items that come in sizes</p>
+          <p className="mb-2 text-gray-500 dark:text-gray-400">
+            A size is its own row: put the parent item&rsquo;s SKU in <code>Parent SKU</code>. Order does not matter, and an
+            import never removes a size it did not mention.
           </p>
           <div className="overflow-x-auto">
             <code className="whitespace-pre text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
-              name,item_type,sku,price,category,unit,sold_by,stock_quantity,barcodes{"\n"}
-              Loose Sugar,physical_product,SUG-KG,180,Grocery,kg,weight,100,{"\n"}
-              Panadol 500mg,medicine,PAN-500,120,Medicines,strip,unit,200,8964..|8965..
+              name,sku,parent_sku,price,stock_quantity{"\n"}
+              T-Shirt,TSHIRT,,900,0{"\n"}
+              Small,TSHIRT-S,TSHIRT,900,20{"\n"}
+              Large,TSHIRT-L,TSHIRT,1000,15
             </code>
           </div>
         </div>
