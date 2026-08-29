@@ -50,6 +50,26 @@ export interface SyncMeta {
   clockSkewMs: number;
   /** When the last successful pull finished, by SERVER time. */
   lastPullAt: string | null;
+  /**
+   * WHICH SHOP THIS DATABASE BELONGS TO.
+   *
+   * IndexedDB is scoped to the ORIGIN, so one browser used by two shops has
+   * ONE of these. The outbox has always known that and checks every row
+   * against the shop that is signed in; the CATALOG never did. Its rows carry
+   * no tenant, and `clearCaches()` — written for "a till handed to a different
+   * shop" — was called by nothing, while logout emptied the auth store and the
+   * query cache without touching this database at all.
+   *
+   * Proven in a browser against the live panel: a till signed out of a mart
+   * and into a pharmacy went on holding Sugar, Tea, Rice, Cooking Oil and
+   * Milk, and offered them for sale.
+   *
+   * Null on a database written before this existed. Treated as "unknown", and
+   * an unknown owner is claimed rather than wiped — the alternative throws
+   * away every existing till's catalog on upgrade for a case that has not
+   * happened. See `ensureDatabaseBelongsTo`.
+   */
+  tenantId?: string | null;
 }
 
 /**
@@ -61,7 +81,7 @@ export interface SyncMeta {
  * fill up with the cursors of whichever till ran first, and a reset would write
  * that back out as though it were a fresh start.
  */
-const emptyMeta = (): SyncMeta => ({ cursors: {}, clockSkewMs: 0, lastPullAt: null });
+const emptyMeta = (): SyncMeta => ({ cursors: {}, clockSkewMs: 0, lastPullAt: null, tenantId: null });
 
 export async function readMeta(): Promise<SyncMeta> {
   return (await getSingleton<SyncMeta>(STORE.SYNC_META)) ?? emptyMeta();

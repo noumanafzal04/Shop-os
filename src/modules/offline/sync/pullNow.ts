@@ -4,6 +4,7 @@ import { flushVariances } from "../pricing/varianceService";
 import { touchIfDue } from "../device/touch";
 import { flushOutbox, type FlushResult } from "../outbox/flush";
 import { flushShifts, type ShiftFlushResult } from "../shift/flushShifts";
+import { ensureDatabaseBelongsTo } from "../db/tillOwner";
 import { useAuthStore } from "../../../stores/authStore";
 import { useOfflineStore } from "../offlineStore";
 
@@ -96,6 +97,18 @@ async function run(force = false): Promise<PullResult> {
   // which is a worse lie than saying nothing.
   const { setSyncing } = useOfflineStore.getState();
   const tenantId = useAuthStore.getState().user?.tenant?.id ?? null;
+
+  // WHOSE DATA IS ALREADY HERE? Before anything is read or written.
+  //
+  // IndexedDB is scoped to the origin, so a browser used by two shops has one
+  // database, and the catalog in it carries no tenant. A till signed out of a
+  // mart and into a pharmacy went on holding — and offering for sale — the
+  // mart's products. Checked here because a pull is the one thing that happens
+  // on every route into the till, so no door goes around it.
+  //
+  // It cannot fail the pull: a till that could not check ownership must still
+  // sync, and the check runs again on the next pull a few seconds later.
+  await ensureDatabaseBelongsTo(tenantId).catch(() => undefined);
 
   // SHIFT OPENS FIRST, and the order is not a preference.
   //

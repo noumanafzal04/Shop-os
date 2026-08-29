@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useAuthStore } from "../../../stores/authStore";
 import { authService } from "../services/authService";
 import { homeForRole } from "../../../common/routing/guards";
+import { ensureDatabaseBelongsTo } from "../../offline/db/tillOwner";
 import type { LoginPayload } from "../types";
 
 export function useLogin() {
@@ -13,6 +14,16 @@ export function useLogin() {
     mutationFn: (payload: LoginPayload) => authService.login(payload),
     onSuccess: ({ data }) => {
       setAuth(data.user, data.access_token, data.refresh_token);
+      // THE MOMENT OF HANDOVER, and the earliest one there is.
+      //
+      // The pull checks this too, and that is what makes it airtight — but a
+      // pull happens after the shop's screens have already rendered, and the
+      // till reads its catalog from this database. Doing it here means the
+      // first thing a new shop sees is its own shelf, not the last shop's.
+      //
+      // Not awaited: sign-in must not wait on IndexedDB, and the pull that
+      // follows a few seconds later performs the identical check.
+      void ensureDatabaseBelongsTo(data.user.tenant?.id ?? null).catch(() => undefined);
       // Land each role on its home: /admin · /tenant · / (storefront).
       navigate(homeForRole(data.user.role), { replace: true });
     },
