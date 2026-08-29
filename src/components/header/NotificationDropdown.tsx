@@ -100,7 +100,17 @@ export default function NotificationDropdown() {
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute -right-[240px] mt-[17px] flex h-[480px] w-[350px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px] lg:right-0"
+        /* A PANEL THAT FITS THE SCREEN IT OPENS ON.
+           This was `-right-[240px] w-[350px]`, corrected only at `lg`. On a
+           390px phone that put a 350px panel 240px to the RIGHT of a bell
+           already near the right edge — most of it off-screen, and what
+           remained widened the document sideways.
+           Below `sm` it is now a sheet pinned to both edges of the viewport
+           rather than hung off the bell: `fixed`, so it is measured against
+           the screen and not against a header that scrolls. Its height is a
+           share of the viewport, because `h-[480px]` is taller than a small
+           phone has and the list inside already scrolls. */
+        className="fixed inset-x-3 top-16 flex max-h-[70dvh] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg sm:absolute sm:inset-x-auto sm:top-auto sm:mt-[17px] sm:h-[480px] sm:max-h-none sm:right-0 sm:w-[361px] dark:border-gray-800 dark:bg-gray-dark"
       >
         <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
           <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">

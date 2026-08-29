@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
+import BackLink from "../../../components/ui/backLink";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
@@ -351,13 +352,7 @@ export default function TabPage() {
           carries four more controls, so it ran off a phone by more. */}
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200 bg-white px-4 py-3 sm:px-5 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <button
-            onClick={() => navigate("/tenant/dine-in")}
-            aria-label="Back to the floor"
-            className="shrink-0 whitespace-nowrap text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
-          >
-            ← <span className="hidden sm:inline">Floor</span>
-          </button>
+          <BackLink to="/tenant/dine-in" label="Floor" />
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">
               {ticket.table?.name ?? "Takeaway"} · {ticket.ticket_number}

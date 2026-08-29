@@ -293,11 +293,11 @@ export const posService = {
     }>("/pos/lookup", { params: { code } }),
 
   /**
-   * The counter's own shortlist — what this branch actually sells, with
-   * un-scannable items first. Derived on the server; nobody maintains it, and
-   * a shop with no trade yet gets an empty list and no strip.
+   * The counter's own shortlist used to live here — a `/pos/quick-keys` strip
+   * above the grid. Removed at the shop's request: it cost a row of vertical
+   * space above the thing a cashier is actually looking at, and by then it was
+   * only ever drawn at `xl`, so most counters never saw it at all.
    */
-  quickKeys: () => apiGet<Product[]>("/pos/quick-keys"),
 
   /**
    * Who this till may credit a sale to. Empty unless the shop has switched on

@@ -9,6 +9,7 @@ import { ApiError } from "../../../common/types/api";
 import { useRiders, useRiderMutations } from "../hooks/useOrders";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import Pager from "../../../components/ui/pager";
 
 /**
  * The shop's own delivery riders (Model A). Assign them to delivery orders on
@@ -33,7 +34,30 @@ export default function RidersPage() {
     );
   };
 
-  const rows = riders.data ?? [];
+  const all = riders.data ?? [];
+
+  /**
+   * PAGED HERE, NOT BY THE SERVER — and that is deliberate, not an oversight.
+   *
+   * `GET /riders` ends in `->get()`: it returns every rider this shop has, so
+   * unlike the four lists the shared Pager was written for, NOTHING was ever
+   * hidden on a page two that could not be reached. What was wrong is smaller
+   * and still worth fixing: a shop with sixty riders got sixty rows in one
+   * scroll, on a screen where every other list stops at twenty.
+   *
+   * Client-side keeps the API's shape exactly as it is. Moving the paging to
+   * the server would change a flat array into an envelope, and this endpoint
+   * is the shop's list of people — not somewhere to take that risk for a
+   * cosmetic win.
+   */
+  const PER_PAGE = 20;
+  const [page, setPage] = useState(1);
+  const lastPage = Math.max(1, Math.ceil(all.length / PER_PAGE));
+  // A rider deleted off the end of the last page must not strand the view on a
+  // page that no longer exists — the screen would go blank with no way back.
+  const current = Math.min(page, lastPage);
+  const rows = all.slice((current - 1) * PER_PAGE, current * PER_PAGE);
+  const pagination = { current_page: current, per_page: PER_PAGE, total: all.length, last_page: lastPage };
 
   return (
     <>
@@ -114,6 +138,7 @@ export default function RidersPage() {
             </tbody>
           </table>
         )}
+        <Pager pagination={pagination} onPage={setPage} noun="riders" />
       </div>
     </>
   );

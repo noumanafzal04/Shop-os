@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
+import BackLink from "../../../components/ui/backLink";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
@@ -163,15 +164,7 @@ export default function FloorPage() {
           its content width and pushes the page sideways instead. */}
       <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200 bg-white px-4 py-3 sm:px-5 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <button
-            onClick={() => navigate("/tenant")}
-            aria-label="Back to the dashboard"
-            className="shrink-0 whitespace-nowrap text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
-          >
-            {/* The word costs 90px of a 390px header and says nothing the
-                arrow doesn't; it comes back as soon as there is room. */}
-            ← <span className="hidden sm:inline">Dashboard</span>
-          </button>
+          <BackLink to="/tenant" label="Dashboard" />
           <h1 className="truncate text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">Dine-in Floor</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -190,7 +183,15 @@ export default function FloorPage() {
         </div>
       </header>
 
-      <div className="p-5">
+      {/* ROOM AT THE BOTTOM FOR WHATEVER IS PINNED THERE.
+          `FULL_SCREEN_PAGE_MIN` takes the pinned card out of the page's
+          MINIMUM height, which keeps the floor from being scroll-locked — but
+          it reserves nothing at the end of the content, so the last row of
+          tables sat under the install card with the page already scrolled to
+          its limit. It surfaced when the way out became a 44px control and the
+          header grew: the bug was always there, the header just moved the last
+          row into it. */}
+      <div className="p-5 pb-[calc(1.25rem+var(--pinned-bottom,0px))]">
         {tables.isLoading ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {Array.from({ length: 8 }).map((_, i) => (

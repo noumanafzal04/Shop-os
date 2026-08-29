@@ -63,20 +63,6 @@ export function useCurrentSession() {
   });
 }
 
-/**
- * The counter's shortlist. Rankings move over weeks, not minutes, so this is
- * cached hard — a till that re-fetches its quick keys on every focus is
- * spending a request to change nothing.
- */
-export function useQuickKeys() {
-  return useQuery({
-    queryKey: ["pos", "quick-keys"],
-    queryFn: async () => (await posService.quickKeys()).data,
-    staleTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-}
-
 export function useShiftMutations() {
   const qc = useQueryClient();
   const invalidate = () => {

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
-import { ChevronLeftIcon } from "../../../icons";
+import BackLink from "../../../components/ui/backLink";
 import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useBumpKot, useKitchenBoard } from "../hooks/useKitchen";
@@ -77,12 +76,7 @@ export default function KitchenPage() {
 
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="flex items-center gap-3">
-          <Link
-            to="/tenant"
-            className="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-theme-sm text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
-          >
-            <ChevronLeftIcon className="h-4 w-4" /> Exit
-          </Link>
+          <BackLink to="/tenant" label="Dashboard" />
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">Kitchen</h1>
           <span className="rounded-full bg-gray-100 px-3 py-1 text-theme-sm font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
             {kots.length} on the board

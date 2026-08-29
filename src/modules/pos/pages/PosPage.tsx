@@ -42,7 +42,7 @@ import { posService, type HeldSale } from "../services/posService";
 import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
 import CloseShiftModal from "../components/CloseShiftModal";
-import { useQuickKeys, useCoverMutations, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
+import { useCoverMutations, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
 import { canRingASale, isCover, isTraining, ringableSessionId, whyCannotRing, type ActiveCover, type CashSession } from "../services/posService";
 import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
 import { paperLabel, receiptService, type ReceiptKind, type ReceiptPaper } from "../../receipts/services/receiptService";
@@ -515,8 +515,6 @@ export default function PosPage() {
   // without paging at all.
   const POS_PAGE_SIZE = 20;
   const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, page, per_page: POS_PAGE_SIZE });
-  // The counter's shortlist — derived, never curated. See useQuickKeys.
-  const quickKeys = useQuickKeys();
   const [tiles, setTiles] = useState<CatalogProduct[]>([]);
   /**
    * DOES THIS SHOP ACTUALLY HAVE PHOTOS?
@@ -1790,7 +1788,15 @@ export default function PosPage() {
      * address bar hidden, and on a tablet it is not hidden, so the column was
      * laid out taller than the glass and the band that fell past the bottom
      * edge was the one with the buttons on it. */
-    <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-gray-50 dark:bg-gray-900`}>
+    /* THE GROUND UNDER THE WHOLE TILL.
+       This was `bg-gray-50` — the console's ordinary page background, on the
+       one screen that does not use the console's chrome. The panes inside it
+       are navy, so wherever they did not reach (the money bar, the gaps, the
+       whole lower half of a phone) a pale near-white showed through, and the
+       shop's words were the same as the last time: "sari screen white lag rahi
+       hai". Fixing the cards alone could not fix it, because the ground was
+       never the cards. */
+    <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-pos-ground dark:bg-gray-900`}>
       <PageMeta title="POS | CartZe" description="Point of sale terminal" />
 
       {/* Covers the till, keeping the cart intact underneath: locking is not
@@ -2323,64 +2329,17 @@ export default function PosPage() {
             )}
           </div>
 
-          {/* ── Quick keys ─────────────────────────────────────────────
-              What this counter reaches for. A scanner handles everything with
-              a barcode; it cannot handle the loose half of a shop — tomatoes,
-              rice by the kilo, chai, the samosas by the till — and in a mart
-              those are the fastest-moving lines there are. Reaching them meant
-              typing a name, per item, all day.
-
-              Derived on the server from what this branch actually sells, with
-              un-scannable items first. Nobody maintains it, and it disappears
-              the moment the cashier starts searching — a shortlist is only
-              useful when you have not already said what you want. */}
-          {/* `hidden xl:block` — off the tablet and the phone, on the shop's
-              own request: the strip costs a row of vertical space on a screen
-              that has little, above a grid that is the actual subject.
-
-              `xl`, not `lg`, and the first attempt got this wrong: a tablet in
-              LANDSCAPE is 1024–1279, which is `lg`, so hiding below `lg` left
-              the strip on every tablet held the way a counter holds one. 1280
-              is the number this codebase already uses for "below here is
-              tablet-sized" (RAIL_STARTS_COLLAPSED_BELOW), and the POS is
-              full-screen, so it never gets the sidebar's width back to spend.
-              Worth stating the trade rather than losing it quietly: a mart's
-              loose lines (tomatoes, rice by the kilo, chai) have no barcode,
-              and this strip was the fast route to them. On a small screen
-              those are now reached through search or the category filter,
-              which is slower per item. If a counter ever asks for them back,
-              this is the one class to remove. */}
-          {quickKeys.data && quickKeys.data.length > 0 && search === "" && categoryId === "" && (
-            <div className="mb-3 hidden shrink-0 xl:block">
-              <div className="mb-1.5 flex items-center gap-2 px-1">
-                <span className="text-theme-xs font-semibold uppercase tracking-wide text-white/60">Quick keys</span>
-                <span className="text-theme-xs text-white/40">· what sells here</span>
-              </div>
-              <div className="no-scrollbar -mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-0.5">
-                {quickKeys.data.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => commitProduct(p as unknown as CatalogProduct)}
-                    className="group flex max-w-[9rem] shrink-0 snap-start items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.10] px-2.5 py-1.5 text-left transition hover:border-brand-400 hover:bg-white/[0.16] active:bg-brand-500/25"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-[12px] font-medium leading-tight text-white/90">
-                        {p.name}
-                      </span>
-                      <span className="block text-[10px] leading-tight tabular-nums text-white/60">
-                        {money(sellingPrice(p as unknown as CatalogProduct))}
-                        {p.sold_by === "weight" && p.unit ? ` /${p.unit}` : ""}
-                      </span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Scrollable product area — only this scrolls, search + category stay put */}
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {/* A DARK CONTEXT FOR THE PRODUCT LIST.
+              The shop asked for the list to match the ground it sits on rather
+              than being a field of near-white plates on navy. `dark` is a
+              descendant variant here (`&:is(.dark *)`), so marking this one
+              container flips every surface, border and label inside it
+              together — which is the only way this stays coherent. Writing it
+              tile by tile is how the tiles and the rows drifted apart the last
+              time. The search box and the category control stay light on
+              purpose: they are chrome, not stock. */}
+          <div className="dark min-h-0 flex-1 overflow-y-auto pr-1">
           {/* FOOD: visual image-tile grid. */}
           {posLayout === "grid" && (
             /* Four across from the tablet up.
@@ -2501,7 +2460,7 @@ export default function PosPage() {
                       className={`group flex w-full flex-col overflow-hidden rounded-xl border text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
                         i === activeIndex
                           ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
-                          : "border-gray-200 bg-pos-card hover:border-brand-400 hover:bg-white hover:shadow-md dark:border-gray-700 dark:bg-gray-900"
+                          : "border-gray-200 bg-pos-card hover:border-brand-400 hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-pos-plate dark:hover:bg-pos-plate-hover"
                       }`}
                     >
                       {shelfHasPhotos && (
@@ -2588,7 +2547,7 @@ export default function PosPage() {
             /* The same white card the tiles became, for the same reason: a
                10% tint on a dark ground is not a surface, and the shop could
                not tell a row from the page it sits on. */
-            <div className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-pos-card shadow-sm dark:divide-gray-800 dark:border-gray-700 dark:bg-gray-900">
+            <div className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-pos-card shadow-sm dark:divide-white/10 dark:border-white/10 dark:bg-pos-plate">
               {products.isLoading && tiles.length === 0 ? (
                 Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 animate-pulse bg-gray-100 dark:bg-gray-800" />)
               ) : productsDenied ? (
@@ -2609,7 +2568,7 @@ export default function PosPage() {
                       ref={active ? activeRef : null}
                       disabled={out}
                       onClick={() => commitProduct(p)}
-                      className={`group relative flex w-full items-center gap-3 px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${active ? "bg-brand-50 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-brand-500 dark:bg-brand-500/15" : "hover:bg-gray-50 dark:hover:bg-white/[0.04]"}`}
+                      className={`group relative flex w-full items-center gap-3 px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${active ? "bg-brand-50 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-brand-500 dark:bg-pos-plate-active" : "hover:bg-gray-50 dark:hover:bg-white/[0.04]"}`}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[14px] font-semibold text-gray-800 dark:text-white/90">
@@ -3156,7 +3115,12 @@ export default function PosPage() {
             height the cart needs. The padding and the row gap shrink; nothing
             is dropped, because every one of these numbers is something a
             cashier is asked to read out. */}
-        <div className="grid shrink-0 grid-cols-1 gap-2 border-t border-gray-100 bg-gray-50 p-2 md:grid-cols-3 lg:col-span-12 lg:grid-cols-4 lg:gap-2.5 lg:p-2.5 dark:border-gray-800 dark:bg-gray-900/40">
+        {/* On the ground, not on a pale strip of its own. This bar is a
+            quarter of a phone screen, and painting it `bg-gray-50` put the
+            single largest pale block on the till directly under a navy
+            catalogue. Its plates stay light — money is still the brightest
+            thing on the screen, which is the rule the cart already follows. */}
+        <div className="grid shrink-0 grid-cols-1 gap-2 border-t border-white/10 bg-pos-ground p-2 md:grid-cols-3 lg:col-span-12 lg:grid-cols-4 lg:gap-2.5 lg:p-2.5 dark:border-gray-800 dark:bg-gray-900/40">
             {/* Eight figures used to carry identical weight, so "Charges
                 Rs 0" shouted as loudly as the subtotal and the eye had to
                 read all eight to find the two that moved. A zero is now

@@ -74,6 +74,20 @@ layer(base);
      thing on the till is the one place money is being counted. */
   --color-pos-card: #f2f4f7;
 
+  /* The product list's plate, and it is LIGHTER than the ground it sits on
+     (#212a45), not darker. A card darker than its background reads as a hole
+     punched in the surface; a card lighter than it reads as something resting
+     on top, which is what a product tile is. gray-900 — the console's ordinary
+     dark card — is darker than this ground, which is why the list could not
+     simply borrow it. */
+  --color-pos-plate: #2b3553;
+  --color-pos-plate-hover: #34405f;
+  /* The SELECTED row, solid. `bg-brand-500/15` over the plate is the same
+     colour to the eye and translucent to the guard — and the guard is right:
+     a tint has no findable edge, which is the whole reason these became plates
+     in the first place. This is that blend, computed and frozen. */
+  --color-pos-plate-active: #2f3b6d;
+
   --color-brand-25: #f2f7ff;
   --color-brand-50: #ecf3ff;
   --color-brand-100: #dde9ff;
