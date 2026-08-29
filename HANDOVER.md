@@ -290,7 +290,28 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
-### 2026-08-29 — Half the sync obeyed the button
+### 2026-08-29 — One device, one shop's shelf
+
+A pharmacy's till was showing a mart's products, and selling them. IndexedDB is
+scoped to the ORIGIN, so one browser used by two shops has one database; the
+outbox has always fenced that and the CATALOG never did. `clearCaches()` was
+written for "a till handed to a different shop" and was called by nothing.
+
+Fixed with a stamp checked at the moment of use (every pull, and sign-in),
+never a wipe on logout — logout is the one door people take deliberately.
+Durable stores are untouched; an unstamped database is claimed, not wiped.
+Proven on production with two demo shops, and the fix verified with the same
+spec. 1319 unit tests.
+
+Also this day: the shift queue never received the sale queue's force-on-press
+and stranded-visible fixes (`docs/decisions/shopos-half-the-sync.md`), and the
+stranded answer now stays on screen instead of expiring after 2.5s.
+
+Two of my own measurement bugs are recorded in the decision notes, because both
+produced confident wrong answers: a `hasText` locator cannot observe a label
+change, and `addInitScript` re-runs on every navigation.
+
+## 2026-08-29 — Half the sync obeyed the button
 
 A shop pressed Sync on a till reading "7 still to send" and the number never
 moved. **Checked the deployed bundle first**: `panel.cartze.shop` was serving
