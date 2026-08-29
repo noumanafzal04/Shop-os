@@ -16,7 +16,7 @@ import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowA
 import { useModal } from "../../../hooks/useModal";
 import StorageWarning from "../../offline/storage/StorageWarning";
 import { shiftBlocker } from "../../offline/storage/persist";
-import { syncLabel, useManualSync } from "../../offline/sync/useManualSync";
+import { syncDetail, syncLabel, useManualSync } from "../../offline/sync/useManualSync";
 import { runShadowCheck } from "../../offline/pricing/runShadowCheck";
 import { completeOffline, linesFromCatalog } from "../../offline/outbox/offlineCheckout";
 import { queueTally } from "../../offline/db/repo";
@@ -3276,7 +3276,16 @@ export default function PosPage() {
             }`}
             title={
               manualSync.state !== "idle"
-                ? syncLabel(manualSync.state, connected, manualSync.outcome)
+                ? // The reason, when there is one. A press that ends "7 still
+                  // to send" says nothing about WHY, and the two cases a shop
+                  // must tell apart — a bad line, and a server refusing the
+                  // rows — read identically without it.
+                  [
+                    syncLabel(manualSync.state, connected, manualSync.outcome),
+                    syncDetail(manualSync.state, manualSync.outcome),
+                  ]
+                    .filter((part): part is string => part !== null)
+                    .join(" — ")
                 : connected
                   ? "The till reached the server on its last request. Tap to sync now."
                   : offlineOwed > 0

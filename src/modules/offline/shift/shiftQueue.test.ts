@@ -8,6 +8,7 @@ import { STORE } from "../db/schema";
 import { mirroredShift } from "./shiftMirror";
 import { closeShiftOffline, openShiftOffline, recordMovementOffline } from "./offlineShift";
 import {
+  adoptStrandedShiftOps,
   dueShiftOps,
   enqueueShiftOp,
   markShiftOpFailed,
@@ -15,6 +16,7 @@ import {
   newShiftOp,
   owedShiftOps,
   SHIFT_OP_STATUS,
+  strandedShiftOps,
   type ShiftOpRow,
 } from "./shiftQueue";
 
@@ -170,5 +172,105 @@ describe("opening and closing with no server", () => {
     const queued = await dueShiftOps(["movement"], Date.now(), SHOP);
     expect(queued[0].sessionId).toBe(session.id);
     expect(queued[0].payload).toMatchObject({ type: "paid_out", amount: 500, reason: "Chai" });
+  });
+});
+
+
+/**
+ * THE HALF OF A RULE THAT WAS NEVER WRITTEN DOWN.
+ *
+ * The sale queue learned two things after a shop watched "7 still to send" for
+ * days: a press forces the backoff, and a row the fence is holding has to be
+ * VISIBLE. Both were implemented in `outbox.ts` and neither was carried across
+ * to this file — which the badge adds to the same total, so the symptom is
+ * identical and the cause is in the half nobody looked at.
+ */
+describe("a person pressed Sync", () => {
+  it("still waits out the backoff when nobody asked", async () => {
+    // The automatic sync must keep its ladder: a till back from two days away
+    // must not re-send its whole queue in its first minute.
+    const waiting = op("close", {
+      op: "waiting",
+      nextAttemptAt: new Date(Date.now() + 600_000).toISOString(),
+    });
+    await enqueueShiftOp(waiting);
+
+    expect(await dueShiftOps(["close"], Date.now(), SHOP)).toEqual([]);
+  });
+
+  it("sends a drawer event that is still sitting out its ten minutes", async () => {
+    // THE BUG. The sale queue forced; this one did not. A till holding only
+    // shift events answered every press by doing nothing whatsoever, while the
+    // badge — which counts both queues — went on reading seven.
+    const waiting = op("close", {
+      op: "waiting",
+      nextAttemptAt: new Date(Date.now() + 600_000).toISOString(),
+    });
+    await enqueueShiftOp(waiting);
+
+    const forced = await dueShiftOps(["close"], Date.now(), SHOP, true);
+    expect(forced.map((r) => r.op)).toEqual(["waiting"]);
+  });
+
+  it("does not let a forced press jump the fence", async () => {
+    // Forcing is about the CLOCK, never about whose shop it is. A press must
+    // not post another business's drawer count under this shop's token.
+    await enqueueShiftOp(op("close", { op: "theirs", tenantId: "shop-b", nextAttemptAt: null }));
+
+    expect(await dueShiftOps(["close"], Date.now(), SHOP, true)).toEqual([]);
+  });
+});
+
+describe("drawer events the fence is holding", () => {
+  it("names a row that belongs to another shop", async () => {
+    await enqueueShiftOp(op("close", { op: "theirs", tenantId: "shop-b" }));
+
+    const stuck = await strandedShiftOps(SHOP);
+    expect(stuck.map((r) => r.op)).toEqual(["theirs"]);
+  });
+
+  it("names a row that belongs to no shop at all", async () => {
+    // The auth store had not hydrated when the drawer was counted. Ours, not
+    // the shopkeeper's.
+    await enqueueShiftOp(op("close", { op: "orphan", tenantId: null }));
+
+    expect((await strandedShiftOps(SHOP)).map((r) => r.op)).toEqual(["orphan"]);
+  });
+
+  it("is counted by the badge and never offered to the flush", async () => {
+    // All three numbers agreeing that one is waiting, and — before this — no
+    // screen anywhere able to say why it never moves.
+    await enqueueShiftOp(op("close", { op: "orphan", tenantId: null }));
+
+    expect(await owedShiftOps()).toBe(1);
+    expect(await dueShiftOps(["close"], Date.now(), SHOP)).toEqual([]);
+    expect(await dueShiftOps(["close"], Date.now(), SHOP, true)).toEqual([]);
+    expect(await strandedShiftOps(SHOP)).toHaveLength(1);
+  });
+
+  it("says nothing about a row that is already finished", async () => {
+    const done = op("close", { op: "done", tenantId: null, status: SHIFT_OP_STATUS.ACKED });
+    await enqueueShiftOp(done);
+
+    expect(await strandedShiftOps(SHOP)).toEqual([]);
+  });
+
+  it("adopts the orphan and leaves the other shop's alone", async () => {
+    await enqueueShiftOp(op("close", { op: "orphan", tenantId: null }));
+    await enqueueShiftOp(op("close", { op: "theirs", tenantId: "shop-b" }));
+
+    expect(await adoptStrandedShiftOps(SHOP)).toBe(1);
+
+    // The adopted one can now go…
+    expect((await dueShiftOps(["close"], Date.now(), SHOP)).map((r) => r.op)).toEqual(["orphan"]);
+    // …and the one the fence exists for is untouched. No button moves one
+    // business's drawer count into another's books.
+    expect((await strandedShiftOps(SHOP)).map((r) => r.op)).toEqual(["theirs"]);
+  });
+
+  it("adopts nothing when the till does not know its own shop", async () => {
+    await enqueueShiftOp(op("close", { op: "orphan", tenantId: null }));
+
+    expect(await adoptStrandedShiftOps(null)).toBe(0);
   });
 });

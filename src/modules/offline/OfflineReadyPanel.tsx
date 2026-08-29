@@ -6,6 +6,11 @@ import { useConfirm } from "../../components/ui/confirm";
 import { useToast } from "../../components/ui/toast";
 import { useAuthStore } from "../../stores/authStore";
 import { adoptStranded, strandedReason, strandedRows, type OutboxRow } from "./outbox/outbox";
+import {
+  adoptStrandedShiftOps,
+  strandedShiftOps,
+  type ShiftOpRow,
+} from "./shift/shiftQueue";
 import { readinessLabel, readOfflineReadiness, type OfflineReadiness } from "./readiness";
 import { pullNow } from "./sync/pullNow";
 
@@ -31,6 +36,9 @@ export default function OfflineReadyPanel() {
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
   const [stuck, setStuck] = useState<OutboxRow[]>([]);
+  // The OTHER queue. A drawer event is held by the same fence for the same
+  // reason, is counted by the same badge, and had no screen of its own.
+  const [stuckShifts, setStuckShifts] = useState<ShiftOpRow[]>([]);
   const confirm = useConfirm();
   const toast = useToast();
   const tenantId = useAuthStore((auth) => auth.user?.tenant?.id ?? null);
@@ -38,6 +46,7 @@ export default function OfflineReadyPanel() {
   const refresh = useCallback(() => {
     void readOfflineReadiness().then(setState, () => setState(null));
     void strandedRows(tenantId).then(setStuck, () => setStuck([]));
+    void strandedShiftOps(tenantId).then(setStuckShifts, () => setStuckShifts([]));
   }, [tenantId]);
 
   useEffect(refresh, [refresh]);
@@ -57,6 +66,24 @@ export default function OfflineReadyPanel() {
   };
 
   const ready = state?.ready === true;
+
+  // Said as two nouns rather than one total, because "4 items are stuck" tells
+  // a shopkeeper nothing about whether to go looking for money or for a drawer
+  // count. The two queues hold different kinds of work and are chased
+  // differently.
+  const held = stuck.length + stuckShifts.length;
+  const orphans =
+    stuck.filter((r) => r.tenantId == null).length
+    + stuckShifts.filter((r) => r.tenantId == null).length;
+  const heldLabel = [
+    stuck.length > 0 ? `${stuck.length} ${stuck.length === 1 ? "sale" : "sales"}` : null,
+    stuckShifts.length > 0
+      ? `${stuckShifts.length} drawer ${stuckShifts.length === 1 ? "event" : "events"}`
+      : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" and ")
+    + (held === 1 ? " is" : " are");
 
   return (
     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
@@ -95,23 +122,22 @@ export default function OfflineReadyPanel() {
           is right to hold them; what was wrong is that nothing ever said so.
           A shop watched "7 still to send" for days while every press of Sync
           did exactly nothing, correctly and silently. */}
-      {stuck.length > 0 && (
+      {held > 0 && (
         <div className="mt-3 rounded-lg border border-warning-300 bg-warning-50 p-3 dark:border-warning-500/40 dark:bg-warning-500/10">
           <p className="text-theme-sm font-medium text-warning-700 dark:text-warning-400">
-            {stuck.length} {stuck.length === 1 ? "sale is" : "sales are"} stuck on this device
+            {heldLabel} stuck on this device
           </p>
           <p className="mt-1 text-theme-xs leading-relaxed text-warning-700/80 dark:text-warning-400/80">
-            {strandedReason(stuck[0])} Syncing will not move {stuck.length === 1 ? "it" : "them"}.
+            {strandedReason(stuck[0] ?? stuckShifts[0])} Syncing will not move {held === 1 ? "it" : "them"}.
           </p>
-          {stuck.some((r) => r.tenantId == null) && (
+          {orphans > 0 && (
             <Button
               size="sm"
               variant="outline"
               className="mt-3"
               onClick={async () => {
-                const orphans = stuck.filter((r) => r.tenantId == null).length;
                 const ok = await confirm({
-                  title: `File ${orphans} ${orphans === 1 ? "sale" : "sales"} under this shop?`,
+                  title: `File ${orphans} ${orphans === 1 ? "item" : "items"} under this shop?`,
                   message:
                     "These were rung on this device but saved without recording which shop they belong to. "
                     + "Only do this if this device has always been used by this shop — the till cannot know, "
@@ -119,8 +145,10 @@ export default function OfflineReadyPanel() {
                   confirmLabel: "File them here",
                 });
                 if (!ok) return;
-                const moved = await adoptStranded(tenantId);
-                toast.success(`${moved} ${moved === 1 ? "sale" : "sales"} released — press Save to send them.`);
+                // Both queues, or a shop adopts its sales and stays stuck on a
+                // drawer event it was never shown.
+                const moved = (await adoptStranded(tenantId)) + (await adoptStrandedShiftOps(tenantId));
+                toast.success(`${moved} ${moved === 1 ? "item" : "items"} released — press Save to send them.`);
                 refresh();
               }}
             >

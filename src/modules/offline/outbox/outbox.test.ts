@@ -400,3 +400,57 @@ describe("a row nobody stamped is money nobody can send", () => {
     expect(stranded.map((r) => r.op).sort()).toEqual(["theirs", "unstamped"]);
   });
 });
+
+
+/**
+ * THE OTHER QUEUE, WHICH THE BADGE HAS ALWAYS COUNTED.
+ *
+ * `queueSummary.waiting` is `pendingCount()` — sales AND drawer events — while
+ * its `stranded` figure asked only the sale queue. So a till holding one
+ * orphaned shift event read "1 still to send", for ever: counted by the badge,
+ * withheld by the shift queue's fence, and missing from the single number whose
+ * entire job is to explain why nothing moves.
+ */
+describe("the summary covers both queues or it explains nothing", () => {
+  it("counts a stranded drawer event, not just a stranded sale", async () => {
+    const { enqueueShiftOp, newShiftOp } = await import("../shift/shiftQueue");
+    await enqueueShiftOp(
+      newShiftOp("orphan-close", "close", "2026-08-16T18:00:00Z", "sess-1", {}, null),
+    );
+
+    const summary = await queueSummary(SHOP);
+
+    // The badge sees it…
+    expect(summary.waiting).toBe(1);
+    // …and now so does the reason.
+    expect(summary.stranded).toBe(1);
+  });
+
+  it("adds the two together rather than reporting whichever it looked at", async () => {
+    const { enqueueShiftOp, newShiftOp } = await import("../shift/shiftQueue");
+    await enqueue(row("orphan-sale", { tenantId: null }));
+    await enqueueShiftOp(
+      newShiftOp("orphan-close", "close", "2026-08-16T18:00:00Z", "sess-1", {}, null),
+    );
+
+    const summary = await queueSummary(SHOP);
+
+    expect(summary.waiting).toBe(2);
+    expect(summary.stranded).toBe(2);
+  });
+
+  it("leaves a healthy queue alone", async () => {
+    // The denominator. Both assertions above pass against a function that
+    // simply always says "stranded" — this is what tells them apart.
+    const { enqueueShiftOp, newShiftOp } = await import("../shift/shiftQueue");
+    await enqueue(row("mine"));
+    await enqueueShiftOp(
+      newShiftOp("my-close", "close", "2026-08-16T18:00:00Z", "sess-1", {}, SHOP),
+    );
+
+    const summary = await queueSummary(SHOP);
+
+    expect(summary.waiting).toBe(2);
+    expect(summary.stranded).toBe(0);
+  });
+});

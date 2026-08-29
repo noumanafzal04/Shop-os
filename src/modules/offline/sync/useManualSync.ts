@@ -34,9 +34,9 @@ export type SyncPress = "idle" | "working" | "done" | "failed" | "stuck";
 
 /** What the press actually achieved, in the only terms a shop cares about. */
 export interface SyncOutcome {
-  /** Sales that reached the server on this press. */
+  /** Sales AND drawer events that reached the server on this press. */
   sent: number;
-  /** Sales this till is still holding afterwards. */
+  /** Sales and drawer events this till is still holding afterwards. */
   waiting: number;
   /** Sales the shop refused — pressing again will not move these. */
   refused: number;
@@ -102,7 +102,11 @@ export function useManualSync(): { state: SyncPress; sync: () => void; outcome: 
         }));
 
         setOutcome({
-          sent: result.flushed.acked,
+          // BOTH QUEUES. `waiting` below is sales + drawer events, so `sent`
+          // has to be too — otherwise a press that sent four shift events and
+          // no sales reported "0 sent" while the waiting figure dropped by
+          // four, and the two halves of one sentence disagreed.
+          sent: result.flushed.acked + result.shifts.acked,
           waiting: queue.waiting,
           refused: queue.failed,
           stranded: queue.stranded,
@@ -165,6 +169,30 @@ export function syncLabel(state: SyncPress, connected: boolean, outcome?: SyncOu
     default:
       return "Sync now";
   }
+}
+
+/**
+ * The sentence under the label — what the server or the line actually said.
+ *
+ * `queueSummary` has captured `lastError` since it was written, and nothing has
+ * ever displayed it. That left the two cases a shopkeeper most needs to tell
+ * apart looking identical: a queue held up by a bad connection, and a queue the
+ * server is REFUSING. Both read "7 still to send", both survive any number of
+ * presses, and only one of them is worth waiting out.
+ *
+ * A count with no reason beside it is what sends somebody to a phone call.
+ */
+export function syncDetail(state: SyncPress, outcome?: SyncOutcome | null): string | null {
+  if (state !== "stuck" || !outcome) return null;
+
+  if (outcome.stranded > 0) {
+    // Never "try again" — pressing cannot move these, and saying so is the
+    // whole point. The recovery lives in Settings, so the sentence points there.
+    return "These name a different shop, or none at all, so the till will not send them. "
+      + "Open Settings → Shop → Offline to see them.";
+  }
+
+  return outcome.reason ?? null;
 }
 
 /*

@@ -72,10 +72,12 @@ function wire(row: ShiftOpRow): Record<string, unknown> {
 export async function flushShifts(
   kinds: readonly ShiftOpKind[],
   tenantId: string | null = null,
+  /** A person pressed Sync. See the note on `dueShiftOps`. */
+  force = false,
 ): Promise<ShiftFlushResult> {
   const result: ShiftFlushResult = { sent: 0, acked: 0, failed: 0 };
 
-  const due = await dueShiftOps(kinds, Date.now(), tenantId);
+  const due = await dueShiftOps(kinds, Date.now(), tenantId, force);
   const batch = due.slice(0, SHIFT_BATCH);
   if (batch.length === 0) return result;
 

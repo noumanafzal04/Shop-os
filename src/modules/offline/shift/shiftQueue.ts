@@ -1,4 +1,4 @@
-import { getAllByIndex, put } from "../db/repo";
+import { getAll, getAllByIndex, put } from "../db/repo";
 import { STORE } from "../db/schema";
 
 /**
@@ -90,6 +90,11 @@ export async function enqueueShiftOp(row: ShiftOpRow): Promise<void> {
   await put(STORE.SHIFT_QUEUE, row);
 }
 
+/** Every shift event this device holds, whatever its status or its shop. */
+export async function allShiftOps(): Promise<ShiftOpRow[]> {
+  return getAll<ShiftOpRow>(STORE.SHIFT_QUEUE);
+}
+
 /**
  * What is owed, in the order it happened, for the shop that is signed in.
  *
@@ -106,6 +111,18 @@ export async function dueShiftOps(
   kinds: readonly ShiftOpKind[],
   now: number = Date.now(),
   tenantId: string | null = null,
+  /**
+   * A PERSON PRESSED SYNC, so the backoff does not apply — the same rule the
+   * sale queue already had, and the half of it that was never written.
+   *
+   * `dueRows` learned this when a cashier who watched four sales fail pressed
+   * "Sync now" and was told "Up to date". The shift queue climbs the SAME
+   * ladder, capped at the same ten minutes, and kept the old behaviour: a
+   * press forced the sales and left the drawer events waiting. A till holding
+   * only shift events answered every press by doing nothing at all, while the
+   * badge — which counts both queues — went on reading seven.
+   */
+  force = false,
 ): Promise<ShiftOpRow[]> {
   if (tenantId === null) return [];
 
@@ -118,8 +135,48 @@ export async function dueShiftOps(
   return pending
     .filter((r) => kinds.includes(r.kind))
     .filter((r) => r.tenantId === tenantId)
-    .filter((r) => r.nextAttemptAt === null || Date.parse(r.nextAttemptAt) <= now)
+    .filter((r) => force || r.nextAttemptAt === null || Date.parse(r.nextAttemptAt) <= now)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * SHIFT EVENTS THIS TILL IS HOLDING THAT NO AMOUNT OF SYNCING WILL SEND.
+ *
+ * The sale queue grew this reader after a shop watched "7 still to send" for
+ * days while the fence did exactly what it was designed to do, silently. The
+ * shift queue has the identical fence — `dueShiftOps` returns nothing at all
+ * for an unknown tenant, and skips any row naming another shop — and nothing
+ * ever read the rows it holds.
+ *
+ * That gap is worse here than it was there, because `owedShiftOps` counts
+ * every pending row REGARDLESS of tenant. So a single orphaned drawer event
+ * was added to the badge, withheld from the flush, and left out of the
+ * stranded count that exists to explain exactly this — three numbers agreeing
+ * that seven were waiting, and no screen anywhere able to say why none moved.
+ */
+export async function strandedShiftOps(tenantId: string | null): Promise<ShiftOpRow[]> {
+  const rows = await allShiftOps();
+  const finished: string[] = [SHIFT_OP_STATUS.ACKED, SHIFT_OP_STATUS.FAILED];
+
+  return rows.filter((r) => !finished.includes(r.status) && r.tenantId !== tenantId);
+}
+
+/**
+ * Adopting the drawer events this device rang before it knew its own shop.
+ *
+ * Deliberately as narrow as the sale queue's: ONLY rows naming no shop at all,
+ * which is a bug of ours and not anything a shopkeeper did. A row naming a
+ * DIFFERENT shop is never touched — that is the case the fence exists for.
+ */
+export async function adoptStrandedShiftOps(tenantId: string | null): Promise<number> {
+  if (tenantId === null) return 0;
+
+  const orphans = (await strandedShiftOps(tenantId)).filter((r) => r.tenantId == null);
+  for (const row of orphans) {
+    await put(STORE.SHIFT_QUEUE, { ...row, tenantId, nextAttemptAt: null });
+  }
+
+  return orphans.length;
 }
 
 export async function markShiftOpsSending(rows: readonly ShiftOpRow[]): Promise<void> {

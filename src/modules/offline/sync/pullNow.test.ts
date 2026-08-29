@@ -11,6 +11,7 @@ import { isPulling, pullNow } from "./pullNow";
 import { deviceService } from "../device/deviceService";
 import { resetTouchClock } from "../device/touch";
 import * as variances from "../pricing/varianceService";
+import * as shifts from "../shift/flushShifts";
 
 /**
  * Fetching everything the server has, and stopping.
@@ -323,5 +324,65 @@ describe("saying the till is still here", () => {
     await expect(pullNow()).resolves.toBeTruthy();
 
     expect(await count(STORE.CATALOG)).toBe(1);
+  });
+});
+
+
+/**
+ * A PRESS REACHES BOTH QUEUES.
+ *
+ * `pullNow({ force: true })` exists because the backoff caps at ten minutes and
+ * a person standing at the till is not a poll. It forced the sale queue and
+ * quietly did not force the other one, so a shop whose queue was drawer events
+ * pressed Sync and moved nothing at all — the flush found nothing DUE, sent
+ * nothing, and every number stayed where it was.
+ */
+describe("what a forced press reaches", () => {
+  const quiet = () => {
+    vi.spyOn(catalogService, "bootstrap").mockResolvedValue(envelope(pull([], "c1")));
+    vi.spyOn(catalogService, "delta").mockResolvedValue(envelope(pull([], "c1")));
+    vi.spyOn(variances, "flushVariances").mockResolvedValue({ sent: 0, failed: 0 } as never);
+  };
+
+  it("forces the shift queue too, not only the sales", async () => {
+    quiet();
+    const flush = vi
+      .spyOn(shifts, "flushShifts")
+      .mockResolvedValue({ sent: 0, acked: 0, failed: 0 });
+
+    await pullNow({ force: true });
+
+    expect(flush).toHaveBeenCalled();
+    // Every call — opens on the way in, movements and closes on the way out.
+    for (const call of flush.mock.calls) {
+      expect(call[2], "a forced press left this call waiting out its backoff").toBe(true);
+    }
+  });
+
+  it("leaves the automatic sync on its ladder", async () => {
+    // The denominator, and the behaviour that must not regress: a till back
+    // from two days away must not re-send its whole queue in its first minute.
+    quiet();
+    const flush = vi
+      .spyOn(shifts, "flushShifts")
+      .mockResolvedValue({ sent: 0, acked: 0, failed: 0 });
+
+    await pullNow();
+
+    expect(flush).toHaveBeenCalled();
+    for (const call of flush.mock.calls) {
+      expect(call[2]).toBe(false);
+    }
+  });
+
+  it("reports what the shift queue managed, so the press can be honest", async () => {
+    quiet();
+    vi.spyOn(shifts, "flushShifts").mockResolvedValue({ sent: 2, acked: 2, failed: 0 });
+
+    const result = await pullNow({ force: true });
+
+    // Both calls, added — otherwise a press that sent an open and a close
+    // reports half of what it did.
+    expect(result.shifts.acked).toBe(4);
   });
 });

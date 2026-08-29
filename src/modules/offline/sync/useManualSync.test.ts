@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { act } from "react";
 
-import { ANSWER_MS, syncLabel, type SyncPress } from "./useManualSync";
+import { ANSWER_MS, syncDetail, syncLabel, useManualSync, type SyncPress } from "./useManualSync";
+import * as outbox from "../outbox/outbox";
+import * as puller from "./pullNow";
+import { useAuthStore } from "../../../stores/authStore";
 
 /**
  * A person pressed a button and is owed an answer.
@@ -107,4 +112,118 @@ describe("a press reports the QUEUE, not the pull", () => {
     expect(syncLabel("stuck", true, outcome(7, 0, 0))).toBe("7 still to send");
   });
 
+});
+
+
+/**
+ * WHAT THE PRESS ACTUALLY COUNTED.
+ *
+ * `syncLabel` above is a pure function and was thoroughly tested; the hook that
+ * feeds it was not, and that is where the two real numbers are assembled. A
+ * till holding seven drawer events read "7 still to send" through press after
+ * press, because `sent` came off the sale queue alone and `stranded` was asked
+ * of the sale queue alone — both true statements about half a till.
+ */
+describe("the two numbers under the button", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    useAuthStore.setState({ user: { tenant: { id: "shop-a" } } } as never);
+  });
+
+  const pullResolving = (flushedAcked: number, shiftAcked: number) =>
+    vi.spyOn(puller, "pullNow").mockResolvedValue({
+      applied: {} as never,
+      rounds: 1,
+      truncated: false,
+      flushed: { sent: flushedAcked, acked: flushedAcked, failed: 0, skipped: false },
+      shifts: { sent: shiftAcked, acked: shiftAcked, failed: 0 },
+    });
+
+  it("counts drawer events as sent, not only sales", async () => {
+    pullResolving(0, 4);
+    vi.spyOn(outbox, "queueSummary").mockResolvedValue({
+      waiting: 0, failed: 0, stranded: 0, lastError: null,
+    });
+
+    const { result } = renderHook(() => useManualSync());
+    act(() => result.current.sync());
+
+    await waitFor(() => expect(result.current.outcome).not.toBeNull());
+    // THE BUG: this was 0 while `waiting` had just dropped by four, so one
+    // sentence on one bar contradicted itself while the sync was working.
+    expect(result.current.outcome?.sent).toBe(4);
+  });
+
+  it("says STUCK rather than 'still to send' when the fence is the reason", async () => {
+    pullResolving(0, 0);
+    vi.spyOn(outbox, "queueSummary").mockResolvedValue({
+      waiting: 7, failed: 0, stranded: 7, lastError: null,
+    });
+
+    const { result } = renderHook(() => useManualSync());
+    act(() => result.current.sync());
+
+    await waitFor(() => expect(result.current.state).toBe("stuck"));
+    expect(syncLabel("stuck", true, result.current.outcome)).toBe("7 stuck — needs attention");
+  });
+
+  it("still says 'still to send' for the ordinary bad line", async () => {
+    // The denominator. Without this the test above passes against a control
+    // that has simply started calling everything stuck.
+    pullResolving(0, 0);
+    vi.spyOn(outbox, "queueSummary").mockResolvedValue({
+      waiting: 7, failed: 0, stranded: 0, lastError: "Could not reach the server",
+    });
+
+    const { result } = renderHook(() => useManualSync());
+    act(() => result.current.sync());
+
+    await waitFor(() => expect(result.current.state).toBe("stuck"));
+    expect(syncLabel("stuck", true, result.current.outcome)).toBe("7 still to send");
+  });
+
+  it("says up to date only when the till is holding nothing", async () => {
+    pullResolving(3, 1);
+    vi.spyOn(outbox, "queueSummary").mockResolvedValue({
+      waiting: 0, failed: 0, stranded: 0, lastError: null,
+    });
+
+    const { result } = renderHook(() => useManualSync());
+    act(() => result.current.sync());
+
+    await waitFor(() => expect(result.current.state).toBe("done"));
+    expect(result.current.outcome?.sent).toBe(4);
+  });
+});
+
+
+/** A count with no reason beside it is what sends somebody to a phone call. */
+describe("why it is stuck", () => {
+  const outcome = (over = {}) => ({
+    sent: 0, waiting: 7, refused: 0, stranded: 0, reason: null, ...over,
+  });
+
+  it("says nothing at all while the press is going well", () => {
+    expect(syncDetail("working", outcome())).toBeNull();
+    expect(syncDetail("done", outcome({ waiting: 0 }))).toBeNull();
+  });
+
+  it("repeats what the server or the line actually said", () => {
+    expect(syncDetail("stuck", outcome({ reason: "Could not reach the server" })))
+      .toBe("Could not reach the server");
+  });
+
+  it("does not tell anybody to keep pressing when the fence is holding them", () => {
+    // The one case where "try again" is actively wrong: no number of presses
+    // moves these, and the recovery is on another screen.
+    const detail = syncDetail("stuck", outcome({ stranded: 7, reason: "Could not reach the server" }));
+
+    expect(detail).toContain("will not send them");
+    expect(detail).toContain("Settings");
+    expect(detail).not.toContain("Could not reach the server");
+  });
+
+  it("has nothing to add when the till was told nothing", () => {
+    expect(syncDetail("stuck", outcome())).toBeNull();
+  });
 });

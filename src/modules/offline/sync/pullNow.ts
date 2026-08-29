@@ -3,7 +3,7 @@ import { catalogService, PROJECTIONS, type Projection } from "./catalogService";
 import { flushVariances } from "../pricing/varianceService";
 import { touchIfDue } from "../device/touch";
 import { flushOutbox, type FlushResult } from "../outbox/flush";
-import { flushShifts } from "../shift/flushShifts";
+import { flushShifts, type ShiftFlushResult } from "../shift/flushShifts";
 import { useAuthStore } from "../../../stores/authStore";
 import { useOfflineStore } from "../offlineStore";
 
@@ -31,7 +31,19 @@ export interface PullResult {
   truncated: boolean;
   /** What happened to the QUEUE on the way in. See the note on the flush. */
   flushed: FlushResult;
+  /**
+   * And what happened to the OTHER queue — the drawer events.
+   *
+   * Kept apart from `flushed` because they are two stores with two flushes,
+   * and reported at all because the till badge adds them together. A press
+   * that sent four shift events and no sales used to answer "0 sent, 4 still
+   * waiting" on its way to sending them, which is a screen arguing with
+   * itself while it works.
+   */
+  shifts: ShiftFlushResult;
 }
+
+const NO_SHIFTS: ShiftFlushResult = { sent: 0, acked: 0, failed: 0 };
 
 /**
  * Only one pull at a time, per tab.
@@ -95,7 +107,7 @@ async function run(force = false): Promise<PullResult> {
   //
   // It cannot fail the rest: a till must not stop sending money because its
   // shift would not go, and the queue keeps everything it could not send.
-  await flushShifts(["open"], tenantId).catch(() => ({}));
+  const opened = await flushShifts(["open"], tenantId, force).catch(() => NO_SHIFTS);
 
   const flushed = await flushOutbox(tenantId, (sent, total) => {
     // Nothing owed is not a sync worth narrating. Announcing "Sending 0 of 0"
@@ -114,7 +126,12 @@ async function run(force = false): Promise<PullResult> {
   // variance the exact size of the day's takings — sending a shop looking all
   // evening for money that never moved. Drawer movements ride with it: they
   // only have to follow their own open.
-  await flushShifts(["movement", "close"], tenantId).catch(() => ({}));
+  const counted = await flushShifts(["movement", "close"], tenantId, force).catch(() => NO_SHIFTS);
+  const shifts: ShiftFlushResult = {
+    sent: opened.sent + counted.sent,
+    acked: opened.acked + counted.acked,
+    failed: opened.failed + counted.failed,
+  };
 
   const applied = Object.fromEntries(PROJECTIONS.map((p) => [p, 0])) as Record<Projection, number>;
   let rounds = 0;
@@ -169,5 +186,5 @@ async function run(force = false): Promise<PullResult> {
   // denominator.
   await touchIfDue(Date.now(), { force: variances.sent > 0 });
 
-  return { applied, rounds, truncated, flushed };
+  return { applied, rounds, truncated, flushed, shifts };
 }

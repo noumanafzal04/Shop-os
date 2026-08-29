@@ -228,17 +228,27 @@ export async function queueSummary(tenantId: string | null = null): Promise<{
   lastError: string | null;
 }> {
   const { pendingCount } = await import("../db/repo");
-  const [waiting, failed, rows, stranded] = await Promise.all([
+  // BOTH QUEUES, because the badge counts both.
+  //
+  // `pendingCount` is sales + shift events, and the first version of this asked
+  // only the sale queue for its stranded figure. A till holding one orphaned
+  // drawer event therefore read "1 still to send" for ever: counted by the
+  // badge, withheld by the shift queue's own fence, and absent from the one
+  // number whose whole job is to say why nothing moves. Exactly the bug this
+  // function was written to end, surviving in the half nobody looked at.
+  const { strandedShiftOps } = await import("../shift/shiftQueue");
+  const [waiting, failed, rows, stranded, strandedShifts] = await Promise.all([
     pendingCount(),
     refusedCount(),
     allRows(),
     strandedRows(tenantId),
+    strandedShiftOps(tenantId),
   ]);
 
   return {
     waiting,
     failed,
-    stranded: stranded.length,
+    stranded: stranded.length + strandedShifts.length,
     // The most recent thing the server or the link actually said. A count with
     // no reason beside it is what sends a shopkeeper to a phone call.
     lastError: rows.map((r) => r.error).find((e) => e !== null) ?? null,
@@ -324,11 +334,17 @@ export async function adoptStranded(tenantId: string | null): Promise<number> {
   return orphans.length;
 }
 
-/** Why this row is going nowhere, in words a shopkeeper can act on. */
-export function strandedReason(row: OutboxRow): string {
+/**
+ * Why this row is going nowhere, in words a shopkeeper can act on.
+ *
+ * Takes the shop stamp rather than a whole outbox row, because the shift queue
+ * is held by the identical fence for the identical reason and a second copy of
+ * this sentence would drift from the first.
+ */
+export function strandedReason(row: { tenantId: string | null }): string {
   return row.tenantId == null
-    ? "This sale was saved without recording which shop it belongs to, so the till will not guess."
-    : "This sale belongs to a different shop that was signed in on this device.";
+    ? "This was saved without recording which shop it belongs to, so the till will not guess."
+    : "This belongs to a different shop that was signed in on this device.";
 }
 
 /**

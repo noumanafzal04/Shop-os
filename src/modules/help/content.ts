@@ -1458,6 +1458,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       },
       { type: "p", text: "Do it once per device. A counter tablet and an office laptop each keep their own copy, so being ready on one says nothing about the other." },
       { type: "note", text: "It also tells you if no barcodes were saved. A till can always be searched by name; scanning only works offline once the codes are on the device, and those are two different situations worth telling apart before a queue forms." },
+      { type: "p", text: "The same panel is where anything STUCK shows up. If the badge on the till keeps showing the same number no matter how often you press it, this is the screen that says why — it names the sales and drawer events the device is holding back, and how many. A device that was signed into another shop, or one that rang a sale before it had finished signing in, is the usual cause." },
+      { type: "note", text: "Where those were rung on this device by this shop, there is a button to file them here and release them. Anything belonging to a genuinely different shop is never moved by it — that is the one thing the till will not guess at, because it would put one business's takings in another's books." },
       { type: "p", text: "You do not have to do any of this for it to work — the till copies your products down on its own, on opening, on reconnecting and every fifteen minutes. The button is there so you can CHECK, and so you can top a device up deliberately before a day you expect trouble." },
 
       { type: "h", text: "Your tills" },
@@ -1487,12 +1489,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "note", text: "There is a refresh button in the header, next to the bell, if you would rather ask now than wait for the hourly check — somebody has told you the new prices are live, say. It answers straight: a new version is ready, you are already on the latest, or there is no connection to check with. Pressing 'Later' on the strip is safe too: the update waits, and that header button is where you go back to it." },
 
       { type: "h", text: "Sending what the till is holding" },
-      { type: "p", text: "The badge in the till's top bar is also a button. It says how many sales are still on the device, and pressing it tries to send them straight away rather than waiting for the next automatic attempt." },
+      { type: "p", text: "The badge in the till's top bar is also a button. It says how much this device is still holding — sales and drawer events both, because an unsent shift close is work owed to the server exactly as a sale is — and pressing it tries to send everything straight away rather than waiting for the next automatic attempt." },
       { type: "keys", items: [
         ["Up to date", "The queue is empty. Everything this device was holding has reached the server."],
         ["4 still to send", "It tried, and four are still here. The connection is the usual reason — nothing is lost, and it keeps trying on its own."],
         ["3 refused", "The shop would not accept these, and pressing again will not change that. Open the offline report to see why."],
+        ["7 stuck — needs attention", "These name a different shop, or no shop at all, so the till will not send them and pressing again cannot help. Go to Settings → Shop → Offline, where they are listed with what to do."],
       ]},
+      { type: "note", text: "Hold your finger on the badge (or hover it) after a press and it will tell you what the server or the connection actually said. A queue held up by a bad line and a queue the server is refusing both count the same on the badge, and only one of them is worth waiting out." },
       { type: "note", text: "A sale that is still queued has not been lost. It lives on the device until the server has it, survives a reload and a browser restart, and the customer's slip carries an OFF- number you can look up once it lands." },
 
       { type: "h", text: "Selling when the internet is down" },
