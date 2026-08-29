@@ -42,6 +42,24 @@ class Api:
         # reporting "refused — is the seeder run?" with no status hid the real
         # answer behind a guess about the seeder, and cost a run to find out.
         self.last_login_error: tuple[int, str] | None = None
+        # ── THE HARNESS CANNOT ASK, SO IT MAY NOT ANSWER ────────────────
+        #
+        # `call()` already knows the difference between "the server refused"
+        # and "we never got to ask", and says so in a status no route returns.
+        # It then handed that 0 back to a phase which read the empty body and
+        # filed a PRODUCT BUG — 325 `rep.bug` calls across 21 phases and not
+        # one of them looks at the status first.
+        #
+        # Seen for real: a throttled sign-in (`throttle:auth` is 5/min and this
+        # sweep drives ~100 identities) produced
+        #     BUG A  at least one plan exists — no plan means no tenant can be created
+        # against a database holding four active plans. The whole run stopped on
+        # a defect that did not exist.
+        #
+        # So the Api carries whether it is currently BLIND. Set the moment a
+        # call cannot be made, cleared by the next call that gets a real HTTP
+        # status back. `Report.bug` refuses to file while it is set.
+        self.blind: str | None = None
         self._cache: dict = {}
         if TOKENS.exists():
             try:
@@ -87,6 +105,7 @@ class Api:
         if use is None and token is not NOBODY:
             self.calls.append({"method": method, "path": path, "status": 0,
                                "error": "no credentials"})
+            self.blind = f"no token for {method} {path} — the sign-in failed"
             return 0, {
                 "message": "HARNESS: no token — the sign-in failed and this "
                            "call was about to run as nobody",
@@ -108,7 +127,14 @@ class Api:
             status, raw, self.headers = e.code, e.read(), dict(e.headers)
         except Exception as e:  # connection refused, timeout
             self.calls.append({"method": method, "path": path, "status": 0, "error": str(e)})
+            self.blind = f"{method} {path} never reached the server — {e}"
             return 0, {"message": str(e)}
+
+        # THE SERVER ANSWERED, so the harness can see again — including a 4xx,
+        # which is an answer ABOUT THE PRODUCT and one many checks are asserting
+        # on. Only reaching this line lifts it; the two sentinel returns above
+        # never do.
+        self.blind = None
 
         try:
             payload = json.loads(raw or b"{}")
@@ -163,7 +189,7 @@ class Api:
 
             self.calls.append({"method": method, "path": path, "status": 0,
                                "error": "credential expired"})
-
+            self.blind = f"token expired during {method} {path} and would not renew"
             return 0, {
                 "message": "HARNESS: the token expired mid-run and could not be "
                            "renewed — this is not an answer about the product",
@@ -261,11 +287,47 @@ class Report:
       BUG    a definite defect, reproducible from the recorded call
     """
 
-    def __init__(self) -> None:
+    def __init__(self, api: "Api | None" = None, quiet: bool = False) -> None:
         self.rows: list[tuple[str, str, str, str]] = []
+        # The preflight in `harness_test` files a deliberate bug to prove real
+        # ones still get through. Printed, it lands in the run's console above
+        # phase A looking exactly like a finding — which is the confusion this
+        # whole change exists to remove.
+        self.quiet = quiet
+        # The Api, so a verdict can be refused when it was never earned. See
+        # `_add`. Optional because `mutate.py` builds a Report on its own.
+        self.api = api
+        self.blinded = 0
 
     def _add(self, level, phase, what, detail=""):
+        # ── A FINDING NEEDS AN ANSWER BEHIND IT ─────────────────────────
+        #
+        # `Api.call` distinguishes "the server refused" from "we never got to
+        # ask" and returns a status no route uses for the second. Every phase
+        # then read the empty body as if it were the product speaking: 325
+        # `rep.bug` calls, none of which look at the status first.
+        #
+        # A throttled sign-in produced, against a database holding four active
+        # plans:
+        #     BUG A  at least one plan exists — no plan means no tenant can be
+        #            created
+        # and the run stopped there. The harness had already written "this is
+        # not an answer about the product" into the very envelope the phase was
+        # reading.
+        #
+        # Downgraded rather than dropped, and counted: a blinded check is not a
+        # passing one, and a run that quietly discarded them would report a
+        # clean sweep it never ran. QUERY is exactly the level for "look at
+        # this, it may be nothing".
+        if level == "BUG" and self.api is not None and self.api.blind:
+            self.blinded += 1
+            level = "QUERY"
+            detail = (f"HARNESS: not asked — {self.api.blind}. "
+                      f"This is not an answer about the product. (was: {detail or what})")
+
         self.rows.append((level, phase, what, detail))
+        if self.quiet:
+            return
         mark = {"PASS": "  ok  ", "QUERY": " QUERY", "BUG": " BUG  "}[level]
         print(f"{mark} {phase:10} {what}" + (f"  — {detail}" if detail else ""), flush=True)
 
@@ -339,7 +401,21 @@ class Report:
         n = {"PASS": 0, "QUERY": 0, "BUG": 0}
         for level, *_ in self.rows:
             n[level] += 1
+        if self.quiet:
+            return n["BUG"] + self.blinded
         print(f"\n{'='*70}\n{n['PASS']} ok · {n['QUERY']} to look at · {n['BUG']} bugs\n{'='*70}")
+
+        # CHECKS THAT WERE NEVER ASKED, said out loud.
+        #
+        # Same reasoning as the coverage block below: a run where the token
+        # expired halfway would otherwise print a smaller, calmer set of numbers
+        # than one that actually ran, and read as the better result. It is the
+        # worse one — most of it did not happen.
+        if self.blinded:
+            print(f"\n!! {self.blinded} check(s) could not be asked at all — the harness was "
+                  f"blind (no token, expired token, or the server unreachable).\n"
+                  f"   They are listed as QUERY below, NOT as passes and NOT as bugs.\n"
+                  f"   Fix the harness and re-run: this result is incomplete.")
 
         # ── the denominator ────────────────────────────────────────────
         #
@@ -365,4 +441,8 @@ class Report:
         for level, phase, what, detail in self.rows:
             if level != "PASS":
                 print(f"{level:6} {phase:10} {what}" + (f"  — {detail}" if detail else ""))
-        return n["BUG"]
+
+        # An incomplete run is not a passing run. Returning only the bug count
+        # would let a sweep that asked nothing exit 0 — the exact shape of "2225
+        # passed" beside a non-zero exit, with the sign flipped.
+        return n["BUG"] + self.blinded

@@ -105,7 +105,25 @@ def main() -> int:
     if want != set(asked):
         print(f"running {sorted(want)} — {sorted(want - set(asked))} needed first\n")
 
-    api, rep = Api(), Report()
+    # ── THE HARNESS PROVES ITSELF FIRST ────────────────────────────────
+    #
+    # Milliseconds, and it runs before a single call is made. A sweep whose
+    # reporter can turn a failed sign-in into a product bug should not be
+    # trusted to grade the product — and it did exactly that, once, stopping a
+    # run on a defect that did not exist.
+    import harness_test
+    broken = harness_test.run()
+    if broken:
+        for problem in broken:
+            print(f"  HARNESS BROKEN: {problem}")
+        print("\nRefusing to run: the sweep cannot grade the product until it "
+              "grades itself.")
+        return 1
+
+    # The Report is given the Api so it can refuse to file a verdict the
+    # harness never earned — see `Report._add`.
+    api = Api()
+    rep = Report(api)
 
     tenants = phase_a.run(api, rep)
     if not tenants:

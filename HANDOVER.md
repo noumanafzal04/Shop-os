@@ -1695,6 +1695,17 @@ read in five places and written in none. A shop must get its sizes right first
 time and the Help Centre says so. That is the next thing to build. Nor can a
 single size be 86'd, and a recipe has no size dimension.
 
+> **Corrected 2026-08-29 — all three of those were built and this paragraph
+> outlived them.** Sizes are editable (`SyncProductVariantsAction`, reached
+> through `PUT /products/{id}`, `ProductVariantEditTest` 8/8); a single size can
+> be 86'd (`OneSizeSoldOutTest`); recipes have a size dimension
+> (`SizedRecipeTest`). Corrected rather than deleted, for the reason given
+> further down this file — but note HOW it misled, because the trap is reusable:
+> **`grep variant routes/api.php` returns only the sold-out routes**, since a
+> size is edited as part of its parent and has no resource route of its own. A
+> nested resource is invisible to a route grep, and I read that silence as proof
+> and reported a shipped feature as the biggest thing outstanding.
+
 Gates: backend **2146 / 9054**, panel **1057 / 84 files**, browser Playwright over
 four viewports with a chip measured on a 390pt phone, a11y **0 of 367** unnamed.
 
@@ -5404,7 +5415,41 @@ them back.
 
 ---
 
+### 2026-08-29 — the reorder list that listed everything
+
+A shop said *"in inventory need reordering not working"* and it was one question
+— **what is running low** — asked in five places and answered in two. The
+catalogue summed a product's sizes; the reorder list, the dashboard count, the
+purchase-order quantity and two table badges read `products.stock_quantity`,
+which for a sized product is nought. `0 <= threshold` holds for every threshold
+a shop can set, so **a rail of two hundred shirts was on the buying list every
+day** and the order it raised asked for a full threshold of shirts already in
+stock.
+
+Now one `LowStock` rule on the server and the till's existing `catalogStock` on
+the panel — the panel helper was already there, written after a T-shirt rendered
+unpressable, and two screens had hand-rolled a wrong copy beside it. The failure
+was an IGNORED helper, not a missing one.
+
+`one-rule-many-paths.py` was blind to it: it tracks rules that raise an error
+code, and this is a query predicate. `e2e/lowStockAsksOneRule.guard.ts` covers
+that axis now, with a denominator and a proven mutation.
+
+**And two browser failures that were not the product.** `selling.spec` filled
+its cart from "any plain product", which by now meant twenty `E2E …` strays left
+by sibling specs, all at zero stock. `E2E Family Deal` is not sized, so it looked
+plain; the offline till sold it from the mirror it pulled at boot (correct), and
+the server refused the sync (correct) because the pizza inside had none left.
+The suite's result depended on which project ran first. `fillCart` now asks for
+the shelf BY NAME. Full record: [docs/decisions/shopos-low-stock-one-rule.md](docs/decisions/shopos-low-stock-one-rule.md).
+
+---
+
 ## The QA sweep — driving the product from outside
+
+> **Testing the whole product, in order:** [`docs/qa/FULL-TEST-FLOW.md`](docs/qa/FULL-TEST-FLOW.md)
+> — six layers, cheapest first, with what each one is structurally blind to.
+> The sweep below is layer 3.
 
 `docs/qa/sweep/` creates a tenant per business type through the admin console,
 logs in as its owner, and sells things. Nothing is stubbed. It is the answer to
@@ -5419,7 +5464,9 @@ python3 run.py        # phases A–Q, in the order each one needs
 python3 mutate.py     # break the sweep on purpose; every lie must be caught
 ```
 
-**Seventeen phases, 1,683 checks in one run, 26 of 26 mutations caught.** It has found six real
+**Twenty-one phases (A–U), 26 of 26 mutations caught.** (It read "seventeen"
+until 2026-08-29 — R, S, T and U were added and the count was not. The
+authority is `PHASES` in `run.py`, never this line.) It has found six real
 defects, nearly all the same shape — *one question, two paths, two different answers*:
 
 - [The forecourt nobody could start](docs/decisions/shopos-forecourt-branch.md) —

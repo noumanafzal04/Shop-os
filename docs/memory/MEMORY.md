@@ -154,3 +154,6 @@
 - [Half The Sync](shopos-half-the-sync.md) — FIXED: shift queue never got the sale queue's force+stranded fixes; a sum of two stores needs both halves
 - [One Device, One Shop](shopos-one-device-one-shop.md) — FIXED CRITICAL: offline catalog had no tenant fence; a 2nd shop saw+sold the 1st's products
 - [Import Per Trade](shopos-import-per-trade.md) — FIXED: one template for all trades; importer refused its own rows; + variants via parent_sku, no IDs in CSV
+- [Nested Resource Grep](shopos-nested-resource-grep.md) — STANDING: a nested resource has NO route line; grep silence read as "not built" and I reported a shipped feature as the #1 gap
+- [Low Stock, One Rule](shopos-low-stock-one-rule.md) — FIXED: "what is running low" asked in 5 places, answered 2 ways; 200 shirts on the buying list daily
+- [Shelf By Name](shopos-shelf-by-name.md) — STANDING: fillCart took "any plain product" = 20 stray fixtures at 0 stock; check what ran BEFORE blaming the screen
