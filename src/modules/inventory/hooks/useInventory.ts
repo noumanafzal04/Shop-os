@@ -91,6 +91,7 @@ export function useBatchMutations() {
     mutationFn: ({ productId, ...payload }: {
       productId: string; batch_number: string; expiry_date?: string;
       dot_code?: string; manufactured_on?: string; quantity: number; cost?: number;
+      variant_id?: string;
     }) =>
       inventoryService.addBatch(productId, payload),
     onSuccess: invalidate,

@@ -19,6 +19,9 @@ export function useCreateTransfer() {
       // any open branch-stock lookups are now stale.
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["branch-stock"] });
+      // …and the movement it wrote belongs on Stock movements, which reads a
+      // different cache entirely.
+      qc.invalidateQueries({ queryKey: ["inventory"] });
     },
   });
 }

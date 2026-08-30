@@ -51,6 +51,8 @@ export function useTakeOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders", "shop"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      // A counter order draws down stock the moment it is taken.
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
     },
   });
 }

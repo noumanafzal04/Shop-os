@@ -19,6 +19,8 @@ export interface ProductBatch {
   age_status?: "fresh" | "ageing" | "old" | null;
   quantity: number | string;
   cost: number | string | null;
+  /** Which size this lot belongs to. Null for a product not sold in sizes. */
+  variant_id?: string | null;
 }
 
 export interface ExpiringBatch {
@@ -172,6 +174,15 @@ export const inventoryService = {
       manufactured_on?: string;
       quantity: number;
       cost?: number;
+      /**
+       * REQUIRED for a product sold in sizes, and the reason this field exists.
+       * The server accepted a batch with no size, filed it, and put the stock
+       * into the parent's orphaned column where nothing reads it — so a
+       * pharmacy could book in a lot of 10mg strips and the 10mg size stayed
+       * at zero. The server refuses it now (VARIANT_REQUIRED), which is only
+       * honest if the dialog can actually supply one.
+       */
+      variant_id?: string;
     },
   ) =>
     apiPost<ProductBatch>(`/inventory/products/${productId}/batches`, payload),

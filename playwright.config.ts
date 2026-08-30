@@ -58,6 +58,21 @@ export default defineConfig({
   // is running against the same API. See e2e/auth.setup.ts.
   timeout: 300_000,
   expect: { timeout: 10_000 },
+  /**
+   * ABORT BEFORE THE SIGN-IN DIES.
+   *
+   * `auth.setup` mints one token per run and it lives sixty minutes
+   * (IssueTokensAction::ACCESS_TTL_MINUTES — `config/sanctum.php` says
+   * `expiration => null`, so reading that file tells you nothing). Past that
+   * line every remaining spec is measuring the signed-out shell, and the run
+   * spends its last stretch producing failures that are about nothing.
+   *
+   * Fifty minutes, so the run STOPS instead of lying. If the whole suite no
+   * longer fits — it does not, on a laptop sharing a single-threaded
+   * `php artisan serve` with the dev servers — run it a project at a time:
+   * each invocation re-runs `setup` and starts the clock again.
+   */
+  globalTimeout: 50 * 60_000,
 
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:4173",

@@ -5,6 +5,7 @@ import { uuid } from "../../../common/uuid";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
 import { catalogStock } from "../../pos/availability";
+import Select from "../../../components/form/Select";
 import Alert from "../../../components/ui/alert/Alert";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
@@ -80,6 +81,8 @@ export default function InventoryPage() {
   const [bExpiry, setBExpiry] = useState("");
   const [bQty, setBQty] = useState("");
   const [bCost, setBCost] = useState("");
+  /** Which size a new lot belongs to — required when the product has any. */
+  const [bVariant, setBVariant] = useState("");
   // The four digits off a tyre's sidewall. Optional everywhere; the shops that
   // need it need it badly, and nobody else ever sees the consequence.
   const [bDot, setBDot] = useState("");
@@ -103,12 +106,19 @@ export default function InventoryPage() {
   const openBatches = (p: Product) => {
     setBatchTarget(p);
     setBNo(""); setBExpiry(""); setBQty(""); setBCost("");
+    // One size means there is nothing to choose — preselect it rather than
+    // making somebody pick from a list of one.
+    setBVariant((p.variants ?? []).length === 1 ? p.variants[0].id : "");
     addBatch.reset();
     batchModal.openModal();
   };
 
+  /** A product sold in sizes must say WHICH size a lot belongs to. */
+  const batchNeedsASize = (batchTarget?.variants ?? []).length > 0;
+
   const submitBatch = () => {
     if (!batchTarget || addBatch.isPending || !bNo.trim() || !bQty) return;
+    if (batchNeedsASize && !bVariant) return;
     addBatch.mutate(
       {
         productId: batchTarget.id,
@@ -117,6 +127,7 @@ export default function InventoryPage() {
         dot_code: bDot.length === 4 ? bDot : undefined,
         quantity: Number(bQty),
         cost: bCost ? Number(bCost) : undefined,
+        variant_id: bVariant || undefined,
       },
       { onSuccess: () => { setBNo(""); setBExpiry(""); setBQty(""); setBCost(""); setBDot(""); } },
     );
@@ -179,7 +190,14 @@ export default function InventoryPage() {
     modal.openModal();
   };
 
-  const currentStock = variant ? variant.stock_quantity : target?.stock_quantity ?? 0;
+  // catalogStock, not stock_quantity: for a product sold in sizes the parent's
+  // column is an orphaned nought, and showing it as "currently 0" beside an
+  // amount box is the same lie the parent Adjust button used to tell.
+  const currentStock = variant
+    ? variant.stock_quantity
+    : target
+      ? catalogStock(target)
+      : 0;
 
   const submitAdjust = () => {
     if (!target || adjust.isPending || !quantity) return;
@@ -433,16 +451,28 @@ export default function InventoryPage() {
                         >
                           Batches
                         </button>
-                        <button
-                          className={ROW_ACTION}
-                          onClick={() => openAdjust(p)}
-                        >
-                          Adjust
-                        </button>
+                        {/* A product sold in sizes holds no stock of its own:
+                            its stock_quantity is an orphaned leftover nothing
+                            reads. Adjusting the parent used to answer "Stock
+                            updated" and move nothing at all. Each size below
+                            carries its own Adjust. */}
+                        {(p.variants ?? []).length === 0 && (
+                          <button
+                            className={ROW_ACTION}
+                            onClick={() => openAdjust(p)}
+                          >
+                            Adjust
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>,
-                  ...p.variants.map((v) => (
+                  /* `?? []` is a real guard, not defensive noise. The type
+                     says `variants: ProductVariant[]`, so tsc cannot help: it
+                     is a RELATION, absent from any payload that did not load
+                     it, and the reorder list was one of those. An unguarded
+                     .map on undefined blanks the whole page. */
+                  ...(p.variants ?? []).map((v) => (
                     <tr key={v.id} className="bg-gray-50/50 text-theme-sm text-gray-600 dark:bg-white/[0.01] dark:text-gray-400">
                       <td className="px-6 py-3 pl-10">
                         ↳ {v.name}
@@ -597,6 +627,24 @@ export default function InventoryPage() {
           </div>
         )}
 
+        {batchNeedsASize && (
+          /* A lot of 10mg strips is not a lot of 20mg strips. Without this the
+             batch was filed against the parent, whose stock column nothing
+             reads — the lot existed and the size stayed at zero. */
+          <div className="mb-4">
+            <Label>Size</Label>
+            <Select
+              aria-label="Which size this lot belongs to"
+              value={bVariant}
+              onChange={setBVariant}
+              options={[
+                { value: "", label: "Choose a size…" },
+                ...(batchTarget?.variants ?? []).map((v) => ({ value: v.id, label: v.name })),
+              ]}
+            />
+          </div>
+        )}
+
         <div className="mb-4 grid grid-cols-2 gap-2">
           <div>
             <Label>Batch / lot no.</Label>
@@ -630,7 +678,7 @@ export default function InventoryPage() {
         <Button
           size="sm"
           onClick={submitBatch}
-          disabled={addBatch.isPending || !bNo.trim() || !bQty || (batchTarget?.item_type === "medicine" && !bExpiry)}
+          disabled={addBatch.isPending || !bNo.trim() || !bQty || (batchNeedsASize && !bVariant) || (batchTarget?.item_type === "medicine" && !bExpiry)}
         >
           {addBatch.isPending ? "Adding…" : "Add batch (stock in)"}
         </Button>
@@ -648,7 +696,17 @@ export default function InventoryPage() {
                 return (
                   <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 px-3 py-2 text-theme-sm dark:border-gray-800">
                     <span className="text-gray-700 dark:text-gray-300">
-                      <span className="font-mono">{b.batch_number}</span> · {formatQuantity(b.quantity)} left
+                      <span className="font-mono">{b.batch_number}</span>
+                      {/* Which size this lot is. Without it a chemist reads a
+                          list of lot numbers and cannot tell the 10mg from the
+                          20mg. The name is matched locally — the row carries
+                          the id, and the sizes are already in hand. */}
+                      {batchNeedsASize && (
+                        <span className="ml-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-theme-xs text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                          {(batchTarget?.variants ?? []).find((v) => v.id === b.variant_id)?.name ?? "no size"}
+                        </span>
+                      )}
+                      {" · "}{formatQuantity(b.quantity)} left
                       {expired && <span className="ml-2 text-error-500">EXPIRED</span>}
                       {/* Age, not expiry. "old" is a nudge to price it or send
                           it back — never a block on selling it. */}

@@ -80,11 +80,20 @@ export default function BranchSwitcher() {
   const choose = (id: string | null) => {
     setActiveBranch(id);
     setOpen(false);
-    // Branch-scoped views depend on the selection — refresh them.
-    qc.invalidateQueries({ queryKey: ["products"] });
-    qc.invalidateQueries({ queryKey: ["branch-stock"] });
-    qc.invalidateQueries({ queryKey: ["dashboard"] });
-    qc.invalidateQueries({ queryKey: ["sales"] });
+    // EVERYTHING, not a list.
+    //
+    // The branch is sent as X-Branch-Id on every request, so changing it
+    // changes the answer to almost every tenant-scoped read — but none of the
+    // query keys carry the branch, so a cached answer for the old branch stays
+    // cached under the same key. Four keys were named here and the Inventory
+    // screens were not among them: switch to a second branch, open Needs
+    // reordering, and it kept showing the FIRST branch's list, under the
+    // second branch's name, until the page was navigated away from and back.
+    //
+    // A list of branch-scoped keys is a list somebody has to maintain, and it
+    // was wrong within a month. Refetching the active queries is the cost of
+    // changing which shop you are looking at, and it is the right cost.
+    void qc.invalidateQueries();
   };
 
   return (

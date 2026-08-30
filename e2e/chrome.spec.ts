@@ -1,6 +1,21 @@
 import { test, expect } from "@playwright/test";
 import { cardsAreSurfaces, everyRule, everythingHasAName, onlyWhatAFingerCanReach, renderedSize, scrollersCanReachTheirEnd, tapTargetsAreFingerSized, report } from "./rules";
 import { PLAIN_ITEM, openTill, showPane } from "./till";
+import { assertSessionIsFresh } from "./api";
+
+/**
+ * THE LONGEST SPEC IN THE SUITE, AND THE ONE WITH NO SESSION GUARD.
+ *
+ * This file walks forty-eight screens at four sizes and never asks for a token,
+ * so `api.ts`'s age check — which exists precisely for this failure — could not
+ * fire here. When a run overran the sixty-minute token life, every screen after
+ * that point was the signed-out shell, and this spec dutifully reported it as
+ * "2/5 controls unnamed" on every screen and a handful of timeouts. Thirteen
+ * failures that said nothing about the product, twice.
+ */
+test.beforeEach(() => {
+  assertSessionIsFresh();
+});
 
 /**
  * Walk the shop's screens at a real size and ask what a browser can see.

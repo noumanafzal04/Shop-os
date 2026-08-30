@@ -48,6 +48,9 @@ export function useDocumentMutations(id?: string) {
     // Holding goods changes what's sellable, and collecting changes the till.
     void qc.invalidateQueries({ queryKey: ["products"] });
     void qc.invalidateQueries({ queryKey: ["pos"] });
+    // Converting a quote rings a real sale, and cancelling one puts reserved
+    // stock back. Both move the shelf.
+    void qc.invalidateQueries({ queryKey: ["inventory"] });
   };
 
   return {

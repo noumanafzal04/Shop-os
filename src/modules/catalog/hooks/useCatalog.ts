@@ -21,6 +21,7 @@ export function useCategoryMutations() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["categories"] });
     queryClient.invalidateQueries({ queryKey: ["products"] });
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
   };
 
   const create = useMutation({
@@ -92,7 +93,10 @@ export function useGenerateBarcode() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => catalogService.generateBarcode(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+    },
   });
 }
 
@@ -100,7 +104,10 @@ export function useSyncModifiers(productId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (groups: ModifierGroup[]) => catalogService.syncModifiers(productId!, groups),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+    },
   });
 }
 
@@ -187,6 +194,10 @@ export function useProductMutations() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["products"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    // A product carries both halves of the reorder question — its stock and
+    // its reorder level — so editing one changes what Inventory should show.
+    // Setting a level and finding the list unchanged reads as a broken screen.
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
   };
 
   const create = useMutation({
@@ -219,6 +230,7 @@ export function useProductImages(productId: string | undefined) {
   const queryClient = useQueryClient();
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["products"] });
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
   };
 
   const upload = useMutation({
@@ -249,6 +261,7 @@ export function useVariantSoldOut() {
       catalogService.setVariantSoldOut(productId, variantId, off),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["inventory"] });
       void qc.invalidateQueries({ queryKey: ["pos-catalog"] });
     },
   });
@@ -262,6 +275,7 @@ export function useSoldOut() {
       catalogService.setSoldOut(id, off),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["inventory"] });
       void qc.invalidateQueries({ queryKey: ["pos-catalog"] });
     },
   });

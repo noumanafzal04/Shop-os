@@ -1188,6 +1188,7 @@ export default function PosPage() {
         // whatever a failed request returned — the catalog is the local
         // projection's job, and it updates on the next sync.
         qc.invalidateQueries({ queryKey: ["products"] });
+        qc.invalidateQueries({ queryKey: ["inventory"] });
         qc.invalidateQueries({ queryKey: ["sales"] });
         qc.invalidateQueries({ queryKey: ["dashboard"] });
         qc.invalidateQueries({ queryKey: ["pos", "session"] });

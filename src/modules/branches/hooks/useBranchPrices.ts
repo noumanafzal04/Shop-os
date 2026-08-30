@@ -19,6 +19,7 @@ export function useSetBranchPrices(productId: string) {
       qc.invalidateQueries({ queryKey: ["branch-prices", productId] });
       // The list shows the operating branch's effective price — refresh it.
       qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["inventory"] });
     },
   });
 }

@@ -11,11 +11,15 @@ import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
 import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
-import { useSuppliers, useSupplierMutations } from "../hooks/usePurchases";
-import type { Supplier } from "../types";
+import { useSuppliers, useSupplier, useSupplierMutations } from "../hooks/usePurchases";
+import type { PurchaseOrder, Supplier } from "../types";
+import Select from "../../../components/form/Select";
+import Label from "../../../components/form/Label";
+import { toIsoDate } from "../../../components/ui/filters/dateRanges";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { payOutlook } from "../payMath";
 
 
 export default function SuppliersPage() {
@@ -49,6 +53,27 @@ export default function SuppliersPage() {
   const [form, setForm] = useState<Record<string, string>>({});
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("cash");
+  const [payAgainst, setPayAgainst] = useState("");   // "" = whole account
+  const [payRef, setPayRef] = useState("");
+  const [payDate, setPayDate] = useState(toIsoDate(new Date()));
+
+  // The orders this payment could go against. Only loaded while the dialog is
+  // open — the list page itself has no use for one supplier's order history.
+  const detail = useSupplier(payModal.isOpen ? target?.id : undefined);
+  const openOrders: PurchaseOrder[] = (detail.data?.purchase_orders ?? []).filter(
+    (po) => po.status !== "draft" && po.status !== "cancelled"
+      && Number(po.total) - Number(po.amount_paid) > 0.001,
+  );
+
+  const owed = target?.outstanding ?? 0;
+  const paidAhead = target?.advance ?? 0;
+  const entered = Number(payAmount) || 0;
+
+  // What this order still needs, when one is picked; otherwise the whole
+  // account. This is the figure the shopkeeper is actually paying down.
+  const chosen = openOrders.find((po) => po.id === payAgainst);
+  const dueHere = chosen ? Number(chosen.total) - Number(chosen.amount_paid) : Math.max(0, owed);
+  const outlook = payOutlook(dueHere, entered);
 
   const mutation = editing ? update : create;
   const err = mutation.error instanceof ApiError ? mutation.error.firstFieldError() ?? mutation.error.message : null;
@@ -80,11 +105,26 @@ export default function SuppliersPage() {
     else create.mutate(payload, opts);
   };
 
-  const openPay = (s: Supplier) => { setTarget(s); setPayAmount(""); setPayMethod("cash"); payModal.openModal(); };
+  const openPay = (s: Supplier) => {
+    setTarget(s);
+    setPayAmount("");
+    setPayMethod("cash");
+    setPayAgainst("");
+    setPayRef("");
+    setPayDate(toIsoDate(new Date()));
+    payModal.openModal();
+  };
   const doPay = () => {
-    if (!target || !payAmount || pay.isPending) return;
+    if (!target || entered <= 0 || pay.isPending) return;
     pay.mutate(
-      { supplierId: target.id, amount: Number(payAmount), method: payMethod as never },
+      {
+        supplierId: target.id,
+        amount: entered,
+        method: payMethod as never,
+        reference: payRef.trim() || null,
+        paid_at: payDate || null,
+        purchase_order_id: payAgainst || null,
+      },
       {
         // The modal shows `pay.error` itself, so a refusal is already covered.
         // What was missing is the other half: on success the dialog just
@@ -144,16 +184,24 @@ export default function SuppliersPage() {
                   </td>
                   <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{s.contact_person ?? "—"}</td>
                   <td className="px-5 py-3 text-right font-medium">
-                    {(s.outstanding ?? 0) > 0
-                      ? <span className="text-error-500">{money(s.outstanding ?? 0)}</span>
-                      : <span className="text-success-500">Settled</span>}
+                    {(s.outstanding ?? 0) > 0 ? (
+                      <span className="text-error-500">{money(s.outstanding ?? 0)}</span>
+                    ) : (s.advance ?? 0) > 0 ? (
+                      // Paid ahead of any order. Reading "Settled" here hid
+                      // money the shop is owed back in goods.
+                      <span className="text-brand-500">{money(s.advance ?? 0)} in advance</span>
+                    ) : (
+                      <span className="text-success-500">Settled</span>
+                    )}
                   </td>
                   <td className="px-5 py-3">{!s.is_active && <Badge size="sm" color="light">inactive</Badge>}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-3">
-                      {(s.outstanding ?? 0) > 0 && (
-                        <button className={ROW_ACTION} onClick={() => openPay(s)}>Pay</button>
-                      )}
+                      {/* Always offered. A wholesaler's van arrives, cash
+                          changes hands, and no order was ever raised — hiding
+                          Pay on a settled account refused the commonest
+                          payment a small shop makes. */}
+                      <button className={ROW_ACTION} onClick={() => openPay(s)}>Pay</button>
                       <button className={ROW_ACTION} onClick={() => openEdit(s)}>Edit</button>
                       <button className={ROW_ACTION_DANGER} onClick={async () => {
                         if (await confirm({ title: `Delete supplier "${s.name}"?`, message: "Purchase orders already raised keep their record.", confirmLabel: "Delete", tone: "danger" })) removeWithFeedback(s.id, s.name);
@@ -189,19 +237,99 @@ export default function SuppliersPage() {
       </Modal>
 
       {/* Record payment */}
-      <Modal isOpen={payModal.isOpen} onClose={payModal.closeModal} className="max-w-sm p-6">
+      <Modal isOpen={payModal.isOpen} onClose={payModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Pay {target?.name}</h3>
-        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">Outstanding: {money(target?.outstanding ?? 0)}</p>
+
+        {/* What the account stands at, before anything is typed. */}
+        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+          {owed > 0 ? <>You owe <span className="font-medium text-error-500">{money(owed)}</span></>
+            : paidAhead > 0 ? <>Paid ahead: <span className="font-medium text-brand-500">{money(paidAhead)}</span></>
+            : "Nothing owed — this will be recorded as an advance."}
+        </p>
+
         {pay.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Couldn't record" message={pay.error.message} /></div>}
-        <div className="space-y-3">
-          <Input type="number" placeholder="Amount" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
-          <select className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-            <option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="card">Card</option><option value="cheque">Cheque</option>
-          </select>
+
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="pay-amount">Amount</Label>
+            <div className="flex gap-2">
+              <Input id="pay-amount" type="number" step={0.01} placeholder="0.00" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+              {dueHere > 0 && (
+                <Button size="sm" variant="outline" onClick={() => setPayAmount(String(Math.round(dueHere * 100) / 100))}>
+                  Pay full
+                </Button>
+              )}
+            </div>
+            {/* The half the screen never showed: what is left after this. */}
+            {entered > 0 && (
+              <p className="mt-2 text-sm">
+                {outlook.kind === "still-owed" ? (
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Still owed after this: <span className="font-medium text-error-500">{money(outlook.remaining)}</span>
+                  </span>
+                ) : outlook.kind === "advance" ? (
+                  <span className="text-brand-500">
+                    {money(outlook.advance)} more than is owed — recorded as an advance.
+                  </span>
+                ) : (
+                  <span className="text-success-600 dark:text-success-500">
+                    {chosen ? "Settles this order in full." : "Settles the account in full."}
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+
+          {openOrders.length > 0 && (
+            <div>
+              <Label>Against</Label>
+              <Select
+                aria-label="Which order this payment is against"
+                value={payAgainst}
+                onChange={setPayAgainst}
+                options={[
+                  { value: "", label: "Whole account (oldest orders first)" },
+                  ...openOrders.map((po) => ({
+                    value: po.id,
+                    label: `${po.po_number} · ${money(Number(po.total) - Number(po.amount_paid))} due`,
+                  })),
+                ]}
+              />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Method</Label>
+              <Select
+                aria-label="Payment method"
+                value={payMethod}
+                onChange={setPayMethod}
+                options={[
+                  { value: "cash", label: "Cash" },
+                  { value: "bank_transfer", label: "Bank transfer" },
+                  { value: "card", label: "Card" },
+                  { value: "cheque", label: "Cheque" },
+                ]}
+              />
+            </div>
+            <div>
+              <Label htmlFor="pay-date">Paid on</Label>
+              <Input id="pay-date" type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+            </div>
+          </div>
+
+          {payMethod !== "cash" && (
+            <div>
+              <Label htmlFor="pay-ref">Reference</Label>
+              <Input id="pay-ref" placeholder="Cheque no. / transaction id" value={payRef} onChange={(e) => setPayRef(e.target.value)} />
+            </div>
+          )}
         </div>
+
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={payModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={doPay} disabled={pay.isPending || !payAmount}>{pay.isPending ? "Saving…" : "Record payment"}</Button>
+          <Button size="sm" onClick={doPay} disabled={pay.isPending || entered <= 0}>{pay.isPending ? "Saving…" : "Record payment"}</Button>
         </div>
       </Modal>
     </>

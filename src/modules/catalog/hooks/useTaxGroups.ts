@@ -13,6 +13,7 @@ export function useTaxGroupMutations() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["tax-groups"] });
     qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["inventory"] });
   };
 
   return {

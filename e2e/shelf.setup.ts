@@ -52,7 +52,10 @@ setup("stock the shelf so a cart can be filled", async ({ request }) => {
   expect(list.ok(), `catalog unreadable (${list.status()})`).toBeTruthy();
 
   const body = (await list.json()) as {
-    data: Array<{ id: string; name: string; item_type?: string; track_inventory?: boolean }>;
+    data: Array<{
+      id: string; name: string; item_type?: string; track_inventory?: boolean;
+      variants?: Array<{ id: string }>;
+    }>;
   };
 
   // Only what a shelf can hold. A service has no stock to give it.
@@ -67,6 +70,18 @@ setup("stock the shelf so a cart can be filled", async ({ request }) => {
   // so the fixture makes up the difference under its own name and reuses them
   // on every later run.
   const mine = new Map(shelvable.map((p) => [p.name, p.id]));
+  /**
+   * The ones whose stock lives on their SIZES.
+   *
+   * The product-level top-up below cannot stock these — it never could, it just
+   * used to fail silently into the parent's orphan column. The server refuses
+   * it outright now (VARIANT_REQUIRED), so counting them among the successes
+   * would make the assertion at the end of this file fail for a reason that has
+   * nothing to do with the shelf.
+   */
+  const sized = new Set(
+    shelvable.filter((p) => (p.variants?.length ?? 0) > 0).map((p) => p.id),
+  );
   for (let i = mine.size; i < WANTED; i++) {
     const name = `E2E Shelf Item ${String(i + 1).padStart(2, "0")}`;
     if (mine.has(name)) continue;
@@ -120,6 +135,9 @@ setup("stock the shelf so a cart can be filled", async ({ request }) => {
     if (made.ok()) {
       const created = (await made.json()) as { data: { id: string } };
       mine.set(SIZED, created.data.id);
+      // Made this run, so it was not in the catalogue read above — and it must
+      // still be excluded from the plain top-up, or its 422 shortens the count.
+      sized.add(created.data.id);
     }
   }
 
@@ -153,7 +171,13 @@ setup("stock the shelf so a cart can be filled", async ({ request }) => {
 
   // ── stock ────────────────────────────────────────────────────────────
   let stocked = 0;
+  let plain = 0;
   for (const id of mine.values()) {
+    // A sized product is stocked by the block above, one size at a time. It is
+    // skipped here rather than attempted and ignored, so the count below means
+    // what it says.
+    if (sized.has(id)) continue;
+    plain += 1;
     const res = await request.post(`${API}/inventory/adjust`, {
       headers: auth,
       data: { product_id: id, type: "set", new_quantity: TOP_UP, reason: "e2e shelf" },
@@ -163,7 +187,7 @@ setup("stock the shelf so a cart can be filled", async ({ request }) => {
 
   expect(
     stocked,
-    `only ${stocked} of ${mine.size} products could be stocked — ` +
+    `only ${stocked} of ${plain} plain products could be stocked — ` +
       `the till cannot show a cart of ${WANTED} lines`,
   ).toBeGreaterThanOrEqual(WANTED);
 });

@@ -80,6 +80,9 @@ export function useFuelMutations() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: KEY });
     qc.invalidateQueries({ queryKey: ["products"] });
+    // A delivery into a tank and a shift close both write stock movements —
+    // the same ledger the Inventory screens read.
+    qc.invalidateQueries({ queryKey: ["inventory"] });
   };
 
   return {

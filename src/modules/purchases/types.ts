@@ -8,7 +8,10 @@ export interface Supplier {
   address: string | null;
   notes: string | null;
   is_active: boolean;
+  /** Signed balance: positive is owed to them, negative is paid ahead. */
   outstanding?: number;
+  /** Money paid ahead of any order, as a positive number. */
+  advance?: number;
   purchase_orders?: PurchaseOrder[];
   payments?: SupplierPayment[];
 }

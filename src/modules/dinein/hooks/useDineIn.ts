@@ -97,7 +97,16 @@ export function useDineInMutations(ticketId?: string) {
 
   const settle = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: SettlePayload }) => dineInService.settle(id, payload),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      // Settling is the moment a tab becomes a SALE: the dishes leave stock and
+      // their recipes draw down ingredients. Only this one of the dine-in
+      // mutations moves the shelf — opening a tab and firing a docket do not —
+      // so the invalidation sits here rather than on the shared helper.
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
   });
 
   const move = useMutation({

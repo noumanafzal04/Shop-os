@@ -36,9 +36,14 @@ export function useSupplier(id: string | undefined) {
 
 export function useSupplierMutations() {
   const qc = useQueryClient();
+  // A payment moves more than the supplier row: the orders it settled, the
+  // dashboard's "what I owe" card, and the purchases report all read the same
+  // debt. Leaving them stale is how two screens end up showing two numbers.
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["suppliers"] });
     qc.invalidateQueries({ queryKey: ["purchase-orders"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    qc.invalidateQueries({ queryKey: ["reports"] });
   };
 
   const create = useMutation({ mutationFn: (p: SupplierInput) => purchasesService.createSupplier(p), onSuccess: invalidate });
@@ -77,6 +82,11 @@ export function usePurchaseOrderMutations() {
     qc.invalidateQueries({ queryKey: ["suppliers"] });
     qc.invalidateQueries({ queryKey: ["products"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
+    // Receiving an order is the main way stock ENTERS a shop, and the
+    // Inventory screens are a different cache from ["products"]. A buyer who
+    // had just booked in a delivery still saw those items on the reorder list
+    // and no receipt on Stock movements.
+    qc.invalidateQueries({ queryKey: ["inventory"] });
   };
 
   const create = useMutation({ mutationFn: (p: PurchaseOrderInput) => purchasesService.createPurchaseOrder(p), onSuccess: invalidate });

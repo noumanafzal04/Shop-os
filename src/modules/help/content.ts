@@ -178,6 +178,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "note",
         text: "Editing a product never changes its stock. That is deliberate: stock moves for a reason — a sale, a delivery, a count — and every movement is recorded.",
       },
+      { type: "warn", text: "A product sold in sizes holds no stock of its own \u2014 the stock lives on each size. So Adjust and Batches are offered on the SIZE rows, not on the item above them, and a lot has to say which size it belongs to. Adjusting the parent used to say \u201cStock updated\u201d and move nothing at all." },
       { type: "h", text: "Selling the same item in sizes and colours" },
       { type: "p", text: "A shirt in three colours and four sizes. A pizza in Small, Medium and Large. A drink in 500ml and 1 litre. On the item form, open Sizes & options and name what varies — then list the values, and the combinations are made for you." },
       {
@@ -446,7 +447,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     modules: ["inventory", "products"],
     permission: "purchases.manage",
     screen: "/tenant/purchases",
-    keywords: ["supplier", "purchase order", "po", "receive", "delivery", "payable"],
+    keywords: ["supplier", "purchase order", "po", "receive", "delivery", "payable", "pay supplier", "advance", "balance", "outstanding"],
     body: [
       {
         type: "steps",
@@ -464,6 +465,28 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "p",
         text: "Paying a supplier is recorded as its own kind of money-out, not as an expense. If it were an expense, a shop that both files the wholesaler's bill and records the payment would count the same rupees twice.",
+      },
+      { type: "h", text: "Paying a supplier" },
+      {
+        type: "p",
+        text: "Press Pay on the supplier's row. The dialog opens with what you owe at the top, and as soon as you type an amount it tells you what will still be owed after it — so you can see the figure before you hand over the money, not after.",
+      },
+      {
+        type: "steps",
+        items: [
+          "Type the amount, or press Pay full to settle the whole balance.",
+          "Leave Against on \u201cWhole account\u201d and the payment settles your oldest unpaid orders first, which is the order a wholesaler chases them in.",
+          "Pick a single order instead if you are paying one invoice \u2014 the amount is then held to that order\u2019s balance.",
+          "Choose how it was paid, and the date if it was not today. Cash comes straight out of the open till drawer.",
+        ],
+      },
+      {
+        type: "note",
+        text: "You can pay a supplier you owe nothing to. The van arrives, the cash changes hands, and no order was ever raised \u2014 that money is recorded as an ADVANCE, shown on their row, and the next order you place is settled by it.",
+      },
+      {
+        type: "warn",
+        text: "An order still in draft cannot be paid against. A draft is a shopping list, not a bill \u2014 place it first. For the same reason a draft is not counted in what you owe.",
       },
     ],
   },

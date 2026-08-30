@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-import { everyRule, report } from "./rules";
+import { API, ownerAuth } from "./api";
+import { everyRule, everythingHasAName, report } from "./rules";
 
 /**
  * THE SCREENS WITH THEIR WORK OPEN, ON A PHONE.
@@ -65,4 +66,59 @@ test("barcode labels — the sheet and its controls fit", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Print/i }).first()).toBeVisible({ timeout: 10_000 });
 
   report(await everyRule(page), "barcode labels (/tenant/labels)");
+});
+
+/**
+ * THE PAY DIALOG, WHICH IS NOW THE BIGGEST FORM ON THE SCREEN.
+ *
+ * It used to be an amount and a method. It now carries the account balance,
+ * an amount with a Pay-full shortcut, the line saying what is left after the
+ * payment, an order picker, a method, a date and a reference — and it is
+ * opened from a row action, which is the one place `New supplier` above
+ * cannot reach. On a phone this is the dialog most likely to push its Record
+ * payment button off the bottom.
+ */
+
+/** Stable, and reused rather than remade — a fixture per run breeds strays. */
+const VENDOR = "E2E Pay Vendor";
+
+test("suppliers · pay — the dialog fits and Record payment is reachable", async ({ page, request }) => {
+  // Set up through the API, not the UI: this test is about the DIALOG, and a
+  // failure while creating a supplier should not read as a layout fault.
+  const auth = ownerAuth();
+  const existing = await request.get(`${API}/suppliers?search=${encodeURIComponent(VENDOR)}`, { headers: auth });
+  const found = existing.ok() ? ((await existing.json()).data ?? []) : [];
+  if (found.length === 0) {
+    const made = await request.post(`${API}/suppliers`, { headers: auth, data: { name: VENDOR } });
+    expect(made.ok(), `could not create the fixture supplier: ${made.status()}`).toBeTruthy();
+  }
+
+  await page.goto("/tenant/suppliers");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.getByPlaceholder(/Search suppliers/i).fill(VENDOR);
+  await page.waitForTimeout(800);
+
+  const row = page.locator("tr").filter({ hasText: VENDOR }).first();
+  await expect(row, "the fixture supplier never appeared in the list").toBeVisible({ timeout: 10_000 });
+  await row.getByRole("button", { name: /^Pay$/ }).click();
+
+  // The denominator, same as above: no dialog, nothing measured.
+  const dialog = page.getByRole("dialog").first();
+  await expect(dialog, "the pay dialog never opened").toBeVisible({ timeout: 10_000 });
+  await expect(dialog.getByRole("button", { name: /Record payment/i })).toBeVisible();
+
+  // And with an amount typed, because the "still owed after this" line only
+  // exists then — it is extra height the empty dialog never shows.
+  await dialog.getByLabel(/Amount/i).fill("1500");
+  await page.waitForTimeout(300);
+
+  report(await everyRule(page), "suppliers · pay dialog with an amount typed");
+
+  // Five controls were added to this dialog at once — an order picker, a
+  // method, a date, a reference, and Pay full. Two of the labels above them
+  // point at a <Select>, which takes no id, so an htmlFor there would name
+  // nothing at all: labelled, and unattached.
+  const named = await everythingHasAName(page);
+  expect(named.examined, "no controls were examined, so this proved nothing").toBeGreaterThan(6);
+  report(named.findings, "suppliers · pay dialog — controls with no name");
 });

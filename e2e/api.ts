@@ -32,8 +32,38 @@ const FOOD_STATE = "e2e/.auth/food.json";
  */
 const SESSION_GOOD_FOR_MS = 55 * 60 * 1000;
 
+/**
+ * Is the saved sign-in still worth anything?
+ *
+ * Split out of `authFrom` because the spec that suffers most from an expired
+ * one never asked for a token: `chrome.spec` drives the UI only, so it walked
+ * forty-eight screens of the SIGNED-OUT SHELL and reported them as layout and
+ * accessibility defects. The guard existed and did not cover the caller that
+ * needed it. See `assertSessionIsFresh`.
+ */
+function sessionAgeMs(state: string): number {
+  return Date.now() - fs.statSync(state).mtimeMs;
+}
+
+/**
+ * Stop a run that has outlived its own sign-in.
+ *
+ * Call it from any spec that drives the UI without asking for a token. It fails
+ * with the reason instead of letting the spec describe the login page.
+ */
+export function assertSessionIsFresh(state: string = STATE): void {
+  const age = sessionAgeMs(state);
+  if (age > SESSION_GOOD_FOR_MS) {
+    throw new Error(
+      `the saved sign-in is ${Math.round(age / 60000)} minutes old and access tokens live 60 — `
+      + "this spec is measuring the signed-out shell, not the product. "
+      + "Re-run (auth.setup mints a fresh one), or run fewer projects per invocation.",
+    );
+  }
+}
+
 function authFrom(state: string): Record<string, string> {
-  const age = Date.now() - fs.statSync(state).mtimeMs;
+  const age = sessionAgeMs(state);
   if (age > SESSION_GOOD_FOR_MS) {
     throw new Error(
       `the saved sign-in is ${Math.round(age / 60000)} minutes old and access tokens live 60 — `
