@@ -5415,6 +5415,103 @@ them back.
 
 ---
 
+### 2026-08-30 — a payment nobody had ever tested, and one shelf cached as two
+
+Two reports in one sitting: *"suppliers ka payment process work nahi kar raha —
+agar wo pay karta, kitna remaining"*, and *"inventory full module check karo,
+connected hai jahan jahan use ho raha"*. Both turned out to be the same shape of
+fault: **the thing worked through a door nobody uses.**
+
+**The payment.** The Suppliers list has a Pay button. It sends an amount and a
+method — there is no order picker on it and never has been. The server accepted
+every one of those payments: filed the row, took the cash out of the drawer, and
+applied it to **nothing**, because `outstanding` was
+`sum(po.total) − sum(po.amount_paid)` and `amount_paid` only moves when a payment
+*names* an order. The red figure did not change. The shopkeeper pays, sees the
+same number, pays again.
+
+2,373 green tests never saw it because **every payment test passed
+`purchase_order_id`**. The API had a door the UI does not use, and that door was
+the only one under test. `PaymentOnAccountTest` opens the real one; all seven of
+its checks failed on the unfixed code.
+
+Three readers also disagreed about what "owed" means — the supplier row counted
+DRAFT orders as debt, the dashboard did not. So a supplier the shop owed nothing
+to carried a red figure and a Pay button. `App\Support\Payable` draws that line
+once: an order becomes a bill when it is **placed**.
+
+The balance is now **signed**: placed order totals minus *all* payments, not
+`amount_paid`. The difference is money that never landed on an order — the van
+arrives, cash changes hands, no PO is raised. `CashMovementTest` has covered
+exactly that since August. Negative is an **advance**, named as such on the row.
+Refusing it would have been the easy consistency and the wrong one.
+
+And the dialog now says, the moment an amount is typed, what will still be owed
+after it. That was the actual request.
+
+**The cache.** `["products"]` is the catalogue; `["inventory"]` is what the
+stockroom screens read. Nine sites refreshed the first and left the second. The
+worst was **receiving a purchase order** — the main way stock enters a shop:
+a buyer who had just booked in a delivery still saw those items on Needs
+reordering. The sharpest was the **branch switcher**, which named four keys and
+not inventory: switch branch, open the reorder list, and it kept showing the
+FIRST branch's list under the SECOND branch's name until you navigated away and
+back. A mounted query does not refetch on staleness alone.
+
+The rule is now *wherever products is invalidated, inventory is invalidated
+beside it* — not a list of stock-moving endpoints, because a list needs
+maintaining and this one was missing six. Guarded, with a denominator, and
+mutation-proven.
+
+**Two things I got wrong on the way.** A `status` column cast to an enum made
+`in_array($po->status, [...strings...], true)` match nothing — the draft check
+silently passed everything until a test caught it. And my first mutation of the
+new phone test used a 3,000px-**wide** child and passed: `openThingsFit` measures
+**height** and the modal clips horizontally. A tall child fails it properly. A
+mutation that does not fail has not proved the test — it has proved the mutation
+was aimed at the wrong rule.
+
+**A third, found while checking the rest of the module.** A product sold in
+sizes holds no stock of its own, and the parent's `stock_quantity` is an
+orphaned leftover `effectiveStock()` never reads. Adjusting the parent wrote
+twenty shirts into it, answered **201 "Stock updated"**, and moved the shelf by
+nothing — measured: effectiveStock 12 before, 12 after. Same hole through the
+batch dialog, which never sent a size, so a chemist could book in fifty strips
+and leave the size at zero with a lot on the books saying otherwise.
+
+`StartStockCountAction` already stated that rule in a comment. It was absent
+from the path a shopkeeper presses. `InventoryService::adjust` now refuses
+(`VARIANT_REQUIRED`) — in the service, so all 28 call sites are covered by one
+check, and the suite stayed green, which says nothing legitimate relied on it.
+A refusal is only honest if the job can still be done, so the parent's Adjust is
+gone (each size row has its own), the batch dialog has a required size picker,
+and every lot is labelled with its size.
+
+**And the sharpest one, found last.** The Inventory page draws a sub-row per
+size — `p.variants.map(...)`, unguarded — and the low-stock endpoint never sent
+`variants`. **The reorder view would have gone blank** the moment the list had a
+sized row to draw. It had only ever been seen empty, which is the only reason
+nobody met it: the shop that reported "reordering shows empty" was saved by the
+empty state. TypeScript could not catch it (the type says the field is not
+optional; a relation nobody loaded is missing anyway), and `chrome.spec` walks
+that screen with no filter against a shop whose reorder list is empty.
+
+**A note on how I measured, because I got it wrong first.** I ran the full
+backend suite, a full vitest run and four `npm run build`s while a Playwright
+suite was running against the very `dist/` I kept rebuilding. It reported 16
+failures with durations of 43 minutes, 1.3 hours and 4.1 hours, and an
+accessibility ratchet saying `2/5 unnamed` on every admin screen. `e2e/api.ts`
+already has that diagnosis written down in a comment — a starved suite crosses
+the 60-minute token TTL and every spec after it is measuring the signed-out
+shell. I threw the run away and re-ran on a quiet machine rather than report any
+of it. **A suite competing with the thing it is testing is not a measurement.**
+
+See `docs/decisions/shopos-supplier-payment-on-account.md`,
+`docs/decisions/shopos-stock-and-inventory-one-cache.md` and
+`docs/decisions/shopos-sizes-hold-the-stock.md`.
+
+---
+
 ### 2026-08-30 — empty has two meanings, and silence has one
 
 The reorder list came back **empty** on the live shop and was reported as a

@@ -157,3 +157,8 @@
 - [Nested Resource Grep](shopos-nested-resource-grep.md) — STANDING: a nested resource has NO route line; grep silence read as "not built" and I reported a shipped feature as the #1 gap
 - [Low Stock, One Rule](shopos-low-stock-one-rule.md) — FIXED: "what is running low" asked in 5 places, answered 2 ways; 200 shirts on the buying list daily
 - [Shelf By Name](shopos-shelf-by-name.md) — STANDING: fillCart took "any plain product" = 20 stray fixtures at 0 stock; check what ran BEFORE blaming the screen
+- [Pay: The Door Nobody Tested](shopos-pay-the-door-nobody-tested.md) — FIXED: supplier Pay settled NOTHING; every test used the door the UI never opens; advance model
+- [One Shelf, Two Caches](shopos-one-shelf-two-caches.md) — STANDING: products + inventory invalidate together; branch switcher showed branch one's reorder list under branch two
+- [Mutation Aimed At The Wrong Rule](shopos-mutation-aimed-at-wrong-rule.md) — STANDING: openThingsFit measures HEIGHT; a passing mutation may be mis-aimed, not a blind test
+- [Sizes Hold The Stock](shopos-sizes-hold-the-stock.md) — FIXED: parent Adjust said "Stock updated" and moved nothing; batch dialog never sent a size
+- [A Suite Against Itself](shopos-suite-vs-itself.md) — STANDING: never run phpunit/vitest/builds beside Playwright; 16 fake failures, 4.1h durations, signed-out shell
