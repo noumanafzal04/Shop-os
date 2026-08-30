@@ -130,6 +130,35 @@ class ReorderListSeesSizesTest extends TestCase
         );
     }
 
+    /**
+     * THE SCREEN RENDERS A SUB-ROW PER SIZE, SO THE LIST HAS TO SEND THEM.
+     *
+     * `InventoryPage` does `p.variants.map(...)` for every row. This endpoint
+     * loaded `category` and nothing else, so `variants` was absent from the
+     * payload and that map ran on `undefined` — the reorder view threw and the
+     * page went blank the moment it had a sized row to draw. It had only ever
+     * been seen EMPTY, which is precisely why nobody met it.
+     *
+     * TypeScript could not catch it: the type says `variants: ProductVariant[]`,
+     * and a relation that was never loaded is missing at runtime regardless.
+     */
+    public function test_the_list_carries_the_sizes_the_screen_draws(): void
+    {
+        $this->sized('Linen Shirt', 10, ['Small' => 2, 'Large' => 1]);
+
+        $row = collect($this->actingAsUser($this->owner)
+            ->getJson('/api/v1/inventory/low-stock')->assertOk()->json('data'))
+            ->firstWhere('name', 'Linen Shirt');
+
+        $this->assertNotNull($row, 'the shirt was not on the list at all');
+        $this->assertIsArray($row['variants'] ?? null, 'the reorder list sent no sizes, and the screen maps over them');
+        $this->assertCount(2, $row['variants']);
+        $this->assertEqualsCanonicalizing(
+            ['Small', 'Large'],
+            array_column($row['variants'], 'name'),
+        );
+    }
+
     public function test_a_plain_product_is_unaffected(): void
     {
         // The regression guard: most shops have no sizes at all.

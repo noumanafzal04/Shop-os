@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\Tenant;
@@ -45,6 +46,108 @@ class InventoryTest extends TestCase
         $this->app['auth']->forgetGuards();
 
         return $this->withToken($token);
+    }
+
+    // ── A product sold in sizes holds no stock of its own ───────────
+
+    /**
+     * THE ADJUSTMENT THAT SAID "STOCK UPDATED" AND MOVED NOTHING.
+     *
+     * `products.stock_quantity` is an orphaned leftover once a product has
+     * sizes — `effectiveStock()` sums the sizes and never reads it. Adjusting
+     * the parent wrote twenty shirts into that column, answered 201 "Stock
+     * updated", and left the till, the catalogue and the reorder list saying
+     * exactly what they said before. Measured on the unfixed code:
+     *
+     *     status 201 · effectiveStock before 12, after 12
+     *     products.stock_quantity 0 -> 20
+     *
+     * StartStockCountAction already stated this rule in a comment. The path a
+     * shopkeeper actually presses did not enforce it.
+     */
+    public function test_adjusting_a_product_sold_in_sizes_is_refused(): void
+    {
+        $shirt = Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product', 'name' => 'Shirt',
+            'price' => 1500, 'stock_quantity' => 0, 'track_inventory' => true,
+        ]);
+        foreach (['S' => 5, 'M' => 7] as $name => $qty) {
+            ProductVariant::withoutTenancy()->create([
+                'tenant_id' => $this->tenant->id, 'product_id' => $shirt->id,
+                'name' => $name, 'price' => 1500, 'stock_quantity' => $qty,
+            ]);
+        }
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/inventory/adjust', [
+            'product_id' => $shirt->id, 'type' => 'in', 'quantity' => 20,
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'VARIANT_REQUIRED');
+
+        // Nothing moved, including the orphaned column it used to land in.
+        $this->assertEquals(12, $shirt->fresh()->effectiveStock());
+        $this->assertEquals(0, $shirt->fresh()->stock_quantity);
+        $this->assertSame(0, StockMovement::withoutTenancy()->where('product_id', $shirt->id)->count());
+    }
+
+    /**
+     * The same rule reached through the OTHER door: a lot.
+     *
+     * A batch filed against the parent left the lot on the books and the size
+     * at zero — a chemist books in fifty strips of 10mg and the 10mg still
+     * cannot be dispensed. The refusal must also roll the lot back; a batch row
+     * surviving a refused stock-in is the worse half of that bug.
+     */
+    public function test_a_lot_on_a_product_sold_in_sizes_must_name_the_size(): void
+    {
+        $syrup = Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product', 'name' => 'Augmentin',
+            'price' => 500, 'stock_quantity' => 0, 'track_inventory' => true,
+        ]);
+        $ml250 = ProductVariant::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'product_id' => $syrup->id,
+            'name' => '250mg', 'price' => 500, 'stock_quantity' => 0,
+        ]);
+
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/inventory/products/{$syrup->id}/batches", [
+                'batch_number' => 'NO-SIZE', 'quantity' => 50,
+            ])->assertStatus(422)->assertJsonPath('meta.error_code', 'VARIANT_REQUIRED');
+
+        $this->assertSame(0, ProductBatch::withoutTenancy()
+            ->where('product_id', $syrup->id)->count(), 'a refused stock-in left its lot behind');
+
+        // Denominator: with the size named it goes in, and onto that size.
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/inventory/products/{$syrup->id}/batches", [
+                'batch_number' => '250-A', 'quantity' => 50, 'variant_id' => $ml250->id,
+            ])->assertCreated();
+
+        $this->assertEquals(50, $ml250->fresh()->stock_quantity);
+        $this->assertEquals(50, $syrup->fresh()->effectiveStock());
+    }
+
+    /** The denominator: naming the size adjusts that size, and only that one. */
+    public function test_adjusting_one_size_moves_that_size(): void
+    {
+        $shirt = Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product', 'name' => 'Shirt',
+            'price' => 1500, 'stock_quantity' => 0, 'track_inventory' => true,
+        ]);
+        $small = ProductVariant::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'product_id' => $shirt->id,
+            'name' => 'S', 'price' => 1500, 'stock_quantity' => 5,
+        ]);
+        $medium = ProductVariant::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'product_id' => $shirt->id,
+            'name' => 'M', 'price' => 1500, 'stock_quantity' => 7,
+        ]);
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/inventory/adjust', [
+            'product_id' => $shirt->id, 'variant_id' => $small->id, 'type' => 'in', 'quantity' => 20,
+        ])->assertCreated();
+
+        $this->assertEquals(25, $small->fresh()->stock_quantity);
+        $this->assertEquals(7, $medium->fresh()->stock_quantity, 'a size that was not named moved');
+        $this->assertEquals(32, $shirt->fresh()->effectiveStock());
     }
 
     // ── Stock in / out / set ────────────────────────────────────────

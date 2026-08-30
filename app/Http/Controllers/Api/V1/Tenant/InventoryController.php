@@ -89,8 +89,15 @@ class InventoryController extends Controller
         // This read `products.stock_quantity` on its own, which is nought for
         // anything sold in sizes — so a shop holding two hundred shirts was
         // told to reorder every one of them. See LowStock.
+        // `variants` is loaded, and not as a nicety. The screen renders a
+        // sub-row per size — `p.variants.map(...)` with no guard — and this
+        // list did not send the relation at all, so the reorder view threw the
+        // moment it had a row to draw. It was only ever seen empty, which is
+        // exactly why nobody met it. The size also matters on its own terms: a
+        // rail is low because the Large ran out, and "order shirts" is not
+        // something a buyer can act on.
         $products = LowStock::apply(Product::query(), $branchId)
-            ->with('category:id,name')
+            ->with(['category:id,name', 'variants'])
             ->orderBy('stock_quantity')
             ->get();
 

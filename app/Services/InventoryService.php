@@ -81,6 +81,25 @@ class InventoryService
                         ->firstOrFail();
                 }
 
+                // A PRODUCT SOLD IN SIZES HOLDS NO STOCK OF ITS OWN.
+                //
+                // `products.stock_quantity` is an orphaned leftover for such a
+                // product — `effectiveStock()` sums the sizes and never reads
+                // it. Adjusting the parent therefore wrote twenty shirts into a
+                // column nothing reads, answered "Stock updated", and changed
+                // the shelf by nothing: the till, the catalogue and the reorder
+                // list all still said what they said before. A refusal that
+                // names the problem is the only honest answer.
+                //
+                // StartStockCountAction already knew this rule and said so in a
+                // comment; the path a shopkeeper actually presses did not.
+                if ($variant === null && $product->variants()->exists()) {
+                    throw DomainException::unprocessable(
+                        'This item is sold in sizes, so its stock lives on the sizes. Choose which size to adjust.',
+                        'VARIANT_REQUIRED',
+                    );
+                }
+
                 $target = $variant ?? $product;
 
                 // Which branch's stock does this touch? Callers that don't care

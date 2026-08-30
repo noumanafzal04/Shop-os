@@ -11,6 +11,7 @@ use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Models\SupplierPayment;
 use App\Models\User;
+use App\Support\Payable;
 use App\Support\TaxYear;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -313,9 +314,11 @@ class ReportService
         $fromStart = CarbonImmutable::parse($from)->startOfDay();
         $toEnd = CarbonImmutable::parse($to)->endOfDay();
 
-        $base = PurchaseOrder::withoutTenancy()
+        // Placed orders only — the same line the supplier card and the
+        // dashboard draw. A draft counted here made "ordered value" larger
+        // than anything the shop had actually ordered.
+        $base = Payable::billable(PurchaseOrder::withoutTenancy())
             ->where('purchase_orders.tenant_id', $tenantId)
-            ->where('purchase_orders.status', '!=', 'cancelled')
             ->whereBetween('purchase_orders.order_date', [$fromStart, $toEnd]);
 
         $ordered = (float) (clone $base)->sum('total');

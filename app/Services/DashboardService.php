@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\PurchaseStatus;
 use App\Enums\ReservationStatus;
 use App\Enums\RestaurantTicketStatus;
 use App\Enums\SaleStatus;
@@ -34,6 +33,7 @@ use App\Models\Tenant;
 use App\Support\BusinessTypes;
 use App\Support\LowStock;
 use App\Support\Modules;
+use App\Support\Payable;
 use App\Support\ShopSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -606,9 +606,8 @@ class DashboardService
      */
     private function payable(Tenant $tenant): array
     {
-        $row = PurchaseOrder::withoutTenancy()
+        $row = Payable::billable(PurchaseOrder::withoutTenancy())
             ->where('tenant_id', $tenant->id)
-            ->whereNotIn('status', [PurchaseStatus::Cancelled->value, PurchaseStatus::Draft->value])
             ->whereColumn('amount_paid', '<', 'total')
             ->selectRaw('COALESCE(SUM(total - amount_paid), 0) as owed, COUNT(DISTINCT supplier_id) as accounts')
             ->toBase()
