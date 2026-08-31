@@ -4,6 +4,7 @@ namespace App\Actions\Sale;
 
 use App\Enums\ItemType;
 use App\Enums\PaymentMethod;
+use App\Enums\SaleChannel;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Models\BankCardOffer;
@@ -116,8 +117,20 @@ class CreateSaleAction
                 // names its own shift; attaching it to whichever drawer happens
                 // to be open at the moment the tablet reconnects would file
                 // yesterday's takings into tonight's count.
+                //
+                // AND ONLY AT THE COUNTER. An online order completing is not a
+                // sale being rung at a till: the rider is still out with the
+                // goods, or the card was taken on the website. Attaching it
+                // would make the drawer expect money that never crossed it,
+                // which is this same bug pointed the other way — the cashier
+                // then counts SHORT and has nothing to say about it.
+                //
+                // The same line `SaleController` already draws for
+                // `pos_require_shift`, and for the same reason: an online order
+                // has no till to be open.
                 $sessionId = $data['cash_session_id'] ?? null;
-                if ($sessionId === null && ! $trustedOffline) {
+                $atTheCounter = ($data['channel'] ?? null) !== SaleChannel::Online->value;
+                if ($sessionId === null && $atTheCounter && ! $trustedOffline) {
                     $sessionId = BooksDrawer::tillFor(Auth::user())?->id;
                 }
 

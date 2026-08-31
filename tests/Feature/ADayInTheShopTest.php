@@ -107,7 +107,7 @@ final class ADayInTheShopTest extends TestCase
      * `services` is here because a salon's day sells one: the module is what
      * lets a `service` item exist at all, and the day sells nine of them.
      */
-    private const WALKED_BY_THE_DAY = ['products', 'services', 'inventory', 'pos', 'expenses'];
+    private const WALKED_BY_THE_DAY = ['products', 'services', 'inventory', 'pos', 'expenses', 'dine_in'];
 
     /**
      * Modules a day AT THE COUNTER does not reach, and why — in writing.
@@ -120,11 +120,10 @@ final class ADayInTheShopTest extends TestCase
      */
     private const NOT_A_DAY_AT_THE_COUNTER = [
         'marketplace' => 'the online shop is a different door with a different customer — MarketplaceTest walks it signed out',
-        'delivery' => 'an order is placed before a day starts and fulfilled after it ends — OrderService has its own suite',
+        'delivery' => 'an order is placed before a day starts and fulfilled after it ends; what it must NOT do to the drawer is in the door matrix',
         'reservations' => 'a booking is not a transaction; nothing moves until it is honoured',
         'images' => 'a picture is not money and cannot disagree with a report',
-        'dine_in' => 'a tab is settled through SettleTicketAction, which is its own day — C5 in docs/qa/TRADE-DAY-PLAN.md',
-        'fuel' => 'a forecourt shift is measured by meter and dip, not by a drawer — C5 in docs/qa/TRADE-DAY-PLAN.md',
+        'fuel' => 'a forecourt shift is measured by meter and dip, not by a drawer — FuelManagementTest owns it, including fuel that crossed a meter and was never rung up',
     ];
 
     /**
@@ -221,6 +220,216 @@ final class ADayInTheShopTest extends TestCase
         if ($this->buys) {
             $this->whatDoWeOweTheSupplier($wrong);
             $this->whatIsOnTheShelf($wrong);
+        }
+
+        $this->assertSame([], $wrong, "\n".implode("\n", $wrong)."\n");
+    }
+
+    /**
+     * EVERY DOOR THAT RINGS A SALE, AGAINST THE ONE DRAWER.
+     *
+     * The counter is not the only way a sale is made in this product. It can
+     * also be a quotation turned into an invoice, an exchange settled with a
+     * top-up, a dine-in tab, an order completed, a reservation honoured — six
+     * doors, all ending in a `Sale` row, and only ONE of them ever named the
+     * drawer it happened on.
+     *
+     * A day flow that goes through the front door proves nothing about the
+     * other five. So this puts the same cash amount through each one in turn
+     * and asks the drawer what it did — because the failure is not that a door
+     * errors, it is that a door SUCCEEDS and the till never hears.
+     *
+     * ── The one that must NOT move it ───────────────────────────────────
+     *
+     * An online order completing is not a sale being rung at a till: the rider
+     * is still out with the goods, or the card was taken on the website. A
+     * drawer that expects money which never crossed it is the same bug pointed
+     * the other way, and it is worse — the cashier counts SHORT, and being
+     * short is what people get accused over.
+     *
+     * So the matrix has both signs in it. A rule that only ever adds is not a
+     * rule, it is an accident that happens to look right.
+     */
+    public function test_every_door_that_rings_a_sale_moves_the_one_drawer_that_should_move(): void
+    {
+        $this->openTheShop('mart');
+        $item = $this->cardTheItem('physical_product', 100.0, 60.0);
+        $this->stock($item, 500);
+        $this->openTheTill(float: 1000);
+
+        $wrong = [];
+        $doors = 0;
+
+        // 1. The counter. The door everything else is measured against.
+        $doors++;
+        $this->drawerMovesBy($wrong, 'the counter', 400.0, function () use ($item): void {
+            $this->send('/api/v1/sales', [
+                'channel' => 'walk_in',
+                'items' => [['product_id' => $item->id, 'quantity' => 4]],
+                'payment_method' => 'cash',
+                'amount_paid' => 400.0,
+            ], 201);
+        });
+
+        // 2. A quotation, accepted and turned into an invoice. The customer is
+        //    standing there paying cash for it.
+        $doors++;
+        $quote = $this->send('/api/v1/sale-documents', [
+            'kind' => 'quotation',
+            'customer_name' => 'Quoted Sahib',
+            'items' => [['product_id' => $item->id, 'quantity' => 3]],
+        ], 201);
+        $this->drawerMovesBy($wrong, 'a quotation turned into an invoice', 300.0, function () use ($quote): void {
+            $this->send("/api/v1/sale-documents/{$quote['id']}/convert", [
+                'payment_method' => 'cash',
+                'amount_paid' => 300.0,
+            ], 201);
+        });
+
+        // 3. An exchange where the customer takes MORE than they brought back.
+        //    One unit returned against four sold, two taken away: the drawer
+        //    gains the difference and nothing else.
+        $doors++;
+        $sale = $this->send('/api/v1/sales', [
+            'channel' => 'walk_in',
+            'items' => [['product_id' => $item->id, 'quantity' => 4]],
+            'payment_method' => 'card',
+            'amount_paid' => 400.0,
+        ], 201);
+        $this->drawerMovesBy($wrong, 'an exchange with a top-up', 100.0, function () use ($sale, $item): void {
+            $this->send("/api/v1/sales/{$sale['id']}/exchange", [
+                'return_items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]],
+                'items' => [['product_id' => $item->id, 'quantity' => 2]],
+                'payments' => [['method' => 'cash', 'amount' => 100.0]],
+            ], 201);
+        });
+
+        // 4. An online order completing. MUST NOT move it.
+        $doors++;
+        $order = $this->send('/api/v1/orders', [
+            'customer_name' => 'Phone Sahib',
+            'customer_phone' => '+923009998887',
+            'fulfillment_type' => 'pickup',
+            'items' => [['product_id' => $item->id, 'quantity' => 5]],
+        ], 201);
+        // Walked through its own state machine — pending → confirmed →
+        // preparing → ready — because an order cannot jump to completed and a
+        // 409 here would look like a passing check.
+        foreach (['confirmed', 'preparing', 'ready'] as $step) {
+            $this->send("/api/v1/orders/{$order['id']}/advance", ['status' => $step], 200);
+        }
+        $this->drawerMovesBy($wrong, 'an order completed', 0.0, function () use ($order): void {
+            $this->send("/api/v1/orders/{$order['id']}/advance", ['status' => 'completed'], 200);
+        });
+
+        // THE DENOMINATOR. A matrix that quietly stopped trying doors would
+        // satisfy every assertion above.
+        $this->assertGreaterThanOrEqual(4, $doors, 'the matrix shrank');
+
+        $this->assertSame([], $wrong, "\n".implode("\n", $wrong)."\n");
+    }
+
+    /**
+     * Run a door, and say what the drawer did about it.
+     *
+     * Read from `pos/session/report`, which is the X-read a cashier can pull
+     * mid-shift — the same figure they will be measured against at close, and
+     * the one the shop actually looks at.
+     */
+    private function drawerMovesBy(array &$wrong, string $door, float $expected, callable $run): void
+    {
+        $before = (float) $this->read('/api/v1/pos/session/report')['drawer']['expected_cash'];
+        $run();
+        $after = (float) $this->read('/api/v1/pos/session/report')['drawer']['expected_cash'];
+
+        $moved = round($after - $before, 2);
+        if ($moved !== round($expected, 2)) {
+            $wrong[] = $expected === 0.0
+                ? "{$door}: moved the drawer by {$moved} — it should not touch it at all"
+                : "{$door}: the drawer moved by {$moved}, the cash taken was {$expected}";
+        }
+    }
+
+    /**
+     * A RESTAURANT'S DAY COMES OFF THE FLOOR, NOT THE COUNTER.
+     *
+     * Every rupee above went through `POST /sales`. A restaurant's does not: a
+     * party sits down, a tab is opened on a table, the kitchen is fired, and at
+     * the end the tab is SETTLED — `SettleTicketAction`, a different door
+     * entirely. So a food shop could pass the whole day flow above on takeaway
+     * sales while its actual trade, the floor, reconciled with nothing.
+     *
+     * That is not hypothetical. `SettleTicketAction` takes `cash_session_id`
+     * from whatever it is handed and the panel's dine-in screen has never
+     * filled it, so before `BooksDrawer::tillFor` a restaurant that traded
+     * entirely off its floor closed the day off reading ZERO and its cashier
+     * counted a drawer full of money the till had never heard of.
+     *
+     * The chorus here is the same chorus. The point is that the money arrives
+     * by a different road and has to reach the same three places.
+     */
+    public function test_a_tab_settled_on_the_floor_reaches_the_drawer_and_the_day(): void
+    {
+        $this->openTheShop('food');
+        $this->assertTrue($this->shop->featureEnabled('dine_in'), 'the restaurant fixture has no floor');
+
+        $dish = $this->cardTheItem('food_item', 450.0, 300.0);
+        $this->openTheTill(float: 3000);
+
+        $table = $this->send('/api/v1/restaurant/tables', [
+            'name' => 'Table 4', 'seats' => 4,
+        ], 201)['id'];
+
+        $tab = $this->send('/api/v1/restaurant/tickets', [
+            'order_type' => 'dine_in',
+            'dining_table_id' => $table,
+            'guest_count' => 3,
+        ], 201)['id'];
+
+        $this->send("/api/v1/restaurant/tickets/{$tab}/items", [
+            'items' => [['product_id' => $dish->id, 'quantity' => 4]],
+        ], 200);
+
+        // Fired to the pass. A docket that outlives its tab is its own bug —
+        // see CancelledTabLeavesThePassTest — so the board is checked after.
+        $this->send("/api/v1/restaurant/tickets/{$tab}/fire", [], 201);
+        $this->assertGreaterThan(
+            0,
+            count($this->read('/api/v1/restaurant/kitchen')['kots'] ?? []),
+            'nothing reached the pass',
+        );
+
+        // The party pays, in cash, at the counter.
+        $bill = 4 * 450.0;
+        $this->send("/api/v1/restaurant/tickets/{$tab}/settle", [
+            'payment_method' => 'cash',
+            'amount_paid' => $bill,
+        ], 201);
+
+        $this->rung += $bill;
+        $this->intoTheDrawer += $bill;
+
+        $this->countTheDrawer();
+        $this->closeTheDay();
+
+        // The denominator: a tab that settled for nothing would agree with
+        // every screen below.
+        $this->assertEqualsWithDelta(1800, $this->rung, 0.01, 'the floor rang nothing');
+
+        $wrong = [];
+        $this->whatDidTheShopTake($wrong);
+        $this->whatShouldBeInTheDrawer($wrong);
+
+        // And the floor itself: a settled tab frees its table and clears the
+        // pass. A board still holding dockets for a party that has paid and
+        // left is what the kitchen actually looks at all evening.
+        $stillOpen = collect($this->read('/api/v1/restaurant/tickets'))
+            ->firstWhere('id', $tab);
+        if ($stillOpen !== null && ($stillOpen['status'] ?? null) === 'open') {
+            $wrong[] = 'the floor: the tab is still open after it was settled';
+        }
+        if (count($this->read('/api/v1/restaurant/kitchen')['kots'] ?? []) > 0) {
+            $wrong[] = 'the pass: dockets for a settled tab are still on the kitchen board';
         }
 
         $this->assertSame([], $wrong, "\n".implode("\n", $wrong)."\n");
@@ -547,6 +756,17 @@ final class ADayInTheShopTest extends TestCase
 
         $this->owedToSupplier += $qty * $unitCost;
         $this->onTheShelf += $qty;
+    }
+
+    /** Stock on the shelf without a delivery, for the tests that are not about buying. */
+    private function stock(Product $product, float $qty): void
+    {
+        $this->send('/api/v1/inventory/adjust', [
+            'product_id' => $product->id,
+            'type' => 'set',
+            'new_quantity' => $qty,
+            'reason' => 'opening stock',
+        ], 201);
     }
 
     private function openTheTill(float $float): void
