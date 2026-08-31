@@ -74,6 +74,13 @@ final class ADayInTheShopTest extends TestCase
 
     private float $billsPaid = 0.0;
 
+    /** Ordered less paid. Positive is a debt; the supplier card signs it. */
+    private float $owedToSupplier = 0.0;
+
+    private float $onTheKhata = 0.0;
+
+    private float $onTheShelf = 0.0;
+
     private ?string $dayId = null;
 
     private ?string $sessionId = null;
@@ -81,6 +88,44 @@ final class ADayInTheShopTest extends TestCase
     private ?string $supplierId = null;
 
     private ?string $customerId = null;
+
+    private ?string $productId = null;
+
+    /**
+     * Does this shop have a stockroom at all?
+     *
+     * Suppliers, purchase orders and receiving all ride `feature:inventory`. A
+     * restaurant and a salon do not have it, and asking them to buy stock in
+     * would test a 403 rather than a day. The steps that need it stand aside,
+     * and the test's own books never learn about money that never moved.
+     */
+    private bool $buys = true;
+
+    /**
+     * Modules the day above actually puts through their paces.
+     *
+     * `services` is here because a salon's day sells one: the module is what
+     * lets a `service` item exist at all, and the day sells nine of them.
+     */
+    private const WALKED_BY_THE_DAY = ['products', 'services', 'inventory', 'pos', 'expenses'];
+
+    /**
+     * Modules a day AT THE COUNTER does not reach, and why — in writing.
+     *
+     * Not a suppression list. Each line is a claim that somebody looked, and
+     * the moment a trade ships with something not on either list this file goes
+     * red rather than quietly covering less than it used to.
+     *
+     * @var array<string, string>
+     */
+    private const NOT_A_DAY_AT_THE_COUNTER = [
+        'marketplace' => 'the online shop is a different door with a different customer — MarketplaceTest walks it signed out',
+        'delivery' => 'an order is placed before a day starts and fulfilled after it ends — OrderService has its own suite',
+        'reservations' => 'a booking is not a transaction; nothing moves until it is honoured',
+        'images' => 'a picture is not money and cannot disagree with a report',
+        'dine_in' => 'a tab is settled through SettleTicketAction, which is its own day — C5 in docs/qa/TRADE-DAY-PLAN.md',
+        'fuel' => 'a forecourt shift is measured by meter and dip, not by a drawer — C5 in docs/qa/TRADE-DAY-PLAN.md',
+    ];
 
     /**
      * What each trade puts on the counter, and what it costs.
@@ -95,7 +140,13 @@ final class ADayInTheShopTest extends TestCase
     public static function trades(): array
     {
         return [
+            'a restaurant' => ['food', 'food_item', 450.0, 300.0],
             'a grocery' => ['mart', 'physical_product', 250.0, 180.0],
+            'a chemist' => ['pharmacy', 'medicine', 180.0, 120.0],
+            'a retailer' => ['retail', 'physical_product', 3500.0, 2600.0],
+            'a salon' => ['services', 'service', 1200.0, 0.0],
+            'a tyre shop' => ['automotive', 'physical_product', 9800.0, 7400.0],
+            'a filling station' => ['petroleum', 'physical_product', 272.0, 250.0],
         ];
     }
 
@@ -117,7 +168,9 @@ final class ADayInTheShopTest extends TestCase
         $this->openTheShop($type);
         $product = $this->cardTheItem($itemType, $price, $cost);
 
-        $this->buyStock($product, qty: 40, unitCost: $cost);
+        if ($this->buys) {
+            $this->buyStock($product, qty: 40, unitCost: $cost);
+        }
         $this->openTheTill(float: 5000);
 
         // Three tenders, because the drawer must tell them apart. A card sale
@@ -132,19 +185,135 @@ final class ADayInTheShopTest extends TestCase
         $this->refundOneLine($cashSale, $price);
 
         $this->takeKhataPayment(300);
-        $this->paySupplier(4000);
+        if ($this->buys) {
+            $this->paySupplier(4000);
+        }
         $this->payABill(1200);
 
         $this->countTheDrawer();
         $this->closeTheDay();
+
+        // ── THE DENOMINATOR ─────────────────────────────────────────
+        //
+        // Every question below compares a screen with the test's own books, and
+        // a day that traded NOTHING has books full of zeroes that every screen
+        // agrees with perfectly. So the day says what it did before it asks
+        // anybody about it. This is the assertion that stops the whole file
+        // from passing the morning a step starts silently doing nothing.
+        $this->assertEqualsWithDelta($price * 9, $this->rung, 0.01, 'the day rang nothing like nine items');
+        $this->assertEqualsWithDelta($price, $this->refunded, 0.01, 'nothing was handed back');
+        $this->assertGreaterThan(0, $this->intoTheDrawer, 'no cash ever entered the drawer');
+        $this->assertGreaterThan(0, $this->outOfTheDrawer, 'no cash ever left the drawer');
+        $this->assertNotNull($this->sessionId, 'no shift was ever opened');
+        $this->assertSame('closed', $this->day()['status'], 'the day never closed off');
+        $this->assertGreaterThan(0, $this->onTheKhata, 'nothing was put on the khata');
+        if ($this->buys) {
+            $this->assertGreaterThan(0, $this->owedToSupplier, 'the shop owes its supplier nothing');
+            $this->assertEqualsWithDelta(32, $this->onTheShelf, 0.001, 'the shelf did not end at forty less nine plus one');
+        }
 
         // ── THE CHORUS ──────────────────────────────────────────────
         $wrong = [];
         $this->whatDidTheShopTake($wrong);
         $this->whatWentBackOut($wrong);
         $this->whatShouldBeInTheDrawer($wrong);
+        $this->whatDoCustomersOweUs($wrong);
+        if ($this->buys) {
+            $this->whatDoWeOweTheSupplier($wrong);
+            $this->whatIsOnTheShelf($wrong);
+        }
 
         $this->assertSame([], $wrong, "\n".implode("\n", $wrong)."\n");
+    }
+
+    /**
+     * THE EIGHTH TRADE, WHICH HAS NO DAY AT ALL.
+     *
+     * A books-only shop sells nothing, so the flow above cannot describe it —
+     * and the provider quietly having seven rows instead of eight is exactly
+     * the shape of a check that deletes itself. So finance is named here, and
+     * asserted from the opposite end: no till, no day to close, and money that
+     * still lands in the same cashbook every counter trade writes to.
+     *
+     * `BooksOnlyTenantWalkthroughTest` owns the depth. This owns the ABSENCE,
+     * because that is what the day flow would otherwise be silent about.
+     */
+    public function test_a_books_only_shop_has_no_day_to_close_and_still_keeps_a_cashbook(): void
+    {
+        $this->openTheShop('finance');
+
+        $this->assertFalse($this->shop->featureEnabled('pos'), 'a books-only shop was given a till');
+
+        // No shift, so no trading day was ever created — and the Day screen
+        // must say so rather than erroring.
+        $this->as()->postJson('/api/v1/pos/session/open', ['opening_float' => 5000])
+            ->assertForbidden();
+        $this->assertNull(
+            $this->as()->getJson('/api/v1/pos/day')->json('data'),
+            'a shop with no till reported a trading day',
+        );
+
+        // Money still moves, and still reaches the books.
+        $this->payABill(1200);
+        $category = $this->send('/api/v1/income-categories', ['name' => 'Retainer'], 201)['id'];
+        $this->send('/api/v1/incomes', [
+            'income_category_id' => $category,
+            'description' => 'Monthly retainer',
+            'amount' => 9000,
+            'income_date' => now()->toDateString(),
+            'payment_method' => 'bank_transfer',
+        ], 201);
+
+        $today = $this->cashbookToday();
+        $this->assertEqualsWithDelta(0, (float) $today['sales_revenue'], 0.01, 'a books-only shop reported takings');
+        $this->assertEqualsWithDelta(9000, (float) $today['other_income'], 0.01);
+        $this->assertEqualsWithDelta(1200, (float) $today['expenses'], 0.01);
+        $this->assertEqualsWithDelta(7800, (float) $today['net'], 0.01, 'the two entries do not add up to one day');
+    }
+
+    /**
+     * EVERY MODULE A TRADE SHIPS WITH IS EITHER WALKED BY THE DAY, OR EXCUSED
+     * IN WRITING.
+     *
+     * The day above is hand-written, and a hand-written day misses whatever
+     * nobody thought of — which is the whole complaint that started this file.
+     * This is the part that makes the next miss LOUD: it reads what each trade
+     * actually ships with and insists that every module is either exercised or
+     * named below with a reason.
+     *
+     * So the day a module is added to a trade's defaults, this test goes red
+     * and somebody has to decide. That is the point. An excuse is cheap; not
+     * noticing is not.
+     */
+    public function test_every_module_a_trade_ships_with_is_walked_or_excused(): void
+    {
+        $unaccounted = [];
+        $pairs = 0;
+
+        foreach (array_keys(BusinessTypes::all()) as $type) {
+            foreach (BusinessTypes::defaultFeatures($type) as $module => $on) {
+                if (! $on) {
+                    continue;
+                }
+                $pairs++;
+
+                if (in_array($module, self::WALKED_BY_THE_DAY, true)) {
+                    continue;
+                }
+                if (array_key_exists($module, self::NOT_A_DAY_AT_THE_COUNTER)) {
+                    continue;
+                }
+
+                $unaccounted[] = "{$type} ships with `{$module}` and the day neither walks it nor excuses it";
+            }
+        }
+
+        // THE DENOMINATOR. A registry that returned nothing would satisfy every
+        // line above while proving the opposite of what it claims.
+        $this->assertGreaterThanOrEqual(8, count(BusinessTypes::all()), 'the trade registry shrank');
+        $this->assertGreaterThanOrEqual(40, $pairs, 'barely any modules were examined');
+
+        $this->assertSame([], array_unique($unaccounted), "\n".implode("\n", array_unique($unaccounted))."\n");
     }
 
     // ── The questions ───────────────────────────────────────────────
@@ -206,6 +375,94 @@ final class ADayInTheShopTest extends TestCase
     }
 
     /**
+     * Q3 — what do we owe the supplier?
+     *
+     * Three screens compute this three ways: the supplier's own card sums the
+     * ORDERS and subtracts every PAYMENT (so an advance shows as a negative),
+     * the dashboard sums `total - amount_paid` PER ORDER, and the purchases
+     * report sums both sides of the period. They agree only while payments are
+     * being allocated to orders properly — which is exactly what was broken
+     * when this file was started.
+     */
+    private function whatDoWeOweTheSupplier(array &$wrong): void
+    {
+        $this->agree($wrong, 'what we owe the supplier', $this->owedToSupplier, [
+            "the supplier's card" => $this->read("/api/v1/suppliers/{$this->supplierId}")['outstanding'],
+            'the dashboard' => $this->read('/api/v1/dashboard')['money_owed']['payable']['total'],
+            'the purchases report' => $this->read('/api/v1/reports/purchases?'.http_build_query([
+                'from' => now()->subDay()->toDateString(), 'to' => now()->addDay()->toDateString(),
+            ]))['totals']['outstanding'],
+        ]);
+    }
+
+    /**
+     * Q4 — what do customers owe us?
+     *
+     * The khata. The day's refund does NOT belong here: the bag that came back
+     * was bought with cash, and a refund reducing a debt it never created is
+     * one of the ways this figure drifts.
+     *
+     * ── Three sources, not three readers ────────────────────────────────
+     *
+     * The customer card, the customer list and the dashboard all read the SAME
+     * `credit_balance` column, so asking all three proves only that the column
+     * exists — they cannot disagree. The question worth asking is whether the
+     * stored balance still matches the STATEMENT it was built from, because a
+     * shopkeeper hands the statement across the counter when a customer argues,
+     * and a running balance that has drifted from the stored one is found
+     * months later by the person least able to explain it.
+     *
+     * So: the column, the newest running balance on the statement, and the
+     * statement re-added from nothing.
+     */
+    private function whatDoCustomersOweUs(array &$wrong): void
+    {
+        $card = $this->read("/api/v1/customers/{$this->customerId}");
+        $statement = collect($card['ledger'] ?? []);
+
+        $this->assertGreaterThanOrEqual(
+            2,
+            $statement->count(),
+            'the khata statement has fewer than two lines — a sale on credit and a repayment both happened',
+        );
+
+        // A charge adds to the debt; everything else pays it down.
+        $readded = $statement->reduce(
+            fn (float $carry, array $row): float => $row['type'] === 'charge'
+                ? $carry + (float) $row['amount']
+                : $carry - (float) $row['amount'],
+            0.0,
+        );
+
+        $this->agree($wrong, 'what the customer owes', $this->onTheKhata, [
+            'their record' => $card['credit_balance'],
+            'the dashboard' => $this->read('/api/v1/dashboard')['money_owed']['receivable']['total'],
+            "the statement's running balance" => $statement->first()['balance_after'],
+            'the statement, re-added' => $readded,
+        ]);
+    }
+
+    /**
+     * Q5 — what is on the shelf?
+     *
+     * Bought forty, sold nine, one came back. Asked in UNITS rather than in
+     * money, because the three screens value stock differently on purpose (a
+     * lot carries its own cost) and a disagreement about VALUE would be a
+     * different finding from a disagreement about how much is there.
+     */
+    private function whatIsOnTheShelf(array &$wrong): void
+    {
+        $grid = collect($this->read('/api/v1/products'))->firstWhere('id', $this->productId);
+        $this->assertNotNull($grid, 'the day\'s item is not in the catalog grid at all');
+
+        $this->agree($wrong, 'what is on the shelf', $this->onTheShelf, [
+            "the item\'s own card" => $this->read("/api/v1/products/{$this->productId}")['stock_quantity'],
+            'the catalog grid' => $grid['stock_quantity'],
+            'the valuation report' => $this->read('/api/v1/reports/valuation')['totals']['units'],
+        ]);
+    }
+
+    /**
      * Every screen must give the SAME answer, and it must be the RIGHT one.
      *
      * Both halves matter. Agreement alone is satisfied by four screens reading
@@ -239,19 +496,29 @@ final class ADayInTheShopTest extends TestCase
             'timezone' => 'UTC',
         ]);
         $this->owner = User::factory()->shopOwner($this->shop)->create();
+        $this->buys = $this->shop->featureEnabled('inventory');
     }
 
     private function cardTheItem(string $itemType, float $price, float $cost): Product
     {
+        // A haircut has no shelf, and the catalog says so out loud: sending
+        // `track_inventory` on a service is PROHIBITED, not merely ignored. So
+        // the two stock fields are only on the payload for a shop that keeps
+        // stock — which is the same question `$this->buys` already answers.
+        $stockFields = $this->buys && $itemType !== 'service'
+            ? ['track_inventory' => true, 'low_stock_threshold' => 10]
+            : [];
+
         $id = $this->send('/api/v1/products', [
             'name' => 'The Day Item',
             'type' => $itemType === 'service' ? 'service' : 'product',
             'item_type' => $itemType,
             'price' => $price,
             'cost' => $cost,
-            'track_inventory' => true,
-            'low_stock_threshold' => 10,
+            ...$stockFields,
         ], 201)['id'];
+
+        $this->productId = $id;
 
         return Product::withoutTenancy()->findOrFail($id);
     }
@@ -269,8 +536,17 @@ final class ADayInTheShopTest extends TestCase
         ], 201);
 
         $this->send("/api/v1/purchase-orders/{$po['id']}/receive", [
-            'items' => [['id' => $po['items'][0]['id'], 'quantity' => $qty]],
+            // Undated goods are refused outright for a chemist (EXPIRY_REQUIRED)
+            // and harmless everywhere else, so the day always dates them.
+            'items' => [[
+                'id' => $po['items'][0]['id'],
+                'quantity' => $qty,
+                'expiry_date' => now()->addYear()->toDateString(),
+            ]],
         ], 200);
+
+        $this->owedToSupplier += $qty * $unitCost;
+        $this->onTheShelf += $qty;
     }
 
     private function openTheTill(float $float): void
@@ -291,6 +567,7 @@ final class ADayInTheShopTest extends TestCase
         ], 201);
 
         $this->rung += (float) $sale['total'];
+        $this->onTheShelf -= $qty;
         if ($tender === 'cash') {
             $this->intoTheDrawer += (float) $sale['total'];
         }
@@ -315,8 +592,11 @@ final class ADayInTheShopTest extends TestCase
             'amount_paid' => $qty * $price,
         ], 201);
 
-        // Nothing enters the drawer: the whole point of a khata sale.
+        // Nothing enters the drawer: the whole point of a khata sale. It goes
+        // on the customer's account instead, which is Q4.
         $this->rung += (float) $sale['total'];
+        $this->onTheKhata += (float) $sale['total'];
+        $this->onTheShelf -= $qty;
     }
 
     private function refundOneLine(array $sale, float $price): void
@@ -329,6 +609,7 @@ final class ADayInTheShopTest extends TestCase
 
         $this->refunded += (float) $refund['refund_total'];
         $this->outOfTheDrawer += (float) $refund['refund_total'];
+        $this->onTheShelf += 1;
     }
 
     private function takeKhataPayment(float $amount): void
@@ -339,6 +620,7 @@ final class ADayInTheShopTest extends TestCase
         ], 201);
 
         $this->intoTheDrawer += $amount;
+        $this->onTheKhata -= $amount;
     }
 
     private function paySupplier(float $amount): void
@@ -350,6 +632,7 @@ final class ADayInTheShopTest extends TestCase
         ], 201);
 
         $this->outOfTheDrawer += $amount;
+        $this->owedToSupplier -= $amount;
     }
 
     private function payABill(float $amount): void
@@ -430,7 +713,9 @@ final class ADayInTheShopTest extends TestCase
         $this->assertSame(
             $expect,
             $res->status(),
-            "POST {$url} answered {$res->status()}: ".$res->content(),
+            // The BODY, not the status. A 422 whose field errors are hidden
+            // costs an afternoon; this file has already spent one.
+            "POST {$url} answered {$res->status()}: ".json_encode($res->json('errors') ?? $res->json()),
         );
 
         return $res->json('data') ?? [];
