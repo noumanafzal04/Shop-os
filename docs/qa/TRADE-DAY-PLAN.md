@@ -65,12 +65,31 @@ asks the cross-module question none of them asks.
 ## Checklist
 
 - [x] **C1** — `ShopDay` helper + the spine + Q1/Q2, mart only, green
-- [ ] **C2** — all 8 trades through the spine (expect findings here)
-- [ ] **C3** — Q3/Q4/Q5 added to the chorus
-- [ ] **C4** — the module denominator ratchet
+- [x] **C2** — all 8 trades through the spine — 7 that sell run the day; finance
+      is asserted from the opposite end (no till, no day, books still kept), so
+      the provider cannot quietly shrink to seven rows
+- [x] **C3** — Q3/Q4/Q5 added to the chorus
+- [x] **C4** — the module denominator ratchet: every module a trade ships with
+      is either walked or excused **in writing**. Adding a module to a trade
+      turns this red until somebody decides. Mutation-proven (dropping
+      `expenses` from the walked list names 17 trades).
 - [ ] **C5** — per-trade specials woven in (batch/serial/job-card/forecourt/dine-in)
 - [ ] **C6** — fix whatever C2–C5 found
 - [ ] **C7** — docs/decisions + memory + HANDOVER + Help Centre
+
+## Where the day stands
+
+| | |
+|---|---|
+| trades running the full day | 7 (food · mart · pharmacy · retail · services · automotive · petroleum) |
+| finance | asserted from the opposite end — no till, no day, cashbook still kept |
+| chorus questions | 5 — takings · refunds · drawer · khata · shelf · payables |
+| mutation-proven | Q1 (Takings), Q3 (supplier card), Q5 (valuation units), C4 (module ratchet) |
+
+Q4 was rewritten after it was found to be weak: the customer card, the customer
+list and the dashboard all read the SAME `credit_balance` column, so they could
+not disagree. It now asks the column, the statement's newest running balance,
+and the statement RE-ADDED from nothing.
 
 ## Findings
 
