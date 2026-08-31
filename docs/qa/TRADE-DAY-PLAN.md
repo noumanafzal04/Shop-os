@@ -77,8 +77,21 @@ asks the cross-module question none of them asks.
       suites already own those (`FuelManagementTest` alone covers the forecourt
       in thirty tests). What nothing owned was the other ways a `Sale` row comes
       into being — see F3 below.
-- [ ] **C6** — fix whatever C2–C5 found
-- [ ] **C7** — docs/decisions + memory + HANDOVER + Help Centre
+- [x] **C6** — fixed inline as each was proven: F1 (the drawer), F2 (the
+      vanishing ticket), F3 (the other doors). Nothing is carried as a known
+      bug.
+- [x] **C7** — `docs/decisions/shopos-a-day-and-its-chorus.md`, HANDOVER ×2,
+      memory `shopos-day-and-chorus`, Help Centre (POS · Day · Reports).
+
+### Still open
+
+- [ ] **C8** — the two doors the matrix has not put through the drawer:
+      a reservation honoured (`ReservationService`) and an offline sale
+      replayed (`PosSyncController`). Both build a sale row; neither has been
+      asked what it does to the drawer.
+- [ ] **C9** — `customers/index` spells "which sales count" a fourth way
+      (`status != cancelled`). It agrees with `Takings::COUNTED` today by
+      accident, not by construction.
 
 ## Where the day stands
 
