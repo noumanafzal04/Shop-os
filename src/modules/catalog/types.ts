@@ -17,7 +17,7 @@ export interface ItemTypeInfo {
   code: ItemTypeCode;
   label: string;
   inventory: "required" | "optional" | "never";
-  variants: boolean | "optional";
+  variants?: boolean | "optional";
   modifiers: boolean;
   addons: boolean;
   pos: boolean | "optional";
@@ -153,8 +153,8 @@ export interface Product {
   visible_in_marketplace: boolean;
   available_from: string | null;
   available_until: string | null;
-  variants: ProductVariant[];
-  images: ProductImage[];
+  variants?: ProductVariant[];
+  images?: ProductImage[];
   collections?: Array<{ id: string; name: string }>;
   modifier_groups?: ModifierGroup[];
   units?: ProductUnit[];
@@ -231,7 +231,7 @@ export interface ModifierGroup {
   type: "modifier" | "addon";
   min_select: number;
   max_select: number;
-  options: ModifierOption[];
+  options?: ModifierOption[];
 }
 
 export interface ProductImage {

@@ -133,7 +133,7 @@ export default function TakeOrderPage() {
    * That mistake is exactly what made a deal with sizes unsellable once.
    */
   const stockOf = (p: Product): number | null =>
-    p.type !== "product" || p.variants.length > 0 ? null : Number(p.stock_quantity);
+    p.type !== "product" || (p.variants ?? []).length > 0 ? null : Number(p.stock_quantity);
 
   const setQty = (product: Product, qty: number) =>
     setCart((c) => {

@@ -50,7 +50,7 @@ export function StartShiftModal({ onClose, onStart, busy }: Props) {
     () =>
       (pumps.data ?? [])
         .filter((p) => p.is_active)
-        .map((p) => ({ pump: p, nozzles: p.nozzles.filter((n) => n.is_active) }))
+        .map((p) => ({ pump: p, nozzles: (p.nozzles ?? []).filter((n) => n.is_active) }))
         .filter((row) => row.nozzles.length > 0),
     [pumps.data],
   );

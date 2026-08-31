@@ -24,6 +24,8 @@ export interface SeriesDay {
   revenue: number;
   /** Money in that wasn't a sale. Zero for a shop that records none. */
   other_income: number;
+  /** Handed back over the counter that day. Already subtracted from `profit`. */
+  refunds: number;
   expenses: number;
   profit: number;
 }
@@ -83,6 +85,12 @@ export interface TenantDashboard {
     revenue: number;
     /** Non-sale money in — kept apart from `revenue` so "what we sold" stays honest. */
     other_income: number;
+    /**
+     * Handed back today. `revenue` above stays GROSS — a refund is dated by
+     * the day it went out, so netting it would rewrite a day that may already
+     * be closed and banked. `profit` has it subtracted.
+     */
+    refunds: number;
     expenses: number;
     profit: number;
     /** Buyers served, not tickets rung. */

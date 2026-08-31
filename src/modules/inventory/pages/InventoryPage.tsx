@@ -108,7 +108,7 @@ export default function InventoryPage() {
     setBNo(""); setBExpiry(""); setBQty(""); setBCost("");
     // One size means there is nothing to choose — preselect it rather than
     // making somebody pick from a list of one.
-    setBVariant((p.variants ?? []).length === 1 ? p.variants[0].id : "");
+    setBVariant((p.variants ?? []).length === 1 ? (p.variants ?? [])[0].id : "");
     addBatch.reset();
     batchModal.openModal();
   };

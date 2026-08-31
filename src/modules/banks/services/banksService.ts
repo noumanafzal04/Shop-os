@@ -68,7 +68,7 @@ export interface LiveBank {
   id: string;
   name: string;
   short_code: string | null;
-  offers: Array<{
+  offers?: Array<{
     id: string;
     label: string;
     type: BankOfferType;

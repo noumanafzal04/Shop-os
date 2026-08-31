@@ -390,7 +390,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setModifierGroups(
         (p.modifier_groups ?? []).map((g) => ({
           name: g.name, type: g.type, min_select: g.min_select, max_select: g.max_select,
-          options: g.options.map((o) => ({ name: o.name, price_delta: o.price_delta })),
+          options: (g.options ?? []).map((o) => ({ name: o.name, price_delta: o.price_delta })),
         })),
       );
     }
@@ -1190,16 +1190,16 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             </p>
           )}
 
-          {onlineRequired && (!isEdit || !existing.data?.images.length) && (
+          {onlineRequired && (!isEdit || !existing.data?.images?.length) && (
             <p className="mb-2 text-theme-xs text-warning-500">
               Add at least one photo — items shown online need a picture{!isEdit ? " (you can add it right after saving)" : ""}.
             </p>
           )}
 
           {isEdit ? (
-            existing.data?.images.length ? (
+            existing.data?.images?.length ? (
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-                {existing.data.images.map((img) => (
+                {(existing.data.images ?? []).map((img) => (
                   <div key={img.id} className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
                     <img src={img.url ?? ""} alt="" className="h-full w-full object-cover" />
                     <button
@@ -1330,7 +1330,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               {modifierGroups.map((g, gi) => {
                 const patch = (p: Partial<ModifierGroup>) => setModifierGroups((list) => list.map((x, i) => (i === gi ? { ...x, ...p } : x)));
                 const patchOpt = (oi: number, p: Partial<{ name: string; price_delta: number | string }>) =>
-                  patch({ options: g.options.map((o, i) => (i === oi ? { ...o, ...p } : o)) });
+                  patch({ options: (g.options ?? []).map((o, i) => (i === oi ? { ...o, ...p } : o)) });
                 return (
                   <div key={gi} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
                     <div className="mb-2 grid grid-cols-12 items-center gap-2">
@@ -1348,14 +1348,14 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       <button type="button" className={`col-span-1 ${ROW_ACTION_DANGER}`} onClick={() => setModifierGroups((list) => list.filter((_, i) => i !== gi))}>✕</button>
                       <p className="col-span-12 text-theme-xs text-gray-400">min / max selectable ({g.min_select > 0 ? "required" : "optional"})</p>
                     </div>
-                    {g.options.map((o, oi) => (
+                    {(g.options ?? []).map((o, oi) => (
                       <div key={oi} className="mb-1 grid grid-cols-12 items-center gap-2 pl-3">
                         <div className="col-span-7"><Input placeholder="Option e.g. Stuffed" value={o.name} onChange={(e) => patchOpt(oi, { name: e.target.value })} /></div>
                         <div className="col-span-4"><Input type="number" min="0" placeholder="+ price" value={String(o.price_delta)} onChange={(e) => patchOpt(oi, { price_delta: e.target.value })} /></div>
-                        <button type="button" className={`col-span-1 ${ROW_ACTION_DANGER}`} onClick={() => patch({ options: g.options.filter((_, i) => i !== oi) })}>✕</button>
+                        <button type="button" className={`col-span-1 ${ROW_ACTION_DANGER}`} onClick={() => patch({ options: (g.options ?? []).filter((_, i) => i !== oi) })}>✕</button>
                       </div>
                     ))}
-                    <button type="button" className={`ml-3 mt-1 ${ROW_ACTION}`} onClick={() => patch({ options: [...g.options, { name: "", price_delta: 0 }] })}>+ Option</button>
+                    <button type="button" className={`ml-3 mt-1 ${ROW_ACTION}`} onClick={() => patch({ options: [...(g.options ?? []), { name: "", price_delta: 0 }] })}>+ Option</button>
                   </div>
                 );
               })}
@@ -1370,8 +1370,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 onClick={() =>
                   syncModifiers.mutate(
                     modifierGroups
-                      .filter((g) => g.name.trim() && g.options.some((o) => o.name.trim()))
-                      .map((g) => ({ ...g, options: g.options.filter((o) => o.name.trim()).map((o) => ({ ...o, price_delta: Number(o.price_delta) || 0 })) })),
+                      .filter((g) => g.name.trim() && (g.options ?? []).some((o) => o.name.trim()))
+                      .map((g) => ({ ...g, options: (g.options ?? []).filter((o) => o.name.trim()).map((o) => ({ ...o, price_delta: Number(o.price_delta) || 0 })) })),
                   )
                 }
                 disabled={syncModifiers.isPending}

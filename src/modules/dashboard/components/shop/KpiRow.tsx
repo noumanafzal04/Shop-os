@@ -87,6 +87,22 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       tone: "success",
       spark: spark((d) => d.revenue),
     });
+
+    // Only when the shop actually handed something back. Today's Sales is
+    // GROSS — a refund is dated by the day it went out, so netting it into the
+    // sales tile would rewrite a day that may already be closed and banked —
+    // and without this tile the profit below looks like it was struck from the
+    // wrong arithmetic.
+    if (today.refunds > 0) {
+      tiles.push({
+        key: "refunds",
+        label: "Refunded Today",
+        value: money(today.refunds),
+        icon: <DollarLineIcon className="size-5" />,
+        tone: "warning",
+        spark: spark((d) => d.refunds),
+      });
+    }
   }
 
   if (caps.keepsBooks) {
@@ -111,7 +127,9 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       icon: <PieChartIcon className="size-5" />,
       tone: "brand",
       emphasis: true,
-      caption: "Sales − cost of goods − expenses",
+      caption: today.refunds > 0
+        ? "Sales − refunds − cost of goods − expenses"
+        : "Sales − cost of goods − expenses",
       spark: spark((d) => d.profit),
     });
 

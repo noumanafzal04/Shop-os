@@ -46,7 +46,7 @@ export type SearchHit = ProductHit | CustomerHit | SaleHit | OrderHit | Supplier
 export interface SearchGroup {
   type: SearchType;
   label: string;
-  items: SearchHit[];
+  items?: SearchHit[];
 }
 
 export interface SearchResults {

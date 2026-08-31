@@ -26,7 +26,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   // A flat, index-addressable list of every hit across all groups — the unit
   // the arrow keys walk over.
   const flat = useMemo(
-    () => groups.flatMap((g) => g.items.map((item) => ({ type: g.type, item }))),
+    () => groups.flatMap((g) => (g.items ?? []).map((item) => ({ type: g.type, item }))),
     [groups],
   );
 
@@ -111,7 +111,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                 <p className="px-4 pb-1 pt-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400">
                   {group.label}
                 </p>
-                {group.items.map((item) => {
+                {(group.items ?? []).map((item) => {
                   const idx = flat.findIndex((f) => f.type === group.type && f.item.id === item.id);
                   const view = present(group.type, item, money);
                   return (

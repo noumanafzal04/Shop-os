@@ -16,7 +16,7 @@ export interface KotCard {
   ticket_number: string | null;
   table_name: string | null;
   guest_count: number | null;
-  items: Array<{
+  items?: Array<{
     name: string;
     quantity: number;
     modifiers: Array<{ group: string | null; name: string | null }>;

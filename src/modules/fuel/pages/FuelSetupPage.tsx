@@ -189,9 +189,9 @@ export default function FuelSetupPage() {
                     </div>
                   </div>
 
-                  {p.nozzles.length > 0 && (
+                  {(p.nozzles ?? []).length > 0 && (
                     <ul className="mt-2 space-y-1">
-                      {p.nozzles.map((n) => (
+                      {(p.nozzles ?? []).map((n) => (
                         <li key={n.id} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-theme-xs dark:bg-white/[0.03]">
                           <span className="text-gray-700 dark:text-gray-200">{n.name}</span>
                           <span className="flex items-center gap-3">

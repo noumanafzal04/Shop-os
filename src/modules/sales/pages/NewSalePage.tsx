@@ -174,7 +174,7 @@ export default function NewSalePage() {
               <div className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
                 {searchResults.slice(0, 8).map((p) => (
                   <div key={p.id}>
-                    {p.variants.length === 0 ? (
+                    {(p.variants ?? []).length === 0 ? (
                       <button
                         className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"
                         onClick={() => addLine(p)}
@@ -188,7 +188,7 @@ export default function NewSalePage() {
                         <span className="text-gray-500">{money(sellingPrice(p))}</span>
                       </button>
                     ) : (
-                      p.variants.map((v) => (
+                      (p.variants ?? []).map((v) => (
                         <button
                           key={v.id}
                           className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"

@@ -142,6 +142,16 @@ export interface ReportSummary {
   totals: {
     sales_count: number;
     revenue: number;
+    /**
+     * What was handed back over the counter, dated by the day it went OUT.
+     *
+     * `revenue` above is GROSS on purpose — a bag returned on Thursday against
+     * Monday's invoice cannot be netted off a Monday that has been closed and
+     * banked. So the refund is its own line, and both profits below already
+     * have it subtracted. Reporting the takings without this beside them is
+     * not a smaller number, it is a wrong one.
+     */
+    refunds: number;
     /** Money in that wasn't a sale — a retainer, an owner's injection, a refund. */
     other_income: number;
     cogs: number;
@@ -149,7 +159,14 @@ export interface ReportSummary {
     expenses: number;
     net_profit: number;
   };
-  series: Array<{ date: string; revenue: number; other_income: number; expenses: number; profit: number }>;
+  series: Array<{
+    date: string;
+    revenue: number;
+    other_income: number;
+    refunds: number;
+    expenses: number;
+    profit: number;
+  }>;
   top_products: Array<{ name: string; units: number; revenue: number }>;
   expenses_by_category: Array<{ category: string; total: number }>;
 }

@@ -78,7 +78,7 @@ export default function MyOrdersPage() {
                 )}
 
                 <div className="mb-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
-                  {o.items.map((it, i) => (
+                  {(o.items ?? []).map((it, i) => (
                     <div key={i} className="flex justify-between">
                       <span>{it.quantity} × {it.product_name}{it.variant_name ? ` (${it.variant_name})` : ""}</span>
                       <span>{money(it.line_total)}</span>

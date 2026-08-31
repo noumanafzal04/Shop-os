@@ -79,7 +79,7 @@ export interface PurchaseOrderInput {
   tax?: number;
   notes?: string | null;
   status?: "draft" | "ordered";
-  items: Array<{ product_id: string; variant_id?: string | null; product_unit_id?: string | null; quantity: number; unit_cost: number }>;
+  items?: Array<{ product_id: string; variant_id?: string | null; product_unit_id?: string | null; quantity: number; unit_cost: number }>;
 }
 
 export interface SupplierPayment {

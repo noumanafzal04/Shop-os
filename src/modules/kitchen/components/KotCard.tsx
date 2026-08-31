@@ -93,7 +93,7 @@ export function KotCardTile({ kot, ageSeconds, onBump, busy = false }: Props) {
       </header>
 
       <ul className="flex-1 space-y-2.5 px-4 py-3">
-        {kot.items.map((item, i) => (
+        {(kot.items ?? []).map((item, i) => (
           <li key={i} className="flex gap-3">
             <span className="min-w-[2.2rem] shrink-0 text-lg font-bold tabular-nums text-gray-900 dark:text-white">
               {item.quantity}

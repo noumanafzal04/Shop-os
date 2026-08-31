@@ -814,7 +814,8 @@ export default function PosPage() {
   const openConfig = (p: CatalogProduct, size: ProductVariant | null = null) => {
     const sel: Record<string, string[]> = {};
     (p.modifier_groups ?? []).forEach((g) => {
-      sel[g.id!] = g.min_select > 0 && g.options[0]?.id ? [g.options[0].id] : [];
+      const first = (g.options ?? [])[0]?.id;
+      sel[g.id!] = g.min_select > 0 && first ? [first] : [];
     });
     setCfgSel(sel);
     setCfgSize(size);
@@ -828,7 +829,7 @@ export default function PosPage() {
       if (g.max_select > 0 && cur.length >= g.max_select) return s;
       return { ...s, [g.id!]: [...cur, oid] };
     });
-  const cfgDelta = cfg ? (cfg.modifier_groups ?? []).reduce((sum, g) => sum + (cfgSel[g.id!] ?? []).reduce((s, oid) => s + Number(g.options.find((o) => o.id === oid)?.price_delta ?? 0), 0), 0) : 0;
+  const cfgDelta = cfg ? (cfg.modifier_groups ?? []).reduce((sum, g) => sum + (cfgSel[g.id!] ?? []).reduce((s, oid) => s + Number((g.options ?? []).find((o) => o.id === oid)?.price_delta ?? 0), 0), 0) : 0;
   // A size's price is absolute and replaces the parent's; the modifier deltas
   // then apply on top of it. Reading the parent here would charge Small's price
   // for a Large with extras.
@@ -842,7 +843,7 @@ export default function PosPage() {
     if (!cfg || !cfgValid) return;
     const optionIds = Object.values(cfgSel).flat();
     const chosen = (cfg.modifier_groups ?? [])
-      .flatMap((g) => (cfgSel[g.id!] ?? []).map((oid) => g.options.find((o) => o.id === oid)?.name))
+      .flatMap((g) => (cfgSel[g.id!] ?? []).map((oid) => (g.options ?? []).find((o) => o.id === oid)?.name))
       .filter(Boolean) as string[];
     setCart((c) => [...c, {
       key: `c${++ck}`, product_id: cfg.id, variant_id: cfgSize?.id ?? null,
@@ -1325,7 +1326,7 @@ export default function PosPage() {
       }
 
       const product = asProduct(hit.item);
-      const scanned = hit.variantId ? product.variants.find((x) => x.id === hit.variantId) ?? null : null;
+      const scanned = hit.variantId ? (product.variants ?? []).find((x) => x.id === hit.variantId) ?? null : null;
 
       // The scanner used to be the one door with no fence at all — it would ring
       // a sold-out dish and an empty shelf without a word. See whyNotSellable.
@@ -1351,7 +1352,7 @@ export default function PosPage() {
     try {
       const { data } = await posService.lookup(code.trim());
       const scanned = data.variant_id
-        ? data.product.variants.find((x) => x.id === data.variant_id) ?? null
+        ? (data.product.variants ?? []).find((x) => x.id === data.variant_id) ?? null
         : null;
 
       // Same fence as every other door, online as well as off.
@@ -4084,7 +4085,7 @@ export default function PosPage() {
                     <span className="text-theme-xs text-gray-400">{rule}{g.min_select > 0 ? " · required" : ""}</span>
                   </div>
                   <div className="space-y-1">
-                    {g.options.map((o) => {
+                    {(g.options ?? []).map((o) => {
                       const on = sel.includes(o.id!);
                       return (
                         <button key={o.id} onClick={() => toggleOpt(g, o.id!)}

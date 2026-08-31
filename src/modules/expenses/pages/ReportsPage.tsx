@@ -206,6 +206,13 @@ export default function ReportsPage() {
           <>
             <MetricCard label="Sales" value={data.totals.sales_count} />
             <MetricCard label="Revenue" value={money(data.totals.revenue)} />
+            {/* Next to the revenue it reduces, and only when the shop actually
+                handed something back — same rule as Other Income below. Without
+                it, Revenue − Cost of Goods does not equal Gross Profit and the
+                row reads like an arithmetic error. */}
+            {data.totals.refunds > 0 && (
+              <MetricCard label="Refunds" value={money(data.totals.refunds)} />
+            )}
             {/* Only when there IS some. Most shops record no non-sale income,
                 and a permanent Rs 0 card is the padding this row was cleaned
                 of in the first place. */}

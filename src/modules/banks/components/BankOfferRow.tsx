@@ -61,7 +61,7 @@ export function BankOfferRow({
   const rows = banks.data ?? [];
   // Does any live offer care which kind of card it is? Asking every cashier
   // credit-or-debit when no deal distinguishes them is a question for nothing.
-  const typeMatters = rows.some((b) => b.offers.some((o) => (o.card_types ?? []).length > 0));
+  const typeMatters = rows.some((b) => (b.offers ?? []).some((o) => (o.card_types ?? []).length > 0));
 
   useEffect(() => {
     if (bankId === null || cardAmount <= 0) {

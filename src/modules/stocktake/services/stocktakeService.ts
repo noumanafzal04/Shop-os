@@ -61,7 +61,7 @@ export interface StockCountSummary {
 
 export interface StockCountSheet {
   count: StockCount;
-  items: StockCountLine[];
+  items?: StockCountLine[];
   /** True while the expected figures are being withheld. */
   blind: boolean;
   summary: StockCountSummary | null;

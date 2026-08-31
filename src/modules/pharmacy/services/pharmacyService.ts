@@ -43,7 +43,7 @@ export interface DispensingRow {
   dosage_form: string | null;
   schedule: string | null;
   quantity: number;
-  batches: BatchAllocation[];
+  batches?: BatchAllocation[];
   prescription_number: string | null;
   patient_name: string | null;
   prescriber_name: string | null;

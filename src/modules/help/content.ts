@@ -511,6 +511,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       },
       { type: "h", text: "Opening and closing a shift" },
       { type: "p", text: "A shift is a drawer, opened with a float and counted at the end. Whether one is REQUIRED before you can sell is your own choice — Settings → Point of Sale → \u201cRequire open shift\u201d. It ships off, so a one-person shop can ring a sale on its first day without setting anything up; turn it on the day you have staff and every rupee then belongs to a shift that gets counted." },
+      { type: "note", text: "Your open drawer takes in every sale you ring anywhere in the shop, not just the ones rung on this screen — a sale from Sales \u2192 New Sale, a settled dine-in tab, an invoice made from a quotation. Cash refunds you hand back come out of it the same way. Before this, only sales rung here counted, so the drawer expected less than it held and the day closed off short." },
       { type: "p", text: "Either way, this is how one runs:" },
       {
         type: "steps",
@@ -770,6 +771,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "note", text: "Anyone at the till can read the day. Closing it off is a manager's job." },
       { type: "p", text: "A deposit you record goes against the day the counter is trading — the one shown at the top of this screen. If last night was never closed off, you will see more than one day still open; the money still lands on today, and last night stays open until someone signs it off." },
       { type: "warn", text: "Close the day every night. A day left open is not just untidy: nothing about it is final, so its variance is never signed off and the figures keep moving." },
+      { type: "p", text: "Every sale rung while a drawer is open counts toward that drawer and toward the day — whether it was rung at the till, on the New Sale screen, by settling a dine-in tab, or by turning a quotation into an invoice. It used to be only the till, so a shop that sold from any other screen closed its day off reading zero." },
       { type: "warn", text: "Once a day is closed off, its figures never change again — not when a correction is made, and not when a sale that was stuck on an offline till finally arrives. That is on purpose: a variance you counted and accepted has to still mean the same thing months later. If late sales do land against a day you have already closed, Reports → Offline names the amount so you can post an adjustment." },
     ],
   },
@@ -1622,7 +1624,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: ["report", "profit", "best seller", "analysis", "tax year", "financial year", "year", "staff", "salesman", "commission", "target"],
     body: [
       { type: "p", text: "What sold, who bought it, and who sold it." },
-      { type: "p", text: "Profit is takings, plus other income, minus the cost of what was sold, minus expenses." },
+      { type: "p", text: "Profit is takings, less anything refunded, plus other income, minus the cost of what was sold, minus expenses." },
+      { type: "note", text: "Revenue here is what you rang up, before refunds — a Refunds figure sits next to it whenever the shop handed something back, and profit already has it taken off. Refunds are dated by the day the money went out, not the day of the sale, so a bag returned on Thursday against Monday's invoice does not change Monday. That matters: Monday may already be closed and banked." },
+      { type: "warn", text: "A sale with one item returned used to disappear from this screen entirely — the whole invoice, not just the returned item. It now stays, at its full value, with the refund shown separately." },
       { type: "p", text: "Two different years are on offer, and they are different questions. This Year is January to December — what you made, the way you'd say it out loud. Tax Year is 1 July to 30 June, which is the window FBR's return, your audited accounts and your advance tax all sit inside. For anything you file, use Tax Year." },
       { type: "note", text: "The dates under the buttons always say which twelve months you are looking at, so you never have to remember which is which." },
       { type: "h", text: "Who sold it vs who rang it" },

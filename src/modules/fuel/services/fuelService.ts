@@ -44,7 +44,7 @@ export interface FuelPump {
   branch_id: string | null;
   branch?: { id: string; name: string };
   is_active: boolean;
-  nozzles: FuelNozzle[];
+  nozzles?: FuelNozzle[];
 }
 
 export interface ForecourtReading {
@@ -79,7 +79,7 @@ export interface AttendantTotal {
   attendant: string | null;
   litres: number;
   value: number;
-  nozzles: number;
+  nozzles?: number;
 }
 
 export interface ForecourtDip {

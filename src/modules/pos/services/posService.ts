@@ -263,7 +263,7 @@ export interface SessionReport {
   /** Notes and coins to offer, largest first. */
   denominations: number[];
   /** Who else rang on this drawer, and what they took. */
-  covers: CoverRecord[];
+  covers?: CoverRecord[];
   movements: CashMovement[];
 }
 

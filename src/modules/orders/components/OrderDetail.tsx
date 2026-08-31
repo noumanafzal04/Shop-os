@@ -144,7 +144,7 @@ export function OrderDetail({
             The order
           </h4>
           <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-            {order.items.map((it, i) => (
+            {(order.items ?? []).map((it, i) => (
               <li key={i} className="flex items-baseline justify-between gap-3 px-3.5 py-2.5 text-theme-sm">
                 <span className="min-w-0 text-gray-700 dark:text-gray-300">
                   <span className="font-medium tabular-nums text-gray-800 dark:text-white/90">

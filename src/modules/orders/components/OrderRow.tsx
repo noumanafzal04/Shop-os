@@ -59,7 +59,7 @@ export function OrderRow({
   const delivery = order.fulfillment_type === "delivery";
   const open = order.status !== "completed" && order.status !== "cancelled";
   const needsRider = delivery && open && order.rider_id === null;
-  const items = order.items.reduce((n, i) => n + Number(formatQuantity(i.quantity) || 0), 0);
+  const items = (order.items ?? []).reduce((n, i) => n + Number(formatQuantity(i.quantity) || 0), 0);
 
   return (
     <tr

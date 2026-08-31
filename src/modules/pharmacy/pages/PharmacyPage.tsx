@@ -144,9 +144,9 @@ function RegisterRow({ row }: { row: DispensingRow }) {
       </td>
       <td className="px-3 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.quantity}</td>
       <td className="px-3 py-3 text-theme-xs text-gray-500 dark:text-gray-400">
-        {row.batches.length === 0
+        {(row.batches ?? []).length === 0
           ? "—"
-          : row.batches.map((b) => (
+          : (row.batches ?? []).map((b) => (
               <div key={b.batch_number} className="font-mono">
                 {b.batch_number}
                 {b.expiry_date ? ` · exp ${b.expiry_date}` : ""}

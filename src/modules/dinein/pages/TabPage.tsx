@@ -154,7 +154,7 @@ export default function TabPage() {
     if (p.modifier_groups && p.modifier_groups.length > 0) {
       const seed: Record<string, string[]> = {};
       p.modifier_groups.forEach((g) => {
-        seed[g.id ?? g.name] = g.options.filter((o) => o.is_default && o.id).map((o) => o.id as string);
+        seed[g.id ?? g.name] = (g.options ?? []).filter((o) => o.is_default && o.id).map((o) => o.id as string);
       });
       setModSize(size);
       setModProduct(p);
@@ -564,7 +564,7 @@ export default function TabPage() {
                   </span>
                 </div>
                 <div className="space-y-1">
-                  {g.options.map((o) => (
+                  {(g.options ?? []).map((o) => (
                     <button
                       key={o.id ?? o.name}
                       onClick={() => o.id && toggleOption(g, o.id)}

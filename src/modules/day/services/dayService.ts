@@ -93,7 +93,7 @@ export interface BankDeposit {
 
 export interface DayView {
   day: BusinessDay;
-  sessions: DayShift[];
+  sessions?: DayShift[];
   running: {
     shifts: number;
     open_shifts: number;
@@ -109,10 +109,10 @@ export interface DayView {
   banked: number;
   /** Today's takings still in the shop. Floats excluded — they stay. */
   unbanked: number;
-  deposits: BankDeposit[];
+  deposits?: BankDeposit[];
 }
 
-export type DayDetail = BusinessDay & { sessions: DayShift[]; deposits: BankDeposit[] };
+export type DayDetail = BusinessDay & { sessions?: DayShift[]; deposits?: BankDeposit[] };
 
 export interface DepositInput {
   amount: number;

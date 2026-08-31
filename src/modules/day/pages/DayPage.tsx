@@ -324,7 +324,7 @@ export default function DayPage() {
                     value={money(running!.expected_cash)}
                     hint="What every till should hold now"
                   />
-                  <Stat label="Banked" value={money(view.banked)} hint={`${view.deposits.length} deposit${view.deposits.length === 1 ? "" : "s"}`} />
+                  <Stat label="Banked" value={money(view.banked)} hint={`${(view.deposits ?? []).length} deposit${(view.deposits ?? []).length === 1 ? "" : "s"}`} />
                   <Stat label="Still in the shop" value={money(view.unbanked)} hint="Takings not yet banked" />
                   <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
                     <p className="text-theme-xs uppercase tracking-wide text-gray-400">Counted so far</p>
@@ -347,7 +347,7 @@ export default function DayPage() {
                     An open drawer's figures are live; a closed one shows what it was signed off on.
                   </p>
                 </div>
-                {view.sessions.length === 0 ? (
+                {(view.sessions ?? []).length === 0 ? (
                   <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">No shifts yet.</p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -365,7 +365,7 @@ export default function DayPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {view.sessions.map((s) => (
+                        {(view.sessions ?? []).map((s) => (
                           <tr key={s.id} className="border-b border-gray-50 last:border-0 dark:border-gray-800/60">
                             <td className="px-5 py-3">
                               <span className="text-gray-800 dark:text-white/90">{s.user?.name ?? "—"}</span>
@@ -430,13 +430,13 @@ export default function DayPage() {
                     The safe-to-bank leg. It never touches a drawer — that money left the till hours earlier.
                   </p>
                 </div>
-                {view.deposits.length === 0 ? (
+                {(view.deposits ?? []).length === 0 ? (
                   <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                     Nothing banked yet today.
                   </p>
                 ) : (
                   <ul className="divide-y divide-gray-50 dark:divide-gray-800/60">
-                    {view.deposits.map((d) => (
+                    {(view.deposits ?? []).map((d) => (
                       <li key={d.id} className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3">
                         <span className="text-theme-sm text-gray-700 dark:text-gray-300">
                           {d.bank_name ?? "Bank"}
@@ -914,7 +914,7 @@ export default function DayPage() {
               <div>
                 <h4 className="mb-2 text-theme-sm font-semibold text-gray-800 dark:text-white/90">Banked</h4>
                 <ul className="space-y-1 text-theme-sm">
-                  {detail.data.deposits.map((d) => (
+                  {(detail.data.deposits ?? []).map((d) => (
                     <li key={d.id} className="flex justify-between gap-3 text-gray-600 dark:text-gray-400">
                       <span>
                         {d.bank_name ?? "Bank"}

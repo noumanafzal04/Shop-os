@@ -48,7 +48,7 @@ export interface Ticket {
   waiter_id: string | null;
   waiter?: { id: string; name: string } | null;
   table?: { id: string; name: string } | null;
-  items: TicketItem[];
+  items?: TicketItem[];
 }
 
 /** One kitchen ticket produced by a fire. A fire can produce several. */

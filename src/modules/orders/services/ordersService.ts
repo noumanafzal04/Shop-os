@@ -30,7 +30,7 @@ export interface CustomerOrder {
   subtotal: string;
   delivery_fee: string;
   total: string;
-  items: OrderItem[];
+  items?: OrderItem[];
   placed_at: string;
 }
 
@@ -39,7 +39,7 @@ export interface PlaceOrderPayload {
   fulfillment_type: "delivery" | "pickup";
   delivery_address?: string;
   payment_method?: "cod" | "paid";
-  items: Array<{ product_id: string; variant_id?: string | null; quantity: number; modifier_option_ids?: string[] }>;
+  items?: Array<{ product_id: string; variant_id?: string | null; quantity: number; modifier_option_ids?: string[] }>;
   notes?: string;
   idempotency_key?: string;
   coupon_code?: string;
@@ -59,7 +59,7 @@ export interface CounterOrderPayload {
   fulfillment_type: "delivery" | "pickup";
   delivery_address?: string;
   payment_method?: "cod" | "paid";
-  items: Array<{ product_id: string; variant_id?: string | null; quantity: number }>;
+  items?: Array<{ product_id: string; variant_id?: string | null; quantity: number }>;
   notes?: string;
   idempotency_key?: string;
 }
@@ -90,7 +90,7 @@ export interface OwnerOrder {
   total: string;
   notes: string | null;
   placed_at: string;
-  items: OrderItem[];
+  items?: OrderItem[];
   rider_id: string | null;
   rider?: Rider | null;
   /**

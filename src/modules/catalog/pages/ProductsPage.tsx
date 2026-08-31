@@ -368,7 +368,7 @@ export default function ProductsPage() {
                           <div className="truncate font-medium text-gray-800 dark:text-white/90">{p.name}</div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-theme-xs text-gray-400">
                             <Badge size="sm" color={TYPE_COLOR[p.item_type]}>{TYPE_LABEL[p.item_type]}</Badge>
-                            {p.variants.length > 0 && <span>{p.variants.length} variants</span>}
+                            {(p.variants ?? []).length > 0 && <span>{(p.variants ?? []).length} variants</span>}
                             {p.sku && <span>SKU: {p.sku}</span>}
                             {p.requires_prescription && <span className="text-error-400">℞</span>}
                           </div>
