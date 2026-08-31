@@ -199,6 +199,15 @@ class AutoWorkshopTest extends TestCase
 
     public function test_the_shelf_sweep_says_how_old_each_lot_is(): void
     {
+        // THE CLOCK IS PINNED, and not for tidiness.
+        //
+        // `now()->subMonths(74)` from the 31st of a month lands on a month with
+        // thirty days, Carbon clamps the day, and the age comes back one month
+        // short: this test read "6 yr 1 mo" on 31 August and had read "6 yr 2
+        // mo" every other day of that month. An assertion about an age must not
+        // depend on which day somebody runs the suite.
+        $this->travelTo('2026-06-15 10:00:00');
+
         $this->batchAged('FRESH-1', months: 6);
         $this->batchAged('OLD-1', months: 74);   // 6 yr 2 mo
 

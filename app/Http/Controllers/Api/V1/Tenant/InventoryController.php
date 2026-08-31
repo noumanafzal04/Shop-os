@@ -134,10 +134,10 @@ class InventoryController extends Controller
         // a bug the day the list stopped showing false positives: every sized
         // product used to appear here regardless, so an empty list looked like
         // a breakage rather than an unconfigured feature.
-        $watched = Product::query()
-            ->where('track_inventory', true)
-            ->whereNotNull('low_stock_threshold')
-            ->count();
+        // LowStock's own idea of "watched", not a second copy of it. Two
+        // copies drifting apart would have this screen explain its own
+        // emptiness with a number from a different rule.
+        $watched = LowStock::watched(Product::query())->count();
 
         return ApiResponse::ok($products, meta: ['watched' => $watched]);
     }

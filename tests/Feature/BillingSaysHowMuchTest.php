@@ -206,6 +206,12 @@ class BillingSaysHowMuchTest extends TestCase
 
     public function test_the_summary_carries_the_same_twelve_month_trend_the_dashboard_draws(): void
     {
+        // Pinned mid-month. `now()->subMonths(2)` from the 31st clamps onto a
+        // thirty-day month, which drops the payment into the neighbouring
+        // bucket — the month this test checks then reads zero, on the 31st and
+        // no other day.
+        $this->travelTo('2026-06-15 10:00:00');
+
         $tenant = Tenant::factory()->create();
         $this->paid($tenant, ['amount' => 1200, 'paid_at' => now()]);
         $this->paid($tenant, ['amount' => 800, 'paid_at' => now()->subMonths(2)]);

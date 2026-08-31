@@ -14,10 +14,12 @@ use App\Models\SaleItemSerial;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Services\InventoryService;
+use App\Support\BooksDrawer;
 use App\Support\DocumentCounter;
 use App\Support\RecipeFor;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -220,7 +222,13 @@ class ProcessSaleReturnAction
                     // another branch must not move the takings between them.
                     'branch_id' => $sale->branch_id,
                     'sale_id' => $sale->id,
-                    'cash_session_id' => $data['cash_session_id'] ?? null,
+                    // Named by the caller, or the drawer the person handing the
+                    // notes back has open. The returns desk has no field for it
+                    // at all, so every cash refund used to leave the till
+                    // without the till's arithmetic hearing about it — and the
+                    // shift closed OVER by exactly the refund, which reads as a
+                    // cashier with extra money and no explanation.
+                    'cash_session_id' => $data['cash_session_id'] ?? BooksDrawer::tillFor(Auth::user())?->id,
                     'return_number' => $returnNumber,
                     'idempotency_key' => $data['idempotency_key'] ?? null,
                     'refund_total' => $refundTotal,

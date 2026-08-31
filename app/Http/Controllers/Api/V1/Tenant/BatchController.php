@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Actions\Inventory\DisposeBatchAction;
+use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\DisposeBatchRequest;
 use App\Models\Branch;
@@ -82,6 +83,20 @@ class BatchController extends Controller
             'dot_code.regex' => 'A DOT code is four digits — week then year, e.g. 2224 for week 22 of 2024.',
             'manufactured_on.before_or_equal' => 'A manufacturing date cannot be in the future.',
         ]);
+
+        // A LOT ON SOMETHING NOBODY COUNTS HOLDS NOTHING.
+        //
+        // `InventoryService::adjust` refuses this shape outright
+        // (PRODUCT_NOT_TRACKED); this door accepted it, filed a lot saying it
+        // held five, and then skipped the stock write because the product
+        // tracks none. Two doors onto the same question, two answers, and the
+        // Batches dialog showed the meaningless one.
+        if (! $product->track_inventory) {
+            throw DomainException::unprocessable(
+                'This item does not track inventory, so it cannot hold a lot.',
+                'PRODUCT_NOT_TRACKED',
+            );
+        }
 
         // A code that resolves to a real week wins over a typed date: it is the
         // thing physically printed on the tyre, and the two disagreeing means

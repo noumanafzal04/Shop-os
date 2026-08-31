@@ -40,6 +40,51 @@ class BooksDrawer
             ->first();
     }
 
+    /**
+     * The drawer this person's counter money belongs in — or null.
+     *
+     * ── The asymmetry this closes ───────────────────────────────────────
+     *
+     * Money LEAVING the drawer already resolves itself: a cash expense, a
+     * supplier paid in notes, a paid-out — `RecordCashMovementAction` looks up
+     * the caller's own open shift server-side, and its docblock says so
+     * outright. Money ARRIVING did not. A sale carried `cash_session_id` only
+     * when the caller thought to send it, and exactly one caller ever did.
+     *
+     * The till sends it. The Sales screen's New Sale form does not, the
+     * returns desk has no field for it at all, a settled dine-in tab passes
+     * through whatever it was given, and so does a quotation turned into an
+     * invoice. So a shop with a drawer open could take cash all afternoon
+     * through any of those and the drawer would expect none of it — while the
+     * afternoon's expenses came out of it perfectly.
+     *
+     * That is not an abstract mismatch. `BusinessDay` sums the SHIFTS, so a
+     * day traded that way closes off reading zero takings, and the cashier
+     * counts a drawer that is over by the day's cash with nothing to explain
+     * it. `SaleController` already names the fault in its own comment —
+     * "whose cash belongs to no reconciliation and shows up in no shift
+     * report" — and answers it only for shops that opted into
+     * `pos_require_shift`, which ships off.
+     *
+     * ── Why a practice till answers null ────────────────────────────────
+     *
+     * A sale inherits `is_training` from the drawer it is rung on. Resolving a
+     * practice shift here would silently turn a real customer's sale into a
+     * practice one — no stock moved, no revenue earned, invisible in every
+     * report. Exactly what `isPractice` above exists to prevent for expenses,
+     * for the same reason.
+     */
+    public static function tillFor(?User $user): ?CashSession
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        $session = self::openSessionFor($user);
+
+        return $session !== null && ! $session->isTraining() ? $session : null;
+    }
+
     /** True when the only drawer this person has open is a practice one. */
     public static function isPractice(User $user): bool
     {

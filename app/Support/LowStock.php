@@ -43,12 +43,7 @@ final class LowStock
      */
     public static function apply(Builder $query, ?string $branchId = null): Builder
     {
-        return $query
-            ->where('track_inventory', true)
-            // No threshold set is not "zero" — it is a shop that has never said
-            // what low means for this item, and inventing a level for them
-            // would fill the list with things nobody asked to be told about.
-            ->whereNotNull('low_stock_threshold')
+        return self::watched($query)
             ->when(
                 $branchId !== null,
                 fn (Builder $q): Builder => $q->whereRaw(
@@ -66,6 +61,30 @@ final class LowStock
      * `coalesce`, because "has no variants" and "has variants summing to zero"
      * are different shops with different answers.
      */
+    /**
+     * The items this shop has asked to be told about at all.
+     *
+     * No threshold set is not "zero" — it is a shop that has never said what
+     * low means for this item, and inventing a level would fill the list with
+     * things nobody asked to be told about.
+     *
+     * It is also the DENOMINATOR of the reorder list. An empty list has two
+     * unrelated causes — nothing is below its level (good news), or nobody has
+     * set a level, in which case the screen can never show a row — and the
+     * count tells them apart. It has to mean the same "watched" the list
+     * means, or the screen explains its own emptiness with a number from a
+     * different rule. It was written out again in the controller.
+     *
+     * @param  Builder<Product>  $query
+     * @return Builder<Product>
+     */
+    public static function watched(Builder $query): Builder
+    {
+        return $query
+            ->where('track_inventory', true)
+            ->whereNotNull('low_stock_threshold');
+    }
+
     private static function shopWide(BuilderContract $where): void
     {
         $where

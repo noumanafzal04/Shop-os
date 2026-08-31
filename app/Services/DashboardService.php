@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\ReservationStatus;
 use App\Enums\RestaurantTicketStatus;
-use App\Enums\SaleStatus;
 use App\Enums\TenantStatus;
 use App\Models\AuditLog;
 use App\Models\BankDeposit;
@@ -28,6 +27,7 @@ use App\Models\Rider;
 use App\Models\Sale;
 use App\Models\SaleDocument;
 use App\Models\SaleItem;
+use App\Models\SaleReturn;
 use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
 use App\Support\BusinessTypes;
@@ -35,6 +35,7 @@ use App\Support\LowStock;
 use App\Support\Modules;
 use App\Support\Payable;
 use App\Support\ShopSettings;
+use App\Support\Takings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -87,20 +88,27 @@ class DashboardService
         // costs; the all-branches view (branchId null) sums the whole tenant.
         $expensesByDay = $keepsBooks ? $this->dailyExpenses($tenant, $branchId, $weekStart) : [];
         $incomeByDay = $keepsBooks ? $this->dailyIncome($tenant, $branchId, $weekStart) : [];
+        // What went back out over the counter. Rolled up the same way as the
+        // other three so the tile, the delta and the chart cannot disagree —
+        // and rolled up at all because until now they agreed on a profit that
+        // took no account of anything handed back.
+        $refundsByDay = $sells ? $this->dailyRefunds($tenant, $branchId, $weekStart) : [];
 
         $revenue = $salesByDay[$today]['revenue'] ?? 0.0;
         $expensesToday = $expensesByDay[$today] ?? 0.0;
         $incomeToday = $incomeByDay[$today] ?? 0.0;
+        $refundsToday = $refundsByDay[$today] ?? 0.0;
         // Net profit: everything that came in (sales AND non-sale income)
         // − cost of goods (line snapshots) − expenses. Leaving income out made
         // this the Cashbook's answer minus the whole of what the business
         // earned — for a books-only tenant, a permanent loss.
-        $profit = $revenue + $incomeToday - ($cogsByDay[$today] ?? 0.0) - $expensesToday;
+        $profit = $revenue - $refundsToday + $incomeToday - ($cogsByDay[$today] ?? 0.0) - $expensesToday;
 
         $prevRevenue = $salesByDay[$yesterday]['revenue'] ?? 0.0;
         $prevExpenses = $expensesByDay[$yesterday] ?? 0.0;
         $prevIncome = $incomeByDay[$yesterday] ?? 0.0;
-        $prevProfit = $prevRevenue + $prevIncome - ($cogsByDay[$yesterday] ?? 0.0) - $prevExpenses;
+        $prevProfit = $prevRevenue - ($refundsByDay[$yesterday] ?? 0.0)
+            + $prevIncome - ($cogsByDay[$yesterday] ?? 0.0) - $prevExpenses;
 
         // Computed once, published twice: as the legacy top-level counts and
         // inside the inventory alert block the new dashboard reads.
@@ -122,6 +130,11 @@ class DashboardService
                 // shop can still see what it SOLD, and a books-only business
                 // has a figure to put beside what it spent.
                 'other_income' => round($incomeToday, 2),
+                // Handed back over the counter today. Published beside the
+                // revenue it reduces rather than folded into it: a refund is
+                // dated by the day it went OUT, and netting it into a revenue
+                // figure would silently rewrite the day the sale came in.
+                'refunds' => round($refundsToday, 2),
                 'expenses' => round($expensesToday, 2),
                 'profit' => round($profit, 2),
                 // Buyers served, not tickets rung: an identified customer counts
@@ -167,7 +180,7 @@ class DashboardService
                 : 0,
             // Last 7 days, oldest first, zero-filled — the line chart never has
             // a hole for a day the shop was shut.
-            'sales_series' => $this->salesSeries($weekStart, $salesByDay, $cogsByDay, $expensesByDay, $incomeByDay),
+            'sales_series' => $this->salesSeries($weekStart, $salesByDay, $cogsByDay, $expensesByDay, $incomeByDay, $refundsByDay),
             // This month's spend per category — the donut beside the chart.
             'expense_breakdown' => $keepsBooks ? $this->expenseBreakdown($tenant, $branchId, $monthStart) : [],
             'inventory' => [
@@ -244,7 +257,7 @@ class DashboardService
 
         return Sale::query()
             ->where('tenant_id', $tenant->id)
-            ->where('status', SaleStatus::Completed)
+            ->whereIn('status', Takings::COUNTED)
             ->where('sold_at', '>=', $from)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->selectRaw(
@@ -280,7 +293,7 @@ class DashboardService
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->where('sale_items.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
-            ->where('sales.status', SaleStatus::Completed)
+            ->whereIn('sales.status', Takings::COUNTED)
             ->where('sales.sold_at', '>=', $from)
             ->when($branchId, fn ($q, $b) => $q->where('sales.branch_id', $b))
             ->selectRaw("{$day} as day, COALESCE(SUM(sale_items.unit_cost * sale_items.quantity), 0) as cogs")
@@ -294,6 +307,30 @@ class DashboardService
     /**
      * @return array<string, float>
      */
+    /**
+     * What was refunded per day, by the day it was HANDED BACK.
+     *
+     * Not by the day of the sale: a bag returned on Thursday against Monday's
+     * invoice belongs to Thursday's money-out, and Monday has already been
+     * counted, closed and banked. The cashbook has always dated refunds this
+     * way — this is the same rule, for the tiles and the chart.
+     */
+    private function dailyRefunds(Tenant $tenant, ?string $branchId, Carbon $from): array
+    {
+        $day = $this->dayExpression('returned_at');
+
+        return SaleReturn::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+            ->where('returned_at', '>=', $from)
+            ->selectRaw("{$day} as day, COALESCE(SUM(refund_total), 0) as total")
+            ->groupByRaw($day)
+            ->toBase()
+            ->get()
+            ->mapWithKeys(fn ($row): array => [$row->day => (float) $row->total])
+            ->all();
+    }
+
     private function dailyExpenses(Tenant $tenant, ?string $branchId, Carbon $from): array
     {
         $day = $this->dayExpression('expense_date');
@@ -354,6 +391,7 @@ class DashboardService
         array $cogsByDay,
         array $expensesByDay,
         array $incomeByDay,
+        array $refundsByDay,
     ): array {
         $series = [];
         $cursor = $from->copy();
@@ -363,16 +401,18 @@ class DashboardService
             $revenue = $salesByDay[$key]['revenue'] ?? 0.0;
             $expenses = $expensesByDay[$key] ?? 0.0;
             $otherIncome = $incomeByDay[$key] ?? 0.0;
+            $refunds = $refundsByDay[$key] ?? 0.0;
 
             $series[] = [
                 'day' => $cursor->format('D'),
                 'date' => $key,
                 'revenue' => round($revenue, 2),
                 'other_income' => round($otherIncome, 2),
+                'refunds' => round($refunds, 2),
                 'expenses' => round($expenses, 2),
                 // Same definition as today's profit tile, so the last point of
                 // the chart always equals the number in the tile.
-                'profit' => round($revenue + $otherIncome - ($cogsByDay[$key] ?? 0.0) - $expenses, 2),
+                'profit' => round($revenue - $refunds + $otherIncome - ($cogsByDay[$key] ?? 0.0) - $expenses, 2),
             ];
 
             $cursor = $cursor->addDay();
@@ -771,7 +811,7 @@ class DashboardService
     {
         return Sale::query()
             ->where('sales.tenant_id', $tenant->id)
-            ->where('sales.status', SaleStatus::Completed)
+            ->whereIn('sales.status', Takings::COUNTED)
             ->where('sales.sold_at', '>=', $monthStart)
             ->when($branchId, fn ($q, $b) => $q->where('sales.branch_id', $b));
     }
@@ -783,7 +823,7 @@ class DashboardService
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->where('sale_items.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
-            ->where('sales.status', SaleStatus::Completed)
+            ->whereIn('sales.status', Takings::COUNTED)
             ->where('sales.sold_at', '>=', $monthStart)
             ->when($branchId, fn ($q, $b) => $q->where('sales.branch_id', $b));
     }
@@ -866,7 +906,7 @@ class DashboardService
     {
         $rx = Sale::query()
             ->where('tenant_id', $tenant->id)
-            ->where('status', SaleStatus::Completed->value)
+            ->whereIn('status', Takings::COUNTED)
             ->whereNotNull('prescription_number')
             ->where('prescription_number', '!=', '')
             ->where('sold_at', '>=', $todayStart)
@@ -1005,7 +1045,7 @@ class DashboardService
         // must not cost 30 round trips on every dashboard load.
         $totals = Sale::query()
             ->where('tenant_id', $tenant->id)
-            ->where('status', SaleStatus::Completed)
+            ->whereIn('status', Takings::COUNTED)
             ->where('sold_at', '>=', $todayStart)
             ->whereIn('branch_id', $branches->pluck('id'))
             ->selectRaw('branch_id, COUNT(*) as sales_count, COALESCE(SUM(total), 0) as revenue')

@@ -14,6 +14,7 @@ use App\Http\Requests\Sale\StoreSaleRequest;
 use App\Http\Requests\Sale\StoreSaleReturnRequest;
 use App\Models\Sale;
 use App\Support\ApiResponse;
+use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\TenantContext;
@@ -122,9 +123,16 @@ class SaleController extends Controller
         // attached, whose cash belongs to no reconciliation and shows up in no
         // shift report. Enforced here, on the counter channels only — an online
         // order or a phone order has no till to be open.
+        //
+        // It asks whether this person HAS a drawer, not whether the request
+        // named one: the till names it, and no other screen that rings a sale
+        // ever has. Asking the narrower question would refuse a cashier with a
+        // drawer open in front of them for using the wrong screen — while
+        // CreateSaleAction was already resolving the very same shift.
         $counterChannels = [SaleChannel::Pos->value, SaleChannel::WalkIn->value];
         if (
             empty($data['cash_session_id'])
+            && BooksDrawer::tillFor($request->user()) === null
             && in_array($data['channel'] ?? null, $counterChannels, true)
             && (bool) ($tenant->get()?->setting('pos_require_shift') ?? false)
         ) {

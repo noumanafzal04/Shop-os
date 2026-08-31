@@ -2,19 +2,21 @@
 
 namespace App\Services;
 
-use App\Enums\SaleStatus;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\PurchaseOrder;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
+use App\Models\SaleReturnItem;
 use App\Models\SupplierPayment;
 use App\Models\User;
 use App\Support\Payable;
+use App\Support\Takings;
 use App\Support\TaxYear;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Business reports over a date range.
@@ -58,7 +60,7 @@ class ReportService
 
         $completedSales = Sale::query()
             ->where('tenant_id', $tenantId)
-            ->where('status', SaleStatus::Completed)
+            ->whereIn('status', Takings::COUNTED)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
@@ -69,7 +71,7 @@ class ReportService
         $cogs = (float) SaleItem::query()
             ->where('sale_items.tenant_id', $tenantId)
             ->whereHas('sale', fn ($q) => $q
-                ->where('status', SaleStatus::Completed)
+                ->whereIn('status', Takings::COUNTED)
                 ->whereBetween('sold_at', [$fromStart, $toEnd])
                 ->when($branchId, fn ($q) => $q->where('branch_id', $branchId)))
             ->selectRaw('COALESCE(SUM(unit_cost * quantity), 0) as cogs')
@@ -94,16 +96,45 @@ class ReportService
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->sum('amount');
 
+        // ── WHAT WENT BACK OUT ──────────────────────────────────────
+        //
+        // Revenue above is GROSS — a refunded sale still brought its money in,
+        // and a bag returned on Thursday against Monday's invoice cannot be
+        // netted off a Monday that has been closed and banked. The cashbook has
+        // always worked that way and says so; this screen counted the same
+        // sales and then reported a profit as though nothing had been handed
+        // back. So the refund gets its own line, next to the revenue it
+        // reduces, and both profits subtract it.
+        $refunds = (float) Takings::refunds($tenantId, $branchId)
+            ->whereBetween('returned_at', [$fromStart, $toEnd])
+            ->sum('refund_total');
+
+        // The goods came back on the shelf, so their cost is no longer a cost
+        // of anything sold. Taken off the SALE line's own snapshot cost, which
+        // is the figure the margin was struck at — today's cost would re-price
+        // a return from six weeks ago.
+        $returnedCost = (float) SaleReturnItem::query()
+            ->join('sale_returns', 'sale_returns.id', '=', 'sale_return_items.sale_return_id')
+            ->join('sale_items', 'sale_items.id', '=', 'sale_return_items.sale_item_id')
+            ->where('sale_return_items.tenant_id', $tenantId)
+            ->whereBetween('sale_returns.returned_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('sale_returns.branch_id', $branchId))
+            ->sum(DB::raw('sale_return_items.quantity * sale_items.unit_cost'));
+
+        $cogs = round($cogs - $returnedCost, 2);
+        $kept = round($revenue - $refunds, 2);
+
         return [
             'period' => ['from' => $from, 'to' => $to, 'granularity' => $granularity],
             'totals' => [
                 'sales_count' => $salesCount,
                 'revenue' => round($revenue, 2),
+                'refunds' => round($refunds, 2),
                 'other_income' => round($otherIncome, 2),
                 'cogs' => round($cogs, 2),
-                'gross_profit' => round($revenue - $cogs, 2),
+                'gross_profit' => round($kept - $cogs, 2),
                 'expenses' => round($expensesTotal, 2),
-                'net_profit' => round($revenue + $otherIncome - $cogs - $expensesTotal, 2),
+                'net_profit' => round($kept + $otherIncome - $cogs - $expensesTotal, 2),
             ],
             'series' => $this->series($tenantId, $branchId, $fromStart, $toEnd, $granularity),
             'top_products' => $this->topProducts($tenantId, $branchId, $fromStart, $toEnd),
@@ -120,7 +151,7 @@ class ReportService
 
         $revenueByBucket = Sale::query()
             ->where('tenant_id', $tenantId)
-            ->where('status', SaleStatus::Completed)
+            ->whereIn('status', Takings::COUNTED)
             ->whereBetween('sold_at', [$from, $to])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['sold_at', 'total'])
@@ -175,7 +206,7 @@ class ReportService
         return SaleItem::query()
             ->where('sale_items.tenant_id', $tenantId)
             ->whereHas('sale', fn ($q) => $q
-                ->where('status', SaleStatus::Completed)
+                ->whereIn('status', Takings::COUNTED)
                 ->whereBetween('sold_at', [$from, $to])
                 ->when($branchId, fn ($q) => $q->where('branch_id', $branchId)))
             ->selectRaw('product_name, COALESCE(variant_name, "") as variant_name, SUM(quantity) as units, SUM(line_total) as revenue')
@@ -214,7 +245,7 @@ class ReportService
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
             ->where('sale_items.tenant_id', $tenantId)
             ->whereNull('sales.deleted_at')
-            ->where('sales.status', SaleStatus::Completed)
+            ->whereIn('sales.status', Takings::COUNTED)
             ->whereBetween('sales.sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
             ->groupBy('sale_items.product_name', 'sale_items.variant_name', 'category_name')
@@ -368,7 +399,7 @@ class ReportService
 
         $base = fn () => Sale::query()
             ->where('sales.tenant_id', $tenantId)
-            ->where('status', SaleStatus::Completed)
+            ->whereIn('status', Takings::COUNTED)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId));
 
@@ -434,7 +465,7 @@ class ReportService
 
         $sales = Sale::query()
             ->where('tenant_id', $tenantId)
-            ->where('status', SaleStatus::Completed)
+            ->whereIn('status', Takings::COUNTED)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
@@ -468,8 +499,9 @@ class ReportService
         $format = $granularity === 'month' ? 'Y-m' : 'Y-m-d';
 
         // A sale that was later refunded still brought its money in — only a
-        // CANCELLED sale never happened.
-        $liveSales = [SaleStatus::Completed, SaleStatus::PartiallyRefunded, SaleStatus::Refunded];
+        // CANCELLED sale never happened. The rule, and the reason the P&L
+        // screens above now share it, live in Takings.
+        $liveSales = Takings::COUNTED;
 
         $salesByBucket = Sale::query()
             ->where('tenant_id', $tenantId)
@@ -655,7 +687,7 @@ class ReportService
             // A cancelled sale gave nothing away, so there is nothing to claim.
             // A refunded one DID — the discount was funded at the counter — and
             // it stays until somebody decides otherwise with the bank.
-            ->whereIn('status', [SaleStatus::Completed, SaleStatus::PartiallyRefunded, SaleStatus::Refunded])
+            ->whereIn('status', Takings::COUNTED)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->with(['bankOffer.bank:id,name,short_code'])

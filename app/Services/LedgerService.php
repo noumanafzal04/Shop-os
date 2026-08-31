@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\SaleStatus;
+use App\Support\Takings;
 use Illuminate\Contracts\Database\Query\Builder as BuilderContract;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -351,7 +352,9 @@ class LedgerService
     {
         // A refunded sale still brought its money in on the day; the refund is
         // its own row later. Only a CANCELLED sale never happened.
-        $live = [SaleStatus::Completed->value, SaleStatus::PartiallyRefunded->value, SaleStatus::Refunded->value];
+        // One copy of "which sales count as trading" — see Takings, and the
+        // thirteen report queries that used to answer it differently.
+        $live = array_map(static fn (SaleStatus $s): string => $s->value, Takings::COUNTED);
 
         $q = DB::table('sales')
             ->whereNull('sales.deleted_at')

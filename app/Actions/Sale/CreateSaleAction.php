@@ -23,6 +23,7 @@ use App\Services\BankOfferService;
 use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\PromotionService;
+use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CashRounding;
 use App\Support\DiscountCeiling;
@@ -34,6 +35,7 @@ use App\Support\SoldOut;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -101,6 +103,24 @@ class CreateSaleAction
                 // money is the one caller granted authority over it.
                 $trustedOffline = (bool) ($data['trusted_offline'] ?? false);
 
+                // ── WHICH DRAWER DID THIS HAPPEN ON ─────────────────────
+                //
+                // Named by the caller, or resolved from whoever is standing at
+                // the counter. Only the till ever named it, so every other door
+                // that rings a sale — the Sales screen's New Sale form, a
+                // settled dine-in tab, a quotation turned into an invoice —
+                // took cash that the open drawer never expected and the day
+                // never counted. See BooksDrawer::tillFor.
+                //
+                // NOT on the sync path. A synced sale happened hours ago and
+                // names its own shift; attaching it to whichever drawer happens
+                // to be open at the moment the tablet reconnects would file
+                // yesterday's takings into tonight's count.
+                $sessionId = $data['cash_session_id'] ?? null;
+                if ($sessionId === null && ! $trustedOffline) {
+                    $sessionId = BooksDrawer::tillFor(Auth::user())?->id;
+                }
+
                 // ── Where a synced sale belongs ─────────────────────────
                 //
                 // A tablet is a thing that can be carried. Registered on Lane 1
@@ -139,9 +159,9 @@ class CreateSaleAction
                 // "this one is practice" flag is a switch for making real
                 // stock and real money disappear. A sale inherits it from the
                 // drawer it is rung on, and nothing else can set it.
-                $training = ! empty($data['cash_session_id'])
+                $training = $sessionId !== null
                     && (bool) CashSession::query()
-                        ->whereKey($data['cash_session_id'])
+                        ->whereKey($sessionId)
                         ->value('is_training');
 
                 // ── The offline veto ────────────────────────────────────
@@ -804,8 +824,8 @@ class CreateSaleAction
                 // a terminal — fall back to the resolved one, so the receipt and
                 // the per-lane report can still name the counter. Both sources are
                 // server-side; neither is the client's word.
-                $registerId = (! empty($data['cash_session_id'])
-                    ? CashSession::query()->whereKey($data['cash_session_id'])->value('register_id')
+                $registerId = ($sessionId !== null
+                    ? CashSession::query()->whereKey($sessionId)->value('register_id')
                     : null) ?? app(RegisterContext::class)->id();
 
                 // WHEN the money crossed the counter, which for a synced sale
@@ -828,7 +848,7 @@ class CreateSaleAction
                     'invoice_number' => $invoiceNumber,
                     'branch_id' => $branchId,
                     'channel' => $data['channel'],
-                    'cash_session_id' => $data['cash_session_id'] ?? null,
+                    'cash_session_id' => $sessionId,
                     // Which lane rang it. Derived from the shift, never accepted
                     // from the client — a per-lane X report has to reflect where
                     // the cash physically went, not what a browser claimed.
