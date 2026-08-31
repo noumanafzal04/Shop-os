@@ -38,8 +38,21 @@ class; running the day and asking does.
    asked "which sales count?" and answered `Completed` only, so 2,250 read as
    **1,250** — neither gross nor net. Fixed: `App\Support\Takings`.
 
+**Then the doors.** F1 was found through the front door; a `Sale` row is made by
+SIX paths. Same cash through each, reading the X-read: the counter, a quotation
+turned into an invoice and an exchange with a top-up all moved the drawer by
+**0**; a settled dine-in tab closed the whole day off at **0** (a restaurant
+trades off its floor, so that is its entire day).
+
+The fifth door CHANGED the fix. Resolving for every sale attaches a completing
+ONLINE order — COD becomes a `cash` tender — to whichever drawer is open. Same
+bug pointed the other way and worse: the drawer expects money that never crossed
+it and the cashier counts SHORT. Fenced to counter channels. **A rule that only
+ever adds is not a rule.**
+
 **How to apply:** when adding a surface, ask what QUESTION it answers and who
-else answers it. When a payload field is optional, grep who actually fills it —
+else answers it. When you fix "X never happens", also ask where X must NEVER
+happen — and put both signs in the test. When a payload field is optional, grep who actually fills it —
 "offered by four, filled by one" is a whole bug class. Revenue stays GROSS with
 refunds as a separately-dated line: a Thursday return cannot rewrite a Monday
 that is closed and banked.

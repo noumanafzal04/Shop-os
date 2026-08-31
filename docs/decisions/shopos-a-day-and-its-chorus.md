@@ -108,6 +108,46 @@ came back.
 five places that already had it right (`cashbook`, `LedgerService`, the bank
 claims report).
 
+### F3 — F1 was wider than the front door
+
+F1 was found through `POST /sales`. A `Sale` row is created by **six** paths,
+though, so the same cash was put through each one with a drawer open and the
+X-read a cashier would actually pull was read either side:
+
+| door | drawer moved (before) | should |
+|---|---|---|
+| the counter | **0** | 400 |
+| a quotation turned into an invoice | **0** | 300 |
+| an exchange with a top-up | **0** | 100 |
+| a dine-in tab, settled | **0** — and the day closed at zero | 1,800 |
+| an online order completed | 0 | **0** |
+
+The restaurant is the worst case. A food shop trades almost entirely off its
+floor, so before the fix a restaurant's whole day closed off reading **zero**
+while its cashier counted a drawer full of money the till had never heard of.
+
+The last row is what keeps the rule honest, and it changed the fix. Resolving
+the drawer for EVERY sale would have attached a completing online order — a
+COD order becomes a `cash` tender — to whichever drawer happened to be open.
+That is the same bug pointed the other way, and it is worse: the drawer then
+expects money that never crossed it and the cashier counts **short**, which is
+what people get accused over. So the resolution is fenced to counter channels,
+the same line `SaleController` already draws for `pos_require_shift`.
+
+Mutation-proven both ways: removing the resolution turns three doors to zero
+and leaves the online one alone.
+
+## What was NOT done, and why
+
+The plan's C5 said "per-trade specials — batch, serial, job card, forecourt,
+dine-in". Only dine-in was written. The rest already have owners:
+`FuelManagementTest` alone covers the forecourt in thirty tests, including fuel
+that crossed a meter and was never rung up. Writing a second, shallower version
+beside it would have added a maintenance cost and no coverage.
+
+What had no owner was the set of doors above — which is where the day flow's
+own finding turned out to live.
+
 ## Gross, not net — and why
 
 Revenue stays **gross**, with refunds as their own dated line.

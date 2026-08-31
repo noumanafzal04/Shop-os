@@ -290,6 +290,35 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-01 (later) — the other doors, and the one that must not move
+
+F1 above was found through the front door. A `Sale` row is created by six
+paths, so the same cash went through each with a drawer open, reading the X-read
+a cashier would actually pull. Three doors moved it by **zero**: the counter,
+a quotation turned into an invoice, and an exchange with a top-up. A fourth —
+a settled dine-in tab — closed the whole day off at **zero**, which for a
+restaurant is the entire day's trade, because a food shop sells off its floor.
+
+The fifth door changed the fix. Resolving the drawer for EVERY sale attaches a
+completing ONLINE order (a COD order becomes a `cash` tender) to whichever
+drawer is open. That is the same bug pointed the other way and it is worse: the
+drawer expects money that never crossed it and the cashier counts SHORT. So the
+resolution is fenced to counter channels — the line `SaleController` already
+draws for `pos_require_shift` — and the matrix asserts both signs.
+
+The day also gained three more chorus questions (payables, khata, shelf) and a
+ratchet: every module a trade ships with is either walked or excused in writing.
+Q4 was rewritten after it proved weak — the card, the list and the dashboard all
+read one `credit_balance` column and could not disagree, so it now asks the
+column, the statement's newest running balance, and the statement re-added from
+nothing.
+
+C5's other half was deliberately NOT written: `FuelManagementTest` already
+covers the forecourt in thirty tests. A second shallower copy beside it would be
+maintenance with no coverage.
+
+2401 passed, exit 0. Mutation-proven: the three doors, Q1, Q3, Q5, the ratchet.
+
 ### 2026-09-01 — One shop's day, and then every screen asked the same question
 
 Started the per-trade day flow. `tests/Feature/ADayInTheShopTest.php` runs a

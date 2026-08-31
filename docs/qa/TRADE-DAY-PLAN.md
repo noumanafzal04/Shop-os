@@ -73,7 +73,10 @@ asks the cross-module question none of them asks.
       is either walked or excused **in writing**. Adding a module to a trade
       turns this red until somebody decides. Mutation-proven (dropping
       `expenses` from the walked list names 17 trades).
-- [ ] **C5** — per-trade specials woven in (batch/serial/job-card/forecourt/dine-in)
+- [x] **C5** — the OTHER DOORS. Not per-trade specials in the end: the trade
+      suites already own those (`FuelManagementTest` alone covers the forecourt
+      in thirty tests). What nothing owned was the other ways a `Sale` row comes
+      into being — see F3 below.
 - [ ] **C6** — fix whatever C2–C5 found
 - [ ] **C7** — docs/decisions + memory + HANDOVER + Help Centre
 
@@ -84,6 +87,7 @@ asks the cross-module question none of them asks.
 | trades running the full day | 7 (food · mart · pharmacy · retail · services · automotive · petroleum) |
 | finance | asserted from the opposite end — no till, no day, cashbook still kept |
 | chorus questions | 5 — takings · refunds · drawer · khata · shelf · payables |
+| sale doors put through the drawer | 5 (counter · quote→invoice · exchange · dine-in tab · order) |
 | mutation-proven | Q1 (Takings), Q3 (supplier card), Q5 (valuation units), C4 (module ratchet) |
 
 Q4 was rewritten after it was found to be weak: the customer card, the customer
@@ -130,6 +134,36 @@ ships **off**.
 **Fix:** `BooksDrawer::tillFor()` — one rule, the mirror of the one that
 already existed for money going out. A practice till answers null, or a real
 sale would silently become a practice one.
+
+### F3 — three of the four doors that ring a sale never moved the drawer  ·  FIXED
+
+F1 was found through the front door. This is how wide it actually was.
+
+A `Sale` row is created by six different paths, not one. Put the same cash
+through each with a drawer open, and read the X-read a cashier would pull:
+
+| door | drawer moved (before) | should |
+|---|---|---|
+| the counter | **0** | 400 |
+| a quotation turned into an invoice | **0** | 300 |
+| an exchange with a top-up | **0** | 100 |
+| a dine-in tab, settled | **0** — day closed at zero too | 1,800 |
+| an online order completed | 0 | **0** |
+
+The restaurant case is the worst of them: a food shop trades almost entirely
+off its floor, so before the fix a restaurant's whole day closed off reading
+**zero** while its cashier counted a drawer full of money the till had never
+heard of.
+
+The last row is the one that keeps the rule honest. An online order completing
+is not a sale rung at a till — the rider is still out with the goods, or the
+card was taken on the website — so the resolution is fenced to counter
+channels. A drawer that expects money which never crossed it is the same bug
+pointed the other way, and it is worse: the cashier counts SHORT, and short is
+what people get accused over.
+
+Mutation-proven: removing the resolution turns three doors to 0 and leaves the
+online one alone.
 
 ### F2 — a refunded item takes the whole ticket off the sales report  ·  FIXED
 
