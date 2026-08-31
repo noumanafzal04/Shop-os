@@ -1,49 +1,49 @@
 # Memory Index
 
-- [ShopOS Business-OS Roadmap](shopos-businessos-roadmap.md) — catalog foundation done; phased plan for POS/Suppliers/Food-menu; fresh-migrate OK
+- [ShopOS Business-OS Roadmap](shopos-businessos-roadmap.md) — catalog foundation done; phased plan for POS/Suppliers/Food-menu
 - [ShopOS Mobile Design](shopos-mobile-design.md) — green+ink flat theme (NO shadows), cart-FAB footer, customer app build state
-- [ShopOS Delivery/Rider Flow](shopos-delivery-rider-flow.md) — FUTURE: 3-app model (customer/vendor/rider), assignment engine, live GPS, WebSocket/FCM
-- [ShopOS Business Priority](shopos-business-priority.md) — FOOD/MART/MEDICAL are the 3 daily-revenue types; cover their edge cases FIRST (restaurant/grocery+retail/pharmacy)
-- [ShopOS Images & Riders](shopos-images-and-riders.md) — decisions: images module (online=compulsory), riders tenant-own now/platform later; POS hotkeys done; edge-case backlog
-- [ShopOS POS UX](shopos-pos-ux.md) — POS full-screen (no sidebar) + discount pill done; edit-modal verdict = not needed (server-authoritative pricing) vs
-- [ShopOS Audit Backlog](shopos-audit-backlog.md) — 2026-07-21 4-way audit: P0 stock-loss bugs (combo/pack cancel+return) to fix before offline; P1/gaps list
-- [ShopOS Offline Plan](shopos-offline-plan.md) — Phases 0-3 ALL shipped (device registry, PWA, catalog sync, outbox, offline selling); only the 2-week shadow RUN remains
-- [ShopOS Maps & Location](shopos-maps-location.md) — shop location via Geoapify (Google-swappable) on setup+settings; business_type is ADMIN-controlled
-- [ShopOS Sale-Shape Features](shopos-sale-shape-features.md) — 2026-07-22 pre-offline: Rx capture, variant-medicine FEFO, sell-on-credit (khata) all shipped + tested (471 green)
+- [ShopOS Delivery/Rider Flow](shopos-delivery-rider-flow.md) — FUTURE: 3-app model (customer/vendor/rider), assignment engine, live GPS,…
+- [ShopOS Business Priority](shopos-business-priority.md) — FOOD/MART/MEDICAL are the 3 daily-revenue types
+- [ShopOS Images & Riders](shopos-images-and-riders.md) — decisions: images module (online=compulsory), riders tenant-own now/platform later; POS hotkeys done
+- [ShopOS POS UX](shopos-pos-ux.md) — POS full-screen (no sidebar) + discount pill done; edit-modal verdict = not needed…
+- [ShopOS Audit Backlog](shopos-audit-backlog.md) — 2026-07-21 4-way audit: P0 stock-loss bugs (combo/pack cancel+return) to fix before offline
+- [ShopOS Offline Plan](shopos-offline-plan.md) — Phases 0-3 ALL shipped (device registry, PWA, catalog sync, outbox, offline selling)
+- [ShopOS Maps & Location](shopos-maps-location.md) — shop location via Geoapify (Google-swappable) on setup+settings
+- [ShopOS Sale-Shape Features](shopos-sale-shape-features.md) — 2026-07-22 pre-offline: Rx capture, variant-medicine FEFO, sell-on-credit…
 - [ShopOS FOOD Dine-in](shopos-food-dinein.md) — dine-in backend: tables/tabs/KOT/settle+split
 - [ShopOS Plans & Revamp Flow](shopos-plans-and-flow.md) — 2026-08-06 REBUILD: plans = payment only (Basic/Premium/Enterprise PKR + custom)
-- [ShopOS Multi-branch](shopos-multi-branch.md) — design locked: branch=sub-unit, default Main, per-branch stock + cross-branch lookup + transfers, HQ dashboard
-- [ShopOS UI Conventions](shopos-ui-conventions.md) — admin panel standards: toasts, modals for add/edit forms, ONE shared confirm-delete component, clean UI
-- [ShopOS Session Refresh](shopos-session-refresh.md) — auth store persisted to localStorage; refresh via useMe() in AppLayout or admin module-toggles/settings stay stale
+- [ShopOS Multi-branch](shopos-multi-branch.md) — design locked: branch=sub-unit, default Main, per-branch stock + cross-branch lookup +…
+- [ShopOS UI Conventions](shopos-ui-conventions.md) — admin panel standards: toasts, modals for add/edit forms, ONE shared confirm-delete…
+- [ShopOS Session Refresh](shopos-session-refresh.md) — auth store persisted to localStorage
 - [ShopOS Pharmacy Edges](shopos-pharmacy-edges.md) — batch/expiry engine; medicine batches REQUIRE an expiry; dashboard near-expiry count
 - [ShopOS Payments Status](shopos-payments-status.md) — RESOLVED: NO gateway anywhere; manual/recorded model; COD-first launch = no blocker
 - [ShopOS Retail Depth](shopos-retail-depth.md) — serialized selling: IMEI/serial capture at POS, warranty desk, serial-on-receive, per-serial returns
 - [ShopOS Hardware](shopos-hardware.md) — POS is WEB/PWA → the abstraction axis is TRANSPORT, not vendor-SDK
 - [ShopOS Loyalty](shopos-loyalty.md) — points earn/redeem/reverse on the khata-ledger model, POS redeem, customer statement
 - [ShopOS Deployment](shopos-deployment.md) — staging droplet shopos-dev 159.223.78.102; backend live /api/v1/health; panel on :8080
-- [ShopOS Petroleum Analysis](shopos-petroleum-analysis.md) — ON HOLD: petroleum business type ~85-90% already covered; only Fuel Management net-new
-- [ShopOS Modules Jul31](shopos-modules-jul31.md) — 2026-07-31 sprint: BOGO, petroleum type, inclusive tax+tax groups, customer groups SHIPPED (695 green); --seed fixed
-- [No claude.ai Artifacts](no-claude-artifacts.md) — user preference: don't publish Artifacts (web-visibility worry); use local files/inline instead
-- [ShopOS Build Sequence](shopos-build-sequence.md) — agreed 2026-08-04 order: gating → module-selling/Finance type → P0 POS fixes → tenant theming → POS roles → vertical
-- [ShopOS Invoice & Receipt](shopos-invoice-receipt.md) — invoice must be print-perfect AND live-previewed inside Shop Settings while invoice options are edited
+- [ShopOS Petroleum Analysis](shopos-petroleum-analysis.md) — ON HOLD: petroleum business type ~85-90% already covered
+- [ShopOS Modules Jul31](shopos-modules-jul31.md) — 2026-07-31 sprint: BOGO, petroleum type, inclusive tax+tax groups, customer groups SHIPPED (695 green)
+- [No claude.ai Artifacts](no-claude-artifacts.md) — user preference: don't publish Artifacts (web-visibility worry)
+- [ShopOS Build Sequence](shopos-build-sequence.md) — agreed 2026-08-04 order: gating → module-selling/Finance type → P0 POS fixes →…
+- [ShopOS Invoice & Receipt](shopos-invoice-receipt.md) — invoice must be print-perfect AND live-previewed inside Shop Settings while…
 - [Unit 11 Status](shopos-unit11-status.md) — 11a/11b/11c ALL shipped; forecourt invariants (test litres, meter roll, full-dip rule)
-- [Expense Manager](shopos-expense-manager-gaps.md) — 2nd pass SHIPPED: drawer link (expense_out/income_in), budgets, recurring, receipts; approval skipped
-- [ShopOS Auto Depth](shopos-auto-depth.md) — 2026-08-06 SHIPPED: trade-in is a TENDER not a discount, vehicle record + history, DOT tyre dating = age not expiry
+- [Expense Manager](shopos-expense-manager-gaps.md) — 2nd pass SHIPPED: drawer link (expense_out/income_in), budgets, recurring, receipts
+- [ShopOS Auto Depth](shopos-auto-depth.md) — 2026-08-06 SHIPPED: trade-in is a TENDER not a discount, vehicle record + history, DOT tyre…
 - [ShopOS Audit Aug-06](shopos-audit-aug06.md) — 3 PROVEN P0s in a green build (itemTypesFor upgrade path, serial fenced to retail
 - [Docs Discipline](shopos-docs-discipline.md) — STANDING: update HANDOVER.md + docs/decisions/ as work happens + `./scripts/sync-memory.sh`
 - [ShopOS Relief Cover](shopos-relief-cover.md) — 2026-08-07 SHIPPED; rule = "a cover moves the queue, not the drawer" (sell yes, reconcile never)
 - [Loose Ends Aug-07](shopos-loose-ends-aug07.md) — all 4 Aug-06 audit loose ends cleared; only deployment + training mode remain
-- [No Roles — Permissions Only](shopos-no-roles.md) — ARCHITECTURE: cashier/waiter/kitchen are permission SETS not roles; job presets shipped
+- [No Roles — Permissions Only](shopos-no-roles.md) — ARCHITECTURE: cashier/waiter/kitchen are permission SETS not roles
 - [Web Completion](shopos-web-completion.md) — WEB SIDE FEATURE-COMPLETE 2026-08-07 (excl. offline); only deployment/CI-CD left
 - [Training Mode](shopos-training-mode.md) — practice till: the SHIFT is the unit; Sale global scope + null business_day_id fence it
 - [Table Ownership](shopos-table-ownership.md) — a dine-in tab belongs to its waiter; tables.serve_any lifts it; reads stay open
-- [Read vs Manage](shopos-read-vs-manage.md) — the `*.manage` bug class: a write permission gating a read; ANY-of gate + READS_* sets + PresetCanDoItsJobTest
-- [QA Sweep Aug-09](shopos-qa-sweep-aug09.md) — all 9 bugs + all gaps CLOSED; kept as proof an index line can stay wrong for days — check the file, not this line
-- [CI/CD & Mobile](shopos-cicd-and-mobile.md) — gates PROVEN on real runs (not "never run"); gate now fires on every branch, deploy fenced to the release branch
+- [Read vs Manage](shopos-read-vs-manage.md) — the `*.manage` bug class: a write permission gating a read
+- [QA Sweep Aug-09](shopos-qa-sweep-aug09.md) — all 9 bugs + all gaps CLOSED; kept as proof an index line can stay wrong for days — check…
+- [CI/CD & Mobile](shopos-cicd-and-mobile.md) — gates PROVEN on real runs (not "never run")
 - [Workflow Test Rule](shopos-workflow-test-rule.md) — STANDING: delete a step and it must fail; never assert "not empty" on an envelope
 - [Admin Side Backlog](shopos-admin-side-backlog.md) — ALL BUILT 2026-08-15 (password reset, billing filters, security pass)
 - [Security Pass](shopos-security-pass.md) — both sides; 4 fixes, biggest = anyone could lock a shop out of its own till
-- [Help Centre](shopos-help-centre.md) — in-app, full-screen, filtered per tenant by module/trade/permission; STANDING: update it whenever a screen changes
+- [Help Centre](shopos-help-centre.md) — in-app, full-screen, filtered per tenant by module/trade/permission
 - [Reorder & Labels](shopos-reorder-and-labels.md) — reorder list was built-but-unreachable (fixed); perm labels now server-side
 - [Tax Year](shopos-tax-year.md) — PK tax year 1 Jul–30 Jun added beside the calendar year; not a setting, quarters unchanged
 - [Who Sold It](shopos-who-sold-it.md) — sales.served_by vs created_by; never inferred, off by default, seller list is NOT behind staff.manage
@@ -52,113 +52,116 @@
 - [Moving Cost](shopos-moving-cost.md) — products.cost is blended on PO receive (weighted avg, per base unit, never blanked)
 - [Trade Audit DONE](shopos-trade-audit-done.md) — all 8 trade areas read & closed (items 14–22); don't re-run the pass
 - [Tablet Chrome](shopos-tablet-chrome.md) — ONE breakpoint (DRAWER_BELOW=1024); drawer stopped measuring the header; h-dvh never h-screen
-- [Reachability Rule](shopos-reachability-rule.md) — STANDING: reachable.test.ts fails when an export is only used by its own test; watch NOT_SURFACED_YET
-- [Offline Browse](shopos-offline-browse.md) — offline POS pane was EMPTY; searchCatalog had no caller but its test; a restaurant could ring nothing
-- [Member Discount Offline](shopos-member-discount-offline.md) — group % was neither applied nor refused offline = silent full-price charge; ask what a mirror was GIVEN and does not use
+- [Reachability Rule](shopos-reachability-rule.md) — STANDING: reachable.test.ts fails when an export is only used by its own test
+- [Offline Browse](shopos-offline-browse.md) — offline POS pane was EMPTY; searchCatalog had no caller but its test
+- [Member Discount Offline](shopos-member-discount-offline.md) — group % was neither applied nor refused offline = silent full-price charge
 - [Recurring Income](shopos-recurring-income.md) — Aug-09 gap list CLOSED; a template falls DUE and never posts itself
 - [Reorder → PO](shopos-reorder-to-po.md) — ONE DRAFT PER SUPPLIER is the design; supplier derived from purchase history, never a stored field
-- [Expiry Alerts](shopos-expiry-alerts.md) — near-expiry alerts speak per lot per stage EXACTLY ONCE, never daily; a daily alert is worse than silence
-- [Sold Out & Reachability](shopos-sold-out-and-reachability.md) — 86/sold-out shipped; offline_selling had NO admin screen (7th "built but unreachable")
-- [UI Sweep Aug-17](shopos-ui-sweep-aug17.md) — "white white" = undifferentiated, not blank; 15 native confirms, 27 bare row actions, 8 clipped tables killed
+- [Expiry Alerts](shopos-expiry-alerts.md) — near-expiry alerts speak per lot per stage EXACTLY ONCE, never daily
+- [Sold Out & Reachability](shopos-sold-out-and-reachability.md) — 86/sold-out shipped; offline_selling had NO admin screen (7th "built…
+- [UI Sweep Aug-17](shopos-ui-sweep-aug17.md) — "white white" = undifferentiated, not blank
 - [Item Rule On Sync](shopos-item-rule-on-sync.md) — sync enforced 4 of OfflinePolicy's 5 rules; backend ReachableTest found it
-- [Detector vs Rule](shopos-detector-vs-rule.md) — STANDING: 3 guards passed while blind to their own subject; give every scanner a denominator
+- [Detector vs Rule](shopos-detector-vs-rule.md) — STANDING: 3 guards passed while blind to their own subject
 - [Endpoint Reachability](shopos-endpoint-reachability.md) — dead-endpoints.py now asks 3 questions (dead route / call with no route / wrong verb)
 - [POS View Toggle](shopos-pos-view-toggle.md) — tiles/rows is a per-DEVICE choice now; a view doesn't get its own idea of what may be sold
 - [Sync Progress Pill](shopos-sync-progress-pill.md) — "Sending X of Y"; pillLabel had 2 drifted copies while exempt
-- [Slip Number Lookup](shopos-slip-number-lookup.md) — OFF- slip matched NO search: offline customer couldn't be found or refunded; Help Centre had promised it worked
-- [Offline Shift Gap](shopos-offline-shift-gap.md) — a till that RELOADED offline couldn't sell; shiftMirror, and why only status 0 falls back
-- [Cover Cannot Ring](shopos-cover-cannot-ring.md) — reliever couldn't press Tender; `!!open` is null under cover BY DESIGN; ringableSessionId()
+- [Slip Number Lookup](shopos-slip-number-lookup.md) — OFF- slip matched NO search: offline customer couldn't be found or refunded
+- [Offline Shift Gap](shopos-offline-shift-gap.md) — a till that RELOADED offline couldn't sell
+- [Cover Cannot Ring](shopos-cover-cannot-ring.md) — reliever couldn't press Tender; `!!open` is null under cover BY DESIGN
 - [Reply Style](shopos-reply-style.md) — STANDING: user doesn't read long replies; ALWAYS end with short summary bullets (kya kiya / kya next)
-- [Offline Never Reachable](shopos-offline-never-reachable.md) — CRITICAL: react-query PAUSES all work when navigator.onLine is false; jsdom says onLine=true so tests were blind
-- [Secure Context](shopos-secure-context.md) — crypto.randomUUID is undefined over plain http; 4 call sites bypassed uuid(); jsdom IS secure so tests were blind
-- [QA Sweep](shopos-qa-sweep.md) — standing outside-in sweep per business type; mutate.py proves it can fail; 11 harness findings vs 0 product bugs
-- [Forecourt Branch](shopos-forecourt-branch.md) — FIXED: panel-made tanks had branch_id null, shift looked for Main; no station could open a shift; 25 tests missed it
-- [Adjust Wrong Branch](shopos-adjust-wrong-branch.md) — FIXED: hand stock adjustments always hit Main, not the operated branch; the branch test only covered sales
-- [POS Dine-in Flow](shopos-pos-dinein-flow-todo.md) — RESOLVED: the till had its own free-text table beside the real Floor module; now gated to food shops with no dine_in
-- [Job Offered = Job Doable](shopos-job-offered-must-be-doable.md) — FIXED: restaurant offered a Purchasing job with every screen MODULE_DISABLED; a phase that chose its own shops hid it
-- [Which Day Is Open](shopos-which-day-is-open.md) — FIXED: today's banking landed on yesterday's unclosed day; 3 paths, 3 answers; the first test passed against the bug
+- [Offline Never Reachable](shopos-offline-never-reachable.md) — CRITICAL: react-query PAUSES all work when navigator.onLine is false
+- [Secure Context](shopos-secure-context.md) — crypto.randomUUID is undefined over plain http; 4 call sites bypassed uuid()
+- [QA Sweep](shopos-qa-sweep.md) — standing outside-in sweep per business type; mutate.py proves it can fail
+- [Forecourt Branch](shopos-forecourt-branch.md) — FIXED: panel-made tanks had branch_id null, shift looked for Main; no station could open a shift
+- [Adjust Wrong Branch](shopos-adjust-wrong-branch.md) — FIXED: hand stock adjustments always hit Main, not the operated branch
+- [POS Dine-in Flow](shopos-pos-dinein-flow-todo.md) — RESOLVED: the till had its own free-text table beside the real Floor module
+- [Job Offered = Job Doable](shopos-job-offered-must-be-doable.md) — FIXED: restaurant offered a Purchasing job with every screen MODULE_DISABLED
+- [Which Day Is Open](shopos-which-day-is-open.md) — FIXED: today's banking landed on yesterday's unclosed day; 3 paths, 3 answers
 - [Screen Testing](shopos-screen-testing.md) — Playwright e2e/ is the ONLY thing that sees layout; jsdom has no layout engine
-- [Fuel Rate & Receipt Tray](shopos-fuel-rate-and-receipt-tray.md) — FIXED: tomorrow's rate repriced pumps tonight; reprint never left the tray (second-precision tie)
+- [Fuel Rate & Receipt Tray](shopos-fuel-rate-and-receipt-tray.md) — FIXED: tomorrow's rate repriced pumps tonight
 - [Cart Hid Its Lines](shopos-cart-hid-its-lines.md) — FIXED: min-h inside overflow-hidden put 188px of the cart outside the frame
-- [Offline In A Browser](shopos-offline-in-a-browser.md) — FIRST real-browser offline run: 5 bugs, biggest = a dropped line signed the till out and stranded its own outbox
-- [Offline Slip Numbers](shopos-offline-slip-numbers.md) — FIXED: device segment now server-ALLOCATED (was 4 chars of a random UUID); counter high-water seeded
-- [The Customer](shopos-the-customer.md) — Phase R: role:customer (orders/addresses/reviews/Rx + dish modifiers + 86); 204 checks, 36/36 mutations
-- [Sold Out, Three Paths](shopos-sold-out-three-paths.md) — FIXED: 86 enforced by the till ONLY; app + dine-in tab both sold it. The grep is now scripts/dead-rules.py
-- [Ceiling Follows The Bill](shopos-ceiling-follows-the-bill.md) — FIXED: discount ceiling checked ONLY at the till; one shared DiscountCeiling + one-rule-many-paths.py
+- [Offline In A Browser](shopos-offline-in-a-browser.md) — FIRST real-browser offline run: 5 bugs, biggest = a dropped line signed the…
+- [Offline Slip Numbers](shopos-offline-slip-numbers.md) — FIXED: device segment now server-ALLOCATED (was 4 chars of a random UUID)
+- [The Customer](shopos-the-customer.md) — Phase R: role:customer (orders/addresses/reviews/Rx + dish modifiers + 86)
+- [Sold Out, Three Paths](shopos-sold-out-three-paths.md) — FIXED: 86 enforced by the till ONLY
+- [Ceiling Follows The Bill](shopos-ceiling-follows-the-bill.md) — FIXED: discount ceiling checked ONLY at the till
 - [Page Two](shopos-page-two.md) — FIXED: 9 screens could not reach page two AT ALL (reviews capped at 10); one shared <Pager> + 2 guards
-- [Other Half Of A Date](shopos-other-half-of-a-date.md) — FIXED: a tyre shop sold its NEWEST stock first; `manufactured_on` was written and never read
+- [Other Half Of A Date](shopos-other-half-of-a-date.md) — FIXED: a tyre shop sold its NEWEST stock first
 - [Who Changed What](shopos-who-changed-what.md) — FIXED: audit trail recorded permissions but not the money they move (credit limit 5k→90k = no row)
 - [Asked As Nobody](shopos-asked-as-nobody.md) — STANDING: a sweep call with no token went out bare and faked 96 bugs
-- [Offline Drawer In A Browser](shopos-offline-drawer-in-a-browser.md) — the 'still owed' list was 3/5 stale; the real gap was that none of it had run in a browser
-- [Two Doors One Drug](shopos-two-doors-one-drug.md) — FIXED: schedule-controlled medicine left by the PHONE-ORDER door with no prescription while the till refused it
-- [Failed Check Is Not A Verdict](shopos-failed-check-is-not-a-verdict.md) — STANDING: my workflow reported 22 UNVERIFIED claims as refuted because a dead agent returns null
+- [Offline Drawer In A Browser](shopos-offline-drawer-in-a-browser.md) — the 'still owed' list was 3/5 stale
+- [Two Doors One Drug](shopos-two-doors-one-drug.md) — FIXED: schedule-controlled medicine left by the PHONE-ORDER door with no…
+- [Failed Check Is Not A Verdict](shopos-failed-check-is-not-a-verdict.md) — STANDING: my workflow reported 22 UNVERIFIED claims as…
 - [Estimate At Wrong Layer](shopos-estimate-at-wrong-layer.md) — STANDING: "245 unnamed fields" was really 34 (24 of them ONE header pair)
 - [Scanner's Own Blind Spot](shopos-scanner-own-blind-spot.md) — unreachable-pages.py never judged modules/workshop; bay board read page one
-- [Label Not Attached](shopos-label-not-attached.md) — 327 <Label> vs 5 htmlFor: labelled and UNATTACHED; runtime fix that gives up rather than guesses; 0 of 367 unnamed
-- [Everyone Minus One Role](shopos-everyone-minus-one-role.md) — "Everyone" excluded UserRole::Staff; the cashier's bell could never be filled; that gap is now CLOSED
-- [Promise In Another File](shopos-promise-in-another-file.md) — STANDING: a comment/label stating a rule implemented nowhere; 4 in one day; a comment reads as DONE
-- [Three Verdicts Paid Off](shopos-three-verdicts-paid-off.md) — 11 confirmed / 2 refuted, both refutations MINE; don't re-raise announcement dedupe or workshop preset
-- [Size Picker](shopos-size-picker-gap.md) — chips on tiles, sheet on rows, dine-in too; why varianted products were UNSELLABLE (tile disabled on orphaned parent
-- [Button Submit Default](shopos-button-submit-default.md) — FIXED: shared <Button> had no type, so it SUBMITTED inside a form; the variant editor had never worked once
-- [Silent Nulls](shopos-silent-nulls.md) — STANDING: a missing attribute is null and silent, a missing relation throws; scripts/silent-nulls.py
-- [Menu And Door](shopos-menu-and-door.md) — FIXED: Kitchen preset was offered the board by 4 surfaces and bounced by the 5th; RequirePermission held ONE string
-- [Saved That Saved Nothing](shopos-saved-nothing.md) — FIXED: a refusal wore the title "Saved with warning"; a whole shop's prices were uneditable and it said they weren't
-- [Fixtures That Breed](shopos-fixtures-that-breed.md) — STANDING: Date.now() in an e2e fixture name; 13 strays starved a SIBLING spec and it blamed the screen
-- [CartZe Brand](shopos-cartze-brand.md) — rename DONE; wordmark is a COMPONENT; and 3 storage keys (`shopos-till`/`-device-id`/`-auth`) must NEVER be renamed
-- [A Rail You Can Read](shopos-rail-you-can-read.md) — FIXED: 22 icon collisions in 16 menus; Simple mode was module-gated so a restaurant had Dine-in and no Kitchen
-- [Page Two, Per List](shopos-page-two-per-list.md) — 3 more page-two bugs in the folder-credit gap; scanner gained per-CALL + orphan-hook axes
-- [What It Used To Cost](shopos-what-it-used-to-cost.md) — SHIPPED price history; Product had NO audit trait; the design is mostly about what must NOT be filed
-- [Branch Day-to-Day](shopos-branch-day-to-day.md) — who works where, which branch a staff member is told they are in, and which record screens name one
+- [Label Not Attached](shopos-label-not-attached.md) — 327 <Label> vs 5 htmlFor: labelled and UNATTACHED; runtime fix that gives up rather than guesses
+- [Everyone Minus One Role](shopos-everyone-minus-one-role.md) — "Everyone" excluded UserRole::Staff; the cashier's bell could never be filled
+- [Promise In Another File](shopos-promise-in-another-file.md) — STANDING: a comment/label stating a rule implemented nowhere; 4 in one day
+- [Three Verdicts Paid Off](shopos-three-verdicts-paid-off.md) — 11 confirmed / 2 refuted, both refutations MINE
+- [Size Picker](shopos-size-picker-gap.md) — chips on tiles, sheet on rows, dine-in too; why varianted products were UNSELLABLE (tile…
+- [Button Submit Default](shopos-button-submit-default.md) — FIXED: shared <Button> had no type, so it SUBMITTED inside a form
+- [Silent Nulls](shopos-silent-nulls.md) — STANDING: a missing attribute is null and silent, a missing relation throws
+- [Menu And Door](shopos-menu-and-door.md) — FIXED: Kitchen preset was offered the board by 4 surfaces and bounced by the 5th
+- [Saved That Saved Nothing](shopos-saved-nothing.md) — FIXED: a refusal wore the title "Saved with warning"
+- [Fixtures That Breed](shopos-fixtures-that-breed.md) — STANDING: Date.now() in an e2e fixture name
+- [CartZe Brand](shopos-cartze-brand.md) — rename DONE; wordmark is a COMPONENT; and 3 storage keys (`shopos-till`/`-device-id`/`-auth`)…
+- [A Rail You Can Read](shopos-rail-you-can-read.md) — FIXED: 22 icon collisions in 16 menus
+- [Page Two, Per List](shopos-page-two-per-list.md) — 3 more page-two bugs in the folder-credit gap
+- [What It Used To Cost](shopos-what-it-used-to-cost.md) — SHIPPED price history; Product had NO audit trait
+- [Branch Day-to-Day](shopos-branch-day-to-day.md) — who works where, which branch a staff member is told they are in, and which record…
 - [Token Lives One Hour](shopos-token-lives-one-hour.md) — STANDING: access tokens expire 1h after minting (per-token, not in sanctum config)
-- [Who Works Where](shopos-who-works-where.md) — FIXED: panel never set users.branch_id, so branch two's cashier rang branch one's stock and nothing looked wrong
-- [Measurement That Lied](shopos-measurement-that-lied.md) — STANDING: wrong cwd, unquoted heredoc, soft-deleted target — three plausible-looking results from tools that never ran
-- [A Code For Each Size](shopos-code-for-each-size.md) — FIXED: variant barcodes had a reader and no writer; writing it exposed 3 more that were 'correct' while the column
-- [Which Pizza In The Deal](shopos-which-pizza-in-the-deal.md) — FIXED: a deal with a sized item could not be sold AT ALL; 4 stock writers now name the size
+- [Who Works Where](shopos-who-works-where.md) — FIXED: panel never set users.branch_id, so branch two's cashier rang branch one's stock…
+- [Measurement That Lied](shopos-measurement-that-lied.md) — STANDING: wrong cwd, unquoted heredoc, soft-deleted target — three…
+- [A Code For Each Size](shopos-code-for-each-size.md) — FIXED: variant barcodes had a reader and no writer
+- [Which Pizza In The Deal](shopos-which-pizza-in-the-deal.md) — FIXED: a deal with a sized item could not be sold AT ALL
 - [The Large Ran Out](shopos-large-ran-out.md) — per-size 86 shipped; one shared SoldOut rule across all 3 selling paths; size checked FIRST
-- [When A Large Uses More](shopos-large-uses-more.md) — per-size recipes shipped; RecipeFor = one answer for 4 readers; size rows OVERRIDE not add
-- [A Docket Outlived Its Tab](shopos-docket-outlived-tab.md) — cancelled tabs left dockets on the kitchen pass forever + inflated kot_waiting; one shared scopeForAnOpenTab
-- [Screens Nobody Opened](shopos-screens-nobody-opened.md) — chrome.spec walked 14 of 48 shop screens; walking 20 more found a modal-blind rule and 8 controls that say "edit text
-- [One Branch Runs Out](shopos-one-branch-runs-out.md) — per-branch 86; branch_sold_out REPLACED the columns (one source of truth); the online-door gap it left is now CLOSED
+- [When A Large Uses More](shopos-large-uses-more.md) — per-size recipes shipped; RecipeFor = one answer for 4 readers
+- [A Docket Outlived Its Tab](shopos-docket-outlived-tab.md) — cancelled tabs left dockets on the kitchen pass forever + inflated kot_waiting
+- [Screens Nobody Opened](shopos-screens-nobody-opened.md) — chrome.spec walked 14 of 48 shop screens
+- [One Branch Runs Out](shopos-one-branch-runs-out.md) — per-branch 86; branch_sold_out REPLACED the columns (one source of truth)
 - [Header Would Not Yield](shopos-header-would-not-yield.md) — 5 trade e2e projects; 9 never-walked screens; 7 failed on ONE header bug
-- [The Machine Slept](shopos-the-machine-slept.md) — STANDING: a test cannot outlast its own timeout; 18 "failures" were one closed lid + a dead token
-- [Mirror & Refusal](shopos-mirror-and-refusal.md) — FIXED: size stock/price never reached the offline till; a refused sale vanished silently (drawer over, cause unknowable)
-- [Nearest Branch Fills It](shopos-nearest-branch-fills-it.md) — online orders: nearest branch that holds the WHOLE basket; release reads branch off the movement
+- [The Machine Slept](shopos-the-machine-slept.md) — STANDING: a test cannot outlast its own timeout
+- [Mirror & Refusal](shopos-mirror-and-refusal.md) — FIXED: size stock/price never reached the offline till
+- [Nearest Branch Fills It](shopos-nearest-branch-fills-it.md) — online orders: nearest branch that holds the WHOLE basket
 - [Told By Permission](shopos-told-by-permission.md) — staff finally get operational alerts; whoever can ACT is told, branch-scoped
 - [Exit Code, Not Summary](shopos-exit-code-not-summary.md) — STANDING: `php artisan test` said "2225 passed" while exiting 1
-- [The Front Door](shopos-the-front-door.md) — `/` = landing (marketplace → /shops); Try-demo = own 24h tenant; Keep-this-shop → admin request → converts
-- [A Dark Shop, One Lit Counter](shopos-dark-shop-lit-counter.md) — landing redesign: dark hero IS the argument, trade switcher = evidence, dashboard drawn not screenshotted
-- [Ask For A Person](shopos-ask-for-a-person.md) — enquiries (walkthrough/question) + admin queue; a preference is NOT a booking; admin reachability guard finally exists
-- [Dashboards — consistency pass DONE](shopos-dashboards-redesign-pending.md) — one shared Surface, no truncated labels; NEVER interpolate a Tailwind class; structure left alone on purpose
-- [Asking For A Newer Version](shopos-asking-for-a-newer-version.md) — header refresh control with 5 honest answers; SW registration lives in AppLayout, not the update strip
-- [Demo World Went Stale](shopos-demo-world-stale.md) — FIXED: seeder ran green while covering none of 2.5 weeks of product; 2 modules ON with empty tables
-- [The Aisle](shopos-the-aisle.md) — marketplace rebuilt as a product aisle; multi-shop basket; STANDING: run the suite on BOTH SQLite and MySQL
-- [One Filter Bar](shopos-one-filter-bar.md) — site-wide filter kit + named date ranges; tenant origin (Keep-this-shop flag), rail badges, billing says how much
-- [Page Rule, One Copy](shopos-page-rule-one-copy.md) — STANDING: filter-reset swallowed the page change; useUrlFilters/nextParams is the only copy
-- [Shell Widened The Page](shopos-shell-widened-the-page.md) — FIXED: flex-1 with no min-w-0 pushed the whole page sideways, only at xl+; jsdom was blind
-- [Half A Rule](shopos-half-a-rule.md) — STANDING: a rule applied to one half of a screen; the missed half is a smaller TRUE thing so it never looks broken
-- [Guards Share A Blind Spot](shopos-guards-share-a-blind-spot.md) — STANDING: 4 guards read one route list; adding a screen = 6 places; mutate every new guard
-- [Take Order Page](shopos-take-order-page.md) — modal→page, browsable catalogue, stock on the tile, stock refusal names the item; orders list is a table
-- [The Total Belonged To Everyone](shopos-total-belonged-to-everyone.md) — FIXED: expense/income totals summed EVERY tenant; getQuery() skips global scopes, toBase() applies them
-- [Today In UTC](shopos-today-in-utc.md) — STANDING: toISOString().slice(0,10) is yesterday before 05:00 in Karachi; use toIsoDate(); guarded + mutation-proven
+- [The Front Door](shopos-the-front-door.md) — `/` = landing (marketplace → /shops); Try-demo = own 24h tenant
+- [A Dark Shop, One Lit Counter](shopos-dark-shop-lit-counter.md) — landing redesign: dark hero IS the argument, trade switcher =…
+- [Ask For A Person](shopos-ask-for-a-person.md) — enquiries (walkthrough/question) + admin queue; a preference is NOT a booking
+- [Dashboards — consistency pass DONE](shopos-dashboards-redesign-pending.md) — one shared Surface, no truncated labels; NEVER interpolate a Tailwind class
+- [Asking For A Newer Version](shopos-asking-for-a-newer-version.md) — header refresh control with 5 honest answers
+- [Demo World Went Stale](shopos-demo-world-stale.md) — FIXED: seeder ran green while covering none of 2.5 weeks of product
+- [The Aisle](shopos-the-aisle.md) — marketplace rebuilt as a product aisle; multi-shop basket
+- [One Filter Bar](shopos-one-filter-bar.md) — site-wide filter kit + named date ranges; tenant origin (Keep-this-shop flag), rail…
+- [Page Rule, One Copy](shopos-page-rule-one-copy.md) — STANDING: filter-reset swallowed the page change
+- [Shell Widened The Page](shopos-shell-widened-the-page.md) — FIXED: flex-1 with no min-w-0 pushed the whole page sideways, only at xl+
+- [Half A Rule](shopos-half-a-rule.md) — STANDING: a rule applied to one half of a screen; the missed half is a smaller TRUE thing so it…
+- [Guards Share A Blind Spot](shopos-guards-share-a-blind-spot.md) — STANDING: 4 guards read one route list; adding a screen = 6 places
+- [Take Order Page](shopos-take-order-page.md) — modal→page, browsable catalogue, stock on the tile, stock refusal names the item
+- [The Total Belonged To Everyone](shopos-total-belonged-to-everyone.md) — FIXED: expense/income totals summed EVERY tenant
+- [Today In UTC](shopos-today-in-utc.md) — STANDING: toISOString().slice(0,10) is yesterday before 05:00 in Karachi; use toIsoDate()
 - [sr-only Widened The Page](shopos-sr-only-widened-page.md) — FIXED: an sr-only span in a <th> pushed the page 84px sideways
-- [Expense Manager UI](shopos-expense-manager-ui.md) — 2026-08-26: one shared MoneyEntryTable + MoneySummary, formatMoney/formatEntryDate, all tabs fit a phone
-- [Switch With Nothing Behind It](shopos-switch-with-nothing-behind-it.md) — FIXED: "Require open shift" read by NOTHING in the panel; shift discipline always on
+- [Expense Manager UI](shopos-expense-manager-ui.md) — 2026-08-26: one shared MoneyEntryTable + MoneySummary,…
+- [Switch With Nothing Behind It](shopos-switch-with-nothing-behind-it.md) — FIXED: "Require open shift" read by NOTHING in the panel
 - [Full-Screen Pinned Room](shopos-full-screen-pinned-room.md) — FIXED: install card sat on the dine-in tab's Running total/Fire/Settle
-- [A Waiter Holds A Phone](shopos-waiter-holds-a-phone.md) — STANDING: restaurant e2e was iPad-only; restaurant-phone project added and found both dine-in bugs at once
-- [Till Had No Offline Shell](shopos-till-had-no-offline-shell.md) — FIXED (live shop): ServiceWorkerHost only in AppLayout, so /tenant/pos registered NO worker; offline reload died
+- [A Waiter Holds A Phone](shopos-waiter-holds-a-phone.md) — STANDING: restaurant e2e was iPad-only
+- [Till Had No Offline Shell](shopos-till-had-no-offline-shell.md) — FIXED (live shop): ServiceWorkerHost only in AppLayout, so /tenant/pos registered NO worker
 - [The Sync That Lied](shopos-sync-that-lied.md) — FIXED: "Up to date" beside a badge reading 4; a press obeyed the 10-min backoff
 - [Stranded Sales](shopos-stranded-sales.md) — FIXED: rows stamped with NO tenant were counted for ever and never sent
-- [POS Trade Coverage](shopos-pos-trade-coverage.md) — REFERENCE: 27-trade audit; core complete; gaps collapse to 3 mechanisms: job ticket, measured lines, rate-driven
+- [POS Trade Coverage](shopos-pos-trade-coverage.md) — REFERENCE: 27-trade audit; core complete
 - [Packaging Units](shopos-packaging-units.md) — single/pack/box ALREADY BUILT (ProductUnit); only gap = a label per pack
 - [Arti / Mandi](shopos-arti-mandi.md) — BACKLOG vertical: grain commission agent; arrivals→weighing→settlement→khata, not a cart
-- [Half The Sync](shopos-half-the-sync.md) — FIXED: shift queue never got the sale queue's force+stranded fixes; a sum of two stores needs both halves
-- [One Device, One Shop](shopos-one-device-one-shop.md) — FIXED CRITICAL: offline catalog had no tenant fence; a 2nd shop saw+sold the 1st's products
-- [Import Per Trade](shopos-import-per-trade.md) — FIXED: one template for all trades; importer refused its own rows; + variants via parent_sku, no IDs in CSV
-- [Nested Resource Grep](shopos-nested-resource-grep.md) — STANDING: a nested resource has NO route line; grep silence read as "not built" and I reported a shipped feature as the #1 gap
-- [Low Stock, One Rule](shopos-low-stock-one-rule.md) — FIXED: "what is running low" asked in 5 places, answered 2 ways; 200 shirts on the buying list daily
-- [Shelf By Name](shopos-shelf-by-name.md) — STANDING: fillCart took "any plain product" = 20 stray fixtures at 0 stock; check what ran BEFORE blaming the screen
-- [Pay: The Door Nobody Tested](shopos-pay-the-door-nobody-tested.md) — FIXED: supplier Pay settled NOTHING; every test used the door the UI never opens; advance model
-- [One Shelf, Two Caches](shopos-one-shelf-two-caches.md) — STANDING: products + inventory invalidate together; branch switcher showed branch one's reorder list under branch two
-- [Mutation Aimed At The Wrong Rule](shopos-mutation-aimed-at-wrong-rule.md) — STANDING: openThingsFit measures HEIGHT; a passing mutation may be mis-aimed, not a blind test
-- [Sizes Hold The Stock](shopos-sizes-hold-the-stock.md) — FIXED: parent Adjust said "Stock updated" and moved nothing; batch dialog never sent a size
-- [A Suite Against Itself](shopos-suite-vs-itself.md) — STANDING: never run phpunit/vitest/builds beside Playwright; 16 fake failures, 4.1h durations, signed-out shell
+- [Half The Sync](shopos-half-the-sync.md) — FIXED: shift queue never got the sale queue's force+stranded fixes
+- [One Device, One Shop](shopos-one-device-one-shop.md) — FIXED CRITICAL: offline catalog had no tenant fence
+- [Import Per Trade](shopos-import-per-trade.md) — FIXED: one template for all trades; importer refused its own rows
+- [Nested Resource Grep](shopos-nested-resource-grep.md) — STANDING: a nested resource has NO route line
+- [Low Stock, One Rule](shopos-low-stock-one-rule.md) — FIXED: "what is running low" asked in 5 places, answered 2 ways
+- [Shelf By Name](shopos-shelf-by-name.md) — STANDING: fillCart took "any plain product" = 20 stray fixtures at 0 stock
+- [Pay: The Door Nobody Tested](shopos-pay-the-door-nobody-tested.md) — FIXED: supplier Pay settled NOTHING; every test used the door the UI never opens
+- [One Shelf, Two Caches](shopos-one-shelf-two-caches.md) — STANDING: products + inventory invalidate together
+- [Mutation Aimed At The Wrong Rule](shopos-mutation-aimed-at-wrong-rule.md) — STANDING: openThingsFit measures HEIGHT
+- [Sizes Hold The Stock](shopos-sizes-hold-the-stock.md) — FIXED: parent Adjust said "Stock updated" and moved nothing
+- [A Suite Against Itself](shopos-suite-vs-itself.md) — STANDING: never run phpunit/vitest/builds beside Playwright
+- [Outcome, Not Coverage](shopos-outcome-not-coverage.md) — STANDING: the Pay bug was a COVERED branch with an unasserted consequence
+- [A Matrix's Own Blind Spot](shopos-matrix-own-blind-spot.md) — STANDING: ShapeMatrix passed with the guard removed until an ADDRESS axis was added
+- [A Day And Its Chorus](shopos-day-and-chorus.md) — STANDING: run a whole day, then ask every screen the same question; 2 bugs on run one

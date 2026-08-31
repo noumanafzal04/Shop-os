@@ -1,0 +1,133 @@
+# One shop's day, and then every screen asked the same question
+
+**2026-09-01** · backend + panel
+
+## The problem this is a reaction to
+
+The supplier `Pay` button settled nothing for weeks inside a green suite. The
+reason was not a missing test: `CashMovementTest` had been posting to that
+endpoint since August. The line was **covered**. What no test did was ask what
+the balance said afterwards.
+
+That is the shape of every miss this codebase has had:
+
+| miss | what was covered | what was never asked |
+|---|---|---|
+| supplier Pay | the endpoint answered 201 | did the balance move |
+| sized parent adjust | the endpoint answered 201 | did the shelf move |
+| low stock | each screen answered | did the screens agree |
+| sold-out / 86 | the till refused | did the other two doors refuse |
+| discount ceiling | the till capped it | did the online door cap it |
+
+So the answer is not a deeper test of each module. It is a whole DAY — bought,
+sold, refunded, banked and closed off — with a **chorus** at the end: the
+questions a shopkeeper actually asks at ten at night, put to every screen that
+can answer them, with the answers required to match.
+
+`tests/Feature/ADayInTheShopTest.php`.
+
+## Two rules the chorus is built on
+
+**The expectation is the test's own.** A chorus alone catches disagreement, not
+a shared mistake — four screens reading one broken query agree perfectly. So
+the day keeps its own books as it goes (every rupee into the drawer, every
+rupee out) and the screens are measured against that, never only against each
+other.
+
+**Failures are collected, not thrown.** The interesting fact about a
+disagreement is *which* screens disagree, and an `assertEquals` on the first
+one ends the test there.
+
+## What the first run found
+
+### F1 — only the till ever told the drawer a sale had happened
+
+One mart day, with a drawer open: three sales through `POST /sales`
+(cash 1,000 · card 500 · khata 750), one bag refunded in cash, a khata payment
+taken, the supplier paid, a wage bill paid.
+
+| | said | should have said |
+|---|---|---|
+| the day, closed off | **0** | 2,250 |
+| the drawer's expected cash | **100** | 850 |
+
+`cash_session_id` is offered by four doors and filled by one:
+
+| door | fills it |
+|---|---|
+| the till (`PosPage`) | yes |
+| Sales → New Sale | no |
+| the returns desk | no field at all |
+| dine-in settle · quotation → invoice | passes through what it was given — nothing |
+
+Money **leaving** the drawer had resolved itself server-side all along —
+`RecordCashMovementAction`'s own docblock says "the session, lane and branch
+are resolved SERVER-side from the caller". Money **arriving** did not. So the
+afternoon's expenses came out of a drawer that had never heard about the
+afternoon's takings, and `BusinessDay` — which sums the shifts — closed off
+reading zero.
+
+`SaleController` had already written the fault down in its own comment ("whose
+cash belongs to no reconciliation and shows up in no shift report") and
+answered it only for shops that switch on `pos_require_shift`, which ships
+**off**.
+
+**Fixed** by `BooksDrawer::tillFor()` — one rule, the mirror of the one that
+already existed for money going out. Consulted by `CreateSaleAction`,
+`ProcessSaleReturnAction` and the `SHIFT_REQUIRED` gate, so every door gets it
+and the next door will too.
+
+Two fences on it:
+
+- a **practice** till answers null. A sale inherits `is_training` from the
+  drawer it is rung on, so resolving a practice shift would silently turn a
+  real customer's sale into a practice one — no stock moved, no revenue, gone
+  from every report. `BooksDrawer::isPractice` already exists for exactly this
+  reason on the expense side.
+- the **sync** path is excluded. A synced sale happened hours ago and names its
+  own shift; attaching it to whichever drawer is open when the tablet
+  reconnects would file yesterday's takings into tonight's count.
+
+### F2 — a refunded item took the whole ticket off the sales report
+
+Same day. The 1,000 cash sale had one 250 bag returned, so it became
+`partially_refunded`:
+
+| surface | said | |
+|---|---|---|
+| cashbook · day · Z-read | 2,250 | counts the three live statuses |
+| **sales report · dashboard** | **1,250** | drops the whole 1,000 ticket |
+
+1,250 is neither the gross (2,250) nor the net (2,000). "Which sales count?"
+was asked in **thirteen** places across `ReportService` and `DashboardService`
+and answered `Completed` only, so revenue, the chart, top products, margins,
+the staff report and the tax return all lost a ticket the moment any part of it
+came back.
+
+**Fixed** by `App\Support\Takings` — one copy of the rule, now also used by the
+five places that already had it right (`cashbook`, `LedgerService`, the bank
+claims report).
+
+## Gross, not net — and why
+
+Revenue stays **gross**, with refunds as their own dated line.
+
+A refund is dated by the day it was **handed back**. A bag returned on Thursday
+against Monday's invoice cannot be netted off a Monday that has been closed,
+counted and banked. Gross revenue plus a dated refund line is the only shape
+where both days reconcile — which is why the cashbook was built that way, and
+exactly what the P&L screens were missing.
+
+So `summary()` and the dashboard gained a `refunds` figure; both profits
+subtract it, and `cogs` has the returned goods' **snapshot** cost taken off
+(today's cost would re-price a return from six weeks ago). The panel shows the
+line only when the shop actually handed something back, next to the revenue it
+reduces — without it, Revenue − Cost of Goods no longer equals Gross Profit and
+the row reads like an arithmetic error.
+
+## What this does not claim
+
+Neither fix was caught by a scanner or by reading. Both were caught by running
+a day and asking. The remaining questions in the chorus — what the shop is
+owed, what it owes, what is on the shelf — and the other seven trades are
+tracked in `docs/qa/TRADE-DAY-PLAN.md`.

@@ -290,6 +290,44 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-01 — One shop's day, and then every screen asked the same question
+
+Started the per-trade day flow. `tests/Feature/ADayInTheShopTest.php` runs a
+whole day — bought, sold on three tenders, refunded, khata taken, supplier
+paid, bill paid, drawer counted, day closed — and then puts a shopkeeper's
+questions to every screen that can answer them. The day keeps its OWN books as
+it goes, so the screens are measured against something the product had no hand
+in computing; disagreements are collected rather than thrown, because which
+screens disagree is the interesting part.
+
+The first run found two:
+
+**Only the till ever told the drawer a sale had happened.** With a drawer open,
+2,250 rung through `POST /sales` — the day closed off reading **0** and the
+drawer expected **100** instead of **850**. `cash_session_id` is offered by four
+doors (till · New Sale · returns · dine-in settle / quote→invoice) and filled by
+one. Money LEAVING the drawer has resolved itself server-side all along
+(`RecordCashMovementAction`); money arriving did not. Fixed with
+`BooksDrawer::tillFor()` — the mirror rule — fenced off the practice till (a
+real sale must never inherit `is_training`) and off the sync path (a synced sale
+happened hours ago and names its own shift).
+
+**A refunded item took the whole ticket off the sales report.** A 1,000 sale
+with one 250 bag returned: cashbook/day/Z-read said 2,250, sales report and
+dashboard said **1,250** — neither gross nor net, because the whole invoice had
+gone. "Which sales count?" was asked in 13 places and answered `Completed` only.
+Fixed with `App\Support\Takings`, one copy of the rule. Revenue stays gross
+with refunds as their own dated line (a Thursday return cannot rewrite a Monday
+that is closed and banked), both profits subtract it, and `cogs` loses the
+returned goods' snapshot cost. Panel + Help Centre updated.
+
+Gates: backend **2391 passed, exit 0** · panel tsc 0 · eslint 0 ·
+vitest 1334 · build 0. Neither fix broke a single existing test — which is
+itself the measurement: nothing had ever asked.
+
+Plan and remaining chunks: `docs/qa/TRADE-DAY-PLAN.md` · decision:
+`docs/decisions/shopos-a-day-and-its-chorus.md`.
+
 ### 2026-08-29 — One device, one shop's shelf
 
 A pharmacy's till was showing a mart's products, and selling them. IndexedDB is
@@ -5412,6 +5450,61 @@ Two things that will bite you in the backend tests: decimal columns serialise as
 **strings**, so use `assertEquals`, not `assertSame`; and Eloquent's `create()`
 does not hydrate columns the insert didn't name, so `->refresh()` before you read
 them back.
+
+---
+
+### 2026-08-31 — two matrices, and coverage as the wrong question
+
+Asked how to test the whole product so nothing like the last five bugs slips
+again. The honest starting point: **not one of them was caught by any existing
+layer**, and each was a mismatch between two places while every tool looked at
+one.
+
+**The shape matrix.** `ShapeMatrixTest` — 7 shapes × 4 stock paths × 2
+addresses = 36 cells. The invariant is the whole point: *succeed and move the
+shelf by exactly what was asked, or refuse with a reason and move nothing.*
+"Succeeded and moved nothing" is the sentence the sized-product bug lived
+inside.
+
+It found a real bug on its first run: `POST .../batches` accepted a lot on a
+product that does not track inventory — filing a row that said it held five and
+then skipping the stock write — while `adjust` refused the same shape outright.
+
+**And it was useless until its third axis.** The first version passed with the
+guard removed, because it always addressed a sized product BY ITS SIZE, and the
+bug is a caller naming the PARENT. A matrix can carry the same blind spot as
+the tests it replaces. With the address axis, the same mutation produces eight
+failures reading `answered 201, moved 0, expected 5`.
+
+**Coverage was the wrong question.** My first reading of the Pay bug was "an
+untested branch", and I built `scripts/untested-absence.py` for it — every write
+endpoint, does any test omit each optional field? It examines 458 pairs and
+reports 19, plus 15 write routes no test posts to at all. Genuinely useful.
+
+**It would not have found the payment bug.** `CashMovementTest` had been posting
+a payment with no order named since August. The branch was covered. That test
+asserted the DRAWER and never once looked at what the supplier was owed. So:
+
+> not an unwalked path — a path somebody walked, looking at the wrong thing on
+> the other side.
+
+`MoneyMatrixTest` asserts the outcome instead: a money path that succeeds moves
+the balance it names. Mutation-proven against the real historical state, both
+halves reverted: `supplier · paid on account: answered 201, balance moved 0,
+expected -5000`. It also showed the fix has two independent halves — breaking
+either alone leaves the balance right.
+
+**Two failures that were the calendar, not the code.** The suite went red on 31
+August: `now()->subMonths(74)` from the 31st clamps onto a 30-day month, so an
+age read "6 yr 1 mo", and a payment landed in the neighbouring month bucket.
+Proven by stashing every local change and watching them fail on the committed
+code. Both pin the clock now. **A date is an axis too.**
+
+**And one of mine.** I ran `pint app/ tests/` — repo-wide, against the standing
+rule — and it reformatted twenty-two files I had not touched. Reverted; only the
+three files I actually changed are in the diff.
+
+See `docs/decisions/shopos-matrices-and-outcomes.md`.
 
 ---
 

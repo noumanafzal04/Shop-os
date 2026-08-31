@@ -1,0 +1,140 @@
+# One shop's day, per trade — the working ledger
+
+> **This file is the resume point.** If a session ends mid-way, read the
+> checklist at the bottom, find the first unticked box, and carry on from there.
+> Every box is a self-contained commit.
+
+## Why this exists
+
+The supplier `Pay` button settled nothing for weeks inside a green suite. The
+reason was not a missing test — `CashMovementTest` had been posting to that
+endpoint since August. The reason was that **no test ever asked what the
+balance did afterwards**. Coverage was there; the consequence was not asserted.
+
+That is the shape of every miss this codebase has had:
+
+| miss | what was covered | what was never asked |
+|---|---|---|
+| supplier Pay | the endpoint returned 201 | did the balance move |
+| sized parent adjust | the endpoint returned 201 | did the shelf move |
+| low stock | each screen answered | did the screens agree |
+| 86 / sold-out | the till refused | did the other two doors refuse |
+| discount ceiling | the till capped it | did the online door cap it |
+
+So the strategy is not "more tests of each feature". It is **one day, run end to
+end, per trade, where the last step is a chorus**: ask every surface that can
+answer a question, and require the same number from all of them.
+
+## The day
+
+    shop created → catalog → supplier → PO → receive
+      → day/shift open → sell (cash · card · khata) → return
+      → khata repaid → supplier paid → expense
+      → shift close → day close → THE CHORUS
+
+## The chorus — one question, every surface
+
+Each question is put to two or more surfaces that compute it *independently*.
+Disagreement is the finding; the number itself is secondary.
+
+| # | the question a shopkeeper asks | surfaces that must agree |
+|---|---|---|
+| Q1 | what did the shop take today? | day close · cashbook · sales report · dashboard |
+| Q2 | what should be in the drawer? | Z-read · day close · session report |
+| Q3 | what do we owe suppliers? | supplier card · dashboard · purchases report |
+| Q4 | what do customers owe us? | customer statement · dashboard · khata report |
+| Q5 | what is on the shelf? | product · inventory list · valuation report |
+
+## The denominator
+
+A day that quietly skips a module proves nothing about it. So the flow records
+which modules it touched, and the test fails naming any module the trade has
+**enabled** that the day never went near. Adding a module to a trade breaks this
+test until the day covers it — that is the part that makes a future miss loud.
+
+## Trades
+
+food · mart · pharmacy · retail · services · automotive · petroleum · finance
+
+Deep walkthroughs already exist for **mart**, **food**, **pharmacy** and
+**finance** (books-only). They are not replaced — this runs *beside* them and
+asks the cross-module question none of them asks.
+
+---
+
+## Checklist
+
+- [x] **C1** — `ShopDay` helper + the spine + Q1/Q2, mart only, green
+- [ ] **C2** — all 8 trades through the spine (expect findings here)
+- [ ] **C3** — Q3/Q4/Q5 added to the chorus
+- [ ] **C4** — the module denominator ratchet
+- [ ] **C5** — per-trade specials woven in (batch/serial/job-card/forecourt/dine-in)
+- [ ] **C6** — fix whatever C2–C5 found
+- [ ] **C7** — docs/decisions + memory + HANDOVER + Help Centre
+
+## Findings
+
+_(appended as they are proven — never as they are suspected)_
+
+### F1 — only the till ever told the drawer a sale had happened  ·  FIXED
+
+**Measured.** One mart day: 40 bags bought in, three sales rung through
+`POST /sales` (cash 1,000 · card 500 · khata 750), one bag refunded in cash,
+a khata payment taken, the supplier paid and a wage bill paid — all with a
+drawer open.
+
+| | said | should have said |
+|---|---|---|
+| the day, closed off | **0** | 2,250 |
+| the drawer's expected cash | **100** | 850 |
+
+`cash_session_id` is offered by four doors and filled by one:
+
+| door | fills it |
+|---|---|
+| the till (`PosPage`) | yes |
+| Sales → New Sale | no |
+| the returns desk | no field at all |
+| dine-in settle · quotation → invoice | passes through whatever it was given — nothing |
+
+Money *leaving* the drawer has resolved itself server-side all along
+(`RecordCashMovementAction`: "the session, lane and branch are resolved
+SERVER-side from the caller"). Money *arriving* did not. So the afternoon's
+expenses came out of a drawer that had never heard about the afternoon's
+takings, and `BusinessDay` — which sums the shifts — closed off at zero.
+
+`SaleController` had already written the fault down in its own comment
+("whose cash belongs to no reconciliation and shows up in no shift report")
+and answered it only for shops that switch on `pos_require_shift`, which
+ships **off**.
+
+**Fix:** `BooksDrawer::tillFor()` — one rule, the mirror of the one that
+already existed for money going out. A practice till answers null, or a real
+sale would silently become a practice one.
+
+### F2 — a refunded item takes the whole ticket off the sales report  ·  FIXED
+
+**Measured**, same day. The cash sale of 1,000 had one 250 bag returned, so
+its status became `partially_refunded`:
+
+| surface | said | |
+|---|---|---|
+| cashbook · day · Z-read | 2,250 | counts the three live statuses |
+| **sales report · dashboard** | **1,250** | drops the whole 1,000 ticket |
+
+1,250 is neither gross (2,250) nor net (2,000). "Which sales count?" is asked
+in **13 places** across `ReportService` and `DashboardService` and answered
+`Completed` only — revenue, the chart, top products, margins, the staff
+report and the tax report all lose a ticket the moment any part of it comes
+back. Five other places (`DrawerMath`, `LedgerService`, `StockReportService`,
+`PosController`) already use the wider set.
+
+**Fix:** `App\Support\Takings` — one copy of the rule. Revenue stays GROSS
+with refunds as their own dated line (a return on Thursday against Monday's
+invoice cannot rewrite a Monday that has been closed and banked), so
+`summary()` and the dashboard gained a `refunds` figure, both profits subtract
+it, and `cogs` loses the returned goods' snapshot cost. Panel shows the line
+only when there is one.
+
+Gates after both: backend **2391 passed, exit 0** · panel tsc 0 · eslint 0 ·
+vitest 1334 · build 0.
