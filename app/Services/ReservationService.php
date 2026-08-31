@@ -234,6 +234,13 @@ class ReservationService
                     'unit_price' => (float) $reservation->unit_price,
                 ]],
                 'trusted_prices' => true,
+                // A reservation is a HOLD, collected in person — this method is
+                // called the moment the customer walks in. The channel says
+                // `online` because that is where they reserved it; the rupees
+                // are handed across this counter, so the open drawer must
+                // expect them or the cashier closes short by the whole
+                // collection. See BooksDrawer::tillFor.
+                'collected_at_the_counter' => true,
                 // The reservation promised unit_price × quantity, tax-free —
                 // charge exactly that at pickup (no recomputed tax on top).
                 'tax' => 0.0,

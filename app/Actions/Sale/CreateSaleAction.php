@@ -128,8 +128,17 @@ class CreateSaleAction
                 // The same line `SaleController` already draws for
                 // `pos_require_shift`, and for the same reason: an online order
                 // has no till to be open.
+                //
+                // `channel` is where the ORDER came from, not where the MONEY
+                // was taken, and the two part company at the door: a reserved
+                // item collected in person, or a pickup order paid for at the
+                // till, are both stamped `online` and both cross this counter
+                // in cash. So a caller that KNOWS may say so, and only the
+                // channel-shaped guess is used when nobody does.
                 $sessionId = $data['cash_session_id'] ?? null;
-                $atTheCounter = ($data['channel'] ?? null) !== SaleChannel::Online->value;
+                $atTheCounter = array_key_exists('collected_at_the_counter', $data)
+                    ? (bool) $data['collected_at_the_counter']
+                    : ($data['channel'] ?? null) !== SaleChannel::Online->value;
                 if ($sessionId === null && $atTheCounter && ! $trustedOffline) {
                     $sessionId = BooksDrawer::tillFor(Auth::user())?->id;
                 }

@@ -2,13 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Models\CashSession;
 use App\Models\City;
 use App\Models\Product;
+use App\Models\Reservation;
+use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -252,7 +256,11 @@ final class ADayInTheShopTest extends TestCase
      */
     public function test_every_door_that_rings_a_sale_moves_the_one_drawer_that_should_move(): void
     {
-        $this->openTheShop('mart');
+        // RETAIL, not mart: it is the trade that ships with every door on —
+        // products, inventory, a till, delivery AND reservations. A fixture
+        // missing one of them would skip that door silently, which is the
+        // failure this whole file was written about.
+        $this->openTheShop('retail');
         $item = $this->cardTheItem('physical_product', 100.0, 60.0);
         $this->stock($item, 500);
         $this->openTheTill(float: 1000);
@@ -304,29 +312,91 @@ final class ADayInTheShopTest extends TestCase
             ], 201);
         });
 
-        // 4. An online order completing. MUST NOT move it.
+        // 4. A PICKUP order, collected and paid for at the till. The channel
+        //    on the sale says `online` — that is where the order came from —
+        //    but the customer is standing here handing over notes, so the
+        //    drawer must expect them.
         $doors++;
-        $order = $this->send('/api/v1/orders', [
-            'customer_name' => 'Phone Sahib',
-            'customer_phone' => '+923009998887',
-            'fulfillment_type' => 'pickup',
-            'items' => [['product_id' => $item->id, 'quantity' => 5]],
-        ], 201);
-        // Walked through its own state machine — pending → confirmed →
-        // preparing → ready — because an order cannot jump to completed and a
-        // 409 here would look like a passing check.
-        foreach (['confirmed', 'preparing', 'ready'] as $step) {
-            $this->send("/api/v1/orders/{$order['id']}/advance", ['status' => $step], 200);
-        }
-        $this->drawerMovesBy($wrong, 'an order completed', 0.0, function () use ($order): void {
-            $this->send("/api/v1/orders/{$order['id']}/advance", ['status' => 'completed'], 200);
+        $pickup = $this->orderReadyToCollect($item, qty: 5, how: 'pickup');
+        $this->drawerMovesBy($wrong, 'a pickup order collected', 500.0, function () use ($pickup): void {
+            $this->send("/api/v1/orders/{$pickup}/advance", ['status' => 'completed'], 200);
+        });
+
+        // 5. A DELIVERY order completing. MUST NOT move it — the rider has the
+        //    goods and the money, and a drawer that expects cash which never
+        //    reached it leaves the cashier counting SHORT.
+        $doors++;
+        $delivery = $this->orderReadyToCollect($item, qty: 5, how: 'delivery');
+        $this->drawerMovesBy($wrong, 'a delivery order completed', 0.0, function () use ($delivery): void {
+            $this->send("/api/v1/orders/{$delivery}/advance", ['status' => 'completed'], 200);
+        });
+
+        // 6. A reserved item, collected. `ReservationService::complete` is
+        //    literally documented as "customer arrived", so this is a counter
+        //    collection wearing an `online` channel.
+        $doors++;
+        $this->assertTrue($this->shop->featureEnabled('reservations'), 'the fixture cannot hold a reservation');
+        $held = $this->reservationWaitingToBeCollected($item, qty: 2, unitPrice: 100.0);
+        $this->drawerMovesBy($wrong, 'a reserved item collected', 200.0, function () use ($held): void {
+            $this->send("/api/v1/reservations/{$held}/complete", [
+                'payment_method' => 'cash',
+                'amount_paid' => 200.0,
+            ], 200);
         });
 
         // THE DENOMINATOR. A matrix that quietly stopped trying doors would
         // satisfy every assertion above.
-        $this->assertGreaterThanOrEqual(4, $doors, 'the matrix shrank');
+        $this->assertGreaterThanOrEqual(6, $doors, 'the matrix shrank');
 
         $this->assertSame([], $wrong, "\n".implode("\n", $wrong)."\n");
+    }
+
+    /**
+     * An order walked to the point where only "completed" is left.
+     *
+     * Through its own state machine, because an order cannot jump — and a 409
+     * on the last step would read as a door that moved no money.
+     */
+    private function orderReadyToCollect(Product $item, float $qty, string $how): string
+    {
+        $order = $this->send('/api/v1/orders', array_filter([
+            'customer_name' => 'Order Sahib',
+            'customer_phone' => '+92300999'.random_int(1000, 9999),
+            'fulfillment_type' => $how,
+            'delivery_address' => $how === 'delivery' ? '14 Ferozepur Road, Lahore' : null,
+            'items' => [['product_id' => $item->id, 'quantity' => $qty]],
+        ]), 201);
+
+        $steps = $how === 'delivery'
+            ? ['confirmed', 'preparing', 'out_for_delivery']
+            : ['confirmed', 'preparing', 'ready'];
+
+        foreach ($steps as $step) {
+            $this->send("/api/v1/orders/{$order['id']}/advance", ['status' => $step], 200);
+        }
+
+        return $order['id'];
+    }
+
+    /** A hold placed and accepted, waiting for the customer to walk in. */
+    private function reservationWaitingToBeCollected(Product $item, int $qty, float $unitPrice): string
+    {
+        $shopper = User::factory()->create();
+
+        $held = Reservation::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id,
+            'customer_id' => $shopper->id,
+            'product_id' => $item->id,
+            'product_name' => $item->name,
+            'unit_price' => $unitPrice,
+            'quantity' => $qty,
+            'status' => 'pending',
+            'expires_at' => now()->addDay(),
+        ]);
+
+        $this->send("/api/v1/reservations/{$held->id}/accept", [], 200);
+
+        return $held->id;
     }
 
     /**
@@ -348,6 +418,92 @@ final class ADayInTheShopTest extends TestCase
                 ? "{$door}: moved the drawer by {$moved} — it should not touch it at all"
                 : "{$door}: the drawer moved by {$moved}, the cash taken was {$expected}";
         }
+    }
+
+    /**
+     * A SALE REPLAYED FROM A TILL NEVER LANDS IN WHICHEVER DRAWER IS OPEN NOW.
+     *
+     * The other half of the same rule. Resolving the drawer from "whoever is
+     * standing at the counter" is right for a sale being rung; it is exactly
+     * wrong for one that was rung on Tuesday and reached the server on Friday,
+     * because the person who reconnects the tablet is not the person who took
+     * the money.
+     *
+     * What that would look like is a cashier opening up on Friday morning, a
+     * tablet finding wifi, and their drawer silently expecting three days of
+     * somebody else's takings — a variance in the thousands, on their shift,
+     * with nothing on the X-read to explain it.
+     *
+     * So the sync path is excluded, and a synced sale keeps the shift it names
+     * or keeps none. Both halves are asserted here: nothing leaks INTO the open
+     * drawer, and a named shift still gets its own.
+     */
+    public function test_a_sale_synced_from_a_till_does_not_leak_into_todays_drawer(): void
+    {
+        $this->openTheShop('mart');
+        $item = $this->cardTheItem('physical_product', 100.0, 60.0);
+        $this->stock($item, 500);
+
+        // Tuesday's drawer, counted and closed long ago.
+        $tuesday = CashSession::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id,
+            'user_id' => $this->owner->id,
+            'opening_float' => 0,
+            'opened_at' => now()->subDays(3),
+            'closed_at' => now()->subDays(3)->addHours(8),
+            'status' => 'closed',
+        ]);
+
+        // This morning's drawer — the one that must stay untouched.
+        $this->openTheTill(float: 1000);
+        $before = (float) $this->read('/api/v1/pos/session/report')['drawer']['expected_cash'];
+
+        $named = $this->syncOne($item, 2, $tuesday->id);
+        $orphan = $this->syncOne($item, 3, null);
+
+        $after = (float) $this->read('/api/v1/pos/session/report')['drawer']['expected_cash'];
+
+        $wrong = [];
+        if (round($after - $before, 2) !== 0.0) {
+            $wrong[] = "today's drawer moved by ".round($after - $before, 2)
+                .' on sales that were rung days ago';
+        }
+        if (Sale::withoutTenancy()->find($named)?->cash_session_id !== $tuesday->id) {
+            $wrong[] = 'a synced sale did not keep the shift it named';
+        }
+        if (Sale::withoutTenancy()->find($orphan)?->cash_session_id !== null) {
+            $wrong[] = 'a synced sale that named no shift was given one anyway';
+        }
+
+        // THE DENOMINATOR. Two sales that never landed would move no drawer and
+        // satisfy the first check perfectly.
+        $this->assertNotNull($named, 'the sale naming a shift never landed');
+        $this->assertNotNull($orphan, 'the shiftless sale never landed');
+
+        $this->assertSame([], $wrong, "\n".implode("\n", $wrong)."\n");
+    }
+
+    /** One sale as a till queued it, replayed. Returns the id it landed under. */
+    private function syncOne(Product $item, float $qty, ?string $shiftId): ?string
+    {
+        $res = $this->as()->postJson('/api/v1/pos/sync', [
+            'operations' => [[
+                'op' => (string) Str::uuid(),
+                'at' => now()->subDays(3)->toIso8601String(),
+                'offline_number' => 'OFF-DAY-'.random_int(100000, 999999),
+                'sale' => array_filter([
+                    'channel' => 'pos',
+                    'items' => [['product_id' => $item->id, 'quantity' => $qty]],
+                    'payment_method' => 'cash',
+                    'amount_paid' => $qty * 100.0,
+                    'cash_session_id' => $shiftId,
+                ]),
+            ]],
+        ]);
+
+        $this->assertSame(200, $res->status(), 'the sync was refused: '.$res->content());
+
+        return $res->json('data.results.0.sale_id');
     }
 
     /**

@@ -582,6 +582,16 @@ class OrderService
                 'payment_method' => $order->payment_method === 'paid' ? 'card' : 'cash',
                 'amount_paid' => max(0, $goodsPaid),
                 'trusted_prices' => true,
+                // WHERE THE MONEY WAS TAKEN, which is not what `channel` says.
+                //
+                // A pickup order is collected and paid for at the till, so the
+                // open drawer must expect it. A delivery is not: the rider is
+                // still out with the goods, and a COD order becomes a `cash`
+                // tender — crediting it to whichever drawer happens to be open
+                // would leave that cashier counting SHORT for money that never
+                // reached them. `fulfillment_type` is the only field that knows
+                // the difference. See BooksDrawer::tillFor.
+                'collected_at_the_counter' => $order->fulfillment_type === FulfillmentType::Pickup,
                 // Replay the money the customer actually paid at checkout: the
                 // order quoted NO tax, so the sale must not invent one — a
                 // GST-rated product would otherwise make completion throw
