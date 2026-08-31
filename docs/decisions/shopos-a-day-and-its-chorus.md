@@ -137,6 +137,48 @@ the same line `SaleController` already draws for `pos_require_shift`.
 Mutation-proven both ways: removing the resolution turns three doors to zero
 and leaves the online one alone.
 
+### F4 — the fence on F3 was itself half a rule
+
+F3's fix fenced the drawer resolution to counter channels, reasoning that an
+`online` sale had not crossed the till. Putting the last two doors through the
+matrix showed the reasoning wrong in one direction.
+
+`channel` says where the ORDER came from. It does not say where the MONEY was
+taken, and the two part company at the door:
+
+| door | channel | where the money was taken |
+|---|---|---|
+| a reserved item collected | `online` | **the counter** — `ReservationService::complete` is documented "customer arrived" |
+| a pickup order collected | `online` | **the counter** |
+| a delivery order | `online` | the rider |
+
+A customer who reserved a Rs 5,000 item, walked in and paid cash would have left
+the drawer short by the whole amount: the original bug, still live, inside the
+fix for it.
+
+`fulfillment_type` is the only field that knows the difference, so callers that
+know now say so — `collected_at_the_counter` — and the channel-shaped guess is
+used only when nobody does. Seven doors are in the matrix with both signs.
+
+### The offline replay, which must reach none of them
+
+The mirror of the whole rule. Resolving from "whoever is standing at the
+counter" is right for a sale being rung and exactly wrong for one rung on
+Tuesday that reached the server on Friday: the person who reconnects the tablet
+is not the person who took the money. What that would look like is a cashier
+opening up on Friday, a tablet finding wifi, and their drawer silently expecting
+three days of somebody else's takings — a variance in the thousands, on their
+shift, with nothing on the X-read to explain it.
+
+### A coincidence, written down
+
+`Takings::COUNTED` and the `status != cancelled` spelling used by the customer
+card, the dispensing register, the waiter report and global search select the
+same rows today — but only because `SaleStatus` has exactly four cases. That is
+not a rule, it is arithmetic. `WhichSalesCountTest` pins it, and its failure
+message SCANS for the other spelling rather than listing one that would be stale
+within a week: it names four files and nine sites.
+
 ## What was NOT done, and why
 
 The plan's C5 said "per-trade specials — batch, serial, job card, forecourt,

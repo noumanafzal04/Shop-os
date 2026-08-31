@@ -290,6 +290,36 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-01 (last) — the fence was half a rule, and a coincidence written down
+
+Putting the last two sale doors through the drawer showed that the fence added
+earlier in the day was wrong in one direction. `channel` says where the ORDER
+came from; it does not say where the MONEY was taken, and the two part company
+at the door. A reserved item collected in person and a pickup order paid for at
+the till are both stamped `online` and both cross the counter in cash —
+`ReservationService::complete` is literally documented "customer arrived". So a
+customer who reserved a Rs 5,000 item, walked in and paid would have left the
+drawer short by the whole amount: the original bug, still live, inside the fix
+for it.
+
+`fulfillment_type` is the only field that knows. Callers that know now say so
+(`collected_at_the_counter`) and the channel-shaped guess is used only when
+nobody does. The matrix carries seven doors and both signs — three that must
+move the drawer, one that must not, and an offline replay that must reach none
+of them (a tablet finding wifi on Friday must not put three days of somebody
+else's takings on this morning's cashier).
+
+Also written down: `Takings::COUNTED` and the `status != cancelled` spelling
+select the same rows today only because `SaleStatus` has exactly four cases.
+`WhichSalesCountTest` pins the coincidence, and its failure message SCANS for
+the other spelling rather than listing it — four files, nine sites. Add a fifth
+status and it goes red naming every place that must decide.
+
+Help Centre corrected: the note added earlier said an online order never touches
+the drawer, which stopped being true for pickup an hour later.
+
+2403 passed, exit 0. Every rule above mutation-proven in both directions.
+
 ### 2026-09-01 (later) — the other doors, and the one that must not move
 
 F1 above was found through the front door. A `Sale` row is created by six

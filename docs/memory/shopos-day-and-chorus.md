@@ -50,6 +50,15 @@ bug pointed the other way and worse: the drawer expects money that never crossed
 it and the cashier counts SHORT. Fenced to counter channels. **A rule that only
 ever adds is not a rule.**
 
+**And then the fence was half a rule too.** Fencing to `channel != online` was
+wrong in one direction: `channel` says where the ORDER came from, not where the
+MONEY was taken. A reserved item collected in person and a pickup order paid at
+the till are both `online` and both cross the counter —
+`ReservationService::complete` is documented "customer arrived". A Rs 5,000
+reservation collected in cash would still have left the drawer short. Fixed with
+`collected_at_the_counter`, driven by `fulfillment_type`; the channel guess is
+only the fallback.
+
 **How to apply:** when adding a surface, ask what QUESTION it answers and who
 else answers it. When you fix "X never happens", also ask where X must NEVER
 happen — and put both signs in the test. When a payload field is optional, grep who actually fills it —

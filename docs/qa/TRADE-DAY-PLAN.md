@@ -85,13 +85,16 @@ asks the cross-module question none of them asks.
 
 ### Still open
 
-- [ ] **C8** — the two doors the matrix has not put through the drawer:
-      a reservation honoured (`ReservationService`) and an offline sale
-      replayed (`PosSyncController`). Both build a sale row; neither has been
-      asked what it does to the drawer.
-- [ ] **C9** — `customers/index` spells "which sales count" a fourth way
-      (`status != cancelled`). It agrees with `Takings::COUNTED` today by
-      accident, not by construction.
+- [x] **C8** — done, and it found that F3's own fix was half a rule. See F4.
+- [x] **C9** — the two spellings agree today only because `SaleStatus` has
+      exactly four cases. Written down as `WhichSalesCountTest`, whose failure
+      message SCANS for the other spelling rather than listing it — it names
+      four files and nine sites. Mutation-proven.
+
+### Still open
+
+- [ ] **C10** — nothing. The list is empty on purpose: the next item should
+      come from running something, not from planning it.
 
 ## Where the day stands
 
@@ -100,7 +103,7 @@ asks the cross-module question none of them asks.
 | trades running the full day | 7 (food · mart · pharmacy · retail · services · automotive · petroleum) |
 | finance | asserted from the opposite end — no till, no day, cashbook still kept |
 | chorus questions | 5 — takings · refunds · drawer · khata · shelf · payables |
-| sale doors put through the drawer | 5 (counter · quote→invoice · exchange · dine-in tab · order) |
+| sale doors put through the drawer | 7 — counter · quote→invoice · exchange · dine-in tab · pickup order · delivery order · reservation, plus an offline replay that must reach none of them |
 | mutation-proven | Q1 (Takings), Q3 (supplier card), Q5 (valuation units), C4 (module ratchet) |
 
 Q4 was rewritten after it was found to be weak: the customer card, the customer
@@ -177,6 +180,32 @@ what people get accused over.
 
 Mutation-proven: removing the resolution turns three doors to 0 and leaves the
 online one alone.
+
+### F4 — the fence I put on F3 was itself half a rule  ·  FIXED
+
+F3 fenced the drawer resolution to counter channels, on the reasoning that an
+`online` sale did not cross the till. C8 then put the last two doors through it
+and showed the reasoning was wrong in one direction:
+
+`channel` says where the ORDER came from. It does not say where the MONEY was
+taken, and the two part company at the door:
+
+| door | channel | where the money was taken |
+|---|---|---|
+| a reserved item collected | `online` | **the counter** — `ReservationService::complete` is documented "customer arrived" |
+| a pickup order collected | `online` | **the counter** |
+| a delivery order | `online` | the rider |
+
+So a customer who reserved a Rs 5,000 item, walked in and paid cash would have
+left the drawer short by the whole amount — the original bug, still live, in the
+fix for it.
+
+`fulfillment_type` is the only field that knows the difference. Callers that
+know now say so (`collected_at_the_counter`); the channel-shaped guess is used
+only when nobody does. The matrix carries all six doors and both signs.
+
+Mutation-proven: making delivery attach, and making the reservation stop
+attaching, each produce their own line.
 
 ### F2 — a refunded item takes the whole ticket off the sales report  ·  FIXED
 
