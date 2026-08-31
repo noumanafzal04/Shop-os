@@ -512,6 +512,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "Opening and closing a shift" },
       { type: "p", text: "A shift is a drawer, opened with a float and counted at the end. Whether one is REQUIRED before you can sell is your own choice — Settings → Point of Sale → \u201cRequire open shift\u201d. It ships off, so a one-person shop can ring a sale on its first day without setting anything up; turn it on the day you have staff and every rupee then belongs to a shift that gets counted." },
       { type: "note", text: "Your open drawer takes in every sale you ring anywhere in the shop, not just the ones rung on this screen — a sale from Sales \u2192 New Sale, a settled dine-in tab, an invoice made from a quotation. Cash refunds you hand back come out of it the same way. Before this, only sales rung here counted, so the drawer expected less than it held and the day closed off short." },
+      { type: "warn", text: "One exception, on purpose: an ONLINE order being marked complete does not touch your drawer, even when it is cash on delivery. The rider is still out with the goods or the money was taken on the website, so the till must not expect notes that never crossed the counter — you would then count short with nothing to explain. When the rider hands the cash over, record it as a paid-in on the shift."  },
       { type: "p", text: "Either way, this is how one runs:" },
       {
         type: "steps",
