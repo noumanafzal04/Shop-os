@@ -162,6 +162,74 @@ class FuelManagementTest extends TestCase
 
     // ── The module gate ─────────────────────────────────────────────
 
+    /**
+     * A TANK WITHOUT A CAPACITY IS NOT PROTECTED FROM OVERFILLING.
+     *
+     * `capacity_litres` is `sometimes` on the request and defaults to 0 in the
+     * column, and the gate that turns a tanker away reads
+     * `capacity_litres > 0 && …`. So a tank created without one is not a tank
+     * with an unknown capacity — it is a tank with **no gate at all**, and the
+     * refusal this module exists for is silently absent.
+     *
+     * Found by `scripts/untested-absence.py`: all three of a tank's numbers are
+     * supplied by the only test that creates one, so their absence was a branch
+     * nobody had driven down.
+     *
+     * A capacity is not paperwork. Every physical tank has one, the whole
+     * forecourt reconciles against it, and a station that does not know it
+     * cannot be told a delivery will not fit.
+     */
+    public function test_a_tank_cannot_be_installed_without_saying_how_much_it_holds(): void
+    {
+        $petrol = $this->fuelProduct('Petrol', 272, 0);
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/fuel/tanks', [
+            'name' => 'Tank 9', 'product_id' => $petrol->id,
+        ])->assertStatus(422)->assertJsonValidationErrors('capacity_litres');
+
+        // With a capacity it goes in, and the gate it feeds now has something
+        // to compare against.
+        $this->actingAsUser($this->owner)->postJson('/api/v1/fuel/tanks', [
+            'name' => 'Tank 9', 'product_id' => $petrol->id, 'capacity_litres' => 20000,
+        ])->assertCreated();
+    }
+
+    /**
+     * A NOZZLE WITHOUT ITS METER READING BOOKS THE METER'S WHOLE LIFE AS ONE DAY.
+     *
+     * `current_reading` is `sometimes` and the column defaults to 0. A pump
+     * installed mid-life has a totaliser already reading, say, 482,000 — and a
+     * nozzle carded without it starts at nought. The first shift then opens at
+     * nought, closes at 482,050, and the forecourt books **the meter's entire
+     * lifetime as that shift's sales**.
+     *
+     * That is the disaster `OpenForecourtShiftAction` already names in its own
+     * comment — *"discovering at close that the shift 'sold' 400,000 litres"* —
+     * reached by a different road. It guards a typed opening below the stored
+     * reading, and cannot guard a stored reading that was never taken.
+     */
+    public function test_a_nozzle_cannot_be_carded_without_saying_where_its_meter_stands(): void
+    {
+        $petrol = $this->fuelProduct('Petrol', 272, 0);
+        $tank = $this->actingAsUser($this->owner)->postJson('/api/v1/fuel/tanks', [
+            'name' => 'Tank 1', 'product_id' => $petrol->id, 'capacity_litres' => 20000,
+        ])->assertCreated()->json('data.id');
+
+        $pump = $this->actingAsUser($this->owner)->postJson('/api/v1/fuel/pumps', [
+            'name' => 'Pump 1',
+        ])->assertCreated()->json('data.id');
+
+        $this->actingAsUser($this->owner)->postJson("/api/v1/fuel/pumps/{$pump}/nozzles", [
+            'name' => 'N1', 'fuel_tank_id' => $tank,
+        ])->assertStatus(422)->assertJsonValidationErrors('current_reading');
+
+        // Zero is a perfectly good answer for a brand-new pump — the rule is
+        // that somebody has to SAY so, not that it cannot be nought.
+        $this->actingAsUser($this->owner)->postJson("/api/v1/fuel/pumps/{$pump}/nozzles", [
+            'name' => 'N1', 'fuel_tank_id' => $tank, 'current_reading' => 0,
+        ])->assertCreated();
+    }
+
     public function test_fuel_is_a_petroleum_module_and_off_for_everyone_else(): void
     {
         $this->assertTrue(BusinessTypes::defaultFeatures('petroleum')['fuel'] ?? false);

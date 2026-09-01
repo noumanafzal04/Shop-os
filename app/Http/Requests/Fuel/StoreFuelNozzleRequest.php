@@ -25,7 +25,22 @@ class StoreFuelNozzleRequest extends FormRequest
             // Where the totaliser stands today. Settable when the nozzle is
             // first registered or its head is replaced; after that the shift
             // close owns it.
-            'current_reading' => ['sometimes', 'numeric', 'min:0', 'max:99999999999'],
+            // REQUIRED WHEN THE NOZZLE IS CARDED, and only then.
+            //
+            // The column defaults to 0, and a pump installed mid-life has a
+            // totaliser already reading six figures. A nozzle carded without
+            // its reading starts at nought, the first shift opens at nought and
+            // closes at the real number, and the forecourt books THE METER'S
+            // WHOLE LIFE as that shift's sales.
+            //
+            // That is the disaster `OpenForecourtShiftAction` already names —
+            // "discovering at close that the shift 'sold' 400,000 litres" —
+            // reached by a different road. It guards an opening typed below the
+            // stored reading; it cannot guard a stored reading nobody took.
+            //
+            // Nought is a perfectly good answer for a new pump. The rule is
+            // that somebody has to SAY so.
+            'current_reading' => [$required, 'numeric', 'min:0', 'max:99999999999'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
