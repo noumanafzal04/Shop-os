@@ -93,8 +93,35 @@ asks the cross-module question none of them asks.
 
 ### Still open
 
-- [ ] **C10** — nothing. The list is empty on purpose: the next item should
-      come from running something, not from planning it.
+- [x] **C10** — ran Playwright, which had not seen a screen since the relation
+      optionality change. One failure, on the screen this work had just
+      touched. See F5.
+- [x] **C11** — three more chorus questions: what the item earned (Q6), what
+      went to the bank and what is still in the shop (Q7), and the staff report
+      as a fifth answer to Q1. Q6 immediately caught F6.
+
+### Still open
+
+- [x] **C12** — every Playwright project run, with the configured reporters:
+
+      | projects | passed | skipped |
+      |---|---|---|
+      | restaurant ×3 | 21 | 2 by project |
+      | tablet ×2 | 116 | 26 by project |
+      | storefront ×2 · trade ×6 | 37 | 75 by project |
+      | desktop · phone | 129 | 13 by project |
+
+      **303 passed, 0 failed**, and every run ended `Every other check ran. No
+      spec talked itself out of existence.`
+
+### Still open
+
+- [ ] **C13** — nothing. Empty on purpose again.
+
+      Note for whoever runs these: **do not pass `--reporter`**. It replaces the
+      configured list, and the first restaurant run reported "2 skipped" while
+      `skipReporter` — the thing that says WHICH — had been switched off by the
+      flag asking for a reporter.
 
 ## Where the day stands
 
@@ -102,7 +129,7 @@ asks the cross-module question none of them asks.
 |---|---|
 | trades running the full day | 7 (food · mart · pharmacy · retail · services · automotive · petroleum) |
 | finance | asserted from the opposite end — no till, no day, cashbook still kept |
-| chorus questions | 5 — takings · refunds · drawer · khata · shelf · payables |
+| chorus questions | 7 — takings · refunds · drawer · khata · shelf · payables · what the item earned · what went to the bank |
 | sale doors put through the drawer | 7 — counter · quote→invoice · exchange · dine-in tab · pickup order · delivery order · reservation, plus an offline replay that must reach none of them |
 | mutation-proven | Q1 (Takings), Q3 (supplier card), Q5 (valuation units), C4 (module ratchet) |
 
@@ -180,6 +207,53 @@ what people get accused over.
 
 Mutation-proven: removing the resolution turns three doors to 0 and leaves the
 online one alone.
+
+### F5 — the reports page scrolled sideways, 8px at a time  ·  FIXED
+
+Playwright's `chrome.spec` sideways rule, on the desktop project. **1288px of
+content in a 1280px window** — on the one screen this work had just changed.
+
+The cause was not the new Refunds card. It was `MetricCard`, which had no
+`min-w-0`:
+
+```
+div.grid ... xl:grid-cols-6   scrollW=974  clientW=942
+  div.rounded-2xl (a card)    scrollW=205  clientW=135
+    h4 (the money value)      scrollW=181  clientW=87
+```
+
+A grid item defaults to `min-width: auto`, so it refuses to be narrower than
+its content. `Rs 2,358,634.50` wants 181px and the card had 135, so the value
+did not overflow the CARD — it widened the column, then the grid, then the
+page. Nothing looked broken; the whole page just moved.
+
+Six across only ever fit because the numbers in front of it had been small.
+Making revenue count partially-refunded sales (F2) pushed the sweep tenant's
+figure to seven digits and it stopped fitting.
+
+Fixed in the shared component (`min-w-0`, `break-words`, `tabular-nums`) so it
+can never push a page again, and the reports row is four across at xl so it does
+not have to. Same family as the shell's `flex-1` with no `min-w-0`.
+
+Three probes were needed. The first two measured the wrong thing: they listed
+elements whose right edge exceeded the viewport, which found only the Appearance
+drawer — `position: fixed`, off-canvas, and contributing nothing to document
+overflow. Asking instead *which element's own box scrolls* named the card in one
+run.
+
+### F6 — my own fix left a returned unit counted as sold  ·  FIXED
+
+Giving `margins` and `topProducts` the shared `Takings::COUNTED` rule (F2)
+stopped them dropping a whole ticket — and left them counting the returned unit
+at full value. Better than before, still wrong, and wrong because of this work.
+
+The P&L and the margin table have opposite models of a refund on purpose. The
+P&L keeps revenue GROSS and reports refunds beside it, because a refund is dated
+by the day the money left and must not rewrite a day already banked. The margin
+table has no per-item refund column and is keyed by the day the goods were SOLD,
+so it nets at line level. Different arithmetic; the same answer.
+
+Q6 measured it: **profit −74 and 9 units, where the day earned 176 on 8.**
 
 ### F4 — the fence I put on F3 was itself half a rule  ·  FIXED
 

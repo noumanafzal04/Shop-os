@@ -5,8 +5,8 @@ metadata:
   type: feedback
 ---
 
-SEVEN times in one session a measurement produced readable, plausible output while
-the tool had not actually done the job. Four of the six were a relative path:
+EIGHT times, across sessions, a measurement produced readable, plausible output while
+the tool had not actually done the job. Half of them were a relative path:
 
 | what I ran | what it looked like | what happened |
 |---|---|---|
@@ -16,6 +16,7 @@ the tool had not actually done the job. Four of the six were a relative path:
 | `cd ../shopos-backend` from the parent | task "failed with exit code 1" | the cd failed; **the suite never ran**. Happened FOUR times in one session |
 | `npx playwright test --project=desktop` from the parent | `Project(s) "desktop" not found. Available projects: ""` | no config found — it ran nowhere, and the MUTATION it was proving therefore proved nothing |
 | a python heredoc writing `Path("src/…")` from the parent | printed nothing alarming; the guard clause exited | **the file was never written**, and `npx vitest` on the same path then answered "15 passed" — about tests that did not exist |
+| `playwright --reporter=line` | `21 passed · 2 skipped` | `--reporter` REPLACES the configured list, so `skipReporter` and `clockReporter` never ran — the two reporters that exist to say WHICH checks did not happen and whether the run outlived its own login. Two skips went unclassified. |
 | `tsc --noEmit -p tsconfig.app.json` | typecheck clean | it does **not cover test files** — `npm run build` (`tsc -b`) does, and it failed on an `Object.hasOwn` the app config never looked at |
 
 **Why:** none of them errored. Each returned something with the shape of a
@@ -30,6 +31,10 @@ result, and each shape was the shape of the answer I was expecting.
   EXCLUDES the tests. `npm run build` is what compiles them, and a broken test
   file takes down the Playwright webServer with "Process from config.webServer
   was not able to start" — a message that says nothing about the real cause;
+- **never pass `--reporter` to Playwright here.** The config carries three
+  reporters and the CLI flag replaces all of them, silently switching off the
+  two that describe the RUN rather than its assertions. Omit the flag and grep
+  the output instead;
 - **use absolute paths.** Relative `cd` between the three repos broke four times
   in one session, because the shell's cwd is wherever the last command left it
   and that is not where the last MESSAGE was about;

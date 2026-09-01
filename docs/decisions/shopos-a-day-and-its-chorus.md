@@ -179,6 +179,82 @@ not a rule, it is arithmetic. `WhichSalesCountTest` pins it, and its failure
 message SCANS for the other spelling rather than listing one that would be stale
 within a week: it names four files and nine sites.
 
+### F5 — the page moved, and nothing looked broken
+
+`chrome.spec`'s sideways rule, desktop: **1288px of content in a 1280px
+window**, on the one screen this work had just changed.
+
+Not the new Refunds card. `MetricCard` had no `min-w-0`:
+
+```
+div.grid ... xl:grid-cols-6   scrollW=974  clientW=942
+  div.rounded-2xl (a card)    scrollW=205  clientW=135
+    h4 (the money value)      scrollW=181  clientW=87
+```
+
+A grid item defaults to `min-width: auto` and so refuses to be narrower than its
+content. `Rs 2,358,634.50` wants 181px in a card that had 135, so the value did
+not overflow the card — it widened the column, then the grid, then the page.
+
+Six across only ever fit because the numbers had been small. Counting
+partially-refunded sales (F2) took the fixture's revenue to seven digits and it
+stopped fitting. Fixed in the shared component so it can never push a page
+again, and the row is four across at xl so it does not have to.
+
+**Two of the three probes measured the wrong thing.** They listed elements whose
+right edge exceeded the viewport, which found only the Appearance drawer —
+`position: fixed`, off-canvas, contributing nothing to document overflow.
+Asking instead *which element's own box scrolls sideways* named the card on the
+first run. "What is widest" and "what is too small for what is inside it" are
+different questions, and only the second one finds this.
+
+### F6 — the shared rule left half the job
+
+Giving `margins` and `topProducts` `Takings::COUNTED` stopped them dropping a
+whole ticket, and left them counting the returned unit at full value. Better
+than before, still wrong, and wrong because of this work.
+
+The P&L and the margin table have opposite models of a refund on purpose. The
+P&L keeps revenue gross and reports refunds beside it, because a refund is dated
+by the day the money left and must not rewrite a day already banked. The margin
+table has no per-item refund column and is keyed by the day the goods were sold,
+so it nets at line level. Different arithmetic; the same answer — which is what
+Q6 asserts.
+
+Q6 measured the gap as **profit −74 on 9 units, where the day earned 176 on 8.**
+
+### Q7, and the half that must not move
+
+Cash reaches the bank in two steps and only the first touches the till: a safe
+drop takes it out of the drawer, and the deposit records where it went. Taking
+it off again at the deposit would charge the cashier twice for one movement.
+The panel's own drop button already said so — "so the drawer isn't sitting on
+the day's takings" — and nothing asserted it. Mutation: make banking empty the
+till and the drawer reads −150 where the day expects 350.
+
+### Two cards, two strategies, one of them absent
+
+`MetricTile` on the dashboard cannot cause F5: its root is `overflow-hidden`
+and its value is `truncate`, with a `title` tooltip — and a comment recording
+what that costs ("the platform console printed its own headline as
+`Rs 133,…`"). `MetricCard` on reports had neither guard, so instead of
+truncating it pushed. Now it has `min-w-0` and `break-words`: it neither
+truncates a figure nor moves the page.
+
+### And a reporter that was switched off by asking for one
+
+The first restaurant run reported `21 passed · 2 skipped` and named neither
+skip. `--reporter=line` REPLACES the configured reporter list, so
+`skipReporter` and `clockReporter` — the two that describe the run rather than
+its assertions — never ran at all. Re-run without the flag:
+
+```
+2 skipped by project — a flow proven once, not re-proven at four widths.
+Every other check ran. No spec talked itself out of existence.
+```
+
+Same answer, and only the second one was evidence.
+
 ## What was NOT done, and why
 
 The plan's C5 said "per-trade specials — batch, serial, job card, forecourt,

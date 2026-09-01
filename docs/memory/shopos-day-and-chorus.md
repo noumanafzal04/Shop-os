@@ -59,6 +59,14 @@ reservation collected in cash would still have left the drawer short. Fixed with
 `collected_at_the_counter`, driven by `fulfillment_type`; the channel guess is
 only the fallback.
 
+**A shared rule can still leave half the job.** Giving `margins`/`topProducts`
+the shared `Takings::COUNTED` stopped them dropping a whole ticket and left them
+counting the RETURNED unit as sold — profit −74 on 9 units where the day earned
+176 on 8. The P&L and a per-item margin table have opposite refund models ON
+PURPOSE (gross + a dated refund line vs netted at line level, because one is
+keyed by the day the money moved and the other by the day the goods were sold).
+Different arithmetic, same answer.
+
 **How to apply:** when adding a surface, ask what QUESTION it answers and who
 else answers it. When you fix "X never happens", also ask where X must NEVER
 happen — and put both signs in the test. When a payload field is optional, grep who actually fills it —

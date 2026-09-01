@@ -290,6 +290,44 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-01 (evening) — ran the browser, and it failed on the screen just touched
+
+Playwright had not seen a screen since the relation-optionality change, so it was
+run. One failure across desktop and phone, on the reports page: **1288px of
+content in a 1280px window**.
+
+Not the new Refunds card — `MetricCard` had no `min-w-0`. A grid item defaults
+to `min-width: auto`, so `Rs 2,358,634.50` at 181px in a 135px card did not
+overflow the card, it widened the column, then the grid, then the page. Six
+across only ever fit because the numbers had been small; counting
+partially-refunded sales took the fixture to seven digits. Fixed in the shared
+component and the row is four across at xl.
+
+Two of the three probes measured the wrong thing — they asked what was widest,
+which found only a `position: fixed` off-canvas drawer that contributes nothing
+to document overflow. Asking which element's own box SCROLLS named the card in
+one run.
+
+Three more chorus questions, and the first of them found a fault in this work:
+`margins` and `topProducts` were given the shared status rule and still counted a
+returned unit as sold — profit −74 on 9 units where the day earned 176 on 8. Now
+netted at line level, which is the right model for a per-item report keyed by the
+day of SALE, as against the P&L's gross-plus-a-dated-refund-line.
+
+Q7 asks what went to the bank and what is still in the shop, and asserts the
+half that must NOT move: a deposit does not touch the till, because the notes
+left it at the safe drop. Mutation: make banking empty the drawer and it reads
+−150 where the day expects 350.
+
+Every Playwright project then run with the CONFIGURED reporters — 303 passed, 0
+failed, every run ending "Every other check ran. No spec talked itself out of
+existence." The first restaurant run had reported "2 skipped" and named neither,
+because `--reporter=line` REPLACES the configured list and switches off the two
+reporters that describe the run rather than its assertions. Never pass
+`--reporter` here.
+
+2403 backend · 1334 unit · tsc 0 · eslint 0 · build 0.
+
 ### 2026-09-01 (last) — the fence was half a rule, and a coincidence written down
 
 Putting the last two sale doors through the drawer showed that the fence added
