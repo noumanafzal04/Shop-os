@@ -30,7 +30,7 @@ class PruneDemoShops extends Command
     public function handle(DeleteTenantAction $delete): int
     {
         $expired = Tenant::query()
-            ->where('is_demo', true)
+            ->demo()
             ->whereNotNull('demo_expires_at')
             ->where('demo_expires_at', '<', now())
             // NEVER A SHOP SOMEBODY IS WAITING ON AN ANSWER ABOUT.

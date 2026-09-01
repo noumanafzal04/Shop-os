@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TenantStatus;
 use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\Plan;
@@ -101,6 +102,72 @@ class AdminDashboardTest extends TestCase
             'total' => 500,
             'placed_at' => $placedAt,
         ]);
+    }
+
+    /**
+     * A DEMO SHOP IS NOT A BUSINESS.
+     *
+     * `Tenant::scopeReal()` was written for exactly this and its docblock names
+     * the callers: *"the marketplace, every platform figure and every admin
+     * list"*. The marketplace fences demos itself. **Nothing else called the
+     * scope at all** — `scripts/dead-rules.py` is what said so.
+     *
+     * So every number on the platform console counted a shop a stranger was
+     * handed from the landing page and which is deleted the next day: the total,
+     * the active count, the growth chart, the business-type spread, the module
+     * adoption, and the five most recent shops. The worst of them is
+     * `new_this_month`, because demos are given away from a public page — that
+     * figure is a marketing metric measuring its own landing page.
+     *
+     * The demos are not hidden. They get their own line, because "how many
+     * people are trying it" is a real question with a real answer.
+     */
+    public function test_demo_shops_are_not_counted_as_businesses(): void
+    {
+        $plan = Plan::query()->create([
+            'name' => 'Basic', 'code' => 'basic-'.uniqid(), 'price' => 1500,
+            'billing_period_months' => 1, 'grace_period_days' => 7,
+        ]);
+
+        // Two real businesses…
+        Tenant::factory()->count(2)->create([
+            'plan_id' => $plan->id,
+            'status' => TenantStatus::Active,
+            'is_demo' => false,
+            'created_at' => now()->startOfMonth()->addDay(),
+        ]);
+
+        // …and three strangers trying it out this month.
+        Tenant::factory()->count(3)->create([
+            'plan_id' => $plan->id,
+            'status' => TenantStatus::Active,
+            'is_demo' => true,
+            'demo_expires_at' => now()->addDay(),
+            'created_at' => now()->startOfMonth()->addDay(),
+        ]);
+
+        $data = $this->dashboard();
+
+        $this->assertSame(2, $data['tenants']['total'], 'a demo was counted as a business');
+        $this->assertSame(2, $data['tenants']['active']);
+        $this->assertSame(2, $data['tenants']['new_this_month'], 'the growth figure counts its own landing page');
+        $this->assertSame(2, $data['kpis']['total_tenants']['value']);
+        $this->assertSame(2, $data['kpis']['new_tenants_this_month']['value']);
+
+        // Published, not dropped — an admin wants to know how many are trying it.
+        $this->assertSame(3, $data['tenants']['demos'], 'the demos vanished instead of being reported');
+
+        // And the panels below the tiles, which read the same tenants a
+        // different way each time and would each have had to remember.
+        $growth = collect($data['tenant_growth'])->last();
+        $this->assertSame(2, (int) $growth['total'], 'the growth chart counted demos');
+
+        $this->assertSame(
+            2,
+            (int) collect($data['business_types'])->sum('count'),
+            'the business-type spread counted demos',
+        );
+        $this->assertCount(2, $data['recent_tenants'], 'the recent-shops list is showing demos');
     }
 
     public function test_kpis_report_platform_totals_against_the_previous_period(): void

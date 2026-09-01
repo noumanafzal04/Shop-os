@@ -53,6 +53,19 @@ class Tenant extends BaseModel
         return $query->where('is_demo', false);
     }
 
+    /**
+     * The other half of `real()` — people trying the product right now.
+     *
+     * Named rather than spelled `where('is_demo', true)` at each site, because
+     * the two halves have to stay each other's complement: the day a third
+     * state appears (a demo that has asked to be kept, say) both must move
+     * together or a shop falls between them and is counted twice, or never.
+     */
+    public function scopeDemo(Builder $query): Builder
+    {
+        return $query->where('is_demo', true);
+    }
+
     /** Requests to turn this demo into a business. The prune reads this. */
     public function shopRequests(): HasMany
     {

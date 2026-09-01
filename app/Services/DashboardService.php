@@ -1084,7 +1084,19 @@ class DashboardService
         $yesterdayStart = $todayStart->copy()->subDay();
         $dayAgo = $now->copy()->subDay();
 
+        // REAL SHOPS ONLY, on every figure below.
+        //
+        // A demo is a real tenant row handed to a stranger from the landing
+        // page and deleted the next day. Counting one as a business overstates
+        // the platform, and `new_this_month` was the worst of them: demos are
+        // given away from a public page, so a growth figure that includes them
+        // is a marketing metric measuring its own landing page.
+        //
+        // `Tenant::real()` was written for exactly this — its docblock names
+        // "every platform figure" — and until now nothing called it. The
+        // marketplace fences demos itself, which is why nobody noticed.
         $t = Tenant::query()
+            ->real()
             ->selectRaw(implode(', ', [
                 'COUNT(*) as total',
                 'SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as active',
@@ -1150,6 +1162,10 @@ class DashboardService
 
         return [
             'tenants' => [
+                // Published, not dropped: "how many people are trying it" is a
+                // real question, and the answer belongs beside the businesses
+                // rather than inside them.
+                'demos' => Tenant::query()->demo()->count(),
                 'total' => (int) ($t->total ?? 0),
                 'active' => (int) ($t->active ?? 0),
                 'suspended' => (int) ($t->suspended ?? 0),
@@ -1177,6 +1193,7 @@ class DashboardService
             'modules' => $this->moduleAdoption(),
             'activity' => $this->recentActivity(),
             'recent_tenants' => Tenant::query()
+                ->real()
                 ->with('plan:id,name,code')
                 ->latest()
                 ->limit(5)
@@ -1244,6 +1261,7 @@ class DashboardService
         $from = now()->startOfMonth()->subMonths($months - 1);
 
         $rows = Tenant::query()
+            ->real()
             ->where('created_at', '>=', $from)
             ->selectRaw($this->yearMonth('created_at').' as ym, status, COUNT(*) as tenants')
             ->groupBy('ym', 'status')
@@ -1275,6 +1293,7 @@ class DashboardService
     private function businessTypeSpread(): array
     {
         return Tenant::query()
+            ->real()
             ->selectRaw('business_type, COUNT(*) as tenants')
             ->groupBy('business_type')
             ->orderByDesc('tenants')
@@ -1306,6 +1325,7 @@ class DashboardService
     private function moduleAdoption(): array
     {
         $rows = Tenant::query()
+            ->real()
             ->where('status', TenantStatus::Active)
             ->toBase()
             ->pluck('features');
@@ -1362,6 +1382,7 @@ class DashboardService
         $plans = Plan::query()->orderBy('name')->get(['id', 'name', 'code', 'price', 'is_custom', 'is_active']);
 
         $tenantCounts = Tenant::query()
+            ->real()
             ->where('status', TenantStatus::Active)
             ->whereNotNull('plan_id')
             ->selectRaw('plan_id, COUNT(*) as tenants')
