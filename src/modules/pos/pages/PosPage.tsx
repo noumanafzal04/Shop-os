@@ -1699,13 +1699,37 @@ export default function PosPage() {
    * loses the claim is told, instead of ringing the same basket twice.
    */
   const resume = (h: HeldSale) => {
+    // The same fence Hold already has, and for the same reason: claiming is a
+    // LOCKED step on the server, so with no line there is nothing to claim
+    // against. Said out loud rather than left to fail.
+    if (!connected) {
+      setPosNotice(
+        "Resuming a parked ticket needs the line — the claim is what stops two lanes " +
+        "ringing the same basket. Try again when the connection is back.",
+      );
+      heldModal.closeModal();
+
+      return;
+    }
+
     heldMut.claim.mutate(h.id, {
       onSuccess: (res) => {
         applyHeld(res.data ?? h);
         heldModal.closeModal();
       },
-      onError: () => {
-        setPosNotice(`"${h.label || "That ticket"}" was already resumed at another register.`);
+      // A FAILURE IS NOT A CAUSE. This said "was already resumed at another
+      // register" for every error there is — including the line going down
+      // mid-tap — which is a specific accusation about another lane made
+      // without knowing anything. The lost-race message is kept for the status
+      // that actually means it, and everything else says what is true: it did
+      // not go through.
+      onError: (e: unknown) => {
+        const lost = e instanceof ApiError && (e.status === 404 || e.status === 409);
+        setPosNotice(
+          lost
+            ? `"${h.label || "That ticket"}" was already resumed at another register.`
+            : `"${h.label || "That ticket"}" did not come back — nothing was lost, try again.`,
+        );
         heldModal.closeModal();
       },
     });

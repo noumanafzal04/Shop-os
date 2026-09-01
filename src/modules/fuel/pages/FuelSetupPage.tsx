@@ -227,7 +227,11 @@ export default function FuelSetupPage() {
           footer={
             <>
               <Button size="sm" variant="outline" onClick={tankModal.closeModal}>Cancel</Button>
-              <Button size="sm" onClick={saveTank} disabled={!tankForm.name || !tankForm.product_id || m.createTank.isPending}>
+              <Button size="sm" onClick={saveTank} // A capacity is part of installing a tank, not an optional note: the
+              // gate that turns an overfilling tanker away reads it, and the
+              // column defaults to nought, so a tank saved without one has no
+              // gate at all.
+              disabled={!tankForm.name || !tankForm.product_id || !Number(tankForm.capacity_litres) || m.createTank.isPending}>
                 Add tank
               </Button>
             </>
@@ -246,7 +250,7 @@ export default function FuelSetupPage() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <Label>Capacity (L)</Label>
+                <Label>Capacity (L) *</Label>
                 <Input type="number" value={tankForm.capacity_litres} onChange={(e) => setTankForm((f) => ({ ...f, capacity_litres: e.target.value }))} />
               </div>
               <div>
@@ -283,7 +287,12 @@ export default function FuelSetupPage() {
           footer={
             <>
               <Button size="sm" variant="outline" onClick={() => setNozzleFor(null)}>Cancel</Button>
-              <Button size="sm" onClick={saveNozzle} disabled={!nozzleForm.name || !nozzleForm.fuel_tank_id || m.createNozzle.isPending}>
+              <Button size="sm" onClick={saveNozzle} // The meter reading is required and nought is a valid answer, so the
+                // test is "has it been typed", not "is it more than nothing" — a
+                // pump installed mid-life reads six figures, and a nozzle carded
+                // at nought books the meter's whole life as the first shift's
+                // sales.
+                disabled={!nozzleForm.name || !nozzleForm.fuel_tank_id || nozzleForm.current_reading.trim() === "" || m.createNozzle.isPending}>
                 Add nozzle
               </Button>
             </>

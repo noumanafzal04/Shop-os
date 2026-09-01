@@ -756,6 +756,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "note", text: "The unbilled litres are never split between attendants. A till sale doesn't record which nozzle it came from, so that gap belongs to the station as a whole — a per-man share of it would be a guess, and you couldn't stand behind it if the man denied it." },
       { type: "note", text: "Assigning nobody is normal. A one-man pump has nothing to assign, and the shift opens and closes exactly the same either way." },
       { type: "note", text: "Tanker deliveries and rate changes are recorded separately, under Deliveries & rates." },
+      { type: "warn", text: "A tank needs its CAPACITY and a nozzle needs its METER READING before either can be saved, and neither is paperwork. The capacity is what turns away a tanker that will not fit — without it there is no such check at all. And a pump installed mid-life already reads six figures: a nozzle carded without that number starts at zero, so the first shift closes at the real reading and books the meter's whole life as one day's sales." },
     ],
   },
   {
