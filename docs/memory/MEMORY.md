@@ -167,3 +167,4 @@
 - [A Day And Its Chorus](shopos-day-and-chorus.md) — STANDING: run a whole day, then ask every screen the same question; 2 bugs on run one
 - [Edit Matrix](shopos-edit-matrix.md) — STANDING: an edit changes what it named and NOTHING else; 15 untested routes were 14 PUT/PATCH
 - [First Of The Month](shopos-first-of-the-month.md) — STANDING: 3rd calendar red; period=monthly is the CALENDAR month; travelTo mid-month; scanner added
+- [A Rule Nobody Asks](shopos-rule-nobody-asks.md) — Tenant::real() written for "every platform figure", called by NOBODY; console counted demos as businesses

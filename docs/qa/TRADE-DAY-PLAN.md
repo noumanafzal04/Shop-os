@@ -126,7 +126,12 @@ asks the cross-module question none of them asks.
 
 ### Still open
 
-- [ ] **C15** — nothing. Empty on purpose.
+- [x] **C15** — ran every scanner the repo already has. Three green;
+      `dead-rules.py` red. See F11.
+
+### Still open
+
+- [ ] **C16** — nothing.
 
       Note for whoever runs these: **do not pass `--reporter`**. It replaces the
       configured list, and the first restaurant run reported "2 skipped" while
@@ -252,6 +257,41 @@ categories, customer groups, riders, collections, banks, bank offers, tanks,
 pumps and tables all leave untouched fields alone, and a collection keeps its
 items through a rename. Mutation-proven by making a branch update blank its own
 `code`.
+
+### F11 — the platform console counted demo shops as businesses  ·  FIXED
+
+Not found by a test — by running the scanners the repo already had.
+`scripts/dead-rules.py`: **`Tenant::real()` is asked by nobody, and nobody has
+said why.**
+
+Its own docblock names the callers:
+
+> the places that must exclude it are the marketplace, every platform figure
+> and every admin list
+
+The marketplace fences demos itself (`marketplaceVisible()` has its own
+`where('is_demo', false)`), which is exactly why nobody noticed the rest. Every
+platform figure counted a shop a stranger was handed from the landing page and
+which is deleted the next day:
+
+| | |
+|---|---|
+| `tenants.total` · `active` · `suspended` · `online_shops` | demos included |
+| `new_this_month`, and its KPI | demos included |
+| the growth chart | demos included |
+| the business-type spread · plan spread · module adoption | demos included |
+| the five most recent shops | demos included |
+
+Measured: **5 reported where 2 were businesses.**
+
+`new_this_month` is the worst of them. Demos are given away from a public page,
+so a growth figure that includes them is a marketing metric measuring its own
+landing page.
+
+Fixed by calling the rule that was already written, and the demos are published
+on their own line rather than dropped — "how many people are trying it" is a
+real question. `scopeDemo()` names the other half so the two stay complements,
+and `PruneDemoShops` now uses it instead of spelling `is_demo` inline.
 
 ### F10 — a banner lost its own settings when somebody fixed a typo  ·  FIXED
 

@@ -290,6 +290,29 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-02 (later) — the scanners the repo already had
+
+With nothing left on the list, ran every scanner in the repo rather than
+planning the next thing. Three green; `dead-rules.py` red on one line:
+`Tenant::real()` is asked by nobody.
+
+Its docblock names its callers — "the marketplace, every platform figure and
+every admin list". The marketplace fences demos itself, which is why nobody
+noticed the rest: every figure on the platform console counted a shop a stranger
+was handed from the landing page and which is deleted the next day. The total,
+the active count, the growth chart, the business-type spread, module adoption
+and the five most recent shops. Measured, 5 reported where 2 were businesses.
+
+`new_this_month` is the worst of them: demos are given away from a public page,
+so a growth figure including them is a marketing metric measuring its own
+landing page.
+
+Fixed by calling the rule that was already there. Demos are published on their
+own line rather than dropped, `scopeDemo()` names the other half so the two stay
+complements, and `PruneDemoShops` uses it instead of spelling `is_demo` inline.
+
+2408 passed, exit 0 · 1334 unit · tsc 0 · eslint 0 · build 0.
+
 ### 2026-09-02 — an edit that changes what it named, and nothing else
 
 The two scanner findings turned out to be one question. Fifteen write routes
