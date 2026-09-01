@@ -913,10 +913,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "table",
         head: ["Figure", "What it counts"],
         rows: [
-          ["Revenue", "What you sold today"],
+          ["Revenue", "What you sold today, before anything was handed back"],
           ["Other income", "Money in that was not a sale — shown separately so you can still see what you SOLD"],
+          ["Refunded", "What went back out over the counter today. Only shown when there is some. It is dated by the day the money left, not the day of the sale, so a return today does not rewrite a day you have already closed and banked"],
           ["Expenses", "What you spent today"],
-          ["Profit", "Revenue + other income − the cost of what you sold − expenses"],
+          ["Profit", "Revenue − refunds + other income − the cost of what you sold − expenses"],
           ["Customers", "Buyers served, not tickets rung — one person who came back twice counts once"],
         ],
       },

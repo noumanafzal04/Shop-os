@@ -196,8 +196,13 @@ export default function ReportsPage() {
           screen printed Net as minus the whole of what the business spent,
           while the Cashbook one click away had it right. */}
       <div
-        className={`mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 ${
-          sells ? "xl:grid-cols-6" : "sm:grid-cols-3"
+        // FOUR across, not six. At 1280 a six-column row leaves each card
+        // 135px of content and a Pakistani shop's figures do not fit in it —
+        // `Rs 2,358,634.50` wants 181. Six only ever fit because the numbers
+        // in front of it had been small. `min-w-0` on the card is the guarantee
+        // that it can never push the page again; this is so it does not have to.
+        className={`mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3 ${
+          sells ? "xl:grid-cols-4" : "sm:grid-cols-3"
         }`}
       >
         {report.isLoading || !data ? (
