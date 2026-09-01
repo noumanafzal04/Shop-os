@@ -290,6 +290,35 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-02 (night) — a khata given to somebody the till can never name
+
+Re-ran `untested-absence.py` to check whether the edit matrix had closed the
+fifteen routes it had listed. It said thirteen were still untested — and it was
+wrong. The matrix dispatches through `->{$verb.'Json'}($url)` and the scan looks
+for a literal verb beside a literal path, so twelve routes it was still naming
+were being posted to. Worse than a miss: the next person reads the list and
+writes the tests again. The scan now recognises a verb and a path handed to a
+helper, and the count went 13 → 0.
+
+With the noise gone the field list was readable, and the sharpest entry was
+`POST /customers` · `phone` — supplied by all seven tests that create one.
+
+Every path that puts a name to a sale keys off the phone and nothing else:
+`StoreSaleRequest` carries `customer_phone` and no `customer_id`, and the group
+discount, the loyalty balance and `Customer::capture` all look up by number.
+Loyalty says so out loud. The CRM did not — `Phone` was a plain optional box
+sitting beside `Credit limit (khata)`. Measured: a customer created with a
+Rs 50,000 limit and no phone, accepted 201. Money that cannot be lent, repaid or
+chased, and nothing said so until a cashier was at the till with the customer in
+front of them.
+
+Now refused on the `phone` field with the reason, reading the record as it WILL
+be so an existing customer's limit can still be raised without resending a
+number. A customer with no phone is still fine; the limit is what needs reaching
+them. The form warns before the server refuses, and the Help Centre says it.
+
+2409 passed, exit 0 · 1334 unit · tsc 0 · eslint 0 · build 0.
+
 ### 2026-09-02 (evening) — two admin queues that could not reach page two
 
 The list was empty again, so the parent-repo scanners were run. Three findings

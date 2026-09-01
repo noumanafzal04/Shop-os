@@ -136,7 +136,16 @@ asks the cross-module question none of them asks.
 
 ### Still open
 
-- [ ] **C17** — nothing.
+- [x] **C17** — re-ran `untested-absence.py` to check my own work, and found
+      the scanner could not see it. See F13.
+
+### Still open
+
+- [ ] **C18** — 10 optional fields still supplied by every test, mostly the
+      forecourt's (`capacity_litres`, `current_dip_litres`, `dead_stock_litres`,
+      `current_reading`). A tank with no capacity and a nozzle with no opening
+      reading are both branches nobody has driven down, and both feed gates that
+      need a number to compare against.
 
       Note for whoever runs these: **do not pass `--reporter`**. It replaces the
       configured list, and the first restaurant run reported "2 skipped" while
@@ -262,6 +271,43 @@ categories, customer groups, riders, collections, banks, bank offers, tanks,
 pumps and tables all leave untouched fields alone, and a collection keeps its
 items through a rename. Mutation-proven by making a branch update blank its own
 `code`.
+
+### F13 — a khata given to somebody the till can never name  ·  FIXED
+
+Re-ran `untested-absence.py` to check whether the edit matrix had closed the
+fifteen untested routes. It said thirteen were still untested — **and it was
+wrong**, because the matrix dispatches through `->{$verb.'Json'}($url)` and the
+scan looks for a literal verb beside a literal path. Twelve routes it listed
+were being posted to.
+
+That is worse than a miss: the next person reads the list and writes the tests
+again. The scan now recognises a verb and a path handed to a helper as
+arguments, and the count went **13 → 0**. (The general answer is not a regex —
+record the routes the suite actually hits at runtime — and that is written down
+in the script.)
+
+With the noise gone, the field list was readable, and the sharpest entry was
+`POST /customers` · `phone`, supplied by all seven tests that create a customer.
+
+**Every path that puts a name to a sale keys off the phone and nothing else.**
+`StoreSaleRequest` carries `customer_phone` and no `customer_id`; the group
+discount, the loyalty balance and `Customer::capture` all look up by number.
+Loyalty says it out loud: *"Redeeming points needs a customer — add the
+customer's phone."*
+
+The CRM did not. `Phone` was a plain optional box sitting directly beside
+`Credit limit (khata) — blank = no limit`. Measured: **a customer created with a
+Rs 50,000 credit limit and no phone, accepted 201.** That is money that cannot
+be lent, repaid or chased, and nothing said so until a cashier was at the till
+with the customer in front of them.
+
+Now refused, on the `phone` field, with the reason. A customer with no number is
+still fine — plenty of shops keep a directory of walk-in names; the LIMIT is
+what needs reaching them. On an edit the rule reads the record as it will be, so
+raising the limit of a customer already on file is not refused for a field
+nobody resent, and clearing the number of a customer who HAS a limit is.
+
+The form says it before the server does, and the Help Centre says it too.
 
 ### F12 — the two admin queues could not reach page two  ·  FIXED
 

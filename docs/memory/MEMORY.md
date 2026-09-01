@@ -168,3 +168,4 @@
 - [Edit Matrix](shopos-edit-matrix.md) — STANDING: an edit changes what it named and NOTHING else; 15 untested routes were 14 PUT/PATCH
 - [First Of The Month](shopos-first-of-the-month.md) — STANDING: 3rd calendar red; period=monthly is the CALENDAR month; travelTo mid-month; scanner added
 - [A Rule Nobody Asks](shopos-rule-nobody-asks.md) — Tenant::real() written for "every platform figure", called by NOBODY; console counted demos as businesses
+- [Khata Needs A Phone](shopos-khata-needs-a-phone.md) — Rs 50k limit with no phone was accepted; till finds a customer ONLY by phone; scanner couldn't see its own coverage
