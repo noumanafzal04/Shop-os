@@ -56,6 +56,11 @@ export default function AdminDashboard() {
                 { label: "Active", value: count(data.tenants.active), tone: "good" },
                 { label: "Suspended", value: count(data.tenants.suspended), tone: "bad" },
                 { label: "Online shops", value: count(data.tenants.online_shops) },
+                // Only when somebody is actually trying it. A permanent "Demos
+                // 0" is padding; a number here is a landing page working.
+                ...(data.tenants.demos > 0
+                  ? [{ label: "Trying it", value: count(data.tenants.demos) }]
+                  : []),
               ]
             : undefined
         }

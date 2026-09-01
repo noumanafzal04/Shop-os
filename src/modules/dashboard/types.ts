@@ -206,6 +206,13 @@ export interface BayStage {
 
 export interface AdminDashboard {
   tenants: {
+    /**
+     * Shops a stranger was handed from the landing page, which expire the next
+     * day. Kept OUT of every figure below and reported on its own: counting a
+     * demo as a business overstates the platform, and dropping it silently
+     * would hide how many people are trying the product.
+     */
+    demos: number;
     total: number;
     active: number;
     suspended: number;
