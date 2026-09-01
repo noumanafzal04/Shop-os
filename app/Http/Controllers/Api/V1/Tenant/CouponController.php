@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Coupon\StoreCouponRequest;
+use App\Http\Requests\Coupon\UpdateCouponRequest;
 use App\Models\Coupon;
 use App\Services\CouponService;
 use App\Support\ApiResponse;
@@ -44,7 +45,7 @@ class CouponController extends Controller
         return ApiResponse::ok(Coupon::query()->findOrFail($id));
     }
 
-    public function update(StoreCouponRequest $request, string $id): JsonResponse
+    public function update(UpdateCouponRequest $request, string $id): JsonResponse
     {
         $coupon = Coupon::query()->findOrFail($id);
         $coupon->update($request->validated());

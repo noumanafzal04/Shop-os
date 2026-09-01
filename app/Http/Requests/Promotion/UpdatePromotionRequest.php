@@ -2,12 +2,16 @@
 
 namespace App\Http\Requests\Promotion;
 
+use App\Http\Requests\Concerns\ValidatesAgainstTheStoredRecord;
+use App\Models\Promotion;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdatePromotionRequest extends FormRequest
 {
+    use ValidatesAgainstTheStoredRecord;
+
     public function authorize(): bool
     {
         return $this->user()->hasPermission(Permissions::COUPONS_MANAGE);
@@ -24,7 +28,13 @@ class UpdatePromotionRequest extends FormRequest
     public function rules(): array
     {
         $tenantId = $this->user()->tenant_id;
-        $type = $this->input('type', 'percent');
+        // The type this promotion will HAVE, not a default. Read off the input
+        // when the edit changes it, off the row when it does not — because a
+        // shop raising a Rs 50 fixed discount to Rs 5,000 without resending
+        // `type` was told "value must not be greater than 100", which is a
+        // percentage rule applied to a rupee amount and names a field the shop
+        // was not touching.
+        $type = $this->effective('type', Promotion::class, 'promotion', 'percent');
         $isPercent = $type === 'percent';
         $isBogo = $type === 'bogo';
 

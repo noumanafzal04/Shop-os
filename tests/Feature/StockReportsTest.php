@@ -48,6 +48,17 @@ class StockReportsTest extends TestCase
         parent::setUp();
         $this->withoutMiddleware(ThrottleRequests::class);
 
+        // MID-MONTH, PINNED. These reports ask for `period=monthly`, which is
+        // the CALENDAR month, and their fixtures sell on `now()->subDay()`. Run
+        // them on the first of a month and the sale lands in the previous one,
+        // the window finds nothing, and four tests fail about a report that is
+        // working perfectly. This machine is UTC+5 and the app is UTC, so the
+        // suite crossed that line at seven in the evening local time.
+        //
+        // Third time in this suite — see AutoWorkshopTest and
+        // BillingSaysHowMuchTest, pinned for the same reason on 31 August.
+        $this->travelTo('2026-06-15 10:00:00');
+
         $city = City::query()->create(['name' => 'Faisalabad', 'is_active' => true]);
         $this->shop = Tenant::factory()->provisioned()->create([
             'setup_completed' => true,
