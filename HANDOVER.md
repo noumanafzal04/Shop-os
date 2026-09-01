@@ -327,6 +327,18 @@ suite crossed the line at seven in the evening. Third time, so it got
 first version flagged two files that use a relative past as a QUERY BOUND, which
 is safe, and mutation-proven after.
 
+The rest of the matrix — platform staff, announcements, banners, and the PATCH
+verb on coupons and promotions — then found the SAME mistake a third time. A
+banner edited to fix a typo in its title came back `422 tenant_id: "Pick the
+advertiser shop"`, because `withValidator` read `target_type` from the input
+with a default of `shop` and judged an existing banner as a brand-new one. The
+update goes over POST because it carries an image, which is why it does not look
+like an edit in a route list at all.
+
+Where the pattern was already right: `UpdateProductRequest` loads the product
+from the route and validates against it. Three requests had simply not followed
+the house pattern, and nothing pointed at them until somebody sent one field.
+
 2407 passed, exit 0.
 
 ### 2026-09-01 (evening) — ran the browser, and it failed on the screen just touched

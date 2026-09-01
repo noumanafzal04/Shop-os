@@ -1,6 +1,6 @@
 ---
 name: shopos-edit-matrix
-description: STANDING — an edit must change what it named and NOTHING else; two scanner findings (15 untested PUT/PATCH, 19 always-supplied fields) collapse into this one question
+description: STANDING — an edit changes what it named and NOTHING else; found 3 requests guessing a stored field from input(x, default); an update over POST hides in a route list
 metadata:
   type: feedback
 ---
@@ -30,6 +30,17 @@ back to change one field is how a screen sends stale values over fresh ones.
    changing. Fixed by `ValidatesAgainstTheStoredRecord`: **a partial update is
    validated against the record as it WILL BE**, so the missing half comes off
    the row, never off a default.
+
+3. **A banner lost its own settings when somebody fixed a typo** — the SAME
+   mistake, third time: `withValidator` read `target_type` from the input with a
+   default of `shop`, so a title-only edit was judged as a brand-new shop banner
+   and demanded an advertiser chosen weeks earlier. The update goes over **POST
+   because it carries an image**, which is why it does not look like an edit in
+   a route list at all.
+
+**The pattern was already right in `UpdateProductRequest`** — it loads the row
+from the route and validates against it. Three requests had just not followed
+the house pattern, and nothing pointed at them until somebody sent ONE field.
 
 **How to apply:** exclude `updated_at`/`updated_by` — an audit stamp whose job
 is to move is not "something nobody asked about". Compare `getAttributes()`, and

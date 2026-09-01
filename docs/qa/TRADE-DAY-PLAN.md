@@ -121,10 +121,12 @@ asks the cross-module question none of them asks.
 
 ### Still open
 
-- [ ] **C14** — the edit matrix reaches 12 endpoints. `PUT /admin/staff/*`,
-      `POST /admin/announcements`, `POST /admin/banners` and
-      `PATCH /coupons`/`promotions` (the PATCH verb, not PUT) are still
-      unwalked.
+- [x] **C14** — the matrix now reaches all of them, and found the same mistake
+      a third time. See F10.
+
+### Still open
+
+- [ ] **C15** — nothing. Empty on purpose.
 
       Note for whoever runs these: **do not pass `--reporter`**. It replaces the
       configured list, and the first restaurant run reported "2 skipped" while
@@ -250,6 +252,33 @@ categories, customer groups, riders, collections, banks, bank offers, tanks,
 pumps and tables all leave untouched fields alone, and a collection keeps its
 items through a rename. Mutation-proven by making a branch update blank its own
 `code`.
+
+### F10 — a banner lost its own settings when somebody fixed a typo  ·  FIXED
+
+The rest of the edit matrix: platform staff, announcements, banners, and the
+PATCH verb on coupons and promotions. Everything passed except one, and it is
+**the same mistake as F8, for the third time**:
+
+    POST /admin/banners/{id}   {"title": "Eid Offers"}
+    → 422 {"tenant_id":["Pick the advertiser shop for a shop banner."]}
+
+`BannerRequest::withValidator` read `$this->input('target_type', 'shop')`, so an
+edit that changed only the title was validated as a brand-new SHOP banner and
+demanded an advertiser the admin had chosen weeks earlier. `target_type` is one
+of the nineteen fields every test supplies — the scanner pointed straight at it.
+
+Fixed with the same `ValidatesAgainstTheStoredRecord`, extended to the fields
+the rule depends on: the question is what the banner will HAVE after the edit,
+not what this request happened to mention.
+
+Worth noting where the pattern was already right: `UpdateProductRequest` loads
+the product from the route and validates against it. Three requests had simply
+not followed the house pattern, and nothing pointed at them until an edit was
+attempted with one field.
+
+The update over POST is the detail that hid these: a banner and an announcement
+are edited by POST because they carry an image, so they do not look like edits
+in a route list at all.
 
 ### F9 — the third calendar failure, and a scanner for the fourth  ·  FIXED
 
