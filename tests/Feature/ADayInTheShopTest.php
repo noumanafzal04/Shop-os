@@ -78,6 +78,13 @@ final class ADayInTheShopTest extends TestCase
 
     private float $billsPaid = 0.0;
 
+    /** Cash the day took over the counter, before any of it was moved. */
+    private float $cashTakings = 0.0;
+
+    private float $inTheSafe = 0.0;
+
+    private float $banked = 0.0;
+
     /** Ordered less paid. Positive is a debt; the supplier card signs it. */
     private float $owedToSupplier = 0.0;
 
@@ -193,6 +200,11 @@ final class ADayInTheShopTest extends TestCase
         }
         $this->payABill(1200);
 
+        // Cash walks to the safe, then to the bank. Two steps on purpose, and
+        // only the first one touches the till.
+        $this->dropToTheSafe(500);
+        $this->bankIt(500);
+
         $this->countTheDrawer();
         $this->closeTheDay();
 
@@ -221,6 +233,8 @@ final class ADayInTheShopTest extends TestCase
         $this->whatWentBackOut($wrong);
         $this->whatShouldBeInTheDrawer($wrong);
         $this->whatDoCustomersOweUs($wrong);
+        $this->whatDidTheItemEarn($wrong, $price, $cost);
+        $this->whatLeftForTheBank($wrong);
         if ($this->buys) {
             $this->whatDoWeOweTheSupplier($wrong);
             $this->whatIsOnTheShelf($wrong);
@@ -699,6 +713,12 @@ final class ADayInTheShopTest extends TestCase
             'the cashbook' => $this->cashbookToday()['sales_revenue'],
             'the sales report' => $this->read("/api/v1/reports/summary?from={$today}&to={$today}")['totals']['revenue'],
             'the dashboard' => $this->read('/api/v1/dashboard')['today']['revenue'],
+            // One person rang the whole day, so the staff report's rows must
+            // add up to it. A fifth query, grouped a fifth way — and the one an
+            // owner opens when they want to know who was on the till.
+            'the staff report' => collect(
+                $this->read("/api/v1/reports/staff?from={$today}&to={$today}")['staff']
+            )->sum(fn (array $row): float => (float) $row['revenue']),
         ]);
     }
 
@@ -736,6 +756,81 @@ final class ADayInTheShopTest extends TestCase
         $this->agree($wrong, 'what should be in the drawer', $expected, [
             'the Z-read' => $this->read("/api/v1/pos/sessions/{$this->sessionId}/z-report")['session']['expected_cash'],
             'the day, closed off' => $this->day()['expected_cash'],
+        ]);
+    }
+
+    /**
+     * Q6 — what did the item actually earn?
+     *
+     * Nine went out and one came back, so eight earned their margin and the
+     * ninth earned nothing — it is on the shelf again. Two reports answer this
+     * from two different queries: the P&L's gross profit, and the per-item
+     * margin table an owner reads to decide what to stock more of.
+     *
+     * Worth asking on its own because the two have opposite models of a
+     * refund. The P&L keeps revenue GROSS and reports refunds beside it, since
+     * a refund is dated by the day the money left and must not rewrite a day
+     * already banked. The margin table has no per-item refund column and is
+     * keyed by the day the goods were SOLD, so it nets at line level. Different
+     * arithmetic, and they still have to land on the same number.
+     */
+    private function whatDidTheItemEarn(array &$wrong, float $price, float $cost): void
+    {
+        $today = now()->toDateString();
+        $window = http_build_query(['from' => $today, 'to' => $today]);
+
+        $margins = $this->read("/api/v1/reports/margins?{$window}");
+        // `best`, not `items` — the report ranks and publishes the leaders, and
+        // a day with one product has one leader.
+        $line = collect($margins['best'] ?? [])->firstWhere('name', 'The Day Item');
+        $this->assertNotNull($line, 'the day\'s item earned no line on the margin report at all');
+
+        // Eight kept, at the margin they were sold on.
+        $earned = round(8 * ($price - $cost), 2);
+
+        $this->agree($wrong, 'what the item earned', $earned, [
+            'the margin report' => $line['profit'],
+            "the margin report's own total" => $margins['totals']['profit'],
+            "the P&L's gross profit" => $this->read("/api/v1/reports/summary?{$window}")['totals']['gross_profit'],
+        ]);
+
+        // And the units, which is where a returned one hides most easily: a
+        // margin table that still counts it reads as nine sold.
+        $this->agree($wrong, 'units the item actually sold', 8.0, [
+            'the margin report' => $line['units'],
+        ]);
+    }
+
+    /**
+     * Q7 — what went to the bank, and what is still in the shop?
+     *
+     * The last question of the night, and the one the owner asks while the
+     * shutter is coming down. Three figures on one screen that have to add up:
+     * what was deposited, what the day took in cash, and what is therefore
+     * still on the premises.
+     *
+     * The half worth writing down is the NEGATIVE one. A deposit must not move
+     * the till — the notes left it at the safe drop, and taking them off again
+     * would charge the cashier twice for one movement. That is the obvious
+     * wrong guess, and the drawer's own arithmetic above is what proves it did
+     * not happen.
+     */
+    private function whatLeftForTheBank(array &$wrong): void
+    {
+        $day = $this->day();
+        $slips = collect($day['deposits'] ?? []);
+
+        $this->assertCount(1, $slips, 'the deposit is not on the day it was banked against');
+
+        $this->agree($wrong, 'what went to the bank', $this->banked, [
+            'the day' => $day['banked_amount'],
+            'the deposit slips' => $slips->sum(fn (array $d): float => (float) $d['amount']),
+        ]);
+
+        // Cash takings less what was banked — the notes still in the building.
+        // Floats are excluded on purpose: they were never today's money.
+        $this->agree($wrong, 'what is still in the shop', round($this->cashTakings - $this->banked, 2), [
+            'the day' => (float) $day['cash_sales'] - (float) $day['banked_amount'],
         ]);
     }
 
@@ -946,6 +1041,7 @@ final class ADayInTheShopTest extends TestCase
         $this->onTheShelf -= $qty;
         if ($tender === 'cash') {
             $this->intoTheDrawer += (float) $sale['total'];
+            $this->cashTakings += (float) $sale['total'];
         }
 
         return $sale;
@@ -985,6 +1081,7 @@ final class ADayInTheShopTest extends TestCase
 
         $this->refunded += (float) $refund['refund_total'];
         $this->outOfTheDrawer += (float) $refund['refund_total'];
+        $this->cashTakings -= (float) $refund['refund_total'];
         $this->onTheShelf += 1;
     }
 
@@ -1025,6 +1122,45 @@ final class ADayInTheShopTest extends TestCase
 
         $this->billsPaid += $amount;
         $this->outOfTheDrawer += $amount;
+    }
+
+    /**
+     * Cash out of the till and into the safe.
+     *
+     * The drawer must fall by exactly this: the notes are not in it any more,
+     * and a drawer still expecting them makes the cashier count SHORT.
+     */
+    private function dropToTheSafe(float $amount): void
+    {
+        $this->send('/api/v1/pos/session/movements', [
+            'type' => 'drop',
+            'amount' => $amount,
+            'reason' => 'To the safe',
+        ], 201);
+
+        $this->outOfTheDrawer += $amount;
+        $this->inTheSafe += $amount;
+    }
+
+    /**
+     * The safe to the bank — which must NOT touch the till.
+     *
+     * The money left the drawer at the safe drop above. Taking it off again
+     * here would charge the cashier twice for one movement, and the panel says
+     * as much on the drop button: "so the drawer isn't sitting on the day's
+     * takings". Asserted rather than assumed, because "banking reduces the
+     * till" is the obvious wrong guess and nothing else in the suite says
+     * otherwise.
+     */
+    private function bankIt(float $amount): void
+    {
+        $this->send('/api/v1/pos/deposits', [
+            'amount' => $amount,
+            'bank_name' => 'HBL',
+            'slip_number' => 'SLIP-000431',
+        ], 201);
+
+        $this->banked += $amount;
     }
 
     /** The cashier counts out. Counted exactly, so any variance is a defect. */

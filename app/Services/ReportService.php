@@ -203,14 +203,23 @@ class ReportService
 
     private function topProducts(string $tenantId, ?string $branchId, CarbonImmutable $from, CarbonImmutable $to): array
     {
+        // Returns come off here too — a line whose units keep walking back in
+        // is not the shop's best seller, however many left the shelf. Same
+        // netting as `margins` below, and for the same reason.
+        $returned = SaleReturnItem::query()
+            ->selectRaw('sale_item_id, SUM(quantity) as qty, SUM(line_total) as total')
+            ->whereNotNull('sale_item_id')
+            ->groupBy('sale_item_id');
+
         return SaleItem::query()
+            ->leftJoinSub($returned, 'returned', 'returned.sale_item_id', '=', 'sale_items.id')
             ->where('sale_items.tenant_id', $tenantId)
             ->whereHas('sale', fn ($q) => $q
                 ->whereIn('status', Takings::COUNTED)
                 ->whereBetween('sold_at', [$from, $to])
                 ->when($branchId, fn ($q) => $q->where('branch_id', $branchId)))
-            ->selectRaw('product_name, COALESCE(variant_name, "") as variant_name, SUM(quantity) as units, SUM(line_total) as revenue')
-            ->groupBy('product_name', 'variant_name')
+            ->selectRaw('sale_items.product_name as product_name, COALESCE(sale_items.variant_name, \'\') as variant_name, SUM(sale_items.quantity - COALESCE(returned.qty, 0)) as units, SUM(sale_items.line_total - COALESCE(returned.total, 0)) as revenue')
+            ->groupBy('sale_items.product_name', 'sale_items.variant_name')
             ->orderByDesc('revenue')
             ->limit(10)
             ->get()
@@ -239,10 +248,30 @@ class ReportService
         $fromStart = CarbonImmutable::parse($from)->startOfDay();
         $toEnd = CarbonImmutable::parse($to)->endOfDay();
 
+        // ── WHAT CAME BACK COMES OFF ────────────────────────────────
+        //
+        // This report answers "what did this item earn", per item, and a unit
+        // that was returned earned nothing — it is back on the shelf. Counting
+        // it would crown a line whose customers keep bringing it back.
+        //
+        // Netted at LINE level rather than reported beside the revenue the way
+        // the cashbook does, because there is no per-item refund column to
+        // report it in, and because both sides are then keyed by the same date:
+        // the day the goods were SOLD. The cashbook's separate-line model
+        // exists for the opposite reason — it is keyed by the day the money
+        // moved, so a Thursday return must not rewrite a banked Monday.
+        $returned = SaleReturnItem::query()
+            ->selectRaw('sale_item_id, SUM(quantity) as qty, SUM(line_total) as total')
+            ->whereNotNull('sale_item_id')
+            ->groupBy('sale_item_id');
+
+        $kept = 'sale_items.quantity - COALESCE(returned.qty, 0)';
+
         $rows = SaleItem::query()
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->leftJoin('products', 'products.id', '=', 'sale_items.product_id')
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
+            ->leftJoinSub($returned, 'returned', 'returned.sale_item_id', '=', 'sale_items.id')
             ->where('sale_items.tenant_id', $tenantId)
             ->whereNull('sales.deleted_at')
             ->whereIn('sales.status', Takings::COUNTED)
@@ -253,9 +282,9 @@ class ReportService
                 'sale_items.product_name as product_name',
                 'sale_items.variant_name as variant_name',
                 "COALESCE(categories.name, 'Uncategorized') as category_name",
-                'SUM(sale_items.quantity) as units',
-                'SUM(sale_items.line_total) as revenue',
-                'SUM(sale_items.unit_cost * sale_items.quantity) as cogs',
+                "SUM({$kept}) as units",
+                'SUM(sale_items.line_total - COALESCE(returned.total, 0)) as revenue',
+                "SUM(sale_items.unit_cost * ({$kept})) as cogs",
             ]))
             ->get();
 
