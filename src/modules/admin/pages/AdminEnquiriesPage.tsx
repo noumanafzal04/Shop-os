@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { apiGet, apiPatch } from "../../../common/api/client";
+import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
 import PageMeta from "../../../components/common/PageMeta";
 import TextArea from "../../../components/form/input/TextArea";
@@ -66,17 +67,20 @@ export default function AdminEnquiriesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("open");
+  const [page, setPage] = useState(1);
   const [answering, setAnswering] = useState<Enquiry | null>(null);
   const [note, setNote] = useState("");
 
   const rows = useQuery({
-    queryKey: ["admin", "enquiries", filter],
+    queryKey: ["admin", "enquiries", filter, page],
     queryFn: () =>
       apiGet<Enquiry[]>("/admin/enquiries", {
-        params:
-          filter === "walkthrough" || filter === "question"
+        params: {
+          ...(filter === "walkthrough" || filter === "question"
             ? { status: "open", kind: filter }
-            : { status: filter },
+            : { status: filter }),
+          page,
+        },
       }),
   });
 
@@ -94,10 +98,16 @@ export default function AdminEnquiriesPage() {
   });
 
   const list = rows.data?.data ?? [];
+  const pagination = rows.data?.meta?.pagination;
   const oldest = list.find((r) => r.status === "new");
   // Only while "Open" is the tab in force: the other tabs hold answered rows,
   // and a count taken from them would be a different number under one word.
-  const unanswered = filter === "open" ? list.length : undefined;
+  //
+  // From the PAGINATION, not from the rows on screen. The server sends
+  // twenty-five at a time, so `list.length` said "25" to an admin with sixty
+  // people waiting — and said it in the one place the number is the whole
+  // point of the screen.
+  const unanswered = filter === "open" ? pagination?.total ?? list.length : undefined;
 
   return (
     <>
@@ -118,7 +128,10 @@ export default function AdminEnquiriesPage() {
           value={filter}
           counts={{ open: unanswered }}
           ariaLabel="Which enquiries to show"
-          onChange={setFilter}
+          // Back to page one with the tab. Staying on page three of the open
+          // queue while switching to answered ones shows an empty screen for a
+          // filter that has plenty.
+          onChange={(next) => { setFilter(next); setPage(1); }}
         />
       </div>
 
@@ -201,6 +214,13 @@ export default function AdminEnquiriesPage() {
           </div>
         ))}
       </div>
+
+      {/* THE QUEUE IS OLDEST-FIRST, which is right — the person who has waited
+          longest is the person to answer next — and it is exactly what made the
+          missing pager permanent. Once twenty-five open enquiries pile up, page
+          one never changes again and every NEW person asking for a walkthrough
+          is invisible for good. */}
+      <Pager pagination={pagination} onPage={setPage} noun="enquiries" />
 
       <Modal isOpen={answering !== null} onClose={() => setAnswering(null)} className="max-w-md">
         <ModalForm

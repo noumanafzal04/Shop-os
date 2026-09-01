@@ -243,11 +243,6 @@ export const marketplaceService = {
   banners: (placement = "home") => apiGet<PublicBanner[]>("/marketplace/banners", { params: { placement } }),
   bannerClick: (id: string) => apiPost<{ target: PublicBanner["target"] }>(`/marketplace/banners/${id}/click`),
 
-  products: (slug: string, params: { search?: string; category_id?: string; page?: number }) =>
-    apiGet<PublicProduct[]>(`/marketplace/shops/${slug}/products`, {
-      params: { search: params.search || undefined, category_id: params.category_id || undefined, page: params.page ?? 1 },
-    }),
-
   register: (payload: RegisterPayload) =>
     apiPost<LoginResponse>("/auth/register", { device_name: "web", ...payload }),
 

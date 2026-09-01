@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 
 import { apiGet, apiPost } from "../../../common/api/client";
+import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
@@ -48,12 +49,13 @@ export default function AdminShopRequestsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"pending" | "all">("pending");
+  const [page, setPage] = useState(1);
   const [declining, setDeclining] = useState<ShopRequest | null>(null);
   const [reason, setReason] = useState("");
 
   const rows = useQuery({
-    queryKey: ["admin", "shop-requests", status],
-    queryFn: () => apiGet<ShopRequest[]>("/admin/shop-requests", { params: { status } }),
+    queryKey: ["admin", "shop-requests", status, page],
+    queryFn: () => apiGet<ShopRequest[]>("/admin/shop-requests", { params: { status, page } }),
   });
 
   const done = (message: string) => {
@@ -81,12 +83,17 @@ export default function AdminShopRequestsPage() {
   });
 
   const list = rows.data?.data ?? [];
+  const pagination = rows.data?.meta?.pagination;
   const pending = list.filter((r) => r.status === "pending");
   const oldest = pending[0];
   // How many are actually waiting, on the chip. `undefined` while the "all"
   // tab is showing, because that list holds answered rows too and a count
   // taken from it would be a different number under the same word.
-  const waiting = status === "pending" ? pending.length : undefined;
+  //
+  // From the PAGINATION while the pending tab is showing, because the server
+  // sends twenty-five at a time and every row on that tab is pending anyway.
+  // Counting the rows on screen told an admin "25" while sixty shops waited.
+  const waiting = status === "pending" ? pagination?.total ?? pending.length : undefined;
 
   return (
     <>
@@ -108,7 +115,9 @@ export default function AdminShopRequestsPage() {
           value={status}
           counts={{ pending: waiting }}
           ariaLabel="Which requests to show"
-          onChange={setStatus}
+          // Back to page one with the tab, or switching filters lands on a
+          // page number the new list may not have.
+          onChange={(next) => { setStatus(next); setPage(1); }}
         />
       </div>
 
@@ -171,6 +180,13 @@ export default function AdminShopRequestsPage() {
           </div>
         ))}
       </div>
+
+      {/* OLDEST FIRST, by design — "the person who has waited longest is the
+          person to answer next" — which is exactly what made page one
+          permanent. A demo that pressed "Keep this shop" and sat behind
+          twenty-five others was a business asking to pay that nobody could
+          see. */}
+      <Pager pagination={pagination} onPage={setPage} noun="requests" />
 
       <Modal isOpen={declining !== null} onClose={() => setDeclining(null)} className="max-w-md p-6">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Decline this request</h3>

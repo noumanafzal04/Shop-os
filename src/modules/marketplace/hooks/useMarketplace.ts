@@ -37,14 +37,6 @@ export function useMarketShop(slug: string | undefined) {
   });
 }
 
-export function useMarketProducts(slug: string | undefined, params: { search?: string; category_id?: string; page?: number }) {
-  return useQuery({
-    queryKey: ["market", "products", slug, params],
-    queryFn: () => marketplaceService.products(slug!, params),
-    enabled: !!slug,
-    placeholderData: keepPreviousData,
-  });
-}
 
 /**
  * THE AISLE — every shop's shelves at once, narrowed by whatever is asked.
