@@ -116,7 +116,15 @@ asks the cross-module question none of them asks.
 
 ### Still open
 
-- [ ] **C13** — nothing. Empty on purpose again.
+- [x] **C13** — the EDIT MATRIX. The two scanner findings collapsed into one
+      question and one file. See F7 and F8.
+
+### Still open
+
+- [ ] **C14** — the edit matrix reaches 12 endpoints. `PUT /admin/staff/*`,
+      `POST /admin/announcements`, `POST /admin/banners` and
+      `PATCH /coupons`/`promotions` (the PATCH verb, not PUT) are still
+      unwalked.
 
       Note for whoever runs these: **do not pass `--reporter`**. It replaces the
       configured list, and the first restaurant run reported "2 skipped" while
@@ -207,6 +215,61 @@ what people get accused over.
 
 Mutation-proven: removing the resolution turns three doors to 0 and leaves the
 online one alone.
+
+### F7 — a coupon could not be edited one field at a time  ·  FIXED
+
+The edit matrix's first run. `CouponController::update` used the **store**
+request, so changing a coupon's expiry meant resending its code, its type and
+its value:
+
+    422 {"type":["The type field is required."],"value":["The value field is required."]}
+
+Promotions, riders, branches, categories and collections all have their own
+update request. Coupons were the one resource that did not, and the difference
+was invisible because the screen happens to send the whole form every time —
+a screen's habit, not a contract.
+
+### F8 — a fixed promotion could not be raised above Rs 100  ·  FIXED
+
+The better half of the same run, and the exact shape the scanner pointed at:
+`type` is an optional field that every test supplies.
+
+`UpdatePromotionRequest` read `type` out of the INPUT with a default of
+`percent`, so a partial edit that did not resend it was validated as a
+percentage. A shop raising a Rs 50 fixed discount to Rs 5,000 was told:
+
+    422 {"value":["The value field must not be greater than 100."]}
+
+A percentage rule applied to a rupee amount, naming a field the shop was not
+trying to change. Fixed by `ValidatesAgainstTheStoredRecord`: the missing half
+comes off the ROW, because what the record will look like after the edit is the
+only thing worth validating against.
+
+**What the matrix also proved:** the other ten endpoints are correct. Branches,
+categories, customer groups, riders, collections, banks, bank offers, tanks,
+pumps and tables all leave untouched fields alone, and a collection keeps its
+items through a rename. Mutation-proven by making a branch update blank its own
+`code`.
+
+### F9 — the third calendar failure, and a scanner for the fourth  ·  FIXED
+
+Five tests went red overnight, in `StockReportsTest` and `PosSyncTest`, all
+about reports returning nothing. **Not the margins netting** — proven by
+`git stash`, which left them failing on committed code.
+
+`period=monthly` is `startOfMonth`→`endOfMonth`, and those fixtures sell on
+`now()->subDay()`. On the 1st that is the previous month. This machine runs at
+UTC+5 while the app runs UTC, so the suite crossed the boundary at seven in the
+evening local time — "it passed this morning" was true and useless.
+
+Third occurrence (`AutoWorkshopTest` and `BillingSaysHowMuchTest` were pinned
+for the same reason on 31 August), so this one got a scanner rather than a
+third fix: `scripts/clock-dependent-tests.py`.
+
+Its first version flagged two walkthroughs that were in no danger — they use
+`now()->subDay()` as a QUERY BOUND, and asking about a wider window cannot push
+a sale outside it. Sharpened to ignore lines that are asking rather than dating,
+then mutation-proven: unpin `StockReportsTest` and it names it.
 
 ### F5 — the reports page scrolled sideways, 8px at a time  ·  FIXED
 

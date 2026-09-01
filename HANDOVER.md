@@ -290,6 +290,45 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-02 — an edit that changes what it named, and nothing else
+
+The two scanner findings turned out to be one question. Fifteen write routes
+that no test posts to — fourteen of them PUT or PATCH — and nineteen optional
+fields that every test supplies, thirteen of them on those same routes. The
+suite creates things everywhere and edits them almost nowhere, and an edit has a
+failure mode a create does not: it can quietly change something nobody asked it
+to.
+
+`tests/Feature/EditMatrixTest.php` puts twelve endpoints through one rule — the
+named field holds the new value, every other column is byte-identical, and the
+edit is not refused for fields the caller had no reason to resend. Two findings:
+
+**A coupon could not be edited one field at a time.** `CouponController::update`
+used the STORE request, so changing an expiry meant resending the code, the type
+and the value. Every comparable resource has its own update request; coupons
+were the one that did not, and the gap was invisible because the screen sends
+the whole form — a habit, not a contract.
+
+**A fixed promotion could not be raised above Rs 100.** `UpdatePromotionRequest`
+read `type` from the input with a default of `percent`, so a partial edit
+validated a rupee amount against a percentage ceiling and named a field the shop
+was not changing. `ValidatesAgainstTheStoredRecord` now takes the missing half
+off the row.
+
+The other ten endpoints are correct, which is the matrix's other half — proven,
+not assumed, and mutation-checked by making a branch update blank its own code.
+
+**And a third calendar failure.** Five tests went red overnight; `git stash`
+showed them failing on committed code, so not the margins work. `period=monthly`
+is the calendar month and those fixtures sell on `now()->subDay()`: on the 1st
+that is the previous one. This machine runs UTC+5 against a UTC app, so the
+suite crossed the line at seven in the evening. Third time, so it got
+`scripts/clock-dependent-tests.py` rather than a third fix — sharpened after its
+first version flagged two files that use a relative past as a QUERY BOUND, which
+is safe, and mutation-proven after.
+
+2407 passed, exit 0.
+
 ### 2026-09-01 (evening) — ran the browser, and it failed on the screen just touched
 
 Playwright had not seen a screen since the relation-optionality change, so it was

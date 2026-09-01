@@ -165,3 +165,5 @@
 - [Outcome, Not Coverage](shopos-outcome-not-coverage.md) — STANDING: the Pay bug was a COVERED branch with an unasserted consequence
 - [A Matrix's Own Blind Spot](shopos-matrix-own-blind-spot.md) — STANDING: ShapeMatrix passed with the guard removed until an ADDRESS axis was added
 - [A Day And Its Chorus](shopos-day-and-chorus.md) — STANDING: run a whole day, then ask every screen the same question; 2 bugs on run one
+- [Edit Matrix](shopos-edit-matrix.md) — STANDING: an edit changes what it named and NOTHING else; 15 untested routes were 14 PUT/PATCH
+- [First Of The Month](shopos-first-of-the-month.md) — STANDING: 3rd calendar red; period=monthly is the CALENDAR month; travelTo mid-month; scanner added
