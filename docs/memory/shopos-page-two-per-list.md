@@ -43,3 +43,24 @@ is stepped over cannot be told apart from one that is broken.
 **Still not covered:** the folder "search only" verdict can still be borrowed
 from the wrong screen. Fixing it needs to know which call feeds which rendered
 list, which regex cannot answer — a stated limit, not a hidden one.
+
+## 2026-09-02 — the fourth time, in the admin console
+
+`admin/enquiries` and `admin/shop-requests`: both `paginate(25)`, both **oldest
+first by design** ("the person who has waited longest is the person to answer
+next"), and neither had a pager. The ordering is what makes it permanent — once
+25 pile up, page one never changes again, so a visitor asking for a walkthrough
+is never seen and a demo pressing **Keep this shop** (a business asking to
+start paying) sits behind 25 others for ever.
+
+The headline count was wrong too, in the one place it IS the screen:
+`unanswered` / `waiting` were `list.length`, which caps at the page size — an
+admin with sixty waiting was told **25**. Read the pagination total, not the
+rows on screen.
+
+**And the scanner had its own blind spot.** Removing a dead hook made
+`marketplace/shops/{slug}/products` look "named by no screen" — the **phone app**
+calls it. `unreachable-pages.py` read the panel only, and the natural next step
+from "nobody names it" is to delete it. It now reads `shopos-mobile` too, and
+blind mode blinds the phone as well so `--prove` still holds.
+

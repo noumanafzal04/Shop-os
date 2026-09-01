@@ -290,6 +290,33 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-02 (evening) — two admin queues that could not reach page two
+
+The list was empty again, so the parent-repo scanners were run. Three findings
+from `unreachable-pages.py`, and the page-two class for the fourth time.
+
+Enquiries and shop requests both `paginate(25)` and both order OLDEST FIRST —
+deliberately, because the person who has waited longest is the person to answer
+next — and neither screen had a pager. That ordering is what made it permanent:
+once twenty-five pile up, page one never changes again, so a visitor asking for
+a walkthrough is never seen, and a demo that pressed "Keep this shop" — a
+business asking to start paying — sits behind twenty-five others for ever.
+
+The headline count was wrong in the one place it is the point of the screen:
+`unanswered` and `waiting` were `list.length`, which caps at the page size. An
+admin with sixty people waiting was told 25.
+
+The third finding was not a paging bug: `useMarketProducts` had no caller at
+all, left behind by the aisle rebuild. Removed with its service method — and
+that exposed a blind spot in the scanner itself, which then called
+`marketplace/shops/{slug}/products` a route named by no screen. The PHONE APP
+calls it. The scanner reads the panel only, and the natural next step from
+"nobody names it" is to delete it, so it now reads the phone too and reports
+those under their own heading. Blind mode blinds the phone as well, so
+`--prove` still holds.
+
+1334 unit · tsc 0 · eslint 0 · build 0 · both scanners green.
+
 ### 2026-09-02 (later) — the scanners the repo already had
 
 With nothing left on the list, ran every scanner in the repo rather than

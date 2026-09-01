@@ -131,7 +131,12 @@ asks the cross-module question none of them asks.
 
 ### Still open
 
-- [ ] **C16** — nothing.
+- [x] **C16** — ran the parent-repo scanners too. `screen-permission-drift`
+      green; `unreachable-pages` red. See F12.
+
+### Still open
+
+- [ ] **C17** — nothing.
 
       Note for whoever runs these: **do not pass `--reporter`**. It replaces the
       configured list, and the first restaurant run reported "2 skipped" while
@@ -257,6 +262,41 @@ categories, customer groups, riders, collections, banks, bank offers, tanks,
 pumps and tables all leave untouched fields alone, and a collection keeps its
 items through a rename. Mutation-proven by making a branch update blank its own
 `code`.
+
+### F12 — the two admin queues could not reach page two  ·  FIXED
+
+`docs/qa/unreachable-pages.py`, run because the list was empty again. Three
+findings, and the page-two class for the **fourth** time.
+
+| screen | endpoint | |
+|---|---|---|
+| Enquiries | `paginate(25)` · `orderBy('created_at')` | page one only |
+| Shop requests | `paginate(25)` · `orderBy('requested_at')` | page one only |
+
+Both queues are **oldest-first, deliberately** — "the person who has waited
+longest is the person to answer next" — and that is exactly what made the
+missing pager permanent rather than merely annoying. Once twenty-five pile up,
+page one never changes again, so:
+
+- a visitor asking for a **walkthrough** is never seen;
+- a demo that pressed **Keep this shop** — a business asking to start paying —
+  sits behind twenty-five others for ever.
+
+And the headline count was wrong in the one place it is the point of the screen:
+`unanswered` and `waiting` were `list.length`, which caps at the page size. An
+admin with sixty people waiting was told **25**. Both now read the pagination
+total.
+
+The third finding was not a paging bug at all: `useMarketProducts` had **no
+caller** — a hook the aisle rebuild left behind. Removed, with its service
+method.
+
+**And the scanner had a blind spot of its own.** Removing that method made
+`marketplace/shops/{slug}/products` "a paginating route named by no screen" —
+except the **phone app** calls it. The scanner reads the panel only, and the
+natural next step from "nobody names it" is to delete it. It now reads the phone
+too and reports such routes under their own heading; blind mode blinds the phone
+as well, so `--prove` still holds.
 
 ### F11 — the platform console counted demo shops as businesses  ·  FIXED
 

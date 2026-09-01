@@ -54,6 +54,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "shopos-backend"
 PANEL = ROOT / "shopos-admin-and-user-panel"
+# THE OTHER CLIENT. The panel is not the only thing that calls this API, and a
+# scan that only reads the panel calls a route "named by no screen" when the
+# phone app has been using it all along. That is not a harmless overstatement:
+# the natural next step from "nobody names it" is to delete it.
+MOBILE = ROOT / "shopos-mobile"
 
 # A screen may reach a later row two ways, and either is enough: turn the page,
 # or search for it by name. Neither is a substitute for the other — search
@@ -441,6 +446,32 @@ def page_argument_nobody_passes(blind: bool = False) -> tuple[list[tuple[str, st
     return out, judged
 
 
+def _mobile_calls(route: str) -> bool:
+    """
+    Does the phone app fetch this route?
+
+    Read the same way the panel is read — by SHAPE, so `${slug}` and `{slug}`
+    are the same path — because comparing them as characters is what made two
+    live routes look unnamed the first time round.
+    """
+    if not MOBILE.exists():
+        return False
+
+    src_dir = MOBILE / "src"
+    if not src_dir.exists():
+        return False
+
+    for f in list(src_dir.rglob("*.ts")) + list(src_dir.rglob("*.tsx")):
+        if ".test." in f.name:
+            continue
+        src = f.read_text(errors="ignore")
+        for call in re.findall(r'["\'`](/[a-z][\w\-/${}]*)["\'`]', src):
+            if _same_shape(call, route):
+                return True
+
+    return False
+
+
 def _same_shape(call: str, route: str) -> bool:
     """One path equals another with `${x}` and `{x}` both reading as a wildcard."""
     def shape(p: str) -> tuple[str, ...]:
@@ -511,11 +542,28 @@ def report(mutate: str | None = None) -> int:
     for name, lists in stuck:
         print(f"  · {name}: {', '.join(lists)}")
 
-    # THE OTHER DENOMINATOR. A paginating route no screen names is either a
-    # list nobody built yet or a path this scan failed to recognise, and the
-    # two look identical from here — which is exactly why they get printed
-    # rather than quietly dropped out of the count above.
+    # THE OTHER DENOMINATOR. A paginating route no PANEL screen names is one of
+    # three things, and they look identical from here: a list nobody built yet,
+    # a path this scan failed to recognise, or a route another client uses. The
+    # third one has bitten: `marketplace/shops/{slug}/products` stopped being
+    # called by the panel the day the aisle replaced it, and the phone app had
+    # been calling it the whole time.
+    #
+    # So the phone is searched before anything is called quiet, and a route it
+    # uses is reported under its own heading rather than as an absence.
     quiet = sorted(routes - listed)
+    # Blinded means blinded on EVERY input. Reading the phone while the panel is
+    # blindfolded would place one route and break the identity `prove()` rests
+    # on — that a scan reading nothing can place nothing.
+    on_the_phone = set() if mutate == "blind" else {q for q in quiet if _mobile_calls(q)}
+    quiet = [q for q in quiet if q not in on_the_phone]
+
+    if on_the_phone:
+        print(f"\n{len(on_the_phone)} paginating route(s) the panel no longer names, but the phone app does:")
+        for q in sorted(on_the_phone):
+            print(f"  · {q}")
+        print("  Not dead. Deleting one of these breaks the app, and this scan reads the panel only.")
+
     print(f"\n{len(quiet)} of {len(routes)} paginating routes are named by no screen:")
     for q in quiet:
         print(f"  · {q}")
