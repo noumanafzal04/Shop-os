@@ -146,8 +146,36 @@ def test_calls() -> dict[str, list[set[str]]]:
     """Normalised uri -> the key-sets tests post to it."""
     calls: dict[str, list[set[str]]] = collections.defaultdict(list)
     verb = re.compile(r"->(?:postJson|putJson|patchJson|post|put|patch)\(\s*")
+
+    # A VERB AND A URL HANDED TO A HELPER.
+    #
+    # The regex above finds `->putJson('/api/v1/branches/…')` and nothing else,
+    # which was true of every test in the suite until a matrix arrived that
+    # dispatches through `->{$verb.'Json'}($url)` — one helper, twelve
+    # endpoints. Those calls are invisible to a scan looking for a literal verb
+    # beside a literal path, so this report said thirteen routes had no test
+    # while EditMatrixTest was posting to twelve of them.
+    #
+    # That is worse than a miss. The next person reads the list and writes the
+    # tests a second time. So the other shape is recognised too: a verb string
+    # and a path passed together as arguments.
+    #
+    # The general answer is not a regex at all — record the routes the SUITE
+    # actually hits at runtime and compare that. Until then, this covers the
+    # shape that exists.
+    handed = re.compile(
+        r"""['\"](post|put|patch)['\"]\s*,\s*['\"]([^'\"]*/[^'\"]*)['\"]"""
+    )
+
     for p in TESTS.rglob("*.php"):
         src = p.read_text()
+        for m in handed.finditer(src):
+            uri = normalise(m.group(2))
+            if uri:
+                # The body sits somewhere further along the argument list and is
+                # not worth guessing at. An empty key-set says "this route is
+                # posted to" without claiming which fields were sent.
+                calls[uri].append(set())
         for m in verb.finditer(src):
             rest = src[m.end():]
             u = re.match(r"""(['"])(.+?)\1""", rest, re.S)

@@ -48,6 +48,55 @@ class CreditSaleTest extends TestCase
         return $this->withToken($token);
     }
 
+    /**
+     * A KHATA NEEDS A PHONE, BECAUSE THE COUNTER HAS NOTHING ELSE TO ASK FOR.
+     *
+     * `StoreSaleRequest` carries `customer_phone` and no `customer_id`. Every
+     * path that puts a name to a sale keys off the number: the group discount
+     * lookup, the loyalty balance, `Customer::capture`, and the credit ledger
+     * itself. Loyalty says it out loud — *"Redeeming points needs a customer —
+     * add the customer's phone."*
+     *
+     * The CRM does not. Its form offers `Phone` as a plain optional box sitting
+     * directly beside `Credit limit (khata) — blank = no limit`, so a shop can
+     * grant fifty thousand rupees of credit to somebody the till can never
+     * name. That is not a customer who is hard to bill; it is money that cannot
+     * be lent, cannot be repaid and cannot be chased, and nothing says so until
+     * a cashier is standing at the counter with the customer in front of them.
+     *
+     * Found by `scripts/untested-absence.py`: `phone` was supplied by all seven
+     * tests that create a customer, so its absence was a branch nobody had
+     * driven down.
+     */
+    public function test_a_credit_limit_cannot_be_given_to_a_customer_with_no_phone(): void
+    {
+        // A plain customer with no number is fine — plenty of shops keep a
+        // directory of walk-in names, and nothing about that is a khata.
+        $this->actingAsUser($this->owner)->postJson('/api/v1/customers', ['name' => 'Walk-in Ahmed'])
+            ->assertCreated();
+
+        // A credit limit is the difference. Refused, and refused ON THE PHONE
+        // field, because that is the box the shopkeeper has to fill.
+        $this->actingAsUser($this->owner)->postJson('/api/v1/customers', [
+            'name' => 'Khata Ahmed',
+            'credit_limit' => 50000,
+        ])->assertStatus(422)->assertJsonValidationErrors('phone');
+
+        // And the same on the way in through the back door: an existing
+        // phone-less customer cannot be given a limit later either.
+        $id = $this->actingAsUser($this->owner)->postJson('/api/v1/customers', ['name' => 'Later Ahmed'])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAsUser($this->owner)->putJson("/api/v1/customers/{$id}", ['credit_limit' => 25000])
+            ->assertStatus(422)->assertJsonValidationErrors('phone');
+
+        // With a number, it goes through — the rule is about being reachable,
+        // not about paperwork.
+        $this->actingAsUser($this->owner)->putJson("/api/v1/customers/{$id}", [
+            'phone' => '+923001239999', 'credit_limit' => 25000,
+        ])->assertOk();
+    }
+
     public function test_full_credit_sale_adds_to_customer_balance_and_ledger(): void
     {
         $this->actingAsUser($this->owner)->postJson('/api/v1/sales', [
