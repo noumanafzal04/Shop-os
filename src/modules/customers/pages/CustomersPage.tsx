@@ -209,13 +209,23 @@ export default function CustomersPage() {
         {err && <div className="mb-3"><Alert variant="error" title="Couldn't save" message={err} /></div>}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2"><Input placeholder="Name *" value={form.name ?? ""} onChange={(e) => set("name", e.target.value)} /></div>
-          <Input placeholder="Phone" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
+          <Input placeholder={(Number(form.credit_limit) || 0) > 0 ? "Phone *" : "Phone"} value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
           <Input placeholder="Email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} />
           <div className="sm:col-span-2"><TextArea placeholder="Address" value={form.address ?? ""} onChange={(v) => set("address", v)} rows={2} /></div>
           <div className="sm:col-span-2"><TextArea placeholder="Notes (preferences, VIP…)" value={form.notes ?? ""} onChange={(v) => set("notes", v)} rows={2} /></div>
           <div className="sm:col-span-2">
             <Input type="number" min="0" placeholder="Credit limit (khata) — blank = no limit" value={form.credit_limit ?? ""} onChange={(e) => set("credit_limit", e.target.value)} />
-            <p className="mt-1 text-theme-xs text-gray-400">The most this customer may owe on credit. Leave blank for no cap.</p>
+            {/* The phone is not paperwork here. The till finds a customer by
+                their number and by nothing else — there is no customer_id on a
+                sale — so a khata without one can never be rung, repaid or
+                chased. The server refuses it; saying so here means the
+                shopkeeper does not meet that as a surprise. */}
+            <p className="mt-1 text-theme-xs text-gray-400">
+              The most this customer may owe on credit. Leave blank for no cap.
+              {(Number(form.credit_limit) || 0) > 0 && !form.phone?.trim() ? (
+                <span className="text-orange-500"> Add a phone number — the till finds a khata customer by their number.</span>
+              ) : null}
+            </p>
           </div>
           <div className="sm:col-span-2">
             <Select value={form.customer_group_id ?? ""} options={groupOptions} onChange={(v) => set("customer_group_id", v)} />

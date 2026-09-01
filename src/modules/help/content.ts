@@ -1614,6 +1614,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Names, numbers, and what each one owes. Selling on credit puts the balance on the customer's account; take payment against it later, and the statement shows every line." },
       { type: "p", text: "Loyalty points earn on sales and are redeemed at the till." },
       { type: "note", text: "A credit sale needs a named customer — you cannot put a balance on nobody." },
+      { type: "warn", text: "And a khata needs a PHONE NUMBER. The till finds a customer by their number and by nothing else, so a credit limit given to somebody with no number can never be rung against, repaid or chased. A customer with no phone is fine — a limit on one is not, and the form now says so before you save." },
     ],
   },
   {
