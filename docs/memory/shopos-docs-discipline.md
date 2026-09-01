@@ -70,3 +70,24 @@ only. Anything a hook claims is owed must be verified against the CODE before it
 enters a plan — same as [[shopos-admin-side-backlog]], the record that a memory
 can go stale silently.
 
+## 2026-09-02 — and CORRECT what is already there
+
+User: *"purana na kuch chora karo, update kiya karo."*
+
+Appending a new entry is not the job; the OLD lines have to be corrected too. A
+stale line reads exactly like a current one, and a wrong one about work that IS
+done sends the next person to rebuild it.
+
+Caught in HANDOVER's "In flight": four offline items listed as *still owed*.
+**Three had been built afterwards** — the shift queue (`shiftQueue.ts`), its sync
+endpoint (`flushShifts.ts` → `/pos/sync/shifts`), and opening a shift with no
+server (`offlineShift.ts`, walked in a browser by `offline-shift.spec.ts`). Only
+offline **hold/recall** was genuinely still owed.
+
+The same file already warns about this in its CI/CD section — a paragraph
+"believed and repeated for two weeks" — so it is the second time.
+
+**How to apply:** when a doc paragraph touches what you are working on, VERIFY
+each claim against the code and rewrite the ones that have moved, with the file
+that proves it. Never leave a corrected fact only in the new entry.
+

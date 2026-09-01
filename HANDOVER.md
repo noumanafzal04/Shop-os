@@ -181,11 +181,28 @@ ever written to it**.
 
 Fixed: the session row is mirrored to the device on every answer and handed back
 when the request meets silence. Only silence — a 401 must not hand a drawer to a
-signed-out till, and a 500 is a broken server rather than a dead line. Still
-owed: queued shift open / close / drawer movements, the sync endpoint for them,
-opening a shift with no server at all, and offline hold/recall (still
-server-only, still without a refusal message).
+signed-out till, and a 500 is a broken server rather than a dead line.
 `docs/decisions/shopos-offline-shift-gap.md`.
+
+**Three of the four things this paragraph used to list as "still owed" were
+built afterwards, and the list was never corrected. Checked 2026-09-02:**
+
+| was listed as owed | today |
+|---|---|
+| queued shift open / close / drawer movements | **built** — `src/modules/offline/shift/shiftQueue.ts` |
+| the sync endpoint for them | **built** — `flushShifts.ts` posts `/pos/sync/shifts`, served by `PosShiftSyncController` |
+| opening a shift with no server at all | **built** — `offline/shift/offlineShift.ts`, and `e2e/offline-shift.spec.ts` walks it in a browser: *"a till that reboots into an outage opens its own drawer and counts it out"* |
+| **offline hold / recall** | **partly.** HOLD already refuses out loud with the line down (`PosPage.doHold`) — that half of the old note was stale too, and I nearly rebuilt it. RECALL did not: it was unfenced, and its error said *"was already resumed at another register"* for every failure including the line dropping. Now fenced, and the lost-race message is kept only for the status that means it. **Still owed: actually parking a ticket with no server** — `heldList / heldStore / claimHeld / deleteHeld` are plain API calls with no offline path. |
+
+That is the whole remaining offline coding task, and it is a deliberate design
+line rather than an oversight: a parked ticket is site-wide and resuming one is
+a locked step, so two lanes cannot ring the same basket. Holding locally would
+need a claim protocol the outbox does not have.
+
+**Written down twice now:** three of these four were corrected on 2026-09-02
+after being listed as owed for weeks, and the fourth was half stale as well.
+When a paragraph here touches what you are working on, check each line against
+the code before believing it.
 
 Checked 9 of the offline plan's ✅ claims while there: 6 hold, 2 were false in
 the dangerous direction (shift open/close, hold/recall), one false in the safe
@@ -289,6 +306,32 @@ session log).
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-09-02 (late) — a tank with no gate, and a nozzle that books a meter's whole life
+
+The last two always-supplied fields from the untested-absence scan, and both
+absences were live defects.
+
+`capacity_litres` was optional, the column defaults to 0, and the check that
+turns away an overfilling tanker reads `capacity_litres > 0 && …` — so a tank
+carded without one is not a tank of unknown size, it is a tank with no gate.
+`current_reading` was optional and also defaults to 0: a pump installed mid-life
+reads six figures, so a nozzle carded at nought opens its first shift at nought,
+closes at the real number, and books the meter's entire life as that shift's
+sales. That is the disaster `OpenForecourtShiftAction` names in its own comment,
+reached by a road its guard cannot cover — it checks an opening typed below the
+stored reading, not a stored reading nobody took.
+
+Both required at installation, `sometimes` on an edit. Nought is still a valid
+meter reading; somebody just has to say so. The form asks before the server
+refuses. Always-supplied fields 11 → 5.
+
+Also this stretch: RECALL of a parked ticket was unfenced offline and its error
+said "was already resumed at another register" for every failure including the
+line dropping — a specific accusation about another lane, made without knowing
+anything. Fenced, and the lost-race message kept for the status that means it.
+
+2411 passed, exit 0 · 1334 unit · tsc 0 · eslint 0 · build 0.
 
 ### 2026-09-02 (night) — a khata given to somebody the till can never name
 

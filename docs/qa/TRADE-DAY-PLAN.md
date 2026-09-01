@@ -141,11 +141,22 @@ asks the cross-module question none of them asks.
 
 ### Still open
 
-- [ ] **C18** — 10 optional fields still supplied by every test, mostly the
-      forecourt's (`capacity_litres`, `current_dip_litres`, `dead_stock_litres`,
-      `current_reading`). A tank with no capacity and a nozzle with no opening
-      reading are both branches nobody has driven down, and both feed gates that
-      need a number to compare against.
+- [x] **C18** — done. Both branches were live defects. See F14.
+
+### Still open
+
+- [ ] **C19** — 5 always-supplied fields remain (`audience`, `target_type`,
+      a banner's `title`, `price_level`, and the shift sync's `device_id`).
+      Each has a plausible column default; only `device_id` looks worth
+      driving down.
+- [ ] **C20** — offline **hold / recall** is the last offline coding task, and
+      it is a design question rather than an oversight: a parked ticket is
+      site-wide and resuming one is a locked step, so holding locally needs a
+      claim protocol the outbox does not have. Both doors now REFUSE out loud.
+- [ ] **C21** — the panel's silent saves: 194 of 209 `useMutation` sites carry
+      no `onError`, and `queryClient.ts` has no `MutationCache` fallback.
+- [ ] **C22** — `dead-endpoints.py` counts a path named in a COMMENT as a
+      caller, so `/pos/quick-keys` — which nothing calls — is not flagged.
 
       Note for whoever runs these: **do not pass `--reporter`**. It replaces the
       configured list, and the first restaurant run reported "2 skipped" while
@@ -271,6 +282,36 @@ categories, customer groups, riders, collections, banks, bank offers, tanks,
 pumps and tables all leave untouched fields alone, and a collection keeps its
 items through a rename. Mutation-proven by making a branch update blank its own
 `code`.
+
+### F14 — a tank with no gate, and a nozzle that books a meter's whole life  ·  FIXED
+
+The last two of the always-supplied fields, and both absences were live.
+
+**A tank with no capacity has no overfill gate.** `capacity_litres` was
+`sometimes`, the column defaults to 0, and the check that turns a tanker away
+reads `capacity_litres > 0 && …`. So a tank carded without one is not a tank of
+unknown size — the refusal simply never fires, and thirty thousand litres go
+into a twenty-thousand-litre tank with nothing said.
+
+**A nozzle with no meter reading books the meter's whole life as one shift.**
+`current_reading` was `sometimes` and the column defaults to 0. A pump installed
+mid-life reads six figures; carded at nought, the first shift opens at nought,
+closes at the real number, and the forecourt books the lot as that shift's
+sales. That is the disaster `OpenForecourtShiftAction` already names in its own
+comment — *"discovering at close that the shift 'sold' 400,000 litres"* —
+reached by a road its guard cannot cover: it checks an opening typed below the
+stored reading, and cannot check a stored reading nobody took.
+
+Both are now required at installation and `sometimes` on an edit, so renaming a
+tank does not demand its capacity back. Nought is still a valid meter reading —
+the rule is that somebody has to say so. The tank's dead-stock check reads the
+record as it will be, so editing one number is checked against the other
+already on file.
+
+The form asks for both before the server has to refuse, and the Help Centre
+says why neither is paperwork.
+
+Always-supplied fields: **11 → 5**.
 
 ### F13 — a khata given to somebody the till can never name  ·  FIXED
 

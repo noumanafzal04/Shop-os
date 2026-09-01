@@ -169,3 +169,4 @@
 - [First Of The Month](shopos-first-of-the-month.md) — STANDING: 3rd calendar red; period=monthly is the CALENDAR month; travelTo mid-month; scanner added
 - [A Rule Nobody Asks](shopos-rule-nobody-asks.md) — Tenant::real() written for "every platform figure", called by NOBODY; console counted demos as businesses
 - [Khata Needs A Phone](shopos-khata-needs-a-phone.md) — Rs 50k limit with no phone was accepted; till finds a customer ONLY by phone; scanner couldn't see its own coverage
+- [An Absent Field Is A Branch](shopos-absent-field-is-a-branch.md) — STANDING: optional field + column default = silent wrong answer; 3 live defects in one day
