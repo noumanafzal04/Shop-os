@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Announcement;
 use App\Models\Bank;
 use App\Models\BankCardOffer;
+use App\Models\Banner;
 use App\Models\Branch;
 use App\Models\Category;
 use App\Models\City;
@@ -23,7 +25,9 @@ use App\Support\BusinessTypes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -168,12 +172,25 @@ final class EditMatrixTest extends TestCase
         $this->edit('a bank offer relabelled', BankCardOffer::class, $offer,
             'put', "/api/v1/bank-offers/{$offer}", ['label' => 'Friday Ten']);
 
+        // ── The OTHER VERB ──────────────────────────────────────────
+        //
+        // `apiResource` registers PUT and PATCH against the same method, and
+        // the scanner listed both separately because nothing had posted to
+        // either. They share a controller, so this is cheap — and it is not
+        // free: a request class that reads `$this->method()` or a route model
+        // binding that differs by verb would show up only here.
+        $this->edit('a coupon\'s expiry moved by PATCH', Coupon::class, $coupon,
+            'patch', "/api/v1/coupons/{$coupon}", ['usage_limit' => 25]);
+
+        $this->edit('a promotion renamed by PATCH', Promotion::class, $promo,
+            'patch', "/api/v1/promotions/{$promo}", ['min_spend' => 2500]);
+
         // ── A collection, whose CONTENTS are the thing at risk ──────
         $this->aCollectionKeepsItsItemsThroughARename();
 
         // THE DENOMINATOR. A matrix that quietly stopped attempting edits would
         // satisfy every assertion above.
-        $this->assertGreaterThanOrEqual(10, $this->edits, 'the matrix shrank');
+        $this->assertGreaterThanOrEqual(12, $this->edits, 'the matrix shrank');
 
         $this->assertSame([], $this->wrong, "\n".implode("\n", $this->wrong)."\n");
     }
@@ -266,11 +283,91 @@ final class EditMatrixTest extends TestCase
         $this->edit('a shop recategorised', Tenant::class, $this->shop->id,
             'put', "/api/v1/admin/tenants/{$this->shop->id}", ['business_category' => 'grocery']);
 
+        // ── A platform staffer ─────────────────────────────────────
+        $staff = $this->create('/api/v1/admin/staff', [
+            'name' => 'Ayesha', 'email' => 'ayesha-'.uniqid().'@cartze.test',
+            'password' => 'a-long-enough-password',
+            'permissions' => ['tenants.view'],
+        ]);
+        $this->edit('a platform staffer renamed', User::class, $staff,
+            'put', "/api/v1/admin/staff/{$staff}", ['name' => 'Ayesha Khan']);
+
+        // ── An announcement, and the audience it must keep ──────────
+        //
+        // The update goes over POST because it carries an image, which is the
+        // detail that hid it: the scanner listed it as a write route nothing
+        // posts to, and it does not LOOK like an edit.
+        $note = $this->create('/api/v1/admin/announcements', [
+            'title' => 'Scheduled downtime', 'body' => 'Sunday, 2am to 4am.',
+            'audience' => 'tenants',
+        ]);
+        $this->edit('an announcement retitled', Announcement::class, $note,
+            'post', "/api/v1/admin/announcements/{$note}", ['title' => 'Planned downtime']);
+
+        // ── A banner, and the image it must not lose ────────────────
+        $this->aBannerKeepsItsImageThroughARetitle();
+
         // ── The owner's password, and everything it must not touch ──
         $this->theOwnersPasswordResetTouchesNothingElse();
 
-        $this->assertGreaterThanOrEqual(2, $this->edits, 'the admin matrix shrank');
+        $this->assertGreaterThanOrEqual(4, $this->edits, 'the admin matrix shrank');
         $this->assertSame([], $this->wrong, "\n".implode("\n", $this->wrong)."\n");
+    }
+
+    /**
+     * A banner's image survives a retitle.
+     *
+     * The one case a column diff would have missed for the opposite reason to
+     * the collection's: here the image IS a column, but creating the fixture
+     * needs a real multipart upload, so it cannot ride the JSON helper the rest
+     * of the matrix uses.
+     *
+     * It is worth the extra few lines. An update that goes over POST because it
+     * carries a file is exactly where `$data['image'] ?? null` gets written,
+     * and a banner that loses its artwork when somebody fixes a typo in the
+     * title is a blank rectangle on the front of the marketplace.
+     */
+    private function aBannerKeepsItsImageThroughARetitle(): void
+    {
+        Storage::fake('public');
+
+        $created = $this->as()->post('/api/v1/admin/banners', [
+            'title' => 'Eid Sale',
+            'placement' => 'home',
+            'target_type' => 'none',
+            'image' => UploadedFile::fake()->image('eid.jpg', 800, 400),
+        ]);
+
+        $this->assertSame(
+            201,
+            $created->status(),
+            'the fixture banner was refused: '.json_encode($created->json('errors') ?? $created->json()),
+        );
+
+        $id = $created->json('data.id');
+        $before = Banner::query()->findOrFail($id)->getAttributes();
+
+        $res = $this->as()->post("/api/v1/admin/banners/{$id}", ['title' => 'Eid Offers']);
+        $this->edits++;
+
+        if ($res->status() >= 400) {
+            $this->wrong[] = "a banner retitled: refused {$res->status()} for a one-field edit — "
+                .json_encode($res->json('errors') ?? $res->json('meta'));
+
+            return;
+        }
+
+        $after = Banner::query()->findOrFail($id)->getAttributes();
+
+        foreach ($before as $field => $was) {
+            if (in_array($field, self::THE_EDIT_ITSELF, true) || $field === 'title') {
+                continue;
+            }
+            if (! $this->same($after[$field] ?? null, $was)) {
+                $this->wrong[] = "a banner retitled: `{$field}` changed from ".var_export($was, true)
+                    .' to '.var_export($after[$field] ?? null, true).' — nobody asked about it';
+            }
+        }
     }
 
     /**

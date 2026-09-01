@@ -2,12 +2,16 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Http\Requests\Concerns\ValidatesAgainstTheStoredRecord;
+use App\Models\Banner;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class BannerRequest extends FormRequest
 {
+    use ValidatesAgainstTheStoredRecord;
+
     public function authorize(): bool
     {
         return $this->user()->hasPermission(Permissions::BANNERS_MANAGE);
@@ -38,14 +42,25 @@ class BannerRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($v): void {
-            $type = $this->input('target_type', 'shop');
-            if ($type === 'shop' && ! $this->filled('tenant_id')) {
+            // THE BANNER AS IT WILL BE, not as this request describes it.
+            //
+            // Every line here read the INPUT with a default, so an edit that
+            // changed only the title was validated as a brand-new SHOP banner
+            // and refused with "Pick the advertiser shop" — naming a field the
+            // admin was not touching and had already filled in weeks ago. The
+            // third time this exact mistake has been found in one codebase; see
+            // ValidatesAgainstTheStoredRecord.
+            $type = $this->effective('target_type', Banner::class, 'banner', 'shop');
+            $has = fn (string $field): bool => $this->filled($field)
+                || $this->effective($field, Banner::class, 'banner') !== null;
+
+            if ($type === 'shop' && ! $has('tenant_id')) {
                 $v->errors()->add('tenant_id', 'Pick the advertiser shop for a shop banner.');
             }
-            if ($type === 'product' && ! $this->filled('target_product_id')) {
+            if ($type === 'product' && ! $has('target_product_id')) {
                 $v->errors()->add('target_product_id', 'Pick the product for a product banner.');
             }
-            if ($type === 'url' && ! $this->filled('target_url')) {
+            if ($type === 'url' && ! $has('target_url')) {
                 $v->errors()->add('target_url', 'Enter the link for a URL banner.');
             }
         });
