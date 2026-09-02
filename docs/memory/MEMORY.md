@@ -170,3 +170,4 @@
 - [A Rule Nobody Asks](shopos-rule-nobody-asks.md) — Tenant::real() written for "every platform figure", called by NOBODY; console counted demos as businesses
 - [Khata Needs A Phone](shopos-khata-needs-a-phone.md) — Rs 50k limit with no phone was accepted; till finds a customer ONLY by phone; scanner couldn't see its own coverage
 - [An Absent Field Is A Branch](shopos-absent-field-is-a-branch.md) — STANDING: optional field + column default = silent wrong answer; 3 live defects in one day
+- [Saves That Say Nothing](shopos-saves-that-say-nothing.md) — 25 panel saves failed silently; the count was wrong 5 times first; gate at zero, mutation-proven

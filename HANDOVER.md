@@ -307,6 +307,37 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-02 (night, later) — a save that fails and says nothing
+
+Twenty-five places in the panel called `.mutate()` and handled failure nowhere,
+so a failed save looked exactly like one that worked: the success toast simply
+never appeared. `TaxGroupsManager` was the sharpest — "Tax group saved" and no
+error path anywhere in the file, so a shop changing its GST rate could be told
+nothing and go on selling at the old one.
+
+**The count was wrong five times first:** 194 (declarations — counts hooks), 81
+(call sites — misses the declaration's own), 68 (misses `{ ...failed(…) }` and
+options built into a variable, so the guard could not see the fix it asks for),
+46 (misses `const mutation = isEdit ? update : create` — which is how the
+product form, the most-used write in the panel, landed on the list), 30 (misses
+`mutateAsync` inside a try/catching wrapper — the forecourt got five entries for
+handling failure better than most of the panel), and finally 25.
+
+All twenty-five fixed. `src/common/api/failed.ts` carries the one shared
+sentence. NOT a global `MutationCache` handler, and the reason is in the
+library: React Query runs the cache's error callback FIRST, and the per-call one
+lives in a private field on the observer, so a global toast cannot tell whether
+anything after it will report — and it would double up on the 102 call sites
+that already do. The till is exempt on purpose: it speaks in a standing red
+strip, never a toast.
+
+`e2e/savesSayWhenTheyFail.guard.ts` is a gate at zero. Its first version could
+not fail at all — a 900-character window read past the end of the options object
+into the next handler in the file — so the mutation test earned its keep before
+the guard did. Brace-matched, and it now goes 0 → 2 → 0.
+
+1336 unit tests · tsc 0 · eslint 0 · build 0.
+
 ### 2026-09-02 (last) — a comment counted as a caller
 
 `dead-endpoints.py` read each client file whole, so a docblock that merely NAMES

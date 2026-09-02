@@ -153,8 +153,8 @@ asks the cross-module question none of them asks.
       it is a design question rather than an oversight: a parked ticket is
       site-wide and resuming one is a locked step, so holding locally needs a
       claim protocol the outbox does not have. Both doors now REFUSE out loud.
-- [ ] **C21** — the panel's silent saves: 194 of 209 `useMutation` sites carry
-      no `onError`, and `queryClient.ts` has no `MutationCache` fallback.
+- [x] **C21** — done, and the headline number was wrong five times first. See
+      F16.
 - [x] **C22** — fixed, and it was hiding a whole retired feature. See F15.
 
       Note for whoever runs these: **do not pass `--reporter`**. It replaces the
@@ -281,6 +281,55 @@ categories, customer groups, riders, collections, banks, bank offers, tanks,
 pumps and tables all leave untouched fields alone, and a collection keeps its
 items through a rename. Mutation-proven by making a branch update blank its own
 `code`.
+
+### F16 — a save that fails, and says nothing  ·  FIXED
+
+Twenty-five places in the panel called `.mutate()` and handled failure nowhere:
+not on the call, not on the mutation's declaration, not by rendering `.error`,
+not in a `try`. Each passes an `onSuccess` that shows a toast and nothing for
+the other outcome, so **a failed save looks exactly like one that worked** —
+the toast simply never appears.
+
+`TaxGroupsManager` was the sharpest: `toast.success("Tax group saved")` and no
+error path anywhere in the file. A shop changing its GST rate could be told
+nothing at all and go on selling at the old one.
+
+**The number was wrong five times before it was right.**
+
+| count | what it was actually measuring |
+|---|---|
+| 194 | `useMutation` declarations with no `onError` — counts HOOKS |
+| 81 | call sites with no inline handler — misses the declaration's own |
+| 68 | misses `{ ...failed(…) }` and options built into a variable — **the guard could not see the fix it asks for** |
+| 46 | misses an ALIAS: `const mutation = isEdit ? update : create` |
+| 30 | misses `mutateAsync` inside a wrapper that try/catches |
+| **25** | the honest number |
+
+The alias miss put the **product form** on the list — the most-used write in
+the panel, which renders field errors beside the very inputs that caused them.
+The `mutateAsync` miss gave the **forecourt** five entries for handling failure
+better than most of the panel. A detector that cannot see the remedy keeps
+reporting the disease.
+
+All twenty-five fixed. `src/common/api/failed.ts` is the one shared sentence —
+prefer the server's field error, then its message, then the caller's words.
+
+**Not a global handler, and the reason is in the library.** React Query runs
+three error callbacks in order — the cache's, the mutation's, then the one
+passed to `mutate()` — and the cache's runs FIRST while the per-call one lives
+in a private field on the observer. A global toast cannot tell whether anything
+after it will report, and 102 of these call sites already do. It would double up
+on every one.
+
+The till is exempt from the helper on purpose: `PosPage` speaks in a standing
+red strip, never a toast, and its own comment says why — *"a cashier looks up
+from the cash, not at a strip that has already faded."*
+
+`e2e/savesSayWhenTheyFail.guard.ts` is a **gate at zero**, not a ratchet.
+Mutation-proven — and the first version could not fail at all: a 900-character
+window read past the end of the options object and into the next handler in the
+file, so removing the only handler still looked handled. Brace-matched now, and
+the mutation goes 0 → 2 → 0.
 
 ### F15 — a comment counted as a caller, and hid a retired endpoint  ·  FIXED
 
