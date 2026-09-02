@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Branch;
 use App\Models\BranchStock;
+use App\Models\CashSession;
 use App\Models\PosDevice;
 use App\Models\Product;
 use App\Models\Sale;
@@ -73,6 +74,21 @@ class OfflineReportTest extends TestCase
             // a fixture that reused one was refused by the database, which
             // is the constraint doing its job.
             'offline_number' => 'OFF-L1-AB-'.Str::random(6),
+        ], $over));
+    }
+
+    /** A shift that was opened, run and counted with no server. */
+    private function shift(array $over = []): CashSession
+    {
+        return CashSession::withoutTenancy()->create(array_merge([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->owner->id,
+            'status' => 'closed',
+            'opening_float' => 3000,
+            'opened_at' => now()->subDays(2),
+            'closed_at' => now()->subDays(2)->addHours(8),
+            // What makes a shift late, exactly as `synced_at` does for a sale.
+            'synced_at' => now()->subDay(),
         ], $over));
     }
 
@@ -237,6 +253,130 @@ class OfflineReportTest extends TestCase
         $this->assertSame([], $this->report()['oversold']);
     }
 
+    // ── The shifts that ran with no server ──────────────────────────
+    //
+    // A sale is not the only thing that happens with the line down. A shift is
+    // opened, cash goes in and out of it, and a drawer is counted — and opening
+    // one offline can break rules the shop really does have: the lane was
+    // already held by somebody who got back online first, or the same cashier
+    // had a shift open elsewhere. Both are written to `offline_violations` and
+    // deliberately never corrected, because a counted drawer must not be left
+    // with no shift to belong to.
+    //
+    // Which makes the screen the whole point: recorded for an owner to
+    // reconcile is not reconciled until an owner can SEE it.
+
+    public function test_a_shift_that_ran_with_no_server_is_on_the_report(): void
+    {
+        $this->shift(['opened_at' => now()->subDays(2), 'synced_at' => now()->subDay()]);
+
+        $data = $this->report();
+
+        $this->assertSame(1, $data['summary']['shifts']);
+        $this->assertCount(1, $data['shifts']);
+    }
+
+    public function test_an_ordinary_shift_opened_at_the_counter_is_not_in_this_report(): void
+    {
+        // `synced_at` is what makes a shift late — it is null on every shift
+        // opened online, which is almost all of them. Without this the section
+        // would be a second shift list and the one thing it is for would be
+        // lost in it.
+        $this->shift(['synced_at' => null]);
+
+        $data = $this->report();
+
+        $this->assertSame(0, $data['summary']['shifts']);
+        $this->assertSame([], $data['shifts']);
+    }
+
+    public function test_a_shift_that_broke_a_rule_by_existing_carries_its_reasons(): void
+    {
+        // TWO shifts, one flagged. With a single shift the count is 1 whether
+        // the filter is applied or not, and this would pass over a report that
+        // simply counted every shift.
+        // The flagged one is the OLDER, so only the violation ordering can put
+        // it first — with both on the same timestamp this would pass on a tie.
+        $this->shift([
+            'opened_at' => now()->subDays(5),
+            'offline_violations' => ['Lane 1 already had an open shift (Ali).'],
+        ]);
+        $this->shift(['opened_at' => now()->subHours(4)]);
+
+        $data = $this->report();
+
+        $this->assertSame(2, $data['summary']['shifts']);
+        $this->assertSame(1, $data['summary']['shifts_flagged']);
+        // Flagged first, for the same reason the sales are: the one that needs
+        // a decision must not sit under the ninety that were fine.
+        $this->assertSame(
+            ['Lane 1 already had an open shift (Ali).'],
+            $data['shifts'][0]['violations'],
+        );
+    }
+
+    public function test_it_names_the_till_the_shift_arrived_from_and_the_cashier_who_held_it(): void
+    {
+        // "Whose unsent shift was this" is a DEVICE question — the queue lives
+        // on the tablet, not on the lane — and the person is who the owner
+        // walks over to ask.
+        $device = PosDevice::query()->create([
+            'id' => (string) Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Counter tablet',
+            'last_seen_at' => now(),
+        ]);
+        $cashier = User::factory()->tenantStaff($this->tenant, ['sales.manage'])->create(['name' => 'Ali']);
+
+        $this->shift(['pos_device_id' => $device->id, 'user_id' => $cashier->id]);
+
+        $row = $this->report()['shifts'][0];
+
+        $this->assertSame('Counter tablet', $row['till']);
+        $this->assertSame('Ali', $row['cashier']);
+    }
+
+    public function test_it_says_how_long_the_shift_sat_on_the_till_and_whether_it_was_ever_counted(): void
+    {
+        // A shift still open days after it synced is a drawer nobody counted —
+        // the one thing on this screen that is not merely history.
+        $this->shift([
+            'opened_at' => now()->subDays(3),
+            'synced_at' => now()->subDays(3)->addHours(30),
+            'status' => 'open',
+        ]);
+
+        $row = $this->report()['shifts'][0];
+
+        $this->assertSame(30, $row['held_hours']);
+        $this->assertFalse($row['closed']);
+    }
+
+    public function test_a_practice_shift_is_not_on_the_report(): void
+    {
+        // Nothing in a training drawer is real money, and this screen answers
+        // "what did I miss" about the day's takings. A practice shift on it is
+        // an owner sent to reconcile a drawer that never held anything.
+        $this->shift(['is_training' => true]);
+
+        $data = $this->report();
+
+        $this->assertSame(0, $data['summary']['shifts']);
+        $this->assertSame([], $data['shifts']);
+    }
+
+    public function test_one_shops_offline_shift_is_not_anothers(): void
+    {
+        $other = Tenant::factory()->create(['setup_completed' => true]);
+        $otherOwner = User::factory()->shopOwner($other)->create();
+        $this->shift();
+
+        $data = $this->actingAsUser($otherOwner)
+            ->getJson('/api/v1/reports/offline')->assertOk()->json('data');
+
+        $this->assertSame(0, $data['summary']['shifts']);
+    }
+
     // ── The quiet answer ────────────────────────────────────────────
 
     public function test_a_shop_that_was_never_offline_reads_as_nothing_happened(): void
@@ -244,7 +384,9 @@ class OfflineReportTest extends TestCase
         $data = $this->report();
 
         $this->assertSame(0, $data['summary']['sales']);
+        $this->assertSame(0, $data['summary']['shifts']);
         $this->assertSame([], $data['sales']);
+        $this->assertSame([], $data['shifts']);
         $this->assertSame([], $data['oversold']);
     }
 

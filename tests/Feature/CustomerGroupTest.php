@@ -168,6 +168,26 @@ class CustomerGroupTest extends TestCase
         $this->assertNull(Customer::withoutTenancy()->find($customer['id'])->group);
     }
 
+    public function test_a_group_created_without_a_price_level_charges_its_members_retail(): void
+    {
+        // The field is optional and the form always sends it, so what a group
+        // made without one charges was never asked. Driven through to the
+        // MONEY on purpose: a default that landed on wholesale would quietly
+        // sell at 80 to everybody an owner put in a group they created in a
+        // hurry, and nothing on any screen would say why.
+        $id = $this->actingAsUser($this->owner)->postJson('/api/v1/customer-groups', [
+            'name' => 'Regulars',
+        ])->assertCreated()->json('data.id');
+
+        $this->assertSame('retail', CustomerGroup::withoutTenancy()->find($id)->price_level);
+
+        $this->member('03005556677', CustomerGroup::withoutTenancy()->find($id));
+
+        $sale = $this->sell([[$this->widget, 2]], '03005556677')->assertCreated()->json('data');
+
+        $this->assertEquals(200, $sale['total']); // 2 × 100 retail, not 2 × 80
+    }
+
     public function test_invalid_price_level_is_rejected(): void
     {
         $this->actingAsUser($this->owner)->postJson('/api/v1/customer-groups', [

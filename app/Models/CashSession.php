@@ -81,6 +81,19 @@ class CashSession extends Model
         return $this->belongsTo(Branch::class);
     }
 
+    /**
+     * The tablet this shift was rung on — null on every shift opened at the
+     * counter with the line up, which is almost all of them.
+     *
+     * A Register is a PLACE and a PosDevice is a THING, and neither stands in
+     * for the other: the offline queue lives on the device, so "whose shift
+     * arrived late" is a device question.
+     */
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(PosDevice::class, 'pos_device_id');
+    }
+
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);

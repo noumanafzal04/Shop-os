@@ -144,6 +144,33 @@ class AnnouncementTest extends TestCase
         $this->assertDatabaseMissing('app_notifications', ['user_id' => $cashier->id, 'type' => 'announcement']);
     }
 
+    public function test_an_announcement_written_without_an_audience_goes_to_shop_owners_only(): void
+    {
+        // The field is optional and the admin form always sends it, so this is
+        // the branch nobody had driven down: what an announcement created with
+        // no audience at all actually reaches. It must be the NARROW answer —
+        // owners only. A default that widened to "everyone" would put a
+        // half-written draft in front of every customer in the country.
+        Queue::fake();
+
+        $shop = Tenant::factory()->create();
+        $owner = User::factory()->shopOwner($shop)->create();
+        $cashier = User::factory()->tenantStaff($shop, ['sales.manage'])->create();
+        $customer = User::factory()->create();
+
+        $id = $this->asAdmin()->postJson('/api/v1/admin/announcements', [
+            'title' => 'Maintenance', 'body' => 'Sunday 2am.',
+        ])->assertCreated()->json('data.id');
+
+        $this->assertSame('tenants', Announcement::query()->find($id)->audience);
+
+        $this->asAdmin()->postJson("/api/v1/admin/announcements/{$id}/send")->assertOk();
+
+        $this->assertDatabaseHas('app_notifications', ['user_id' => $owner->id, 'type' => 'announcement']);
+        $this->assertDatabaseMissing('app_notifications', ['user_id' => $cashier->id, 'type' => 'announcement']);
+        $this->assertDatabaseMissing('app_notifications', ['user_id' => $customer->id, 'type' => 'announcement']);
+    }
+
     public function test_non_admin_cannot_manage_announcements(): void
     {
         $shop = Tenant::factory()->create();

@@ -279,6 +279,27 @@ class PosShiftSyncTest extends TestCase
         $this->assertSame(1, $response->json('data.accepted'));
     }
 
+    public function test_a_batch_that_names_no_device_still_lands(): void
+    {
+        // Every other test here sends the key with a null in it. This one omits
+        // it entirely, because that is what an older till build posts and the
+        // two must not be different branches: a shift that arrived without
+        // saying which tablet it came from is still a real shift, with real
+        // money in a real drawer, and refusing it would orphan every sale
+        // queued behind it.
+        $id = (string) Str::uuid();
+
+        $this->actingAsUser($this->cashier)->postJson('/api/v1/pos/sync/shifts', [
+            'operations' => [$this->openOp($id)],
+        ])->assertOk()->assertJsonPath('data.results.0.status', 'applied');
+
+        $session = CashSession::withoutGlobalScopes()->find($id);
+        $this->assertNotNull($session);
+        // Unknown, not guessed. The device is the only thing lost, and the
+        // offline report says "Unknown till" rather than picking one.
+        $this->assertNull($session->pos_device_id);
+    }
+
     public function test_a_till_may_not_claim_a_system_movement_happened(): void
     {
         $id = (string) Str::uuid();

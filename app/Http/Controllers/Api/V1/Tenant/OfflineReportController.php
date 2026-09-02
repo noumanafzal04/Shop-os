@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\BranchStock;
+use App\Models\CashSession;
 use App\Models\Sale;
 use App\Support\ApiResponse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -21,6 +23,7 @@ use Illuminate\Support\Carbon;
  * they cannot read. Everything here exists to answer it in a glance:
  *
  *   • what came in late, how much of it, and from which till
+ *   • which SHIFTS ran with no server, and which broke a rule by existing
  *   • what broke a rule and needs a decision  (`offline_violations`)
  *   • what was rung past the shop's window    (`beyond_offline_window`)
  *   • what landed against a day already signed off (`after_day_close`)
@@ -72,6 +75,15 @@ class OfflineReportController extends Controller
             ->whereNotNull('synced_at')
             ->where('sold_at', '>=', $from);
 
+        // Practice shifts are left out on purpose. Nothing in a training drawer
+        // is real money, and this screen answers "what did I miss" about the
+        // day's takings — a practice shift on it sends an owner to reconcile a
+        // drawer that never held anything.
+        $lateShifts = CashSession::query()
+            ->whereNotNull('synced_at')
+            ->where('is_training', false)
+            ->where('opened_at', '>=', $from);
+
         return ApiResponse::ok([
             'from' => $from->toIso8601String(),
             'summary' => [
@@ -96,6 +108,12 @@ class OfflineReportController extends Controller
                     ->whereNotNull('clock_skew_seconds')
                     ->whereRaw('abs(clock_skew_seconds) > ?', [self::DRIFT_SECONDS])
                     ->count(),
+                // Shifts, not sales. A drawer opened with no server is its own
+                // event with its own rules, and the two counts must stay
+                // separate — an owner asking "how many shifts do I have to look
+                // at" is not asking how many sales came in late.
+                'shifts' => (clone $lateShifts)->count(),
+                'shifts_flagged' => (clone $lateShifts)->whereNotNull('offline_violations')->count(),
                 // A shop trading through a cut wants to know how long the gap
                 // was, and the arrival times are the only record of it.
                 'oldest' => (clone $late)->min('sold_at'),
@@ -131,9 +149,61 @@ class OfflineReportController extends Controller
                     'after_close' => (bool) $s->after_day_close,
                 ])
                 ->values(),
+            'shifts' => $this->shifts($lateShifts),
             'oversold' => $this->oversold(),
             'clocks' => $this->clocks($from),
         ]);
+    }
+
+    /**
+     * The shifts that ran with no server.
+     *
+     * Opening a shift has real invariants — one open shift per lane, one per
+     * cashier — and a shift opened offline can break them, because the lane was
+     * taken by whoever got back online first. The sync deliberately records the
+     * conflict and corrects nothing: refusing a shift on arrival would orphan
+     * every sale rung into it and leave a counted drawer belonging to nothing.
+     *
+     * Recording it is only half the sentence. The column was written "for the
+     * owner to reconcile" and no screen asked for it, so a lane that held two
+     * drawers at once was noted in the database and told to nobody. This is
+     * where it gets said out loud.
+     *
+     * `closed` is the one row here that is not history: a shift still open days
+     * after it arrived is a drawer nobody has counted.
+     *
+     * @param  Builder<CashSession>  $lateShifts
+     */
+    private function shifts(Builder $lateShifts): array
+    {
+        return $lateShifts
+            ->with(['device:id,name', 'register:id,name', 'user:id,name'])
+            // Flagged first, for the same reason the sales are.
+            ->orderByRaw('offline_violations is null')
+            ->orderByDesc('opened_at')
+            ->limit(self::RECENT)
+            ->get()
+            ->map(fn (CashSession $s): array => [
+                'id' => $s->id,
+                'opened_at' => $s->opened_at?->toIso8601String(),
+                'synced_at' => $s->synced_at?->toIso8601String(),
+                // How long it sat on the till, exactly as a late sale reports.
+                'held_hours' => $s->opened_at && $s->synced_at
+                    ? (int) floor($s->opened_at->diffInHours($s->synced_at))
+                    : null,
+                'closed' => $s->status === 'closed',
+                'opening_float' => (float) $s->opening_float,
+                'counted_cash' => $s->counted_cash === null ? null : (float) $s->counted_cash,
+                'variance' => $s->variance === null ? null : (float) $s->variance,
+                // The tablet is what the queue lived on; the person is who the
+                // owner walks over to ask.
+                'till' => $s->device?->name,
+                'register' => $s->register?->name,
+                'cashier' => $s->user?->name,
+                'violations' => $s->offline_violations ?? [],
+            ])
+            ->values()
+            ->all();
     }
 
     /**

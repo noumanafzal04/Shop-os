@@ -96,6 +96,51 @@ class BannerTest extends TestCase
         $this->assertSame(1, $banner->fresh()->click_count);
     }
 
+    public function test_a_banner_created_without_a_target_type_is_a_shop_banner_and_is_held_to_it(): void
+    {
+        // Optional in the rules, always sent by the form. The branch nobody had
+        // driven down: what a banner with no target_type is. The column says
+        // `shop`, so the request has to hold this one to a shop banner's rule —
+        // if the two disagreed, a banner would be stored pointing at a shop it
+        // never named and the aisle would render a card that goes nowhere.
+        Storage::fake('public');
+
+        $this->asAdmin()->post('/api/v1/admin/banners', [
+            'image' => UploadedFile::fake()->image('promo.jpg'),
+            'title' => 'Eid Sale',
+        ])->assertStatus(422)->assertJsonValidationErrors('tenant_id');
+
+        $banner = $this->asAdmin()->post('/api/v1/admin/banners', [
+            'image' => UploadedFile::fake()->image('promo.jpg'),
+            'title' => 'Eid Sale', 'tenant_id' => $this->shop->id,
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('shop', Banner::query()->find($banner['id'])->target_type);
+    }
+
+    public function test_an_edit_that_does_not_mention_the_title_leaves_it_alone(): void
+    {
+        // Not "the title survives a partial update" for its own sake: the same
+        // request class validates the create, where a missing field means
+        // absent, and the update, where it means untouched. Sending only what
+        // changed is what the panel does everywhere else.
+        Storage::fake('public');
+
+        $banner = Banner::query()->create([
+            'image_path' => 'banners/a.jpg', 'title' => 'Eid Sale',
+            'target_type' => 'shop', 'tenant_id' => $this->shop->id,
+            'placement' => 'home', 'is_active' => true,
+        ]);
+
+        $this->asAdmin()->postJson("/api/v1/admin/banners/{$banner->id}", [
+            'sort_order' => 3,
+        ])->assertOk();
+
+        $banner->refresh();
+        $this->assertSame('Eid Sale', $banner->title);
+        $this->assertSame(3, (int) $banner->sort_order);
+    }
+
     public function test_non_admin_cannot_manage_banners(): void
     {
         $owner = User::factory()->shopOwner($this->shop)->create();
