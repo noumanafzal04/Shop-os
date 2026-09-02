@@ -9,6 +9,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useAnnouncements, useAnnouncementMutations } from "../hooks/useAdmin";
 import type { Announcement } from "../services/adminService";
@@ -83,7 +84,13 @@ export default function AdminAnnouncementsPage() {
     for (const k of ["title", "body", "link"]) {
       if (form[k]) fd.append(k, form[k]);
     }
-    const opts = { onSuccess: () => editor.closeModal() };
+    // The modal closing WAS the only signal either way: a failed save left it
+    // open with nothing said, which reads as a slow network rather than a
+    // refusal.
+    const opts = {
+      onSuccess: () => editor.closeModal(),
+      ...failed(toast, "That announcement did not save."),
+    };
     if (editing) update.mutate({ id: editing.id, data: fd }, opts);
     else create.mutate(fd, opts);
   };
@@ -95,7 +102,14 @@ export default function AdminAnnouncementsPage() {
       title: `${verb} "${a.title}"?`,
       message: `It goes to ${who} as a push notification. This cannot be unsent.`,
       confirmLabel: verb,
-    })) send.mutate(a.id);
+    })) {
+      // "This cannot be unsent" is on the confirm dialog, so an admin who
+      // pressed through it and saw nothing had no way to tell whether it went.
+      send.mutate(a.id, {
+        onSuccess: () => toast.success(`"${a.title}" is on its way.`),
+        ...failed(toast, `"${a.title}" was not sent.`),
+      });
+    }
   };
 
   const rows = announcements.data ?? [];

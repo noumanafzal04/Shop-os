@@ -7,6 +7,7 @@ import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
@@ -338,7 +339,7 @@ export default function IncomePage() {
         onDelete={(id) => { const row = byId(id); if (row) void confirmDelete(row); }}
         onAttach={(id) => { setAttachTo(id); fileRef.current?.click(); }}
         onView={(url) => void openAuthedFile(url)}
-        onDetach={(id) => detach.mutate(id)}
+        onDetach={(id) => detach.mutate(id, failed(toast, "That receipt is still attached."))}
       />
       </>
       ) : null}

@@ -1,4 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
+import { useToast } from "../../../components/ui/toast";
+import { failed } from "../../../common/api/failed";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -38,6 +40,11 @@ function filterTree(nodes: Category[], needle: string): Category[] {
 export default function CategoriesPage() {
   const categories = useCategories();
   const { create, update, remove, reorder } = useCategoryMutations();
+  // The Add and Delete paths render `create.error` and `deleteError` in an
+  // Alert, which is right for a form. Renaming, hiding and reordering happen
+  // inline in the tree with no form to put an Alert under — so those speak
+  // through a toast instead of snapping back in silence.
+  const toast = useToast();
 
   const [newName, setNewName] = useState("");
   const [search, setSearch] = useState("");
@@ -186,11 +193,17 @@ export default function CategoriesPage() {
                 // Never while filtered — see `canReorder`. Dragging inside a
                 // search would renumber the rows the search is hiding.
                 canReorder: search.trim() === "",
-                onRename: (c, name) => update.mutate({ id: c.id, name }),
-                onToggleVisible: (c) => update.mutate({ id: c.id, is_active: !c.is_active }),
+                // The row redraws from the cache on success and simply snaps
+                // back on failure, which reads as a slow save rather than a
+                // refused one.
+                onRename: (c, name) => update.mutate({ id: c.id, name }, failed(toast, "That category was not renamed.")),
+                onToggleVisible: (c) => update.mutate(
+                  { id: c.id, is_active: !c.is_active },
+                  failed(toast, `"${c.name}" is unchanged — it is still ${c.is_active ? "visible" : "hidden"}.`),
+                ),
                 onAddSub: (parentId, name) => create.mutate({ name, parent_id: parentId }),
                 onDelete: askDelete,
-                onReorder: (rows) => reorder.mutate(rows),
+                onReorder: (rows) => reorder.mutate(rows, failed(toast, "The new order was not saved.")),
               }}
             />
           )}

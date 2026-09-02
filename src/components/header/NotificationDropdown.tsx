@@ -1,3 +1,5 @@
+import { failed } from "../../common/api/failed";
+import { useToast } from "../../components/ui/toast";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -34,6 +36,7 @@ const DOT_COLOR: Record<string, string> = {
 };
 
 export default function NotificationDropdown() {
+  const toast = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const navigate = useNavigate();
@@ -63,7 +66,10 @@ export default function NotificationDropdown() {
    * a dead destination is worse than none.
    */
   const onItem = (n: AppNotification) => {
-    if (!n.read_at) markRead.mutate(n.id);
+    // Quiet, but not silent. The badge drops locally the moment this is
+          // tapped, so a failure that said nothing left a bell showing fewer
+          // than the list actually holds until the next load.
+          if (!n.read_at) markRead.mutate(n.id, failed(toast, "That notification is still unread."));
 
     const path = screenForLink(n.data?.link, can);
     if (path !== null) {
@@ -118,7 +124,7 @@ export default function NotificationDropdown() {
           </h5>
           {unread > 0 && (
             <button
-              onClick={() => markAllRead.mutate()}
+              onClick={() => markAllRead.mutate(undefined, failed(toast, "Those are still unread."))}
               className="text-theme-xs text-brand-500 hover:text-brand-600"
             >
               Mark all read

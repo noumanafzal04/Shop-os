@@ -1,3 +1,5 @@
+import { failed } from "../../../common/api/failed";
+import { useToast } from "../../../components/ui/toast";
 import PageMeta from "../../../components/common/PageMeta";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
@@ -9,6 +11,7 @@ import { useGallery, useGalleryMutations } from "../hooks/useShop";
  * workshop jobs, storefront shots). Distinct from product images.
  */
 export default function PortfolioPage() {
+  const toast = useToast();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const gallery = useGallery();
   const { upload, remove } = useGalleryMutations();
@@ -59,7 +62,7 @@ export default function PortfolioPage() {
             <div key={img.id} className="group relative aspect-square overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
               <img src={img.url ?? ""} alt={img.caption ?? ""} className="h-full w-full object-cover" loading="lazy" />
               <button
-                onClick={() => remove.mutate(img.id)}
+                onClick={() => remove.mutate(img.id, failed(toast, "That picture is still on your page."))}
                 disabled={remove.isPending}
                 className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-sm text-white opacity-0 transition group-hover:opacity-100"
                 aria-label="Remove photo"

@@ -1688,7 +1688,17 @@ export default function PosPage() {
           payment_method: method === "split" || method === "credit" ? "cash" : method,
         },
       },
-      { onSuccess: () => { clearSale(); setHoldLabel(""); holdModal.closeModal(); } },
+      {
+        onSuccess: () => { clearSale(); setHoldLabel(""); holdModal.closeModal(); },
+        // Holding CLEARS the cart on success. A failure that said nothing left
+        // the cashier looking at a ticket they believed was parked, with the
+        // basket still on screen and no way to tell which had happened.
+        onError: (e: unknown) => setPosNotice(
+          e instanceof ApiError
+            ? `The ticket was not parked: ${e.message}`
+            : "The ticket was not parked — the cart is still here.",
+        ),
+      },
     );
   };
 
@@ -2070,7 +2080,11 @@ export default function PosPage() {
           {covering ? (
             <button
               type="button"
-              onClick={() => coverMutations.end.mutate()}
+              onClick={() => coverMutations.end.mutate(undefined, {
+                onError: () => setPosNotice(
+                  "The till was not handed back — you are still covering this drawer.",
+                ),
+              })}
               disabled={coverMutations.end.isPending}
               title={`Give the till back to ${covering.cashier_name ?? "the cashier"}`}
               className="flex items-center gap-1.5 rounded-lg border border-brand-500/40 bg-brand-500/15 px-3 py-1.5 text-theme-sm font-semibold text-brand-300 transition hover:bg-brand-500/25 disabled:opacity-60"
@@ -2094,7 +2108,11 @@ export default function PosPage() {
               {laneIsSomeoneElses && (
                 <button
                   type="button"
-                  onClick={() => coverMutations.start.mutate({})}
+                  onClick={() => coverMutations.start.mutate({}, {
+                    onError: () => setPosNotice(
+                      "You are not covering this lane — the sales you ring will go on your own drawer.",
+                    ),
+                  })}
                   disabled={coverMutations.start.isPending}
                   title={`Hold the lane while ${laneIsSomeoneElses} is away — the drawer stays theirs`}
                   className="flex items-center gap-1.5 rounded-lg border border-brand-500/40 bg-brand-500/15 px-3 py-1.5 text-theme-sm font-semibold text-brand-300 transition hover:bg-brand-500/25 disabled:opacity-60"
@@ -3035,7 +3053,12 @@ export default function PosPage() {
                               onClick={() =>
                                 quickCreateVehicle.mutate(
                                   { registration: vehicleSearch.trim() },
-                                  { onSuccess: ({ data }) => { setVehicle(data); setVehicleSearch(""); } },
+                                  {
+                                    onSuccess: ({ data }) => { setVehicle(data); setVehicleSearch(""); },
+                                    onError: () => setPosNotice(
+                                      "That plate was not added — the sale has no vehicle on it.",
+                                    ),
+                                  },
                                 )
                               }
                               className="block w-full px-2 py-2 text-left text-theme-sm text-brand-600 transition hover:bg-gray-50 dark:hover:bg-white/5">
@@ -3877,7 +3900,21 @@ export default function PosPage() {
         isOpen={closeModal.isOpen}
         onClose={closeModal.closeModal}
         busy={shift.close.isPending}
-        onSubmit={(payload) => shift.close.mutate(payload, { onSuccess: closeModal.closeModal })}
+        onSubmit={(payload) => shift.close.mutate(payload, {
+          onSuccess: closeModal.closeModal,
+          // THE DRAWER. The modal closing was the only sign it worked, so a
+          // count that never reached the server left a cashier believing their
+          // shift was signed off and their variance accepted.
+          //
+          // A standing notice rather than a toast, the same as everything else
+          // on this screen: a cashier looks up from the cash, not at a strip
+          // that has already faded.
+          onError: (e: unknown) => setPosNotice(
+            e instanceof ApiError
+              ? `The drawer was NOT counted out: ${e.message}`
+              : "The drawer was NOT counted out — your shift is still open. Try again.",
+          ),
+        })}
       />
 
       {/* Drawer X-read + the cashier's cash movements */}
@@ -3972,7 +4009,9 @@ export default function PosPage() {
                 </div>
                 <div className="flex gap-2">
                   <button className={ROW_ACTION} onClick={() => resume(h)}>Resume</button>
-                  <button className={ROW_ACTION_DANGER} onClick={() => heldMut.remove.mutate(h.id)}>Delete</button>
+                  <button className={ROW_ACTION_DANGER} onClick={() => heldMut.remove.mutate(h.id, {
+                    onError: () => setPosNotice(`"${h.label || "That ticket"}" is still parked.`),
+                  })}>Delete</button>
                 </div>
               </div>
             ))}

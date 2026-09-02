@@ -8,6 +8,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCouponMutations, useCoupons } from "../hooks/useCoupons";
@@ -35,6 +36,7 @@ export default function CouponsPage() {
   const removeWithFeedback = (id: string, name: string) =>
     remove.mutate(id, {
       onSuccess: () => toast.success(`${name} deleted`),
+      ...failed(toast, `${name} is still redeemable.`),
       onError: (e) => toast.error(e instanceof Error ? e.message : `Couldn't delete this coupon.`),
     });
 
@@ -67,7 +69,10 @@ export default function CouponsPage() {
       usage_limit: form.usage_limit ? Number(form.usage_limit) : null,
       expires_at: form.expires_at || null,
     };
-    const opts = { onSuccess: () => editor.closeModal() };
+    const opts = {
+      onSuccess: () => editor.closeModal(),
+      ...failed(toast, "That coupon did not save."),
+    };
     if (editing) update.mutate({ id: editing.id, ...payload }, opts);
     else create.mutate(payload, opts);
   };

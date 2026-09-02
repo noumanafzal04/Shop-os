@@ -1,3 +1,5 @@
+import { failed } from "../../../common/api/failed";
+import { useToast } from "../../../components/ui/toast";
 import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 
@@ -39,6 +41,7 @@ import { useAisle, useFavorites, useMarketShop, useToggleFavorite } from "../hoo
  * rather than a second catalog implementation that drifts from the first.
  */
 export default function MarketShopPage() {
+  const toast = useToast();
   const { slug } = useParams();
   const [params, setParams] = useSearchParams();
 
@@ -156,7 +159,7 @@ export default function MarketShopPage() {
             {isCustomer && (
               <button
                 type="button"
-                onClick={() => slug && toggleFavorite.mutate(slug)}
+                onClick={() => slug && toggleFavorite.mutate(slug, failed(toast, "That did not save."))}
                 aria-pressed={isFavorite}
                 className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
                   isFavorite

@@ -11,6 +11,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useConfirm } from "../../../components/ui/confirm";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
@@ -312,8 +313,11 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
       toast.success(editing ? "Expense updated" : "Expense recorded");
     };
 
-    if (editing) update.mutate({ id: editing.id, ...payload }, { onSuccess });
-    else create.mutate(payload, { onSuccess });
+    // A bill that did not record is money the books will never show, and the
+    // modal closing was the only signal either way.
+    const opts = { onSuccess, ...failed(toast, "That entry did not save.") };
+    if (editing) update.mutate({ id: editing.id, ...payload }, opts);
+    else create.mutate(payload, opts);
   };
 
   const byId = (id: string): Expense | undefined => rows.find((row: Expense) => row.id === id);
@@ -323,6 +327,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
 
     remove.mutate(expense.id, {
       onSuccess: () => toast.success("Expense deleted"),
+      ...failed(toast, "That expense is still on the books."),
       onError: (err) => toast.error(err instanceof Error ? err.message : "Could not delete"),
     });
   };
@@ -447,7 +452,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
         onDelete={(id) => { const row = byId(id); if (row) void confirmDelete(row); }}
         onAttach={(id) => { setAttachTo(id); fileRef.current?.click(); }}
         onView={(url) => void openAuthedFile(url)}
-        onDetach={(id) => detach.mutate(id)}
+        onDetach={(id) => detach.mutate(id, failed(toast, "That receipt is still attached."))}
       />
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md">
@@ -841,7 +846,12 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
                           className={ROW_ACTION_DANGER}
                           onClick={async () => {
                             if (await confirm({ title: `Remove "${r.description}"?`, tone: "danger" })) {
-                              removeRecurring.mutate(r.id, { onSuccess: () => toast.success("Removed") });
+                              removeRecurring.mutate(r.id, {
+                                onSuccess: () => toast.success("Removed"),
+                                // A recurring bill that did not stop keeps
+                                // posting itself every month.
+                                ...failed(toast, "That recurring entry is still running."),
+                              });
                             }
                           }}
                         >

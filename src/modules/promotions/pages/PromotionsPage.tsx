@@ -8,6 +8,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useConfirm } from "../../../components/ui/confirm";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useCategories } from "../../catalog/hooks/useCatalog";
@@ -126,14 +127,22 @@ export default function PromotionsPage() {
       end_time: draft.end_time || null,
       is_active: draft.is_active,
     };
-    const done = { onSuccess: () => { toast.success(isEdit ? "Promotion updated" : "Promotion created"); modal.closeModal(); } };
+    const done = {
+      onSuccess: () => { toast.success(isEdit ? "Promotion updated" : "Promotion created"); modal.closeModal(); },
+      // A promotion takes money off a bill. One that did not save leaves the
+      // counter charging the old price with nothing said.
+      ...failed(toast, "That promotion did not save — the counter still has the old one."),
+    };
     if (isEdit) update.mutate({ id: draft.id!, ...payload }, done);
     else create.mutate(payload, done);
   };
 
   const del = async (p: Promotion) => {
     if (await confirm({ title: `Remove "${p.name}"?`, tone: "danger", confirmLabel: "Remove" })) {
-      remove.mutate(p.id, { onSuccess: () => toast.success("Promotion removed") });
+      remove.mutate(p.id, {
+        onSuccess: () => toast.success("Promotion removed"),
+        ...failed(toast, "That promotion is still running."),
+      });
     }
   };
 

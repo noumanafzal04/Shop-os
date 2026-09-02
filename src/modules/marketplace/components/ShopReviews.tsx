@@ -1,3 +1,5 @@
+import { failed } from "../../../common/api/failed";
+import { useToast } from "../../../components/ui/toast";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
@@ -46,6 +48,7 @@ export function Stars({ value, onChange }: { value: number; onChange?: (v: numbe
  * something milder.
  */
 export function ShopReviews({ slug, shopName }: { slug: string | undefined; shopName: string }) {
+  const toast = useToast();
   const user = useAuthStore((s) => s.user);
   const isCustomer = user?.role === "customer";
 
@@ -95,6 +98,7 @@ export function ShopReviews({ slug, shopName }: { slug: string | undefined; shop
     if (!ok) return;
 
     deleteReview.mutate(mine.id, {
+      ...failed(toast, "Your review is still there."),
       onSuccess: () => {
         loaded.current = null;
         setRating(0);

@@ -7,6 +7,7 @@ import Select from "../../../components/form/Select";
 import Label from "../../../components/form/Label";
 import Badge from "../../../components/ui/badge/Badge";
 import { useConfirm } from "../../../components/ui/confirm";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useHardwareDevices, useHardwareMutations } from "../hooks/useHardware";
 import { useRegisters } from "../../registers/hooks/useRegisters";
@@ -169,14 +170,22 @@ export default function HardwareDevices() {
       register_id: draft.register_id || null,
       settings: isPrinter ? { paper_size: draft.paper_size } : null,
     };
-    const done = { onSuccess: () => { toast.success(isEdit ? "Device updated" : "Device added"); modal.closeModal(); } };
+    const done = {
+      onSuccess: () => { toast.success(isEdit ? "Device updated" : "Device added"); modal.closeModal(); },
+      // A printer or drawer that did not save is found at the counter, by a
+      // receipt that does not print.
+      ...failed(toast, "That device did not save."),
+    };
     if (isEdit) update.mutate({ id: draft.id!, ...payload }, done);
     else create.mutate({ type: draft.type, ...payload }, done);
   };
 
   const del = async (d: HardwareDevice) => {
     if (await confirm({ title: `Remove ${d.name}?`, tone: "danger", confirmLabel: "Remove" })) {
-      remove.mutate(d.id, { onSuccess: () => toast.success("Device removed") });
+      remove.mutate(d.id, {
+        onSuccess: () => toast.success("Device removed"),
+        ...failed(toast, `${d.name} is still registered.`),
+      });
     }
   };
 

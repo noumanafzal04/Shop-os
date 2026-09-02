@@ -1,3 +1,5 @@
+import { failed } from "../../../common/api/failed";
+import { useToast } from "../../../components/ui/toast";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
@@ -91,6 +93,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
  * `id` present ⇒ edit; absent ⇒ create. `onClose` returns to the list.
  */
 export default function ProductEditor({ id, onClose }: { id?: string; onClose: () => void }) {
+  const toast = useToast();
   const isEdit = !!id;
 
   const hasPermission = useAuthStore((s) => s.hasPermission);
@@ -1204,7 +1207,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     <img src={img.url ?? ""} alt="" className="h-full w-full object-cover" />
                     <button
                       type="button"
-                      onClick={() => images.remove.mutate(img.id)}
+                      onClick={() => images.remove.mutate(img.id, failed(toast, "That picture is still on the item."))}
                       disabled={images.remove.isPending}
                       className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
                       aria-label="Remove photo"

@@ -20,6 +20,7 @@ import { FilterBar, FilterSelect, type AppliedFilter } from "../../../components
 import { ApiError } from "../../../common/types/api";
 import { api } from "../../../common/api/client";
 import { downloadFile } from "../../../common/api/download";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 
@@ -222,7 +223,13 @@ export default function ProductsPage() {
 
   const doDelete = () => {
     if (!target || remove.isPending) return;
-    remove.mutate(target.id, { onSettled: confirmModal.closeModal });
+    remove.mutate(target.id, {
+      onSettled: confirmModal.closeModal,
+      // `onSettled` closes the dialog either way, which is exactly why a
+      // refusal — an item on an open purchase order, most often — looked like
+      // a deletion.
+      ...failed(toast, "That item was not deleted."),
+    });
   };
 
   return (
@@ -470,7 +477,13 @@ export default function ProductsPage() {
                               // server's own words carry the branch.
                               soldOut.mutate(
                                 { id: p.id, off: !p.sold_out },
-                                { onSuccess: (res) => toast.success(res.message) },
+                                {
+                                  onSuccess: (res) => toast.success(res.message),
+                                  // 86 is a refusal the till, the app and the
+                                  // dine-in tab all obey. One that did not save
+                                  // leaves the item on sale everywhere.
+                                  ...failed(toast, "That did not save — the item is still being sold."),
+                                },
                               );
                             }}
                             disabled={soldOut.isPending}
@@ -549,7 +562,10 @@ export default function ProductsPage() {
                 disabled={variantSoldOut.isPending}
                 onClick={() => eightySix && variantSoldOut.mutate(
                   { productId: eightySix.id, variantId: v.id, off: !off },
-                  { onSuccess: () => setEightySix(null) },
+                  {
+                    onSuccess: () => setEightySix(null),
+                    ...failed(toast, "That size is still being sold."),
+                  },
                 )}
                 className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition disabled:opacity-40 ${
                   off
@@ -571,7 +587,10 @@ export default function ProductsPage() {
           disabled={soldOut.isPending}
           onClick={() => eightySix && soldOut.mutate(
             { id: eightySix.id, off: !eightySix.sold_out },
-            { onSuccess: () => setEightySix(null) },
+            {
+              onSuccess: () => setEightySix(null),
+              ...failed(toast, "That did not save — the item is still being sold."),
+            },
           )}
           className="mt-4 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
         >

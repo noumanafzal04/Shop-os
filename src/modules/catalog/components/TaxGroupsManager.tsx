@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useTaxGroups, useTaxGroupMutations } from "../hooks/useTaxGroups";
@@ -22,14 +23,23 @@ export default function TaxGroupsManager() {
   const save = () => {
     if (!draft.name.trim() || draft.rate === "") return;
     const payload = { name: draft.name.trim(), rate: Number(draft.rate) };
-    const done = { onSuccess: () => { toast.success("Tax group saved"); setDraft({ name: "", rate: "" }); } };
+    // A rate that did not save must not look like one that did. This screen
+    // showed "Tax group saved" and had no error path at all, so a shop changing
+    // its GST rate could be told nothing and go on selling at the old one.
+    const done = {
+      onSuccess: () => { toast.success("Tax group saved"); setDraft({ name: "", rate: "" }); },
+      ...failed(toast, "That tax group did not save — the rate is unchanged."),
+    };
     if (draft.id) update.mutate({ id: draft.id, ...payload }, done);
     else create.mutate(payload, done);
   };
 
   const del = async (g: TaxGroup) => {
     if (await confirm({ title: `Remove "${g.name}"?`, message: "Products on it fall back to their own rate or the shop default.", tone: "danger", confirmLabel: "Remove" })) {
-      remove.mutate(g.id, { onSuccess: () => toast.success("Tax group removed") });
+      remove.mutate(g.id, {
+        onSuccess: () => toast.success("Tax group removed"),
+        ...failed(toast, "That tax group is still there — nothing was removed."),
+      });
     }
   };
 

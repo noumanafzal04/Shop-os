@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import { downloadFile } from "../../../common/api/download";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -88,7 +89,12 @@ export default function CustomersPage() {
       credit_limit: form.credit_limit !== "" && form.credit_limit != null ? Number(form.credit_limit) : null,
       customer_group_id: form.customer_group_id || null,
     };
-    const opts = { onSuccess: () => editor.closeModal() };
+    // A phone-less customer given a credit limit is now REFUSED by the server,
+    // and until this the refusal arrived as a modal that simply stayed open.
+    const opts = {
+      onSuccess: () => editor.closeModal(),
+      ...failed(toast, "That customer did not save."),
+    };
     if (editing) update.mutate({ id: editing.id, ...payload }, opts);
     else create.mutate(payload, opts);
   };
@@ -104,7 +110,12 @@ export default function CustomersPage() {
       price_level: groupDraft.price_level,
       discount_percent: groupDraft.discount_percent !== "" ? Number(groupDraft.discount_percent) : null,
     };
-    const done = { onSuccess: () => { toast.success("Group saved"); setGroupDraft({ name: "", price_level: "retail", discount_percent: "" }); } };
+    const done = {
+      onSuccess: () => { toast.success("Group saved"); setGroupDraft({ name: "", price_level: "retail", discount_percent: "" }); },
+      // A group carries a members' discount, so a save that quietly failed
+      // leaves every member on the old percentage.
+      ...failed(toast, "That group did not save — its members keep the old pricing."),
+    };
     if (groupDraft.id) groupMutations.update.mutate({ id: groupDraft.id, ...payload }, done);
     else groupMutations.create.mutate(payload, done);
   };
@@ -117,7 +128,10 @@ export default function CustomersPage() {
       tone: "danger",
     });
     if (!ok) return;
-    groupMutations.remove.mutate(g.id, { onSuccess: () => toast.success("Group removed") });
+    groupMutations.remove.mutate(g.id, {
+      onSuccess: () => toast.success("Group removed"),
+      ...failed(toast, "That group is still there — nobody fell back to retail."),
+    });
   };
 
   // Record a khata repayment against the open customer, then refresh the detail.
@@ -126,7 +140,13 @@ export default function CustomersPage() {
     if (!detailId || !(amount > 0) || recordPayment.isPending) return;
     recordPayment.mutate(
       { id: detailId, amount, method: payMethod },
-      { onSuccess: () => { setPayAmount(""); detail.refetch(); } },
+      {
+        onSuccess: () => { setPayAmount(""); detail.refetch(); },
+        // MONEY. A repayment that vanished leaves the customer owing what they
+        // have already handed over, and the field clearing was the only sign
+        // either way.
+        ...failed(toast, "That repayment was not recorded — the khata is unchanged."),
+      },
     );
   };
 
@@ -190,7 +210,12 @@ export default function CustomersPage() {
                     <div className="flex justify-end gap-3" onClick={(e) => e.stopPropagation()}>
                       <button className={ROW_ACTION} onClick={() => openEdit(c)}>Edit</button>
                       <button className={ROW_ACTION_DANGER} onClick={async () => {
-                        if (await confirm({ title: `Delete "${c.name}"?`, message: "Sales already made keep their record.", confirmLabel: "Delete", tone: "danger" })) remove.mutate(c.id);
+                        if (await confirm({ title: `Delete "${c.name}"?`, message: "Sales already made keep their record.", confirmLabel: "Delete", tone: "danger" })) {
+                          remove.mutate(c.id, {
+                            onSuccess: () => toast.success(`${c.name} removed`),
+                            ...failed(toast, `${c.name} is still on the list.`),
+                          });
+                        }
                       }}>Delete</button>
                     </div>
                   </td>

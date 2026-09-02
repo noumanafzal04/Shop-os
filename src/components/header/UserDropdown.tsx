@@ -1,3 +1,5 @@
+import { failed } from "../../common/api/failed";
+import { useToast } from "../../components/ui/toast";
 import { useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
@@ -70,6 +72,7 @@ function initials(name: string): string {
 }
 
 export default function UserDropdown() {
+  const toast = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
   const logout = useLogout();
@@ -84,7 +87,9 @@ export default function UserDropdown() {
 
   const signOut = () => {
     closeDropdown();
-    logout.mutate();
+    // A sign-out that failed and said nothing is the one worth catching: on
+          // a shared till the next person is still in the last person's session.
+          logout.mutate(undefined, failed(toast, "You are still signed in — try again."));
   };
 
   if (!user) return null;

@@ -8,6 +8,7 @@ import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
@@ -429,6 +430,7 @@ function ModulesCard({ tenantId, features, defaults }: {
   features: Record<string, boolean>;
   defaults?: Record<string, boolean>;
 }) {
+  const toast = useToast();
   const catalog = useModuleCatalog();
   const save = useUpdateModules();
   const [state, setState] = useState<Record<string, boolean>>(features);
@@ -528,7 +530,13 @@ function ModulesCard({ tenantId, features, defaults }: {
         ))}
       </div>
 
-      <Button size="sm" className="mt-5" disabled={!dirty || save.isPending} onClick={() => save.mutate({ id: tenantId, modules: state })}>
+      <Button size="sm" className="mt-5" disabled={!dirty || save.isPending} onClick={() => save.mutate(
+        { id: tenantId, modules: state },
+        // Modules decide which screens a whole shop can open. A save that did
+        // not land leaves the toggles showing what was asked for rather than
+        // what is true.
+        failed(toast, "Those modules did not save — the shop still has the old set."),
+      )}>
         {save.isPending ? "Saving…" : "Save modules"}
       </Button>
     </div>

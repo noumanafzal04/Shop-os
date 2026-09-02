@@ -13,6 +13,7 @@ import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { downloadFile } from "../../../common/api/download";
+import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 import { useSale, useSaleMutations, useSales } from "../hooks/useSales";
@@ -260,7 +261,12 @@ export default function SalesPage() {
     if (!detailId || cancel.isPending) return;
     cancel.mutate(
       { id: detailId, reason_code: cancelCode, reason: cancelReason.trim() || undefined },
-      { onSuccess: () => setConfirmingCancel(false) },
+      {
+        onSuccess: () => setConfirmingCancel(false),
+        // A void moves stock back and takes money out of a drawer. The dialog
+        // closing was the only signal, so a refused void looked like a done one.
+        ...failed(toast, "That sale was NOT voided — nothing moved."),
+      },
     );
   };
 
