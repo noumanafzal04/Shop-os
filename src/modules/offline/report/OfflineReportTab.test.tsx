@@ -25,6 +25,9 @@ const report = (over: Record<string, unknown> = {}) => ({
     beyond_window: 0,
     after_close: 0,
     after_close_total: 0,
+    clock_off: 0,
+    shifts: 0,
+    shifts_flagged: 0,
     oldest: "2026-08-14T09:00:00.000Z",
     newest: "2026-08-14T17:00:00.000Z",
   },
@@ -45,6 +48,25 @@ const report = (over: Record<string, unknown> = {}) => ({
     },
   ],
   oversold: [],
+  shifts: [],
+  clocks: [],
+  ...over,
+});
+
+/** A shift that was opened, run and counted with no server. */
+const shift = (over: Record<string, unknown> = {}) => ({
+  id: "cs1",
+  opened_at: "2026-08-14T04:00:00.000Z",
+  synced_at: "2026-08-14T14:00:00.000Z",
+  held_hours: 10,
+  closed: true,
+  opening_float: 3000,
+  counted_cash: 8200,
+  variance: 0,
+  till: "Counter tablet",
+  register: "Lane 1",
+  cashier: "Ali",
+  violations: [],
   ...over,
 });
 
@@ -67,7 +89,7 @@ describe("the usual day", () => {
   it("says the tills were in touch, rather than showing an empty table", async () => {
     // Most days this screen has nothing on it, and "nothing" must read as good
     // news rather than as a report that failed to load.
-    show(report({ summary: { sales: 0, total: 0, flagged: 0, beyond_window: 0, after_close: 0, after_close_total: 0, oldest: null, newest: null }, sales: [], oversold: [] }));
+    show(report({ summary: { sales: 0, total: 0, flagged: 0, beyond_window: 0, after_close: 0, after_close_total: 0, clock_off: 0, shifts: 0, shifts_flagged: 0, oldest: null, newest: null }, sales: [], oversold: [], shifts: [], clocks: [] }));
 
     expect(await screen.findByText(/Nothing came in late/)).toBeInTheDocument();
     expect(screen.getByText(/in touch the whole time/)).toBeInTheDocument();
@@ -212,5 +234,94 @@ describe("when it cannot be read", () => {
 
     expect(await screen.findByText(/Couldn't load this report/)).toBeInTheDocument();
     expect(screen.queryByText(/Nothing came in late/)).toBeNull();
+  });
+});
+
+describe("the shifts that ran with no server", () => {
+  const quiet = { sales: 0, total: 0, flagged: 0, beyond_window: 0, after_close: 0, after_close_total: 0, clock_off: 0, shifts: 1, shifts_flagged: 0, oldest: null, newest: null };
+
+  it("names the cashier, the lane and the tablet it arrived from", async () => {
+    // A different tablet from the one in the sales table on purpose: the queue
+    // lives on the DEVICE, so a shift can arrive from a tablet that rang
+    // nothing, and the owner walks over to that one.
+    show(report({ shifts: [shift({ till: "Stockroom tablet" })] }));
+
+    expect(await screen.findByText("Ali")).toBeInTheDocument();
+    expect(screen.getByText("Lane 1")).toBeInTheDocument();
+    expect(screen.getByText("Stockroom tablet")).toBeInTheDocument();
+  });
+
+  it("shows each rule the shift broke by existing", async () => {
+    // Recorded and never corrected, because a counted drawer cannot be left
+    // belonging to nothing. This row is the only place an owner learns of it.
+    show(
+      report({
+        summary: { ...report().summary, shifts: 1, shifts_flagged: 1 },
+        shifts: [shift({ violations: ["Lane 1 already had an open shift (Sana)."] })],
+      }),
+    );
+
+    expect(await screen.findByText(/already had an open shift/)).toBeInTheDocument();
+    expect(screen.getByText(/needs a look/)).toBeInTheDocument();
+  });
+
+  it("counts a flagged shift in the decisions tile beside the sales", async () => {
+    // A 0 there beside a flagged shift below is the screen contradicting
+    // itself, which is worse than not showing shifts at all.
+    show(
+      report({
+        summary: { ...report().summary, flagged: 1, shifts: 1, shifts_flagged: 1 },
+        shifts: [shift({ violations: ["This cashier already had an open shift."] })],
+      }),
+    );
+
+    const tile = (await screen.findByText("Need a decision")).parentElement;
+    expect(tile).toHaveTextContent("2");
+  });
+
+  it("says when a drawer that arrived has still not been counted", async () => {
+    show(
+      report({
+        summary: { ...report().summary, shifts: 1 },
+        shifts: [shift({ closed: false, counted_cash: null, variance: null })],
+      }),
+    );
+
+    expect(await screen.findByText(/nobody has counted this drawer/)).toBeInTheDocument();
+    // Uncounted money is a decision, so the headline must not read "cleanly".
+    expect(screen.getByText(/needs a look/)).toBeInTheDocument();
+  });
+
+  it("does not read as a quiet day when the only thing that happened was a shift", async () => {
+    // "Nothing came in late" over a shift opened on a lane somebody else held
+    // is the report telling an owner the opposite of what it knows.
+    show(report({ summary: quiet, sales: [], shifts: [shift()] }));
+
+    expect(await screen.findByText(/No sales were rung out of contact/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing came in late/)).not.toBeInTheDocument();
+  });
+});
+
+describe("tills with the wrong time", () => {
+  it("names the tablet, how far out it is and which way", async () => {
+    // Signed on purpose: BEHIND files sales into days already banked, AHEAD
+    // into a day nobody has traded yet. One row per tablet, because the unit
+    // of the fix is the tablet and not the forty sales it produced.
+    show(report({ clocks: [{ till: "Counter tablet", sales: 40, skew_seconds: 3 * 86400 }] }));
+
+    expect(await screen.findByText("3 days behind")).toBeInTheDocument();
+    expect(screen.getByText("40 sales")).toBeInTheDocument();
+  });
+
+  it("reads ahead rather than hiding the sign", async () => {
+    show(report({ clocks: [{ till: "Lane 2", sales: 3, skew_seconds: -7200 }] }));
+
+    expect(await screen.findByText("2 hr ahead")).toBeInTheDocument();
+  });
+
+  it("says the books are fine and the tablet is not", async () => {
+    show(report({ clocks: [{ till: "Lane 2", sales: 3, skew_seconds: -7200 }] }));
+
+    expect(await screen.findByText(/Nothing in your books is wrong/)).toBeInTheDocument();
   });
 });

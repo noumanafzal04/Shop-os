@@ -31,6 +31,25 @@ const money = (n: number) => `Rs ${n.toLocaleString()}`;
 const when = (iso: string | null) =>
   iso === null ? "—" : new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
+/**
+ * How far a clock is out, and which way.
+ *
+ * Signed on purpose: a till running BEHIND files sales into days that have been
+ * counted and banked, and one running AHEAD files them into a day nobody has
+ * traded yet. Both are the same defect and the shop has to see which it is.
+ */
+function drift(seconds: number): string {
+  const way = seconds > 0 ? "behind" : "ahead";
+  const off = Math.abs(seconds);
+
+  if (off < 3600) return `${Math.round(off / 60)} min ${way}`;
+  if (off < 86400) return `${Math.round(off / 3600)} hr ${way}`;
+
+  const days = Math.round(off / 86400);
+
+  return `${days} day${days === 1 ? "" : "s"} ${way}`;
+}
+
 /** "2 days", "6 hours" — how long the till held it. */
 function held(hours: number | null): string {
   if (hours === null) return "—";
@@ -61,9 +80,18 @@ export function OfflineReportTab() {
   const data = report.data;
   const summary = data?.summary;
   const sales = data?.sales ?? [];
+  const shifts = data?.shifts ?? [];
+  const clocks = data?.clocks ?? [];
   const oversold = data?.oversold ?? [];
 
-  if (!summary || (summary.sales === 0 && oversold.length === 0)) {
+  // A shift counts as "something happened" on its own. A drawer opened with no
+  // server, on a lane somebody else already held, is exactly the morning this
+  // screen exists for — and reading "Nothing came in late" over it would be
+  // the report telling an owner the opposite of what it knows.
+  if (
+    !summary ||
+    (summary.sales === 0 && shifts.length === 0 && clocks.length === 0 && oversold.length === 0)
+  ) {
     return (
       <div className="rounded-xl border border-success-200 bg-success-50 p-4 dark:border-success-500/30 dark:bg-success-500/10">
         <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
@@ -80,7 +108,15 @@ export function OfflineReportTab() {
   // Money that landed against a signed-off day needs a person just as much as
   // a broken rule does — somebody has to post an adjustment, and nothing else
   // on this screen will ever mention it.
-  const needsAttention = summary.flagged > 0 || oversold.length > 0 || summary.after_close > 0;
+  // An uncounted drawer is on this list too: a shift that arrived and is still
+  // open is money nobody has reconciled, which is not history.
+  const uncounted = shifts.filter((s) => !s.closed).length;
+  const needsAttention =
+    summary.flagged > 0 ||
+    oversold.length > 0 ||
+    summary.after_close > 0 ||
+    summary.shifts_flagged > 0 ||
+    uncounted > 0;
 
   return (
     <div className="space-y-5">
@@ -98,9 +134,21 @@ export function OfflineReportTab() {
             : "Everything that came in late went through cleanly"}
         </p>
         <p className="mt-1 text-theme-xs text-gray-600 dark:text-gray-300">
-          {summary.sales.toLocaleString()} {summary.sales === 1 ? "sale" : "sales"} worth{" "}
-          {money(summary.total)} were rung while a till was out of contact, and are now in your
-          books against the day they actually happened.
+          {summary.sales === 0 ? (
+            // A shift can arrive with no sales behind it — the line came back
+            // before anything was rung. "0 sales worth Rs 0" is a sentence no
+            // owner should have to read.
+            <>
+              No sales were rung out of contact
+              {shifts.length > 0 && ", but a shift was opened with no connection"}.
+            </>
+          ) : (
+            <>
+              {summary.sales.toLocaleString()} {summary.sales === 1 ? "sale" : "sales"} worth{" "}
+              {money(summary.total)} were rung while a till was out of contact, and are now in your
+              books against the day they actually happened.
+            </>
+          )}
         </p>
       </div>
 
@@ -123,7 +171,10 @@ export function OfflineReportTab() {
         {[
           ["Sales", summary.sales.toLocaleString()],
           ["Value", money(summary.total)],
-          ["Need a decision", summary.flagged.toLocaleString()],
+          // Sales AND shifts. The label is about decisions, not about sales,
+          // and a 0 here beside a flagged shift below is the screen
+          // contradicting itself.
+          ["Need a decision", (summary.flagged + summary.shifts_flagged).toLocaleString()],
           ["Need a recount", oversold.length.toLocaleString()],
         ].map(([label, value]) => (
           <div key={label} className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">
@@ -157,6 +208,86 @@ export function OfflineReportTab() {
                     <td className="p-3 text-gray-400">{row.branch}</td>
                     <td className="p-3 text-right font-medium tabular-nums text-error-500">
                       {row.quantity}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {shifts.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+            Shifts that ran with no server
+          </h3>
+          <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+            A drawer can be opened, used and counted with the line down. Two rules can only be
+            broken that way — a lane that was already held, or a cashier who already had a shift
+            open somewhere else — and neither was corrected on arrival, because a counted drawer
+            cannot be left belonging to nothing.
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+            <table className="w-full text-theme-sm">
+              <thead className="text-left text-theme-xs text-gray-400">
+                <tr>
+                  <th className="p-3 font-normal">Shift</th>
+                  <th className="p-3 font-normal">Opened</th>
+                  <th className="p-3 font-normal">Held</th>
+                  <th className="p-3 font-normal">Till</th>
+                  <th className="p-3 text-right font-normal">Counted</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {shifts.map((shift) => (
+                  <tr key={shift.id}>
+                    <td className="p-3">
+                      <div className="text-gray-800 dark:text-white/90">
+                        {shift.cashier ?? "Unknown cashier"}
+                      </div>
+                      {shift.register && (
+                        <div className="text-theme-xs text-gray-400">{shift.register}</div>
+                      )}
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {shift.violations.map((v) => (
+                          <Badge key={v} size="sm" color="warning">
+                            {v}
+                          </Badge>
+                        ))}
+                        {/* The only item here that is not history. */}
+                        {!shift.closed && (
+                          <Badge size="sm" color="light">
+                            Still open — nobody has counted this drawer
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-3 text-gray-500 dark:text-gray-400">{when(shift.opened_at)}</td>
+                    <td className="p-3 text-gray-500 dark:text-gray-400">{held(shift.held_hours)}</td>
+                    <td className="p-3 text-gray-500 dark:text-gray-400">
+                      {shift.till ?? "Unknown till"}
+                    </td>
+                    <td className="p-3 text-right tabular-nums">
+                      {shift.counted_cash === null ? (
+                        <span className="text-gray-400">—</span>
+                      ) : (
+                        <>
+                          <span className="font-medium text-gray-800 dark:text-white/90">
+                            {money(shift.counted_cash)}
+                          </span>
+                          {shift.variance !== null && shift.variance !== 0 && (
+                            <div
+                              className={`text-theme-xs ${
+                                shift.variance < 0 ? "text-error-500" : "text-success-500"
+                              }`}
+                            >
+                              {shift.variance > 0 ? "+" : ""}
+                              {money(shift.variance)}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -220,6 +351,38 @@ export function OfflineReportTab() {
                     </td>
                     <td className="p-3 text-right font-medium tabular-nums text-gray-800 dark:text-white/90">
                       {money(sale.total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {clocks.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+            Tills with the wrong time
+          </h3>
+          <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+            Nothing in your books is wrong — each sale's time was corrected before it was filed.
+            What needs doing is physical: somebody has to set the clock on these tablets, or they
+            will be out again tomorrow.
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+            <table className="w-full text-theme-sm">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {clocks.map((clock, i) => (
+                  <tr key={`${clock.till ?? "till"}-${i}`}>
+                    <td className="p-3 text-gray-800 dark:text-white/90">
+                      {clock.till ?? "Unknown till"}
+                    </td>
+                    <td className="p-3 text-gray-400">
+                      {clock.sales.toLocaleString()} {clock.sales === 1 ? "sale" : "sales"}
+                    </td>
+                    <td className="p-3 text-right font-medium tabular-nums text-warning-500">
+                      {drift(clock.skew_seconds)}
                     </td>
                   </tr>
                 ))}

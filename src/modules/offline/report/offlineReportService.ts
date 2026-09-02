@@ -23,6 +23,31 @@ interface OfflineSaleRow {
   after_close: boolean;
 }
 
+/**
+ * A shift that was opened, run and counted with no server.
+ *
+ * Not a sale, and not summarised as one: opening a shift has invariants a sale
+ * does not have — one open shift per lane, one per cashier — and a shift opened
+ * offline can break them because the lane was taken by whoever got back online
+ * first. The server records the conflict and corrects nothing, so this row is
+ * the only place an owner ever learns of it.
+ */
+interface OfflineShiftRow {
+  id: string;
+  opened_at: string | null;
+  synced_at: string | null;
+  held_hours: number | null;
+  /** False means a drawer nobody has counted — the one live item here. */
+  closed: boolean;
+  opening_float: number;
+  counted_cash: number | null;
+  variance: number | null;
+  till: string | null;
+  register: string | null;
+  cashier: string | null;
+  violations: string[];
+}
+
 interface OfflineReport {
   from: string;
   summary: {
@@ -42,10 +67,31 @@ interface OfflineReport {
      * written from.
      */
     after_close_total: number;
+    /** Sales whose till had the wrong time by more than two minutes. */
+    clock_off: number;
+    /** Shifts, not sales — a different event with different rules. */
+    shifts: number;
+    shifts_flagged: number;
     oldest: string | null;
     newest: string | null;
   };
   sales: OfflineSaleRow[];
+  shifts: OfflineShiftRow[];
+  /**
+   * Tills whose clock is wrong — one row each, not one per sale.
+   *
+   * A different question with a different owner from everything above it: the
+   * moment was corrected before the sale was filed, so no figure in the books
+   * is wrong. What is wrong is a piece of hardware, and the unit of the fix is
+   * the tablet — one three days out produced forty sales and there is still
+   * only one thing to do about it.
+   */
+  clocks: Array<{
+    till: string | null;
+    sales: number;
+    /** Signed. Positive means the till was BEHIND. */
+    skew_seconds: number;
+  }>;
   oversold: Array<{
     product: string | null;
     sku: string | null;
