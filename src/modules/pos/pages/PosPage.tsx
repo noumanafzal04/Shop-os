@@ -42,6 +42,7 @@ import { posService, type HeldSale } from "../services/posService";
 import { posSound } from "../posSound";
 import CashDrawerPanel from "../components/CashDrawerPanel";
 import CloseShiftModal from "../components/CloseShiftModal";
+import { isLocalHeld } from "../heldLocal";
 import { useCoverMutations, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
 import { canRingASale, isCover, isTraining, ringableSessionId, whyCannotRing, type ActiveCover, type CashSession } from "../services/posService";
 import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
@@ -1650,27 +1651,26 @@ export default function PosPage() {
   const doHold = () => {
     if (cart.length === 0) return;
 
-    // A parked ticket lives on the SERVER, on purpose: the list is site-wide,
+    // Online a parked ticket lives on the SERVER and belongs to the whole site,
     // and resuming one is a locked step so two lanes cannot ring the same
-    // basket twice. Neither is available with no line — and until now the
-    // button simply failed in silence, leaving the cashier looking at a ticket
-    // they believed was parked.
+    // basket. With no line this parks on THIS TILL instead — a smaller promise
+    // the till keeps, rather than a bigger one it cannot.
     //
-    // Refused with words rather than a dead button: a disabled control on a
-    // touch screen tells nobody why.
-    if (!connected) {
-      setPosNotice(
-        "Held tickets need the line — the list is shared across every lane. " +
-        "Complete this sale, or leave it on screen until the connection is back.",
-      );
-      holdModal.closeModal();
-
-      return;
-    }
+    // This screen used to refuse outright, three days after `heldLocal.ts` and
+    // its wiring in `usePos` had shipped. Hold, Resume and the list itself each
+    // carried their own `!connected` fence, and each looked reasonable beside
+    // the other two: nothing could be parked, so the list was empty, so showing
+    // it was pointless, so nothing could be parked.
+    //
+    // The queue behind a customer who went back for the milk is exactly when a
+    // till needs to park a ticket, and an outage does not make that customer
+    // patient.
 
     heldMut.hold.mutate(
       {
         label: holdLabel.trim() || undefined, total_estimate: total,
+        // The till is not made to find this out by waiting for a timeout.
+        offline: !connected,
         // Park the WHOLE ticket so nothing is lost on resume.
         cart: {
           items: cart.map((l) => { const copy = { ...l }; delete (copy as Partial<CartLine>).key; return copy; }),
@@ -1689,7 +1689,21 @@ export default function PosPage() {
         },
       },
       {
-        onSuccess: () => { clearSale(); setHoldLabel(""); holdModal.closeModal(); },
+        onSuccess: () => {
+          clearSale();
+          setHoldLabel("");
+          holdModal.closeModal();
+          // Where it went, when that is not where a cashier expects. A ticket
+          // parked offline is on THIS tablet: somebody looking for it at
+          // another lane will not find it, and being told now is the whole
+          // difference between a smaller promise and a broken one.
+          if (!connected) {
+            setPosNotice(
+              "Parked on this till. It is not on the shared list yet, so pick it up here — " +
+              "another lane cannot see it.",
+            );
+          }
+        },
         // Holding CLEARS the cart on success. A failure that said nothing left
         // the cashier looking at a ticket they believed was parked, with the
         // basket still on screen and no way to tell which had happened.
@@ -1709,13 +1723,19 @@ export default function PosPage() {
    * loses the claim is told, instead of ringing the same basket twice.
    */
   const resume = (h: HeldSale) => {
-    // The same fence Hold already has, and for the same reason: claiming is a
-    // LOCKED step on the server, so with no line there is nothing to claim
-    // against. Said out loud rather than left to fail.
-    if (!connected) {
+    // A ticket parked on THIS till is resumed with no line at all — the server
+    // has never heard of it, so there is nothing to claim it against, and no
+    // second lane that could be racing for it. `useHeldMutations` reads the id
+    // and takes the local one back without a request.
+    //
+    // A SHARED ticket is a different matter and keeps its refusal: claiming is
+    // a locked step on the server, and with no line there is genuinely nothing
+    // to claim against. Said out loud rather than left to fail.
+    if (!connected && !isLocalHeld(h.id)) {
       setPosNotice(
-        "Resuming a parked ticket needs the line — the claim is what stops two lanes " +
-        "ringing the same basket. Try again when the connection is back.",
+        "That ticket is on the shared list, and resuming one needs the line — the claim " +
+        "is what stops two lanes ringing the same basket. Tickets parked on this till " +
+        "can still be picked up.",
       );
       heldModal.closeModal();
 
@@ -3427,6 +3447,15 @@ export default function PosPage() {
           Anything that identifies them. A drafts list of unnamed tickets means opening each one
           to find the right customer — in front of the customer.
         </p>
+        {/* Said BEFORE it is parked, not only afterwards. A cashier who knows
+            this is about to happen can tell the customer which counter to come
+            back to, which is the whole difference this limitation makes. */}
+        {!connected && (
+          <p className="mt-2 rounded-lg bg-gray-50 p-2 text-theme-xs text-gray-500 dark:bg-white/5 dark:text-gray-400">
+            With no connection this parks on <strong>this till</strong>. Another lane will not see
+            it until it is rung here.
+          </p>
+        )}
         <div className="mt-5 flex justify-end gap-2">
           <Button size="sm" variant="outline" onClick={holdModal.closeModal}>Cancel</Button>
           <Button size="sm" onClick={doHold} disabled={heldMut.hold.isPending}>
@@ -3975,17 +4004,27 @@ export default function PosPage() {
         {/* "No held sales" is a FALSE statement with no line, and the worst
             possible one here: the shop may have ten parked tickets, and a
             cashier told there are none rings one of them again from scratch.
-            The list is the server's — say that, rather than answering a
-            question this till cannot answer. */}
-        {!connected ? (
+
+            But refusing to show ANYTHING was the other half of the same
+            mistake. Tickets parked on this till are right here, in this list,
+            and `useHeldSales` has always merged them — the screen simply
+            replaced them with a sentence about the shared list. So: show what
+            this till holds, and say separately that the shared list cannot be
+            read from here. */}
+        {(held.data ?? []).length === 0 ? (
           <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            Held tickets are shared across every lane, so this list needs the
-            line. It is not empty — it cannot be read from here.
+            {connected
+              ? "No held sales."
+              : "Nothing is parked on this till. The shared list needs the line — it is not empty, it cannot be read from here."}
           </p>
-        ) : (held.data ?? []).length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-400">No held sales.</p>
         ) : (
           <div className="space-y-2">
+            {!connected && (
+              <p className="rounded-lg bg-gray-50 p-2 text-theme-xs text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                These are parked on this till. The shared list cannot be read with no line, so
+                tickets from other lanes are not shown.
+              </p>
+            )}
             {(held.data ?? []).map((h) => (
               <div key={h.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-gray-800">
                 <div className="min-w-0">
@@ -4005,6 +4044,10 @@ export default function PosPage() {
                         an anonymous pile. */}
                     {h.user?.name ? ` · ${h.user.name}` : ""}
                     {h.register?.name ? ` · ${h.register.name}` : ""}
+                    {/* Which kind of ticket this is, on the row itself. A
+                        cashier sending a customer to another lane needs to
+                        know that this one cannot follow them. */}
+                    {isLocalHeld(h.id) ? " · this till only" : ""}
                   </div>
                 </div>
                 <div className="flex gap-2">

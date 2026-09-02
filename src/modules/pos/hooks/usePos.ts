@@ -274,14 +274,27 @@ export function useHeldMutations() {
    * returned, by which time the basket has usually been rung.
    */
   const hold = useMutation({
-    mutationFn: async (payload: { label?: string; cart: HeldSale["cart"]; total_estimate: number }) => {
+    mutationFn: async ({ offline, ...payload }: {
+      label?: string;
+      cart: HeldSale["cart"];
+      total_estimate: number;
+      /** The till already knows it has no line. See below. */
+      offline?: boolean;
+    }) => {
+      const tenantId = () => useAuthStore.getState().user?.tenant?.id ?? null;
+
+      // Asked for, not discovered. The catch below would park this ticket too,
+      // but only after a 20-second request timeout — twenty seconds of a
+      // cashier holding a queue while the till decides whether the internet is
+      // there, when the till was already showing an offline pill.
+      if (offline === true) return { data: holdLocally(payload, tenantId()) } as never;
+
       try {
         return await posService.hold(payload);
       } catch (error) {
+        // The other half: the till believed it was connected and was not.
         if (error instanceof ApiError && error.status === 0) {
-          const tenantId = useAuthStore.getState().user?.tenant?.id ?? null;
-
-          return { data: holdLocally(payload, tenantId) } as never;
+          return { data: holdLocally(payload, tenantId()) } as never;
         }
 
         throw error;

@@ -175,35 +175,71 @@ test("a till that reboots into an outage opens its own drawer and counts it out"
   const lines = await fillCart(page, 1);
   expect(lines, "the drawer opened offline but the till would not take a line").toBe(1);
 
-  // ── what the till REFUSES with no line, and how it says so ──────────
+  // ── PARK A TICKET WITH NO LINE, AND PICK IT UP AGAIN ────────────────
   //
-  // A parked ticket lives on the server on purpose: the list is site-wide and
-  // resuming one is a locked step, so two lanes cannot ring the same basket.
-  // Neither works offline — and the button used to fail in silence, leaving a
-  // cashier looking at a ticket they believed was parked.
+  // The queue behind a customer who has gone back for the milk is exactly when
+  // a till needs to park a ticket, and an outage does not make that customer
+  // patient. Online a parked ticket is shop-wide and resumed by a locked claim;
+  // offline it is parked on THIS till, and the till says so on the row.
+  //
+  // This screen used to refuse all three of hold, resume and the list, three
+  // days after `heldLocal.ts` and its wiring in `usePos` had shipped — each
+  // fence propping up the next.
   await page.getByRole("button", { name: /Hold/i }).first().click();
   await page.waitForTimeout(400);
+  const holdDialog = page.getByRole("dialog");
+  // A bare <input> with no `type`, so `input[type=text]` matches nothing —
+  // the attribute selector needs the attribute to be present.
+  const labelBox = holdDialog.getByPlaceholder(/Customer name/i).first();
+  if (await labelBox.isVisible().catch(() => false)) await labelBox.fill("Milk run");
   // "Hold ticket" — the dialog's confirm. `/^Hold$/` matched nothing, so the
   // modal simply stayed open and the check tested a button nobody pressed.
-  const holdConfirm = page.getByRole("dialog").getByRole("button", { name: /^Hold ticket$/ }).last();
-  if (await holdConfirm.isVisible().catch(() => false)) await holdConfirm.click();
+  const holdConfirm = holdDialog.getByRole("button", { name: /^Hold ticket$/ }).last();
+  await expect(holdConfirm, "the hold dialog offered nothing to confirm with").toBeVisible({ timeout: 8000 });
+  await holdConfirm.click();
+  await page.waitForTimeout(600);
+
   // `:visible`, because the strip is drawn once per layout and CSS picks. A
   // plain text match finds both and Playwright's strict mode refuses — rightly.
   await expect(
     page.locator("[data-pos-notice]:visible"),
-    "pressing Hold with no line did nothing and said nothing",
-  ).toContainText(/Held tickets need the line/i, { timeout: 8000 });
+    "the ticket was parked with no line and the till did not say WHERE — a cashier who "
+      + "thinks it is on the shared list sends the customer to another lane",
+  ).toContainText(/Parked on this till/i, { timeout: 8000 });
 
-  // And the list must not claim to be EMPTY, which is the worse lie: a shop
-  // with ten parked tickets, a cashier told there are none, and the ticket rung
-  // again from scratch.
+  // Parking clears the cart. If it did not, everything below is measuring a
+  // basket that was never parked at all.
+  await showPane(page, "Cart");
+  expect(
+    await page.locator("[data-cart-row]").count(),
+    "the ticket was parked and the basket was still on screen",
+  ).toBe(0);
+
+  // The list must show what THIS till holds, and must not claim to know the
+  // shared one — the worse lie is "No held sales" over ten parked tickets.
   await page.getByRole("button", { name: /Drafts/i }).first().click();
+  const draftList = page.getByRole("dialog");
   await expect(
-    page.getByText(/cannot be read from here/i),
-    'the held list answered "No held sales" with no line — it cannot know that',
+    draftList.getByText("Milk run"),
+    "a ticket parked on this till was not in this till's own list",
   ).toBeVisible({ timeout: 8000 });
-  await page.getByRole("dialog").getByRole("button", { name: "Close" }).first().click();
-  await page.waitForTimeout(400);
+  await expect(
+    draftList.getByText(/this till only/i),
+    "the row did not say the ticket cannot be picked up at another lane",
+  ).toBeVisible({ timeout: 8000 });
+  await expect(
+    draftList.getByText(/shared list cannot be read/i),
+    "the list showed local tickets and implied that was all of them",
+  ).toBeVisible({ timeout: 8000 });
+
+  // And it comes BACK. A park with no recall is a basket thrown away politely.
+  await draftList.getByRole("button", { name: /^Resume$/ }).first().click();
+  await page.waitForTimeout(800);
+  await showPane(page, "Cart");
+  expect(
+    await page.locator("[data-cart-row]").count(),
+    "the parked ticket was resumed with no line and the basket did not come back",
+  ).toBe(1);
 
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
   await page.getByRole("button", { name: /^Complete sale/ }).click();
