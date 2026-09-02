@@ -465,10 +465,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->withoutMiddleware('throttle:api')
                 ->group(function (): void {
                     Route::get('/lookup', [PosController::class, 'lookup']);
-                    // The counter's own shortlist — derived from what this branch
-                    // actually sells, un-scannable items first. Never curated: a
-                    // favourites list somebody has to maintain is wrong in a month.
-                    Route::get('/quick-keys', [PosController::class, 'quickKeys']);
                     Route::get('/session', [PosController::class, 'currentSession']);
                     Route::post('/session/open', [PosController::class, 'openSession']);
                     // Terminal handover — carry an open drawer to another lane.

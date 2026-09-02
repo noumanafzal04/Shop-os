@@ -85,7 +85,7 @@ class BooksOnlyTenantWalkthroughTest extends TestCase
         // The door is shut, not the room empty. An empty catalog reads as "a
         // shop that has not added products yet" and sends the owner looking for
         // an Add button that should never have been drawn.
-        foreach (['/api/v1/products', '/api/v1/pos/session', '/api/v1/pos/quick-keys', '/api/v1/suppliers'] as $url) {
+        foreach (['/api/v1/products', '/api/v1/pos/session', '/api/v1/pos/bootstrap', '/api/v1/suppliers'] as $url) {
             $this->as($this->owner)->getJson($url)
                 ->assertForbidden()
                 ->assertJsonPath('meta.error_code', 'MODULE_DISABLED');

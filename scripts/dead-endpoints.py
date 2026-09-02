@@ -74,6 +74,68 @@ CODE_EXT = (".ts", ".tsx", ".js", ".jsx", ".dart", ".vue")
 PARAM = r"[^/'\"`)\s]+"
 
 
+def without_comments(src: str) -> str:
+    """
+    Client code with its comments taken out.
+
+    A COMMENT IS NOT A CALLER. This scan asks which routes nothing calls, and it
+    was reading the whole file — so a docblock that merely NAMES a path counted
+    as a caller and the route disappeared from the report. `/pos/quick-keys` was
+    hidden that way: nothing in the panel or the phone fetches it, and one line
+    of prose in `posService.ts` explaining that the strip used to live there was
+    enough to make it look alive.
+
+    That is the worst direction for this tool to be wrong in. A route reported
+    dead is checked by hand; a route quietly kept off the list is never looked
+    at again — and the comments most likely to name a path are exactly the ones
+    written when it was RETIRED.
+
+    Strings are left alone. `//` inside a URL literal (`https://…`) would be
+    eaten by a naive line-comment strip, so the scan walks the source and knows
+    when it is inside a quote.
+    """
+    out: list[str] = []
+    i, n = 0, len(src)
+    quote: str | None = None
+
+    while i < n:
+        ch = src[i]
+
+        if quote is not None:
+            out.append(ch)
+            if ch == "\\" and i + 1 < n:      # an escape takes the next char with it
+                out.append(src[i + 1])
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+
+        if ch in "\"'`":
+            quote = ch
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch == "/" and i + 1 < n and src[i + 1] == "/":
+            while i < n and src[i] != "\n":
+                i += 1
+            continue
+
+        if ch == "/" and i + 1 < n and src[i + 1] == "*":
+            end = src.find("*/", i + 2)
+            i = n if end == -1 else end + 2
+            # keep the newlines so line numbers in any later report survive
+            out.append("\n")
+            continue
+
+        out.append(ch)
+        i += 1
+
+    return "".join(out)
+
+
 def client_source() -> str:
     blob, files, missing = [], 0, []
 
@@ -88,7 +150,9 @@ def client_source() -> str:
                 if name.endswith(CODE_EXT):
                     path = os.path.join(dirpath, name)
                     try:
-                        blob.append(open(path, encoding="utf-8", errors="ignore").read())
+                        blob.append(without_comments(
+                            open(path, encoding="utf-8", errors="ignore").read()
+                        ))
                         files += 1
                     except OSError:
                         pass

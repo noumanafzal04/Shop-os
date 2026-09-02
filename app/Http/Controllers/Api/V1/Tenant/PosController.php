@@ -7,7 +7,6 @@ use App\Actions\Pos\MoveCashSessionAction;
 use App\Actions\Pos\OpenCashSessionAction;
 use App\Actions\Pos\RecordCashMovementAction;
 use App\Actions\Pos\ReliefCoverAction;
-use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Models\CashMovement;
@@ -19,7 +18,6 @@ use App\Models\ProductBarcode;
 use App\Models\ProductUnit;
 use App\Models\ProductVariant;
 use App\Models\Register;
-use App\Models\SaleItem;
 use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
@@ -880,73 +878,6 @@ class PosController extends Controller
      * is short — so lane 3 must be able to see and resume lane 1's ticket. Each
      * row carries who parked it and where, so the list stays readable.
      */
-    /**
-     * The items this counter reaches for, without anyone maintaining a list.
-     *
-     * A scanner covers everything with a barcode. What it cannot do is the
-     * loose half of a shop — vegetables, rice by the kilo, a cup of chai, the
-     * samosas by the till — and those are exactly the fastest-moving lines in a
-     * mart or a dhaba. Finding them meant typing a name into search, per item,
-     * all day.
-     *
-     * DERIVED, never curated. A favourites list a merchant has to maintain is a
-     * list that is wrong within a month: the till already knows what it sells.
-     * Items with NO BARCODE come first — they are the ones that cannot be
-     * scanned, so they are the ones a quick key actually saves — and the rest
-     * of the slots go to what has sold most since. Branch-scoped, because what
-     * moves at one shop is not what moves at another.
-     *
-     * A shop's first day returns an empty list and the strip simply isn't
-     * drawn. Nothing to configure, nothing to explain.
-     */
-    public function quickKeys(Request $request): JsonResponse
-    {
-        $days = min(90, max(7, (int) $request->query('days', 30)));
-        $limit = min(24, max(4, (int) $request->query('limit', 12)));
-        $branchId = $this->branch->scopeId();
-        $since = now()->subDays($days);
-
-        $sold = SaleItem::query()
-            ->whereHas('sale', fn ($q) => $q
-                ->whereIn('status', [SaleStatus::Completed, SaleStatus::PartiallyRefunded])
-                ->where('sold_at', '>=', $since)
-                ->when($branchId !== null, fn ($s) => $s->where('branch_id', $branchId)))
-            ->whereNotNull('product_id')
-            ->selectRaw('product_id, SUM(quantity) as units')
-            ->groupBy('product_id')
-            ->orderByDesc('units')
-            // Read wider than the slots on offer: the ranking is trimmed only
-            // after inactive and deleted items have been dropped, or a
-            // discontinued best-seller silently eats a slot.
-            ->limit($limit * 3)
-            ->pluck('units', 'product_id');
-
-        if ($sold->isEmpty()) {
-            return ApiResponse::ok([]);
-        }
-
-        $products = Product::query()
-            ->with(['variants', 'images', 'units'])
-            ->whereIn('id', $sold->keys())
-            ->where('is_active', true)
-            ->get()
-            // Un-scannable first, then by what actually moved. A barcode-less
-            // item is the whole reason this list exists.
-            ->sortBy([
-                fn (Product $a, Product $b) => (int) filled($a->barcode) <=> (int) filled($b->barcode),
-                fn (Product $a, Product $b) => (float) $sold[$b->id] <=> (float) $sold[$a->id],
-            ])
-            ->take($limit)
-            ->values();
-
-        // The same branch figures the product list stamps. Without this the
-        // strip's sizes carried the shop-wide rollup while the grid's carried
-        // this branch's shelf — two answers to one question, on one screen.
-        ProductController::stampBranchFigures($products, $products->all(), $branchId);
-
-        return ApiResponse::ok($products);
-    }
-
     public function heldIndex(Request $request): JsonResponse
     {
         $branchId = $this->branch->scopeId();
