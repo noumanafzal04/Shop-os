@@ -307,6 +307,28 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-02 (last) — a comment counted as a caller
+
+`dead-endpoints.py` read each client file whole, so a docblock that merely NAMES
+a path counted as a caller. `/pos/quick-keys` was hidden that way: nothing
+fetches it, and one line of prose in `posService.ts` saying the strip *used to*
+live there kept it off the list.
+
+That is the worst direction for this tool to be wrong in — a route reported dead
+is checked by hand, a route quietly kept off the list is never looked at again,
+and the comments most likely to name a path are the ones written when it was
+retired. The scan now strips comments, walking the source so a `//` inside a URL
+literal survives. Denominator held; dead routes 1 → 2.
+
+The endpoint was genuinely dead and the panel records why — removed at the
+shop's request, because the strip cost a row above what the cashier is looking
+at and only ever drew at `xl`. Not the "built but unreachable" pattern but its
+opposite: a feature withdrawn from the screen whose server half nobody deleted,
+kept alive for months by its own seven tests. Route, controller method, two
+imports, an orphaned comment and `QuickKeysTest` all removed.
+
+2404 passed, exit 0 — seven fewer tests, and the same arithmetic.
+
 ### 2026-09-02 (late) — a tank with no gate, and a nozzle that books a meter's whole life
 
 The last two always-supplied fields from the untested-absence scan, and both

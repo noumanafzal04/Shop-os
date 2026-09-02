@@ -155,8 +155,7 @@ asks the cross-module question none of them asks.
       claim protocol the outbox does not have. Both doors now REFUSE out loud.
 - [ ] **C21** — the panel's silent saves: 194 of 209 `useMutation` sites carry
       no `onError`, and `queryClient.ts` has no `MutationCache` fallback.
-- [ ] **C22** — `dead-endpoints.py` counts a path named in a COMMENT as a
-      caller, so `/pos/quick-keys` — which nothing calls — is not flagged.
+- [x] **C22** — fixed, and it was hiding a whole retired feature. See F15.
 
       Note for whoever runs these: **do not pass `--reporter`**. It replaces the
       configured list, and the first restaurant run reported "2 skipped" while
@@ -282,6 +281,40 @@ categories, customer groups, riders, collections, banks, bank offers, tanks,
 pumps and tables all leave untouched fields alone, and a collection keeps its
 items through a rename. Mutation-proven by making a branch update blank its own
 `code`.
+
+### F15 — a comment counted as a caller, and hid a retired endpoint  ·  FIXED
+
+`dead-endpoints.py` asks which routes nothing calls, and read each client file
+whole — so a docblock that merely NAMES a path counted as a caller.
+
+`/pos/quick-keys` was hidden exactly that way. Nothing in the panel or the phone
+fetches it; one line of prose in `posService.ts` explaining that the strip *used
+to* live there was enough to keep it off the list.
+
+**That is the worst direction for this tool to be wrong in.** A route reported
+dead gets checked by hand; a route quietly kept off the list is never looked at
+again — and the comments most likely to name a path are the ones written when it
+was RETIRED.
+
+The scan now strips comments before reading, walking the source so a `//` inside
+a URL literal is not eaten. Denominator held: 679 client files, 376 call sites,
+all still resolving. Dead routes found: **1 → 2**.
+
+The endpoint itself was genuinely dead, and the panel says why: *"Removed at the
+shop's request: it cost a row of vertical space above the thing a cashier is
+actually looking at, and by then it was only ever drawn at `xl`, so most
+counters never saw it at all."* So this is not the "built but unreachable"
+pattern — it is its opposite: a feature deliberately withdrawn from the screen
+whose server half nobody deleted, kept alive for months by its own seven tests.
+
+Removed: the route, `PosController::quickKeys`, its two now-unused imports, an
+orphaned comment above where the route had been, and `QuickKeysTest`.
+`BooksOnlyTenantWalkthroughTest` was pointing at it to prove a books-only shop is
+refused the till; it now names a live route instead.
+
+Remaining: `GET /admin/staff/{staff}` — a REST `show` nothing calls, kept because
+its absence from a resource that has index/store/update/destroy would be the
+odder thing.
 
 ### F14 — a tank with no gate, and a nozzle that books a meter's whole life  ·  FIXED
 

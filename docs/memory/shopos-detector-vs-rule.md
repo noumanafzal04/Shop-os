@@ -41,3 +41,26 @@ the docblock keeps claiming the broad rule.
 
 Related: [[shopos-endpoint-reachability]], [[shopos-item-rule-on-sync]],
 [[shopos-reachability-rule]], [[shopos-ui-sweep-aug17]].
+
+## 2026-09-02 — a comment counted as a caller
+
+`dead-endpoints.py` asks which routes nothing calls and read each client file
+WHOLE, so a docblock that merely NAMES a path counted as a caller.
+`/pos/quick-keys` was hidden that way — nothing fetches it, and one line of prose
+saying the strip *used to* live there was enough.
+
+**That is the worst direction for this class of tool to be wrong in.** A route
+reported dead gets checked by hand; a route quietly kept OFF the list is never
+looked at again — and the comments most likely to name a path are exactly the
+ones written when it was retired.
+
+Fixed by stripping comments before scanning, walking the source so a `//` inside
+a URL literal is not eaten. Denominator held (679 files, 376 call sites), dead
+routes 1 → 2.
+
+Sister finding the same day: `untested-absence.py` could not see a test helper
+that dispatches through `->{$verb.'Json'}($url)`, so it reported 13 routes as
+untested while a matrix was posting to 12 of them
+([[shopos-khata-needs-a-phone]]). **Both are the same shape: a scanner reading
+the shape it was written for, and calling everything else absent.**
+
