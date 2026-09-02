@@ -77,11 +77,15 @@ Nine ✅ claims in that table, read against the code:
 | Discount within the ceiling | holds |
 | Attach a customer for attribution | holds (free text + cached group match) |
 | **Open / close a shift, count the drawer** | **not implemented** |
-| **Hold and recall a sale** | **not implemented** — `/pos/held` is server-only, no local store, and no refusal message either, so it fails with a generic error |
+| **Hold and recall a sale** | holds, **local to this till** — see `shopos-park-it-here.md`. This row said "not implemented" for a fortnight after `heldLocal.ts` shipped, while the till's own screen refused it in three places |
 | Loyalty earn (server awards on sync) | holds; redeem is correctly refused |
 | Coupon: unlimited-use rules | false in the SAFE direction — `canSellOffline` refuses every coupon, including unlimited-use |
 
 Six hold. Two are false in the dangerous direction. One is false in the safe one.
+
+**Re-read 2026-09-03:** the hold row above was itself stale — a "still owed" list is a
+claim, and this is the second time one in this document went stale before anybody
+re-read it. Check the code, not the row.
 
 Note what the open cart does NOT cover: `cartStorage.ts` parks the trolley in
 localStorage so a stray F5 does not lose a customer. That is the CART. It is not

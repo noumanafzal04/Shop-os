@@ -5776,6 +5776,62 @@ them back.
 
 ---
 
+### 2026-09-03 — a finished feature, switched off by three of its own fences
+
+C20 said offline hold/recall was "the last offline coding task, and a design
+question rather than an oversight". Both halves were wrong. **The design had
+been decided and the code shipped on 18 August:** `heldLocal.ts` parks, lists,
+claims and removes a ticket on this till, tenant-fenced and twelve-hour bounded,
+with seven unit tests — and `usePos` was wired for all of it, merging the local
+rows into the held list and taking the local path in `hold`, `claim` and
+`remove`.
+
+**The till's own screen refused it in three places**, added three days later:
+Hold said *"Held tickets need the line"*, Resume said the same, and the list
+said *"It is not empty — it cannot be read from here"*. Each is defensible
+beside the other two, which is exactly what kept it alive: nothing could be
+parked, so the list was empty, so showing it was pointless, so nothing could be
+parked. And the commit that added them was itself a real fix — "No held sales"
+is a lie when the shop has ten. It replaced a lie with a refusal, and the
+refusal was the newer mistake.
+
+`docs/decisions/shopos-offline-shift-gap.md` meanwhile still read **"not
+implemented — `/pos/held` is server-only, no local store"**. Two documents and
+one screen, all describing a file none of them had opened.
+
+**What the feature promises now.** Online a parked ticket belongs to the whole
+site and is resumed by a locked claim, so two lanes cannot ring one basket. With
+no line it makes the *smaller* promise instead of breaking the big one: parked
+on this till, listed on this till, resumed on this till — nobody else can see
+it, so nobody else can take it, and the rule holds by construction rather than
+by a lock. The till says so three times: before parking, after parking, and on
+the row (`· this till only`), so a cashier can tell the customer which counter
+to come back to.
+
+Resume keeps its refusal for a SHARED ticket, because that claim genuinely does
+need the server. And `hold` gained an explicit `offline` flag: the `status 0`
+fallback stays for a till that *believed* it was connected, but one already
+showing an offline pill must not spend a **20-second request timeout**
+rediscovering that with a customer waiting.
+
+Local tickets are still never pushed up — `heldLocal.ts` had already written
+down why, and it is right: a held ticket is an intent, not money, and a queue
+that could only flush after the line returned would hand the shop baskets that
+had already been rung.
+
+**Proven in a browser, which is the only place it could be.**
+`e2e/offline-shift.spec.ts` parks with `context.setOffline(true)`, checks the
+cart cleared, finds the ticket in the list marked *this till only*, resumes it
+and confirms the basket came back — green on desktop, phone and
+tablet-landscape. Restoring the Hold fence turns it red on the exact sentence.
+jsdom reports `navigator.onLine === true` no matter what, so no unit test in
+this repo could ever have caught it.
+
+Gates: panel tsc 0 · eslint 0 errors · vitest **1347 / 119 files** · build 0 ·
+Playwright 13 passed on three viewports.
+
+---
+
 ### 2026-09-02 — recorded for the owner to reconcile, and shown to nobody
 
 Closing the last item on the trade-day ledger — five optional fields that every

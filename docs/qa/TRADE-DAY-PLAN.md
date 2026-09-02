@@ -139,14 +139,12 @@ asks the cross-module question none of them asks.
       F16.
 - [x] **C22** — fixed, and it was hiding a whole retired feature. See F15.
 
-### Still open
+- [x] **C20** — CLOSED, and this entry was wrong on both counts. It was not a
+      design question and it was not the last coding task: the design had been
+      decided and the code shipped on 18 August. What was left was three
+      `!connected` fences on the till's own screen. See F18.
 
-- [ ] **C20** — offline **hold / recall** is the last offline coding task, and
-      it is a design question rather than an oversight: a parked ticket is
-      site-wide and resuming one is a locked step, so holding locally needs a
-      claim protocol the outbox does not have. Both doors now REFUSE out loud.
-
-### Parked — asked 2026-09-02, to start once C20 is closed
+### Parked — asked 2026-09-02, to start next
 
 - [ ] **P1 — one shop, only the modules it uses.** A small takeaway café is
       shown disposals, bank accounts and a warehouse's worth of screens that
@@ -285,6 +283,47 @@ categories, customer groups, riders, collections, banks, bank offers, tanks,
 pumps and tables all leave untouched fields alone, and a collection keeps its
 items through a rename. Mutation-proven by making a branch update blank its own
 `code`.
+
+### F18 — a finished feature, switched off by three of its own fences  ·  FIXED
+
+**Found by C20**, by reading the code before writing it. Offline hold/recall was
+already built: `heldLocal.ts` (18 Aug) parks, lists, claims and removes, is
+tenant-fenced and twelve-hour bounded, and has seven unit tests; `usePos` merged
+the local rows into the held list and took the local path in `hold`, `claim` and
+`remove`.
+
+`PosPage` refused it in three places, added 21 Aug:
+
+| door | what it said |
+|---|---|
+| Hold | *"Held tickets need the line… complete this sale"* |
+| Resume | *"Resuming a parked ticket needs the line"* |
+| the list | *"It is not empty — it cannot be read from here"* |
+
+Each is defensible **beside the other two**, which is what kept it alive:
+nothing could be parked, so the list was empty, so showing it was pointless, so
+nothing could be parked. The commit that added them was itself a real fix — "No
+held sales" is a lie when the shop has ten parked tickets — and it replaced the
+lie with a refusal three days after the thing being refused had shipped.
+
+Meanwhile `docs/decisions/shopos-offline-shift-gap.md` still read **"not
+implemented — `/pos/held` is server-only, no local store"**, and this ledger
+called it *"a design question rather than an oversight"*. Two documents and one
+screen, all describing a file none of them had opened.
+
+**Fixed:** Hold parks locally with no line; Resume takes a local ticket back
+with no line and keeps its refusal for a SHARED one (that claim genuinely needs
+the server); the list shows what this till holds and says separately that the
+shared half cannot be read. The till states the limit three times — before
+parking, after parking, and on the row (`· this till only`) — so a cashier can
+tell the customer which counter to come back to. The hook gained an explicit
+`offline` flag so a till already showing an offline pill does not spend a
+20-second request timeout rediscovering it at the counter.
+
+**Proven in a browser**, which is the only place this could be proven —
+`e2e/offline-shift.spec.ts` on desktop, phone and tablet-landscape. Restoring
+the Hold fence turns it red on *"the ticket was parked with no line and the till
+did not say WHERE"*. jsdom reports `navigator.onLine === true` no matter what.
 
 ### F17 — recorded for the owner to reconcile, and shown to nobody  ·  FIXED
 
