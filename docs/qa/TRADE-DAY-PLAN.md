@@ -83,15 +83,11 @@ asks the cross-module question none of them asks.
 - [x] **C7** — `docs/decisions/shopos-a-day-and-its-chorus.md`, HANDOVER ×2,
       memory `shopos-day-and-chorus`, Help Centre (POS · Day · Reports).
 
-### Still open
-
 - [x] **C8** — done, and it found that F3's own fix was half a rule. See F4.
 - [x] **C9** — the two spellings agree today only because `SaleStatus` has
       exactly four cases. Written down as `WhichSalesCountTest`, whose failure
       message SCANS for the other spelling rather than listing it — it names
       four files and nine sites. Mutation-proven.
-
-### Still open
 
 - [x] **C10** — ran Playwright, which had not seen a screen since the relation
       optionality change. One failure, on the screen this work had just
@@ -99,8 +95,6 @@ asks the cross-module question none of them asks.
 - [x] **C11** — three more chorus questions: what the item earned (Q6), what
       went to the bank and what is still in the shop (Q7), and the staff report
       as a fifth answer to Q1. Q6 immediately caught F6.
-
-### Still open
 
 - [x] **C12** — every Playwright project run, with the configured reporters:
 
@@ -114,53 +108,63 @@ asks the cross-module question none of them asks.
       **303 passed, 0 failed**, and every run ended `Every other check ran. No
       spec talked itself out of existence.`
 
-### Still open
-
-- [x] **C13** — the EDIT MATRIX. The two scanner findings collapsed into one
-      question and one file. See F7 and F8.
-
-### Still open
-
-- [x] **C14** — the matrix now reaches all of them, and found the same mistake
-      a third time. See F10.
-
-### Still open
-
-- [x] **C15** — ran every scanner the repo already has. Three green;
-      `dead-rules.py` red. See F11.
-
-### Still open
-
-- [x] **C16** — ran the parent-repo scanners too. `screen-permission-drift`
-      green; `unreachable-pages` red. See F12.
-
-### Still open
-
-- [x] **C17** — re-ran `untested-absence.py` to check my own work, and found
-      the scanner could not see it. See F13.
-
-### Still open
-
-- [x] **C18** — done. Both branches were live defects. See F14.
-
-### Still open
-
-- [ ] **C19** — 5 always-supplied fields remain (`audience`, `target_type`,
-      a banner's `title`, `price_level`, and the shift sync's `device_id`).
-      Each has a plausible column default; only `device_id` looks worth
-      driving down.
-- [ ] **C20** — offline **hold / recall** is the last offline coding task, and
-      it is a design question rather than an oversight: a parked ticket is
-      site-wide and resuming one is a locked step, so holding locally needs a
-      claim protocol the outbox does not have. Both doors now REFUSE out loud.
-- [x] **C21** — done, and the headline number was wrong five times first. See
-      F16.
-- [x] **C22** — fixed, and it was hiding a whole retired feature. See F15.
-
       Note for whoever runs these: **do not pass `--reporter`**. It replaces the
       configured list, and the first restaurant run reported "2 skipped" while
       `skipReporter` — the thing that says WHICH — had been switched off by the
       flag asking for a reporter.
+
+- [x] **C13** — the EDIT MATRIX. The two scanner findings collapsed into one
+      question and one file. See F7 and F8.
+
+- [x] **C14** — the matrix now reaches all of them, and found the same mistake
+      a third time. See F10.
+
+- [x] **C15** — ran every scanner the repo already has. Three green;
+      `dead-rules.py` red. See F11.
+
+- [x] **C16** — ran the parent-repo scanners too. `screen-permission-drift`
+      green; `unreachable-pages` red. See F12.
+
+- [x] **C17** — re-ran `untested-absence.py` to check my own work, and found
+      the scanner could not see it. See F13.
+
+- [x] **C18** — done. Both branches were live defects. See F14.
+
+- [x] **C19** — CLOSED at zero. All five now have a test that omits them, and
+      `device_id` was worth driving down for a reason I did not expect: it led
+      to F17. `untested-absence.py` reads *544 pairs examined, every optional
+      field omitted by at least one test.*
+
+- [x] **C21** — done, and the headline number was wrong five times first. See
+      F16.
+- [x] **C22** — fixed, and it was hiding a whole retired feature. See F15.
+
+### Still open
+
+- [ ] **C20** — offline **hold / recall** is the last offline coding task, and
+      it is a design question rather than an oversight: a parked ticket is
+      site-wide and resuming one is a locked step, so holding locally needs a
+      claim protocol the outbox does not have. Both doors now REFUSE out loud.
+
+### Parked — asked 2026-09-02, to start once C20 is closed
+
+- [ ] **P1 — one shop, only the modules it uses.** A small takeaway café is
+      shown disposals, bank accounts and a warehouse's worth of screens that
+      link to nothing it does, and the clutter is itself the complaint. Half of
+      this is already built: `App\Support\Modules` is a registry of 11 keys
+      with group + `depends`, `normalize()` settles dependencies downward and
+      already forces `images` on for an online store, `defaultsFor($type)`
+      proposes a per-trade set, and the nav already reads MODULE / TRADE /
+      PERMISSION with an Essential-vs-Full switch. What is missing is
+      **granularity** (11 keys against **53 shop nav paths**, so disposals rides
+      on `inventory` and bank accounts ride on `expenses` — neither has a key to
+      turn off), an **upward** dependency rule that switches dependants on
+      together without silently undoing an admin's own "off", and a real
+      section-wise assign/unassign screen on the admin side with a tenant-side
+      view of what the shop has. Answer first: does a toggle hide a screen only,
+      or refuse its API too — `MODULE_DISABLED` does both today, and
+      "Job Offered = Job Doable" is the scar from getting that half-right.
+
 
 ## Where the day stands
 
@@ -281,6 +285,49 @@ categories, customer groups, riders, collections, banks, bank offers, tanks,
 pumps and tables all leave untouched fields alone, and a collection keeps its
 items through a rename. Mutation-proven by making a branch update blank its own
 `code`.
+
+### F17 — recorded for the owner to reconcile, and shown to nobody  ·  FIXED
+
+**Found by C19**, and not the way I expected. Driving down the last
+always-supplied field meant asking what `device_id` is FOR on
+`POST /pos/sync/shifts`. It is stamped as `cash_sessions.pos_device_id` — and
+**nothing reads it**. Nor `cash_sessions.offline_violations`. Nor `synced_at`
+on that table, whose migration even added an index on `['tenant_id','synced_at']`
+for a query nobody ever wrote.
+
+| written | says | read by |
+|---|---|---|
+| `PosShiftSyncController:135` | which tablet the shift arrived from | nobody |
+| `PosShiftSyncController:136` | *"the lane was already held (Ali)"* | nobody |
+| the migration's index | a report over late shifts | nobody |
+
+So a shift opened offline on a lane somebody else already held was noted in the
+database and told to no one. `Reports → Offline` — the screen whose entire job
+is *what happened while we were out of contact* — was built out of **sales**.
+Both the sync controller's docblock ("the conflict is written to
+`offline_violations`") and the migration's ("written down for the owner to
+reconcile") describe the second half of a sentence the product never finished.
+
+**And the same screen was missing a whole section it had already been given.**
+`clocks` — one row per tablet whose clock is wrong, with its own docblock, its
+own signed-drift rule and its own tests — was not in the panel's TypeScript at
+all, and neither was `summary.clock_off`. The **Help Centre already told owners
+the screen shows it.**
+
+**Fixed:** `GET /reports/offline` gained `shifts` + `summary.shifts` +
+`summary.shifts_flagged`; the panel gained a shifts section (cashier · lane ·
+tablet · held · counted + variance, violations as badges, and *"Still open —
+nobody has counted this drawer"*, the one row here that is not history) and a
+clocks section reading `3 days behind` / `2 hr ahead`. Practice shifts excluded
+on purpose — nothing in a training drawer is real money.
+
+Two smaller repairs came with it: the empty state said "Nothing came in late"
+over a flagged shift, and the **Need a decision** tile counted flagged sales
+only, so it could read 0 directly above one.
+
+Mutation-proven on both sides — the training fence, the `synced_at` fence, the
+flagged-first ordering, the flagged count, both panel sections, the tile's shift
+term and the empty state's shift term each fail their own test when removed.
 
 ### F16 — a save that fails, and says nothing  ·  FIXED
 

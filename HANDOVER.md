@@ -5776,6 +5776,65 @@ them back.
 
 ---
 
+### 2026-09-02 — recorded for the owner to reconcile, and shown to nobody
+
+Closing the last item on the trade-day ledger — five optional fields that every
+test happened to supply — meant asking what `device_id` is FOR on
+`POST /pos/sync/shifts`. It is stamped on the shift as `pos_device_id`. Nothing
+reads it. Nothing reads `cash_sessions.offline_violations` either, and its
+migration even carries an index on `['tenant_id','synced_at']` for a query that
+was never written.
+
+**So a shift opened on a lane somebody else already held was noted in the
+database and told to no one.** The sync controller's own docblock says the
+conflict "is written to `offline_violations` and the shift is recorded", and
+the migration says it is written down "for the owner to reconcile" — while
+`Reports → Offline` is built entirely out of SALES. A drawer opened, used and
+counted with the line down appeared on no screen in the product, violations and
+all. Two rules can only be broken that way (a lane already held; a cashier with
+a shift open elsewhere), and both are deliberately never corrected, because a
+counted drawer must not be left belonging to nothing. Recording a conflict and
+never showing it is half of that sentence.
+
+**The same screen was already missing a second section.** `clocks` — "which
+tablet needs somebody to walk over and set its time", a fully documented,
+tested backend feature — was not in the panel's TypeScript at all, nor was
+`summary.clock_off`. The Help Centre described it to owners as something the
+screen shows. It did not.
+
+Fixed both. The report gained a shifts section (cashier, lane, tablet, held
+time, counted cash and variance, each violation as a badge, and **"Still open —
+nobody has counted this drawer"**, the one row here that is not history) and a
+clocks section that reads `3 days behind` / `2 hr ahead`. Practice shifts are
+excluded on purpose: nothing in a training drawer is real money.
+
+Two smaller things fell out of it. The empty state said "Nothing came in late"
+over a shift that broke a rule — a shift is "something happened" on its own —
+and the **Need a decision** tile counted flagged sales only, so it could read 0
+directly above a flagged shift. Both now count shifts.
+
+Mutation-proven on both sides: removing the training fence, the `synced_at`
+fence, the flagged-first ordering or the flagged count each fails exactly one
+backend test; blanking either panel section, the tile's shift term or the empty
+state's shift term each fails its own.
+
+**C19 is closed with the scanner at zero.** All five fields now have a test that
+omits them: an announcement with no audience reaches shop owners **only** (the
+narrow answer — a default that widened would put a draft in front of every
+customer in the country); a banner with no `target_type` is held to a shop
+banner's rule, so it cannot be stored pointing at a shop it never named; a
+customer group with no `price_level` charges its members **retail, proven
+through to the money** (a wholesale default would quietly sell at 80 to everyone
+an owner grouped in a hurry); a banner edit that does not mention the title
+leaves it alone; and a shift batch that omits `device_id` entirely still lands,
+losing only the tablet's name. `untested-absence.py`: **544 pairs examined,
+every optional field omitted by at least one test.**
+
+Gates: backend **2416 passed, exit 0** · panel tsc 0 · eslint 0 errors ·
+vitest **1344 / 118 files** · build 0.
+
+---
+
 ### 2026-08-31 — two matrices, and coverage as the wrong question
 
 Asked how to test the whole product so nothing like the last five bugs slips
