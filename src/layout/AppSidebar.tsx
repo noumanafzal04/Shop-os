@@ -402,6 +402,10 @@ const adminPlatformItems: NavItem[] = [
   { icon: <UserCircleIcon />, name: "Platform Staff", path: "/admin/staff" },
   { icon: <FileIcon />, name: "Audit Log", path: "/admin/audit-logs" },
   { icon: <InfoIcon />, name: "Help Centre", path: "/admin/help" },
+  // The QA walkthrough. On the admin rail and nowhere else: it is written for
+  // whoever tests the product, and a shopkeeper has no use for a list of the
+  // parts their shop was not given.
+  { icon: <TaskIcon />, name: "QA walkthrough", path: "/admin/qa" },
 ];
 
 /**

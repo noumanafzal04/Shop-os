@@ -80,6 +80,11 @@ export function KotCardTile({ kot, ageSeconds, onBump, busy = false }: Props) {
           </h3>
           <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
             KOT #{kot.kot_number}
+            {/* The headline is a NAME on a takeaway card, so the card has to
+                say what kind of order it is somewhere — a cook plating a
+                dine-in dish and a cook bagging a takeaway are doing two
+                different jobs. */}
+            {kot.order_type === "takeaway" ? " · Takeaway" : ""}
             {kot.station ? ` · ${kot.station}` : ""}
             {kot.guest_count ? ` · ${kot.guest_count} covers` : ""}
           </p>

@@ -652,6 +652,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: ["kot", "chef", "cook", "ready", "board", "pass"],
     body: [
       { type: "p", text: "Fired orders, oldest first. Mark them ready as they leave the pass. That is the whole screen." },
+      { type: "h", text: "Where the orders come from" },
+      { type: "p", text: "Two doors, and both land here. A waiter sends a course from a table's tab; and a TAKEAWAY rung at the till arrives on its own the moment it is paid — you do not have to open a tab for it. Only the things a kitchen makes are on the docket: a bottle off the chiller is not work for the pass, so it stays off the board." },
+      { type: "note", text: "A takeaway card shows the CUSTOMER'S name in big letters if the cashier typed one, and the word Takeaway if they did not. It is what you call out when the bag is ready, so it is worth typing the name." },
+      { type: "p", text: "A takeaway order clears itself off the board when you mark it served — there is no bill left to settle, because it was paid at the counter before you saw it. A table's order stays on the floor screen until the table pays." },
       {
         type: "note",
         text: "Someone on the Kitchen job sees this and nothing else — not the till, not the sales list, not the takings. That is deliberate: marking a curry ready should not require being shown what the shop earned today.",

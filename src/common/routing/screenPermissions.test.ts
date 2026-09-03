@@ -63,6 +63,10 @@ const TENANT_PERMISSIONS = new Set([
 const DELIBERATELY_OPEN = [
   "/tenant",
   "/tenant/help",
+  // The QA walkthrough. Documentation about the product, holding no shop data
+  // of any kind — gating it would mean handing a tester a permission set they
+  // are not supposed to be testing with.
+  "/tenant/qa",
   "/tenant/security",
   "/tenant/setup",
   "/tenant/subscription",

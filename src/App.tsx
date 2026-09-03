@@ -55,6 +55,7 @@ const SecurityPage = lazy(() => import("./modules/auth/pages/SecurityPage"));
 // reason the POS does: somebody opens it when they are stuck, and wrapping it
 // in the navigation they could not work out is not help.
 const HelpCenterPage = lazy(() => import("./modules/help/pages/HelpCenterPage"));
+const QaFlowPage = lazy(() => import("./modules/qa/pages/QaFlowPage"));
 const ShopSettingsPage = lazy(() => import("./modules/shop/pages/ShopSettingsPage"));
 const ActivityPage = lazy(() => import("./modules/activity/pages/ActivityPage"));
 const BranchesPage = lazy(() => import("./modules/branches/pages/BranchesPage"));
@@ -211,6 +212,11 @@ export default function App() {
               </Route>
               {/* Full screen, so it sits OUTSIDE the AppLayout route above. */}
               <Route path="/admin/help" element={<HelpCenterPage />} />
+              {/* The QA walkthrough. Deliberately NOT the Help Centre: that one
+                  is filtered to what a shop has, which is exactly the wrong
+                  thing for somebody whose job is to check that the parts a shop
+                  switched off are properly off. */}
+              <Route path="/admin/qa" element={<QaFlowPage />} />
               </Route>
             </Route>
 
@@ -237,6 +243,13 @@ export default function App() {
                     reader personally can open, so a restaurant is never told
                     how to count stock. */}
                 <Route path="/tenant/help" element={<HelpCenterPage />} />
+
+                {/* The QA walkthrough, reachable from the shop side as well.
+                    A tester is usually signed in as a SHOP, because that is
+                    what they are testing — sending them to the admin console to
+                    read how is friction nobody needs. It is not in any menu:
+                    a shopkeeper has no use for it. */}
+                <Route path="/tenant/qa" element={<QaFlowPage />} />
 
                 {/* Dine-in runs full-screen too (floor → tab workspace), and
                     the kitchen board most of all: it hangs on a wall and is

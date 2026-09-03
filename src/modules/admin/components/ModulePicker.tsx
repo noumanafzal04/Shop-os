@@ -13,13 +13,13 @@ import type { ModuleInfo } from "../services/adminService";
  * A shopkeeper's complaint started this: a small takeaway café was shown
  * Disposals, Bank card offers and a warehouse's worth of screens that link to
  * nothing it does. Splitting those into modules of their own is only half the
- * answer — the other half is that an admin now has nineteen switches to reason
- * about, and a flat list of nineteen is its own kind of unusable.
+ * answer — the other half is that an admin now has twenty switches to reason
+ * about, and a flat list of twenty is its own kind of unusable.
  *
  * So the registry's own `group` does the work: Selling, Stock, Customers &
  * offers, Money, Online, Trade-specific. Each section says how many of its
  * modules are on, so "what has this shop got" is answerable at a glance rather
- * than by reading nineteen rows.
+ * than by reading twenty rows.
  *
  * ── Why a press can move other switches ─────────────────────────────────
  *
@@ -158,7 +158,7 @@ export function ModulePicker({
                         type="button"
                         // The module's name sits OUTSIDE this control, so
                         // without a label it announced as "button" and nothing
-                        // else — nineteen identical buttons with no way to hear
+                        // else — twenty identical buttons with no way to hear
                         // which one you were on or whether it was granted.
                         role="switch"
                         aria-checked={isOn}

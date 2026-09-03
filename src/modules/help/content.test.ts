@@ -140,6 +140,7 @@ const NEEDS_NO_ARTICLE: Record<string, string> = {
   "/tenant/pharmacy": "documented as the prescription counter article",
   "/tenant/warranty": "documented as the serial numbers article",
   "/tenant/cashbook": "has its own article, linked from the money group",
+  "/tenant/qa": "the QA walkthrough is documentation itself, and is written for a tester rather than for a shopkeeper — an article about it would be a help page about a help page",
 };
 
 describe("the content itself", () => {

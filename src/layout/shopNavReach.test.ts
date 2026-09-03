@@ -76,6 +76,7 @@ const NOT_IN_MENU: Record<string, string> = {
   "/tenant/orders/new": "reached from the Orders screen, not the menu",
   "/tenant/products/new": "reached from the Products screen, not the menu",
   "/tenant/security": "your own password — reached from the avatar menu",
+  "/tenant/qa": "the QA walkthrough — written for whoever tests the product, linked from the ADMIN rail; a shopkeeper has no use for a list of the parts their shop was not given",
 };
 
 describe("every screen is reachable from some shop's menu", () => {

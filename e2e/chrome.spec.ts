@@ -33,6 +33,10 @@ test.beforeEach(() => {
 
 const SCREENS: Array<{ path: string; name: string }> = [
   { path: "/tenant", name: "dashboard" },
+  // The QA walkthrough. Not a shop screen, and walked anyway: it is full-screen
+  // outside the shell, with a sticky header, a rail and a progress bar — which
+  // is exactly the shape of layout this spec exists to catch.
+  { path: "/tenant/qa", name: "QA walkthrough" },
   { path: "/tenant/products", name: "catalog" },
   { path: "/tenant/inventory", name: "inventory" },
   { path: "/tenant/customers", name: "customers" },

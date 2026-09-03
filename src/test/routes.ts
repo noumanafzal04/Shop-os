@@ -59,4 +59,8 @@ export const TENANT_ROUTES = new Set([
   "/tenant/activity",
   "/tenant/security",
   "/tenant/help",
+  // The QA walkthrough. Reachable from the shop side because a tester is
+  // usually signed in as the shop they are testing; deliberately in no menu,
+  // so it is excused in shopNavReach's own list rather than here.
+  "/tenant/qa",
 ]);

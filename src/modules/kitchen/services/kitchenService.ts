@@ -14,7 +14,13 @@ export interface KotCard {
   /** Age at the moment the server built the payload — see `server_time`. */
   age_seconds: number;
   ticket_number: string | null;
+  /**
+   * What a cook calls out: a table's name for a table, and for a takeaway the
+   * CUSTOMER's name — a café pass showing the word "Takeaway" twelve times over
+   * has nothing on it to shout.
+   */
   table_name: string | null;
+  order_type: "dine_in" | "takeaway" | null;
   guest_count: number | null;
   items?: Array<{
     name: string;
