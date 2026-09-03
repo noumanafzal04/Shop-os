@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { shopNav, type NavItem } from "./AppSidebar";
+import { TRADE_FEATURES as FEATURES } from "../test/tradeFeatures";
 
 /**
  * THE COLLAPSED RAIL HAS TO BE READABLE.
@@ -22,16 +23,6 @@ import { shopNav, type NavItem } from "./AppSidebar";
  */
 
 /** Module maps mirroring BusinessTypes::defaultFeatures on the server. */
-const FEATURES: Record<string, Record<string, boolean>> = {
-  food: { expenses: true, images: true, pos: true, products: true, marketplace: true, delivery: true, dine_in: true },
-  mart: { expenses: true, images: true, pos: true, products: true, inventory: true, marketplace: true, delivery: true },
-  pharmacy: { expenses: true, pos: true, products: true, inventory: true, delivery: true },
-  retail: { expenses: true, images: true, pos: true, products: true, inventory: true, marketplace: true, reservations: true, delivery: true },
-  services: { expenses: true, pos: true, services: true },
-  automotive: { expenses: true, pos: true, products: true, services: true, inventory: true },
-  finance: { expenses: true },
-  petroleum: { expenses: true, pos: true, products: true, services: true, inventory: true, fuel: true },
-};
 
 const TRADES = Object.keys(FEATURES);
 const MODES = ["basic", "advanced"] as const;

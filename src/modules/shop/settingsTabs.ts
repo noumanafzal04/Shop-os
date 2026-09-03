@@ -35,15 +35,25 @@ export const SETTINGS_TABS = [
   // Name, contact and the map pin. Every shop has these, including the
   // books-only one — it still puts its name on what it sends out.
   { key: "business", label: "Business" },
+  // WHAT THIS SHOP HAS. Read-only on purpose: modules are the admin's decision
+  // (a shop that could switch its own POS off would be a support call), but
+  // "why can I not see Purchases" is a question the shop asks and had nowhere
+  // to look. Universal — every business has an answer to it.
+  { key: "modules", label: "Your modules" },
   { key: "tax", label: "Tax & Delivery", needs: SELLS },
   { key: "pos", label: "Point of Sale", needs: ["pos"] },
-  { key: "loyalty", label: "Loyalty", needs: SELLS },
+  // Points are awarded to a CUSTOMER, so the customer book is what makes this
+  // worth showing — a shop that keeps none has nobody to award them to.
+  { key: "loyalty", label: "Loyalty", needs: ["customers"] },
   { key: "receipt", label: "Receipt", needs: SELLS },
   // The counter's own kit — printer, scanner, cash drawer. No till, no counter.
   { key: "hardware", label: "Hardware", needs: ["pos"] },
-  // A label is printed from a catalog record rather than off a shelf, so it
-  // follows the catalog — matching the route gate on the Labels screen itself.
-  { key: "barcode", label: "Barcodes", needs: ["products"] },
+  // A label is printed from a catalog record rather than off a shelf. It
+  // follows the LABELS module, matching the route gate on the Labels screen
+  // itself — it used to say `products`, which was true until printing labels
+  // became a module a shop can decline, and would have left a settings tab for
+  // a screen the shop can no longer open.
+  { key: "barcode", label: "Barcodes", needs: ["labels"] },
 ] as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]["key"];

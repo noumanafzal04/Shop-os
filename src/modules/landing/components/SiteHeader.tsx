@@ -34,9 +34,12 @@ const LINKS: Array<{ id: string; label: string }> = [
  * rather than as a different KIND of item. So it gets its own treatment: a
  * real Link, marked with the brand instead of with the "you are here" pill.
  *
- * The landing page still HAS a marketplace section (`#market`, the live
- * products). It is reached by scrolling and by its own "Visit the marketplace"
- * button — the menu is for going there, not for stopping halfway.
+ * The landing page no longer carries a marketplace SECTION of its own. It had
+ * one — a live row of real products from real shops — and it was moved out: the
+ * aisle belongs on the market side, where somebody has gone to shop, and a
+ * landing page written for a shopkeeper deciding whether to buy the software is
+ * not the place to sell them a bag of rice. This link is now the only way the
+ * marketplace appears here, which is what a destination should be.
  */
 const STOREFRONT = { to: "/shops", label: "Marketplace" };
 

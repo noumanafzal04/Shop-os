@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { shopNav } from "./AppSidebar";
+import { TRADE_FEATURES as FEATURES, EVERY_MODULE } from "../test/tradeFeatures";
 import { TENANT_ROUTES } from "../test/routes";
 
 /**
@@ -23,17 +24,6 @@ import { TENANT_ROUTES } from "../test/routes";
  * seventeen — and shopNav.test.ts separately pins that resolution.
  */
 
-/** Module maps mirroring BusinessTypes::defaultFeatures on the server. */
-const FEATURES: Record<string, Record<string, boolean>> = {
-  food: { expenses: true, images: true, pos: true, products: true, marketplace: true, delivery: true, dine_in: true },
-  mart: { expenses: true, images: true, pos: true, products: true, inventory: true, marketplace: true, delivery: true },
-  pharmacy: { expenses: true, pos: true, products: true, inventory: true, delivery: true },
-  retail: { expenses: true, images: true, pos: true, products: true, inventory: true, marketplace: true, reservations: true, delivery: true },
-  services: { expenses: true, pos: true, services: true },
-  automotive: { expenses: true, pos: true, products: true, services: true, inventory: true },
-  finance: { expenses: true },
-  petroleum: { expenses: true, pos: true, products: true, services: true, inventory: true, fuel: true },
-};
 
 /** Every path the menu can produce for a given shop, owner looking. */
 function pathsFor(type: string, mode: "basic" | "advanced", multiBranch: boolean): string[] {
@@ -49,6 +39,22 @@ function pathsFor(type: string, mode: "basic" | "advanced", multiBranch: boolean
 /** The union across every shop shape — anything an owner can ever click. */
 function everyReachablePath(): Set<string> {
   const all = new Set<string>();
+
+  // A shop whose admin switched everything on, first. Reachability asks
+  // "is there any shop that can click this", and a module that starts off for
+  // every trade is optional, not orphaned — measuring against the defaults
+  // alone would report Bank offers as unreachable the moment it stopped being
+  // forced on every shop that owns a till.
+  for (const mode of ["basic", "advanced"] as const) {
+    for (const multiBranch of [false, true]) {
+      const nav = shopNav(EVERY_MODULE, "retail", mode, multiBranch, () => true);
+      for (const item of nav) {
+        if (item.path) all.add(item.path);
+        for (const sub of item.subItems ?? []) all.add(sub.path);
+      }
+    }
+  }
+
   for (const type of Object.keys(FEATURES)) {
     for (const mode of ["basic", "advanced"] as const) {
       for (const multiBranch of [false, true]) {

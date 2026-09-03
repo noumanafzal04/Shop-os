@@ -187,6 +187,15 @@ export interface ShopSettings {
   max_branches: number | null;
 }
 
+export interface ShopModule {
+  key: string;
+  label: string;
+  description: string;
+  group: string;
+  depends: string[];
+  enabled: boolean;
+}
+
 export const shopService = {
   show: () => apiGet<Tenant>("/shop"),
   setup: (payload: SetupPayload) => apiPut<Tenant>("/shop/setup", payload),
@@ -194,6 +203,14 @@ export const shopService = {
   businessTypes: () => apiGet<BusinessType[]>("/business-types"),
   subscription: () => apiGet<SubscriptionInfo>("/shop/subscription"),
   settings: () => apiGet<ShopSettings>("/shop/settings"),
+  /**
+   * What this shop has, and what it has not.
+   *
+   * The registry with each module's state, from the server — never assembled
+   * in the panel from labels of its own, because two descriptions of one rule
+   * is how a screen ends up naming a module the gate has never heard of.
+   */
+  modules: () => apiGet<ShopModule[]>("/shop/modules"),
   updateSettings: (payload: Partial<ShopSettings>) => apiPut<ShopSettings>("/shop/settings", payload),
 
   /**

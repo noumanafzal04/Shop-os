@@ -107,6 +107,13 @@ const TEST_ONLY: Record<string, string> = {
   // still had no correct caller.
   "modules/offline/sync/pullNow.ts::isPulling": "exposes the single-flight slot so a test can prove it clears on failure",
   "test/routes.ts::TENANT_ROUTES": "the route list the contract tests are built from",
+  // The module map each trade starts with, mirroring BusinessTypes on the
+  // server. It lived inline in four nav test files and had to be edited in all
+  // four — which is the shape of every guard-drift bug in this repo. One copy,
+  // and it is a fixture rather than product code, so it lives beside routes.ts
+  // for the same reason and is exempt for the same reason.
+  "test/tradeFeatures.ts::TRADE_FEATURES": "the per-trade module map every nav guard is built from",
+  "test/tradeFeatures.ts::EVERY_MODULE": "a shop with everything switched on — the shape reachability has to be measured against",
   // Introspection over the permission map, so the tests can check it from BOTH
   // directions — a route with no rule, and a rule naming a route that no longer
   // exists. The file says so itself where `mappedScreens` is declared.

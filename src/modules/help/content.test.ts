@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { TRADE_FEATURES as TRADES } from "../../test/tradeFeatures";
 import { HELP_ARTICLES, HELP_GROUPS, articlesFor, searchArticles } from "./content";
 import { TENANT_ROUTES } from "../../test/routes";
 
@@ -17,15 +18,6 @@ import { TENANT_ROUTES } from "../../test/routes";
  */
 
 /** The module map each trade is created with (Modules::defaultsFor). */
-const TRADES: Record<string, Record<string, boolean>> = {
-  food: { products: true, pos: true, expenses: true, images: true, marketplace: true, delivery: true, dine_in: true },
-  mart: { products: true, pos: true, inventory: true, expenses: true, images: true, marketplace: true, delivery: true },
-  pharmacy: { products: true, pos: true, inventory: true, expenses: true, delivery: true },
-  retail: { products: true, pos: true, inventory: true, expenses: true, images: true, marketplace: true, delivery: true, reservations: true },
-  services: { services: true, pos: true, expenses: true },
-  petroleum: { products: true, services: true, pos: true, inventory: true, expenses: true, fuel: true },
-  finance: { expenses: true },
-};
 
 const owner = () => true;
 

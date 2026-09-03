@@ -6,6 +6,19 @@ import { useAuthStore } from "../../../stores/authStore";
 import { shopService, type SetupPayload, type ShopSettings } from "../services/shopService";
 import { formatMoney } from "../../../common/format/money";
 
+/**
+ * What this shop has. Read-only — modules are the admin's decision, and this is
+ * the answer to "why can I not see Purchases", not a way to change it.
+ */
+export function useShopModules() {
+  return useQuery({
+    queryKey: ["shop", "modules"],
+    queryFn: () => shopService.modules().then((r) => r.data),
+    // It changes when an admin changes it, which is rare and never mid-session.
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useShopSettings() {
   // /shop/settings is owner/staff-only — don't fire it for admins or customers
   // (it would 403). Other roles just get the default formatting.

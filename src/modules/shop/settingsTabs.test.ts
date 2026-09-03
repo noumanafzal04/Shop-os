@@ -13,16 +13,21 @@ import { settingsTabsFor } from "./settingsTabs";
  * itself correctly and the four above it did not.
  */
 
-const FINANCE = { pos: false, marketplace: false, dine_in: false, products: false, inventory: false };
-const MART = { pos: true, marketplace: true, dine_in: false, products: true, inventory: true };
-const RESTAURANT = { pos: true, marketplace: true, dine_in: true, products: true, inventory: false };
-const ONLINE_ONLY = { pos: false, marketplace: true, dine_in: false, products: true, inventory: true };
+// `customers` and `labels` are modules of their own now — Loyalty follows the
+// customer book (there is nobody to award points to without one) and Barcodes
+// follows the labels screen it configures.
+const FINANCE = { pos: false, marketplace: false, dine_in: false, products: false, inventory: false, customers: false, labels: false };
+const MART = { pos: true, marketplace: true, dine_in: false, products: true, inventory: true, customers: true, labels: true };
+const RESTAURANT = { pos: true, marketplace: true, dine_in: true, products: true, inventory: false, customers: true, labels: true };
+const ONLINE_ONLY = { pos: false, marketplace: true, dine_in: false, products: true, inventory: true, customers: true, labels: true };
 
 const keys = (features: Record<string, boolean>) => settingsTabsFor(features).map((t) => t.key);
 
 describe("a books-only shop is offered only what it can use", () => {
   it("keeps its name and address and nothing else", () => {
-    expect(keys(FINANCE)).toEqual(["business"]);
+    // "Your modules" is universal — it is the answer to "why can I not see
+    // Purchases", and a books-only office asks it as often as anybody.
+    expect(keys(FINANCE)).toEqual(["business", "modules"]);
   });
 
   it("names none of the tabs whose switches would do nothing", () => {
@@ -35,13 +40,13 @@ describe("a books-only shop is offered only what it can use", () => {
 describe("everyone else keeps what their modules feed", () => {
   it("a mart gets the lot", () => {
     expect(keys(MART)).toEqual([
-      "business", "tax", "pos", "loyalty", "receipt", "hardware", "barcode",
+      "business", "modules", "tax", "pos", "loyalty", "receipt", "hardware", "barcode",
     ]);
   });
 
   it("a restaurant gets the lot too — dine-in sells, so tax and receipts stay", () => {
     expect(keys(RESTAURANT)).toEqual([
-      "business", "tax", "pos", "loyalty", "receipt", "hardware", "barcode",
+      "business", "modules", "tax", "pos", "loyalty", "receipt", "hardware", "barcode",
     ]);
   });
 

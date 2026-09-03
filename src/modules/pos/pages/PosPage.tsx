@@ -240,13 +240,18 @@ export default function PosPage() {
   const businessType = usePrimaryBusinessType();
   // Food shops browse a visual image grid; high-SKU shops (mart, pharmacy,
   // retail…) get a dense, search-first list of rows.
-  const isRestaurant = businessType === "food";
   // Taking goods in part-payment moves stock, so it needs the inventory module
   // — a shop that doesn't count anything has nowhere to put a dead battery.
   const modules = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features,
   );
   const has = (key: string) => modules?.[key] ?? false;
+  // Whether this till serves food it has to COOK — which is a module question,
+  // not a trade one. It read `businessType === "food"`, so a bakery counter, a
+  // juice corner in a mart and a canteen inside a services business were never
+  // offered Takeaway / Dine-in at all, however their modules were set. A shop
+  // with the kitchen pass has a kitchen; that is the whole test.
+  const isRestaurant = has("kitchen") || has("dine_in") || businessType === "food";
   // The trades that work on vehicles. A grocery never sees the plate field, and
   // the ones that live by it never have to go looking for it.
   const isAutoTrade = businessType === "automotive" || businessType === "petroleum";

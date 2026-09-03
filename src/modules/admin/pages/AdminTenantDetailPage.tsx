@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
+import { ModulePicker } from "../components/ModulePicker";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
@@ -440,31 +441,6 @@ function ModulesCard({ tenantId, features, defaults }: {
   const list = catalog.data ?? [];
   const dirty = list.some((m) => (state[m.key] ?? false) !== (features[m.key] ?? false));
 
-  // Mirror of the server's Modules::normalize, so unticking Products visibly
-  // takes everything built on it with it instead of saving a map that the
-  // server then quietly rewrites.
-  const toggle = (key: string, on: boolean) =>
-    setState((prev) => {
-      const map: Record<string, boolean> = {};
-      list.forEach((m) => (map[m.key] = m.key === key ? on : (prev[m.key] ?? false)));
-      if (map.marketplace) map.images = true;
-
-      let changed = true;
-      while (changed) {
-        changed = false;
-        list.forEach((m) => {
-          if (map[m.key] && m.depends.some((d) => !map[d])) {
-            map[m.key] = false;
-            changed = true;
-          }
-        });
-      }
-      return map;
-    });
-
-  const groups: Record<string, typeof list> = {};
-  list.forEach((m) => { (groups[m.group] ??= []).push(m); });
-
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
       <div className="mb-1 flex items-center justify-between">
@@ -475,60 +451,13 @@ function ModulesCard({ tenantId, features, defaults }: {
         What this business can do. Plans don't touch these.
       </p>
 
-      <div className="space-y-5">
-        {Object.entries(groups).map(([group, items]) => (
-          <div key={group}>
-            <p className="mb-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400">{group}</p>
-            <div className="space-y-3">
-              {items.map((m) => {
-                const on = state[m.key] ?? false;
-                const blockedBy = m.depends.filter((d) => !state[d]);
-                const differs = defaults !== undefined && on !== (defaults[m.key] ?? false);
-                return (
-                  <div key={m.key} className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-white/90">
-                        {m.label}
-                        {/* Whether this was a decision for this shop or just
-                            what its trade usually gets. */}
-                        {differs && <Badge size="sm" color="light">{on ? "granted" : "removed"}</Badge>}
-                      </div>
-                      <div className="text-theme-xs text-gray-400">
-                        {blockedBy.length > 0 ? `Needs ${blockedBy.join(" and ")} switched on first.` : m.description}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      // The module's name sits OUTSIDE this button, so the
-                      // control itself announced as "button" and nothing else —
-                      // twenty identical buttons down the module list with no
-                      // way to hear which one you were on, or whether it was
-                      // currently granted. The "granted/removed" badge only
-                      // renders when the value differs from the trade default,
-                      // so most rows had no state signal at all beyond the pill
-                      // colour.
-                      role="switch"
-                      aria-checked={on}
-                      aria-label={m.label}
-                      disabled={blockedBy.length > 0}
-                      onClick={() => toggle(m.key, !on)}
-                      className={`mt-0.5 h-6 w-11 shrink-0 rounded-full p-0.5 transition ${
-                        blockedBy.length > 0
-                          ? "cursor-not-allowed bg-gray-200 opacity-50 dark:bg-gray-800"
-                          : on
-                            ? "bg-brand-500"
-                            : "bg-gray-300 dark:bg-gray-700"
-                      }`}
-                    >
-                      <span className={`block h-5 w-5 rounded-full bg-white transition ${on ? "translate-x-5" : ""}`} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+      <ModulePicker
+        catalog={list}
+        value={state}
+        onChange={setState}
+        defaults={defaults}
+        emptyHint="Modules are still loading."
+      />
 
       <Button size="sm" className="mt-5" disabled={!dirty || save.isPending} onClick={() => save.mutate(
         { id: tenantId, modules: state },

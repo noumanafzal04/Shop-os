@@ -9,36 +9,12 @@ import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
 import { useAdminCities, useModuleCatalog, usePlans, useTenantMutations } from "../hooks/useAdmin";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
-import type { ModuleInfo } from "../services/adminService";
+import { ModulePicker } from "../components/ModulePicker";
+import { settle } from "../components/moduleRules";
 import { toIsoDate } from "../../../components/ui/filters";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
-/**
- * Mirror of the server's Modules::normalize — a module whose dependency is off
- * cannot be left on, and selling online forces photos on. Running it here means
- * the admin sees the consequence of unticking Products as they do it, rather
- * than discovering it after saving.
- */
-function normalize(modules: Record<string, boolean>, catalog: ModuleInfo[]): Record<string, boolean> {
-  const map: Record<string, boolean> = {};
-  catalog.forEach((m) => (map[m.key] = modules[m.key] ?? false));
-
-  if (map.marketplace) map.images = true;
-
-  let changed = true;
-  while (changed) {
-    changed = false;
-    catalog.forEach((m) => {
-      if (!map[m.key]) return;
-      if (m.depends.some((d) => !map[d])) {
-        map[m.key] = false;
-        changed = true;
-      }
-    });
-  }
-  return map;
-}
 
 /**
  * Creating a business, in the order the decisions actually happen.
@@ -123,21 +99,16 @@ export default function AdminTenantCreatePage() {
   // The type proposes; the admin disposes.
   useEffect(() => {
     if (!selectedType || touchedModules || moduleList.length === 0) return;
-    setModules(normalize(selectedType.default_modules ?? {}, moduleList));
+    setModules(settle(moduleList, selectedType.default_modules ?? {}));
   }, [selectedType, touchedModules, moduleList]);
 
-  const toggleModule = (key: string, on: boolean) => {
+  // Once an admin has touched a switch, changing the business type must not
+  // re-propose over the top of it — the type is a suggestion and this is a
+  // decision.
+  const chooseModules = (next: Record<string, boolean>) => {
     setTouchedModules(true);
-    setModules((m) => normalize({ ...m, [key]: on }, moduleList));
+    setModules(next);
   };
-
-  const groups = useMemo(() => {
-    const out: Record<string, ModuleInfo[]> = {};
-    moduleList.forEach((m) => {
-      (out[m.group] ??= []).push(m);
-    });
-    return out;
-  }, [moduleList]);
 
   const selectedPlan = (plans.data ?? []).find((p) => p.id === form.plan_id);
 
@@ -454,45 +425,13 @@ export default function AdminTenantCreatePage() {
           {!form.business_type ? (
             <p className="py-6 text-center text-theme-sm text-gray-400">Choose a business type first.</p>
           ) : (
-            <div className="space-y-5">
-              {Object.entries(groups).map(([group, items]) => (
-                <div key={group}>
-                  <p className="mb-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400">{group}</p>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {items.map((m) => {
-                      const blockedBy = m.depends.filter((d) => !modules[d]);
-                      const disabled = blockedBy.length > 0;
-                      return (
-                        <label
-                          key={m.key}
-                          className={`flex items-start gap-2.5 rounded-lg border p-2.5 text-sm transition ${
-                            disabled
-                              ? "cursor-not-allowed border-gray-100 opacity-50 dark:border-gray-800"
-                              : modules[m.key]
-                                ? "cursor-pointer border-brand-500 bg-brand-50 dark:bg-brand-500/10"
-                                : "cursor-pointer border-gray-200 hover:border-gray-300 dark:border-gray-700"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="mt-0.5 h-4 w-4 shrink-0"
-                            checked={modules[m.key] ?? false}
-                            disabled={disabled}
-                            onChange={(e) => toggleModule(m.key, e.target.checked)}
-                          />
-                          <span className="min-w-0">
-                            <span className="font-medium text-gray-800 dark:text-white/90">{m.label}</span>
-                            <span className="block text-theme-xs text-gray-500 dark:text-gray-400">
-                              {disabled ? `Needs ${blockedBy.join(" and ")} switched on first.` : m.description}
-                            </span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ModulePicker
+              catalog={moduleList}
+              value={modules}
+              onChange={chooseModules}
+              defaults={selectedType?.default_modules}
+              emptyHint="Choose a business type first."
+            />
           )}
         </FormCard>
         </div>

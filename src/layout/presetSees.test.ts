@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { shopNav } from "./AppSidebar";
+import { TRADE_FEATURES as TRADES } from "../test/tradeFeatures";
 
 /**
  * What each job preset can actually SEE, per trade.
@@ -28,14 +29,6 @@ const PRESETS: Record<string, string[]> = {
 };
 
 /** The module set each trade is sold with, trimmed to what the rail reads. */
-const TRADES: Record<string, Record<string, boolean>> = {
-  food: { pos: true, dine_in: true, products: true, expenses: true },
-  mart: { pos: true, products: true, inventory: true, expenses: true },
-  pharmacy: { pos: true, products: true, inventory: true, expenses: true },
-  retail: { pos: true, products: true, inventory: true, expenses: true },
-  services: { pos: true, services: true, expenses: true },
-  finance: { expenses: true },
-};
 
 function pathsFor(trade: string, preset: string): string[] {
   const permissions = PRESETS[preset];

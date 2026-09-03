@@ -6,7 +6,6 @@ import { DashboardMock } from "../components/DashboardMock";
 import { EnquiryForm } from "../components/EnquiryForm";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
-import { MarketPeek } from "../components/MarketPeek";
 import { TillMock } from "../components/TillMock";
 import { TradeSwitcher } from "../components/TradeSwitcher";
 import { TryDemo } from "../components/TryDemo";
@@ -452,9 +451,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* ══ THE MARKETPLACE ══════════════════════════════════════════ */}
-      <MarketPeek />
 
       {/* ══ WHAT IS INSIDE ═══════════════════════════════════════════ */}
       <section id="inside" className="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/[0.02]">

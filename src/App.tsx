@@ -245,6 +245,14 @@ export default function App() {
                   <Route element={<RequireTenantScreen />}>
                     <Route path="/tenant/dine-in" element={<FloorPage />} />
                     <Route path="/tenant/dine-in/tickets/:id" element={<TabPage />} />
+                  </Route>
+                </Route>
+                {/* The pass is its own module and sits OUTSIDE the dine-in
+                    room: a takeaway counter needs a slip to the kitchen and no
+                    floor of tables. `dine_in` depends on `kitchen`, so a shop
+                    that seats people still has both. */}
+                <Route element={<RequireFeature feature="kitchen" />}>
+                  <Route element={<RequireTenantScreen />}>
                     <Route path="/tenant/kitchen" element={<KitchenPage />} />
                   </Route>
                 </Route>
@@ -262,7 +270,12 @@ export default function App() {
                         <Route path=":id/edit" element={<ProductEditorRoute />} />
                       </Route>
                       <Route path="categories" element={<CategoriesPage />} />
-                      <Route path="labels" element={<LabelsPage />} />
+                      {/* Printing shelf labels reads the catalog, so it has no
+                          endpoint of its own — which makes this route the only
+                          door there is. */}
+                      <Route element={<RequireFeature feature="labels" />}>
+                        <Route path="labels" element={<LabelsPage />} />
+                      </Route>
                       <Route element={<RequireFeature feature="marketplace" />}>
                         <Route path="collections" element={<CollectionsPage />} />
                       </Route>
@@ -274,20 +287,33 @@ export default function App() {
                     <Route element={<RequireTenantScreen />}>
                       <Route path="pharmacy" element={<PharmacyPage />} />
                     </Route>
-                    <Route element={<RequireTenantScreen />}>
-                      <Route path="suppliers" element={<SuppliersPage />} />
-                    </Route>
-                    <Route element={<RequireTenantScreen />}>
-                      <Route path="purchases" element={<PurchaseOrdersPage />} />
+                    {/* The supplier book and the orders written against it
+                        are one module: a shop that buys over the counter needs
+                        neither, and used to be given both for tracking stock. */}
+                    <Route element={<RequireFeature feature="purchasing" />}>
+                      <Route element={<RequireTenantScreen />}>
+                        <Route path="suppliers" element={<SuppliersPage />} />
+                      </Route>
+                      <Route element={<RequireTenantScreen />}>
+                        <Route path="purchases" element={<PurchaseOrdersPage />} />
+                      </Route>
                     </Route>
                   </Route>
-                  <Route element={<RequireTenantScreen />}>
-                    <Route path="customers" element={<CustomersPage />} />
+                  <Route element={<RequireFeature feature="customers" />}>
+                    <Route element={<RequireTenantScreen />}>
+                      <Route path="customers" element={<CustomersPage />} />
+                    </Route>
                   </Route>
-                  <Route element={<RequireTenantScreen />}>
-                    <Route path="coupons" element={<CouponsPage />} />
-                    <Route path="promotions" element={<PromotionsPage />} />
-                    <Route path="bank-offers" element={<BankOffersPage />} />
+                  <Route element={<RequireFeature feature="promotions" />}>
+                    <Route element={<RequireTenantScreen />}>
+                      <Route path="coupons" element={<CouponsPage />} />
+                      <Route path="promotions" element={<PromotionsPage />} />
+                    </Route>
+                  </Route>
+                  <Route element={<RequireFeature feature="bank_offers" />}>
+                    <Route element={<RequireTenantScreen />}>
+                      <Route path="bank-offers" element={<BankOffersPage />} />
+                    </Route>
                   </Route>
                   <Route element={<RequireFeature feature="services" />}>
                     <Route element={<RequireTenantScreen />}>
@@ -297,11 +323,23 @@ export default function App() {
                   <Route element={<RequireFeature feature="inventory" />}>
                     <Route element={<RequireTenantScreen />}>
                       <Route path="inventory" element={<InventoryPage />} />
-                      <Route path="disposals" element={<DisposalsPage />} />
-                      {/* Counting the shelves. Rides the stock module — a shop
-                          that doesn't track stock has nothing to count against. */}
-                      <Route path="stocktake" element={<StocktakePage />} />
-                      <Route path="stocktake/:id" element={<StockCountSheetPage />} />
+                    </Route>
+                    {/* Where stock went when it left without being sold. Its own
+                        module: a real question for a chemist, a nonsense one for
+                        a takeaway counter. */}
+                    <Route element={<RequireFeature feature="disposals" />}>
+                      <Route element={<RequireTenantScreen />}>
+                        <Route path="disposals" element={<DisposalsPage />} />
+                      </Route>
+                    </Route>
+                    {/* Counting the shelves. Depends on the stock module — a
+                        shop that doesn't track stock has nothing to count
+                        against — and is its own module on top of it. */}
+                    <Route element={<RequireFeature feature="stocktake" />}>
+                      <Route element={<RequireTenantScreen />}>
+                        <Route path="stocktake" element={<StocktakePage />} />
+                        <Route path="stocktake/:id" element={<StockCountSheetPage />} />
+                      </Route>
                     </Route>
                   </Route>
                   {/* The forecourt. Only a station has tanks and meters, so the
@@ -328,15 +366,19 @@ export default function App() {
                   </Route>
                   {/* Quotations & advance bookings — counter documents that end
                       in a till transaction, hence the POS module. */}
-                  <Route element={<RequireFeature feature="pos" />}>
+                  <Route element={<RequireFeature feature="documents" />}>
                     <Route element={<RequireTenantScreen />}>
                       <Route path="documents" element={<DocumentsPage />} />
                       <Route path="documents/:id" element={<DocumentDetailPage />} />
-                      {/* The trading day and the safe-to-bank leg. A day is
-                          drawers, so it needs the till module — an online-only
-                          shop has none. Reading it is a cashier's right to the
-                          record of their own drawer; closing it off is
-                          manager-only, checked on the server. */}
+                    </Route>
+                  </Route>
+                  {/* The trading day and the safe-to-bank leg. A day is
+                      drawers, so it needs the till module — an online-only shop
+                      has none. Split from Quotes above when quotes became their
+                      own module: a shop that writes no quotations still has to
+                      be able to close its day off. */}
+                  <Route element={<RequireFeature feature="pos" />}>
+                    <Route element={<RequireTenantScreen />}>
                       <Route path="day" element={<DayPage />} />
                     </Route>
                   </Route>

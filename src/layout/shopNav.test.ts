@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { shopNav } from "./AppSidebar";
+import { TRADE_FEATURES as FEATURES } from "../test/tradeFeatures";
 import { TENANT_ROUTES as ROUTES } from "../test/routes";
 
 /**
@@ -21,17 +22,6 @@ import { TENANT_ROUTES as ROUTES } from "../test/routes";
  */
 
 
-/** Module maps mirroring BusinessTypes::defaultFeatures on the server. */
-const FEATURES: Record<string, Record<string, boolean>> = {
-  food: { expenses: true, images: true, pos: true, products: true, marketplace: true, delivery: true, dine_in: true },
-  mart: { expenses: true, images: true, pos: true, products: true, inventory: true, marketplace: true, delivery: true },
-  pharmacy: { expenses: true, pos: true, products: true, inventory: true, delivery: true },
-  retail: { expenses: true, images: true, pos: true, products: true, inventory: true, marketplace: true, reservations: true, delivery: true },
-  services: { expenses: true, pos: true, services: true },
-  automotive: { expenses: true, pos: true, products: true, services: true, inventory: true },
-  finance: { expenses: true },
-  petroleum: { expenses: true, pos: true, products: true, services: true, inventory: true, fuel: true },
-};
 
 type Mode = "basic" | "advanced";
 
@@ -244,7 +234,10 @@ describe("the menu offers nothing the API will refuse", () => {
     expect(menu).toContain("/tenant/pos");
     expect(menu).toContain("/tenant/sales");
     expect(menu).toContain("/tenant/day");
-    expect(menu).toContain("/tenant/documents");
+    // Quotes & Advances is a retail/services counter's document and a kiryana
+    // shop does not start with the module — so the cashier's right to it is
+    // asserted where the module actually lives.
+    expect(paths("retail", "advanced", false, CASHIER)).toContain("/tenant/documents");
 
     expect(menu).not.toContain("/tenant/staff");
     expect(menu).not.toContain("/tenant/reports");
@@ -377,5 +370,229 @@ describe("trade gates need the resolved business type", () => {
   it("an old workshop is automotive or it keeps no vehicle register", () => {
     expect(offers("automotive")).toContain("/tenant/vehicles");
     expect(offers("workshop")).not.toContain("/tenant/vehicles");
+  });
+});
+
+/**
+ * THE MODULE DENOMINATOR — what a shop cannot decline once it has bought one
+ * thing.
+ *
+ * The complaint this answers is a shopkeeper's, not an engineer's: a small
+ * takeaway café is shown Disposals, Bank offers and a warehouse's worth of
+ * screens that link to nothing it does, and the clutter IS the problem.
+ *
+ * "Which of these can be turned off?" had no written answer. The registry holds
+ * a handful of keys and the menu produces fifty-three paths, so most screens
+ * arrive as passengers on a module somebody else bought — switch `inventory` on
+ * for a chemist and five more screens come with it, whether or not that chemist
+ * has ever disposed of anything.
+ *
+ * Measured behaviourally rather than by reading the source: switch on ONE
+ * module and list what appeared. Whatever appears is what that module drags in,
+ * whatever the code looks like — so a screen added as a passenger turns this
+ * red on the day it is added, and the ways out are to give it a key of its own
+ * or to write down why it is inseparable from its parent.
+ */
+describe("every screen either has a module of its own, or is written down", () => {
+  const KEYS = [
+    "products", "services", "pos", "inventory", "expenses", "images",
+    "marketplace", "delivery", "reservations", "kitchen", "dine_in", "fuel",
+  ];
+
+  const only = (...on: string[]) => Object.fromEntries(KEYS.map((k) => [k, on.includes(k)]));
+
+  const offered = (features: Record<string, boolean>, multiBranch = false) =>
+    shopNav(features, "mart", "advanced", multiBranch, OWNER).flatMap((item) => [
+      ...(item.path ? [item.path] : []),
+      ...(item.subItems ?? []).map((sub) => sub.path),
+    ]);
+
+  /**
+   * Screens a shop keeps whatever it has bought, and the reason each may.
+   *
+   * Three honest categories and nothing else belongs here: the shop itself
+   * (settings, staff, the bill), the way out (help, the dashboard), and what
+   * the PLAN decides rather than a module (branches follow multi-branch, which
+   * is bought).
+   */
+  const NO_MODULE_OF_ITS_OWN: Record<string, string> = {
+    "/tenant": "the dashboard is the way into everything else; with nothing on, it says so",
+    "/tenant/settings": "a business always has settings — including the switch for what it sells",
+    "/tenant/help": "never gated on purpose: anyone can get stuck, and the Help Centre already filters itself to the shop's modules",
+    "/tenant/subscription": "what the shop pays is not a module the shop can decline",
+    "/tenant/staff": "who works here is not optional for a business with anybody in it",
+    "/tenant/activity": "the audit trail of the above — a shop that can grant a permission may ask what was done with it",
+    "/tenant/reports": "a business always may read its own numbers",
+    "/tenant/branches": "follows the PLAN (multi-branch), not a module",
+    "/tenant/transfers": "as above — stock between branches only exists once there are two",
+  };
+
+  /**
+   * What each module is ALLOWED to bring with it.
+   *
+   * The line this holds: a passenger is a screen a shop cannot decline, so
+   * every one of these is a decision somebody made on the shopkeeper's behalf.
+   * Writing them down is what turns "the menu is cluttered" into a list that
+   * can be argued with.
+   */
+  const PASSENGERS: Record<string, readonly string[]> = {
+    products: ["/tenant/products", "/tenant/categories"],
+    services: ["/tenant/products", "/tenant/categories"],
+    pos: ["/tenant/pos", "/tenant/sales", "/tenant/day"],
+    // Stock itself. Its tools have their own keys.
+    inventory: ["/tenant/products", "/tenant/categories", "/tenant/inventory"],
+    // The Expense & Income module IS these four screens.
+    expenses: ["/tenant/cashbook", "/tenant/ledger", "/tenant/income", "/tenant/expenses"],
+    // A field on a product, not a screen.
+    images: [],
+    marketplace: ["/tenant/sales", "/tenant/orders", "/tenant/reviews"],
+    delivery: ["/tenant/orders", "/tenant/riders"],
+    // Sits in the Customers folder, so it needs something to sell first.
+    reservations: [],
+    // The pass is its own module now: a takeaway counter needs a slip to the
+    // kitchen and no floor of tables. `dine_in` depends on it, so a room that
+    // seats people still gets both — which is why the board is listed as the
+    // KITCHEN module's screen and not the floor's.
+    kitchen: ["/tenant/kitchen"],
+    dine_in: ["/tenant/dine-in"],
+    fuel: ["/tenant/fuel", "/tenant/fuel/deliveries", "/tenant/fuel/setup"],
+  };
+
+  const bare = new Set(offered(only(), true));
+
+  it("a shop that has bought nothing is offered nothing unaccounted for", () => {
+    const unaccounted = [...bare].filter((p) => !(p in NO_MODULE_OF_ITS_OWN));
+
+    expect(
+      unaccounted,
+      `${unaccounted.length} screen(s) are shown to a shop that has bought NOTHING: ${unaccounted.join(", ")}. `
+        + "Give each a module key in App\\Support\\Modules — registry, route and nav together — or write down why it may stay.",
+    ).toEqual([]);
+  });
+
+  for (const key of KEYS) {
+    it(`${key} brings only what it is written down as bringing`, () => {
+      // `inventory` cannot be read alone: it depends on `products`, and
+      // Modules::normalize would switch it straight back off.
+      const on = key === "inventory" ? ["inventory", "products"] : [key];
+      const dragged = [...new Set(offered(only(...on)))]
+        .filter((p) => !bare.has(p))
+        .filter((p) => !(PASSENGERS[key] ?? []).includes(p))
+        .filter((p) => !on.slice(1).some((dep) => (PASSENGERS[dep] ?? []).includes(p)));
+
+      expect(
+        dragged,
+        `switching on "${key}" also gave the shop ${dragged.join(", ")} — screens it cannot decline. `
+          + "Either give each one its own key (with `depends` on this module) or add it to PASSENGERS with the reason "
+          + "it is inseparable from its parent.",
+      ).toEqual([]);
+    });
+  }
+
+  it("and nothing is written down that no menu offers any more", () => {
+    // The direction a list like this always rots in: an excuse outliving the
+    // screen it excused.
+    const everywhere = new Set(TYPES.flatMap((t) => MODES.flatMap((m) => paths(t, m, true))));
+    const stale = [
+      ...Object.keys(NO_MODULE_OF_ITS_OWN),
+      ...Object.values(PASSENGERS).flat(),
+    ].filter((p) => !everywhere.has(p));
+
+    expect(stale, `written down and offered by nothing: ${stale.join(", ")}`).toEqual([]);
+  });
+});
+
+/**
+ * THE OPTIONAL TOOLS — the eight screens a shop can now decline.
+ *
+ * Each of these used to arrive as a passenger on a module somebody else bought:
+ * switch `inventory` on and a chemist was handed Disposals, Stocktake, Barcode
+ * Labels, Suppliers and Purchases; own a till and you were handed a customer
+ * book, Coupons, Promotions and Bank card offers.
+ *
+ * Two things are pinned per tool, because one without the other is how a
+ * half-gate ships: the screen goes when the module goes, and the screen comes
+ * back when it returns. A test that only proved the first would pass over a
+ * module whose switch does nothing but hide things for ever.
+ */
+describe("the optional tools appear only when their module is on", () => {
+  const TOOLS: Array<{ key: string; paths: string[]; needs: string[] }> = [
+    { key: "purchasing", paths: ["/tenant/suppliers", "/tenant/purchases"], needs: ["products", "inventory"] },
+    { key: "stocktake", paths: ["/tenant/stocktake"], needs: ["products", "inventory"] },
+    { key: "disposals", paths: ["/tenant/disposals"], needs: ["products", "inventory"] },
+    { key: "labels", paths: ["/tenant/labels"], needs: ["products", "inventory"] },
+    { key: "customers", paths: ["/tenant/customers"], needs: ["pos", "products"] },
+    { key: "promotions", paths: ["/tenant/coupons", "/tenant/promotions"], needs: ["pos", "products"] },
+    { key: "bank_offers", paths: ["/tenant/bank-offers"], needs: ["pos", "products", "promotions"] },
+    { key: "documents", paths: ["/tenant/documents"], needs: ["pos"] },
+  ];
+
+  const menu = (features: Record<string, boolean>) =>
+    shopNav(features, "retail", "advanced", false, OWNER).flatMap((item) => [
+      ...(item.path ? [item.path] : []),
+      ...(item.subItems ?? []).map((sub) => sub.path),
+    ]);
+
+  for (const tool of TOOLS) {
+    const base = Object.fromEntries(tool.needs.map((k) => [k, true]));
+
+    it(`${tool.key} on → its screens are offered`, () => {
+      const offered = menu({ ...base, [tool.key]: true });
+
+      for (const path of tool.paths) {
+        expect(offered, `${tool.key} is on and ${path} is not in the menu`).toContain(path);
+      }
+    });
+
+    it(`${tool.key} off → its screens are gone, and nothing else is`, () => {
+      const withIt = menu({ ...base, [tool.key]: true });
+      const without = menu({ ...base, [tool.key]: false });
+
+      for (const path of tool.paths) {
+        expect(without, `${tool.key} is off and ${path} is still in the menu`).not.toContain(path);
+      }
+
+      // The other half, and the one that catches a gate written too wide: a
+      // switch must take ITS screens and no others. Turning promotions off
+      // once took the whole Customers folder with it.
+      const alsoLost = withIt.filter((p) => !without.includes(p) && !tool.paths.includes(p));
+      expect(
+        alsoLost,
+        `switching "${tool.key}" off also removed ${alsoLost.join(", ")} — a gate written wider than the module it names`,
+      ).toEqual([]);
+    });
+  }
+
+  it("the Customers folder goes when everything inside it does, and not before", () => {
+    // An empty dropdown is worse than a missing one: it is a thing to press
+    // that does nothing. But it must not vanish while a row survives.
+    const sells = { pos: true, products: true };
+
+    expect(menu({ ...sells, customers: true })).toContain("/tenant/customers");
+    expect(menu({ ...sells, promotions: true })).toContain("/tenant/coupons");
+
+    const none = menu(sells);
+    for (const path of ["/tenant/customers", "/tenant/coupons", "/tenant/promotions", "/tenant/bank-offers"]) {
+      expect(none).not.toContain(path);
+    }
+  });
+
+  it("a cash-only takeaway counter is offered none of them", () => {
+    // The shop this whole change is for: a small café that rings up, hands
+    // over, and has never disposed of anything or run a bank card offer.
+    const cafe = menu({ pos: true, products: true, dine_in: true, expenses: true });
+
+    for (const tool of TOOLS) {
+      for (const path of tool.paths) {
+        expect(cafe, `a takeaway café was offered ${path}`).not.toContain(path);
+      }
+    }
+
+    // And it still has everything it DOES use.
+    expect(cafe).toContain("/tenant/pos");
+    expect(cafe).toContain("/tenant/dine-in");
+    expect(cafe).toContain("/tenant/sales");
+    expect(cafe).toContain("/tenant/day");
+    expect(cafe).toContain("/tenant/products");
   });
 });

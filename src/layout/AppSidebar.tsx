@@ -127,8 +127,10 @@ export function shopNav(
    */
   const tradeDaily: NavItem[] = [
     // The pass lives on a different wall from the till: same shop, two people,
-    // two displays.
-    ...(has("dine_in") ? [{ icon: <TaskIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
+    // two displays. Its own module now — a takeaway counter needs a slip to the
+    // kitchen and does not need a floor of tables, and used to have to switch
+    // on the whole restaurant to get one.
+    ...(has("kitchen") ? [{ icon: <TaskIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
     // The board of work TAKEN IN — every car in the bay, or every job on the
     // rail. A laundry, a tailor and a repair counter all run exactly this.
     ...(has("pos") && hasJobBoard(businessType)
@@ -224,7 +226,7 @@ export function shopNav(
     // Promises outstanding: prices quoted, and goods held on advance. Sits
     // beside Sales because it is the same ledger one step earlier — and a
     // shopkeeper holding customers' money needs it where they'll see it daily.
-    ...(has("pos") ? [{ icon: <DocsIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
+    ...(has("documents") ? [{ icon: <DocsIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
     ...(has("marketplace") || has("delivery") ? [{ icon: <PaperPlaneIcon />, name: "Orders", path: "/tenant/orders" }] : []),
     ...(has("delivery") ? [{ icon: <UserIcon />, name: "Riders", path: "/tenant/riders" }] : []),
     ...forecourt,
@@ -255,34 +257,52 @@ export function shopNav(
           {
             icon: <FolderIcon />,
             name: "Inventory",
+            // Stock itself is the module; everything under it is a TOOL a
+            // shop can decline. They used to arrive as passengers — switch
+            // inventory on for a chemist and it was handed all five, whether or
+            // not it had ever disposed of anything.
             subItems: [
               { name: "Stock", path: "/tenant/inventory" },
               // Where stock went when it left without being sold — and what a
               // distributor still owes for the part that went back.
-              { name: "Disposals", path: "/tenant/disposals" },
+              ...(has("disposals") ? [{ name: "Disposals", path: "/tenant/disposals" }] : []),
               // Counting the shelves against the books. The only way a shop
               // finds out what it is actually losing.
-              { name: "Stocktake", path: "/tenant/stocktake" },
-              // A label is printed from the catalog record, not the shelf.
-              { name: "Barcode Labels", path: "/tenant/labels" },
-              { name: "Suppliers", path: "/tenant/suppliers" },
-              { name: "Purchases", path: "/tenant/purchases" },
+              ...(has("stocktake") ? [{ name: "Stocktake", path: "/tenant/stocktake" }] : []),
+              // A label is printed from the catalog record, not the shelf —
+              // and it is worth nothing without a label printer.
+              ...(has("labels") ? [{ name: "Barcode Labels", path: "/tenant/labels" }] : []),
+              ...(has("purchasing")
+                ? [
+                    { name: "Suppliers", path: "/tenant/suppliers" },
+                    { name: "Purchases", path: "/tenant/purchases" },
+                  ]
+                : []),
             ],
           },
         ]
       : []),
-    ...(canSell || hasCatalog
+    // The whole folder used to open for anything that could sell, so a
+    // cash-only takeaway counter was handed a customer book, coupons,
+    // promotions AND bank card offers on the strength of having a till. Each is
+    // its own module now, and the folder appears only if one of them is on.
+    ...((canSell || hasCatalog)
+      && (has("customers") || has("promotions") || has("bank_offers") || has("marketplace") || has("reservations"))
       ? [{
           icon: <GroupIcon />,
           name: "Customers",
           subItems: [
-            { name: "Customer List", path: "/tenant/customers" },
-            { name: "Coupons", path: "/tenant/coupons" },
-            { name: "Promotions", path: "/tenant/promotions" },
+            ...(has("customers") ? [{ name: "Customer List", path: "/tenant/customers" }] : []),
+            ...(has("promotions")
+              ? [
+                  { name: "Coupons", path: "/tenant/coupons" },
+                  { name: "Promotions", path: "/tenant/promotions" },
+                ]
+              : []),
             // A bank funding a discount on its own cards. Beside Promotions
             // because it is the same kind of thing and the same permission —
             // and because a shop looking for "our offers" looks here.
-            { name: "Bank offers", path: "/tenant/bank-offers" },
+            ...(has("bank_offers") ? [{ name: "Bank offers", path: "/tenant/bank-offers" }] : []),
             // Replying is the only thing anyone does on the reviews screen,
             // and the server asks for settings.manage to do it.
             ...(has("marketplace") ? [{ name: "Reviews", path: "/tenant/reviews" }] : []),

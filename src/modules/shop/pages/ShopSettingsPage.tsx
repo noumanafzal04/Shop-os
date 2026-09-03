@@ -13,6 +13,7 @@ import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPut } from "../../../common/api/client";
 import { useCities, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
 import { settingsTabsFor, type SettingsTab } from "../settingsTabs";
+import { YourModules } from "../components/YourModules";
 import { shopService } from "../services/shopService";
 import { useAuthStore } from "../../../stores/authStore";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
@@ -32,6 +33,7 @@ type PrefValue = string | number | boolean | string[] | null;
 
 // ── Section icons (inline line-SVGs, currentColor) ───────────────────────
 const g = "h-[18px] w-[18px]";
+const BlocksGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const StoreGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 9V6l2-3h12l2 3v3M4 9v11h16V9M4 9h16M9 20v-6h6v6" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const PinGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /><circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.7" /></svg>);
 const GlobeGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" /><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18" stroke="currentColor" strokeWidth="1.7" /></svg>);
@@ -51,6 +53,7 @@ const GiftGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><pat
  */
 const TAB_ICONS: Record<SettingsTab, ReactNode> = {
   business: <StoreGlyph />,
+  modules: <BlocksGlyph />,
   tax: <PercentGlyph />,
   pos: <CartGlyph />,
   loyalty: <GiftGlyph />,
@@ -337,6 +340,8 @@ export default function ShopSettingsPage() {
       <div>
         {shop.isLoading ? (
           <div className="h-64 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
+        ) : activeTab === "modules" ? (
+          <YourModules />
         ) : activeTab === "business" ? (
           <div className="space-y-5">
 
