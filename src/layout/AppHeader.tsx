@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import { Link, useLocation } from "react-router";
 import { DRAWER_BELOW, useSidebar } from "../context/SidebarContext";
-import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 import NotificationDropdown from "../components/header/NotificationDropdown";
 import UserDropdown from "../components/header/UserDropdown";
 import { UpdateButton } from "../modules/offline/pwa/UpdateButton";
@@ -11,7 +10,6 @@ import BranchSwitcher from "../modules/branches/components/BranchSwitcher";
 import { Wordmark } from "../components/brand/Brand";
 
 const AppHeader: React.FC = () => {
-  const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
@@ -30,9 +28,6 @@ const AppHeader: React.FC = () => {
     }
   };
 
-  const toggleApplicationMenu = () => {
-    setApplicationMenuOpen(!isApplicationMenuOpen);
-  };
 
   useEffect(() => {
     if (!isTenant) return;
@@ -181,54 +176,28 @@ const AppHeader: React.FC = () => {
           {/* Inline from `sm` up. A tablet has room for all of it and always
               did; hiding it behind a menu was a phone's answer given to a
               device that never asked the question. */}
-          <div className="hidden items-center gap-2 sm:flex sm:gap-3">
-            {/* Operating-branch switcher (owners, multi-branch shops) */}
-            {isTenant && <BranchSwitcher />}
-            {/* "Is there a newer CartZe?", asked on purpose. The app checks
-                by itself once an hour, which is right for something nobody
-                should think about and useless the moment somebody IS thinking
-                about it. It is also where a waiting update lives after the
-                strip has been dismissed. */}
-            <UpdateButton />
-            <ThemeToggleButton />
-            <NotificationDropdown />
-          </div>
+          {/* Operating-branch switcher (owners, multi-branch shops). It names
+              which shelf every figure on screen belongs to, so it stays beside
+              the account rather than folding away — reading a branch's stock
+              while the header says nothing about which branch is the one
+              mistake this control exists to prevent. It renders nothing at all
+              for a single-branch shop. */}
+          {isTenant && <div className="hidden sm:block"><BranchSwitcher /></div>}
 
-          {/* Phones only. Below 640px four controls plus the account will not
-              fit honestly, so they fold — but into a panel that hangs BELOW
-              the header rather than growing it. */}
-          <button
-            type="button"
-            onClick={toggleApplicationMenu}
-            aria-label="More"
-            aria-expanded={isApplicationMenuOpen}
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-gray-100 sm:hidden dark:text-gray-400 dark:hover:bg-white/5"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M5.99902 10.4951C6.82745 10.4951 7.49902 11.1667 7.49902 11.9951V12.0051C7.49902 12.8335 6.82745 13.5051 5.99902 13.5051C5.1706 13.5051 4.49902 12.8335 4.49902 12.0051V11.9951C4.49902 11.1667 5.1706 10.4951 5.99902 10.4951ZM17.999 10.4951C18.8275 10.4951 19.499 11.1667 19.499 11.9951V12.0051C19.499 12.8335 18.8275 13.5051 17.999 13.5051C17.1706 13.5051 16.499 12.8335 16.499 12.0051V11.9951C16.499 11.1667 17.1706 10.4951 17.999 10.4951ZM13.499 11.9951C13.499 11.1667 12.8275 10.4951 11.999 10.4951C11.1706 10.4951 10.499 11.1667 10.499 11.9951V12.0051C10.499 12.8335 11.1706 13.5051 11.999 13.5051C12.8275 13.5051 13.499 12.8335 13.499 12.0051V11.9951Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
+          {/* A WAITING UPDATE, and only that. `place="header"` draws nothing
+              while there is none — "go and look" moved into the account menu,
+              where a setting somebody changes once belongs. */}
+          <UpdateButton place="header" />
+
+          {/* THE BELL STAYS. It is the only thing in this corner that ever
+              needs answering, and on a phone it used to be folded behind a
+              three-dots menu with the theme switch and the update check — so
+              the one control with news to deliver was the hardest to reach. */}
+          <NotificationDropdown />
 
           <UserDropdown />
         </div>
       </div>
-
-      {/* The phone overflow. `absolute`, so opening it can never change the
-          header's height — which is what the sidebar drawer used to be
-          measured against, and where the overlap came from. */}
-      {isApplicationMenuOpen && (
-        <div className="absolute inset-x-0 top-full flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 shadow-theme-md sm:hidden dark:border-gray-800 dark:bg-gray-900">
-          {isTenant && <BranchSwitcher />}
-          <UpdateButton />
-          <ThemeToggleButton />
-          <NotificationDropdown />
-        </div>
-      )}
 
       {isTenant && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
     </header>

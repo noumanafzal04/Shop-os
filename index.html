@@ -2,7 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.png" />
+    <!-- `type` said SVG for a PNG. Browsers sniff and cope; a manifest
+         validator does not. -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- The tab said "localhost". A till is one of half a dozen tabs open on a
          shop's computer all day, and the only thing that tells them apart is
@@ -10,6 +12,38 @@
     <title>CartZe</title>
     <meta name="description" content="CartZe — point of sale and shop management for Pakistani businesses." />
     <meta name="theme-color" content="#465fff" />
+
+    <!-- ── iOS DOES NOT READ THE MANIFEST FOR ANY OF THIS ──────────────
+       ·
+       · A shop could not install CartZe on an iPad, and the reason is that
+       · every line below was missing. Safari ignores `manifest.webmanifest`
+       · for the home-screen icon and, before 16.4, for `display: standalone`
+       · too — so "Add to Home Screen" produced a bookmark with a SCREENSHOT
+       · of the page as its icon, opening in a Safari tab with the address bar
+       · on top. On Android the same manifest installs a real app, which is
+       · why this went unnoticed.
+       ·
+       · `apple-touch-icon` — the icon. 180×180 is what iOS asks for; the
+       ·   192 we already ship is scaled and is the honest thing to point at
+       ·   until a 180 exists.
+       · `apple-mobile-web-app-capable` — open WITHOUT Safari's chrome. The
+       ·   `mobile-web-app-capable` twin is the standard name every other
+       ·   browser reads; both are given because neither covers both.
+       · `…-title` — what sits under the icon. Without it iOS uses <title>,
+       ·   which is fine today and drifts the moment the title gains a suffix.
+       · `…-status-bar-style` — `black-translucent` would put the clock over
+       ·   the app's own header, and nothing here pads for a safe area yet.
+       ·   `default` keeps the status bar as its own strip.
+       ·
+       · NOT added: `viewport-fit=cover`. It is the other half of a proper iOS
+       · install and it is a separate job — without `env(safe-area-inset-*)`
+       · padding, which exactly one component in this app has, it would push
+       · the till's own controls under the home indicator. -->
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="CartZe" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   </head>
   <body class="dark:bg-gray-900">
     <div id="root"></div>

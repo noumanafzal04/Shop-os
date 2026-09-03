@@ -147,3 +147,33 @@ test("the till's action bar stays a bar, not a panel", async ({ page }) => {
     + `(${measured!.height}px) — that room belongs to the cart`,
   ).toBeLessThan(0.15);
 });
+
+/**
+ * THE BELL, ON A PHONE.
+ *
+ * Notifications used to fold behind a three-dots button below 640px, together
+ * with the theme switch and the update check — so the one control in that
+ * corner that ever has news to deliver was the hardest of the three to reach.
+ * The other two moved into the account menu, where a setting somebody changes
+ * once belongs, and the bell came out into the header at every width.
+ *
+ * Asked in a browser because it is a question about layout: a source scan can
+ * only see whether the word `hidden` appears nearby, and nearby is not the
+ * same as wrapping it.
+ */
+test("the notification bell is on screen without opening a menu", async ({ page }) => {
+  await page.goto("/tenant");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(800);
+
+  const bell = page.getByRole("button", { name: /notification/i }).first();
+
+  await expect(bell, "the bell is not reachable without opening something first")
+    .toBeVisible({ timeout: 10_000 });
+
+  // And it is IN the header strip, not somewhere down the page.
+  const box = await bell.boundingBox();
+
+  expect(box, "the bell has no box at all").not.toBeNull();
+  expect(box!.y, "the bell is below the header row").toBeLessThan(120);
+});

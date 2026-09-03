@@ -3,6 +3,8 @@ import { useToast } from "../../components/ui/toast";
 import { useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
+import { useTheme } from "../../context/ThemeContext";
+import { UpdateButton } from "../../modules/offline/pwa/UpdateButton";
 import { useAuthStore } from "../../stores/authStore";
 import { useLogout } from "../../modules/auth/hooks/useAuth";
 import type { UserRole } from "../../modules/auth/types";
@@ -60,6 +62,8 @@ const SLIDERS = "M4 7h9M17 7h3M4 12h3M11 12h9M4 17h7M15 17h5M15 7a2 2 0 1 0 4 0 
 
 /** Leaving through a door — the arrow points OUT. The old one pointed left,
  *  INTO the box, which is the icon for signing in. */
+const MOON = "M20 14.4A8.5 8.5 0 1 1 9.6 4a6.8 6.8 0 0 0 10.4 10.4Z";
+const SUN = "M12 4.2V2.6M12 21.4v-1.6M4.2 12H2.6M21.4 12h-1.6M6.5 6.5 5.4 5.4M18.6 18.6l-1.1-1.1M6.5 17.5l-1.1 1.1M18.6 5.4l-1.1 1.1M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z";
 const SIGN_OUT = "M14 7.5V5.6A1.6 1.6 0 0 0 12.4 4H6.6A1.6 1.6 0 0 0 5 5.6v12.8A1.6 1.6 0 0 0 6.6 20h5.8a1.6 1.6 0 0 0 1.6-1.6v-1.9M20 12H9.8M20 12l-3.2-3.2M20 12l-3.2 3.2";
 
 function initials(name: string): string {
@@ -76,6 +80,7 @@ export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
   const logout = useLogout();
+  const { theme, toggleTheme } = useTheme();
 
   const closeDropdown = () => setIsOpen(false);
   // Tenant-side users get a shortcut to shop settings; admins don't have one.
@@ -186,6 +191,36 @@ export default function UserDropdown() {
               </DropdownItem>
             </li>
           )}
+
+          {/* ── THE TWO THAT USED TO SIT IN THE HEADER ──────────────────
+            *
+            * Appearance and "is there a newer version" are settings a person
+            * changes once and then forgets. They were two permanent icons in
+            * the corner a shopkeeper glances at all day, competing with the
+            * bell — which is the one thing there that ever needs answering.
+            * They belong behind the account, where the rest of "about me and
+            * this device" already lives.
+            *
+            * A WAITING update does NOT move here: `UpdateButton place="header"`
+            * still puts it in the header, loud and named. A menu you have to
+            * open first is a better hiding place than the strip this control
+            * was built to escape. */}
+          <li>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left font-medium text-gray-700 text-theme-sm transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+            >
+              <MenuIcon d={theme === "dark" ? SUN : MOON} />
+              {/* Names the DESTINATION, not the state. "Dark mode" beside a
+                  moon is a label a person can act on; a sun that means "you
+                  are in dark mode" is a puzzle. */}
+              {theme === "dark" ? "Light mode" : "Dark mode"}
+            </button>
+          </li>
+          <li>
+            <UpdateButton place="menu" onDone={closeDropdown} />
+          </li>
         </ul>
 
         <button

@@ -161,13 +161,30 @@ describe("the header is one row that nothing can grow", () => {
     expect(header()).toMatch(/\bh-16\b/);
   });
 
-  it("folds only on phones, and into a panel that hangs below it", () => {
-    // The height mattered structurally, not only visually: opening the old
-    // in-flow row took the header from 64px to ~140, and the sidebar drawer
-    // was positioned against a hard-coded 64.
-    expect(header()).toMatch(/absolute inset-x-0 top-full/);
-    expect(header()).toMatch(/sm:hidden/);
+  it("does not fold at all — and could not grow the header if it did", () => {
+    // This used to assert the three-dots panel and its `absolute inset-x-0
+    // top-full`. That was the MECHANISM, not the rule. The rule is that the
+    // header is a fixed-height row nothing can grow — opening the old in-flow
+    // version took it from 64px to ~140, and the sidebar drawer was positioned
+    // against a hard-coded 64.
+    //
+    // There is no fold-out any more: the theme switch and the update check
+    // moved into the account menu, so what is left fits at every width. That
+    // satisfies the rule outright rather than by careful positioning. If a
+    // panel ever comes back it must hang off the header, not sit inside it.
+    const src = header();
+
+    if (/top-full/.test(src)) expect(src).toMatch(/absolute inset-x-0 top-full/);
+
+    expect(src).not.toMatch(/\bflex-col\b/);
+    expect(src).toMatch(/\bh-16\b/);
   });
+
+  // "Is the bell reachable on a phone?" is asked where it can actually be
+  // answered — e2e/controls-fit.spec.ts, in a browser at 390px. A source scan
+  // can only ask whether some `hidden` class sits NEAR it, and the first
+  // version of that check failed on the command palette's ⌘K hint four lines
+  // away. Proximity is not containment.
 
   it("gives a tablet a way to search", () => {
     // The search box is `lg`-only and ⌘K is a keyboard shortcut. Between the

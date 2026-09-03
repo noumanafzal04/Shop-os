@@ -40,7 +40,23 @@ const SAID: Record<UpdateCheck, { tone: "success" | "info" | "error"; text: stri
   failed: { tone: "error", text: "We could not reach the server to check. Try again shortly." },
 };
 
-export function UpdateButton() {
+/**
+ * WHERE THIS CONTROL IS BEING DRAWN.
+ *
+ * `header` — the strip beside the account. It draws NOTHING while there is no
+ *   update, because "go and look" is not worth a permanent icon in the one
+ *   corner a shopkeeper glances at all day. It reappears, loud and named, the
+ *   moment a version is actually waiting.
+ * `menu`   — a row inside the profile dropdown, where "check for updates"
+ *   belongs: sought out, not stumbled over.
+ *
+ * The WAITING state stays in the header either way. That was the whole point of
+ * this control — a ready update must not be losable behind a dismissed strip,
+ * and a menu somebody has to open first is a better hiding place than a strip.
+ */
+type Place = "header" | "menu";
+
+export function UpdateButton({ place = "header", onDone }: { place?: Place; onDone?: () => void }) {
   const toast = useToast();
   const registration = useUpdateStore((s) => s.registration);
   const ready = useUpdateStore((s) => s.ready);
@@ -66,6 +82,9 @@ export function UpdateButton() {
     );
   }
 
+  // Nothing is waiting, and this is the header: say nothing.
+  if (place === "header") return null;
+
   return (
     <button
       type="button"
@@ -79,22 +98,25 @@ export function UpdateButton() {
           else if (said.tone === "error") toast.error(said.text);
           else toast.info(said.text);
         } finally {
-          // In `finally`, so a thrown check does not leave the header
+          // In `finally`, so a thrown check does not leave the control
           // spinning for the rest of the shift.
           setChecking(false);
+          // The answer arrives as a toast, so the menu has no reason to stay
+          // open on top of it.
+          onDone?.();
         }
       }}
       /* `aria-label` and not a title alone: this is an icon button, and its
          only name is the one a reader is given here. */
       aria-label={checking ? "Checking for updates" : "Check for updates"}
       title="Check for updates"
-      className="relative flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left font-medium text-gray-700 text-theme-sm transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
     >
       <svg
         viewBox="0 0 20 20"
         fill="none"
         aria-hidden="true"
-        className={`h-5 w-5 ${checking ? "animate-spin" : ""}`}
+        className={`h-[18px] w-[18px] shrink-0 text-gray-500 dark:text-gray-400 ${checking ? "animate-spin" : ""}`}
       >
         {/* Two arcs chasing each other — the shape every platform uses for
             "go and look again". Not a download arrow: nothing is coming down
@@ -105,6 +127,7 @@ export function UpdateButton() {
         />
         <path d="M16.9 4.2v4h-4M3.1 15.8v-4h4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
+      {checking ? "Checking…" : "Check for updates"}
     </button>
   );
 }
