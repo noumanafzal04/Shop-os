@@ -189,7 +189,7 @@ export default function PurchaseOrdersPage() {
   return (
     <>
       <PageMeta title="Purchases | CartZe" description="Purchase orders & receiving" />
-      <div className="mb-6 flex items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Purchase Orders</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Order stock, receive into inventory, and track supplier payments.</p>

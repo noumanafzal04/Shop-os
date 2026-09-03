@@ -93,7 +93,7 @@ export default function AdminBannersPage() {
   return (
     <>
       <PageMeta title="Banners | CartZe Admin" description="Promo banners / paid ads" />
-      <div className="mb-6 flex items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Promo Banners</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Paid ads shown on the app home. A tap opens the advertiser's shop.</p>

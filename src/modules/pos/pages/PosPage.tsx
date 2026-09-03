@@ -4,7 +4,7 @@ import { ServedByRow } from "../components/ServedByRow";
 import type { CardType } from "../../banks/services/banksService";
 import { Link } from "react-router";
 import { uuid } from "../../../common/uuid";
-import { ChevronLeftIcon, ChevronDownIcon, TrashBinIcon, PlusIcon, AlertIcon, CloseIcon, DollarLineIcon, ListIcon, UserCircleIcon, CheckLineIcon } from "../../../icons";
+import { ChevronLeftIcon, ChevronDownIcon, TrashBinIcon, PlusIcon, AlertIcon, CloseIcon, DocsIcon, DollarLineIcon, ListIcon, UserCircleIcon, CheckLineIcon } from "../../../icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -3383,17 +3383,23 @@ export default function PosPage() {
           </button>
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 sm:gap-3">
           {/* Reset lives with the others now, but keeps its own gap and a red
               hover: near enough to reach, far enough that the hand going for
               Hold doesn't land on the one that empties the basket. */}
           <button
             onClick={clearSale}
             disabled={cart.length === 0}
-            className="mr-2 flex items-center gap-1.5 rounded-lg border border-error-500/50 bg-error-500/15 px-3.5 py-2 text-theme-sm font-semibold text-error-300 transition hover:border-error-600 hover:bg-error-600 hover:text-white disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg border border-error-500/50 bg-error-500/15 px-3 py-2 text-theme-sm font-semibold text-error-300 transition hover:border-error-600 hover:bg-error-600 hover:text-white disabled:opacity-40 sm:mr-2 sm:px-3.5"
             title="Empty this ticket"
           >
-            <TrashBinIcon className="h-4 w-4" /> Reset
+            <TrashBinIcon className="h-4 w-4" />
+            {/* THE WORD GOES, THE BUTTON STAYS. Below `sm` these five labels
+                came to 553px of text in a bar 366px wide, so the row wrapped
+                to three — four at 360 — and ate a fifth of a phone screen that
+                the cart needed. The icon and the `title` carry it; the title is
+                also the accessible name, so nothing here goes unnamed. */}
+            <span className="hidden sm:inline">Reset</span>
           </button>
 
           {/* Discount / coupon — stays next to the money it changes. */}
@@ -3401,16 +3407,25 @@ export default function PosPage() {
             type="button"
             onClick={discountModal.openModal}
             title="Discount / coupon"
-            className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-theme-sm font-semibold transition ${
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-theme-sm font-semibold transition sm:px-3.5 ${
               Number(discount) > 0 || couponCode
                 ? "border-success-400 bg-success-500/25 text-success-200"
                 : "border-warning-500/50 bg-warning-500/15 text-warning-300 hover:border-warning-400 hover:bg-warning-500/25 hover:text-warning-200"
             }`}
           >
             <PlusIcon className="h-4 w-4" />
-            {Number(discount) > 0 || couponCode
-              ? `Discount −${money((Number(discount) || 0) + couponDiscount)}`
-              : "Add discount"}
+            {/* The MONEY never hides. "Add discount" is an invitation and can
+                be an icon on a phone; "−Rs 500" is a fact about what the
+                customer is being charged, and a cashier reading the total
+                needs to see why it changed at every width. */}
+            {Number(discount) > 0 || couponCode ? (
+              <>
+                <span className="hidden sm:inline">Discount&nbsp;</span>
+                {`−${money((Number(discount) || 0) + couponDiscount)}`}
+              </>
+            ) : (
+              <span className="hidden sm:inline">Add discount</span>
+            )}
           </button>
 
           <span className="mx-1 h-6 w-px bg-white/15" />
@@ -3418,19 +3433,23 @@ export default function PosPage() {
           <button
             onClick={askHold}
             disabled={cart.length === 0 || heldMut.hold.isPending}
-            className="flex items-center gap-1.5 rounded-lg border border-warning-500/40 bg-warning-500/15 px-3.5 py-2 text-theme-sm font-semibold text-warning-300 transition hover:bg-warning-500/25 disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg border border-warning-500/40 bg-warning-500/15 px-3 py-2 sm:px-3.5 text-theme-sm font-semibold text-warning-300 transition hover:bg-warning-500/25 disabled:opacity-40"
             title="Hold this ticket (F4)"
           >
-            <PauseGlyph /> Hold
+            <PauseGlyph />
+            <span className="hidden sm:inline">Hold</span>
             <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F4</kbd>
           </button>
 
           <button
             onClick={() => { held.refetch(); heldModal.openModal(); }}
-            className="flex items-center gap-1.5 rounded-lg border border-orange-500/40 bg-orange-500/15 px-3.5 py-2 text-theme-sm font-semibold text-orange-300 transition hover:bg-orange-500/25"
+            className="flex items-center gap-1.5 rounded-lg border border-orange-500/40 bg-orange-500/15 px-3 py-2 sm:px-3.5 text-theme-sm font-semibold text-orange-300 transition hover:bg-orange-500/25"
             title="Open a parked ticket (F6)"
           >
-            <ListIcon className="h-4 w-4" /> Drafts
+            <ListIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Drafts</span>
+            {/* The badge stays at every width: "there are 3 tickets parked" is
+                the only reason to look at this button. */}
             {held.data?.length ? (
               <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{held.data.length}</span>
             ) : null}
@@ -3443,10 +3462,16 @@ export default function PosPage() {
           <button
             onClick={documentModal.openModal}
             disabled={cart.length === 0}
-            className="flex items-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/15 px-3.5 py-2 text-theme-sm font-semibold text-success-300 transition hover:bg-success-500/25 disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/15 px-3 py-2 sm:px-3.5 text-theme-sm font-semibold text-success-300 transition hover:bg-success-500/25 disabled:opacity-40"
             title="Quotation or advance booking (F7)"
           >
-            <ListIcon className="h-4 w-4" /> Quote / Advance
+            {/* NOT `ListIcon`. Drafts uses that, and below `sm` both buttons
+                lose their words — two identical glyphs a thumb apart, telling
+                a cashier apart only by hue. `DocsIcon` is what the sidebar
+                already gives Quotes & Advances, so the till and the menu name
+                the same thing the same way. */}
+            <DocsIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Quote / Advance</span>
             <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F7</kbd>
           </button>
         </div>

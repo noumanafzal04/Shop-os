@@ -107,7 +107,21 @@ const Button: React.FC<ButtonProps> = ({
       type={type}
       title={title}
       aria-label={ariaLabel}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg transition ${className} ${
+      /* `whitespace-nowrap`: A BUTTON'S LABEL IS NOT A PARAGRAPH.
+       *
+       * Sixteen screens put a heading and a primary action in one
+       * `justify-between` row. Without this, the action is a flex item that
+       * shrinks and its label breaks mid-phrase: at 390px "+ New purchase
+       * order" became a three-line blue slab a quarter of the screen tall,
+       * and "+ New supplier" a two-line one. The shop reported it as the
+       * buttons "not showing good", which is exactly what it looks like.
+       *
+       * Nowrap also stops the button shrinking at all (a flex item's
+       * `min-width` is `auto`, so it will not go below its own content), which
+       * is what makes the HEADING give way instead — the right half to lose,
+       * since a heading reads fine over two lines and a button does not.
+       */
+      className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg transition ${className} ${
         sizeClasses[size]
       } ${variantClasses[variant]} ${
         disabled ? "cursor-not-allowed opacity-50" : ""
