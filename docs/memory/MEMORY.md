@@ -176,3 +176,7 @@
 - [Park It Here](shopos-park-it-here.md) — STANDING: a refusal is a claim about the code; 3 !connected fences hid a finished offline feature
 - [Counter Order → Kitchen](shopos-counter-order-kitchen.md) — SHIPPED: takeaway rung at the till now fires a KOT; it stays open until served, and off the floor
 - [QA Walkthrough](shopos-qa-walkthrough.md) — in-app tester walkthrough at /tenant/qa · /admin/qa; unfiltered ON PURPOSE (Help Centre is filtered)
+- [Machine Layout](shopos-machine-layout.md) — 2026-09-03 new Mac: backend/panel/mobile paths, ONE public Shop-os repo, PHP 8.5, npm ci needed
+- [Responsive Backlog](shopos-responsive-backlog.md) — TO FIX: purchases/suppliers buttons on a phone; POS footer on phone + tablet PORTRAIT (landscape is fine)
+- [Offered Must Be Reachable](shopos-offered-must-be-reachable.md) — STANDING: 8 module leaks on surfaces that had no test; the guard's first version was blind
+- [Takeaway Slip](shopos-takeaway-slip.md) — where takeaway is handled end-to-end; the kitchen slip now PRINTS from the till

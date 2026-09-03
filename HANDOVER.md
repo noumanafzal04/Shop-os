@@ -6406,3 +6406,62 @@ Three things to know before you touch it:
 It must stay **re-runnable**. The first version reported eight bugs on its second
 run — "a business with this name already exists", the console refusing duplicates
 correctly. A sweep that can only run once is a sweep nobody runs.
+
+---
+
+### 2026-09-03 — the button that bounced, on every surface but the menu
+
+A shop asked whether a module it was never given could still show up somewhere —
+*"reports tabs, settings, ya kisi b page py?"* — and the answer was **yes, in
+eight places**.
+
+Splitting nine passenger screens into modules of their own landed each key in
+three places: the registry, the route gate, the sidebar. The sidebar had a test.
+**The dashboard and the reports screen offer screens too, and had none.** So four
+offers were still asking the parent key they used to ride on — Purchases and
+Bank claims on the reports screen, "Stock in" and "You owe" on the dashboard —
+and every one of them leads somewhere its own router refuses. A module a shop was
+never sold is invisible and fine; a button that bounces reads as a broken
+product.
+
+**The takeaway café was the worst of it.** Two gates still said `dine_in` where
+the answer is now `kitchen`: the Settings → POS → **Kitchen** tab, and the KOT
+print endpoint. So the one kind of shop the whole split exists for — a counter
+with a pass and no tables — was handed the kitchen board, told to work off it,
+and could not name a station, decide whether tickets print, or fetch its own
+slip. `MODULE_DISABLED`, to the shop that had the module.
+
+**And the slip itself did not print.** P2 got a counter order onto the board;
+`kot_auto_print` was read in exactly one place, the dine-in tab's Fire button. A
+café with a printer and no screen was told nothing. The till now prints it
+through the same renderer the floor uses.
+
+**The guard I wrote for this was blind, and I proved it before trusting it.**
+The first version carried a hand-written table of which capability guards which
+link. I put the original bug back — `caps.tracksStock` on "Stock in" — and every
+assertion stayed **green**, because the table still said the right thing and the
+table was what was being graded. It now parses the `RequireFeature` nesting out
+of `App.tsx` and reads the links out of the DOM the panels actually render.
+Rewritten, it immediately found **two more** I had missed: `/tenant/customers`
+offered for selling rather than for the customer book, and Day & banking offered
+on permission alone — where the card's header and its tiles were reading two
+different things in one component.
+
+**A matrix must settle its own shops.** Its first run reported `purchasing`
+without `inventory` as a defect. The server never stores that — `normalize()`
+switches off anything whose dependency is off — and `/tenant/purchases` is nested
+inside both gates *because* the second implies the first. A matrix that ignores
+dependencies grades shops that cannot exist.
+
+**And a bug I shipped, caught a long way from where I put it.** I named the
+kitchen docket by writing `setAttribute('kitchen_ticket', …)` on the Sale. A Sale
+is a row: an attribute that is not a column makes the model dirty, and the next
+`save()` writes it. `DemoDataSeeder` saves the sales it rings, so its warranty
+and loyalty blocks died mid-run and the suite went red on two
+`DemoWorldIsCompleteTest` cases, in files this change never touched. `--filter`
+on the tests I had just written was green the whole time. It lives on the action
+now, reset per call, merged into the response by the till's controller.
+
+Backend 2470 / 2472 · panel 1463 / 124 · tsc 0 · eslint 0 errors · Playwright
+device projects 237 passed. Full argument in
+[`docs/decisions/shopos-offered-must-be-reachable.md`](docs/decisions/shopos-offered-must-be-reachable.md).
