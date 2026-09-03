@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Enums\RestaurantTicketStatus;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Restaurant\BumpKitchenTicketRequest;
@@ -46,7 +47,7 @@ class KitchenController extends Controller
             ->with([
                 // A voided line was struck off the tab — it must never reach a pan.
                 'items' => fn ($q) => $q->whereNull('voided_at')->orderBy('created_at'),
-                'ticket:id,ticket_number,dining_table_id,order_type,guest_count',
+                'ticket:id,ticket_number,dining_table_id,order_type,guest_count,customer_name',
                 'ticket.table:id,name',
             ])
             ->orderBy('fired_at')
@@ -117,9 +118,47 @@ class KitchenController extends Controller
             // The floor screen reads kitchen state per LINE on the tab, not per
             // KOT. Voided lines keep their void marker — they were never cooked.
             $kot->items()->whereNull('voided_at')->update(['kot_status' => 'served']);
+
+            $this->closeACounterOrderThatIsDone($kot);
         }
 
         return ApiResponse::ok($kot->fresh(), "Ticket marked {$target}.");
+    }
+
+    /**
+     * A takeaway order rung at the counter, once the kitchen has finished it.
+     *
+     * A tab closes when it is SETTLED. A counter order was paid before the
+     * kitchen ever saw it, so there is no settlement left to make — and it had
+     * to be left open anyway, because `forAnOpenTab` is what keeps a docket on
+     * the board. So the last docket being served is the only moment that can
+     * close it, and if nothing did, every takeaway order a café ever sold would
+     * sit open for ever and the kitchen's own backlog figure would climb by one
+     * per order.
+     *
+     * A tab is left alone: it is the floor's to close, and closing it here
+     * would take a table's bill away before anybody had paid it.
+     */
+    private function closeACounterOrderThatIsDone(KitchenTicket $kot): void
+    {
+        $ticket = $kot->ticket()->first();
+
+        if ($ticket === null || ! $ticket->from_counter || ! $ticket->isOpen()) {
+            return;
+        }
+
+        $stillCooking = $ticket->kitchenTickets()
+            ->where('status', '!=', 'served')
+            ->exists();
+
+        if ($stillCooking) {
+            return;
+        }
+
+        $ticket->forceFill([
+            'status' => RestaurantTicketStatus::Closed,
+            'closed_at' => now(),
+        ])->save();
     }
 
     /**
@@ -183,7 +222,21 @@ class KitchenController extends Controller
             // is really about, and the one it colours its cards by.
             'age_seconds' => $kot->fired_at === null ? 0 : (int) $kot->fired_at->diffInSeconds(now()),
             'ticket_number' => $ticket?->ticket_number,
-            'table_name' => $ticket?->order_type === 'takeaway' ? 'Takeaway' : $ticket?->table?->name,
+            // WHAT A COOK CALLS OUT.
+            //
+            // A table's name for a table. For a takeaway it used to be the word
+            // "Takeaway" — on every card — which on a café's pass is a wall of
+            // twelve identical tickets and nothing to shout. The customer's
+            // name is what the counter actually calls, so it wins where there
+            // is one, and the word stays as the fallback for a walk-up who
+            // never gave one.
+            'table_name' => $ticket?->order_type === 'takeaway'
+                ? (($ticket->customer_name !== null && trim($ticket->customer_name) !== '')
+                    ? trim($ticket->customer_name)
+                    : 'Takeaway')
+                : $ticket?->table?->name,
+            // So the card can say WHICH it is even when the headline is a name.
+            'order_type' => $ticket?->order_type,
             'guest_count' => $ticket?->guest_count,
             'items' => $kot->items->map(fn (RestaurantTicketItem $item) => [
                 'name' => $item->variant_name === null

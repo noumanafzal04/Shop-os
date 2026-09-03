@@ -2,6 +2,7 @@
 
 namespace App\Actions\Sale;
 
+use App\Actions\Restaurant\SendCounterOrderToKitchen;
 use App\Enums\ItemType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleChannel;
@@ -1217,6 +1218,19 @@ class CreateSaleAction
                     $locked = Customer::query()->whereKey($customer->id)->lockForUpdate()->first();
                     $locked->chargeCredit($creditTotal, $sale->id, "Sale {$invoiceNumber}");
                 }
+
+                // THE KITCHEN.
+                //
+                // A takeaway order rung at the counter has to reach the pass, or
+                // the shop's food is cooked from a receipt somebody carries
+                // through by hand. Inside the transaction on purpose: the docket
+                // is built from rows written a moment ago and the only realistic
+                // failure is a bug, in which case losing an unrung sale is the
+                // loud answer rather than a paid order the kitchen never saw.
+                //
+                // Silent for every shop without the module, without a takeaway
+                // order, or with nothing on the ticket a kitchen makes.
+                app(SendCounterOrderToKitchen::class)->execute($sale);
 
                 return $sale->load('items', 'payments', 'tradeIns', 'vehicle');
             });

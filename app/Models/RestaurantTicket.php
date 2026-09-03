@@ -49,6 +49,9 @@ class RestaurantTicket extends BaseModel
         return [
             'status' => RestaurantTicketStatus::class,
             'guest_count' => 'integer',
+            // Was never a tab: rung at the till, paid before the kitchen saw
+            // it. The floor filters on this and the pass closes on it.
+            'from_counter' => 'boolean',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
             'merged_at' => 'datetime',

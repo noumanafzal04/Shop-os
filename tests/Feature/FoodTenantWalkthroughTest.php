@@ -225,12 +225,27 @@ class FoodTenantWalkthroughTest extends TestCase
         $this->addItems($this->owner, $tab['id'], [['product_id' => $burger['id'], 'quantity' => 2]]);
         $this->as($this->owner)->postJson("/api/v1/restaurant/tickets/{$tab['id']}/fire")->assertCreated();
 
-        // The pass must be able to tell a bag from a table: "Takeaway" is what
-        // the cook reads instead of a table number.
+        // The pass must be able to tell a bag from a table. What it reads
+        // instead of a table number is the CUSTOMER'S NAME where there is one —
+        // "Takeaway" on every card is a wall of identical tickets with nothing
+        // to shout — and the word itself only when nobody gave a name.
         $kots = $this->as($this->owner)->getJson('/api/v1/restaurant/kitchen')->assertOk()->json('data.kots');
         $this->assertCount(1, $kots, 'A takeaway order never reached the kitchen screen.');
-        $this->assertSame('Takeaway', $kots[0]['table_name']);
+        $this->assertSame('Adnan', $kots[0]['table_name']);
+        $this->assertSame('takeaway', $kots[0]['order_type'], 'the card must still say what KIND of order it is');
         $this->assertNull($kots[0]['guest_count']);
+
+        // And a walk-up who gave no name still gets a card somebody can read.
+        $nameless = $this->as($this->owner)->postJson('/api/v1/restaurant/tickets', [
+            'order_type' => 'takeaway',
+        ])->assertCreated()->json('data');
+        $this->addItems($this->owner, $nameless['id'], [['product_id' => $burger['id'], 'quantity' => 1]]);
+        $this->as($this->owner)->postJson("/api/v1/restaurant/tickets/{$nameless['id']}/fire")->assertCreated();
+
+        $withoutAName = collect(
+            $this->as($this->owner)->getJson('/api/v1/restaurant/kitchen')->assertOk()->json('data.kots'),
+        )->firstWhere('ticket_number', $nameless['ticket_number']);
+        $this->assertSame('Takeaway', $withoutAName['table_name']);
 
         // And the floor is untouched. A takeaway that quietly seats itself at
         // T1 costs the restaurant that table for the whole evening.

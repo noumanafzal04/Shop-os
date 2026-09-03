@@ -45,6 +45,13 @@ class RestaurantTicketController extends Controller
         $status = $request->input('status', RestaurantTicketStatus::Open->value);
 
         $tickets = RestaurantTicket::query()
+            // Counter orders are the KITCHEN's work, not the floor's. A
+            // takeaway rung at the till is already paid, so it is not a tab
+            // anybody can add to or settle — and it is deliberately left OPEN
+            // until the kitchen has served it, so without this filter every
+            // takeaway a café sold would pile up on the floor screen as a table
+            // nobody is sitting at.
+            ->where('from_counter', false)
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->with(['table', 'items', 'waiter:id,name'])
             ->orderByDesc('opened_at')
