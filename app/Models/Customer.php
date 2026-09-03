@@ -54,14 +54,38 @@ class Customer extends BaseModel
         return $this->belongsTo(CustomerGroup::class, 'customer_group_id');
     }
 
+    /**
+     * The khata statement, newest first — AND A STABLE TIEBREAK.
+     *
+     * `->latest()` orders by `created_at` alone, which is a SECOND. A shop
+     * ringing a credit sale and taking a part payment in the same second gives
+     * two rows the same timestamp, and from there the order is whatever the
+     * engine feels like: SQLite hands back insertion order, MySQL does not
+     * promise one and does not give one.
+     *
+     * That is not cosmetic here. Every row carries `balance_after`, so the
+     * FIRST row is read as "what this customer owes now" — by the statement a
+     * shopkeeper hands across the counter when a customer argues. With the
+     * order scrambled, the top row is some mid-day figure. The suite caught it
+     * as a 300-rupee disagreement between the statement and the day, on MySQL
+     * only, and the demo database already contains same-second pairs.
+     *
+     * `id` is the tiebreak because these are UUIDv7 — time-ordered by
+     * construction, so within one second the larger id IS the later row.
+     */
     public function ledgerEntries(): HasMany
     {
-        return $this->hasMany(CustomerLedgerEntry::class)->latest();
+        return $this->hasMany(CustomerLedgerEntry::class)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
     }
 
+    /** Points, same shape and the same reason — `balance_after` per row. */
     public function loyaltyEntries(): HasMany
     {
-        return $this->hasMany(LoyaltyEntry::class)->latest();
+        return $this->hasMany(LoyaltyEntry::class)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
     }
 
     // ── Loyalty points ────────────────────────────────────────────────
