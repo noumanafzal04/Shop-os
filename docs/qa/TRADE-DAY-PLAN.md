@@ -168,8 +168,21 @@ door.
 
 See `docs/decisions/shopos-only-what-a-shop-uses.md`.
 
-### Still open, and named on purpose
+### P2 — a counter order reaches the kitchen  ·  SHIPPED 2026-09-03
 
+Built straight after P1, because `kitchen` without it is a pass with nothing on
+it. A takeaway sale now builds a counter order — a restaurant ticket carrying
+the sale's food lines — and fires its KOT inside the same transaction as the
+sale. It is the kitchen's work and not the floor's (`restaurant_tickets.sale_id`,
+and the floor list filters on it), it stays OPEN until the kitchen has served it,
+only the lines a kitchen makes are on it, and a practice sale never reaches a
+real kitchen. The board's headline is the customer's name now, not the word
+"Takeaway" twelve times over.
+
+See `docs/decisions/shopos-counter-order-reaches-the-kitchen.md`.
+
+<!-- the original entry, kept for what it claimed -->
+<!--
 - [ ] **P2 — a takeaway sale does not reach the kitchen.** KOTs are created only
       by a dine-in tab's Fire, so `kitchen` on its own is a pass with nothing on
       it unless every order is run as a tab on a fake table. Splitting the module
@@ -178,6 +191,25 @@ See `docs/decisions/shopos-only-what-a-shop-uses.md`.
       than `businessType === "food"`, so a bakery counter or a canteen inside a
       services business can reach it — which makes the missing half more visible,
       not less.
+-->
+
+### P3 — a walkthrough for whoever tests this  ·  SHIPPED 2026-09-03
+
+Asked for after P2: a QA test flow that teaches the product rather than listing
+screens. `/admin/qa` (on the admin rail) and `/tenant/qa` (in no menu) — 11
+sections, 21 steps, Next/Previous, and every step answering *what this is and
+why* before it asks for anything.
+
+Separate from the Help Centre on purpose: that one is filtered to what a shop
+has, and the parts a shop switched off are precisely the parts somebody has to
+check are properly off.
+
+It opens on the three axes (MODULE / TRADE / PERMISSION), because most
+first-week bug reports are one of them doing its job. Nine tests keep it honest,
+including one that pins the module count it states in prose against the
+registry.
+
+See `docs/decisions/shopos-qa-walkthrough.md`.
 
 ## Where the day stands
 

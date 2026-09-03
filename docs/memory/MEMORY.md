@@ -174,3 +174,5 @@
 - [Modules On/Off](shopos-modules-on-off.md) — SHIPPED: 9 new keys so a shop gets only what it uses; kitchen split out of dine_in; P2 = takeaway→kitchen still open
 - [Recorded, Shown To Nobody](shopos-recorded-shown-to-nobody.md) — FIXED: shift offline-violations written to a column nothing reads; offline report was sales-only
 - [Park It Here](shopos-park-it-here.md) — STANDING: a refusal is a claim about the code; 3 !connected fences hid a finished offline feature
+- [Counter Order → Kitchen](shopos-counter-order-kitchen.md) — SHIPPED: takeaway rung at the till now fires a KOT; it stays open until served, and off the floor
+- [QA Walkthrough](shopos-qa-walkthrough.md) — in-app tester walkthrough at /tenant/qa · /admin/qa; unfiltered ON PURPOSE (Help Centre is filtered)

@@ -5776,6 +5776,102 @@ them back.
 
 ---
 
+### 2026-09-03 (last) — a walkthrough for whoever tests this
+
+Asked for a QA test flow: somebody new should be able to read it and come out
+knowing what this product IS, what each part is for, where it lives, whether a
+shop even needs it, and how to test it.
+
+**Not the Help Centre, and for a reason that matters.** That one is written for
+a shopkeeper and is FILTERED to what their shop has — a chemist never reads
+about dine-in. Right for them, wrong for a tester, because the parts a shop
+switched off are precisely the parts somebody has to check are properly off. So
+this is separate and unfiltered, and it names the module each thing needs
+instead of hiding what is off.
+
+**A walk, not a document.** A tester handed forty pages reads two and then
+clicks around. One thing on screen at a time, in an order somebody decided,
+with Next and Previous (arrow keys too), a progress bar and a rail to jump by
+section. The path is the order a shop lives in: sign in, get a catalog, put
+stock in it, sell it, count the drawer, close the day, read the reports.
+
+**Eleven sections, twenty-one steps**, and every step answers the same questions
+in the same order: what this is and why it exists, first — a tester who does not
+know what a screen is FOR reports the rules as defects and misses the real ones
+underneath — then where it lives, which module and trade, whether a shop can do
+without it, then numbered *do this → expect that*, and last, separately, **what
+a real failure looks like here**.
+
+It opens on the **three axes** rather than on a screen: MODULE (what this shop
+was given), TRADE (what kind of business), PERMISSION (what this person may do),
+with the line "before reporting anything missing, check all three — most
+first-week bug reports are one of them doing its job."
+
+Lives at `/admin/qa` (on the admin rail) and `/tenant/qa` (in no menu): a tester
+is usually signed in as the shop they are testing. Each step can be ticked
+*walked* or *found a problem*, in that browser only — a QA pass that reported
+itself complete would be a claim, and this makes none on somebody else's behalf.
+
+**It guards itself.** Nine tests: every screen it points at is in the router,
+every module it names is real, every step has something to do, every check says
+what to expect, and **the module count it states in prose matches the registry**
+— mutation-proven, because a number in prose is the first thing to rot. Six
+existing guards also had to be satisfied for a new screen, each answered with a
+reason rather than an exemption, and `chrome.spec` now opens the page in a real
+browser.
+
+---
+
+### 2026-09-03 (later still) — a counter order reaches the kitchen
+
+P2, named in the entry below and built straight after it. **A kitchen ticket
+could only ever be created by a dine-in tab's Fire**, so a café that rings a
+takeaway at the till — what a small café does all day — printed a receipt for
+the customer and told the kitchen nothing. The only way to get a slip to the
+pass was to run every order as a tab on a table that does not exist.
+
+Splitting `kitchen` out of `dine_in` made that visible rather than causing it: a
+shop can now have the pass without the floor, and a pass nothing reaches is a
+screen with nothing on it.
+
+A takeaway sale now builds a **counter order** — a restaurant ticket carrying
+the sale's food lines — and fires its KOT, inside the same transaction as the
+sale. It is a ticket rather than a second shape because everything the kitchen
+does is already built on one: the board reads KOTs through theirs, the bump
+lifecycle stamps its items, the KOT print renders from it, and `forAnOpenTab` is
+what stops a docket outliving its order.
+
+**Four rules:**
+
+- **Only what a kitchen makes** — a bottle off the chiller is not work for the
+  pass, and a sale with none of them creates no ticket at all, which is what
+  stops a mart that switched the module on from quietly growing a floor. Read
+  from the PRODUCT, with a trap worth remembering: `sale_items.item_type` looks
+  like the answer and holds the coarse `products.type` instead, so filtering the
+  line matched nothing and the kitchen was told nothing — the exact failure this
+  was built to end, reintroduced by a simplification.
+- **The kitchen's work, not the floor's.** It is paid before the kitchen sees
+  it, so it is not a tab anybody can add to or settle. `restaurant_tickets`
+  gained `from_counter` and the floor list filters on it — without that, every
+  takeaway a café sold would pile up on the floor as a table nobody is sitting
+  at. NOT the `sale_id` already on that table: it means "settled as a single
+  sale", a counter order fills it honestly too, and filtering the floor on it
+  would have hidden every settled tab from the closed-tabs view. The first draft
+  did exactly that and the schema caught it — the column already existed.
+- **It stays OPEN until served.** A tab closes when it is settled; this has no
+  settlement left to make, and closing it at the till would drop the docket off
+  the board the instant it was fired. The last docket being served is the only
+  moment that can close it.
+- **A practice sale never reaches a real kitchen.**
+
+**And what a cook calls out.** The board's headline was the word "Takeaway" on
+every takeaway card — on a café's pass, a wall of twelve identical tickets with
+nothing to shout. It is the customer's name now where the cashier typed one,
+with the word as the fallback, and `· Takeaway` underneath so the card still
+says which kind of order it is.
+
+---
+
 ### 2026-09-03 (later) — only what a shop uses
 
 A shopkeeper's complaint started this: **a small takeaway café is shown

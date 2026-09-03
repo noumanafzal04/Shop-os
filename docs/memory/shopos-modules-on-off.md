@@ -41,10 +41,9 @@ promotions/bank-offers; `pos` dragged in quotes.
 and a tenant-side read-only `Settings → Your modules` (`GET /shop/modules`) —
 because "why can I not see Purchases" had nowhere to look.
 
-**STILL OPEN (P2): a takeaway sale does not reach the kitchen board.** KOTs come
-only from a dine-in tab's Fire, so `kitchen` alone is a pass with nothing on it.
-The till's Takeaway/Dine-in toggle now follows the MODULE (it read
-`businessType === "food"`), which makes the gap more visible.
+**P2 SHIPPED the same day** — a takeaway rung at the till now fires a KOT. See
+[[shopos-counter-order-kitchen]]. The till's Takeaway/Dine-in toggle follows the
+MODULE now (it read `businessType === "food"`).
 
 Related: [[shopos-images-and-riders]], [[shopos-plans-and-flow]] (a plan is
 payment only), [[shopos-guards-share-a-blind-spot]] (four nav test files each
