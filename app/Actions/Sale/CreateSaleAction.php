@@ -64,8 +64,27 @@ class CreateSaleAction
         private readonly PromotionService $promotions,
     ) {}
 
+    /**
+     * The kitchen docket this sale fired, if it fired one.
+     *
+     * Read by the till's controller straight after `execute` so the response
+     * can name it and the till can print the slip. It lives HERE and not on
+     * the Sale because a Sale is a row: giving it an attribute that is not a
+     * column makes the model dirty, and the next `save()` anywhere writes a
+     * column that does not exist.
+     *
+     * Null on every path that is not a takeaway a kitchen has to make, and
+     * reset at the top of `execute` so one call can never report the last
+     * one's docket — a stale ticket id would print somebody else's order.
+     *
+     * @var array{ticket_id: string, ticket_number: string, kots: array<int, array{id: string, kot_number: int, station: ?string}>}|null
+     */
+    public ?array $kitchenTicket = null;
+
     public function execute(array $data): Sale
     {
+        $this->kitchenTicket = null;
+
         // Replay path — the retry gets the ORIGINAL sale back.
         if (! empty($data['idempotency_key'])) {
             $existing = Sale::query()
@@ -1230,9 +1249,47 @@ class CreateSaleAction
                 //
                 // Silent for every shop without the module, without a takeaway
                 // order, or with nothing on the ticket a kitchen makes.
-                app(SendCounterOrderToKitchen::class)->execute($sale);
+                $kitchen = app(SendCounterOrderToKitchen::class)->execute($sale);
 
-                return $sale->load('items', 'payments', 'tradeIns', 'vehicle');
+                $sale->load('items', 'payments', 'tradeIns', 'vehicle');
+
+                // ── AND THE SLIP THE COUNTER HAS TO HAND OVER ────────────
+                //
+                // The docket reaching the board is only half of "send it to the
+                // kitchen". A kitchen without a screen works off PAPER, and the
+                // shop says which it is with `kot_auto_print` — a switch that,
+                // until now, was read in exactly one place: the dine-in tab's
+                // Fire button. So a takeaway counter got the board and no slip,
+                // which for a café with a printer and no screen is the same as
+                // telling the kitchen nothing.
+                //
+                // The till cannot print what it does not know exists, and the
+                // ticket is made here, after the sale is already paid. So the
+                // action records it and the till's controller puts it in the
+                // response.
+                //
+                // NOT on the Sale model. The first version of this wrote it
+                // with `setAttribute('kitchen_ticket', …)`, which made the
+                // model DIRTY against a column that does not exist — every
+                // later `$sale->save()` then tried to write it. The demo
+                // seeder saves the sales it rings, so its warranty and loyalty
+                // blocks died mid-run and the suite went red two tests later,
+                // a long way from the cause.
+                $this->kitchenTicket = $kitchen === null ? null : [
+                    'ticket_id' => $kitchen->id,
+                    'ticket_number' => $kitchen->ticket_number,
+                    // One KOT per station: the bar's is not the grill's.
+                    'kots' => $kitchen->kitchenTickets
+                        ->map(fn ($kot): array => [
+                            'id' => $kot->id,
+                            'kot_number' => $kot->kot_number,
+                            'station' => $kot->station,
+                        ])
+                        ->values()
+                        ->all(),
+                ];
+
+                return $sale;
             });
         } catch (QueryException $e) {
             // A concurrent same-key request won the race: its unique-constraint

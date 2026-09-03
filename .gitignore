@@ -1,8 +1,11 @@
 *.log
 .DS_Store
-.env
-.env.backup
-.env.production
+# EVERY env file, however it is named, then the one that is meant to ship.
+# `.env.backup` and `.env.production` were listed by hand, so a `.env.bak.<date>`
+# left behind while moving machines was committable — and it carries APP_KEY and
+# the database password.
+.env*
+!.env.example
 .phpactor.json
 .phpunit.result.cache
 /.codex

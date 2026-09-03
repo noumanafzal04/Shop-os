@@ -938,6 +938,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->group(function (): void {
                     Route::get('kitchen', [KitchenController::class, 'board']);
                     Route::post('kitchen/kot/{kot}/bump', [KitchenController::class, 'bump']);
+                    // PRINTING A DOCKET IS KITCHEN WORK, NOT FLOOR WORK.
+                    //
+                    // This lived in the dine-in group, which was true while a
+                    // KOT could only come from a tab. A takeaway counter now
+                    // fires one at the till — and a café with a printer and no
+                    // floor could not fetch its own slip, so "sent to the
+                    // kitchen" meant a board it does not have. `READS_KITCHEN`
+                    // is either key, so the cashier who rang it and the cook
+                    // who works the pass can both print it.
+                    Route::get('tickets/{ticket}/kot/{kot}', [RestaurantTicketController::class, 'kotPrint']);
                 });
 
             // Dine-in (restaurant depth): a floor of tables, running tabs,
@@ -968,7 +978,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('tickets/{ticket}/items', [RestaurantTicketController::class, 'addItems']);
                     Route::delete('tickets/{ticket}/items/{item}', [RestaurantTicketController::class, 'voidItem']);
                     Route::post('tickets/{ticket}/fire', [RestaurantTicketController::class, 'fire']);
-                    Route::get('tickets/{ticket}/kot/{kot}', [RestaurantTicketController::class, 'kotPrint']);
+                    // kotPrint moved up into the `feature:kitchen` group — a
+                    // takeaway counter with no floor still has to print.
                     Route::post('tickets/{ticket}/settle', [RestaurantTicketController::class, 'settle']);
                     Route::post('tickets/{ticket}/cancel', [RestaurantTicketController::class, 'cancel']);
                     // The floor moves: a party changes table, two tabs become

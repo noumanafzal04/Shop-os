@@ -144,7 +144,18 @@ class SaleController extends Controller
 
         $sale = $action->execute($data);
 
-        return ApiResponse::created($sale, "Sale {$sale->invoice_number} completed");
+        // THE KITCHEN'S SLIP, named so the till can print it.
+        //
+        // A takeaway a kitchen has to make fires a docket on the server, after
+        // the money is taken — so the till has no other way to learn it exists,
+        // and a slip it cannot name is a slip it cannot print. Null for every
+        // shop that is not a kitchen, and merged onto the payload rather than
+        // set on the model: an attribute that is not a column makes the model
+        // dirty and the next save() writes it.
+        return ApiResponse::created(
+            $sale->toArray() + ['kitchen_ticket' => $action->kitchenTicket],
+            "Sale {$sale->invoice_number} completed",
+        );
     }
 
     /**

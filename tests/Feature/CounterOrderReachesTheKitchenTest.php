@@ -253,4 +253,77 @@ class CounterOrderReachesTheKitchenTest extends TestCase
         $this->assertSame([], $this->asOwner($theirOwner)
             ->getJson('/api/v1/restaurant/kitchen')->assertOk()->json('data.kots'));
     }
+
+    // ── The slip the counter has to hand over ───────────────────────
+    //
+    // The docket reaching the BOARD is only half of "sent to the kitchen". A
+    // café working off paper — most of them, and the case the shop described —
+    // needs it out of the printer, and `kot_auto_print` is the shop's answer to
+    // which it is. That switch was read in exactly one place: the dine-in tab's
+    // Fire button. So a counter with no floor obeyed a setting nobody asked it
+    // about, and the ticket the server made was one the till never heard of.
+
+    public function test_the_sale_names_the_docket_so_the_till_can_print_it(): void
+    {
+        $sale = $this->ring([[$this->biryani, 1]]);
+
+        $this->assertNotNull(
+            $sale['kitchen_ticket'] ?? null,
+            'the till cannot print a slip it was never told exists',
+        );
+        $this->assertNotEmpty($sale['kitchen_ticket']['kots'], 'named a ticket with no KOT on it');
+
+        $ticket = RestaurantTicket::query()->firstOrFail();
+        $this->assertSame($ticket->id, $sale['kitchen_ticket']['ticket_id']);
+        $this->assertSame($sale['invoice_number'], $sale['kitchen_ticket']['ticket_number']);
+
+        foreach ($sale['kitchen_ticket']['kots'] as $kot) {
+            $this->assertArrayHasKey('id', $kot);
+            $this->assertArrayHasKey('kot_number', $kot);
+            $this->assertArrayHasKey('station', $kot);
+        }
+    }
+
+    public function test_a_sale_with_nothing_to_cook_names_no_docket(): void
+    {
+        // The denominator for the test above: if `kitchen_ticket` were always
+        // filled, asserting it is present would prove nothing.
+        $sale = $this->ring([[$this->water, 1]]);
+
+        $this->assertNull($sale['kitchen_ticket'] ?? null);
+    }
+
+    public function test_a_counter_with_no_floor_can_still_print_its_own_slip(): void
+    {
+        // The KOT renderer lived inside the dine-in route group, which was true
+        // while a KOT could only come from a tab. This shop HAS a kitchen and
+        // no `dine_in`, so the endpoint that draws the slip was refused to the
+        // one kind of shop the whole split exists for.
+        $sale = $this->ring([[$this->biryani, 1]]);
+        $named = $sale['kitchen_ticket'];
+
+        $this->assertFalse(
+            $this->shop->fresh()->featureEnabled('dine_in'),
+            'this shop must NOT have a floor, or the test proves nothing',
+        );
+
+        $this->asOwner()
+            ->get("/api/v1/restaurant/tickets/{$named['ticket_id']}/kot/{$named['kots'][0]['id']}")
+            ->assertOk();
+    }
+
+    public function test_a_shop_without_the_kitchen_module_cannot_reach_the_slip(): void
+    {
+        // The gate moved; it did not disappear.
+        $sale = $this->ring([[$this->biryani, 1]]);
+        $named = $sale['kitchen_ticket'];
+
+        $this->shop->update(['features' => Modules::normalize([
+            'products' => true, 'pos' => true, 'expenses' => true,
+        ])]);
+
+        $this->asOwner()
+            ->get("/api/v1/restaurant/tickets/{$named['ticket_id']}/kot/{$named['kots'][0]['id']}")
+            ->assertForbidden();
+    }
 }
