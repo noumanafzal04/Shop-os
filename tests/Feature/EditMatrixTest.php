@@ -22,6 +22,7 @@ use App\Models\Rider;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\Modules;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -544,7 +545,13 @@ final class EditMatrixTest extends TestCase
 
         $this->shop = Tenant::factory()->create([
             'business_type' => $type,
-            'features' => BusinessTypes::defaultFeatures($type),
+            // The matrix drives EVERY write endpoint, so it needs every module
+            // its trade could have — a fixture on the trade defaults alone
+            // could not reach a bank offer, which no trade starts with.
+            'features' => Modules::normalize(array_merge(
+                BusinessTypes::defaultFeatures($type),
+                array_fill_keys(Modules::keys(), true),
+            )),
             'setup_completed' => true,
             'timezone' => 'UTC',
             // Main counts as one, and the matrix opens a second.

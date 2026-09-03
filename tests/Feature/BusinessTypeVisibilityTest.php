@@ -301,8 +301,17 @@ class BusinessTypeVisibilityTest extends TestCase
         [, $owner] = $this->makeShop('food', ['inventory' => true]);
 
         $this->assertReachable($owner, 'inventory');
-        $this->assertReachable($owner, 'suppliers');
-        $this->assertReachable($owner, 'purchase_orders');
+
+        // Suppliers and purchase orders are a MODULE of their own now, and it
+        // is off unless somebody asks for it. Granting stock no longer hands a
+        // kitchen a vendor directory it never wanted — which is the whole point
+        // of the split, so it is asserted rather than assumed.
+        $this->assertBlocked($owner, 'suppliers');
+        $this->assertBlocked($owner, 'purchase_orders');
+
+        [, $buyer] = $this->makeShop('food', ['inventory' => true, 'purchasing' => true]);
+        $this->assertReachable($buyer, 'suppliers');
+        $this->assertReachable($buyer, 'purchase_orders');
     }
 
     // ── 9. EXPENSES ────────────────────────────────────────────────

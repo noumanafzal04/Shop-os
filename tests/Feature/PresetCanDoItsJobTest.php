@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Modules;
 use App\Support\StaffPresets;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -49,11 +50,11 @@ class PresetCanDoItsJobTest extends TestCase
         $this->tenant = Tenant::factory()->create([
             'setup_completed' => true,
             'business_type' => 'mart',
-            'features' => [
-                'pos' => true, 'products' => true, 'services' => true,
-                'inventory' => true, 'dine_in' => true, 'expenses' => true,
-                'marketplace' => true, 'delivery' => true,
-            ],
+            // Derived from the registry, not listed by hand. The list said
+            // "every module on" and named eight of them, so the day eight
+            // became nineteen this file started failing on the module axis it
+            // exists to hold still.
+            'features' => Modules::normalize(array_fill_keys(Modules::keys(), true)),
         ]);
 
         Product::withoutTenancy()->create([

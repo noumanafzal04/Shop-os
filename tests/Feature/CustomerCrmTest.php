@@ -30,7 +30,7 @@ class CustomerCrmTest extends TestCase
         $city = City::query()->create(['name' => 'Karachi', 'is_active' => true]);
         $this->shop = Tenant::factory()->create([
             'online_shop_enabled' => true, 'setup_completed' => true, 'city_id' => $city->id,
-            'business_type' => 'retail', 'features' => BusinessTypes::defaultFeatures('retail'), 'delivery_fee' => 0,
+            'business_type' => 'retail', 'features' => array_merge(BusinessTypes::defaultFeatures('retail'), ['customers' => true]), 'delivery_fee' => 0,
         ]);
         $this->owner = User::factory()->shopOwner($this->shop)->create();
         $this->product = Product::withoutTenancy()->create([
@@ -138,7 +138,12 @@ class CustomerCrmTest extends TestCase
     public function test_customers_isolated_per_tenant(): void
     {
         $this->makeSale('Ayesha', '+923001234567');
-        $other = User::factory()->shopOwner()->create();
+        // The other shop needs the customer book too — otherwise this passes
+        // on a 403 rather than on the list being empty, which is not isolation,
+        // it is a locked door.
+        $other = User::factory()->shopOwner(
+            Tenant::factory()->create(['features' => ['customers' => true]]),
+        )->create();
         $this->assertSame(0, $this->actingAsUser($other)->getJson('/api/v1/customers')->json('meta.pagination.total'));
     }
 }

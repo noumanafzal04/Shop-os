@@ -325,7 +325,11 @@ class FoodTenantWalkthroughTest extends TestCase
         $this->as($this->owner)->getJson('/api/v1/suppliers')->assertForbidden();
         $this->as($this->owner)->getJson('/api/v1/purchase-orders')->assertForbidden();
 
+        // Stock AND the supplier book. They are two modules now: a kitchen can
+        // count what it holds without keeping a vendor directory, and this
+        // walkthrough is about the one that buys its chicken.
         $this->grantModule('inventory');
+        $this->grantModule('purchasing');
 
         $chicken = $this->as($this->owner)->postJson('/api/v1/products', [
             'item_type' => 'physical_product', 'name' => 'Chicken (raw)', 'unit' => 'kg',

@@ -118,7 +118,17 @@ final class ADayInTheShopTest extends TestCase
      * `services` is here because a salon's day sells one: the module is what
      * lets a `service` item exist at all, and the day sells nine of them.
      */
-    private const WALKED_BY_THE_DAY = ['products', 'services', 'inventory', 'pos', 'expenses', 'dine_in'];
+    private const WALKED_BY_THE_DAY = [
+        'products', 'services', 'inventory', 'pos', 'expenses', 'dine_in',
+        // Split out of the four above when the passenger screens were given
+        // modules of their own. Each is genuinely walked by the day, not merely
+        // owned by it: the shop BUYS stock from a supplier and Q3 asks what it
+        // owes (`purchasing`), sells on khata and Q4 asks the balance three ways
+        // (`customers`), writes a quotation and converts it at the counter,
+        // which is one of the seven doors (`documents`), and fires a dine-in
+        // tab at the pass (`kitchen`).
+        'purchasing', 'customers', 'documents', 'kitchen',
+    ];
 
     /**
      * Modules a day AT THE COUNTER does not reach, and why — in writing.
@@ -135,6 +145,14 @@ final class ADayInTheShopTest extends TestCase
         'reservations' => 'a booking is not a transaction; nothing moves until it is honoured',
         'images' => 'a picture is not money and cannot disagree with a report',
         'fuel' => 'a forecourt shift is measured by meter and dip, not by a drawer — FuelManagementTest owns it, including fuel that crossed a meter and was never rung up',
+        // The tools split out of `inventory` and the offers split out of the
+        // Customers folder. Each is a screen the day never opens, and each has
+        // a file that does.
+        'stocktake' => 'counting the shelves is a different day — StockCountTest walks it, including what applying a count writes off',
+        'disposals' => 'stock leaving without being sold is not a sale; StockDisposalTest owns it, and the day would only ever prove it stayed at zero',
+        'labels' => 'a printed label is not money and cannot disagree with a report',
+        'promotions' => 'a coupon changes the PRICE of a sale the day already rings; CouponTest and PromotionTest walk the arithmetic, and the discount ceiling has its own file',
+        'bank_offers' => 'a discount somebody else funds — BankOfferSaleTest walks it end to end, including what the bank owes afterwards',
     ];
 
     /**

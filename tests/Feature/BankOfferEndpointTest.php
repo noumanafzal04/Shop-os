@@ -42,7 +42,12 @@ class BankOfferEndpointTest extends TestCase
         $this->tenant = Tenant::factory()->create([
             'setup_completed' => true,
             'business_type' => 'mart',
-            'features' => BusinessTypes::defaultFeatures('mart'),
+            'features' => array_merge(BusinessTypes::defaultFeatures('mart'), [
+                // Bank card offers are their own module and no trade starts
+                // with one — a discount a BANK funds is a mid-sized-retailer
+                // arrangement. A file about bank offers has to ask for it.
+                'promotions' => true, 'bank_offers' => true,
+            ]),
             'timezone' => 'Asia/Karachi',
         ]);
         $this->cashier = User::factory()->tenantStaff($this->tenant, ['sales.manage'])->create();
@@ -104,7 +109,12 @@ class BankOfferEndpointTest extends TestCase
     public function test_another_shop_may_use_the_same_bank_name(): void
     {
         // Every shop signs its own deals — "HBL" is not a platform-wide row.
-        $other = Tenant::factory()->create(['setup_completed' => true]);
+        // The other shop needs the module too, or "another shop may use the
+        // same name" would pass on a 403 rather than on the name being free.
+        $other = Tenant::factory()->create([
+            'setup_completed' => true,
+            'features' => ['promotions' => true, 'bank_offers' => true],
+        ]);
         $theirMarketer = User::factory()->tenantStaff($other, ['coupons.manage'])->create();
 
         $this->actingAsUser($theirMarketer)

@@ -324,10 +324,54 @@ class Tenant extends BaseModel
      * Capability check. The tenant's own module map is the only authority —
      * proposed by its business type when it was created, adjusted by an admin,
      * and never rewritten by a billing event.
+     *
+     * ── Why the chain is walked, and not merely read ────────────────────
+     *
+     * `applyModules()` normalizes on the way in, so a map written through the
+     * admin screen is always self-consistent. But `features` is a JSON column
+     * and anything that writes it directly — a seeder, a factory, a data fix
+     * typed at a console — can leave `purchasing` true under an `inventory`
+     * that is false.
+     *
+     * That used to cost nothing, because a module with a dependency had no
+     * route of its own. Now it does: Suppliers & Purchases rides `purchasing`,
+     * so a half-written map would open a stock screen for a shop that keeps no
+     * stock, and the shop would find an empty list it can never fill.
+     *
+     * So a module is enabled only if everything it stands on is. The map's
+     * honesty is no longer load-bearing — cheap, because the chains are two or
+     * three deep over nineteen modules, and there is no way around it.
      */
     public function featureEnabled(string $feature): bool
     {
-        return (bool) ($this->features[$feature] ?? false);
+        return $this->featureStanding($feature, []);
+    }
+
+    /**
+     * @param  list<string>  $seen  guards a cycle in a hand-edited registry —
+     *                              `depends` is written by hand and a loop
+     *                              would otherwise recurse until the stack ran
+     *                              out, at a route gate, on every request
+     */
+    private function featureStanding(string $feature, array $seen): bool
+    {
+        if (! (bool) ($this->features[$feature] ?? false)) {
+            return false;
+        }
+
+        if (in_array($feature, $seen, true)) {
+            return false;
+        }
+
+        $seen[] = $feature;
+
+        foreach (Modules::all()[$feature]['depends'] ?? [] as $needs) {
+            if (! $this->featureStanding($needs, $seen)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

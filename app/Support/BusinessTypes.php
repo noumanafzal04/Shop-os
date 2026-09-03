@@ -36,7 +36,58 @@ namespace App\Support;
  */
 class BusinessTypes
 {
-    public const FEATURES = ['products', 'services', 'inventory', 'marketplace', 'reservations', 'delivery', 'expenses', 'images', 'pos', 'dine_in', 'fuel'];
+    public const FEATURES = [
+        'products', 'services', 'inventory', 'marketplace', 'reservations', 'delivery',
+        'expenses', 'images', 'pos', 'dine_in', 'fuel',
+        // The tools that used to arrive as PASSENGERS on the modules above: a
+        // chemist who switched on `inventory` was handed Disposals, Stocktake,
+        // Labels, Suppliers and Purchases whether or not it had ever disposed
+        // of anything, and anything that could sell was handed Coupons,
+        // Promotions, Bank offers and a customer book. Each is now a module a
+        // shop can decline. See App\Support\Modules for the dependencies.
+        'purchasing', 'stocktake', 'disposals', 'labels',
+        'customers', 'promotions', 'bank_offers', 'documents',
+        // The pass, split out of `dine_in`. A small café that only does
+        // takeaway needs a slip to the kitchen and nothing else — and used to
+        // have to switch on the whole restaurant (tables, tabs, split bills)
+        // to get one.
+        'kitchen',
+    ];
+
+    /**
+     * Which of those tools a trade STARTS with — the rest are there to be
+     * switched on when a shop grows into them.
+     *
+     * Deliberately not "everything its parent module allows". A shop shown
+     * every screen it could conceivably use is the complaint this whole idea
+     * answers: a small takeaway café does not want Disposals, and a chemist
+     * does not want Bank card offers.
+     *
+     * `purchasing` follows `inventory` everywhere it is on, because the two are
+     * a pair: a shop tracking stock with no way to record what it bought can
+     * only ever increase stock by hand, which is not a shop we should ship.
+     * `normalize()` drops it again wherever inventory is off, so listing it
+     * costs nothing for a trade that keeps no stock.
+     *
+     * `bank_offers` starts OFF for every trade on purpose. A discount a bank
+     * funds on its own cards is a mid-sized-retailer arrangement, and it is the
+     * screen a shopkeeper pointed at when they said the menu was full of things
+     * that had nothing to do with them.
+     */
+    private const TOOL_DEFAULTS = [
+        // A café is the shop this split was made for: the pass on, the floor
+        // optional. `dine_in` stays where the type template sets it.
+        'food' => ['customers', 'purchasing', 'kitchen'],
+        'mart' => ['customers', 'purchasing', 'stocktake', 'disposals', 'labels', 'promotions'],
+        'pharmacy' => ['customers', 'purchasing', 'stocktake', 'disposals'],
+        'retail' => ['customers', 'purchasing', 'stocktake', 'disposals', 'labels', 'promotions', 'documents'],
+        'services' => ['customers', 'documents'],
+        'automotive' => ['customers', 'purchasing', 'stocktake', 'documents'],
+        'petroleum' => ['customers', 'purchasing', 'stocktake'],
+        // A books-only office sells nothing, so it has nobody to keep a book
+        // about and nothing to discount.
+        'finance' => [],
+    ];
 
     /**
      * Selling units suggested per type (the product/POS unit field offers
@@ -533,13 +584,29 @@ class BusinessTypes
         // online-selling types get images (customers must see what they buy),
         // walk-in-only types (pharmacy, salon…) start image-free for a neat
         // form. Selling online always forces images on — see Tenant::imagesEnabled().
-        return array_merge([
+        // The optional tools, per trade. Merged UNDER the type's own flags for
+        // the same reason everything else here is: a type that states a value
+        // explicitly wins over a default computed for it.
+        $tools = array_fill_keys(
+            self::TOOL_DEFAULTS[self::primary($code)] ?? [],
+            true,
+        );
+
+        // SETTLED, not merely merged.
+        //
+        // A raw merge proposed `purchasing` for a food shop, whose `inventory`
+        // is off unless its category keeps a store room — so the create screen
+        // showed Suppliers & Purchases ticked and the server stored it off. A
+        // proposal the server rewrites is a proposal that lies to the admin,
+        // and this is the one place to stop it: normalize settles the map the
+        // same way the save will.
+        return Modules::normalize(array_merge([
             'expenses' => true,
             'images' => $features['marketplace'] ?? false,
             // The in-shop POS till defaults ON for every type; the plan
             // ultimately decides (an Online-Business-only plan has no POS).
             'pos' => true,
-        ], $features);
+        ], $tools, $features));
     }
 
     /**

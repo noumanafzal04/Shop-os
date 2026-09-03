@@ -45,22 +45,70 @@ class Modules
                 'group' => 'Selling',
                 'depends' => [],
             ],
+            'documents' => [
+                'label' => 'Quotes & Advances',
+                'description' => 'Write a quotation, take money in advance, turn either into a sale. A counter that only rings and hands over does not need it.',
+                'group' => 'Selling',
+                'depends' => ['pos'],
+            ],
             'inventory' => [
                 'label' => 'Inventory',
-                'description' => 'Stock tracking, adjustments, purchases and low-stock alerts.',
-                'group' => 'Back office',
+                'description' => 'Stock tracking, adjustments and low-stock alerts. The tools below build on it.',
+                'group' => 'Stock',
                 'depends' => ['products'],
+            ],
+            'purchasing' => [
+                'label' => 'Suppliers & Purchases',
+                'description' => 'Purchase orders, receiving goods, and what each supplier is owed. A shop that buys over the counter and keeps no supplier book can leave it off.',
+                'group' => 'Stock',
+                'depends' => ['inventory'],
+            ],
+            'stocktake' => [
+                'label' => 'Stocktake',
+                'description' => 'Counting the shelves against the books, sheet by sheet.',
+                'group' => 'Stock',
+                'depends' => ['inventory'],
+            ],
+            'disposals' => [
+                'label' => 'Disposals',
+                'description' => 'Where stock went when it left without being sold — written off, expired, or returned to the supplier.',
+                'group' => 'Stock',
+                'depends' => ['inventory'],
+            ],
+            'labels' => [
+                'label' => 'Barcode Labels',
+                'description' => 'Print shelf and product labels from the catalog. Needs a label printer to be worth switching on.',
+                'group' => 'Stock',
+                'depends' => ['inventory'],
+            ],
+            'customers' => [
+                'label' => 'Customers & Khata',
+                'description' => 'A customer book: who they are, what they owe, and their loyalty points. A cash-only counter that never sells on credit can leave it off.',
+                'group' => 'Customers & offers',
+                'depends' => [],
+            ],
+            'promotions' => [
+                'label' => 'Coupons & Promotions',
+                'description' => 'Discount codes and automatic offers — buy-one-get-one, percentage off, happy hour.',
+                'group' => 'Customers & offers',
+                'depends' => [],
+            ],
+            'bank_offers' => [
+                'label' => 'Bank Card Offers',
+                'description' => 'A discount a BANK funds on its own cards. Almost nobody outside a mid-sized retailer runs one.',
+                'group' => 'Customers & offers',
+                'depends' => ['promotions'],
             ],
             'expenses' => [
                 'label' => 'Expense & Income Manager',
                 'description' => 'Expenses, other income and a day-by-day cashbook. A sell-only shop can skip it.',
-                'group' => 'Back office',
+                'group' => 'Money',
                 'depends' => [],
             ],
             'images' => [
                 'label' => 'Product Images',
                 'description' => 'Photos on products. Always on when selling online; optional for a walk-in shop.',
-                'group' => 'Back office',
+                'group' => 'Online',
                 'depends' => ['products'],
             ],
             'marketplace' => [
@@ -78,14 +126,23 @@ class Modules
             'reservations' => [
                 'label' => 'Reservations',
                 'description' => 'Customers reserve items to collect later.',
-                'group' => 'Online',
+                'group' => 'Customers & offers',
+                'depends' => ['products'],
+            ],
+            'kitchen' => [
+                'label' => 'Kitchen Tickets (KOT)',
+                'description' => 'A pass for the kitchen: what to cook, in the order it was rung, bumped when it is ready. A takeaway counter needs exactly this and nothing else.',
+                'group' => 'Trade-specific',
                 'depends' => ['products'],
             ],
             'dine_in' => [
-                'label' => 'Dine-in / Restaurant',
-                'description' => 'Tables, running tabs, kitchen tickets (KOT) and split bills.',
+                'label' => 'Dine-in / Tables',
+                'description' => 'A floor of tables, running tabs, settle and split bills. Everything a shop that seats people needs on TOP of the kitchen pass.',
                 'group' => 'Trade-specific',
-                'depends' => ['products'],
+                // The pass, because firing a tab has to land somewhere. A
+                // dine-in room whose kitchen ticket went nowhere would be a
+                // Fire button that does nothing.
+                'depends' => ['products', 'kitchen'],
             ],
             'fuel' => [
                 'label' => 'Fuel Management',

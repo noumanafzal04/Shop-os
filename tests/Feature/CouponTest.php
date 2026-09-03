@@ -31,7 +31,7 @@ class CouponTest extends TestCase
         $city = City::query()->create(['name' => 'Karachi', 'is_active' => true]);
         $this->shop = Tenant::factory()->create([
             'online_shop_enabled' => true, 'setup_completed' => true, 'city_id' => $city->id,
-            'business_type' => 'retail', 'features' => BusinessTypes::defaultFeatures('retail'), 'delivery_fee' => 0,
+            'business_type' => 'retail', 'features' => array_merge(BusinessTypes::defaultFeatures('retail'), ['promotions' => true, 'customers' => true]), 'delivery_fee' => 0,
         ]);
         $this->owner = User::factory()->shopOwner($this->shop)->create();
         $this->product = Product::withoutTenancy()->create([
@@ -182,7 +182,11 @@ class CouponTest extends TestCase
         $this->actingAsUser($staff)->getJson('/api/v1/coupons')->assertStatus(403);
 
         $this->coupon();
-        $other = User::factory()->shopOwner()->create();
+        // The other shop needs the offers module, or this passes on a 403
+        // rather than on the list being empty — a locked door is not isolation.
+        $other = User::factory()->shopOwner(
+            Tenant::factory()->create(['features' => ['promotions' => true]]),
+        )->create();
         $this->assertSame(0, $this->actingAsUser($other)->getJson('/api/v1/coupons')->json('meta.pagination.total'));
     }
 }

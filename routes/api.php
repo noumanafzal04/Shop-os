@@ -197,6 +197,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::put('/shop/setup', [ShopController::class, 'setup'])->middleware('permission:settings.manage');
             Route::put('/shop', [ShopController::class, 'update'])->middleware('permission:settings.manage');
             Route::get('/shop/settings', [ShopController::class, 'settings']);
+            // WHAT THIS SHOP HAS, and what it does not.
+            //
+            // Read-only, and behind no permission beyond being in the shop: it
+            // answers "why can I not see Purchases", which is a question a
+            // cashier asks as often as an owner. Modules stay the admin's
+            // decision — a shop able to switch its own POS off would be a
+            // support call — but not being able to SEE the answer was the gap.
+            Route::get('/shop/modules', [ShopController::class, 'modules']);
             Route::get('/shop/subscription', [SubscriptionController::class, 'show']);
 
             // "Keep this shop" — a demo asking to become a business. No
@@ -325,8 +333,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     ->only(['index', 'store', 'update', 'destroy']);
             });
 
-            // Customers — CRM directory (auto-captured from sales/orders)
-            Route::middleware('permission:customers.manage')->group(function (): void {
+            // Customers — CRM directory (auto-captured from sales/orders).
+            //
+            // Its own module now. A cash-only counter that never sells on
+            // credit and runs no loyalty keeps no customer book, and used to be
+            // shown one anyway because anything that could sell was handed the
+            // whole Customers folder.
+            Route::middleware(['feature:customers', 'permission:customers.manage'])->group(function (): void {
                 // Khata repayment — pay down a customer's credit balance.
                 Route::post('customers/{customer}/payments', [CustomerController::class, 'recordPayment']);
                 Route::get('customers/export', [CustomerController::class, 'export']);
@@ -349,7 +362,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // POS customer lookup by phone — loyalty points + credit for the
             // till (cashiers have sales.manage, not necessarily customers.manage).
             Route::get('customers-lookup', [CustomerController::class, 'lookup'])
-                ->middleware('permission:sales.manage');
+                ->middleware(['feature:customers', 'permission:sales.manage']);
 
             // Same reasoning for the plate: the person on the till needs to
             // find (and register) a vehicle mid-sale.
@@ -367,16 +380,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // invent one. Same split, and the same reason, as the promotions
             // preview immediately below.
             Route::post('coupons/validate', [CouponController::class, 'validateCode'])
-                ->middleware('permission:sales.manage');
-            Route::middleware('permission:coupons.manage')->group(function (): void {
+                ->middleware(['feature:promotions', 'permission:sales.manage']);
+            Route::middleware(['feature:promotions', 'permission:coupons.manage'])->group(function (): void {
                 Route::apiResource('coupons', CouponController::class);
             });
 
             // Promotions — automatic scheduled discounts (no code). CRUD is
             // marketing (coupons.manage); the POS preview is a cashier read.
             Route::post('promotions/preview', [PromotionController::class, 'preview'])
-                ->middleware('permission:sales.manage');
-            Route::middleware('permission:coupons.manage')->group(function (): void {
+                ->middleware(['feature:promotions', 'permission:sales.manage']);
+            Route::middleware(['feature:promotions', 'permission:coupons.manage'])->group(function (): void {
                 Route::apiResource('promotions', PromotionController::class)
                     ->only(['index', 'store', 'update', 'destroy']);
             });
@@ -390,10 +403,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // the only people who could honour it are the people allowed to
             // negotiate it.
             Route::get('banks/live', [BankController::class, 'live'])
-                ->middleware('permission:sales.manage');
+                ->middleware(['feature:bank_offers', 'permission:sales.manage']);
             Route::post('banks/quote', [BankController::class, 'quote'])
-                ->middleware('permission:sales.manage');
-            Route::middleware('permission:coupons.manage')->group(function (): void {
+                ->middleware(['feature:bank_offers', 'permission:sales.manage']);
+            Route::middleware(['feature:bank_offers', 'permission:coupons.manage'])->group(function (): void {
                 Route::get('banks', [BankController::class, 'index']);
                 Route::post('banks', [BankController::class, 'store']);
                 Route::put('banks/{bank}', [BankController::class, 'update']);
@@ -405,8 +418,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             });
 
             // Suppliers — vendor directory + payables. Part of the stock chain,
-            // so it rides the inventory module.
-            Route::middleware('feature:inventory')->group(function (): void {
+            // and its own module: a shop that buys over the counter and keeps
+            // no supplier book has no use for either screen. `purchasing`
+            // depends on `inventory`, so this is still the stock chain.
+            Route::middleware('feature:purchasing')->group(function (): void {
                 // Naming who a delivery came from is stockroom work; editing the
                 // vendor directory and its payables is not.
                 Route::get('suppliers', [SupplierController::class, 'index'])
@@ -425,7 +440,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // person checking them off is the stock keeper, who is deliberately
             // not a buyer. Reading the order they are receiving against comes
             // with it, or the job is impossible.
-            Route::middleware('feature:inventory')->group(function (): void {
+            Route::middleware('feature:purchasing')->group(function (): void {
                 Route::middleware('permission:'.Permissions::READS_PURCHASE_ORDERS)->group(function (): void {
                     Route::get('purchase-orders', [PurchaseOrderController::class, 'index']);
                     Route::get('purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'show']);
@@ -654,7 +669,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // sale exists. Both ride the POS module: they are counter documents
             // that end in a till transaction, and a shop with no counter has
             // nowhere to take an advance or hand the goods over.
-            Route::prefix('sale-documents')->middleware(['feature:pos', 'permission:sales.manage'])->group(function (): void {
+            Route::prefix('sale-documents')->middleware(['feature:documents', 'permission:sales.manage'])->group(function (): void {
                 Route::get('/', [SaleDocumentController::class, 'index']);
                 // Before /{document} so it isn't captured as an id.
                 Route::get('/summary', [SaleDocumentController::class, 'summary']);
@@ -731,8 +746,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // What left the shelf without being sold, and what the
                 // distributor still owes for it. Rides inventory.manage like
                 // the batches themselves — it IS the record of a batch leaving.
-                Route::get('/disposals', [StockDisposalController::class, 'index']);
-                Route::post('/disposals/{id}/credit', [StockDisposalController::class, 'credit']);
+                // Its own module: where stock went when it left without being
+                // sold is a real question for a chemist and a nonsense one for
+                // a takeaway counter.
+                Route::middleware('feature:disposals')->group(function (): void {
+                    Route::get('/disposals', [StockDisposalController::class, 'index']);
+                    Route::post('/disposals/{id}/credit', [StockDisposalController::class, 'credit']);
+                });
 
                 // Branch-to-branch transfers (multi-branch).
                 Route::get('/transfers', [TransferController::class, 'index']);
@@ -742,13 +762,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // stock may draw a sheet and enter figures; APPLYING it writes
                 // off stock against the shop's own books and is manager-only
                 // (checked in the controller).
-                Route::get('/counts', [StockCountController::class, 'index']);
-                Route::get('/counts/current', [StockCountController::class, 'current']);
-                Route::post('/counts', [StockCountController::class, 'store']);
-                Route::get('/counts/{count}', [StockCountController::class, 'show']);
-                Route::post('/counts/{count}/lines', [StockCountController::class, 'record']);
-                Route::post('/counts/{count}/apply', [StockCountController::class, 'apply']);
-                Route::delete('/counts/{count}', [StockCountController::class, 'destroy']);
+                Route::middleware('feature:stocktake')->group(function (): void {
+                    Route::get('/counts', [StockCountController::class, 'index']);
+                    Route::get('/counts/current', [StockCountController::class, 'current']);
+                    Route::post('/counts', [StockCountController::class, 'store']);
+                    Route::get('/counts/{count}', [StockCountController::class, 'show']);
+                    Route::post('/counts/{count}/lines', [StockCountController::class, 'record']);
+                    Route::post('/counts/{count}/apply', [StockCountController::class, 'apply']);
+                    Route::delete('/counts/{count}', [StockCountController::class, 'destroy']);
+                });
             });
 
             // Expense categories (templates from business type, editable).
@@ -895,9 +917,33 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('/{id}/complete', [ReservationController::class, 'complete']);
             });
 
+            // THE PASS — its own module, outside the dine-in room.
+            //
+            // It used to live inside `feature:dine_in`, which meant a small
+            // café that only does takeaway had to switch on a whole restaurant
+            // — tables, running tabs, settle and split-bill, waiter reports —
+            // to get a slip to its kitchen. That is the module-bundling this
+            // split exists to end: the pass is what a takeaway counter needs
+            // and the floor is what it does not.
+            //
+            // `dine_in` depends on `kitchen`, so every room that seats people
+            // still has one and nothing that works today stops working.
+            //
+            // Permission: EITHER key. Marking a curry ready used to require the
+            // floor's, which also opens the sales ledger and the day's banking
+            // — so a kitchen hire was shown the shop's takings in order to be
+            // allowed to work the pass.
+            Route::prefix('restaurant')
+                ->middleware(['feature:kitchen', 'permission:'.Permissions::READS_KITCHEN])
+                ->group(function (): void {
+                    Route::get('kitchen', [KitchenController::class, 'board']);
+                    Route::post('kitchen/kot/{kot}/bump', [KitchenController::class, 'bump']);
+                });
+
             // Dine-in (restaurant depth): a floor of tables, running tabs,
-            // kitchen tickets (KOT), and settle + split-bill. Gated by the
-            // dine_in module (defaults on for restaurants only).
+            // settle and split-bill. Gated by the dine_in module (defaults on
+            // for restaurants only). The KITCHEN pass is a module of its own,
+            // registered above.
             Route::prefix('restaurant')->middleware('feature:dine_in')->group(function (): void {
                 // READING the floor is floor work, not configuration: the table
                 // grid IS the dine-in screen, and behind settings.manage it was
@@ -934,20 +980,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // is gated on staff.manage, which no waiter holds.
                     Route::get('servers', [RestaurantTicketController::class, 'servers']);
                     Route::post('tickets/{ticket}/waiter', [RestaurantTicketController::class, 'assignWaiter']);
-                });
-
-                // The pass. OUTSIDE the floor's group deliberately: nested
-                // inside it, an ANY-of gate cannot loosen the sales.manage
-                // wrapper above and a kitchen hand is refused before their own
-                // permission is ever considered.
-                //
-                // It takes EITHER key. Marking a curry ready used to require the
-                // floor's, which also opens the sales ledger and the day's
-                // banking — so a kitchen hire was shown the shop's takings in
-                // order to be allowed to work the pass.
-                Route::middleware('permission:'.Permissions::READS_KITCHEN)->group(function (): void {
-                    Route::get('kitchen', [KitchenController::class, 'board']);
-                    Route::post('kitchen/kot/{kot}/bump', [KitchenController::class, 'bump']);
                 });
 
                 // Covers and takings per waiter — a service report, so it sits
