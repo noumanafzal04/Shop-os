@@ -18,7 +18,7 @@ function caps(overrides: Partial<Capabilities> = {}): Capabilities {
   return {
     pos: true, dineIn: false, marketplace: false, delivery: false, reservations: false,
     products: true, services: false, inventory: true, expenses: true,
-    sells: true, catalog: true, tracksStock: true, takesOrders: false, keepsBooks: true,
+    sells: true, catalog: true, tracksStock: true, buysFromSuppliers: true, takesOrders: false, keepsBooks: true, keepsCustomers: true,
     canSell: true, businessType: "mart",
     // The owner, who holds every permission implicitly.
     visit: () => true,

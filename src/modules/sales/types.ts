@@ -65,6 +65,20 @@ export interface Sale {
   customer_phone: string | null;
   order_type?: "dine_in" | "takeaway" | null;
   table_no?: string | null;
+  /**
+   * The kitchen docket this sale created, when it created one.
+   *
+   * Present only on the response to ringing a sale, and only for a takeaway a
+   * kitchen actually has to make — the server builds the ticket after the money
+   * is taken, so the till has no other way to learn it exists, and a slip it
+   * cannot name is a slip it cannot print.
+   */
+  kitchen_ticket?: {
+    ticket_id: string;
+    ticket_number: string;
+    /** One per station: the bar's docket is not the grill's. */
+    kots: Array<{ id: string; kot_number: number; station: string | null }>;
+  } | null;
   subtotal: string;
   discount: string;
   total: string;

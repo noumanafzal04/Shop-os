@@ -14,7 +14,7 @@ import { OfflineReportTab } from "../../offline/report/OfflineReportTab";
 import { BankClaimsTab } from "../../banks/components/BankClaimsTab";
 import { DeadStockTab, MarginsTab, ValuationTab } from "../components/StockReportTabs";
 import { useAuthStore } from "../../../stores/authStore";
-import { reportTabs, shopSells, SALES_TABS, STOCK_TABS } from "../reportTabs";
+import { reportTabs, reportTabAvailable, shopSells } from "../reportTabs";
 import { PERIODS, rangeError, resolveReportRange, type PeriodKey, type ReportRange } from "../reportPeriod";
 
 /**
@@ -35,7 +35,6 @@ export default function ReportsPage() {
   const chartBox = useRef<HTMLDivElement>(null);
   const chartWidth = useFitsItsBox(chartBox);
   const features = useAuthStore((s) => s.user?.tenant?.features);
-  const tracksStock = !!features?.inventory;
   // A books-only business (Finance Manager) sells nothing and stocks nothing.
   // Which tabs that leaves is decided in reportTabs, where it can be tested.
   const sells = shopSells(features);
@@ -62,9 +61,11 @@ export default function ReportsPage() {
   const [selectedTab, setTab] = useState<string>("overview");
   // A shop can lose a module while someone is sitting on the tab it fed.
   // Falling back beats rendering a tab whose every request now 403s.
-  const unavailable = (STOCK_TABS.includes(selectedTab) && !tracksStock)
-    || (SALES_TABS.includes(selectedTab) && !sells);
-  const tab = unavailable ? "overview" : selectedTab;
+  //
+  // Asked of the SAME table that decided which tabs to draw. It used to be two
+  // flat arrays kept beside that decision, and when Purchasing and Bank offers
+  // became modules of their own both copies were wrong in different places.
+  const tab = reportTabAvailable(features, selectedTab) ? selectedTab : "overview";
 
   /**
    * The shop's own named windows, resolved once, handed to the date control.

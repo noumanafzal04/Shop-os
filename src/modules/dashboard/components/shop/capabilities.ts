@@ -37,10 +37,29 @@ export interface Capabilities {
   catalog: boolean;
   /** Carries stock, so low/out/expiring figures mean something. */
   tracksStock: boolean;
+  /**
+   * Keeps a SUPPLIER BOOK — orders goods, receives them, owes for them.
+   *
+   * Separate from `tracksStock` since Purchasing became a module a shop can
+   * decline: a counter that buys from the wholesale market and puts it on the
+   * shelf tracks stock perfectly well and raises no purchase order. Every
+   * dashboard row that points at /tenant/suppliers or /tenant/purchases must
+   * ask THIS, not `tracksStock` — those routes are gated on `purchasing`, so
+   * offering them on the strength of `inventory` is a button that bounces.
+   */
+  buysFromSuppliers: boolean;
   /** Has an order pipeline (online orders or phone-order delivery). */
   takesOrders: boolean;
   /** Runs the Expense & Income module. */
   keepsBooks: boolean;
+  /**
+   * Keeps a CUSTOMER BOOK — who they are, what they owe, their points.
+   *
+   * Its own module since a cash-only counter can decline it, and
+   * /tenant/customers is gated on it. "Does this shop sell" is not the same
+   * question: a shop can sell all day and keep no khata.
+   */
+  keepsCustomers: boolean;
   /** The sidebar's rule for offering the Sales ledger. */
   canSell: boolean;
   businessType: string | null;
@@ -68,6 +87,23 @@ export function useCapabilities(): Capabilities {
     [role, permissions],
   );
 
+  return capabilitiesFrom(features, businessType, visit);
+}
+
+/**
+ * The same answer, without a store behind it.
+ *
+ * Split out so the rules can be asked a question directly. Every one of these
+ * flags gates a LINK, and a link whose route is gated on a module the flag does
+ * not check is a button that bounces — `offeredIsReachable.test.ts` walks every
+ * module combination against the gates App.tsx actually declares, which is a
+ * thing a hook needing a signed-in store cannot be made to do.
+ */
+export function capabilitiesFrom(
+  features: Record<string, boolean> | undefined,
+  businessType: string | null,
+  visit: (path: string) => boolean,
+): Capabilities {
   const has = (key: string) => features?.[key] ?? false;
 
   const pos = has("pos");
@@ -90,8 +126,10 @@ export function useCapabilities(): Capabilities {
     sells: pos || products || services || marketplace || dineIn,
     catalog: products || services,
     tracksStock: has("inventory"),
+    buysFromSuppliers: has("purchasing"),
     takesOrders: delivery || marketplace,
     keepsBooks: has("expenses"),
+    keepsCustomers: has("customers"),
     canSell: pos || marketplace,
     businessType,
     visit,

@@ -14,9 +14,9 @@ interface Props {
 /** The page needs this to decide whether to draw the row at all. */
 export function hasMoneyPanel(data: TenantDashboard, caps: Capabilities): boolean {
   const { receivable, payable } = data.money_owed;
-  return (caps.sells && caps.visit("/tenant/customers") && receivable.accounts > 0)
-    || (caps.tracksStock && caps.visit("/tenant/suppliers") && payable.accounts > 0)
-    || (data.till !== null && caps.visit("/tenant/day"));
+  return (caps.keepsCustomers && caps.visit("/tenant/customers") && receivable.accounts > 0)
+    || (caps.buysFromSuppliers && caps.visit("/tenant/suppliers") && payable.accounts > 0)
+    || (caps.pos && data.till !== null && caps.visit("/tenant/day"));
 }
 
 /**
@@ -37,7 +37,13 @@ export function hasMoneyPanel(data: TenantDashboard, caps: Capabilities): boolea
 export function MoneyPanel({ data, caps, money }: Props) {
   const { receivable, payable } = data.money_owed;
   // A till the person cannot open is a till they are told nothing about.
-  const till = caps.visit("/tenant/day") ? data.till : null;
+  // TWO AXES, and only one used to be asked. `visit` is the PERSON — may this
+  // cashier open the day screen. `caps.pos` is the SHOP — Day & banking is
+  // gated on the till module, so a books-only business reading a `till` block
+  // it should never have been sent was offered the card, its two tiles and its
+  // "Open Day" header link into a screen its own router refuses. One place,
+  // because the header used this and the tiles used something else.
+  const till = caps.pos && caps.visit("/tenant/day") ? data.till : null;
 
   const tiles: Array<{
     key: string;
@@ -48,7 +54,10 @@ export function MoneyPanel({ data, caps, money }: Props) {
     to: string;
   }> = [];
 
-  if (caps.sells && caps.visit("/tenant/customers")) {
+  // THE CUSTOMER BOOK, not merely selling. Khata is its own module — a
+  // cash-only counter declines it — and /tenant/customers is gated on it, so
+  // asking "does this shop sell" offered a tile that bounced.
+  if (caps.keepsCustomers && caps.visit("/tenant/customers")) {
     tiles.push({
       key: "receivable",
       label: "Owed to you",
@@ -62,7 +71,7 @@ export function MoneyPanel({ data, caps, money }: Props) {
     });
   }
 
-  if (caps.tracksStock && caps.visit("/tenant/suppliers")) {
+  if (caps.buysFromSuppliers && caps.visit("/tenant/suppliers")) {
     tiles.push({
       key: "payable",
       label: "You owe",

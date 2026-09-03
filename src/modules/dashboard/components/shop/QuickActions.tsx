@@ -33,7 +33,12 @@ export function QuickActions({ caps }: { caps: Capabilities }) {
       icon: <BoxIconLine className="size-4" />,
     });
   }
-  if (caps.tracksStock) actions.push({ label: "Stock in", to: "/tenant/purchases", icon: <BoxIconLine className="size-4" /> });
+  // "Stock in" means RAISE A PURCHASE ORDER, so it follows the purchasing
+  // module and not `tracksStock`. A shop that counts its shelves but buys from
+  // the market keeps its stock figures and has no supplier book — offering it
+  // this button sent it to /tenant/purchases, which its own route guard then
+  // refused. Adjusting stock by hand lives on the catalog, and is still there.
+  if (caps.buysFromSuppliers) actions.push({ label: "Stock in", to: "/tenant/purchases", icon: <BoxIconLine className="size-4" /> });
   if (caps.keepsBooks) actions.push({ label: "Record expense", to: "/tenant/expenses", icon: <FileIcon className="size-4" /> });
   if (caps.keepsBooks) actions.push({ label: "Cashbook", to: "/tenant/cashbook", icon: <ListIcon className="size-4" /> });
   if (caps.marketplace) actions.push({ label: "Online orders", to: "/tenant/orders", icon: <PlugInIcon className="size-4" /> });

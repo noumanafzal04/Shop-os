@@ -70,3 +70,26 @@ export function tabIsAvailable(
 export function settingsTabsFor(features: Record<string, boolean> | undefined) {
   return SETTINGS_TABS.filter((t) => tabIsAvailable(features, "needs" in t ? t.needs : undefined));
 }
+
+/**
+ * The till carries more settings than the rest of the shop put together, so it
+ * gets a second row of its own. Lanes and PINs share one: on a counter with
+ * more than one person behind it, they are what you actually came here to set
+ * up, and they were previously eight cards down a single scroll.
+ */
+export const POS_SUBTABS = [
+  { key: "till", label: "Counter" },
+  { key: "registers", label: "Lanes & PINs" },
+  { key: "selling", label: "Quotes & advances" },
+  // THE KITCHEN, NOT THE FLOOR. This asked for `dine_in` until the pass became
+  // a module of its own — which is the whole point of the split: a takeaway
+  // café has a kitchen and no tables. Gated on the floor, such a shop was given
+  // the pass, told to work from it, and could not name a single station or
+  // decide whether tickets print. Its own module is the gate.
+  { key: "kitchen", label: "Kitchen", needs: "kitchen" },
+] as const;
+
+/** The till's own second row, filtered the same way the top row is. */
+export function posSubTabsFor(features: Record<string, boolean> | undefined) {
+  return POS_SUBTABS.filter((t) => tabIsAvailable(features, "needs" in t ? [t.needs] : undefined));
+}

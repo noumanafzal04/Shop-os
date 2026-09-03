@@ -36,6 +36,10 @@ import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { catalogService } from "../../catalog/services/catalogService";
 import { catalogSizeStock, sizesOf, whyNotSellable as sellableRule } from "../availability";
 import type { Product as CatalogProduct, ProductUnit, ProductVariant } from "../../catalog/types";
+// The till prints the kitchen's slip through the same call the dine-in tab's
+// Fire button uses — one renderer, so a counter docket and a floor docket
+// cannot come out of the printer looking like two different products.
+import { dineInService } from "../../dinein/services/dineInService";
 import { salesService } from "../../sales/services/salesService";
 import type { PaymentMethod, Sale, SaleInput, SaleStatus } from "../../sales/types";
 import { posService, type HeldSale } from "../services/posService";
@@ -1219,6 +1223,26 @@ export default function PosPage() {
       // fail — and would be the one failure a cashier sees at the exact moment
       // the shop is proving it can trade without a connection.
       if (settings.data?.pos_auto_print && !isOffline) void printReceipt(data.id);
+
+      // ── AND THE KITCHEN'S OWN SLIP ────────────────────────────────────
+      //
+      // A takeaway rung here fires a docket on the server. For a café working
+      // off a screen that is the whole job; for one working off PAPER — which
+      // is most of them, and the case the shop described — it is nothing at all
+      // until this prints. `kot_auto_print` is the shop's answer to which it
+      // is, and it used to be read only by the dine-in tab's Fire button, so a
+      // counter with no floor obeyed a setting nobody asked it about.
+      //
+      // Same shape as the receipt above: server-rendered, so skipped offline,
+      // and a failure is said out loud rather than swallowed — the board still
+      // has the order, and that is the sentence the cashier needs.
+      if (!isOffline && data.kitchen_ticket && settings.data?.kot_auto_print !== false) {
+        void dineInService
+          .printKots(data.kitchen_ticket.ticket_id, data.kitchen_ticket.kots)
+          .catch(() => setPosNotice(
+            "The kitchen slip didn't print — the order is on the kitchen screen.",
+          ));
+      }
 
       // Shadow check: price the same cart AGAIN with the offline engine and
       // record any disagreement. The customer has already paid the server's

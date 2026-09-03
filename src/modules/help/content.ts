@@ -656,6 +656,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Two doors, and both land here. A waiter sends a course from a table's tab; and a TAKEAWAY rung at the till arrives on its own the moment it is paid — you do not have to open a tab for it. Only the things a kitchen makes are on the docket: a bottle off the chiller is not work for the pass, so it stays off the board." },
       { type: "note", text: "A takeaway card shows the CUSTOMER'S name in big letters if the cashier typed one, and the word Takeaway if they did not. It is what you call out when the bag is ready, so it is worth typing the name." },
       { type: "p", text: "A takeaway order clears itself off the board when you mark it served — there is no bill left to settle, because it was paid at the counter before you saw it. A table's order stays on the floor screen until the table pays." },
+      { type: "h", text: "If your kitchen works off paper" },
+      { type: "p", text: "A takeaway rung at the till PRINTS its slip too, on the same printer a table's order uses. Turn that off under Settings → Point of Sale → Kitchen if the cooks work from this screen instead. If the slip fails to print, the till says so and the order is still here — the board is the fallback, never the other way round." },
+      { type: "note", text: "That Kitchen settings tab used to appear only for shops with tables, so a takeaway counter could not name its stations or decide whether slips print. It follows the Kitchen module now, which is the point of having one." },
       {
         type: "note",
         text: "Someone on the Kitchen job sees this and nothing else — not the till, not the sales list, not the takings. That is deliberate: marking a curry ready should not require being shown what the shop earned today.",

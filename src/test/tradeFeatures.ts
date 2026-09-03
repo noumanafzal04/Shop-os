@@ -66,3 +66,52 @@ export const EVERY_MODULE: Record<string, boolean> = Object.fromEntries(
     "expenses", "images", "marketplace", "delivery", "kitchen", "dine_in", "fuel",
   ].map((key) => [key, true]),
 );
+
+/**
+ * WHAT EACH MODULE STANDS ON — mirroring `Modules::all()`'s `depends`.
+ *
+ * The server's `Modules::normalize()` only ever switches things OFF: a module
+ * whose dependency is off cannot function, so it goes, and a `features` map
+ * that has been through it never contains `purchasing` without `inventory`.
+ *
+ * Tests that enumerate module combinations have to settle them the same way or
+ * they ask questions about shops that cannot exist — and then report the answer
+ * as a defect. `/tenant/purchases` sits behind `inventory` AND `purchasing`
+ * precisely because the second implies the first.
+ */
+export const MODULE_DEPENDS: Record<string, string[]> = {
+  documents: ["pos"],
+  inventory: ["products"],
+  purchasing: ["inventory"],
+  stocktake: ["inventory"],
+  disposals: ["inventory"],
+  labels: ["inventory"],
+  bank_offers: ["promotions"],
+  images: ["products"],
+  marketplace: ["products"],
+  delivery: ["products"],
+  kitchen: ["products"],
+  dine_in: ["products", "kitchen"],
+};
+
+/** The map the server would have stored — dependencies dropped, never granted. */
+export function settleFeatures(from: Record<string, boolean>): Record<string, boolean> {
+  const map = { ...from };
+
+  // Repeated until nothing moves: dropping `inventory` must also drop
+  // `purchasing`, which stands on it, in the same settling.
+  for (let pass = 0; pass < Object.keys(MODULE_DEPENDS).length + 1; pass++) {
+    let moved = false;
+
+    for (const [key, needs] of Object.entries(MODULE_DEPENDS)) {
+      if (map[key] && needs.some((d) => !map[d])) {
+        map[key] = false;
+        moved = true;
+      }
+    }
+
+    if (!moved) break;
+  }
+
+  return map;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { reportTabs } from "./reportTabs";
+import { REPORT_TABS, reportTabAvailable, reportTabs } from "./reportTabs";
 
 /**
  * Which reports a business can actually fill.
@@ -14,12 +14,27 @@ import { reportTabs } from "./reportTabs";
  *
  * A report a business can never fill is not a report, which is the same rule
  * the sidebar and the dashboard already follow.
+ *
+ * ── Second pass ─────────────────────────────────────────────────────────
+ *
+ * When Purchasing and Bank offers became modules of their own, this file's
+ * MART fixture — four flags, none of them the new keys — kept passing while
+ * both tabs were being offered to shops that had neither. The matrix at the
+ * bottom had the same blind spot: it varied `inventory` and never `purchasing`,
+ * so it could not have caught it either. Both now carry the keys that decide
+ * the answer.
  */
 
 const FINANCE = { pos: false, marketplace: false, dine_in: false, inventory: false };
-const MART = { pos: true, marketplace: true, dine_in: false, inventory: true };
+const MART = {
+  pos: true, marketplace: true, dine_in: false, inventory: true,
+  purchasing: true, bank_offers: true,
+};
 const RESTAURANT = { pos: true, marketplace: true, dine_in: true, inventory: false };
 const SERVICES = { pos: true, marketplace: false, dine_in: false, inventory: false };
+
+/** Counts its shelves, buys over the counter, keeps no supplier book. */
+const CASH_AND_CARRY = { pos: true, inventory: true, purchasing: false, bank_offers: false };
 
 const keys = (features: Record<string, boolean>) => reportTabs(features).map(([key]) => key);
 
@@ -43,10 +58,6 @@ describe("everyone else keeps what their modules feed", () => {
       // load-shedding is universal here, and a tab that appeared only once
       // there was bad news is a tab nobody knows exists.
       "offline",
-      // Same argument, one step further: a shop that has never signed a bank
-      // deal opens this once, reads "no bank-funded sales", and now knows the
-      // feature exists. A tab that appeared only once money was already owed
-      // is one nobody finds in time to claim it.
       "bank-claims",
     ]);
   });
@@ -71,28 +82,73 @@ describe("everyone else keeps what their modules feed", () => {
   });
 });
 
+describe("the two tabs that used to ride on somebody else's module", () => {
+  it("a shop that counts stock but keeps no supplier book gets no Purchases tab", () => {
+    const tabs = keys(CASH_AND_CARRY);
+
+    // It still values and ages its shelves — those ARE the stock module.
+    expect(tabs).toContain("valuation");
+    expect(tabs).toContain("dead-stock");
+    // But a purchase order is the purchasing module, and /tenant/purchases
+    // would refuse this shop.
+    expect(tabs).not.toContain("purchases");
+  });
+
+  it("Bank claims follows the bank-offers module, not merely selling", () => {
+    expect(keys(CASH_AND_CARRY)).not.toContain("bank-claims");
+    expect(keys({ ...CASH_AND_CARRY, promotions: true, bank_offers: true })).toContain("bank-claims");
+  });
+});
+
+describe("the tab drawn and the tab allowed are one rule", () => {
+  it("agrees with itself for every tab and every shop", () => {
+    // The page used to keep its own two arrays for "may this shop still be
+    // sitting on that tab", and they drifted from the list that draws them.
+    // One table answers both questions now; this is what says so.
+    for (const shop of [FINANCE, MART, RESTAURANT, SERVICES, CASH_AND_CARRY]) {
+      const offered = keys(shop);
+
+      for (const tab of REPORT_TABS) {
+        expect(reportTabAvailable(shop, tab.key), `${tab.key} @ ${JSON.stringify(shop)}`)
+          .toBe(offered.includes(tab.key));
+      }
+    }
+  });
+
+  it("refuses a tab it has never heard of, rather than rendering nothing", () => {
+    expect(reportTabAvailable(MART, "sales-by-moon-phase")).toBe(false);
+  });
+});
+
 describe("a tab always leads to a report that exists", () => {
   it("holds for every module combination", () => {
-    // Brute force over the four flags that decide the answer — 16 shops,
-    // and none of them may be offered a tab its modules do not feed.
+    // Brute force over the SIX flags that decide the answer. It was four, and
+    // the two that were missing are exactly the two that were wrong.
     for (const pos of [true, false]) {
       for (const marketplace of [true, false]) {
         for (const dine_in of [true, false]) {
           for (const inventory of [true, false]) {
-            const features = { pos, marketplace, dine_in, inventory };
-            const tabs = keys(features);
-            const sells = pos || marketplace || dine_in;
+            for (const purchasing of [true, false]) {
+              for (const bank_offers of [true, false]) {
+                const features = { pos, marketplace, dine_in, inventory, purchasing, bank_offers };
+                const tabs = keys(features);
+                const sells = pos || marketplace || dine_in;
+                const where = JSON.stringify(features);
 
-            expect(tabs[0], JSON.stringify(features)).toBe("overview");
+                expect(tabs[0], where).toBe("overview");
 
-            if (!sells) {
-              for (const t of ["margins", "staff", "tax", "receipts"]) {
-                expect(tabs, JSON.stringify(features)).not.toContain(t);
-              }
-            }
-            if (!inventory) {
-              for (const t of ["valuation", "dead-stock", "purchases"]) {
-                expect(tabs, JSON.stringify(features)).not.toContain(t);
+                if (!sells) {
+                  for (const t of ["margins", "staff", "tax", "receipts", "offline"]) {
+                    expect(tabs, where).not.toContain(t);
+                  }
+                }
+                if (!inventory) {
+                  for (const t of ["valuation", "dead-stock"]) {
+                    expect(tabs, where).not.toContain(t);
+                  }
+                }
+                if (!purchasing) expect(tabs, where).not.toContain("purchases");
+                if (!bank_offers) expect(tabs, where).not.toContain("bank-claims");
               }
             }
           }

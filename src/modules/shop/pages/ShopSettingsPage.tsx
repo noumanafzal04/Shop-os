@@ -12,7 +12,7 @@ import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPut } from "../../../common/api/client";
 import { useCities, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
-import { settingsTabsFor, type SettingsTab } from "../settingsTabs";
+import { POS_SUBTABS, posSubTabsFor, settingsTabsFor, type SettingsTab } from "../settingsTabs";
 import { YourModules } from "../components/YourModules";
 import { shopService } from "../services/shopService";
 import { useAuthStore } from "../../../stores/authStore";
@@ -62,18 +62,6 @@ const TAB_ICONS: Record<SettingsTab, ReactNode> = {
   barcode: <BarcodeGlyph />,
 };
 
-/**
- * The till carries more settings than the rest of the shop put together, so it
- * gets a second row of its own. Lanes and PINs share one: on a counter with
- * more than one person behind it, they are what you actually came here to set
- * up, and they were previously eight cards down a single scroll.
- */
-const POS_SUBTABS = [
-  { key: "till", label: "Counter" },
-  { key: "registers", label: "Lanes & PINs" },
-  { key: "selling", label: "Quotes & advances" },
-  { key: "kitchen", label: "Kitchen", needs: "dine_in" },
-] as const;
 type PosSubTab = (typeof POS_SUBTABS)[number]["key"];
 
 function SectionCard({ icon, title, description, children, badge }: {
@@ -293,7 +281,7 @@ export default function ShopSettingsPage() {
   const settingsTabs = settingsTabsFor(tenantFeatures).map((t) => ({ key: t.key, label: t.label, icon: TAB_ICONS[t.key] }));
   // Business is universal, so there is always something to fall back TO.
   const activeTab = settingsTabs.some((t) => t.key === tab) ? tab : "business";
-  const posSubTabs = POS_SUBTABS.filter((t) => !("needs" in t) || tenantFeatures[t.needs]);
+  const posSubTabs = posSubTabsFor(tenantFeatures);
   const activePosTab = posSubTabs.some((t) => t.key === posTab) ? posTab : "till";
   useEffect(() => { if (settings.data && !prefs) setPrefs({ ...settings.data }); }, [settings.data, prefs]);
   const setP = (k: string, v: PrefValue) => { setPrefs((f) => ({ ...f!, [k]: v })); setPrefsDirty(true); };
@@ -1004,7 +992,8 @@ export default function ShopSettingsPage() {
                 />
               )}
 
-              {/* Only offered to a shop that seats people — POS_SUBTABS gates it. */}
+              {/* Only offered to a shop that HAS a kitchen pass — seating is a
+                  separate module and not the question here. POS_SUBTABS gates it. */}
               {activePosTab === "kitchen" && (
                 <div className="max-w-3xl">
                     <SectionCard icon={<ReceiptGlyph />} title="Kitchen" description="Where fired orders go, and whether they print.">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { settingsTabsFor } from "./settingsTabs";
+import { posSubTabsFor, settingsTabsFor } from "./settingsTabs";
 
 /**
  * Settings must not offer a tab whose switches do nothing.
@@ -69,8 +69,8 @@ describe("the rules hold for every module combination", () => {
     for (const pos of [true, false]) {
       for (const marketplace of [true, false]) {
         for (const dine_in of [true, false]) {
-          for (const products of [true, false]) {
-            const features = { pos, marketplace, dine_in, products };
+          for (const labels of [true, false]) {
+            const features = { pos, marketplace, dine_in, labels };
             const tabs = keys(features);
             const sells = pos || marketplace || dine_in;
             const where = JSON.stringify(features);
@@ -89,12 +89,44 @@ describe("the rules hold for every module combination", () => {
                 expect(tabs, where).not.toContain(t);
               }
             }
-            if (!products) {
+            if (!labels) {
               expect(tabs, where).not.toContain("barcode");
             }
           }
         }
       }
     }
+  });
+});
+
+/**
+ * THE TILL'S SECOND ROW, and the tab a takeaway café could not reach.
+ *
+ * `POS_SUBTABS` used to gate Kitchen on `dine_in`. That was true while the pass
+ * only ever existed for a floor — and stopped being true the moment Kitchen
+ * became a module of its own, which exists precisely so a café with no tables
+ * can have one. Such a shop was handed the kitchen board, told to work off it,
+ * and could not name a station or say whether tickets print.
+ */
+describe("the till's kitchen settings follow the kitchen, not the floor", () => {
+  const subKeys = (features: Record<string, boolean>) =>
+    posSubTabsFor(features).map((t) => t.key);
+
+  it("a takeaway counter with a pass and no tables gets the Kitchen tab", () => {
+    expect(subKeys({ pos: true, kitchen: true, dine_in: false })).toContain("kitchen");
+  });
+
+  it("a shop with a floor still gets it — dine-in depends on the pass", () => {
+    expect(subKeys({ pos: true, kitchen: true, dine_in: true })).toContain("kitchen");
+  });
+
+  it("a mart with no kitchen at all does not", () => {
+    expect(subKeys({ pos: true, inventory: true })).not.toContain("kitchen");
+  });
+
+  it("leaves the three universal ones alone", () => {
+    // If the filter ever ate everything, every assertion above about a missing
+    // tab would pass for the wrong reason.
+    expect(subKeys({})).toEqual(["till", "registers", "selling"]);
   });
 });

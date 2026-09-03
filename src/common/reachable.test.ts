@@ -114,6 +114,14 @@ const TEST_ONLY: Record<string, string> = {
   // for the same reason and is exempt for the same reason.
   "test/tradeFeatures.ts::TRADE_FEATURES": "the per-trade module map every nav guard is built from",
   "test/tradeFeatures.ts::EVERY_MODULE": "a shop with everything switched on — the shape reachability has to be measured against",
+  "test/tradeFeatures.ts::MODULE_DEPENDS": "what each module stands on, mirroring Modules::all()",
+  "test/tradeFeatures.ts::settleFeatures": "settles a module map the way the server stores it, so a matrix cannot invent impossible shops",
+  // Reads the RequireFeature gates out of App.tsx so no surface can offer a
+  // screen the shop cannot open. A fixture like routes.ts, and exempt for the
+  // same reason: product code must not depend on a test's parser.
+  "test/routeFeatures.ts::routeFeatures": "the route gates the offer-vs-reach guard is built from",
+  "test/routeFeatures.ts::routeIsOpen": "asks those gates whether a shop would be let in",
+  "test/routeFeatures.ts::Requirement": "the shape those gates are returned in",
   // Introspection over the permission map, so the tests can check it from BOTH
   // directions — a route with no rule, and a rule naming a route that no longer
   // exists. The file says so itself where `mappedScreens` is declared.

@@ -435,10 +435,13 @@ export const QA_SECTIONS: QaSection[] = [
           "Two different modules, and this is worth understanding before testing either. The KITCHEN PASS is the screen on the kitchen wall — what to cook, oldest first, bumped when it is ready. DINE-IN is a floor of tables with running tabs, settle and split bills.",
           "A takeaway café needs the pass and no floor at all, which is why they are separate. Dine-in depends on the pass, because a Fire button whose ticket lands nowhere would be a floor with no kitchen.",
           "A takeaway rung at the TILL now reaches the pass by itself the moment it is paid. Only the things a kitchen makes are on the docket — a bottle off the chiller is not work for the pass.",
+          "And it PRINTS. Half of \u201csent to the kitchen\u201d is the board; the other half is paper, which is how most small kitchens work. Settings \u2192 Point of Sale \u2192 Kitchen carries the stations and the print switch, and that tab follows the Kitchen module \u2014 a takeaway counter with no tables must be able to reach it.",
         ],
         checks: [
           { do: "With only the Kitchen module on, ring a takeaway with a dish and a bottle of water.", expect: "A docket appears on the pass carrying the DISH only, headed by the customer's name if one was typed, and carrying the sale's own receipt number." },
           { do: "Mark it served.", expect: "It leaves the board and closes itself. There is no bill left to settle — it was paid at the counter." },
+          { do: "With Dine-in OFF, open Settings → Point of Sale.", expect: "A Kitchen tab is there, carrying the stations and \u201cPrint kitchen tickets\u201d. It used to appear only for shops with tables, which left a takeaway café unable to configure the one module it bought." },
+          { do: "Leave that switch on and ring another takeaway.", expect: "The kitchen slip prints as well as landing on the board. If it cannot print, the till says so and names the board as the fallback — silence here means the kitchen was told nothing." },
           { do: "Switch Dine-in on as well. Open a tab on a table, add items, fire, settle.", expect: "The tab appears on the FLOOR; the takeaway orders do not. A paid counter order showing up on the floor as an open table would be a bug." },
           { do: "Cancel a tab that has fired dockets.", expect: "Its dockets leave the pass. A docket outliving its tab is a defect this product has had." },
         ],

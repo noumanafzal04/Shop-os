@@ -26,7 +26,7 @@ function caps(overrides: Partial<Capabilities> = {}): Capabilities {
   return {
     pos: false, dineIn: false, marketplace: false, delivery: false, reservations: false,
     products: false, services: false, inventory: false, expenses: true,
-    sells: false, catalog: false, tracksStock: false, takesOrders: false, keepsBooks: true,
+    sells: false, catalog: false, tracksStock: false, buysFromSuppliers: false, takesOrders: false, keepsBooks: true, keepsCustomers: true,
     canSell: false, businessType: "finance",
     visit: () => true,
     ...overrides,

@@ -20,7 +20,7 @@ function caps(overrides: Partial<Capabilities> = {}): Capabilities {
   return {
     pos: true, dineIn: false, marketplace: false, delivery: false, reservations: false,
     products: true, services: false, inventory: true, expenses: true,
-    sells: true, catalog: true, tracksStock: true, takesOrders: false, keepsBooks: true,
+    sells: true, catalog: true, tracksStock: true, buysFromSuppliers: true, takesOrders: false, keepsBooks: true, keepsCustomers: true,
     canSell: true, businessType: "mart",
     // The owner, who holds every permission implicitly.
     visit: () => true,
@@ -64,12 +64,21 @@ describe("who owes whom", () => {
     expect(screen.getByText("all suppliers settled")).toBeInTheDocument();
   });
 
-  it("offers no supplier tile to a shop that carries no stock", () => {
+  it("offers no supplier tile to a shop that keeps no supplier book", () => {
     // A salon owes no supplier through a purchase order it cannot raise.
-    draw(dashboard(), caps({ tracksStock: false, inventory: false }));
+    draw(dashboard(), caps({ tracksStock: false, inventory: false, buysFromSuppliers: false }));
 
     expect(screen.queryByText("You owe")).not.toBeInTheDocument();
     expect(screen.getByText("Owed to you")).toBeInTheDocument();
+  });
+
+  it("nor to a shop that counts its shelves and buys over the counter", () => {
+    // The tile used to follow the STOCK module, and /tenant/suppliers is gated
+    // on purchasing — so this shop was shown what it owed and then refused the
+    // screen the tile links to. Stock on, supplier book off, no tile.
+    draw(dashboard(), caps({ tracksStock: true, inventory: true, buysFromSuppliers: false }));
+
+    expect(screen.queryByText("You owe")).not.toBeInTheDocument();
   });
 });
 
