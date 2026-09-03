@@ -1,46 +1,51 @@
 ---
 name: shopos-modules-on-off
-description: "PARKED (do after C19/C20): give every shop only the modules it uses — section-wise assign/unassign UI, basic set by default, dependants auto-on"
+description: "SHIPPED 2026-09-03: 9 new module keys so a shop gets only what it uses; kitchen split out of dine_in; one shared ModulePicker; tenant-side Your modules"
 metadata:
   type: project
 ---
 
-Asked 2026-09-02, to be designed and built **after** the work in flight (C19, C20).
-The complaint: one shop currently shows **everything** — disposals, bank
-accounts, and many screens that do not link to anything that shop does — and the
-clutter itself is the problem. A small café that only does takeaway (slip to the
-kitchen, receipt to the customer, maybe a few tables) should not be handed a
-whole warehouse.
+The ask (2026-09-02): a small takeaway café is shown disposals, bank offers and
+a warehouse's worth of screens that link to nothing it does. Shipped 2026-09-03.
 
-**Half of this already exists — do not rebuild it.** `app/Support/Modules.php` is
-already a registry of 11 keys with `label`, `description`, `group`
-(Selling / Back office / Online / Trade-specific) and `depends`; `normalize()`
-already settles the dependency graph downward and already forces `images` on
-when `marketplace` is on — the exact example asked for. `defaultsFor($type)`
-already proposes a per-trade set on the create-tenant screen. The nav already
-reads three axes (MODULE / TRADE / PERMISSION) and already has an
-Essential-vs-Full view switch.
+**The measurement that drove it:** the registry held **11 keys** and the menu
+produced **53 screens**, so most screens arrived as PASSENGERS on a module
+somebody else bought. `inventory` dragged in disposals/stocktake/labels/
+suppliers/purchases; anything that could sell dragged in customers/coupons/
+promotions/bank-offers; `pos` dragged in quotes.
 
-**What is actually missing** is granularity and a real assign/unassign screen:
-- The registry is **coarse**: 11 keys against **53 shop nav paths**, 30 of which
-  ask `has(...)`. Disposals rides on `inventory`; bank accounts ride on
-  `expenses`. So the very screens named in the complaint have **no key to turn
-  off**. Decide per screen whether it earns its own key or a sub-toggle.
-- Dependencies only ever cascade **off**. The ask includes turning dependants
-  **on** together ("jo depend krty wo default py on hojayen") — that is a second,
-  upward rule, and it must not silently re-enable something an admin turned off.
-- The admin side has module editing on tenant create/detail, but not a
-  **section-wise** picker with the groups, the descriptions and the dependency
-  arrows shown. Tenant side has no view of what it has and has not got.
+**The sharpest case, and the one the user named: the kitchen pass lived inside
+`feature:dine_in`** — a takeaway café had to switch on a whole restaurant
+(tables, tabs, settle, split-bill, waiter reports) to get a slip to its kitchen.
 
-**Constraints the user set:** nothing may break; the UI must be good; basic
-modules on by default for any shop.
+**Shipped:** 9 keys — `purchasing`/`stocktake`/`disposals`/`labels` (→inventory),
+`customers`, `promotions`, `bank_offers` (→promotions), `documents` (→pos),
+`kitchen` (→products); `dine_in` now depends on `kitchen`.
 
-**Open question to answer first:** does a module toggle hide a screen only, or
-also refuse its API? Today `featureEnabled()` does both in places (`MODULE_DISABLED`),
-and [[shopos-job-offered-must-be-doable]] is the standing scar from getting that
-half-right — a job was offered whose every screen bounced.
+**Rules worth keeping:**
+- **Granularity is just more keys with `depends`.** No new mechanism —
+  `normalize()` was not touched.
+- Each key must land in **three places at once**: registry + route middleware +
+  nav. Two of three is the `MODULE_DISABLED` bug class — see
+  [[shopos-job-offered-must-be-doable]].
+- **Down is the server's rule, up is the admin's.** normalize only switches OFF;
+  the picker pulls a chain UP on a press and names what else moved.
+- **`featureEnabled` walks the chain now.** `features` is a JSON column and a
+  seeder can write an impossible map.
+- **The migration's promise has its own test** that RUNS it over an old-shaped
+  map: no live shop loses a screen.
+- Only the EXTRAS default off. `customers` and `purchasing` are not extras;
+  `bank_offers` is off for every trade.
 
-Related: [[shopos-images-and-riders]] (online ⇒ images compulsory),
-[[shopos-plans-and-flow]] (a plan is payment only — modules belong to the tenant,
-never to the plan), [[shopos-no-roles]], [[shopos-menu-and-door]].
+**Also:** one shared `ModulePicker` (create + detail were two drifted copies),
+and a tenant-side read-only `Settings → Your modules` (`GET /shop/modules`) —
+because "why can I not see Purchases" had nowhere to look.
+
+**STILL OPEN (P2): a takeaway sale does not reach the kitchen board.** KOTs come
+only from a dine-in tab's Fire, so `kitchen` alone is a pass with nothing on it.
+The till's Takeaway/Dine-in toggle now follows the MODULE (it read
+`businessType === "food"`), which makes the gap more visible.
+
+Related: [[shopos-images-and-riders]], [[shopos-plans-and-flow]] (a plan is
+payment only), [[shopos-guards-share-a-blind-spot]] (four nav test files each
+held their own copy of the trade map — now one `src/test/tradeFeatures.ts`).

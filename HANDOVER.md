@@ -5776,6 +5776,74 @@ them back.
 
 ---
 
+### 2026-09-03 (later) — only what a shop uses
+
+A shopkeeper's complaint started this: **a small takeaway café is shown
+Disposals, Bank card offers and a warehouse's worth of screens that link to
+nothing it does.** The cause was arithmetic — **11 module keys against 53
+screens**, so most screens arrived as PASSENGERS on a module somebody else
+bought. Switch `inventory` on for a chemist and it was handed Disposals,
+Stocktake, Barcode Labels, Suppliers and Purchases; own a till and it was handed
+a customer book, Coupons, Promotions and Bank card offers.
+
+**The sharpest case was the kitchen**, and it is the one the user asked about by
+name. The pass lived inside `feature:dine_in`, so a café that only does takeaway
+had to switch on an entire restaurant — tables, running tabs, settle,
+split-bill, waiter reports — to get a slip to its kitchen.
+
+**Measured first, behaviourally.** A new ratchet in `shopNav.test.ts` switches on
+ONE module and lists what appeared; whatever appears is what that module drags
+in, whatever the code says. Its first run was red on five modules and named
+exactly that table.
+
+**Nine new keys and no new mechanism** — granularity here is just more keys with
+`depends`, and `normalize()` did not change: `purchasing`, `stocktake`,
+`disposals`, `labels`, `customers`, `promotions`, `bank_offers`, `documents`,
+`kitchen`. `dine_in` now depends on `kitchen`, because a Fire button whose ticket
+lands nowhere is a floor with no kitchen. Each key landed in **three places at
+once** — registry, route middleware, nav — since a key in two of the three is the
+`MODULE_DISABLED` bug class.
+
+**Four rules it had to keep:**
+
+1. **No live shop loses a screen.** The migration backfills each key from
+   whatever was letting that screen through yesterday, and the promise has its
+   own test that RUNS the migration over an old-shaped map.
+2. **Only the extras start off.** `customers` and `purchasing` are not extras —
+   a shop here keeps a khata, and stock with no way to record a purchase can only
+   ever go up by hand. `bank_offers` starts off for every trade: it is the screen
+   that was pointed at.
+3. **A press pulls its chain UP and says so.** Down is the server's rule; up is
+   the admin's gesture, and the old screens answered it by greying the row out.
+4. **A module standing on nothing is not enabled.** `featureEnabled` walks the
+   chain now — `features` is a JSON column, and a seeder writing straight to it
+   would otherwise open a stock screen for a shop that keeps no stock.
+
+**One `ModulePicker`, used by create AND detail.** It was two copies of the same
+rule, already drifted. Section-wise from the registry's own `group`, "3 of 5" per
+section, and each row says what a press will also do — before and after.
+
+**And a tenant-side answer**: `Settings → Your modules`, from a new
+`GET /shop/modules`. Read-only — modules stay the admin's decision — but *"why
+can I not see Purchases"* had nowhere to look, and a screen that has simply
+vanished reads as a broken product. The OFF ones are listed too, so a shop can
+ask for a part by the name the admin will recognise.
+
+**The gap this exposed and did not close:** a takeaway sale rung at the till
+still does not reach the kitchen board — KOTs come only from a dine-in tab's
+Fire. Splitting the module was the prerequisite; wiring `order_type = takeaway`
+through to a KOT is the next piece and is written down rather than half-built.
+
+The blast radius was **25 tests across 6 files**, every one a fixture that had
+been relying on a passenger. Two were worth keeping as assertions rather than
+repairs: granting `inventory` no longer hands a kitchen a vendor directory.
+
+Gates: backend **2449 passed / 2451, exit 0** · panel tsc 0 · eslint 0 errors ·
+vitest **1410 / 122 files** · build 0 · `dead-endpoints`, `untested-absence` and
+`unreachable-pages` all clean.
+
+---
+
 ### 2026-09-03 — a finished feature, switched off by three of its own fences
 
 C20 said offline hold/recall was "the last offline coding task, and a design

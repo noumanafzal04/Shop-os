@@ -144,25 +144,40 @@ asks the cross-module question none of them asks.
       decided and the code shipped on 18 August. What was left was three
       `!connected` fences on the till's own screen. See F18.
 
-### Parked — asked 2026-09-02, to start next
+### P1 — one shop, only the modules it uses  ·  SHIPPED 2026-09-03
 
-- [ ] **P1 — one shop, only the modules it uses.** A small takeaway café is
-      shown disposals, bank accounts and a warehouse's worth of screens that
-      link to nothing it does, and the clutter is itself the complaint. Half of
-      this is already built: `App\Support\Modules` is a registry of 11 keys
-      with group + `depends`, `normalize()` settles dependencies downward and
-      already forces `images` on for an online store, `defaultsFor($type)`
-      proposes a per-trade set, and the nav already reads MODULE / TRADE /
-      PERMISSION with an Essential-vs-Full switch. What is missing is
-      **granularity** (11 keys against **53 shop nav paths**, so disposals rides
-      on `inventory` and bank accounts ride on `expenses` — neither has a key to
-      turn off), an **upward** dependency rule that switches dependants on
-      together without silently undoing an admin's own "off", and a real
-      section-wise assign/unassign screen on the admin side with a tenant-side
-      view of what the shop has. Answer first: does a toggle hide a screen only,
-      or refuse its API too — `MODULE_DISABLED` does both today, and
-      "Job Offered = Job Doable" is the scar from getting that half-right.
+Nine new keys, no new mechanism — granularity is just more keys with `depends`.
+`purchasing` · `stocktake` · `disposals` · `labels` (→ `inventory`) ·
+`customers` · `promotions` · `bank_offers` (→ `promotions`) · `documents`
+(→ `pos`) · `kitchen` (→ `products`), and `dine_in` now depends on `kitchen`.
 
+The measurement that drove it: **11 keys against 53 screens**, so most screens
+arrived as passengers. A behavioural ratchet in `shopNav.test.ts` — switch on ONE
+module, list what appeared — was red on five modules on its first run and named
+them exactly.
+
+The sharpest case was the one a shopkeeper asked about: **the kitchen pass lived
+inside `feature:dine_in`**, so a takeaway café had to switch on a whole
+restaurant to get a slip to its kitchen.
+
+Also shipped: one shared `ModulePicker` for the create AND detail screens (it was
+two drifted copies), an upward dependency rule that says what else it moved, a
+tenant-side read-only `Settings → Your modules` behind `GET /shop/modules`, and
+`featureEnabled` walking the `depends` chain so a hand-written map cannot open a
+door.
+
+See `docs/decisions/shopos-only-what-a-shop-uses.md`.
+
+### Still open, and named on purpose
+
+- [ ] **P2 — a takeaway sale does not reach the kitchen.** KOTs are created only
+      by a dine-in tab's Fire, so `kitchen` on its own is a pass with nothing on
+      it unless every order is run as a tab on a fake table. Splitting the module
+      was the prerequisite; wiring `order_type = takeaway` through to a KOT is
+      the work. The till's Takeaway/Dine-in toggle now follows the MODULE rather
+      than `businessType === "food"`, so a bakery counter or a canteen inside a
+      services business can reach it — which makes the missing half more visible,
+      not less.
 
 ## Where the day stands
 

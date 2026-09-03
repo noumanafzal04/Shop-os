@@ -171,6 +171,6 @@
 - [Khata Needs A Phone](shopos-khata-needs-a-phone.md) — Rs 50k limit with no phone was accepted; till finds a customer ONLY by phone; scanner couldn't see its own coverage
 - [An Absent Field Is A Branch](shopos-absent-field-is-a-branch.md) — STANDING: optional field + column default = silent wrong answer; 3 live defects in one day
 - [Saves That Say Nothing](shopos-saves-that-say-nothing.md) — 25 panel saves failed silently; the count was wrong 5 times first; gate at zero, mutation-proven
-- [Modules On/Off](shopos-modules-on-off.md) — PARKED after C19/C20: per-shop module assign/unassign, section-wise UI; registry exists, granularity does not
+- [Modules On/Off](shopos-modules-on-off.md) — SHIPPED: 9 new keys so a shop gets only what it uses; kitchen split out of dine_in; P2 = takeaway→kitchen still open
 - [Recorded, Shown To Nobody](shopos-recorded-shown-to-nobody.md) — FIXED: shift offline-violations written to a column nothing reads; offline report was sales-only
 - [Park It Here](shopos-park-it-here.md) — STANDING: a refusal is a claim about the code; 3 !connected fences hid a finished offline feature
