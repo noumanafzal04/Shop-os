@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Tenant;
 
+use App\Support\BusinessTypes;
+use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -9,7 +11,7 @@ class UpdateTenantRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->hasPermission(\App\Support\Permissions::TENANTS_UPDATE);
+        return $this->user()->hasPermission(Permissions::TENANTS_UPDATE);
     }
 
     public function rules(): array
@@ -30,7 +32,7 @@ class UpdateTenantRequest extends FormRequest
                 Rule::unique('tenants', 'phone')->ignore($tenantId)->whereNull('deleted_at'),
             ],
             // The admin can change a tenant's business type after creation.
-            'business_type' => ['sometimes', 'required', 'string', Rule::in(\App\Support\BusinessTypes::codes())],
+            'business_type' => ['sometimes', 'required', 'string', Rule::in(BusinessTypes::codes())],
             'business_category' => ['nullable', 'string', 'max:100'],
             'city_id' => ['nullable', 'uuid', Rule::exists('cities', 'id')->where('is_active', true)],
         ];

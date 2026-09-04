@@ -3,10 +3,10 @@
 namespace App\Http\Requests\Sale;
 
 use App\Enums\SaleChannel;
+use App\Rules\OwnOpenShift;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use App\Rules\OwnOpenShift;
 
 /**
  * Exchange: hand back items from an existing sale AND buy replacements in one

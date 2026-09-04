@@ -27,9 +27,13 @@ namespace App\Support;
 class ItemTypes
 {
     public const PHYSICAL = 'physical_product';
+
     public const FOOD = 'food_item';
+
     public const MEDICINE = 'medicine';
+
     public const SERVICE = 'service';
+
     public const DEAL = 'deal';
 
     public const CAPABILITIES = ['inventory', 'variants', 'modifiers', 'addons', 'pos', 'marketplace', 'combo'];

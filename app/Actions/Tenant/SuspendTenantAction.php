@@ -5,6 +5,7 @@ namespace App\Actions\Tenant;
 use App\Enums\TenantStatus;
 use App\Exceptions\DomainException;
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -26,7 +27,7 @@ class SuspendTenantAction
             $userIds = $tenant->users()->pluck('id');
 
             PersonalAccessToken::query()
-                ->where('tokenable_type', \App\Models\User::class)
+                ->where('tokenable_type', User::class)
                 ->whereIn('tokenable_id', $userIds)
                 ->delete();
 

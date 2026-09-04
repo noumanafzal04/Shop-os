@@ -153,6 +153,29 @@ class PricingFixturesTest extends TestCase
                 ['price' => 250, 'tax_rate' => 17, 'quantity' => 2],
             ]),
 
+            // ── Money in, litres out ────────────────────────────────
+            $this->cart('an amount buys what it buys, and costs exactly itself', [
+                // 2000 / 268.50 = 7.4487…, stored as 7.449 litres.
+                // 7.449 × 268.50 = 2000.06 — six paisa the customer never
+                // handed over. Both engines must record 2000.00 flat.
+                ['price' => 268.50, 'tax_rate' => 0, 'sold_by' => 'weight', 'amount' => 2000],
+            ]),
+
+            $this->cart('an amount settles on the tier its own quantity earns', [
+                // 5000 / 250 = 20, which is exactly on the break; at the break
+                // price the same money buys 25. Settling on the first pass
+                // would charge the small-quantity rate for a large-quantity
+                // purchase, and the difference is invisible in the total.
+                [
+                    'price' => 250, 'tax_rate' => 0, 'sold_by' => 'weight', 'amount' => 5000,
+                    'price_tiers' => [['min_qty' => 20, 'price' => 200]],
+                ],
+            ]),
+
+            $this->cart('tax on top of an amount is charged on the amount', [
+                ['price' => 268.50, 'tax_rate' => 17, 'sold_by' => 'weight', 'amount' => 2000],
+            ]),
+
             $this->cart('a sale price beats the regular price', [
                 ['price' => 250, 'discount_price' => 199, 'tax_rate' => 0, 'quantity' => 1],
             ]),
@@ -441,7 +464,14 @@ class PricingFixturesTest extends TestCase
             ]);
             $products[] = $product;
 
-            $line = ['product_id' => $product->id, 'quantity' => $spec['quantity']];
+            // A line names a quantity OR the money that buys it. The second
+            // is how a forecourt sells: the customer hands over two thousand
+            // rupees and the litres are whatever that buys. The server derives
+            // them, so the fixture cannot state them — it reads them back off
+            // the sale below, which is the only figure either engine may use.
+            $line = isset($spec['amount'])
+                ? ['product_id' => $product->id, 'amount' => $spec['amount']]
+                : ['product_id' => $product->id, 'quantity' => $spec['quantity']];
             // The API's own names. An earlier version of this file used
             // `discount_percent` and `discount_amount`, which the request
             // simply ignores — so two fixtures claimed to cover line discounts
@@ -480,7 +510,10 @@ class PricingFixturesTest extends TestCase
                 'tax_rate' => isset($spec['tax_rate']) ? (float) $spec['tax_rate'] : null,
                 'tax_group_rate' => isset($spec['tax_group_rate']) ? (float) $spec['tax_group_rate'] : null,
                 'sold_by' => $spec['sold_by'] ?? 'unit',
-                'quantity' => (float) $spec['quantity'],
+                // Filled in from the SERVER's answer for an amount line — see
+                // the patch below the ring.
+                'quantity' => (float) ($spec['quantity'] ?? 0),
+                'amountAsked' => isset($spec['amount']) ? (float) $spec['amount'] : null,
                 'price_level' => $spec['price_level'] ?? 'retail',
                 'line_discount_pct' => isset($spec['line_discount_pct']) ? (float) $spec['line_discount_pct'] : null,
                 'line_discount' => isset($spec['line_discount']) ? (float) $spec['line_discount'] : null,
@@ -524,6 +557,17 @@ class PricingFixturesTest extends TestCase
 
         $data = $this->actingAsOwner()->postJson('/api/v1/sales', $payload)
             ->assertCreated()->json('data');
+
+        // AN AMOUNT LINE'S QUANTITY IS THE SERVER'S, NOT THIS FILE'S.
+        //
+        // Deriving it here would be a second implementation of the rule, which
+        // could be wrong in the same way the first one is and would agree with
+        // itself forever — the exact failure this whole file exists to prevent.
+        foreach ($items as $index => $spec) {
+            if (isset($spec['amount'])) {
+                $inputItems[$index]['quantity'] = (float) $data['items'][$index]['quantity'];
+            }
+        }
 
         return [
             'name' => $name,

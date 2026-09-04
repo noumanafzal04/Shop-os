@@ -4,6 +4,7 @@ namespace App\Actions\Catalog;
 
 use App\Exceptions\DomainException;
 use App\Models\Product;
+use App\Models\ProductBarcode;
 use App\Models\ProductUnit;
 
 /**
@@ -43,7 +44,7 @@ class SyncProductUnitsAction
         // Pack barcodes share the shop-wide barcode namespace (POS scans them).
         foreach ($clean->pluck('barcode')->filter() as $barcode) {
             $clash = Product::query()->where('barcode', $barcode)->whereKeyNot($product->id)->exists()
-                || \App\Models\ProductBarcode::query()->where('barcode', $barcode)->where('product_id', '!=', $product->id)->exists()
+                || ProductBarcode::query()->where('barcode', $barcode)->where('product_id', '!=', $product->id)->exists()
                 || ProductUnit::query()->where('barcode', $barcode)->where('product_id', '!=', $product->id)->exists();
 
             if ($clash) {

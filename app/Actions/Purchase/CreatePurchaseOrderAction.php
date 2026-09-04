@@ -4,6 +4,7 @@ namespace App\Actions\Purchase;
 
 use App\Enums\PurchaseStatus;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Support\TenantContext;
@@ -50,7 +51,7 @@ class CreatePurchaseOrderAction
                 // units (qty × factor). Packs don't combine with variants.
                 $unit = null;
                 if ($variant === null && ! empty($item['product_unit_id'])) {
-                    $unit = \App\Models\ProductUnit::query()
+                    $unit = ProductUnit::query()
                         ->whereKey($item['product_unit_id'])
                         ->where('product_id', $product->id)
                         ->first();

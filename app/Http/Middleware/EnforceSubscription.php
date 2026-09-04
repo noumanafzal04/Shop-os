@@ -21,9 +21,7 @@ class EnforceSubscription
 {
     private const WRITE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
-    public function __construct(private readonly TenantContext $context)
-    {
-    }
+    public function __construct(private readonly TenantContext $context) {}
 
     public function handle(Request $request, Closure $next): Response
     {

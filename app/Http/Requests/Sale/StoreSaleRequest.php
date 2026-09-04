@@ -65,7 +65,38 @@ class StoreSaleRequest extends FormRequest
             // Price level (price list): the cashier picks retail/wholesale; the
             // server prices from the product's own stored figure for that level.
             'items.*.price_level' => ['nullable', 'in:retail,wholesale'],
-            'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:100000'],
+            // ── QUANTITY, OR THE MONEY THAT BUYS IT ──────────────────
+            //
+            // A line names ONE of the two, never both and never neither.
+            //
+            // `amount` exists because of how a forecourt is actually used:
+            // nobody at a petrol pump asks for 7.855 litres, they hand over two
+            // thousand rupees. The attendant sets the pump to the MONEY and the
+            // litres are whatever that buys — so the money is the fact and the
+            // litres are derived from it, which is the opposite of every other
+            // line in this system.
+            //
+            // It is still not a price. The client says how much the customer
+            // handed over; the SERVER divides by its own rate. You cannot get
+            // more fuel by lying about the amount, because the litres follow the
+            // amount down as well as up.
+            //
+            // Restricted to `sold_by = weight` products in the action — the set
+            // where a fractional quantity is already legal. A phone cannot be
+            // sold by the rupee and should not pretend it can.
+            // WHICH of the two a line named is settled in CreateSaleAction, not
+            // here. `required_without` and `prohibits` name a SIBLING PATH, and
+            // `SyncRequest` re-keys every rule in this file under
+            // `operations.*.sale.` without re-keying the paths inside them — so
+            // the rule would look for `items.0.quantity` at the root of a sync
+            // payload, never find it, and refuse every offline sale in the
+            // queue. It did: forty-nine of them, in one suite.
+            //
+            // The action is the one place all three doors go through (the till,
+            // the sync queue, an order being completed), so the invariant lives
+            // there and this stays what a request is for — shape and range.
+            'items.*.quantity' => ['nullable', 'numeric', 'min:0.001', 'max:100000'],
+            'items.*.amount' => ['nullable', 'numeric', 'min:0.01', 'max:10000000'],
             // NOTE: no items.*.unit_price — pricing is server-authoritative.
             // Anything a client sends is dropped by validated().
             // Per-line discount: a fixed amount OR a percentage. The server

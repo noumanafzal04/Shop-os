@@ -352,8 +352,6 @@ class CreateSaleAction
                         SoldOut::assertSellable($product, $variant, $branchId);
                     }
 
-                    $quantity = (float) $item['quantity'];
-
                     // Pack-breaking: a product-level line may be sold in a defined
                     // pack (strip/box). The pack maps to `factor` base units; stock
                     // is drawn in base units, the price is the pack's. Packs don't
@@ -373,6 +371,110 @@ class CreateSaleAction
                         }
                     }
                     $factor = $unit !== null ? (float) $unit->factor : 1.0;
+
+                    // ── WHAT THIS LINE'S RATE IS ────────────────────────
+                    //
+                    // Resolved BEFORE the quantity checks, because a line may
+                    // arrive naming money instead of litres and the rate is what
+                    // turns one into the other. Neither term depends on quantity:
+                    //
+                    //   $level     retail | wholesale — a named price list. Set
+                    //              by the customer group, overridden per line.
+                    //   $override  the branch's own retail price for this
+                    //              product, if it has set one (Phase 4c).
+                    //              Retail only, never on the trusted path, which
+                    //              carries a price captured earlier.
+                    $level = ($item['price_level'] ?? $groupPriceLevel) === 'wholesale' ? 'wholesale' : 'retail';
+                    $override = $trusted ? null : $this->branchPrice($branchId, $product->id, $variant?->id);
+
+                    // ── MONEY IN, LITRES OUT ────────────────────────────
+                    //
+                    // Nobody at a petrol pump asks for 7.855 litres. They hand
+                    // over two thousand rupees, the attendant sets the pump to
+                    // the MONEY, and the litres are whatever that buys. So on
+                    // these lines the money is the fact and the quantity is
+                    // derived from it — the opposite of every other line here.
+                    //
+                    // The client never sends a rate. It sends what the customer
+                    // handed over and the SERVER divides by its own price, so a
+                    // bigger amount buys more fuel and never cheaper fuel.
+                    //
+                    // This matters most OFFLINE. A till with no line re-prices
+                    // nothing itself — this action re-prices every synced cart
+                    // on purpose — and a forecourt's rate changes overnight. A
+                    // sale queued as "7.855 litres" would come back priced at
+                    // tomorrow's rate and no longer equal the two thousand
+                    // rupees actually in the drawer. Queued as "Rs 2000" the
+                    // money is right whatever the rate did, and only the litres
+                    // move — which is the half a dip reconciliation is for.
+                    $askedAmount = isset($item['amount']) ? round((float) $item['amount'], 2) : null;
+
+                    // EXACTLY ONE of the two, and the rule is here rather than in
+                    // the request because all three doors come through this
+                    // action and only one of them is `StoreSaleRequest`.
+                    if ($askedAmount !== null && isset($item['quantity'])) {
+                        throw DomainException::unprocessable(
+                            "A line for \"{$product->name}\" named both a quantity and an amount.",
+                            'QUANTITY_AND_AMOUNT',
+                        );
+                    }
+
+                    if ($askedAmount === null && ! isset($item['quantity'])) {
+                        throw DomainException::unprocessable(
+                            "A line for \"{$product->name}\" named neither a quantity nor an amount.",
+                            'NO_QUANTITY',
+                        );
+                    }
+
+                    if ($askedAmount !== null) {
+                        if ($product->sold_by !== 'weight') {
+                            throw DomainException::unprocessable(
+                                "\"{$product->name}\" is sold by unit — enter a quantity, not an amount.",
+                                'AMOUNT_NOT_SELLABLE',
+                            );
+                        }
+
+                        if (! empty($item['modifier_option_ids'])) {
+                            throw DomainException::unprocessable(
+                                "\"{$product->name}\" has options, so it cannot be sold by amount.",
+                                'AMOUNT_WITH_MODIFIERS',
+                            );
+                        }
+
+                        // A rate of zero buys an infinite quantity. Say so rather
+                        // than dividing.
+                        if ($this->rateFor($product, $variant, $unit, $level, $override, 1.0) <= 0.0) {
+                            throw DomainException::unprocessable(
+                                "\"{$product->name}\" has no price, so an amount cannot be turned into a quantity.",
+                                'AMOUNT_WITHOUT_PRICE',
+                            );
+                        }
+
+                        // Settle against the price tiers rather than ignoring
+                        // them: the rate depends on the quantity and the quantity
+                        // on the rate. Two passes reach the answer for any tier
+                        // table, because the second pass asks at the quantity the
+                        // first one derived. A product with no tiers — every fuel
+                        // there has ever been — settles on the first.
+                        $quantity = 0.0;
+                        for ($pass = 0; $pass < 2; $pass++) {
+                            $rate = $this->rateFor($product, $variant, $unit, $level, $override, max($quantity, 1.0));
+                            $settled = round($askedAmount / $rate, 3);
+                            if ($settled === $quantity) {
+                                break;
+                            }
+                            $quantity = $settled;
+                        }
+
+                        if ($quantity < 0.001) {
+                            throw DomainException::unprocessable(
+                                "{$askedAmount} is less than the smallest amount of \"{$product->name}\" that can be sold.",
+                                'AMOUNT_TOO_SMALL',
+                            );
+                        }
+                    } else {
+                        $quantity = (float) $item['quantity'];
+                    }
 
                     // Unit-sold items (a phone, a tin, a strip) can't be sold in
                     // fractions; only weight/volume items (sold_by = weight) take
@@ -394,32 +496,13 @@ class CreateSaleAction
                         );
                     }
 
-                    // Price level (retail | wholesale) — a named price list. It
-                    // sets the per-unit RETAIL-or-WHOLESALE rate; packs multiply it,
-                    // variants keep their own price. Wholesale falls back to retail
-                    // when the item has no wholesale rate. Defaults to the customer
-                    // group's level (so a trade customer is wholesale by default),
-                    // which an explicit per-line price_level still overrides.
-                    $level = ($item['price_level'] ?? $groupPriceLevel) === 'wholesale' ? 'wholesale' : 'retail';
-                    $levelUnit = $product->priceForLevel($level, $quantity);
-
-                    // Per-branch price override (Phase 4c): the branch's own retail
-                    // price for this product/variant, if set. Effective = override ??
-                    // tenant base. Applies to the RETAIL level only (wholesale keeps
-                    // the tenant wholesale list) and never on the trusted path, which
-                    // carries a price captured earlier. Packs multiply the override.
-                    $override = $trusted ? null : $this->branchPrice($branchId, $product->id, $variant?->id);
-                    if ($override !== null && $level === 'retail' && $variant === null) {
-                        $levelUnit = $override;
-                    }
-
+                    // The rate, at the quantity this line actually sells. One
+                    // copy of that expression, in rateFor() — an amount line has
+                    // already asked it the same question to get here, and two
+                    // copies of a price rule is two prices.
                     $basePrice = $trusted && isset($item['unit_price'])
                         ? (float) $item['unit_price']
-                        : ($unit !== null
-                            ? $unit->priceUsing($levelUnit)
-                            : ($variant !== null
-                                ? ($override ?? (float) $variant->price)
-                                : $levelUnit));
+                        : $this->rateFor($product, $variant, $unit, $level, $override, $quantity);
 
                     // Food modifiers / add-ons. The POS path validates + prices the
                     // selection here. The trusted path (order/reservation completion)
@@ -458,7 +541,26 @@ class CreateSaleAction
                         : null;
 
                     $unitPrice = round($basePrice + $modifierDelta, 2);
-                    $gross = round($unitPrice * $quantity, 2);
+
+                    // ── THE AMOUNT IS THE AMOUNT ────────────────────────
+                    //
+                    // For a line that named money, the gross IS that money —
+                    // not `unit_price × quantity` recomputed from it.
+                    //
+                    // Those two differ, and the difference is not academic. A
+                    // quantity is stored to three decimals, so Rs 2,000 at
+                    // 254.63/L is 7.855 litres and 7.855 × 254.63 is Rs 2,000.12.
+                    // Recomputing would take twelve paisa the customer never
+                    // handed over, on every such sale — three hundred sales a day
+                    // is thirty-six rupees of drawer variance that means nothing
+                    // and hides the variance that does. A forecourt is measured
+                    // twice ON PURPOSE (meter against till, book against dip);
+                    // adding a third, fictional one is the opposite of the point.
+                    //
+                    // A pump does the same thing. It dispenses until the money
+                    // display reads exactly what was asked for and the litres are
+                    // whatever they are.
+                    $gross = $askedAmount ?? round($unitPrice * $quantity, 2);
 
                     // Per-line discount (POS): computed off the SERVER's own line
                     // price. A percentage wins if given; a fixed amount is clamped
@@ -1309,6 +1411,51 @@ class CreateSaleAction
      * the branch uses the catalog price. Variant lines match their own row
      * (variant_id set); product lines match the product-level row (null variant).
      */
+    /**
+     * What one unit of this line costs, at the quantity it sells.
+     *
+     * It used to be written inline, once, which was fine while only one thing
+     * asked. A line that names MONEY instead of litres has to ask the same
+     * question first — it cannot turn rupees into litres without the rate — so
+     * the expression is here rather than in two places, because two copies of a
+     * price rule is two prices.
+     *
+     * The terms, in the order they beat each other:
+     *
+     *   level     retail | wholesale. A named price list; wholesale falls back
+     *             to retail where the item has no wholesale figure.
+     *   tiers     `priceForLevel` takes the QUANTITY, so a tier table answers
+     *             differently for 1 and for 100.
+     *   override  the branch's own retail price, where it has set one. Retail
+     *             only — wholesale keeps the tenant list — and never for a
+     *             variant, which carries its own price.
+     *   pack      a strip or a box multiplies whatever survived the above.
+     */
+    private function rateFor(
+        Product $product,
+        ?ProductVariant $variant,
+        ?ProductUnit $unit,
+        string $level,
+        ?float $override,
+        float $qty,
+    ): float {
+        $levelUnit = $product->priceForLevel($level, $qty);
+
+        if ($override !== null && $level === 'retail' && $variant === null) {
+            $levelUnit = $override;
+        }
+
+        if ($unit !== null) {
+            return $unit->priceUsing($levelUnit);
+        }
+
+        if ($variant !== null) {
+            return $override ?? (float) $variant->price;
+        }
+
+        return $levelUnit;
+    }
+
     private function branchPrice(?string $branchId, string $productId, ?string $variantId): ?float
     {
         if ($branchId === null) {

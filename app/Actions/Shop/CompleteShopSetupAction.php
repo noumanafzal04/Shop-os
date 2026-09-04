@@ -14,9 +14,7 @@ use Illuminate\Support\Facades\DB;
  */
 class CompleteShopSetupAction
 {
-    public function __construct(private readonly ApplyBusinessTypeDefaultsAction $applyDefaults)
-    {
-    }
+    public function __construct(private readonly ApplyBusinessTypeDefaultsAction $applyDefaults) {}
 
     public function execute(Tenant $tenant, array $data): Tenant
     {

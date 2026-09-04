@@ -17,8 +17,7 @@ class OtpLoginAction
         private readonly OtpService $otp,
         private readonly EnsureUserCanAuthenticate $guards,
         private readonly IssueTokensAction $issueTokens,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{user: User, tokens: array}

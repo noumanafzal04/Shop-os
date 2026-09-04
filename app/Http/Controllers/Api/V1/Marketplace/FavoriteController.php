@@ -8,6 +8,7 @@ use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class FavoriteController extends Controller
 {
@@ -55,7 +56,7 @@ class FavoriteController extends Controller
         }
 
         DB::table('customer_favorites')->insert([
-            'id' => (string) \Illuminate\Support\Str::uuid7(),
+            'id' => (string) Str::uuid7(),
             'user_id' => $request->user()->id,
             'tenant_id' => $tenant->id,
             'created_at' => now(),

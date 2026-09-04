@@ -26,8 +26,7 @@ class ResolveBranch
     public function __construct(
         private readonly TenantContext $tenant,
         private readonly BranchContext $branch,
-    ) {
-    }
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {

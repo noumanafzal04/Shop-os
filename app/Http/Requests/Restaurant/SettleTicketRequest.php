@@ -2,10 +2,9 @@
 
 namespace App\Http\Requests\Restaurant;
 
+use App\Rules\OwnOpenShift;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
-use App\Rules\OwnOpenShift;
 
 class SettleTicketRequest extends FormRequest
 {

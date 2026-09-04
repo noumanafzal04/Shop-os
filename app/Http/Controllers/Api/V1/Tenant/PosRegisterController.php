@@ -16,6 +16,7 @@ use App\Support\RegisterContext;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * Registers = the shop's checkout lanes. Two audiences:
@@ -29,8 +30,7 @@ class PosRegisterController extends Controller
         private readonly TenantContext $tenant,
         private readonly BranchContext $branch,
         private readonly RegisterContext $terminal,
-    ) {
-    }
+    ) {}
 
     // ── Manager: configure the lanes ────────────────────────────────
 
@@ -145,7 +145,7 @@ class PosRegisterController extends Controller
      * Attach the live shift (who is on the lane, since when) to each register.
      * One query for all lanes — a mart's lane list must not fan out.
      *
-     * @param  \Illuminate\Support\Collection<int, Register>  $registers
+     * @param  Collection<int, Register>  $registers
      * @return array<int, array<string, mixed>>
      */
     private function decorate($registers): array

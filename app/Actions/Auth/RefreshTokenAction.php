@@ -15,8 +15,7 @@ class RefreshTokenAction
     public function __construct(
         private readonly EnsureUserCanAuthenticate $guards,
         private readonly IssueTokensAction $issueTokens,
-    ) {
-    }
+    ) {}
 
     public function execute(User $user): array
     {

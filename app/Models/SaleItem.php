@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Line snapshot — keeps its own copy of name/price/cost so deleted or
@@ -45,7 +46,7 @@ class SaleItem extends Model
     }
 
     /** Serialized units (IMEI/serial + warranty) captured for this line. */
-    public function serials(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function serials(): HasMany
     {
         return $this->hasMany(SaleItemSerial::class);
     }

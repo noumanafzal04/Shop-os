@@ -39,8 +39,7 @@ class SendChannelNotification implements ShouldQueue
     public function __construct(
         public readonly string $notificationId,
         public readonly string $channel, // push | sms | email
-    ) {
-    }
+    ) {}
 
     public function handle(FcmSender $fcm, SmsSender $sms, EmailSender $email): void
     {

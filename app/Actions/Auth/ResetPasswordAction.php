@@ -14,9 +14,7 @@ use Illuminate\Support\Facades\DB;
  */
 class ResetPasswordAction
 {
-    public function __construct(private readonly OtpService $otp)
-    {
-    }
+    public function __construct(private readonly OtpService $otp) {}
 
     public function execute(string $identifier, string $code, string $password): void
     {

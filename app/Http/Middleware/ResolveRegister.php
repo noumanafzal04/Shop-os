@@ -36,8 +36,7 @@ class ResolveRegister
         private readonly TenantContext $tenant,
         private readonly BranchContext $branch,
         private readonly RegisterContext $register,
-    ) {
-    }
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {

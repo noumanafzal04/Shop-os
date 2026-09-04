@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class CsvExport
 {
     /**
-     * @param  array<int, string>        $header
+     * @param  array<int, string>  $header
      * @param  array<int, array<int, scalar|null>>  $rows
      */
     public static function stream(string $filename, array $header, array $rows): StreamedResponse

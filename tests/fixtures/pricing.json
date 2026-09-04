@@ -96,6 +96,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 2,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -113,6 +114,140 @@
                     {
                         "unit_price": 250,
                         "line_total": 500,
+                        "tax_rate": 17
+                    }
+                ]
+            }
+        },
+        {
+            "name": "an amount buys what it buys, and costs exactly itself",
+            "input": {
+                "settings": {
+                    "tax_inclusive": false,
+                    "default_tax_rate": 0,
+                    "cash_rounding": 0
+                },
+                "items": [
+                    {
+                        "product_id": "item-0",
+                        "category_id": "cat-other",
+                        "price": 268.5,
+                        "discount_price": null,
+                        "wholesale_price": null,
+                        "price_tiers": null,
+                        "tax_rate": 0,
+                        "tax_group_rate": null,
+                        "sold_by": "weight",
+                        "quantity": 7.449,
+                        "amountAsked": 2000,
+                        "price_level": "retail",
+                        "line_discount_pct": null,
+                        "line_discount": null
+                    }
+                ],
+                "discount": 0,
+                "promotions": []
+            },
+            "expected": {
+                "subtotal": 2000,
+                "discount": 0,
+                "tax": 0,
+                "total": 2000,
+                "lines": [
+                    {
+                        "unit_price": 268.5,
+                        "line_total": 2000,
+                        "tax_rate": 0
+                    }
+                ]
+            }
+        },
+        {
+            "name": "an amount settles on the tier its own quantity earns",
+            "input": {
+                "settings": {
+                    "tax_inclusive": false,
+                    "default_tax_rate": 0,
+                    "cash_rounding": 0
+                },
+                "items": [
+                    {
+                        "product_id": "item-0",
+                        "category_id": "cat-other",
+                        "price": 250,
+                        "discount_price": null,
+                        "wholesale_price": null,
+                        "price_tiers": [
+                            {
+                                "min_qty": 20,
+                                "price": 200
+                            }
+                        ],
+                        "tax_rate": 0,
+                        "tax_group_rate": null,
+                        "sold_by": "weight",
+                        "quantity": 25,
+                        "amountAsked": 5000,
+                        "price_level": "retail",
+                        "line_discount_pct": null,
+                        "line_discount": null
+                    }
+                ],
+                "discount": 0,
+                "promotions": []
+            },
+            "expected": {
+                "subtotal": 5000,
+                "discount": 0,
+                "tax": 0,
+                "total": 5000,
+                "lines": [
+                    {
+                        "unit_price": 200,
+                        "line_total": 5000,
+                        "tax_rate": 0
+                    }
+                ]
+            }
+        },
+        {
+            "name": "tax on top of an amount is charged on the amount",
+            "input": {
+                "settings": {
+                    "tax_inclusive": false,
+                    "default_tax_rate": 0,
+                    "cash_rounding": 0
+                },
+                "items": [
+                    {
+                        "product_id": "item-0",
+                        "category_id": "cat-other",
+                        "price": 268.5,
+                        "discount_price": null,
+                        "wholesale_price": null,
+                        "price_tiers": null,
+                        "tax_rate": 17,
+                        "tax_group_rate": null,
+                        "sold_by": "weight",
+                        "quantity": 7.449,
+                        "amountAsked": 2000,
+                        "price_level": "retail",
+                        "line_discount_pct": null,
+                        "line_discount": null
+                    }
+                ],
+                "discount": 0,
+                "promotions": []
+            },
+            "expected": {
+                "subtotal": 2000,
+                "discount": 0,
+                "tax": 340,
+                "total": 2340,
+                "lines": [
+                    {
+                        "unit_price": 268.5,
+                        "line_total": 2000,
                         "tax_rate": 17
                     }
                 ]
@@ -138,6 +273,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -180,6 +316,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -231,6 +368,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 12,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -278,6 +416,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 3,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -329,6 +468,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 25,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -376,6 +516,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 20,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -418,6 +559,7 @@
                         "tax_group_rate": null,
                         "sold_by": "weight",
                         "quantity": 1.234,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -460,6 +602,7 @@
                         "tax_group_rate": null,
                         "sold_by": "weight",
                         "quantity": 1.234,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -502,6 +645,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -544,6 +688,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 2,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -559,6 +704,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 3,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -606,6 +752,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -621,6 +768,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -668,6 +816,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -683,6 +832,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -730,6 +880,7 @@
                         "tax_group_rate": 18,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -772,6 +923,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -814,6 +966,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 5,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -856,6 +1009,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -898,6 +1052,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 2,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": 10,
                         "line_discount": null
@@ -940,6 +1095,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 2,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": 55
@@ -982,6 +1138,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": 500
@@ -1024,6 +1181,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 3,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": 25,
                         "line_discount": null
@@ -1066,6 +1224,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 4,
+                        "amountAsked": null,
                         "price_level": "wholesale",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1108,6 +1267,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 4,
+                        "amountAsked": null,
                         "price_level": "wholesale",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1150,6 +1310,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 3,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1165,6 +1326,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 7,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1180,6 +1342,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 11,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1232,6 +1395,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1247,6 +1411,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1294,6 +1459,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 3,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1309,6 +1475,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 7,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1356,6 +1523,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 2,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1421,6 +1589,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 2,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1486,6 +1655,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1551,6 +1721,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 2,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1616,6 +1787,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1681,6 +1853,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1696,6 +1869,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1766,6 +1940,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1853,6 +2028,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1940,6 +2116,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -1955,6 +2132,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -2025,6 +2203,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -2040,6 +2219,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -2110,6 +2290,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 6,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -2175,6 +2356,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 1,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -2240,6 +2422,7 @@
                         "tax_group_rate": null,
                         "sold_by": "weight",
                         "quantity": 1.5,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -2255,6 +2438,7 @@
                         "tax_group_rate": null,
                         "sold_by": "weight",
                         "quantity": 0.5,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null
@@ -2325,6 +2509,7 @@
                         "tax_group_rate": null,
                         "sold_by": "unit",
                         "quantity": 2,
+                        "amountAsked": null,
                         "price_level": "retail",
                         "line_discount_pct": null,
                         "line_discount": null

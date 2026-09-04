@@ -12,8 +12,10 @@ use App\Http\Requests\Customer\UpdateCustomerRequest;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Support\ApiResponse;
+use App\Support\CsvExport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CustomerController extends Controller
 {
@@ -32,7 +34,7 @@ class CustomerController extends Controller
     }
 
     /** Export the customer directory to CSV — honours the list search filter. */
-    public function export(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function export(Request $request): StreamedResponse
     {
         $header = ['name', 'phone', 'email', 'address', 'credit_balance', 'credit_limit', 'sales_count', 'total_spent', 'last_seen_at', 'notes'];
 
@@ -58,7 +60,7 @@ class CustomerController extends Controller
             ])
             ->all();
 
-        return \App\Support\CsvExport::stream('customers-'.now()->format('Y-m-d').'.csv', $header, $rows);
+        return CsvExport::stream('customers-'.now()->format('Y-m-d').'.csv', $header, $rows);
     }
 
     public function store(StoreCustomerRequest $request): JsonResponse
