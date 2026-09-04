@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useNavigate, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import { uuid } from "../../../common/uuid";
@@ -406,9 +407,9 @@ export default function InventoryPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={reorderOnly ? 5 : 4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty colSpan={reorderOnly ? 5 : 4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     No tracked products{debounced ? " match your search" : " yet"}.
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 rows.flatMap((p) => [

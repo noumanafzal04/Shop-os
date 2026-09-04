@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
@@ -774,7 +775,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 sm:px-5 py-16">
+                  <TableEmpty colSpan={7} className="px-3 sm:px-5 py-16">
                     <div className="mx-auto max-w-sm text-center">
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Nothing recurring yet</p>
                       <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
@@ -785,10 +786,10 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
                         <Button size="sm" onClick={openAdd}>Add recurring</Button>
                       </div>
                     </div>
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : shown.length === 0 ? (
-                <tr><td colSpan={7} className="px-3 sm:px-5 py-12 text-center text-sm text-gray-400">Nothing matches these filters.</td></tr>
+                <tr><TableEmpty colSpan={7} className="px-3 sm:px-5 py-12 text-center text-sm text-gray-400">Nothing matches these filters.</TableEmpty></tr>
               ) : (
                 shown.map((r) => (
                   <tr key={r.id} className="text-theme-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/[0.02]">
@@ -1206,7 +1207,7 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
                 ))
               ) : shown.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-3 sm:px-5 py-16">
+                  <TableEmpty colSpan={4} className="px-3 sm:px-5 py-16">
                     <div className="mx-auto max-w-sm text-center">
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
                         {all.length === 0 ? "No categories to budget yet" : "Nothing matches these filters"}
@@ -1217,7 +1218,7 @@ function BudgetsTab({ money, toast }: { money: Money; toast: Toast }) {
                           : "Clear a filter above to see the rest of the categories."}
                       </p>
                     </div>
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 shown.map((row) => {

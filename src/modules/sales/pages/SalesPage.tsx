@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { uuid } from "../../../common/uuid";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { Link, useSearchParams } from "react-router";
@@ -433,9 +434,9 @@ export default function SalesPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={cols} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty colSpan={cols} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {debounced || status ? "No sales match these filters." : "No sales yet — make your first sale!"}
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 rows.map((s) => (

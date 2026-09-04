@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -133,10 +134,10 @@ export default function DisposalsPage() {
             </thead>
             <tbody>
               {q.isLoading ? (
-                <tr><td colSpan={branchCol.show ? 7 : 6} className="px-4 py-10 text-center text-sm text-gray-400">Loading…</td></tr>
+                <tr><TableEmpty colSpan={branchCol.show ? 7 : 6} className="px-4 py-10 text-center text-sm text-gray-400">Loading…</TableEmpty></tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={branchCol.show ? 7 : 6} className="px-4 py-12 text-center">
+                  <TableEmpty colSpan={branchCol.show ? 7 : 6} className="px-4 py-12 text-center">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {tab === "claims" ? "Nothing waiting on a supplier." : "Nothing here."}
                     </p>
@@ -144,7 +145,7 @@ export default function DisposalsPage() {
                       When you remove a batch from Inventory you say whether it was binned or sent
                       back. Anything sent back shows here until the credit arrives.
                     </p>
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 rows.map((d) => (

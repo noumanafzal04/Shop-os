@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -174,9 +175,9 @@ export default function PromotionsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {isLoading ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+                <tr><TableEmpty colSpan={6} className="px-4 py-8 text-center text-gray-400">Loading…</TableEmpty></tr>
               ) : (promotions ?? []).length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No promotions yet.</td></tr>
+                <tr><TableEmpty colSpan={6} className="px-4 py-8 text-center text-gray-400">No promotions yet.</TableEmpty></tr>
               ) : (
                 (promotions ?? []).map((p) => (
                   <tr key={p.id} className="text-gray-700 dark:text-gray-300">

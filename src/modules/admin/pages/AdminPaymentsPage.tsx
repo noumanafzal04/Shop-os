@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 
 import { downloadCsv } from "../../../common/api/download";
@@ -237,13 +238,13 @@ export default function AdminPaymentsPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {filtered
                       // An empty table under a filter reads as "there is
                       // nothing here" unless it says otherwise.
                       ? "No payment matches these filters."
                       : "No payments recorded yet."}
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 rows.map((p) => (

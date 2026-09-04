@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link, useSearchParams } from "react-router";
 
 import PageMeta from "../../../components/common/PageMeta";
@@ -224,11 +225,11 @@ export default function LedgerPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {activeFilterCount(filters) > 0 || (filters.type ?? []).length > 0
                       ? "Nothing matches these filters."
                       : "Nothing moved in this period."}
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 rows.map((row) => (

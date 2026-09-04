@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -258,10 +259,10 @@ export function RecurringIncomeTab({ money }: { money: (n: number | string) => s
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-5 py-12 text-center text-gray-500 dark:text-gray-400">
+                <TableEmpty colSpan={5} className="px-5 py-12 text-center text-gray-500 dark:text-gray-400">
                   Nothing recurring yet. Add the flat upstairs, a let shutter, or a monthly contract
                   and it will offer itself each time it comes round.
-                </td>
+                </TableEmpty>
               </tr>
             ) : (
               rows.map((r) => (

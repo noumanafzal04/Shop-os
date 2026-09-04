@@ -1,4 +1,5 @@
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useBranchStore } from "../../../stores/branchStore";
 import { useState } from "react";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
@@ -344,7 +345,7 @@ export default function ProductsPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={colCount} className="px-6 py-16 text-center">
+                  <TableEmpty colSpan={colCount} className="px-6 py-16 text-center">
                     {debouncedSearch || type || categoryId || lowStock ? (
                       <p className="text-sm text-gray-500 dark:text-gray-400">Nothing matches these filters.</p>
                     ) : (
@@ -359,7 +360,7 @@ export default function ProductsPage() {
                         </Link>
                       </div>
                     )}
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 rows.map((p) => (

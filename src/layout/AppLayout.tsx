@@ -14,8 +14,23 @@ const LayoutContent: React.FC = () => {
   // so admin module toggles / settings changes never surface until a full re-login.
   useMe();
 
+  /*
+   * `min-h-dvh`, not `min-h-screen`.
+   *
+   * `100vh` on iOS is the viewport WITH the browser chrome hidden, which is
+   * taller than what is actually on screen while the address bar is showing.
+   * As a MIN height on the shell that means the page is always a little taller
+   * than the window, so a tablet has a small scroll even on a screen with
+   * nothing to scroll — which is half of what "body scroll ho rahi hai"
+   * describes. The rest of this codebase already says `dvh` everywhere it says
+   * a height at all (the till, the customiser, the setup page); the shell was
+   * the one that did not.
+   *
+   * Not measurable in a desktop browser: `vh` and `dvh` are the same number
+   * where there is no toolbar to slide away.
+   */
   return (
-    <div className="min-h-screen xl:flex">
+    <div className="min-h-dvh xl:flex">
       {/* THE SERVICE WORKER IS NOT REGISTERED HERE ANY MORE.
           AppLayout is the shell, and the till, the floor, the tab and the
           kitchen board all run OUTSIDE it — so a cashier who opened

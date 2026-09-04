@@ -38,7 +38,7 @@ export default function MyOrdersPage() {
   const canCancel = (o: CustomerOrder) => o.status === "pending" || o.status === "confirmed";
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-dvh bg-gray-50 dark:bg-gray-900">
       <PageMeta title="My Orders | CartZe" description="Your online orders" />
       <MarketHeader />
 

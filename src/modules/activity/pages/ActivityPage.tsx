@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import {
@@ -309,9 +310,9 @@ export default function ActivityPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty colSpan={4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     Nothing here for that. Try a wider date range, or Everything.
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 rows.map((log) => (

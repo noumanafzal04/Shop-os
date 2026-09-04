@@ -3297,100 +3297,133 @@ export default function PosPage() {
           and nothing on screen said they were there.
           Now it wraps instead of scrolling (a phone gets two honest rows), and
           the half that gives way is the half nobody presses. */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1.5 border-t border-white/10 bg-gray-900 px-3 py-2 sm:gap-x-3 sm:gap-y-2 sm:px-4 xl:px-10 2xl:px-16">
+      <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/10 bg-gray-900 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2 sm:px-4 xl:px-10 2xl:px-16">
         {/* The footer's left half was empty while the top bar was fighting for
             room. The two things that belong here are the ones a cashier never
             acts on and only ever glances at: what this screen is, and whether
             it can still reach the server. */}
-        <div className="flex min-w-0 items-center gap-3">
-          {/* The wordmark is the first thing to go. A cashier standing at the
-              till knows what screen they are on; the connection pill is the
-              one indicator they actually decide anything by, so it stays. */}
-          <span className="hidden text-xl font-bold tracking-tight text-white lg:inline">Point of Sale</span>
-          {/* Connection. This used to be a green dot that said "Online" no
-              matter what — the one indicator that must never lie, since the
-              cashier decides whether to re-ring a sale by looking at it. */}
-          {/* The pill is the Sync now control.
-              A separate button would be a second thing to find, in the one
-              corner a cashier already looks at to answer "is my day safe?".
-              Pressing it asks the same question out loud. */}
-          <button
-            type="button"
-            onClick={manualSync.sync}
-            disabled={manualSync.state === "working"}
-            /* `py-1` made this 28px tall. It is the control that answers "is
-               my day safe?" and the one a cashier jabs at when the line drops
-               — 4px short of a finger target on the device most tills are. */
-            /* NOT `hidden sm:flex`. This is the only thing on the till that
-               says whether the shop is reaching its server, and below `sm` it
-               was not drawn at all — so a phone selling through a power cut
-               looked exactly like a phone selling normally, with the sales
-               piling up on the device and nothing saying so. Proven in a
-               browser: the offline sale went through on a phone and not one
-               visible word on the screen mentioned it.
+        {/* ROW ONE ON A PHONE. What a cashier only GLANCES at, plus the two
+            buttons they hardly ever press — Quote, and the one that empties the
+            basket. `sm:contents` dissolves this wrapper from `sm` up so the
+            children rejoin the single bar, and `sm:order-*` on each button puts
+            that bar back in exactly the order it has always had. */}
+        <div className="flex items-center gap-2 sm:contents">
+          <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-none">
+            {/* The wordmark is the first thing to go. A cashier standing at the
+                till knows what screen they are on; the connection pill is the
+                one indicator they actually decide anything by, so it stays. */}
+            <span className="hidden text-xl font-bold tracking-tight text-white lg:inline">Point of Sale</span>
+            {/* Connection. This used to be a green dot that said "Online" no
+                matter what — the one indicator that must never lie, since the
+                cashier decides whether to re-ring a sale by looking at it. */}
+            {/* The pill is the Sync now control.
+                A separate button would be a second thing to find, in the one
+                corner a cashier already looks at to answer "is my day safe?".
+                Pressing it asks the same question out loud. */}
+            <button
+              type="button"
+              onClick={manualSync.sync}
+              disabled={manualSync.state === "working"}
+              /* `py-1` made this 28px tall. It is the control that answers "is
+                 my day safe?" and the one a cashier jabs at when the line drops
+                 — 4px short of a finger target on the device most tills are. */
+              /* NOT `hidden sm:flex`. This is the only thing on the till that
+                 says whether the shop is reaching its server, and below `sm` it
+                 was not drawn at all — so a phone selling through a power cut
+                 looked exactly like a phone selling normally, with the sales
+                 piling up on the device and nothing saying so. Proven in a
+                 browser: the offline sale went through on a phone and not one
+                 visible word on the screen mentioned it.
                
-               The label is already short — "Offline", "1 still to send" — and
-               the bar it sits in wraps, so it costs a phone one line at most. */
-            className={`flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-theme-xs font-semibold transition hover:brightness-110 disabled:cursor-progress sm:px-3 ${
-              connected
-                ? "border-success-500/40 bg-success-500/15 text-success-300"
-                : "border-error-500/50 bg-error-500/15 text-error-300"
-            }`}
-            title={
-              manualSync.state !== "idle"
-                ? // The reason, when there is one. A press that ends "7 still
-                  // to send" says nothing about WHY, and the two cases a shop
-                  // must tell apart — a bad line, and a server refusing the
-                  // rows — read identically without it.
-                  [
-                    syncLabel(manualSync.state, connected, manualSync.outcome),
-                    syncDetail(manualSync.state, manualSync.outcome),
-                  ]
-                    .filter((part): part is string => part !== null)
-                    .join(" — ")
-                : connected
-                  ? "The till reached the server on its last request. Tap to sync now."
-                  : offlineOwed > 0
-                    ? `${offlineOwed} ${offlineOwed === 1 ? "sale is" : "sales are"} saved on this device and will send themselves when the connection returns. Nothing is lost. Tap to try now.`
-                    : "The last request never reached the server. You can keep selling — sales are saved here and sent when the line is back. Tap to try now."
-            }
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                syncing || manualSync.state === "working"
-                  ? "bg-brand-400 animate-pulse"
-                  : connected
-                    ? "bg-success-500"
-                    : "bg-error-500 animate-pulse"
+                 The label is already short — "Offline", "1 still to send" — and
+                 the bar it sits in wraps, so it costs a phone one line at most. */
+              className={`flex min-h-9 min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-theme-xs font-semibold transition hover:brightness-110 disabled:cursor-progress sm:px-3 ${
+                connected
+                  ? "border-success-500/40 bg-success-500/15 text-success-300"
+                  : "border-error-500/50 bg-error-500/15 text-error-300"
               }`}
-            />
-            {/* The wording comes from `pillLabel` and not from here.
+              title={
+                manualSync.state !== "idle"
+                  ? // The reason, when there is one. A press that ends "7 still
+                    // to send" says nothing about WHY, and the two cases a shop
+                    // must tell apart — a bad line, and a server refusing the
+                    // rows — read identically without it.
+                    [
+                      syncLabel(manualSync.state, connected, manualSync.outcome),
+                      syncDetail(manualSync.state, manualSync.outcome),
+                    ]
+                      .filter((part): part is string => part !== null)
+                      .join(" — ")
+                  : connected
+                    ? "The till reached the server on its last request. Tap to sync now."
+                    : offlineOwed > 0
+                      ? `${offlineOwed} ${offlineOwed === 1 ? "sale is" : "sales are"} saved on this device and will send themselves when the connection returns. Nothing is lost. Tap to try now.`
+                      : "The last request never reached the server. You can keep selling — sales are saved here and sent when the line is back. Tap to try now."
+              }
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  syncing || manualSync.state === "working"
+                    ? "bg-brand-400 animate-pulse"
+                    : connected
+                      ? "bg-success-500"
+                      : "bg-error-500 animate-pulse"
+                }`}
+              />
+              {/* The wording comes from `pillLabel` and not from here.
 
-                This screen had its own copy of it — the same four states,
-                written out inline — and the two had already drifted: the
-                exported one had never learned "No server", and this one had
-                never learned to say anything at all while a queue was going
-                up. Two copies of a sentence whose whole point is that it is
-                the feature. */}
-            {/* A press gets its OWN answer. The automatic sync says nothing
-                when there is nothing to send — correctly, because narrating
-                "Sending 0 of 0" every quarter hour teaches a cashier to stop
-                reading the pill — but a person who pressed a button and saw
-                nothing change will press it again with a queue behind them. */}
-            {manualSync.state === "idle"
-              ? pillLabel(connected, offlineOwed, syncing, online)
-              : syncLabel(manualSync.state, connected, manualSync.outcome)}
+                  This screen had its own copy of it — the same four states,
+                  written out inline — and the two had already drifted: the
+                  exported one had never learned "No server", and this one had
+                  never learned to say anything at all while a queue was going
+                  up. Two copies of a sentence whose whole point is that it is
+                  the feature. */}
+              {/* A press gets its OWN answer. The automatic sync says nothing
+                  when there is nothing to send — correctly, because narrating
+                  "Sending 0 of 0" every quarter hour teaches a cashier to stop
+                  reading the pill — but a person who pressed a button and saw
+                  nothing change will press it again with a queue behind them. */}
+              {/* `truncate`, because this pill now shares a phone row with two
+                  buttons. "4 still to send" cut short still says there is a
+                  queue; the same words wrapped to a second line push the row to
+                  three. */}
+              <span className="truncate">
+                {manualSync.state === "idle"
+                  ? pillLabel(connected, offlineOwed, syncing, online)
+                  : syncLabel(manualSync.state, connected, manualSync.outcome)}
+              </span>
+            </button>
+          </div>
+
+          {/* A hold is for the next five minutes; this is for the next five
+              weeks. Sits beside Hold because the cashier reaches for it in the
+              same moment — "the customer isn't buying today". */}
+          <button
+            onClick={documentModal.openModal}
+            disabled={cart.length === 0}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/15 px-2.5 py-1.5 text-theme-xs sm:order-6 sm:px-3.5 sm:py-2 sm:text-theme-sm font-semibold text-success-300 transition hover:bg-success-500/25 disabled:opacity-40"
+            title="Quotation or advance booking (F7)"
+          >
+            {/* NOT `ListIcon`. Drafts uses that, and below `sm` both buttons
+                lose their words — two identical glyphs a thumb apart, telling
+                a cashier apart only by hue. `DocsIcon` is what the sidebar
+                already gives Quotes & Advances, so the till and the menu name
+                the same thing the same way. */}
+            <DocsIcon className="h-4 w-4" />
+            {/* "Advance" is the half a phone gives up. It shares its row with
+                the connection pill and Reset; the full name is back from `sm`
+                up, and the title says it at every width. */}
+            <span className="sm:hidden">Quote</span>
+            <span className="hidden sm:inline">Quote / Advance</span>
+            <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F7</kbd>
           </button>
-        </div>
-
-        <div className="contents sm:ml-auto sm:flex sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
           {/* Reset lives with the others now, but keeps its own gap and a red
               hover: near enough to reach, far enough that the hand going for
               Hold doesn't land on the one that empties the basket. */}
           <button
             onClick={clearSale}
             disabled={cart.length === 0}
-            className="flex items-center gap-1.5 rounded-lg border border-error-500/50 bg-error-500/15 px-2.5 py-1.5 text-theme-xs font-semibold text-error-300 transition hover:border-error-600 hover:bg-error-600 hover:text-white disabled:opacity-40 sm:mr-2 sm:px-3.5 sm:py-2 sm:text-theme-sm"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-error-500/50 bg-error-500/15 px-2.5 py-1.5 text-theme-xs font-semibold text-error-300 transition hover:border-error-600 hover:bg-error-600 hover:text-white disabled:opacity-40 sm:order-1 sm:ml-auto sm:mr-2 sm:px-3.5 sm:py-2 sm:text-theme-sm"
             title="Empty this ticket"
           >
             <TrashBinIcon className="h-4 w-4" />
@@ -3401,13 +3434,19 @@ export default function PosPage() {
                 also the accessible name, so nothing here goes unnamed. */}
             Reset
           </button>
+        </div>
 
+        {/* ROW TWO ON A PHONE. The three a cashier actually presses during a
+            sale, in equal thirds across the full width — a thumb finds a third
+            of a screen without looking. From `sm` up this wrapper dissolves
+            too and they take their old places in the single bar. */}
+        <div className="grid grid-cols-3 gap-1.5 sm:contents">
           {/* Discount / coupon — stays next to the money it changes. */}
           <button
             type="button"
             onClick={discountModal.openModal}
             title="Discount / coupon"
-            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-theme-xs font-semibold transition sm:px-3.5 sm:py-2 sm:text-theme-sm ${
+            className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-theme-xs font-semibold transition sm:order-2 sm:justify-start sm:px-3.5 sm:py-2 sm:text-theme-sm ${
               Number(discount) > 0 || couponCode
                 ? "border-success-400 bg-success-500/25 text-success-200"
                 : "border-warning-500/50 bg-warning-500/15 text-warning-300 hover:border-warning-400 hover:bg-warning-500/25 hover:text-warning-200"
@@ -3418,19 +3457,30 @@ export default function PosPage() {
                 be an icon on a phone; "−Rs 500" is a fact about what the
                 customer is being charged, and a cashier reading the total
                 needs to see why it changed at every width. */}
+            {/* One third of a 390px screen is 118px, and "Discount −Rs 1,000"
+                does not fit in it beside an icon. The MONEY is the part that
+                must never hide, so the word in front of it is what a phone
+                drops — and "Add discount" becomes "Discount", which is what
+                the button is either way. */}
             {Number(discount) > 0 || couponCode ? (
-              `Discount −${money((Number(discount) || 0) + couponDiscount)}`
+              <span className="truncate">
+                <span className="hidden sm:inline">Discount </span>
+                −{money((Number(discount) || 0) + couponDiscount)}
+              </span>
             ) : (
-              "Add discount"
+              <span className="truncate">
+                <span className="hidden sm:inline">Add </span>
+                <span className="sm:lowercase">Discount</span>
+              </span>
             )}
           </button>
 
-          <span className="mx-1 hidden h-6 w-px bg-white/15 sm:block" />
+          <span className="mx-1 hidden h-6 w-px bg-white/15 sm:order-3 sm:block" />
 
           <button
             onClick={askHold}
             disabled={cart.length === 0 || heldMut.hold.isPending}
-            className="flex items-center gap-1.5 rounded-lg border border-warning-500/40 bg-warning-500/15 px-2.5 py-1.5 text-theme-xs sm:px-3.5 sm:py-2 sm:text-theme-sm font-semibold text-warning-300 transition hover:bg-warning-500/25 disabled:opacity-40"
+            className="flex min-w-0 items-center justify-center gap-1.5 rounded-lg border border-warning-500/40 bg-warning-500/15 px-2 py-1.5 text-theme-xs sm:order-4 sm:justify-start sm:px-3.5 sm:py-2 sm:text-theme-sm font-semibold text-warning-300 transition hover:bg-warning-500/25 disabled:opacity-40"
             title="Hold this ticket (F4)"
           >
             <PauseGlyph />
@@ -3440,7 +3490,7 @@ export default function PosPage() {
 
           <button
             onClick={() => { held.refetch(); heldModal.openModal(); }}
-            className="flex items-center gap-1.5 rounded-lg border border-orange-500/40 bg-orange-500/15 px-2.5 py-1.5 text-theme-xs sm:px-3.5 sm:py-2 sm:text-theme-sm font-semibold text-orange-300 transition hover:bg-orange-500/25"
+            className="flex min-w-0 items-center justify-center gap-1.5 rounded-lg border border-orange-500/40 bg-orange-500/15 px-2 py-1.5 text-theme-xs sm:order-5 sm:justify-start sm:px-3.5 sm:py-2 sm:text-theme-sm font-semibold text-orange-300 transition hover:bg-orange-500/25"
             title="Open a parked ticket (F6)"
           >
             <ListIcon className="h-4 w-4" />
@@ -3453,24 +3503,6 @@ export default function PosPage() {
             <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F6</kbd>
           </button>
 
-          {/* A hold is for the next five minutes; this is for the next five
-              weeks. Sits beside Hold because the cashier reaches for it in the
-              same moment — "the customer isn't buying today". */}
-          <button
-            onClick={documentModal.openModal}
-            disabled={cart.length === 0}
-            className="flex items-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/15 px-2.5 py-1.5 text-theme-xs sm:px-3.5 sm:py-2 sm:text-theme-sm font-semibold text-success-300 transition hover:bg-success-500/25 disabled:opacity-40"
-            title="Quotation or advance booking (F7)"
-          >
-            {/* NOT `ListIcon`. Drafts uses that, and below `sm` both buttons
-                lose their words — two identical glyphs a thumb apart, telling
-                a cashier apart only by hue. `DocsIcon` is what the sidebar
-                already gives Quotes & Advances, so the till and the menu name
-                the same thing the same way. */}
-            <DocsIcon className="h-4 w-4" />
-            Quote / Advance
-            <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F7</kbd>
-          </button>
         </div>
       </div>
 

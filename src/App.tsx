@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import OldBrowserNotice from "./components/system/OldBrowserNotice";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
@@ -116,6 +117,11 @@ export default function App() {
   return (
     <Router>
       <ScrollToTop />
+      {/* Above everything, on every screen including the till: a browser that
+          cannot compute this stylesheet's colours draws a page that looks
+          broken and says nothing. See OldBrowserNotice. Renders NOTHING on a
+          browser that can. */}
+      <OldBrowserNotice />
       <Suspense fallback={<PageFallback />}>
         <Routes>
           {/* ── The storefront lives under /shops ─────────────────────

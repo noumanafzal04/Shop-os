@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -126,9 +127,9 @@ export default function ForecourtPage() {
             <tbody>
               {(history.data?.rows ?? []).length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-400">
+                  <TableEmpty colSpan={5} className="px-4 py-10 text-center text-sm text-gray-400">
                     No shifts closed yet.
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 history.data?.rows.map((s) => (

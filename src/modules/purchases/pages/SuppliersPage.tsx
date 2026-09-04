@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -174,7 +175,7 @@ export default function SuppliersPage() {
                 <tr key={i}><td colSpan={5} className="px-5 py-4"><div className="h-5 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>
               ))
             ) : rows.length === 0 ? (
-              <tr><td colSpan={5} className="px-5 py-10 text-center text-gray-500 dark:text-gray-400">No suppliers yet.</td></tr>
+              <tr><TableEmpty colSpan={5} className="px-5 py-10 text-center text-gray-500 dark:text-gray-400">No suppliers yet.</TableEmpty></tr>
             ) : (
               rows.map((s) => (
                 <tr key={s.id} className="border-b border-gray-50 last:border-0 dark:border-gray-800/50">

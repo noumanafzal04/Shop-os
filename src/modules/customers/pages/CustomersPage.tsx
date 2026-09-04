@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useSearchParams } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import { downloadFile } from "../../../common/api/download";
@@ -195,7 +196,7 @@ export default function CustomersPage() {
             {customers.isLoading ? (
               Array.from({ length: 5 }).map((_, i) => <tr key={i}><td colSpan={5} className="px-5 py-4"><div className="h-5 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>)
             ) : rows.length === 0 ? (
-              <tr><td colSpan={5} className="px-5 py-10 text-center text-gray-500 dark:text-gray-400">No customers yet — they'll appear as you make sales.</td></tr>
+              <tr><TableEmpty colSpan={5} className="px-5 py-10 text-center text-gray-500 dark:text-gray-400">No customers yet — they'll appear as you make sales.</TableEmpty></tr>
             ) : (
               rows.map((c) => (
                 <tr key={c.id} className="cursor-pointer border-b border-gray-50 last:border-0 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-white/5" onClick={() => { setDetailId(c.id); detailModal.openModal(); }}>

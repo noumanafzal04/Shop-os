@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
@@ -382,7 +383,7 @@ export default function AdminTenantsPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <TableEmpty colSpan={6} className="px-6 py-12 text-center">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {bucket === "unpaid"
                         ? "Nobody is overdue."
@@ -403,7 +404,7 @@ export default function AdminTenantsPage() {
                         Clear the filters
                       </button>
                     )}
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 rows.map((t) => (

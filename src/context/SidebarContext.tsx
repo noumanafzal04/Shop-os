@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { lockScroll, unlockScroll } from "../layout/scrollLock";
 
 /**
  * ONE width decides what the sidebar is.
@@ -113,6 +114,20 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
       window.removeEventListener("resize", handleResize);
     };
   }, []);
+
+  /**
+   * THE PAGE BEHIND THE DRAWER HOLDS STILL.
+   *
+   * It did not. Measured in WebKit with the menu open: at 810 and at 390 the
+   * page behind scrolled a full 400px and `document.body`'s overflow was
+   * `visible`. A modal locked the page and a drawer did not, which is the
+   * same overlay problem answered twice and only once.
+   */
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    lockScroll();
+    return unlockScroll;
+  }, [isMobileOpen]);
 
   const toggleSidebar = () => {
     setIsExpanded((prev) => !prev);

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -113,7 +114,7 @@ export default function FuelDeliveriesPage() {
             </thead>
             <tbody>
               {(deliveries.data?.rows ?? []).length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No deliveries yet.</td></tr>
+                <tr><TableEmpty colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No deliveries yet.</TableEmpty></tr>
               ) : (
                 deliveries.data?.rows.map((d) => {
                   const short = Number(d.shortage_litres);

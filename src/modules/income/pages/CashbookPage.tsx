@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
@@ -100,9 +101,9 @@ export default function CashbookPage() {
                 ))
               ) : (data?.days ?? []).every((d) => d.money_in === 0 && d.money_out === 0) ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     No money movement in this period yet.
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 (data?.days ?? [])

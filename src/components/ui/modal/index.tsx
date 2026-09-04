@@ -1,4 +1,5 @@
 import { useRef, useEffect, useId, useState, type ReactNode } from "react";
+import { lockScroll, unlockScroll } from "../../../layout/scrollLock";
 
 interface ModalProps {
   isOpen: boolean;
@@ -76,16 +77,14 @@ export const Modal: React.FC<ModalProps> = ({
     };
   }, [isOpen, onClose]);
 
+  // The page behind a modal holds still — see layout/scrollLock. This used to
+  // write `document.body.style.overflow` itself, which is the half that a
+  // script cannot scroll past and a finger on iOS can, and which the sidebar
+  // drawer did not do at all.
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-
-    return () => {
-      document.body.style.overflow = "unset";
-    };
+    if (!isOpen) return;
+    lockScroll();
+    return unlockScroll;
   }, [isOpen]);
 
   if (!isOpen) return null;

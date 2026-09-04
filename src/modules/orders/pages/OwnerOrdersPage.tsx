@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 
 import { ApiError } from "../../../common/types/api";
@@ -307,7 +308,7 @@ export default function OwnerOrdersPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={ORDER_COLUMNS} className="px-4 py-14 text-center">
+                  <TableEmpty colSpan={ORDER_COLUMNS} className="px-4 py-14 text-center">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {unassigned
                         ? "Every delivery has a rider on it."
@@ -336,7 +337,7 @@ export default function OwnerOrdersPage() {
                         </Link>.
                       </p>
                     )}
-                  </td>
+                  </TableEmpty>
                 </tr>
               ) : (
                 rows.map((o) => {

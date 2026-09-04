@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
@@ -195,7 +196,7 @@ export default function AdminAuditPage() {
                   <tr key={i}><td colSpan={5} className="px-6 py-4"><div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>
                 ))
               ) : rows.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">No audit entries match.</td></tr>
+                <tr><TableEmpty colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">No audit entries match.</TableEmpty></tr>
               ) : (
                 rows.map((log) => (
                   <tr key={log.id} className="align-top text-theme-sm text-gray-700 dark:text-gray-300">

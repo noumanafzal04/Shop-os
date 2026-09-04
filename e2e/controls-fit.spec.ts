@@ -110,7 +110,10 @@ test("the till's action bar stays a bar, not a panel", async ({ page }) => {
     // the bar fails loudly instead of measuring some other element.
     const anchor = [...document.querySelectorAll("button")]
       .find((b) => /parked ticket/.test(b.getAttribute("title") ?? ""));
-    const bar = anchor?.closest("div.flex.shrink-0.flex-wrap");
+    // The bar is a COLUMN below `sm` (two rows) and a wrapping row above
+    // it. `flex-col` is on the element at every width; `flex-wrap` is not
+    // any more, and anchoring on it silently found nothing.
+    const bar = anchor?.closest("div.flex.shrink-0.flex-col");
 
     if (!bar) return null;
 
@@ -176,4 +179,101 @@ test("the notification bell is on screen without opening a menu", async ({ page 
 
   expect(box, "the bell has no box at all").not.toBeNull();
   expect(box!.y, "the bell is below the header row").toBeLessThan(120);
+});
+
+/**
+ * WHAT A PHONE'S TWO ROWS ARE FOR.
+ *
+ * The bar fitting in two rows was the first half. The shop asked for the
+ * second: "jo kam button use hote like quote, ya reset unko upar le jao sync
+ * button ke sath / baaki 3 neeche / aur teeno full adjust hon."
+ *
+ * So the split is not arbitrary and not left to wrapping. Row one is what a
+ * cashier only glances at — the connection pill — plus the two they hardly
+ * press. Row two is the three they press during a sale, in equal thirds
+ * across the full width, because a thumb finds a third of a screen without
+ * looking and does not find a button that moved because a discount got longer.
+ *
+ * Wrapping cannot express that: it packs greedily, so "Add discount" becoming
+ * "Discount −Rs 12,500" moves Hold onto the next row.
+ */
+test("the till's bar splits the way a hand uses it", async ({ page }) => {
+  await page.goto("/tenant/pos");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(1200);
+
+  const seen = await page.evaluate(() => {
+    const at = (title: string) =>
+      [...document.querySelectorAll("button")].find(
+        (b) => (b.getAttribute("title") ?? "") === title,
+      );
+
+    const pill = [...document.querySelectorAll("button")].find((b) =>
+      /reached the server|never reached the server|saved on this device/.test(
+        b.getAttribute("title") ?? "",
+      ),
+    );
+    const wanted = {
+      quote: at("Quotation or advance booking (F7)"),
+      reset: at("Empty this ticket"),
+      discount: at("Discount / coupon"),
+      hold: at("Hold this ticket (F4)"),
+      drafts: at("Open a parked ticket (F6)"),
+    };
+
+    const box = (el?: Element) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { top: Math.round(r.top), width: Math.round(r.width), left: Math.round(r.left) };
+    };
+
+    return {
+      pill: box(pill),
+      quote: box(wanted.quote),
+      reset: box(wanted.reset),
+      discount: box(wanted.discount),
+      hold: box(wanted.hold),
+      drafts: box(wanted.drafts),
+    };
+  });
+
+  // THE DENOMINATOR. Every rule below is about six controls; if one of them is
+  // not on the page, the rule it belongs to passes by being unasked.
+  for (const [name, box] of Object.entries(seen)) {
+    expect(box, `the till's bar had no "${name}" to measure`).not.toBeNull();
+  }
+
+  const sameRow = (a: { top: number }, b: { top: number }) => Math.abs(a.top - b.top) < 12;
+  const phone = page.viewportSize()!.width < 640;
+
+  if (!phone) {
+    // One row from `sm` up — and that is what the old layout was, so this half
+    // is here to fail if the phone split leaks upward.
+    expect(sameRow(seen.pill!, seen.drafts!), "the bar broke into rows on a wide screen")
+      .toBe(true);
+    return;
+  }
+
+  expect(sameRow(seen.pill!, seen.quote!), "Quote is not on the connection pill's row").toBe(true);
+  expect(sameRow(seen.pill!, seen.reset!), "Reset is not on the connection pill's row").toBe(true);
+
+  expect(sameRow(seen.discount!, seen.hold!), "Discount and Hold are not on one row").toBe(true);
+  expect(sameRow(seen.discount!, seen.drafts!), "Discount and Drafts are not on one row").toBe(true);
+  expect(seen.discount!.top, "the three a cashier presses are not BELOW the row they glance at")
+    .toBeGreaterThan(seen.pill!.top);
+
+  // Equal thirds. Not "roughly": they are a grid, so any difference at all
+  // means something is sizing itself off its own label again.
+  const widths = [seen.discount!.width, seen.hold!.width, seen.drafts!.width];
+  expect(
+    Math.max(...widths) - Math.min(...widths),
+    `the three are ${widths.join(" / ")}px — not equal thirds`,
+  ).toBeLessThanOrEqual(1);
+
+  // …and they use the whole width, rather than three thirds of half a bar.
+  const span = seen.drafts!.left + seen.drafts!.width - seen.discount!.left;
+  expect(
+    span / page.viewportSize()!.width,
+    `the three cover ${Math.round((span / page.viewportSize()!.width) * 100)}% of the screen`,
+  ).toBeGreaterThan(0.85);
 });

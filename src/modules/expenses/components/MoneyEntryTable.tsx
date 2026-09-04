@@ -1,4 +1,5 @@
 import { formatEntryDate } from "../../../components/ui/filters";
+import TableEmpty from "../../../components/ui/table/TableEmpty";
 import Pager from "../../../components/ui/pager";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import type { Pagination } from "../../../common/types/api";
@@ -129,13 +130,13 @@ export function MoneyEntryTable({
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={columns + 2} className="px-3 py-16 sm:px-5">
+                <TableEmpty colSpan={columns + 2} className="px-3 py-16 sm:px-5">
                   <div className="mx-auto max-w-sm text-center">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{empty.title}</p>
                     <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">{empty.hint}</p>
                     {empty.action && <div className="mt-4 flex justify-center">{empty.action}</div>}
                   </div>
-                </td>
+                </TableEmpty>
               </tr>
             ) : (
               rows.map((row) => (

@@ -556,6 +556,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "On a phone" },
       { type: "p", text: "A phone shows one half of the till at a time. Products and Cart sit as two buttons across the top: ring items from Products, then tap Cart to check the lines, change a quantity or take one off. The Cart button carries the number of lines, and the Grand Total and Tender button stay on screen the whole time — you never have to go looking for the money." },
       { type: "note", text: "On a phone the cart also drops its Discount and Tax columns and prints those on the item's own line instead, but only where they are not zero. Nothing is hidden: a line with a discount still says so. A tablet keeps the full table." },
+      { type: "p", text: "The bar along the very bottom splits into two rows on a phone, and the split is fixed so your thumb can learn it. The top row is what you only glance at \u2014 whether the till is reaching the server \u2014 with Quote and Reset beside it, the two you rarely press. The bottom row is the three you use during a sale: Discount, Hold and Drafts, in equal thirds across the full width." },
+      { type: "note", text: "Reset sits in the top-right corner, as far from the three you press as the bar allows. It empties the ticket, so it is deliberately not next to Hold." },
 
       { type: "h", text: "If your shop has tables" },
       { type: "p", text: "A Floor button sits next to Exit at the top of the till. It takes you straight to the tables, the running tabs and the kitchen board without going back through the dashboard. The till itself has no table box — a table's order belongs on the Floor, where it can run a tab, fire to the kitchen and split a bill." },
