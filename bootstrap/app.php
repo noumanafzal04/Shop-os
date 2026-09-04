@@ -16,6 +16,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
@@ -42,6 +43,40 @@ return Application::configure(basePath: dirname(__DIR__))
             'abilities' => CheckAbilities::class,
             'ability' => CheckForAnyAbility::class,
         ]);
+
+        /*
+         * ── THE TENANT IS RESOLVED BEFORE A ROUTE BINDS A MODEL ─────────
+         *
+         * `BelongsToTenant` filters every query to the current tenant — but
+         * only when a tenant CONTEXT EXISTS. Laravel's `SubstituteBindings`
+         * lives in the `api` group and therefore ran BEFORE `ResolveTenant`,
+         * so a route typed `show(DiningTable $table)` resolved its model with
+         * no context set, the global scope was a no-op, and **any shop's row
+         * bound by id**.
+         *
+         * Found by the sweep's isolation phase, on a real pair of shops:
+         *
+         *     GET /api/v1/restaurant/tables/{another shop's id}  → 200
+         *
+         * The floor of somebody else's restaurant, read by name and number.
+         * Twenty-one controller methods take a bound model, and they are not
+         * all reads — a bound `update` or `destroy` would have written to it.
+         *
+         * Why it was invisible: most controllers do their own lookup —
+         * `show(string $id)` then `Model::query()->findOrFail($id)` — which
+         * runs INSIDE the middleware stack, after the tenant is known, and
+         * refuses correctly with 404. The two styles sat side by side and only
+         * one of them was safe.
+         *
+         * Ordering is the cause, so ordering is the fix: `ResolveTenant` is
+         * declared to run before `SubstituteBindings`. `BelongsToTenant` also
+         * refuses to bind without a context now, so the fence does not depend
+         * on this list staying right — see the trait.
+         */
+        $middleware->prependToPriorityList(
+            SubstituteBindings::class,
+            ResolveTenant::class,
+        );
 
         /*
          * AN API NEVER REDIRECTS A STRANGER TO A LOGIN PAGE.
