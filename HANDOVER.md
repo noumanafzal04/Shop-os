@@ -6409,6 +6409,35 @@ correctly. A sweep that can only run once is a sweep nobody runs.
 
 ---
 
+### 2026-09-04 — a month of the forecourt
+
+`docs/decisions/shopos-month-of-the-forecourt.md`.
+
+Every figure a station reconciles by was already written at close — metered
+litres, till litres, unbilled, tank variance, test litres, whether a rate moved
+— and could only be read ONE SHIFT AT A TIME. A manager could see Tuesday was
+forty litres short and not that every Tuesday was.
+
+`/reports/fuel` + a Fuel tab gated on the module. It adds up what was recorded
+and never re-derives: the shift columns are written once so a reconciliation
+signed off in March reads the same in April, and a test raises the price to
+Rs 400 to prove the month did not move.
+
+The two variances stay apart and there is no field to sum them into — `unbilled`
+is fuel that left the PUMP unbilled (a person), `tank_variance` is fuel that
+left the GROUND without crossing a meter (a leak). The test asserts
+`total_variance_litres` is ABSENT. By attendant is LITRES ONLY: a till sale
+records no nozzle, so the shortfall is a station figure and splitting it would
+be an accusation nobody could defend.
+
+Permission is `reports.view`, not the `inventory.manage` the shift screens
+carry. Closing a shift is a stock correction; reading how the forecourt
+performed is a report.
+
+`offeredIsReachable` went red on the ADDITION — a new report tab must be mapped
+to the screen it is about or classified sales-shaped, so it cannot be silently
+exempt from the module rule.
+
 ### 2026-09-04 — money in, litres out (petroleum)
 
 `docs/decisions/shopos-money-in-litres-out.md`.
