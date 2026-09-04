@@ -184,3 +184,5 @@
 - [A Bar A Hand Can Use](shopos-bar-a-hand-can-use.md) — POS footer split is STATED not wrapped; row 2 = Discount/Hold/Drafts in equal thirds
 - [Nothing Here, Off Screen](shopos-nothing-here-off-screen.md) — FIXED: empty-state centred in the TABLE not the window; the guard passed by accident first
 - [Browser Too Old](shopos-browser-too-old.md) — Safari 16.4 is the floor; the banner is also the diagnosis for missing backgrounds on iPad
+- [Money In, Litres Out](shopos-money-in-litres-out.md) — SHIPPED: a line may name `amount`; the amount IS the gross, and it beats litres offline
+- [Placeholder Per Trade](shopos-placeholder-per-trade.md) — product name example follows item type then trade; never a brand

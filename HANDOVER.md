@@ -6409,6 +6409,62 @@ correctly. A sweep that can only run once is a sweep nobody runs.
 
 ---
 
+### 2026-09-04 — money in, litres out (petroleum)
+
+`docs/decisions/shopos-money-in-litres-out.md`.
+
+The forecourt had tanks, pumps, nozzles, shifts, dips, deliveries, rate changes
+and 43 tests — and no way to ring the transaction a station actually makes.
+Nobody asks for 7.449 litres; they hand over Rs 2,000. Verified before
+building: the word "litre" appeared NOWHERE in the panel's POS.
+
+A sale line may now name `amount` instead of `quantity`, on `sold_by = weight`
+items only — no migration, and that is already the set where a fraction is
+legal ("Rs 500 ka gosht" is the same interaction). The server divides by its
+OWN rate, so it is not a price: a bigger amount buys more, never the same
+cheaper. `unit_price` is still refused from HTTP and a test says so.
+
+**The amount IS the gross, never recomputed.** 7.449 × 268.50 is Rs 2,000.06 —
+and recomputing makes the tender fail to cover the bill, which the mutation
+proved by turning five green tests into 422s. At 300 sales a day it is also
+Rs 36 of fictional drawer variance, on the one screen that measures itself
+twice on purpose.
+
+**It is MORE correct offline than a quantity, which is the surprising half.**
+This action re-prices every synced cart deliberately — `trusted_offline` is
+trust about TIME, never money — and a fuel rate changes overnight. Queued as
+litres a sale comes back at tomorrow's rate and stops matching the drawer;
+queued as an amount the money survives and only the litres move.
+
+**Where the invariant lives, decided by 49 failures.** "Exactly one of the two"
+as `required_without` + `prohibits` in `StoreSaleRequest` broke every offline
+sale in the queue: `SyncRequest` re-keys that file's rules under
+`operations.*.sale.` and does NOT re-key the sibling paths named inside them. A
+request validates shape and range; the ACTION owns the rule.
+
+Also: `CreateSaleAction::rateFor()` now holds the level/tier/branch-override/
+pack expression that used to be inline — an amount line has to ask it first,
+and two copies of a price rule is two prices.
+
+Gates: backend 2485/2485 (SQLite) · panel tsc 0 · vitest 1478 · eslint 0 errors.
+Fixtures regenerated on the server, so both pricing engines are locked to one
+answer rather than merely agreeing today.
+
+### 2026-09-04 — a placeholder for THIS shop's trade
+
+Shop: *"jab product create karte, wahan input title Shirt like this tarhan ka
+aa raha."* The product name field said "e.g. T-Shirt / Haircut" to a chemist, a
+petrol pump and a tyre shop alike.
+
+`src/modules/catalog/productExamples.ts` — item type first (a service is a
+service in a salon or a workshop, and the shop already chose it on the same
+form), then the primary trade. Never a brand: somebody's trademark, and it
+reads as an endorsement inside software the shop pays for.
+
+The guard takes its denominator from `TRADE_FEATURES`, so a ninth business type
+turns it red rather than quietly getting a T-shirt. `BusinessTypes::examples`
+looked like the source and is not — those are examples of SHOPS, not products.
+
 ### 2026-09-04 (last) — a browser too old to say so
 
 `docs/decisions/shopos-browser-too-old-to-say-so.md`.
