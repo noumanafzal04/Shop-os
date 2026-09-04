@@ -177,6 +177,10 @@
 - [Counter Order → Kitchen](shopos-counter-order-kitchen.md) — SHIPPED: takeaway rung at the till now fires a KOT; it stays open until served, and off the floor
 - [QA Walkthrough](shopos-qa-walkthrough.md) — in-app tester walkthrough at /tenant/qa · /admin/qa; unfiltered ON PURPOSE (Help Centre is filtered)
 - [Machine Layout](shopos-machine-layout.md) — 2026-09-03 new Mac: backend/panel/mobile paths, ONE public Shop-os repo, PHP 8.5, npm ci needed
-- [Responsive Backlog](shopos-responsive-backlog.md) — TO FIX: purchases/suppliers buttons on a phone; POS footer on phone + tablet PORTRAIT (landscape is fine)
+- [Responsive Backlog](shopos-responsive-backlog.md) — BOTH FIXED (buttons, POS footer); only the clipped table empty-state is left
 - [Offered Must Be Reachable](shopos-offered-must-be-reachable.md) — STANDING: 8 module leaks on surfaces that had no test; the guard's first version was blind
 - [Takeaway Slip](shopos-takeaway-slip.md) — where takeaway is handled end-to-end; the kitchen slip now PRINTS from the till
+- [Page Behind An Overlay](shopos-page-behind-overlay.md) — FIXED: the drawer locked nothing while the modal always had; one rule, two call sites
+- [A Bar A Hand Can Use](shopos-bar-a-hand-can-use.md) — POS footer split is STATED not wrapped; row 2 = Discount/Hold/Drafts in equal thirds
+- [Nothing Here, Off Screen](shopos-nothing-here-off-screen.md) — FIXED: empty-state centred in the TABLE not the window; the guard passed by accident first
+- [Browser Too Old](shopos-browser-too-old.md) — Safari 16.4 is the floor; the banner is also the diagnosis for missing backgrounds on iPad

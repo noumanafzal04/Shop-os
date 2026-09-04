@@ -1,34 +1,37 @@
 ---
 name: shopos-responsive-backlog
-description: "TO FIX (reported 2026-09-03 by the user on a real device) — purchases/suppliers screens' buttons on a phone, and the POS bottom footer on phone + tablet PORTRAIT"
-metadata: 
+description: "BOTH FIXED (2026-09-03/04) — purchases/suppliers buttons on a phone, and the POS footer on phone + tablet portrait; the empty-state clipping is what is left"
+metadata:
   node_type: memory
   type: project
   originSessionId: a4ba9d48-2a02-4ea8-81fb-a04eeaffd6b9
-  modified: 2026-09-03T12:47:43.254Z
+  modified: 2026-09-04T00:00:00.000Z
 ---
 
-Two responsive defects the user found by holding the device. **Not yet fixed** —
-they asked to keep them and fix them after the module work.
+Two responsive defects the user found by holding the device. **Both fixed.**
 
-1. **Purchases / Suppliers and screens shaped like them** — on a phone the
-   **buttons do not show properly**. "like this types screen" = the whole family
-   of list-plus-actions screens in that area, not only those two.
+1. **Purchases / Suppliers and screens shaped like them** — buttons broke
+   mid-phrase on a phone ("+ New purchase order" was a three-line slab). Fixed
+   by `whitespace-nowrap` on the shared `<Button>` plus `flex-wrap` on the nine
+   page headers that lacked it. See [[shopos-button-submit-default]] for the
+   other one-line change to that component.
 
-2. **The POS bottom footer** — the totals/tender strip. Wrong on a **phone**,
-   and also on a **tablet held VERTICALLY (portrait)**. **Tablet landscape is
-   fine**, which is exactly why it was never seen: the e2e projects that walk
-   the till were tablet-landscape first, and landscape is the shape that works.
+2. **The POS bottom footer** — four rows at 360, three at 390. Now two honest
+   rows with the split STATED rather than wrapped; see
+   [[shopos-bar-a-hand-can-use]].
 
-**Why:** the user tests on real devices; both of these passed every green suite.
-`chrome.spec` walks screens **at rest** and jsdom has no layout engine at all,
-so a button that is present but clipped, or a footer that overlaps at one
-breakpoint, is invisible to everything except a real browser at a real size.
+**Why nothing had caught either:** `chrome.spec` walks screens at rest and asks
+"is anything covered / off the edge / too small". A wrapped button is none of
+those — it is fully visible, fully inside the viewport, and enormous. jsdom has
+no layout engine at all. `e2e/controls-fit.spec.ts` exists to ask the second
+question: not "is it broken", but "is it usable".
 
-**How to apply:** fix in the panel, then prove it in Playwright at the sizes
-that were wrong — `phone` and `tablet-portrait`, not `tablet-landscape` — the
-same way [[shopos-waiter-holds-a-phone]] added the phone project after "held in
-a waiter's hands" was answered with an iPad and stopped there. Measure the
-button and the footer, do not assert they exist. See also
-[[shopos-tablet-chrome]] (one breakpoint, DRAWER_BELOW=1024) and
-[[shopos-screen-testing]].
+**Still open from the same device session:** a table's empty-state message
+(`No purchase orders yet.`) is `text-center` inside a `min-w-[48rem]` table, so
+on a phone it is centred at 384px in a 390px window and mostly off-screen —
+~25 places, reported to the user, not yet fixed. The fix needs an element inside
+the cell that is sticky-left and the width of the SCROLLPORT (container query
+`100cqi`), not of the table.
+
+Related: [[shopos-waiter-holds-a-phone]] · [[shopos-tablet-chrome]] ·
+[[shopos-screen-testing]] · [[shopos-page-behind-overlay]]

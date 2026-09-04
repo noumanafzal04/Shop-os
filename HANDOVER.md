@@ -6409,6 +6409,124 @@ correctly. A sweep that can only run once is a sweep nobody runs.
 
 ---
 
+### 2026-09-04 (last) — a browser too old to say so
+
+`docs/decisions/shopos-browser-too-old-to-say-so.md`.
+
+The shop's iPad complaints — dashboard branding missing, the till's product
+pane with no background — are **one cause and it is not a defect in either
+screen**. Tailwind v4 compiles every opacity modifier to `color-mix()`: 304 of
+them in the built CSS, plus 41 `oklch()` colours. Safari learned `color-mix()`
+in 16.2 and Tailwind v4 documents 16.4 as its floor. Below that the
+declarations are INVALID and dropped in silence — no error, no warning — so
+tinted surfaces simply stop being drawn.
+
+There is no honest polyfill: these colours are computed at paint time from
+custom properties the app rewrites at runtime (per-tenant branding), so a
+fallback means re-deriving the whole palette in JavaScript for a browser we
+have chosen not to support. Tailwind v3 would be a design-system rebuild.
+
+So the decision is stated instead: **Safari 16.4 is the floor**, and
+`src/components/system/OldBrowserNotice.tsx` says so on anything older — once,
+dismissibly, mounted above the router so it reaches the full-screen till too.
+Every style in it is inline and every colour a literal.
+
+**It is also the diagnosis.** iOS Safari cannot run on this machine and
+Playwright's WebKit is a modern build, so "is that iPad below 16.4, or is this
+a real bug?" could not be answered from here. Now the device answers it: banner
+present → the browser; banner absent → ours to find.
+
+### 2026-09-04 (later) — "nothing here yet", off the side of the screen
+
+`docs/decisions/shopos-nothing-here-off-screen.md`.
+
+Every list is a table inside `overflow-x-auto` with `min-w-[48rem]`, and the
+empty-state row was a `text-center` cell spanning that table — so on a 390px
+phone the message centred at 384px. Measured before the fix: purchases ran to
+474px, customers to 485px, coupons to 402px. Every one of them passes on
+desktop, which is where they were looked at.
+
+`src/components/ui/table/TableEmpty.tsx`, applied to **28 cells in 26 files**.
+The message sits in a `sticky left-0 w-full max-w-[100cqi]` block, and the
+useful part is that a container query length falls back to the SMALL VIEWPORT
+when no `container-type` is declared above it — so it clamps to a screen width
+on a phone, does nothing on desktop, and where `cqi` is unsupported the
+declaration is invalid and today's behaviour returns.
+
+Also `min-h-screen` → `min-h-dvh` on the shell (`AppLayout`, `MyOrdersPage`).
+`100vh` on iOS is the viewport with the chrome HIDDEN, so as a min height it
+leaves a tablet with a small scroll on a screen with nothing to scroll. Not
+measurable in a desktop browser — `vh` and `dvh` are the same number where
+there is no toolbar to slide away — so this is convention alignment, not a
+measured fix.
+
+**The guard's blind spot is the part worth reading.** `e2e/empty-state.spec.ts`
+empties each list by intercepting its request and blanking `data`. Two of six
+patterns were wrong (`/api/v1/tenant/sales` where the client asks for
+`/api/v1/sales`), and `/tenant/transfers` **passed anyway** — that fixture
+genuinely has no rows. It now counts interceptions and asserts the count before
+measuring anything, which is what caught the third wrong pattern:
+
+```
+✘ /tenant/transfers never asked for the list this test blanks — the pattern is wrong
+✘ /tenant/purchases: "No purchase orders yet." runs to 474px on a 390px screen   ← mutation
+```
+
+### 2026-09-04 — the page behind an overlay, and a bar split the way a hand uses it
+
+Two things a shop reported on a device, and both are in
+`docs/decisions/` — `shopos-page-behind-an-overlay.md` and
+`shopos-bar-a-hand-can-use.md`.
+
+**The page behind the menu moved.** Measured in WebKit at 810 and at 390: with
+the drawer open, `window.scrollBy(0, 400)` moved the dashboard a full 400px and
+`document.body`'s computed overflow was `visible`. The menu's own list had
+`overscroll-behavior-y: auto`, so reaching its last item carried the gesture on
+into the page behind it.
+
+The shape worth remembering is not "the sidebar was missing a lock". The MODAL
+had locked the page all along. One rule, two call sites, implemented at one of
+them. Both now go through `src/layout/scrollLock.ts`, which is reference
+counted — two overlays can hold it, and the page is released by the last one,
+not the first to close.
+
+It takes the body OUT OF FLOW rather than setting `overflow: hidden`.
+`overflow: hidden` stops a scripted `window.scrollBy` everywhere and does not
+stop a real drag on iOS Safari, where the body is not the scroller — so the
+cheap fix passes a spec and fails a thumb. The guard therefore asserts the
+mechanism as well as the effect.
+
+**The till's bottom bar** was already two rows, but the two rows were made by
+WRAPPING, which packs greedily: "Add discount" becoming "Discount −Rs 12,500"
+pushed Hold onto the next row. Below `sm` the split is now stated — row one is
+the connection pill plus Quote and Reset (rarely pressed, Reset in the far
+corner), row two is Discount / Hold / Drafts in equal thirds across the full
+width. From `sm` up nothing changed: both wrappers are `sm:contents` and
+`sm:order-1…6` puts the single bar back in its old order.
+
+New guards, both mutation-proven:
+
+```
+e2e/overlay-scroll.spec.ts   an open drawer holds the page behind it still
+                             the sidebar's own list does not hand its scroll to the page
+e2e/controls-fit.spec.ts     the till's bar splits the way a hand uses it
+```
+
+```
+lockScroll() unreachable   → "the body is still in flow, so an iOS drag will scroll the page behind the menu"
+grid-cols-3 → flex         → "the three are 88 / 66 / 75px — not equal thirds"
+overscroll-contain removed → "reaching the end of the menu carries on into the page behind it"
+```
+
+Gates: tsc 0 · vitest 1463/1463 · eslint 0 errors · Playwright 140 passed on
+phone + tablet-portrait, 0 failed.
+
+One thing the test taught: closing the drawer by clicking the header's toggle
+again hung for the full five-minute timeout. The scrim is z-100001 and the
+header z-99999, so with the menu open that button is deliberately unreachable —
+Playwright refusing to click through the overlay was the layout answering
+correctly. The spec closes it the way a shop does, with a tap on the scrim.
+
 ### 2026-09-03 — the button that bounced, on every surface but the menu
 
 A shop asked whether a module it was never given could still show up somewhere —
