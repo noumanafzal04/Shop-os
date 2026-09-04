@@ -46,11 +46,6 @@ class StaffController extends Controller
         return ApiResponse::created(new UserResource($staff));
     }
 
-    public function show(string $id): JsonResponse
-    {
-        return ApiResponse::ok(new UserResource($this->findStaff($id)));
-    }
-
     public function update(UpdateStaffRequest $request, string $id, UpdateStaffAction $action): JsonResponse
     {
         $staff = $action->execute($request->user(), $this->findStaff($id), $request->validated());

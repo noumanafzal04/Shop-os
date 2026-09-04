@@ -10,8 +10,6 @@ use App\Http\Middleware\ResolveRegister;
 use App\Http\Middleware\ResolveTenant;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
-use Laravel\Sanctum\Http\Middleware\CheckAbilities;
-use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
@@ -19,6 +17,8 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
+use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
@@ -42,6 +42,36 @@ return Application::configure(basePath: dirname(__DIR__))
             'abilities' => CheckAbilities::class,
             'ability' => CheckForAnyAbility::class,
         ]);
+
+        /*
+         * AN API NEVER REDIRECTS A STRANGER TO A LOGIN PAGE.
+         *
+         * Laravel's `Authenticate` middleware, given an unauthenticated request
+         * it does not believe wants JSON, tries to redirect to a route named
+         * `login`. This app has no such route — it is an API and a separate
+         * SPA — so the redirect threw `RouteNotFoundException` and the request
+         * came back **500**.
+         *
+         * Found on the live box, and reproduced locally:
+         *
+         *     GET /api/v1/products  Accept: application/json   → 401  ✅
+         *     GET /api/v1/products  (no Accept header)         → 500  ✗
+         *     GET /api/v1/products  Bearer <expired>           → 500  ✗
+         *
+         * The panel always sends the header, which is why no shop had hit it.
+         * Everything else does: a URL pasted into a browser bar, a curl in a
+         * runbook, an uptime probe, a mobile client that forgets. All of them
+         * were told "Something went wrong. Please try again." for the one
+         * condition the API can state precisely — *you are not signed in* — and
+         * every one of them logged a 500 against a server that was fine.
+         *
+         * Returning null means "do not redirect", so the middleware throws
+         * `AuthenticationException` and the renderable below turns it into the
+         * 401 it always should have been.
+         */
+        $middleware->redirectGuestsTo(
+            fn (Request $request) => $request->is('api/*') ? null : '/',
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

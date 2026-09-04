@@ -63,9 +63,24 @@ SIBLINGS = os.path.dirname(ROOT)
 # Every repo that could hold a caller. A missing one is reported rather than
 # ignored: a "clean" run that silently read nothing is the worst possible
 # outcome for a tool like this.
+# The folder names differ per machine — `shopos-admin-and-user-panel` on the
+# original box, plain `panel` on the next one — and this scanner had NO callers
+# to read on a machine using the second set. It said so and exited 1 rather than
+# reporting every route as dead, which is the only reason it was caught; a
+# scanner that reads nothing and prints "all clean" is worse than no scanner.
+#
+# Both names are now offered and whichever EXISTS is used. A machine with
+# neither still gets the loud refusal.
+def _first_existing(*names: str) -> str:
+    for n in names:
+        if os.path.isdir(os.path.join(SIBLINGS, n)):
+            return os.path.join(SIBLINGS, n)
+    return os.path.join(SIBLINGS, names[0])
+
+
 CLIENTS = [
-    (os.path.join(SIBLINGS, "shopos-admin-and-user-panel"), "src"),
-    (os.path.join(SIBLINGS, "shopos-mobile"), ""),
+    (_first_existing("shopos-admin-and-user-panel", "panel"), "src"),
+    (_first_existing("shopos-mobile", "mobile"), ""),
 ]
 
 SKIP_DIRS = {"node_modules", "dist", "build", ".git", "ios", "android", ".next"}
@@ -304,6 +319,23 @@ def main() -> None:
         ).stdout
     )
 
+    # ── ROUTES CHECKED BY HAND AND FOUND ALIVE ──────────────────────────
+    #
+    # This scan matches LITERAL paths. A client that builds its URL from a
+    # variable — `${basePath}/${id}` — leaves no literal to find, so the route
+    # reads as dead when it is called on every edit.
+    #
+    # An entry here is a CLAIM, not a shrug: it says somebody opened the client
+    # and found the caller. Re-check it rather than admire it — the same
+    # sentence sits on `one-rule-many-paths`' EXPECTED for the same reason, and
+    # one line of that list was believed for weeks while being false.
+    SETTLED = {
+        "api/v1/admin/staff/{staff}":
+            "useStaffModule builds every call from `${basePath}` so the platform "
+            "and tenant consoles share one hook — no literal path survives. The "
+            "PUT is exercised by EditMatrixTest and QaStaffReportTest.",
+    }
+
     blob = client_source()
 
     seen, dead = set(), []
@@ -316,10 +348,18 @@ def main() -> None:
         if not any(re.search(p, blob) for p in patterns(uri)):
             dead.append((route["method"].split("|")[0], uri, route["action"].split("\\")[-1]))
 
-    print(f"\n{len(dead)} of {len(seen)} api/v1 routes have no caller in any client")
+    unexplained = [r for r in dead if r[1] not in SETTLED]
+
+    print(f"\n{len(dead)} of {len(seen)} api/v1 routes have no literal caller")
     print("Check every one by hand — see the note on false positives above.\n")
     for method, uri, action in sorted(dead, key=lambda r: r[1]):
+        why = SETTLED.get(uri)
         print(f"{method:6} {uri:58} {action}")
+        if why:
+            print(f"       ↳ {why}")
+
+    if unexplained:
+        print(f"\n{len(unexplained)} of them have nobody's word on them.")
 
     check_calls(routes)
 

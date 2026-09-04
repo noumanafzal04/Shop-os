@@ -122,6 +122,32 @@ EXPECTED: dict[str, str] = {
                              "prescription against; the counter is where one is taken",
     "DISCOUNT_EXCEEDS_SUBTOTAL": "arithmetic on a hand-keyed discount; the tab clamps instead",
 
+    # ── SELLING BY MONEY IS A COUNTER ACT ────────────────────────────────
+    #
+    # Checked, not assumed: `items.*.amount` exists in StoreSaleRequest and
+    # NOWHERE else — AddTicketItemsRequest, StoreSaleDocumentRequest, the
+    # return, the exchange and the purchase order all require a quantity. So
+    # the other paths cannot be asked these today as a matter of shape.
+    #
+    # Should they be? No, and the reason is TIMING rather than policy. An
+    # amount only means something when the money and the goods change hands in
+    # the same breath: a pump is set to two thousand rupees and dispenses until
+    # the display reads two thousand. An order placed at 9am and fulfilled at
+    # 6pm has no defensible answer if the rate moved between the two — either
+    # the customer gets fewer litres than they paid for, or the shop is bound to
+    # yesterday's price. A tab is the same problem with a longer gap.
+    #
+    # Worth writing down rather than closing: "Rs 500 of mince, delivered" IS a
+    # real thing a butcher's customers ask for. It is a DIFFERENT feature — a
+    # target amount, then a weighed line confirmed at picking — and not this
+    # one. If it is ever built, these five lines are where to start.
+    "AMOUNT_NOT_SELLABLE": "money buys goods in one breath; only a counter does that",
+    "AMOUNT_TOO_SMALL": "money buys goods in one breath; only a counter does that",
+    "AMOUNT_WITHOUT_PRICE": "money buys goods in one breath; only a counter does that",
+    "AMOUNT_WITH_MODIFIERS": "money buys goods in one breath; only a counter does that",
+    "QUANTITY_AND_AMOUNT": "only the sale line offers both, so only it can be given both",
+    "NO_QUANTITY": "only the sale line makes quantity optional; every other path requires it",
+
     # Fulfilment and shopfront rules, which only exist for a stranger ordering.
     "DELIVERY_DISABLED": "there is no delivery at a counter",
     "PICKUP_DISABLED": "there is no pickup at a counter",

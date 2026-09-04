@@ -1107,7 +1107,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/permissions', [AdminStaffController::class, 'permissions']);
                 Route::get('/', [AdminStaffController::class, 'index']);
                 Route::post('/', [AdminStaffController::class, 'store']);
-                Route::get('/{staff}', [AdminStaffController::class, 'show']);
                 Route::put('/{staff}', [AdminStaffController::class, 'update']);
                 Route::delete('/{staff}', [AdminStaffController::class, 'destroy']);
             });
