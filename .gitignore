@@ -1,8 +1,19 @@
 # The `main` branch is an overview only — each app lives on its own branch
 # (backend, admin-panel, mobile). Keep the app folders out of main.
+# The app folders. Each is its own clone on its own branch; the parent holds
+# docs only. BOTH sets of names, because a machine may clone them under either
+# and a name this file has not heard of is not ignored — which is how a
+# `git add -A` at the root turned three working trees into gitlinks.
+#
+# The scanners had the identical fault the same day: they were pointed at
+# `shopos-backend` and found nothing on a machine using `backend`. Same rename,
+# three places, and this is the third.
 /shopos-backend/
 /shopos-admin-and-user-panel/
 /shopos-mobile/
+/backend/
+/panel/
+/mobile/
 
 # A stray npm install at the repo root leaves this behind; main carries docs only.
 node_modules/
