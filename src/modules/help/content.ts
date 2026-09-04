@@ -1663,6 +1663,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "The Staff tab counts who ENTERED each sale. In a shop where one person serves the customer and takes the money, that is the same thing. In a showroom where salesmen work the floor and one cashier types, it is not — the cashier would show as having sold everything." },
       { type: "p", text: "Switch on Settings → POS → “Ask who served the customer” and the till adds a Served by box. The Staff tab then shows both: who sold it, and who rang it, as separate tables." },
       { type: "warn", text: "Sales where nobody was named are shown as unattributed and are never quietly credited to whoever was at the till. If a figure looks low, check that line first — it usually means the box was skipped, not that somebody sold less." },
+      { type: "h", text: "The Fuel tab" },
+      { type: "p", text: "A forecourt station gets one more tab. Every figure on it was worked out when a shift was CLOSED and written down then — so a reconciliation you signed off in March still reads the same in April, even though the rate has moved fifty times since. It is a month of the forecourt instead of one night of it." },
+      { type: "keys", items: [
+        ["Metered", "Litres the pumps moved, less any test litres tipped back into the tank."],
+        ["Rung at the till", "The same fuel, as it was actually sold."],
+        ["Unbilled at the pump", "Metered litres the till never rang. Fuel that left the nozzle without being charged for \u2014 a question about people."],
+        ["Missing from the ground", "Book stock against the closing dip. Fuel that left without crossing a meter at all \u2014 a leak, or a tanker that arrived short."],
+      ] },
+      { type: "warn", text: "Those last two are never added together, and there is no combined figure. One says talk to somebody; the other says call an engineer. A single number covering both would hide which of the two you are looking at." },
+      { type: "note", text: "By attendant shows litres pumped and nothing else. A sale at the till does not record which nozzle it came out of, so a shortfall belongs to the station and cannot honestly be pinned on one person." },
+      { type: "note", text: "Shifts still open are counted separately and left out of the totals — a shift with no closing meter and no dip would read as a quiet night rather than as one not counted yet. A shift whose rate changed part-way through is marked: its litres are exact and its rupees are an approximation." },
     ],
   },
 

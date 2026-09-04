@@ -55,6 +55,10 @@ export const REPORT_TABS = [
   // cannot have a claim to read. Offering the report anyway put a permanently
   // empty table beside nine live ones.
   { key: "bank-claims", label: "Bank claims", needs: ["bank_offers"] },
+  // The forecourt over a period. Every figure it draws was already written at
+  // close and could only be read one shift at a time — a manager could see that
+  // Tuesday was short and not that every Tuesday was.
+  { key: "fuel", label: "Fuel", needs: ["fuel"] },
 ] as const;
 
 export type ReportTab = (typeof REPORT_TABS)[number]["key"];

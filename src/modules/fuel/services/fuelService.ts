@@ -161,6 +161,58 @@ export interface CloseShiftInput {
   notes?: string;
 }
 
+/**
+ * A period of the forecourt, rather than one night of it.
+ *
+ * Every figure was already written at close and could only be read one shift at
+ * a time — so a manager could see that Tuesday was short and could not see that
+ * every Tuesday was, which is the only form in which that fact is worth acting
+ * on.
+ *
+ * The two variances are separate FIELDS and there is deliberately no total of
+ * them: `unbilled` is fuel that left the pump without being rung (a person),
+ * `tank_variance` is fuel that left the ground without crossing a meter (a
+ * leak). One number covering both is the one thing a forecourt report must not
+ * produce.
+ */
+export interface FuelReport {
+  totals: {
+    shifts: number;
+    /** Open shifts inside the window — counted, not silently omitted. */
+    shifts_open: number;
+    /** How many of these valuations are approximations: the rate moved mid-shift. */
+    shifts_repriced: number;
+    litres_sold: number;
+    test_litres: number;
+    fuel_value: number;
+    pos_fuel_litres: number;
+    pos_fuel_value: number;
+    unbilled_litres: number;
+    unbilled_value: number;
+    tank_variance_litres: number;
+    tank_variance_value: number;
+  };
+  by_product: Array<{ product: string; litres: number; value: number }>;
+  /** Litres ONLY. The unbilled figure is a station figure and cannot be split. */
+  by_attendant: Array<{ attendant_id: string | null; attendant: string | null; litres: number }>;
+  shifts: Array<{
+    id: string;
+    number: string;
+    branch: string | null;
+    closed_by: string | null;
+    opened_at: string | null;
+    closed_at: string | null;
+    litres_sold: number;
+    fuel_value: number;
+    unbilled_litres: number;
+    unbilled_value: number;
+    tank_variance_litres: number;
+    tank_variance_value: number;
+    price_changed_during: boolean;
+  }>;
+  range: { from: string; to: string };
+}
+
 export const fuelService = {
   tanks: () => apiGet<FuelTank[]>("/fuel/tanks"),
   createTank: (body: Record<string, unknown>) => apiPost<FuelTank>("/fuel/tanks", body),
@@ -188,4 +240,12 @@ export const fuelService = {
 
   prices: (params: { page?: number } = {}) => apiGet<FuelPriceChange[]>("/fuel/prices", { params }),
   createPrice: (body: Record<string, unknown>) => apiPost<FuelPriceChange>("/fuel/prices", body),
+
+  /**
+   * Lives under /reports, not /fuel: it is gated on `reports.view` rather than
+   * on the right to close a shift. Closing one is a stock correction; reading
+   * how the forecourt performed is a report.
+   */
+  report: (range: { from: string; to: string }) =>
+    apiGet<FuelReport>("/reports/fuel", { params: { period: "custom", ...range } }),
 };

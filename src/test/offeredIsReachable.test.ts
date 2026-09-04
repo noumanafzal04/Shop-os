@@ -191,6 +191,9 @@ const TAB_SUBJECT: Record<string, string> = {
   "bank-claims": "/tenant/bank-offers",
   valuation: "/tenant/inventory",
   "dead-stock": "/tenant/inventory",
+  // The forecourt report reads closed shifts, and its every row links back to
+  // the shift it came from. A shop offered this tab must be able to open that.
+  fuel: "/tenant/fuel",
 };
 
 describe("a report tab is offered only where its subject is", () => {
