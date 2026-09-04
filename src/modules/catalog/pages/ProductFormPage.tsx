@@ -9,6 +9,7 @@ import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError, type ApiMeta } from "../../../common/types/api";
 import { SERIAL_TRADES, usePrimaryBusinessType } from "../../../common/tenant/businessType";
+import { productExampleFor } from "../productExamples";
 import { useAuthStore } from "../../../stores/authStore";
 import {
   useCategories,
@@ -706,7 +707,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           <Label>
             Name <span className="text-error-500">*</span>
           </Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. T-Shirt / Haircut" />
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={`e.g. ${productExampleFor(businessType, itemType)}`} />
           {err("name") && <p className="mt-1 text-theme-xs text-error-500">{err("name")}</p>}
         </div>
 

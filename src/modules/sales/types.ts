@@ -139,7 +139,20 @@ export interface SaleLineInput {
   product_unit_id?: string | null;
   // Price level (price list): "wholesale" uses the product's wholesale price.
   price_level?: "retail" | "wholesale";
-  quantity: number;
+  /**
+   * A line names ONE of these two, never both.
+   *
+   * `amount` is the money the customer handed over on a line where that is the
+   * question — "do hazaar ka daal do" at a pump, "Rs 500 ka gosht" at a
+   * butcher. The server divides by its OWN rate to get the quantity, so it is
+   * not a price and cannot be used as one: a bigger amount buys more, never
+   * the same amount cheaper.
+   *
+   * Only for items sold by weight/volume; the server refuses it on anything
+   * sold by the unit.
+   */
+  quantity?: number;
+  amount?: number;
   unit_price?: number;
   // Per-line POS discount: a fixed amount OR a percentage. Server prices the
   // line and applies/validates the discount (needs the discounts.apply perm).

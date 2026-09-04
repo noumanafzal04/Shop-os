@@ -274,6 +274,8 @@ export async function linesFromCatalog(
     product_id: string;
     variant_id?: string | null;
     quantity: number;
+    /** Money named instead of a quantity — see CartLine.amountAsked. */
+    amountAsked?: number;
     price_level?: "retail" | "wholesale";
     discountValue?: number;
     discountMode?: "amt" | "pct";
@@ -319,6 +321,7 @@ export async function linesFromCatalog(
         tax_group_rate: item.tax_group_id ? (taxGroups.get(item.tax_group_id) ?? null) : null,
       },
       quantity: line.quantity,
+      amountAsked: line.amountAsked ?? null,
       priceLevel: line.price_level ?? "retail",
       modifierDelta: line.modifierDelta ?? 0,
       lineDiscountPct: line.discountMode === "pct" ? (line.discountValue ?? null) : null,

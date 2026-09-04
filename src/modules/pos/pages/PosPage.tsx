@@ -86,6 +86,19 @@ interface CartLine {
   unit_price: number; // display estimate — the server prices lines authoritatively
   quantity: number;
   sold_by?: "unit" | "weight";
+  /**
+   * The MONEY the customer asked for, on a line where that is the question.
+   *
+   * "Do hazaar ka daal do." Nobody at a pump asks for 7.449 litres — the
+   * attendant sets the pump to the money and the litres are whatever it buys.
+   * So on these lines the amount is the fact and `quantity` is derived from it.
+   *
+   * The derivation here is for the CART to draw. The server does it again from
+   * its own rate, which is the one that counts, and it sends `amount` rather
+   * than `quantity` so the two can never disagree about the money — only, at
+   * worst, by a thousandth of a litre about the fuel.
+   */
+  amountAsked?: number;
   unit_label?: string | null;
   price_tiers?: Array<{ min_qty: number | string; price: number | string }> | null;
   // Pack-breaking: the pack this line is sold in (null = base unit). units is
@@ -222,8 +235,18 @@ const lineUnit = (l: CartLine): number => {
 
 const fmtQty = (n: number) => String(parseFloat(n.toFixed(3)));
 
-/** Gross line value before any per-line discount. */
-const lineGross = (l: CartLine): number => lineUnit(l) * l.quantity;
+/**
+ * Gross line value before any per-line discount.
+ *
+ * For a line that named money, that IS the money — not `unit × quantity`
+ * recomputed from it. Rs 2,000 at 268.50/L is 7.449 litres, and 7.449 × 268.50
+ * is Rs 2,000.06: six paisa the customer never handed over. The server refuses
+ * such a sale outright (the tender no longer covers the bill), and a cart that
+ * showed the recomputed figure would be asking the cashier for money that
+ * isn't owed.
+ */
+const lineGross = (l: CartLine): number =>
+  l.amountAsked !== undefined ? l.amountAsked : lineUnit(l) * l.quantity;
 /** Per-line discount amount (clamped to the line), mirroring the server. */
 const lineDiscountAmt = (l: CartLine): number => {
   const v = l.discountValue ?? 0;
@@ -797,6 +820,15 @@ export default function PosPage() {
   // instead of asking the OS for a keyboard that may never come.
   const [padLine, setPadLine] = useState<{ key: string; weight: boolean } | null>(null);
   const [padQty, setPadQty] = useState("");
+  /**
+   * Is the pad asking for a QUANTITY or for MONEY?
+   *
+   * Only ever offered on a line sold by weight or volume, because that is the
+   * only place the question makes sense — and it is exactly the set the server
+   * accepts an amount for. A forecourt lives in "rupees"; a butcher switches
+   * between the two all day.
+   */
+  const [padMode, setPadMode] = useState<"qty" | "amount">("qty");
   const [lastSale, setLastSale] = useState<Sale | null>(null);
 
   // Modifier configurator (food items with choices / add-ons)
@@ -1013,6 +1045,11 @@ export default function PosPage() {
         product_id: l.product_id,
         variant_id: l.variant_id,
         quantity: l.quantity,
+        // The money, where the line named money. Without it the till's own
+        // engine would price the derived litres and land six paisa above the
+        // amount — and the sale it queued would be REFUSED on sync, because
+        // the tender no longer covers the bill. See priceCart's amountAsked.
+        amountAsked: l.amountAsked,
         price_level: l.price_level === "wholesale" ? ("wholesale" as const) : ("retail" as const),
         discountValue: l.discountValue,
         discountMode: l.discountMode,
@@ -1112,7 +1149,11 @@ export default function PosPage() {
           ? { order_type: orderType, table_no: orderType === "dine_in" ? tableNo || undefined : undefined }
           : {}),
         items: cart.map((l) => ({
-          product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity,
+          product_id: l.product_id, variant_id: l.variant_id,
+          // ONE of these, never both — the server refuses a line that names a
+          // quantity and an amount, because whichever it picked would be the
+          // wrong one half the time.
+          ...(l.amountAsked !== undefined ? { amount: l.amountAsked } : { quantity: l.quantity }),
           product_unit_id: l.product_unit_id || undefined,
           price_level: l.price_level === "wholesale" ? "wholesale" : undefined,
           // No unit_price sent: the SERVER prices every line (sale price, qty
@@ -1264,6 +1305,7 @@ export default function PosPage() {
           product_id: l.product_id,
           variant_id: l.variant_id,
           quantity: l.quantity,
+          amountAsked: l.amountAsked,
           price_level: l.price_level === "wholesale" ? "wholesale" : "retail",
           discountValue: l.discountValue,
           discountMode: l.discountMode,
@@ -1551,7 +1593,29 @@ export default function PosPage() {
    * line is now only ever the ✕, which is an unambiguous request.
    */
   const setQty = (key: string, q: number) =>
-    setCart((c) => c.map((l) => (l.key === key ? { ...l, quantity: Math.max(l.sold_by === "weight" ? 0.001 : 1, q) } : l)));
+    setCart((c) => c.map((l) => (l.key === key
+      // Naming a quantity RETIRES an amount. A line that still remembered
+      // "Rs 2000" while showing ten litres would send the amount and charge
+      // two thousand for whatever ten litres costs — the cashier's last
+      // instruction is the one that counts.
+      ? { ...l, quantity: Math.max(l.sold_by === "weight" ? 0.001 : 1, q), amountAsked: undefined }
+      : l)));
+
+  /**
+   * Sell this line by MONEY: "do hazaar ka daal do."
+   *
+   * The quantity set here is what the cart draws. The server derives it again
+   * from its own rate — which is the one that decides how much fuel leaves the
+   * pump — and because the AMOUNT is what travels, the two can never disagree
+   * about the money.
+   */
+  const setAmount = (key: string, amount: number) =>
+    setCart((c) => c.map((l) => {
+      if (l.key !== key) return l;
+      const rate = lineUnit(l);
+      if (!(rate > 0)) return l;
+      return { ...l, amountAsked: amount, quantity: Math.max(0.001, Math.round((amount / rate) * 1000) / 1000) };
+    }));
 
   /** Forget a line's in-progress quantity edit. */
   const clearQtyDraft = (key: string) =>
@@ -2927,6 +2991,18 @@ export default function PosPage() {
                               <div className="flex flex-wrap items-center gap-x-1.5 text-[10px] leading-tight text-gray-500 dark:text-gray-400">
                                 {l.sku ? <span className="font-medium text-brand-600 tabular-nums dark:text-brand-400">{l.sku}</span> : null}
                                 {isWeight && l.unit_label ? <span>per {l.unit_label}</span> : null}
+                                {/* A line sold by money says so, because the
+                                    quantity beside it is DERIVED and will move
+                                    by a thousandth when the server re-prices it.
+                                    A cashier who typed 2000 must be able to see
+                                    that 2000 is the figure being charged and the
+                                    litres are the consequence, not the other way
+                                    round. */}
+                                {l.amountAsked !== undefined && (
+                                  <span className="font-medium text-brand-600 dark:text-brand-400">
+                                    for {money(l.amountAsked)}
+                                  </span>
+                                )}
                                 {l.unit_name ? <span>{l.unit_name}</span> : null}
                                 {!l.product_unit_id && l.price_level !== "wholesale" && eff < (l.base_price ?? l.unit_price) ? <span className="font-medium text-success-500">bulk</span> : null}
                                 {l.modifiers_label ? <span className="truncate">{l.modifiers_label}</span> : null}
@@ -2980,6 +3056,7 @@ export default function PosPage() {
                                     // than waiting on an OS keyboard.
                                     if (showPad) {
                                       e.currentTarget.blur();
+                                      setPadMode(l.amountAsked !== undefined ? "amount" : "qty");
                                       setPadLine({ key: l.key, weight: isWeight });
                                       setPadQty(fmtQty(l.quantity));
                                       return;
@@ -4383,28 +4460,64 @@ export default function PosPage() {
       <Modal isOpen={padLine !== null} onClose={() => setPadLine(null)} className="max-w-xs p-5">
         {padLine && (() => {
           const line = cart.find((x) => x.key === padLine.key);
+          const byAmount = padLine.weight && padMode === "amount";
           const commit = () => {
             const n = Number(padQty);
-            if (Number.isFinite(n) && n > 0) setQty(padLine.key, n);
+            if (Number.isFinite(n) && n > 0) {
+              if (byAmount) setAmount(padLine.key, n);
+              else setQty(padLine.key, n);
+            }
             setPadLine(null);
           };
+          const unitWord = line?.unit_label || "Qty";
 
           return (
             <>
               <h3 className="mb-1 text-theme-sm font-semibold text-gray-800 dark:text-white/90">
                 {line?.name ?? "Quantity"}
               </h3>
-              <p className="mb-3 text-theme-xs text-gray-400">
-                {padLine.weight ? "Weight" : "How many"}
-              </p>
+              {/* THE TWO WAYS TO ASK FOR FUEL.
+                  A pump is set to the MONEY, not to the litres, so on a line
+                  sold by weight or volume the cashier picks which question they
+                  are answering. Only ever shown there — "Rs 2000 of engine oil"
+                  is not a quantity of anything, and the server refuses it. */}
+              {padLine.weight ? (
+                <div className="mb-3 flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
+                  {(["qty", "amount"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => { setPadMode(m); setPadQty(""); }}
+                      className={`flex-1 rounded-lg py-2 text-theme-sm font-semibold transition ${
+                        padMode === m
+                          ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gray-700 dark:text-white"
+                          : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      }`}
+                    >
+                      {m === "qty" ? unitWord : "Rupees"}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mb-3 text-theme-xs text-gray-400">How many</p>
+              )}
               <div className="mb-3 rounded-xl border border-gray-200 px-3 py-2.5 text-right text-2xl font-bold tabular-nums text-gray-900 dark:border-gray-700 dark:text-white">
                 {padQty || "0"}
               </div>
+              {/* What the money buys, before it is committed — a cashier
+                  typing 2000 needs to see 7.449 litres, not find out at the
+                  pump. The server derives it again from its own rate; this is
+                  the till's estimate and says so by being the smaller line. */}
+              {byAmount && line && Number(padQty) > 0 && lineUnit(line) > 0 ? (
+                <p className="mb-3 text-center text-theme-xs text-gray-500 dark:text-gray-400">
+                  ≈ {fmtQty(Number(padQty) / lineUnit(line))} {line.unit_label || "units"} at {money(lineUnit(line))}
+                </p>
+              ) : null}
               <NumPad
                 value={padQty}
                 onChange={setPadQty}
                 onSubmit={commit}
-                submitLabel="Set quantity"
+                submitLabel={byAmount ? "Set amount" : "Set quantity"}
                 allowDecimal={padLine.weight}
               />
             </>

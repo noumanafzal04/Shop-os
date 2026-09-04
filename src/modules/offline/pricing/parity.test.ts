@@ -40,6 +40,12 @@ interface FixtureItem {
   tax_group_rate: number | null;
   sold_by: string;
   quantity: number;
+  /**
+   * The money this line named, where it named money. The server derived the
+   * quantity beside it; this engine must reach the same total from the same
+   * two figures rather than recomputing one from the other.
+   */
+  amountAsked: number | null;
   price_level: string;
   line_discount_pct: number | null;
   line_discount: number | null;
@@ -144,6 +150,7 @@ describe("every cart the server was asked to price", () => {
         tax_group_rate: item.tax_group_rate,
       },
       quantity: item.quantity,
+      amountAsked: item.amountAsked,
       priceLevel: (item.price_level as PriceLevel) ?? "retail",
       lineDiscountPct: item.line_discount_pct,
       lineDiscount: item.line_discount,

@@ -37,6 +37,13 @@ export interface ShadowLine {
   product_id: string;
   variant_id?: string | null;
   quantity: number;
+  /**
+   * Money named instead of a quantity. It must travel, or the shadow check
+   * prices the derived litres, lands six paisa above what the server charged,
+   * and records a variance on every fuel sale the shop makes — filling the one
+   * count the offline decision is read from with evidence about nothing.
+   */
+  amountAsked?: number;
   price_level?: PriceLevel;
   /** Per-line discount as the cashier keyed it. */
   discountValue?: number;
@@ -130,6 +137,7 @@ async function evaluate(
           tax_group_rate: item.tax_group_id ? (taxGroups.get(item.tax_group_id) ?? null) : null,
         },
         quantity: line.quantity,
+        amountAsked: line.amountAsked ?? null,
         priceLevel: line.price_level ?? "retail",
         modifierDelta: line.modifierDelta ?? 0,
         lineDiscountPct: line.discountMode === "pct" ? (line.discountValue ?? null) : null,

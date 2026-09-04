@@ -74,6 +74,19 @@ export interface CartLine {
   lineDiscountPct?: number | null;
   /** A flat amount off this line, clamped so a line can never go negative. */
   lineDiscount?: number | null;
+  /**
+   * The MONEY this line named, where it named money instead of a quantity.
+   *
+   * "Do hazaar ka daal do." When it is set, `quantity` is the DERIVED figure
+   * and this is the gross — not `unit × quantity` recomputed from it. Rs 2,000
+   * at 268.50/L is 7.449 litres, and 7.449 × 268.50 is Rs 2,000.06.
+   *
+   * Six paisa is not a rounding preference here. The server refuses the sale
+   * outright when the gross is recomputed — the tender no longer covers the
+   * bill — so a till that priced it the other way would queue a sale that
+   * cannot sync. Mirrored, not approximated.
+   */
+  amountAsked?: number | null;
 }
 
 export interface ShopPricing {
@@ -188,9 +201,12 @@ export function priceCart(lines: CartLine[], shop: ShopPricing, discount = 0): P
     const level = line.priceLevel ?? "retail";
     const base = priceForLevel(line.item, level, line.quantity);
 
-    // Same order as the server: round the unit price, THEN multiply.
+    // Same order as the server: round the unit price, THEN multiply — except
+    // where the line named money, in which case the money IS the gross.
     const unitPrice = round2(base + (line.modifierDelta ?? 0));
-    const gross = round2(unitPrice * line.quantity);
+    const gross = line.amountAsked != null
+      ? round2(line.amountAsked)
+      : round2(unitPrice * line.quantity);
 
     // A percentage wins if given; a flat amount is clamped to the line, so a
     // line can never go negative and drag the cart down with it.

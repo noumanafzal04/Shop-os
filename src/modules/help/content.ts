@@ -529,6 +529,18 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "The screen is three parts: the product browser on the left with search and category tabs, the cart on the right, and the total with the pay button running full width along the bottom. A barcode scanner types into the search box and adds the item on Enter." },
       { type: "p", text: "Two buttons beside the search box switch the browser between picture tiles and compact rows. Tiles answer \"which one is it?\", rows answer \"is it in stock, and at what price?\" — a kitchen usually wants the first, a shop with thousands of lines the second. Your shop starts on whichever suits its trade, and the choice is remembered on this device only, so the touchscreen at the counter and the computer in the back office can each be set the way the person using it works." },
 
+      { type: "h", text: "Selling by money instead of quantity" },
+      { type: "p", text: "Nobody at a petrol pump asks for 7.449 litres — they hand over two thousand rupees. For anything sold by weight or volume (fuel, meat, fabric, loose grain) the till can take the MONEY and work out the quantity itself. Tap the quantity on the cart line and the pad offers two buttons: the unit, or Rupees." },
+      { type: "steps", items: [
+        "Add the item to the cart as usual.",
+        "Tap its quantity to open the pad.",
+        "Press Rupees, type what the customer is paying, and the pad shows what that buys before you commit it.",
+        "Set amount. The line now says \u201cfor Rs 2,000\u201d beside the quantity.",
+      ] },
+      { type: "note", text: "The amount is what is charged, exactly. The quantity beside it is worked out from your price and may move by a thousandth when the sale reaches the server — the money never does. That is deliberate: your drawer is counted against the money." },
+      { type: "note", text: "It works with the line down too, and this is the one place where selling by money is safer than selling by quantity. A sale queued offline is priced again when it reaches the server, and a fuel rate changes overnight — a sale queued as \u201c7.449 litres\u201d would come back priced at the new rate and stop matching the cash in the drawer. Queued as \u201cRs 2,000\u201d it is Rs 2,000 whatever the rate did." },
+      { type: "warn", text: "Only for items sold by weight or volume. \u201cRs 2,000 of engine oil\u201d is not a quantity of anything, so the till refuses it on anything sold by the unit and asks for a count instead." },
+
       { type: "h", text: "Items that come in sizes" },
       { type: "p", text: "Small, Medium, Large. A 250mg and a 500mg. A half plate and a full plate. If an item was set up with sizes, the till asks which one before it puts anything in the cart — it never guesses, because each size has its own price and its own stock." },
       { type: "keys", items: [
