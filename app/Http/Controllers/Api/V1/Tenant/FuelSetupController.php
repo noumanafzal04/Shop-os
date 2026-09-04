@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Fuel\ReplaceDipChartRequest;
 use App\Http\Requests\Fuel\StoreFuelNozzleRequest;
 use App\Http\Requests\Fuel\StoreFuelPumpRequest;
 use App\Http\Requests\Fuel\StoreFuelTankRequest;
@@ -12,8 +13,11 @@ use App\Models\ForecourtShift;
 use App\Models\FuelNozzle;
 use App\Models\FuelPump;
 use App\Models\FuelTank;
+use App\Models\FuelTankDipPoint;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * The physical plant: tanks, pumps, the hoses on them.
@@ -42,11 +46,99 @@ class FuelSetupController extends Controller
 
     // ── Tanks ───────────────────────────────────────────────────────
 
+    /**
+     * A tank's calibration chart — the printed table that turns a stick reading
+     * into litres.
+     *
+     * Read separately from the tank rather than embedded in it: a chart can be
+     * two thousand rows and every screen that lists tanks would carry all of it
+     * to draw a name and a capacity.
+     */
+    public function dipChart(FuelTank $tank): JsonResponse
+    {
+        return ApiResponse::ok([
+            'fuel_tank_id' => $tank->id,
+            'points' => $tank->dipPoints()->get(['mm', 'litres'])->map(fn ($p): array => [
+                'mm' => (int) $p->mm,
+                'litres' => (float) $p->litres,
+            ])->all(),
+        ]);
+    }
+
+    /**
+     * REPLACE the chart, never merge into it.
+     *
+     * A chart belongs to a physical tank and arrives as one document — a
+     * certificate, or a manufacturer's table the station has had for twenty
+     * years. Merging rows would leave a half-corrected chart looking complete,
+     * and the tank would be measured against two different certificates at
+     * different depths without anything saying so.
+     *
+     * An empty list therefore CLEARS it, which is how a station undoes a bad
+     * paste. Dips in litres keep working either way.
+     */
+    public function replaceDipChart(ReplaceDipChartRequest $request, FuelTank $tank): JsonResponse
+    {
+        $points = collect($request->validated('points', []))
+            ->map(fn (array $p): array => ['mm' => (int) $p['mm'], 'litres' => round((float) $p['litres'], 3)])
+            ->sortBy('mm')
+            ->values();
+
+        // A DEEPER STICK CANNOT MEAN LESS FUEL.
+        //
+        // The only sanity check worth making on somebody else's measurement,
+        // and it catches the mistake that actually happens: two columns pasted
+        // the wrong way round, or a row transcribed out of order. Everything
+        // else about the curve — where it steepens, how it flattens at the
+        // crown — belongs to the tank and not to us.
+        $previous = null;
+        foreach ($points as $point) {
+            if ($previous !== null && $point['litres'] < $previous['litres']) {
+                throw DomainException::unprocessable(
+                    "The chart says {$previous['mm']}mm holds {$previous['litres']} litres and {$point['mm']}mm holds {$point['litres']}. A deeper reading cannot hold less — check the columns are the right way round.",
+                    'DIP_CHART_NOT_RISING',
+                );
+            }
+            $previous = $point;
+        }
+
+        if ($points->isNotEmpty() && $points->count() < 2) {
+            throw DomainException::unprocessable(
+                'A chart needs at least two depths — one point cannot be read between.',
+                'DIP_CHART_TOO_SHORT',
+            );
+        }
+
+        DB::transaction(function () use ($tank, $points): void {
+            // FORCE. A soft-deleted point keeps its (tank, mm) unique key, so
+            // the very next chart with the same depths would collide with the
+            // one it replaced.
+            $tank->dipPoints()->forceDelete();
+
+            foreach ($points->chunk(500) as $chunk) {
+                FuelTankDipPoint::query()->insert($chunk->map(fn (array $p): array => [
+                    'id' => (string) Str::uuid7(),
+                    'tenant_id' => $tank->tenant_id,
+                    'fuel_tank_id' => $tank->id,
+                    'mm' => $p['mm'],
+                    'litres' => $p['litres'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ])->all());
+            }
+        });
+
+        return $this->dipChart($tank->fresh());
+    }
+
     public function tanks(): JsonResponse
     {
         $tanks = FuelTank::query()
             ->with(['product:id,name,price,unit', 'branch:id,name'])
-            ->withCount('nozzles')
+            // `dipPoints` counted, never loaded — a chart can be two thousand
+            // rows and this list draws a name and a capacity. The count is what
+            // `has_dip_chart` reads.
+            ->withCount(['nozzles', 'dipPoints'])
             ->orderBy('name')
             ->get()
             ->map(fn (FuelTank $t) => $this->presentTank($t));

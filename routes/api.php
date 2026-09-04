@@ -1016,9 +1016,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::middleware('permission:'.Permissions::READS_FORECOURT)->group(function (): void {
                     Route::get('tanks', [FuelSetupController::class, 'tanks']);
                     Route::get('pumps', [FuelSetupController::class, 'pumps']);
+                    // Read with the rest of the plant: whoever receives a tanker
+                    // or reprices a nozzle may also look at what a depth means.
+                    Route::get('tanks/{tank}/dip-chart', [FuelSetupController::class, 'dipChart']);
                 });
                 Route::middleware('permission:settings.manage')->group(function (): void {
                     Route::post('tanks', [FuelSetupController::class, 'storeTank']);
+                    // The calibration chart. Part of the plant, so it sits with
+                    // the tank rather than with the shift that reads it.
+                    Route::put('tanks/{tank}/dip-chart', [FuelSetupController::class, 'replaceDipChart']);
                     Route::put('tanks/{tank}', [FuelSetupController::class, 'updateTank']);
                     Route::delete('tanks/{tank}', [FuelSetupController::class, 'destroyTank']);
 

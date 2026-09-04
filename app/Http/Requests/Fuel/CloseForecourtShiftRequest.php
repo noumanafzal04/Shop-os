@@ -26,7 +26,13 @@ class CloseForecourtShiftRequest extends FormRequest
 
             'dips' => ['required', 'array', 'min:1'],
             'dips.*.fuel_tank_id' => ['required', 'uuid', Rule::exists('fuel_tanks', 'id')],
-            'dips.*.closing_dip' => ['required', 'numeric', 'min:0', 'max:9999999'],
+            // Litres, OR the depth the stick actually read. Which of the two
+            // a dip named is settled in the action, not here — a rule that
+            // points at a sibling path stops working the moment somebody
+            // re-keys this request under a prefix, which is exactly how the
+            // sale line's version broke forty-nine offline sales.
+            'dips.*.closing_dip' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
+            'dips.*.closing_dip_mm' => ['nullable', 'integer', 'min:0', 'max:100000'],
 
             'notes' => ['nullable', 'string', 'max:1000'],
         ];

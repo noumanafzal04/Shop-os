@@ -58,7 +58,7 @@ class CloseForecourtShiftAction
     /**
      * @param  array{
      *     readings: array<int, array{fuel_nozzle_id: string, closing_reading: float|int|string, test_litres?: float|int|string}>,
-     *     dips: array<int, array{fuel_tank_id: string, closing_dip: float|int|string}>,
+     *     dips: array<int, array{fuel_tank_id: string, closing_dip?: float|int|string, closing_dip_mm?: int|string}>,
      *     notes?: ?string
      * }  $data
      */
@@ -174,7 +174,63 @@ class CloseForecourtShiftAction
                     );
                 }
 
-                $closingDip = round((float) $row['closing_dip'], 3);
+                $tank = FuelTank::query()->whereKey($dip->fuel_tank_id)->with(['product', 'dipPoints'])->first();
+
+                // ── A STICK READS MILLIMETRES ───────────────────────────
+                //
+                // A dipstick does not read in litres, and an underground
+                // cylinder holds a wildly different volume per millimetre at
+                // the bottom, the middle and the top. Until now the operator
+                // did that lookup by hand off a paper chart, in the dark, at
+                // the end of a shift — and typed the result into the one number
+                // the whole leak detection rests on.
+                //
+                // Exactly one of the two, and the rule is HERE rather than in
+                // the request for the same reason it is for a sale line: a
+                // request validates shape and range, an action owns the rule,
+                // and a rule that names a sibling path stops working the moment
+                // somebody re-keys the request under a prefix.
+                $askedMm = isset($row['closing_dip_mm']) ? (int) $row['closing_dip_mm'] : null;
+
+                if ($askedMm !== null && isset($row['closing_dip'])) {
+                    throw DomainException::unprocessable(
+                        "The dip for {$dip->tank_name} was given twice — in millimetres and in litres.",
+                        'DIP_GIVEN_TWICE',
+                    );
+                }
+
+                if ($askedMm === null && ! isset($row['closing_dip'])) {
+                    throw DomainException::unprocessable(
+                        "The dip for {$dip->tank_name} names neither millimetres nor litres.",
+                        'DIP_MISSING',
+                    );
+                }
+
+                if ($askedMm !== null) {
+                    if ($tank === null || ! $tank->hasDipChart()) {
+                        throw DomainException::unprocessable(
+                            "{$dip->tank_name} has no calibration chart loaded, so a dip in millimetres cannot be turned into litres. Add the chart under Tanks & pumps, or enter litres.",
+                            'NO_DIP_CHART',
+                        );
+                    }
+
+                    $converted = $tank->litresAtDip($askedMm);
+
+                    // OUTSIDE the chart, not merely unhelpful. A depth the
+                    // chart does not cover is a mis-read stick or the wrong
+                    // chart, and extrapolating past its ends would invent a
+                    // volume for a tank nobody has measured that far up.
+                    if ($converted === null) {
+                        throw DomainException::unprocessable(
+                            "{$askedMm}mm is outside {$dip->tank_name}'s calibration chart. Check the reading, or check the chart covers this tank.",
+                            'DIP_OFF_THE_CHART',
+                        );
+                    }
+
+                    $closingDip = $converted;
+                } else {
+                    $closingDip = round((float) $row['closing_dip'], 3);
+                }
 
                 if ($closingDip < 0) {
                     throw DomainException::unprocessable('A dip cannot be negative.', 'INVALID_DIP');
@@ -191,11 +247,16 @@ class CloseForecourtShiftAction
                 $book = round((float) $dip->opening_dip + $delivered - $meterLitres, 3);
                 $variance = round($book - $closingDip, 3);
 
-                $tank = FuelTank::query()->whereKey($dip->fuel_tank_id)->with('product')->first();
                 $unitPrice = (float) ($tank?->product?->price ?? 0);
 
                 $dip->update([
                     'closing_dip' => $closingDip,
+                    // The reading the operator actually took, kept beside the
+                    // litres it became. A derived figure with no record of its
+                    // source cannot be re-checked: "the chart says 1,180 at
+                    // 620mm" is answerable months later and "the dip was 1,180"
+                    // is not. Null where litres were typed straight in.
+                    'closing_dip_mm' => $askedMm,
                     'delivered_litres' => $delivered,
                     'meter_litres' => $meterLitres,
                     'book_closing' => $book,

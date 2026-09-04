@@ -27,6 +27,9 @@ class ForecourtDip extends Model
         return [
             'opening_dip' => 'decimal:3',
             'closing_dip' => 'decimal:3',
+            // What the stick read, where the station dipped in millimetres.
+            // Null where litres were typed straight in — see FuelTank::litresAtDip.
+            'closing_dip_mm' => 'integer',
             'delivered_litres' => 'decimal:3',
             'meter_litres' => 'decimal:3',
             'book_closing' => 'decimal:3',
