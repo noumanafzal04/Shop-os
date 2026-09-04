@@ -19,6 +19,15 @@ export interface FuelTank {
   capacity_litres: string;
   current_dip_litres: string;
   dead_stock_litres: string;
+  /**
+   * Can this tank be dipped in MILLIMETRES?
+   *
+   * A dipstick reads a depth, not litres, and an underground cylinder holds a
+   * wildly different volume per millimetre at the bottom, the middle and the
+   * crown. True once the station's own calibration chart is loaded; until then
+   * the close screen asks for litres and the operator does the lookup by hand.
+   */
+  has_dip_chart: boolean;
   /** Dip less the unpumpable bottom — what can actually be sold. */
   sellable_litres: number;
   /** Room left for a tanker. */
@@ -88,6 +97,8 @@ export interface ForecourtDip {
   tank_name: string;
   opening_dip: string;
   closing_dip: string | null;
+  /** What the stick actually read, where the station dipped in millimetres. */
+  closing_dip_mm?: number | null;
   delivered_litres: string;
   meter_litres: string;
   book_closing: string;
@@ -157,7 +168,12 @@ export interface FuelPriceChange {
 
 export interface CloseShiftInput {
   readings: Array<{ fuel_nozzle_id: string; closing_reading: number; test_litres?: number }>;
-  dips: Array<{ fuel_tank_id: string; closing_dip: number }>;
+  /**
+   * ONE of the two per tank, never both — the server refuses a dip that names
+   * millimetres and litres, because whichever it picked would be wrong half
+   * the time.
+   */
+  dips: Array<{ fuel_tank_id: string; closing_dip?: number; closing_dip_mm?: number }>;
   notes?: string;
 }
 
@@ -240,6 +256,22 @@ export const fuelService = {
 
   prices: (params: { page?: number } = {}) => apiGet<FuelPriceChange[]>("/fuel/prices", { params }),
   createPrice: (body: Record<string, unknown>) => apiPost<FuelPriceChange>("/fuel/prices", body),
+
+  /** A tank's calibration chart: at this depth, this many litres. */
+  dipChart: (tankId: string) =>
+    apiGet<{ fuel_tank_id: string; points: Array<{ mm: number; litres: number }> }>(
+      `/fuel/tanks/${tankId}/dip-chart`,
+    ),
+  /**
+   * REPLACES the chart. An empty list clears it, which is how a station undoes
+   * a bad paste — a chart belongs to one physical tank and arrives as one
+   * document, so merging would leave a half-corrected table looking complete.
+   */
+  replaceDipChart: (tankId: string, points: Array<{ mm: number; litres: number }>) =>
+    apiPut<{ fuel_tank_id: string; points: Array<{ mm: number; litres: number }> }>(
+      `/fuel/tanks/${tankId}/dip-chart`,
+      { points },
+    ),
 
   /**
    * Lives under /reports, not /fuel: it is gated on `reports.view` rather than

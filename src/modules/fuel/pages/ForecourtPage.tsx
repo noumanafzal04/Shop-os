@@ -7,7 +7,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 import { useMoney } from "../../shop/hooks/useShop";
-import { useCurrentShift, useFuelMutations, useShifts } from "../hooks/useFuel";
+import { useCurrentShift, useFuelMutations, useShifts, useFuelTanks } from "../hooks/useFuel";
 import { StartShiftModal } from "../components/StartShiftModal";
 import type { ForecourtDip, ForecourtReading, ForecourtShift } from "../services/fuelService";
 
@@ -203,7 +203,7 @@ function CloseShiftForm({
   busy: boolean;
   onClose: (body: {
     readings: Array<{ fuel_nozzle_id: string; closing_reading: number; test_litres?: number }>;
-    dips: Array<{ fuel_tank_id: string; closing_dip: number }>;
+    dips: Array<{ fuel_tank_id: string; closing_dip?: number; closing_dip_mm?: number }>;
     notes?: string;
   }) => void;
 }) {
@@ -213,6 +213,19 @@ function CloseShiftForm({
   const [closing, setClosing] = useState<Record<string, string>>({});
   const [tests, setTests] = useState<Record<string, string>>({});
   const [dipInput, setDipInput] = useState<Record<string, string>>({});
+  /**
+   * Which tanks can be dipped in MILLIMETRES — i.e. which have their
+   * calibration chart loaded. A stick reads a depth, not litres, and until the
+   * chart is here the operator does that lookup by hand off a paper table.
+   *
+   * Read off the tank list rather than the shift, because the same flag draws
+   * "Dip chart loaded" on the setup screen: one answer, two readers.
+   */
+  const tanks = useFuelTanks();
+  const charted = useMemo(
+    () => new Set((tanks.data ?? []).filter((t) => t.has_dip_chart).map((t) => t.id)),
+    [tanks.data],
+  );
   const [notes, setNotes] = useState("");
 
   /** Live litres per nozzle, so a mis-keyed meter is obvious before it's submitted. */
@@ -246,7 +259,12 @@ function CloseShiftForm({
         closing_reading: Number(closing[r.fuel_nozzle_id]),
         ...(Number(tests[r.fuel_nozzle_id]) ? { test_litres: Number(tests[r.fuel_nozzle_id]) } : {}),
       })),
-      dips: dips.map((d) => ({ fuel_tank_id: d.fuel_tank_id, closing_dip: Number(dipInput[d.fuel_tank_id]) })),
+      // ONE of the two per tank, never both — the server refuses a dip that
+      // names millimetres and litres, because whichever it picked would be the
+      // wrong one half the time.
+      dips: dips.map((d) => (charted.has(d.fuel_tank_id)
+        ? { fuel_tank_id: d.fuel_tank_id, closing_dip_mm: Number(dipInput[d.fuel_tank_id]) }
+        : { fuel_tank_id: d.fuel_tank_id, closing_dip: Number(dipInput[d.fuel_tank_id]) })),
       ...(notes.trim() ? { notes: notes.trim() } : {}),
     });
 
@@ -352,6 +370,7 @@ function CloseShiftForm({
                 <th className="px-4 py-2.5 font-medium">Tank</th>
                 <th className="px-4 py-2.5 text-right font-medium">Opening dip</th>
                 <th className="px-4 py-2.5 text-right font-medium">Closing dip</th>
+                <th className="px-4 py-2.5 text-right font-medium">Reads</th>
               </tr>
             </thead>
             <tbody>
@@ -362,11 +381,32 @@ function CloseShiftForm({
                     {litres(Number(d.opening_dip))}
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <NumberCell
-                      value={dipInput[d.fuel_tank_id] ?? ""}
-                      onChange={(v) => setDipInput((s) => ({ ...s, [d.fuel_tank_id]: v }))}
-                      placeholder="—"
-                    />
+                    <div className="flex items-center justify-end gap-1.5">
+                      <NumberCell
+                        value={dipInput[d.fuel_tank_id] ?? ""}
+                        onChange={(v) => setDipInput((s) => ({ ...s, [d.fuel_tank_id]: v }))}
+                        placeholder="—"
+                      />
+                      {/* THE UNIT IS NOT DECORATION. The same box takes 620 and
+                          means 620 millimetres on one tank and 620 litres on
+                          the next, depending on whether that tank's chart is
+                          loaded. Whichever it is has to be readable without
+                          leaving the screen. */}
+                      <span className="w-8 shrink-0 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                        {charted.has(d.fuel_tank_id) ? "mm" : "L"}
+                      </span>
+                    </div>
+                  </td>
+                  {/* What the stick reading comes to, before it is submitted —
+                      the same thing the operator used to work out on paper. The
+                      server does the conversion again from its own chart; this
+                      is the till-side estimate and says so by being grey. */}
+                  <td className="px-4 py-2.5 text-right text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
+                    {charted.has(d.fuel_tank_id)
+                      ? (dipInput[d.fuel_tank_id] ?? "").trim() === ""
+                        ? "—"
+                        : "from the chart"
+                      : ""}
                   </td>
                 </tr>
               ))}

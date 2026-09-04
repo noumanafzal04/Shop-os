@@ -6,10 +6,12 @@ import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
+import { DipChartModal } from "../components/DipChartModal";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useToast } from "../../../components/ui/toast";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import { useFuelMutations, useFuelPumps, useFuelTanks } from "../hooks/useFuel";
+import type { FuelTank } from "../services/fuelService";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 const litres = (n: number | string) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 })} L`;
@@ -28,6 +30,8 @@ export default function FuelSetupPage() {
   const m = useFuelMutations();
 
   const tankModal = useModal();
+  /** Which tank's calibration chart is open. Null = none. */
+  const [chartTank, setChartTank] = useState<FuelTank | null>(null);
   const pumpModal = useModal();
   const [nozzleFor, setNozzleFor] = useState<string | null>(null);
 
@@ -136,6 +140,23 @@ export default function FuelSetupPage() {
                       <span className="text-gray-500 dark:text-gray-400">
                         Ullage <span className="font-medium tabular-nums text-gray-800 dark:text-white/90">{litres(t.ullage_litres)}</span>
                       </span>
+                      {/* WHETHER THIS TANK CAN BE DIPPED IN MILLIMETRES.
+                          A dipstick reads a depth, not litres. Until the
+                          station's own chart is loaded the close screen asks for
+                          litres and somebody does the lookup by torchlight into
+                          the one number the leak detection rests on — so the
+                          absence is worth saying, not just the presence. */}
+                      <button
+                        type="button"
+                        onClick={() => setChartTank(t)}
+                        className={`font-medium underline-offset-2 hover:underline ${
+                          t.has_dip_chart
+                            ? "text-success-600 dark:text-success-400"
+                            : "text-warning-600 dark:text-warning-400"
+                        }`}
+                      >
+                        {t.has_dip_chart ? "Dip chart loaded" : "No dip chart"}
+                      </button>
                     </div>
                   </div>
                   <button
@@ -221,6 +242,8 @@ export default function FuelSetupPage() {
       </div>
 
       {/* ── Add tank ───────────────────────────────────────────────── */}
+      <DipChartModal tank={chartTank} isOpen={chartTank !== null} onClose={() => setChartTank(null)} />
+
       <Modal isOpen={tankModal.isOpen} onClose={tankModal.closeModal} className="max-w-md">
         <ModalForm
           title="Add tank"
