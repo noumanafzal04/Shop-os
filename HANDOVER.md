@@ -6409,6 +6409,40 @@ correctly. A sweep that can only run once is a sweep nobody runs.
 
 ---
 
+### 2026-09-04 — a tank is dipped in millimetres
+
+`docs/decisions/shopos-a-tank-is-dipped-in-millimetres.md`.
+
+The forecourt shipped asking for a closing dip in LITRES and a dipstick does not
+read in litres. An underground cylinder holds a wildly different volume per
+millimetre at the bottom, the middle and the crown, so the operator was doing
+that lookup by hand off a paper chart, in the dark, at the end of a shift — into
+the one number the whole leak detection rests on.
+
+`fuel_tank_dip_points` holds the station's own certificate at its own spacing.
+A charted depth is exact, a depth between two points is read straight between
+THEM, and a depth outside the chart is refused rather than extrapolated: that
+would invent a volume for a tank nobody has measured that far up.
+
+The test worth knowing about is the interpolation one. 750mm reading 14,000
+rather than 15,000 is the only thing that distinguishes "between neighbours"
+from "across the whole chart" — and the second is exactly how a cylinder's curve
+gets flattened into a line. That mutation failed five cases.
+
+`closing_dip_mm` is kept beside the litres it became, because a derived figure
+with no record of its source cannot be re-checked. Litres still work: a tank
+with no chart has to be dippable tonight.
+
+Charts are PASTED, not keyed — 20 to 2000 rows, and the station already has the
+table. Two of the parser's own tests found real bugs before anything shipped:
+`620\t12,500` read as twelve litres (the comma is separator AND thousands mark;
+strip thousands before splitting), and "about half full" written mid-chart was
+swallowed by a header heuristic that only tested for "letters and punctuation".
+
+Two rules borrowed from earlier today: exactly-one-of-mm/litres lives in the
+ACTION, not the request; and loading a chart is `settings.manage`, because the
+person dipping a tank at 2am does not get to redefine what its depths mean.
+
 ### 2026-09-04 — a month of the forecourt
 
 `docs/decisions/shopos-month-of-the-forecourt.md`.

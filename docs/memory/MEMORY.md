@@ -187,3 +187,4 @@
 - [Money In, Litres Out](shopos-money-in-litres-out.md) — SHIPPED: a line may name `amount`; the amount IS the gross, and it beats litres offline
 - [Placeholder Per Trade](shopos-placeholder-per-trade.md) — product name example follows item type then trade; never a brand
 - [Month Of The Forecourt](shopos-month-of-the-forecourt.md) — Fuel report tab; two variances never summed; attendants get litres only
+- [Dipped In Millimetres](shopos-dipped-in-millimetres.md) — tank calibration charts; interpolate between neighbours, refuse past the ends
