@@ -47,14 +47,15 @@ import phase_r
 import phase_s
 import phase_t
 import phase_u
+import phase_v
 
-PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u"]
+PHASES = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v"]
 
 
 # What each phase needs standing before it. Naming a late phase alone runs its
 # prerequisites too — asking for "the seams" and silently getting only the admin
 # side is the kind of quiet no-op that makes a sweep untrustworthy.
-NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"], "r": ["c"], "s": ["c"], "t": ["c"], "u": ["c"]}
+NEEDS = {"a": [], "b": ["a"], "c": ["b"], "d": ["c"], "e": ["c"], "f": ["c"], "g": ["c"], "h": ["c"], "i": ["c"], "j": ["c"], "k": ["c"], "l": ["c"], "m": ["c"], "n": ["c"], "o": ["c"], "p": ["c"], "q": ["c"], "r": ["c"], "s": ["c"], "t": ["c"], "u": ["c"], "v": ["c"]}
 
 
 def _with_prerequisites(want: list[str]) -> set[str]:
@@ -203,6 +204,12 @@ def main() -> int:
         # and a tyre shop's sizes are the same mechanism — so the gate is stock,
         # not trade.
         phase_u.run(api, rep, sold)
+
+    if "v" in want:
+        # LAST on purpose. It owns nothing and creates nothing — it reads the
+        # ids every phase before it left lying around and carries each one next
+        # door. Run it early and there is almost nothing to steal.
+        phase_v.run(api, rep, sold)
 
     code = rep.summary(_expected(shops, want), set(shops))
 

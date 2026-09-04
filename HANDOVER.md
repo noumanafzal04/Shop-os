@@ -6409,6 +6409,49 @@ correctly. A sweep that can only run once is a sweep nobody runs.
 
 ---
 
+### 2026-09-05 — the wall between shops
+
+`docs/decisions/shopos-the-wall-between-shops.md`. The one blocker of the
+2026-09-04 QA run, found by a phase written that day.
+
+    GET /api/v1/restaurant/tables/{another restaurant's table}  →  200
+
+One shop read another shop's floor plan. `update` and `destroy` bind the same
+way, so a shop could have renamed or deleted the tables in somebody else's
+restaurant.
+
+`BelongsToTenant` filters every query to the current tenant BUT ONLY WHEN A
+CONTEXT EXISTS, and Laravel's `SubstituteBindings` lives in the `api` group, so
+it ran before `ResolveTenant`. A route typed `show(DiningTable $table)` resolved
+its model with the context still empty, the scope was a no-op, and any shop's
+row bound by id.
+
+It hid because most controllers do NOT bind: they take `string $id` and query
+inside the stack, after the tenant is known, and 404 correctly. Two styles in
+one folder, twenty-one bound methods across sixteen controllers, and the safe
+majority made the whole surface look tested.
+
+Fixed by declaring the order —
+`prependToPriorityList(SubstituteBindings::class, ResolveTenant::class)` — and
+guarded by `TenantWallTest`, which also asserts the owner still gets 200 for the
+same id, because the cheapest way to "fix" this would be to break dine-in for
+its own shop. Mutation: remove the line and read, rename and delete of another
+shop's table all return 200.
+
+**The testing half matters more.** Phase F had asked this question since the
+sweep was written — five times, one shop pair, five record kinds, out of
+forty-six addressable kinds across thirty-six possible pairs. `docs/qa/sweep/
+phase_v.py` now asks it 227 times across 147 (shop, record) pairs and 8 shops,
+and needs no payload knowledge: it reads each list AS ITS OWNER, takes the first
+id, and carries it next door. It asks two things — can they read it by id, and
+does it appear in THEIR OWN LIST — and the second is the one shops picture.
+
+Phase V's own first version took "the next shop" as the intruder, so eleven
+pairs answered 403 from the intruder's own module gate: questions never asked,
+printing as refusals. The neighbour is chosen now.
+
+Final sweep: 2,022 ok, 0 bugs. Backend 2,530 on MySQL 9.7/UTC/strict.
+
 ### 2026-09-04 — a tank is dipped in millimetres
 
 `docs/decisions/shopos-a-tank-is-dipped-in-millimetres.md`.

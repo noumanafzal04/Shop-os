@@ -188,3 +188,4 @@
 - [Placeholder Per Trade](shopos-placeholder-per-trade.md) — product name example follows item type then trade; never a brand
 - [Month Of The Forecourt](shopos-month-of-the-forecourt.md) — Fuel report tab; two variances never summed; attendants get litres only
 - [Dipped In Millimetres](shopos-dipped-in-millimetres.md) — tank calibration charts; interpolate between neighbours, refuse past the ends
+- [The Wall Between Shops](shopos-wall-between-shops.md) — CRITICAL: binding ran before ResolveTenant; one shop could read/rename/delete another's tables
