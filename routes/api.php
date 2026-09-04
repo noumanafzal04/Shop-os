@@ -851,6 +851,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // What the banks owe. Rides the same reports permission as the
                 // rest — it is the shop's own money, seen by whoever reads the
                 // shop's own figures.
+                // The forecourt over a period. Behind the `fuel` module as
+                // well as `reports.view`: a shop with no pumps would get a page
+                // of zeros, which reads as a bad month rather than as no pumps.
+                Route::get('/reports/fuel', [ReportController::class, 'fuel'])
+                    ->middleware('feature:fuel');
                 Route::get('/reports/bank-claims', [ReportController::class, 'bankClaims']);
                 // The same report as a file, because a shop cannot email a
                 // screen — and emailing it IS the point of the feature.

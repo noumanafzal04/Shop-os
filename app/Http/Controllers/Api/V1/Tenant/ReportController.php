@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Services\FuelReportService;
 use App\Services\LedgerService;
 use App\Services\ReportService;
 use App\Services\StockReportService;
@@ -267,6 +268,27 @@ class ReportController extends Controller
                 $r['last_sold_at'] ?? 'never', $r['days_idle'],
             ], $report['items']),
         );
+    }
+
+    /**
+     * The forecourt over a period, rather than one shift at a time.
+     *
+     * Gated on `reports.view` and NOT on `inventory.manage`, which is what the
+     * shift screens carry. Closing a shift is a stock correction and needs the
+     * right to make one; READING how the forecourt performed is a report, and
+     * gating it on the write permission would hand the owner's own manager a
+     * screen they may run and not look back at. See READS_* in Permissions —
+     * the same `*.manage` mistake this codebase has made before.
+     */
+    public function fuel(
+        Request $request,
+        ReportService $reports,
+        FuelReportService $fuel,
+        BranchContext $branch,
+    ): JsonResponse {
+        $p = $this->period($request, $reports);
+
+        return ApiResponse::ok($fuel->summary($p['from'], $p['to'], $branch->scopeId()));
     }
 
     /** Shared period validation + resolution. */
