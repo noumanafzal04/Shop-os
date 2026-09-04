@@ -20,7 +20,7 @@ that came back.
 
 import uuid
 
-from api import Api, Report
+from api import Api, Report, gated_on
 from phase_c import PRICE
 
 PHONE = "03007776655"
@@ -52,10 +52,23 @@ def run(api: Api, rep: Report, sold: dict) -> dict:
 
         _points_are_earned_and_spent(api, rep, code, token, state, customer, plain)
         _a_refund_takes_the_points_back(api, rep, code, token, state, customer)
-        _a_coupon_is_named_never_priced(api, rep, code, token, state)
         _a_discount_needs_the_permission_to_give_it(api, rep, code, token, state)
-        _a_coupon_stops_at_its_limit(api, rep, code, token, state)
-        _a_promotion_prices_itself(api, rep, code, token, state)
+
+        # ── COUPONS AND PROMOTIONS RIDE `promotions` ────────────────────
+        #
+        # Only two trades are given that module. Six of the other six were
+        # reported as bugs here — "a fresh one-use coupon works once — 422 this
+        # coupon code is not valid" — because the sweep could not CREATE the
+        # coupon it then tried to redeem, and blamed the redemption.
+        #
+        # The refusal is the check now, not a skip: a shop without the module
+        # must be turned away from the coupon list, and a 200 there would be a
+        # module leak worth stopping the run for.
+        if gated_on(rep, "M", code, state, "promotions", "the coupon list",
+                    lambda: api.get("/coupons", token=token)):
+            _a_coupon_is_named_never_priced(api, rep, code, token, state)
+            _a_coupon_stops_at_its_limit(api, rep, code, token, state)
+            _a_promotion_prices_itself(api, rep, code, token, state)
 
     return sold
 

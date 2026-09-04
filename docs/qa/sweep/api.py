@@ -331,6 +331,7 @@ class Report:
         mark = {"PASS": "  ok  ", "QUERY": " QUERY", "BUG": " BUG  "}[level]
         print(f"{mark} {phase:10} {what}" + (f"  — {detail}" if detail else ""), flush=True)
 
+
     def ok(self, phase, what, detail=""): self._add("PASS", phase, what, detail)
     def query(self, phase, what, detail=""): self._add("QUERY", phase, what, detail)
     def bug(self, phase, what, detail=""): self._add("BUG", phase, what, detail)
@@ -446,3 +447,48 @@ class Report:
         # would let a sweep that asked nothing exit 0 — the exact shape of "2225
         # passed" beside a non-zero exit, with the sign flipped.
         return n["BUG"] + self.blinded
+# ── WHAT THIS SHOP WAS ACTUALLY GIVEN ────────────────────────────────────
+#
+# Modules stopped being on-by-default. A restaurant is not given `stocktake`,
+# a pharmacy is not given `documents`, and only two trades are given
+# `promotions` — that is the product working, and the shop being refused is
+# the whole point of the change.
+#
+# This sweep was written before it, so it asked every trade for everything and
+# then reported 23 CORRECT REFUSALS as bugs. A sweep that cries wolf 23 times
+# is worse than no sweep: the next real one is read as more noise.
+#
+# The fix is not to skip. Skipping would leave the fence untested — and the
+# fence is exactly what a shop owner asks about ("a module I turned off had
+# better not show anywhere"). So a shop WITHOUT the module gets the check it
+# deserves: it must be REFUSED, with 403, and not quietly succeed.
+
+def has_module(state: dict, key: str) -> bool:
+    """Does this shop have the module? Reads what phase B recorded off the tenant."""
+    return bool((state.get("features") or {}).get(key))
+
+
+def gated_on(rep, phase: str, code: str, state: dict, module: str, label: str, call) -> bool:
+    """
+    Returns True when the shop HAS the module and the caller should carry on.
+
+    When it does not, the refusal itself is the check: `call()` is made and its
+    status must be 403. A 200 here is a module leak — the loudest kind of bug
+    this sweep can find — and a 500 is a fence that throws instead of refusing.
+    """
+    if has_module(state, module):
+        return True
+
+    status, _ = call()
+
+    if status == 403:
+        rep.ok(phase, f"{code} · {label} refused without `{module}`", "403")
+    elif status == 200:
+        rep.bug(phase, f"{code} · MODULE LEAK — {label} without `{module}`",
+                "the shop was not given this module and the server served it anyway")
+    else:
+        rep.bug(phase, f"{code} · {label} gated on `{module}` but not with a refusal",
+                f"expected 403, got {status}")
+
+    return False
+

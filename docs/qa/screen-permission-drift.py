@@ -56,8 +56,29 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BACKEND = ROOT / "shopos-backend"
-PANEL = ROOT / "shopos-admin-and-user-panel"
+
+def _repo(*names: str) -> Path:
+    """
+    The app folder, whatever this machine calls it.
+
+    These names were hard-coded to the ORIGINAL box —  `shopos-backend`,
+    `shopos-admin-and-user-panel` — and on a machine that clones them as
+    `backend` and `panel` this file did not run AT ALL. It crashed on a missing
+    path, which is the good half; the bad half is that it had therefore never
+    been run here, and a scanner that has never run is a scanner that is not
+    protecting anything.
+
+    Whichever name EXISTS wins. If none does, the first is returned so the
+    failure still names something a person can look for.
+    """
+    for n in names:
+        if (ROOT / n).is_dir():
+            return ROOT / n
+    return ROOT / names[0]
+
+
+BACKEND = _repo("shopos-backend", "backend")
+PANEL = _repo("shopos-admin-and-user-panel", "panel")
 APP = PANEL / "src/App.tsx"
 MAP = PANEL / "src/common/routing/screenPermissions.ts"
 

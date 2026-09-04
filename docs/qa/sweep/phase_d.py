@@ -17,7 +17,7 @@ Two things here are worth more than the rest:
                   have chosen it.
 """
 
-from api import Api, Report
+from api import Api, Report, gated_on
 from shelf import on_hand, rollup
 
 RECEIVE_QTY = 10
@@ -40,7 +40,7 @@ def run(api: Api, rep: Report, sold: dict) -> dict:
         _adjust_moves_it(api, rep, code, token, pid)
         _cannot_adjust_below_zero(api, rep, code, token, pid)
         _receive_blends_cost(api, rep, code, token, pid)
-        _count_sets_the_truth(api, rep, code, token, pid)
+        _count_sets_the_truth(api, rep, code, token, pid, state)
         _oversell(api, rep, code, token, pid)
         _movements_name_every_path(api, rep, code, token, pid)
 
@@ -181,7 +181,7 @@ def _receive_blends_cost(api: Api, rep: Report, code: str, token: str, pid: str)
 
 # ── counting ───────────────────────────────────────────────────────────
 
-def _count_sets_the_truth(api: Api, rep: Report, code: str, token: str, pid: str) -> None:
+def _count_sets_the_truth(api: Api, rep: Report, code: str, token: str, pid: str, state: dict) -> None:
     """A stocktake is the shelf overruling the books. Applying it must land."""
     # Abandon anything left open by a previous run, or the new one is refused.
     status, body = api.get("/inventory/counts/current", token=token)
@@ -189,7 +189,13 @@ def _count_sets_the_truth(api: Api, rep: Report, code: str, token: str, pid: str
     if open_count.get("id"):
         api.delete(f"/inventory/counts/{open_count['id']}", token=token)
 
-    status, body = api.post("/inventory/counts", {"scope": "all", "notes": "QA sweep"}, token=token)
+    draw = lambda: api.post("/inventory/counts", {"scope": "all", "notes": "QA sweep"}, token=token)
+
+    # A restaurant is not given `stocktake`. Its refusal is the check.
+    if not gated_on(rep, "D", code, state, "stocktake", "a count sheet", draw):
+        return
+
+    status, body = draw()
     if status not in (200, 201):
         rep.bug("D", f"{code} · draw a count sheet", f"{status} {body.get('errors') or body.get('message')}")
         return

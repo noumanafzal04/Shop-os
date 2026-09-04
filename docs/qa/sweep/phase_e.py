@@ -185,11 +185,29 @@ def _profit_is_arithmetic(api: Api, rep: Report, code: str, token: str) -> None:
     expenses = float(t.get("expenses") or 0)
     net = float(t.get("net_profit") or 0)
 
-    if abs((revenue - cogs) - gross) > 0.01:
-        rep.bug("E", f"{code} · GROSS PROFIT IS REVENUE MINUS COGS",
-                f"{revenue} − {cogs} = {revenue - cogs}, report says {gross}")
+    # ── REVENUE IS GROSS, AND REFUNDS ARE THEIR OWN LINE ────────────────
+    #
+    # This check used to assert `revenue − cogs == gross_profit` and reported a
+    # bug on ALL EIGHT TRADES, each off by exactly the 500 the sweep itself had
+    # refunded a few checks earlier. The report was right and the check was old.
+    #
+    # `revenue` is deliberately GROSS: a refunded sale still brought its money
+    # in, and a bag returned on Thursday against Monday's invoice cannot be
+    # netted off a Monday that has been closed and banked. So the refund gets
+    # its own line beside the revenue it reduces, and both profits subtract it —
+    # see the comment in ReportService::summary, which says exactly this.
+    #
+    # Net sales, not gross sales, is what gross profit is struck against. That
+    # is also the accounting definition, so the identity is stronger now, not
+    # weaker: it would still catch a report that forgot the refund entirely.
+    refunds = float(t.get("refunds") or 0)
+    kept = revenue - refunds
+
+    if abs((kept - cogs) - gross) > 0.01:
+        rep.bug("E", f"{code} · GROSS PROFIT IS NET SALES MINUS COGS",
+                f"({revenue} − {refunds} refunded) − {cogs} = {kept - cogs}, report says {gross}")
     else:
-        rep.ok("E", f"{code} · gross = revenue − cogs", f"{gross:.0f}")
+        rep.ok("E", f"{code} · gross = (revenue − refunds) − cogs", f"{gross:.0f}")
 
     want = gross + other - expenses
     if abs(want - net) > 0.01:

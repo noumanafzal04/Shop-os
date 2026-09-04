@@ -20,7 +20,7 @@ or bank money twice:
 
 import uuid
 
-from api import Api, Report
+from api import Api, Report, gated_on
 from phase_c import PRICE
 
 DEPOSIT = 400.0
@@ -35,11 +35,29 @@ def run(api: Api, rep: Report, sold: dict) -> dict:
             continue
 
         token = state["token"]
-        _a_layaway_holds_money_not_revenue(api, rep, code, token, state)
+
+        # ── A LAYAWAY IS A SALE DOCUMENT ────────────────────────────────
+        #
+        # Three trades are given `documents`; the other five were reported as
+        # bugs here for being correctly refused. The refusal is the check now.
+        if gated_on(rep, "N", code, state, "documents", "a layaway",
+                    lambda: api.get("/sale-documents", token=token)):
+            _a_layaway_holds_money_not_revenue(api, rep, code, token, state)
+
         _an_exchange_does_both_halves(api, rep, code, token, state)
+
         if (state.get("features") or {}).get("inventory"):
             _a_trade_in_is_a_tender(api, rep, code, token, state)
-            _two_fates_are_never_summed(api, rep, code, token)
+
+            # ── AND A CLAIM IS A DISPOSAL ───────────────────────────────
+            #
+            # `inventory` is not enough: sending goods back to a supplier rides
+            # `disposals`, which three trades have. Automotive, petroleum and
+            # the restaurant all count stock and none of them may bin it, so
+            # all three were reported as bugs for a 403 they should get.
+            if gated_on(rep, "N", code, state, "disposals", "the claims list",
+                        lambda: api.get("/inventory/disposals?awaiting_credit=1", token=token)):
+                _two_fates_are_never_summed(api, rep, code, token)
 
         # Close what this phase opened. A drawer left open is inherited by the
         # NEXT run's phase C, which opens its shift expecting a fresh float and
