@@ -115,17 +115,72 @@ export async function fillCart(page: Page, want: number): Promise<number> {
    * So this asks for the shelf BY NAME. The shelf is topped up before every
    * run and belongs to nobody else.
    */
+  /*
+   * ── AND ASK THE TILL FOR THEM, RATHER THAN HOPING THEY ARE ON SCREEN ──
+   *
+   * The comment above says a suite whose result depends on which project ran
+   * first is not measuring the product. The same disease came back one level
+   * up: which SUITE ran first.
+   *
+   * The browser suite and the QA sweep sign in as the SAME SHOP. The sweep adds
+   * a dozen `Sweep …` products to it, the till renders a page of the catalogue
+   * rather than all of it, and the shelf's fourteen items were pushed off that
+   * page. `selling.spec` then failed with "the till listed no sellable shelf
+   * items" — on a shelf that had 240 of each, in a catalogue that returned all
+   * thirteen. Nothing was wrong with the product or with the fixture; the
+   * items simply were not on the first screenful.
+   *
+   * So the shelf is SEARCHED for, not scanned for. The till's own search box is
+   * how a cashier finds an item among thousands, and it is how this fixture
+   * finds one among however many other specs have left behind.
+   */
+  const search = page.getByPlaceholder(/scan barcode or search/i).first();
+  if (await search.isVisible().catch(() => false)) {
+    await search.fill("E2E Shelf Item");
+    await page.waitForTimeout(700);
+  }
+
   const items = page.locator(PLAIN_ITEM).filter({ hasText: SHELF_ITEM });
   const available = await items.count();
   expect(
     available,
     `the till listed no sellable shelf items (looking for "${SHELF_ITEM}"). `
-      + "The shelf fixture tops these up before every run — if this is zero the "
-      + "setup project did not run, or the till's catalog has not arrived yet.",
+      + "The shelf fixture tops these up before every run and the till was asked "
+      + "for them BY SEARCH — if this is short, the setup project did not run, "
+      + "the catalogue has not arrived, or the search box has moved.",
   ).toBeGreaterThanOrEqual(want);
 
+  /*
+   * ONE SEARCH PER ITEM, because the till clears the box after every add.
+   *
+   * `commitProduct` calls `setSearch("")` the moment a line goes in — correctly:
+   * a cashier scanning a queue does not want to clear the box by hand between
+   * items. So a single search up front finds the shelf and then the FIRST click
+   * throws the grid back to page one, where the second shelf item is not. That
+   * read as a hang: `.nth(1)` waited its whole five minutes for a tile that had
+   * gone.
+   *
+   * So the names are collected first, and each one is then searched for by
+   * itself. That is also what a cashier does with an item they cannot see.
+   */
+  const names: string[] = [];
   for (let i = 0; i < want; i++) {
-    await items.nth(i).click();
+    const text = (await items.nth(i).innerText()).match(/E2E Shelf Item \d+/);
+    if (text) names.push(text[0]);
+  }
+
+  expect(
+    names.length,
+    `could not read ${want} shelf item names off the till (got ${names.length})`,
+  ).toBe(want);
+
+  for (const name of names) {
+    if (await search.isVisible().catch(() => false)) {
+      await search.fill(name);
+      await page.waitForTimeout(600);
+    }
+
+    await page.locator(PLAIN_ITEM).filter({ hasText: name }).first().click();
     await page.waitForTimeout(120);
 
     // A safety net, not the plan. The selector above should mean no sheet ever
