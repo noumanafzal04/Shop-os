@@ -193,3 +193,4 @@
 - [Provider Nobody Mounted](shopos-provider-nobody-mounted.md) — ThemeProvider existed, documented, mounted NOWHERE; dark mode could not run
 - [App On A Real Emulator](shopos-app-on-a-real-emulator.md) — first device run: 3 kinds of silence, an invented promise, one rule copied
 - [Mobile Customer Shape](shopos-mobile-customer-shape.md) — 2026-09-05: 7 defects the design refs exposed; palette → #E94E00
+- [Rider Side](shopos-rider-side.md) — rider = a USER beside the untouched tenant `riders` row; OrderStatus never changed; realtime = an honest poll

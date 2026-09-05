@@ -6930,3 +6930,68 @@ Reproduced on the emulator by switching it to three-button navigation, fixed,
 and confirmed there: the bar clears the buttons and the basket is whole.
 
 tsc 0 · eslint 0 errors · jest 24 suites / 267 tests.
+
+---
+
+## The rider side
+
+**2026-09-06 · backend + mobile + panel**
+
+Half the mobile pivot did not exist. `riders` was a tenant-scoped
+`name · phone · is_active` with no `user_id`, so a rider could not sign in, and
+"customer and rider in one app" was one app.
+
+**A rider is a PERSON; `riders` stays a shop's row.** New `rider_profiles`,
+one per user, outside tenancy, with the id a human says out loud
+(`RDR-000123`). `riders.rider_profile_id` is the nullable bridge: null is the
+phone-call rider that exists today and keeps working untouched, set is the same
+person holding the app. `orders.rider_id` never moves — it is still the one
+answer to who is carrying an order, and a platform rider who takes a pool job
+gets a `riders` row made in that shop so it stays true.
+
+**`OrderStatus` was not touched.** The rider's leg is four timestamps —
+assigned, accepted, picked up, delivered — and two of them drive the EXISTING
+`advance()` transitions. Adding rider states to the enum would have made every
+shop's panel and the offline till learn a vocabulary only deliveries use. The
+customer's `rider.stage` now reads those timestamps rather than the order
+status, because the two disagree for most of a delivery: an order sits at
+`preparing` while the rider is already on their way to collect it.
+
+**The fence is hand-written and mutation-proven.** `RiderProfile` is not
+`BelongsToTenant` and a rider's request resolves no tenant, so the global scope
+protects nothing here. Every crossing goes through `myOrder()`; remove it and
+the cross-rider test returns 200 instead of 403.
+
+**A job board is not a directory.** Before accepting, a rider gets the shop, the
+area, the distance and the fee — no name, no phone, no street address. After
+accepting, everything. Two payload shapes, one guard.
+
+**Four digits at the door.** Generated when the order goes out for delivery, not
+at checkout. It is the only evidence the app has that a completed delivery
+reached the person who paid, and on a cash order that is when the money moves.
+
+**Money is derived; only the settlement is stored.** Earned and cash-in-hand
+come from the orders every time; `rider_settlements` records the one thing they
+cannot — the shop counted the cash and took it.
+
+**Two pre-existing bugs surfaced.** `ShopSettings` described `delivery_provider`
+in a comment while the key was in neither `defaults()` nor `rules()`, so every
+read got null — `promise-in-another-file` again. And the rollback failed on
+MySQL and only on MySQL: `orders.rider_id` already had a foreign key, MySQL
+adopted the new `[rider_id, status]` index to enforce it, and dropping the index
+then throws. SQLite was green from the first try; found by running the rollback
+against a real MySQL database.
+
+**"Realtime" is an honest poll.** No Reverb, so: 10s while a rider carries an
+order, 15s on the job board, 20s otherwise, never once finished. `RefreshPill`
+states the age from the SERVER's clock and refetches on tap — a silent poll is
+worse than no poll, because you cannot tell a still shop from a still phone.
+
+**The sidebar was rebuilt** to the reference the user sent: a profile card, then
+grouped white cards of rows with hairlines inside them, on a quiet ground. It
+was eleven rows in one column with eleven tinted icon tiles down the left.
+
+Backend 2567 (2565 passed, 2 skipped, exit 0) · migrations up/down/up on MySQL
+and sqlite with foreign keys intact · mobile tsc 0, eslint 0 errors, jest 26
+suites / 294 tests · panel tsc 0, eslint 0 errors, vitest 1487 tests · five
+mutations, five failures.
