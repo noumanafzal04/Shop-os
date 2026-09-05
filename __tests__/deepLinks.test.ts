@@ -42,6 +42,21 @@ describe("resolveDeepLink", () => {
     },
   );
 
+  // The backend sends `rider` for an approval and `rider/application` for a
+  // rejection or a suspension. Two destinations, because they are two
+  // different pieces of news: one says you can start, the other says what to
+  // fix. Both arrived with nowhere to go until the backend's DeepLinks learned
+  // them — and this is the half that would still have been silent afterwards.
+  it("routes a rider approval to the working screen", () => {
+    resolveDeepLink("rider");
+    expect(mockNavigate).toHaveBeenCalledWith("RiderHome", undefined);
+  });
+
+  it("routes a rider rejection to the application", () => {
+    resolveDeepLink("rider/application");
+    expect(mockNavigate).toHaveBeenCalledWith("RiderApply", undefined);
+  });
+
   it("routes announcements to notifications", () => {
     resolveDeepLink("announcements/n1");
     expect(mockNavigate).toHaveBeenCalledWith("Notifications", undefined);

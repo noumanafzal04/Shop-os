@@ -44,6 +44,40 @@ export type CustomerStackParamList = {
 };
 
 /**
+ * RIDER MODE — a different app in the same binary.
+ *
+ * Not a section of the shopping stack. A rider on shift had Food, Grocery and
+ * a basket along the bottom of every screen: five controls that have nothing
+ * to do with the job in their hand, and no way to put the shopping half away.
+ *
+ * Three tabs, because a working day has three questions: what am I carrying,
+ * what have I made, and who am I. The basket is gone on purpose — somebody
+ * delivering is not shopping, and if they want to be, they switch back.
+ */
+export type RiderTabParamList = {
+  RiderBoardTab: undefined;
+  RiderEarningsTab: undefined;
+  RiderAccountTab: undefined;
+};
+
+/**
+ * What a rider can reach while on shift.
+ *
+ * Deliberately short. Everything here is either the job, the money, or the
+ * account — and the account screens are the SAME components the shopping side
+ * uses, because a person's name and their settings do not change with the hat.
+ */
+export type RiderStackParamList = {
+  RiderTabs: undefined;
+  RiderJob: { id: string };
+  RiderApply: undefined;
+  Profile: undefined;
+  Settings: undefined;
+  Help: undefined;
+  Notifications: undefined;
+};
+
+/**
  * Three destinations, not four.
  *
  * The business side USED to live here — a shop's dashboard, items, sales and
@@ -59,5 +93,7 @@ export type CustomerStackParamList = {
 export type RootStackParamList = {
   /** Guests and customers alike — see `RootNavigator` for why they share one. */
   Customer: undefined;
+  /** The same account, on shift. Only reachable while the server approves it. */
+  Rider: undefined;
   BusinessAccount: undefined;
 };

@@ -29,10 +29,19 @@ function codeOnly(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 }
 
+/**
+ * Every screen name registered on ANY navigator in the file.
+ *
+ * All four: the shopping stack and its tabs, and the rider stack and its tabs.
+ * The first version of this knew only the customer pair, and the moment rider
+ * mode got a navigator of its own that guard would have started reporting
+ * every working rider link as broken — a guard that cries wolf is a guard
+ * somebody deletes.
+ */
 function registeredRoutes(): Set<string> {
   const src = fs.readFileSync(NAV, "utf8");
   const names = new Set<string>();
-  const re = /<Customer(?:Stack|Tabs)\.Screen[^>]*?name="([\w]+)"/gs;
+  const re = /<(?:Customer|Rider|Root)(?:Stack|Tabs)\.Screen[^>]*?name="([\w]+)"/gs;
   let m: RegExpExecArray | null;
   while ((m = re.exec(src)) !== null) names.add(m[1]);
   return names;
@@ -44,9 +53,11 @@ describe("every screen this app navigates to is registered", () => {
   // A count of findings is not evidence without a count of attempts: if the
   // regex stops matching, this test would pass by finding nothing to check.
   it("found the navigator's screens", () => {
-    expect(routes.size).toBeGreaterThanOrEqual(18);
+    expect(routes.size).toBeGreaterThanOrEqual(24);
     expect(routes.has("Tabs")).toBe(true);
     expect(routes.has("CartTab")).toBe(true);
+    expect(routes.has("RiderBoardTab")).toBe(true);
+    expect(routes.has("RiderTabs")).toBe(true);
   });
 
   it("has no navigate() to a name nothing registers", () => {

@@ -2,10 +2,12 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import {
+  Bike,
   CircleUserRound,
   ReceiptText,
   Search,
   ShoppingCart,
+  Wallet,
   type LucideIcon,
 } from "lucide-react-native";
 import { useTheme } from "../theme";
@@ -62,6 +64,19 @@ const ITEMS: Record<string, Item> = {
   OrdersTab: { route: "OrdersTab", label: "Orders", icon: ReceiptText },
   AccountTab: { route: "AccountTab", label: "Account", icon: CircleUserRound },
   SearchTab: { route: "SearchTab", label: "Search", icon: Search },
+
+  // ── Rider mode ──────────────────────────────────────────────────
+  //
+  // The SAME bar, a different set of slots. It is one component because the
+  // shape is one decision — the height, the hairline, the rounded top edge,
+  // the rule that nothing in it may change size — and two copies of that
+  // would drift the first time either was touched.
+  //
+  // No basket here, and that is the point of the mode: somebody delivering is
+  // not shopping.
+  RiderBoardTab: { route: "RiderBoardTab", label: "Deliveries", icon: Bike },
+  RiderEarningsTab: { route: "RiderEarningsTab", label: "Earnings", icon: Wallet },
+  RiderAccountTab: { route: "RiderAccountTab", label: "Account", icon: CircleUserRound },
 };
 
 export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {

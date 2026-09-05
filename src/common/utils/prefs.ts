@@ -24,6 +24,15 @@ interface Prefs {
   theme?: ThemePreference;
   /** Whether the introduction has been through once. */
   onboarded?: boolean;
+  /**
+   * Which hat this account had on when the app was last closed.
+   *
+   * Remembered because a rider mid-shift who takes a call, or whose phone
+   * restarts, must come back to their deliveries — not to a grocery list. It
+   * is only ever HONOURED for somebody the server still says is an approved
+   * rider, so a preference cannot become a permission.
+   */
+  mode?: "customer" | "rider";
 }
 
 async function read(): Promise<Prefs> {
@@ -64,5 +73,9 @@ export const prefs = {
 
   async setOnboarded(): Promise<void> {
     await write({ ...(await read()), onboarded: true });
+  },
+
+  async setMode(mode: "customer" | "rider"): Promise<void> {
+    await write({ ...(await read()), mode });
   },
 };

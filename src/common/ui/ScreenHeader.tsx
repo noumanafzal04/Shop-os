@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Menu } from "lucide-react-native";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../theme";
 
 /**
@@ -37,16 +37,37 @@ interface Props {
    */
   showBack?: boolean;
   onBack?: () => void;
+  /**
+   * A hamburger instead of a back arrow.
+   *
+   * A TAB has nowhere to go back to, so the left slot is either empty or it is
+   * the way into the menu. Rider mode needs the second: its board is a root
+   * tab, and without this there was no control anywhere on it that could open
+   * the side menu — which is where the switch back to shopping lives. A mode
+   * you can enter and not leave is a trap, not a mode.
+   */
+  onMenu?: () => void;
 }
 
-export function ScreenHeader({ title, subtitle, right, showBack = true, onBack }: Props) {
+export function ScreenHeader({ title, subtitle, right, showBack = true, onBack, onMenu }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
 
   return (
     <View style={styles.row}>
-      {showBack && (
+      {onMenu != null && (
+        <Pressable
+          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Menu"
+          onPress={onMenu}
+        >
+          <Menu size={20} color={c.text} strokeWidth={2.3} />
+        </Pressable>
+      )}
+      {onMenu == null && showBack && (
         <Pressable
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
           hitSlop={8}

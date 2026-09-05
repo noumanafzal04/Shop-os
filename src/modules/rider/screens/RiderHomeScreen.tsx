@@ -19,6 +19,7 @@ import {
   Wallet,
 } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { SideMenu } from "../../../navigation/SideMenu";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { RefreshPill } from "../../../common/ui/RefreshPill";
@@ -55,6 +56,9 @@ export function RiderHomeScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
+  // The board is a root tab in rider mode, so the left slot is the way into
+  // the menu — which is where the switch back to shopping lives.
+  const [menu, setMenu] = React.useState(false);
 
   const rider = useRiderProfile();
   const approved = rider.data?.status === "approved";
@@ -105,7 +109,8 @@ export function RiderHomeScreen() {
   if (rider.isSuccess && !approved) {
     return (
       <SafeScreen edges={["top", "bottom"]}>
-        <ScreenHeader title="Rider" />
+        <ScreenHeader title="Rider" onMenu={() => setMenu(true)} />
+        <SideMenu visible={menu} onClose={() => setMenu(false)} />
         <View style={styles.gate}>
           <View style={styles.gateIcon}>
             <Bike size={30} color={c.primary} strokeWidth={1.8} />
@@ -136,7 +141,8 @@ export function RiderHomeScreen() {
   if (board.isError) {
     return (
       <SafeScreen edges={["top", "bottom"]}>
-        <ScreenHeader title="Rider" />
+        <ScreenHeader title="Rider" onMenu={() => setMenu(true)} />
+        <SideMenu visible={menu} onClose={() => setMenu(false)} />
         <LoadFailed
           what="your deliveries"
           error={board.error}
@@ -156,8 +162,10 @@ export function RiderHomeScreen() {
       <ScreenHeader
         title="Rider"
         subtitle={rider.data?.rider_code}
+        onMenu={() => setMenu(true)}
         right={<RefreshPill at={board.data?.as_of} busy={board.isFetching} onPress={() => board.refetch()} />}
       />
+      <SideMenu visible={menu} onClose={() => setMenu(false)} />
 
       <FlatList
         data={offers}

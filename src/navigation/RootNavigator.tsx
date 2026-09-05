@@ -40,9 +40,14 @@ import { HelpScreen } from "../modules/account/screens/HelpScreen";
 import { ProfileScreen } from "../modules/account/screens/ProfileScreen";
 import { AddressesScreen } from "../modules/account/screens/AddressesScreen";
 import { useColors, useTheme } from "../theme";
+import { useModeStore } from "../stores/modeStore";
+import { useRiderProfile } from "../modules/rider/hooks/useRider";
+import { prefs } from "../common/utils/prefs";
 import type {
   CustomerStackParamList,
   CustomerTabParamList,
+  RiderStackParamList,
+  RiderTabParamList,
   RootStackParamList,
 } from "./types";
 
@@ -146,6 +151,45 @@ function CustomerArea() {
   );
 }
 
+const RiderStack = createNativeStackNavigator<RiderStackParamList>();
+const RiderTabs = createBottomTabNavigator<RiderTabParamList>();
+
+/**
+ * A rider's app.
+ *
+ * Three tabs and no basket. The account screens are the SAME components the
+ * shopping side uses — a person's name and their settings do not change with
+ * the hat — which is also why they are not duplicated here.
+ */
+function RiderTabsArea() {
+  const c = useColors();
+
+  return (
+    <RiderTabs.Navigator
+      tabBar={renderTabBar}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: c.bg } }}
+    >
+      <RiderTabs.Screen name="RiderBoardTab" component={RiderHomeScreen} />
+      <RiderTabs.Screen name="RiderEarningsTab" component={RiderEarningsScreen} />
+      <RiderTabs.Screen name="RiderAccountTab" component={AccountScreen} />
+    </RiderTabs.Navigator>
+  );
+}
+
+function RiderArea() {
+  return (
+    <RiderStack.Navigator screenOptions={{ headerShown: false }}>
+      <RiderStack.Screen name="RiderTabs" component={RiderTabsArea} />
+      <RiderStack.Screen name="RiderJob" component={RiderJobScreen} />
+      <RiderStack.Screen name="RiderApply" component={RiderApplyScreen} />
+      <RiderStack.Screen name="Profile" component={ProfileScreen} />
+      <RiderStack.Screen name="Settings" component={SettingsScreen} />
+      <RiderStack.Screen name="Help" component={HelpScreen} />
+      <RiderStack.Screen name="Notifications" component={NotificationsScreen} />
+    </RiderStack.Navigator>
+  );
+}
+
 /**
  * Auth-driven navigation.
  *
@@ -212,6 +256,39 @@ export function RootNavigator() {
     if (status === "authenticated") initPush();
   }, [status]);
 
+  /**
+   * WHICH HAT, and who says so.
+   *
+   * The stored mode is a memory of what somebody was doing; the SERVER decides
+   * whether they may still do it. So the remembered value is only honoured
+   * once the profile has answered, and `syncFromProfile` demotes anybody whose
+   * approval was withdrawn while the app was closed — a preference must never
+   * become a permission.
+   */
+  const mode = useModeStore((s) => s.mode);
+  const hydrateMode = useModeStore((s) => s.hydrate);
+  const syncMode = useModeStore((s) => s.syncFromProfile);
+  const rider = useRiderProfile();
+  const canRide = rider.data?.status === "approved";
+  const hydrated = React.useRef(false);
+
+  React.useEffect(() => {
+    if (status !== "authenticated" || !rider.isSuccess) return;
+
+    if (!hydrated.current) {
+      hydrated.current = true;
+      prefs.all().then((p) => hydrateMode(p.mode, canRide)).catch(() => {});
+      return;
+    }
+    syncMode(canRide);
+  }, [status, rider.isSuccess, canRide, hydrateMode, syncMode]);
+
+  // Signing out takes the hat off with it. A shared phone must not open on
+  // somebody else's job board.
+  React.useEffect(() => {
+    if (status === "guest") syncMode(false);
+  }, [status, syncMode]);
+
   // Not a spinner on a white page: the launcher's own frame is brand red now
   // (`android/app/src/main/res/values/styles.xml`), so this continues that
   // colour and nothing flashes between tapping the icon and the first screen.
@@ -231,6 +308,16 @@ export function RootNavigator() {
       */}
       {status === "authenticated" && user != null && user.role !== "customer" ? (
           <RootStack.Screen name="BusinessAccount" component={BusinessAccountScreen} />
+        ) : mode === "rider" && canRide ? (
+          /*
+            RIDER MODE REPLACES THE APP, it does not sit inside it.
+
+            `canRide` is tested here as well as in the store because this is
+            the render that matters: the moment the server says somebody is no
+            longer approved, the job board must go, and relying on an effect to
+            have run first is relying on an order nothing enforces.
+          */
+          <RootStack.Screen name="Rider" component={RiderArea} />
         ) : (
           <RootStack.Screen name="Customer" component={CustomerArea} />
         )}

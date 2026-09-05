@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Banknote, Package, Store, Wallet } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { SideMenu } from "../../../navigation/SideMenu";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
@@ -51,12 +52,18 @@ export function RiderEarningsScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const [range, setRange] = React.useState<Range>("today");
+  const [menu, setMenu] = React.useState(false);
   const { from, to } = boundsFor(range);
   const earnings = useRiderEarnings(from, to);
 
   return (
     <SafeScreen edges={["top", "bottom"]}>
-      <ScreenHeader title="Earnings" subtitle="Your money, and the shop's" />
+      <ScreenHeader
+        title="Earnings"
+        subtitle="Your money, and the shop's"
+        onMenu={() => setMenu(true)}
+      />
+      <SideMenu visible={menu} onClose={() => setMenu(false)} />
 
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.tabs}>

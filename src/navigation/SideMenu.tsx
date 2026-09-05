@@ -19,13 +19,16 @@ import {
   Bike,
   CalendarClock,
   ChevronRight,
+  FileText,
   Heart,
   LifeBuoy,
   LogOut,
   MapPin,
   Pencil,
   Receipt,
+  RefreshCw,
   Settings,
+  ShoppingBag,
   UserRound,
   Wallet,
   type LucideIcon,
@@ -35,6 +38,7 @@ import { confirm } from "../common/ui/confirm";
 import { spacing, type ThemeColors, typography, useColors } from "../theme";
 import { useAuthStore } from "../stores/authStore";
 import { useRiderProfile } from "../modules/rider/hooks/useRider";
+import { useModeStore } from "../stores/modeStore";
 import type { RiderProfile } from "../modules/rider/services/riderService";
 
 /**
@@ -107,6 +111,23 @@ const APP: Link[] = [
 ];
 
 /**
+ * ON SHIFT, the menu is a different menu.
+ *
+ * Not the shopping one with two rows greyed out — a rider has no addresses to
+ * manage, no favourites and no reservations, and offering them is offering
+ * work the app cannot do in this mode. What is left is the job, the money, the
+ * paperwork, and the way back.
+ */
+const RIDER_WORK: Link[] = [
+  // Through the tab navigator by name, the same way the basket is reached from
+  // a shop screen. A bare tab name would bubble up to the stack, find nothing,
+  // and warn — navigating to a nested route means naming both halves.
+  { icon: Bike, label: "My deliveries", route: "RiderTabs", params: { screen: "RiderBoardTab" }, needsAccount: true },
+  { icon: Wallet, label: "Earnings", route: "RiderTabs", params: { screen: "RiderEarningsTab" }, needsAccount: true },
+  { icon: FileText, label: "My rider account", route: "RiderApply", needsAccount: true },
+];
+
+/**
  * The rider entry, in the rider's own words for where they are.
  *
  * One row that says four different things, because four different people open
@@ -148,6 +169,10 @@ export function SideMenu({ visible, onClose }: Props) {
   const clearSession = useAuthStore((s) => s.clear);
   const signedIn = status === "authenticated";
   const rider = useRiderProfile();
+  const mode = useModeStore((s) => s.mode);
+  const switchTo = useModeStore((s) => s.switchTo);
+  const onShift = mode === "rider";
+  const canRide = rider.data?.status === "approved";
 
   const panelWidth = Math.min(330, width * 0.86);
   const [mounted, setMounted] = useState(visible);
@@ -258,7 +283,6 @@ export function SideMenu({ visible, onClose }: Props) {
   };
 
   const r = riderLink(rider.data);
-  const riderOnline = rider.data?.status === "approved" && rider.data.is_online;
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
@@ -323,31 +347,89 @@ export function SideMenu({ visible, onClose }: Props) {
               </View>
             </Pressable>
 
-            {/* ── Riding ───────────────────────────────────────────── */}
-            <Text style={styles.caption}>Riding</Text>
-            <View style={styles.card}>
-              <Row
-                link={{ icon: Bike, label: r.label, route: r.route, needsAccount: true, value: r.value }}
-                accent={riderOnline}
-                onPress={() => go({ route: r.route, needsAccount: true })}
-                last={!riderOnline}
-              />
-              {riderOnline && (
-                <Row
-                  link={{ icon: Wallet, label: "Earnings", route: "RiderEarnings", needsAccount: true }}
-                  onPress={() => go({ route: "RiderEarnings", needsAccount: true })}
-                  last
-                />
-              )}
-            </View>
+            {/*
+              ── THE SWITCH ───────────────────────────────────────────
 
-            {/* ── Account ──────────────────────────────────────────── */}
-            <Text style={styles.caption}>Account</Text>
-            <View style={styles.card}>
-              {ACCOUNT.map((l, i) => (
-                <Row key={l.label} link={l} onPress={() => go(l)} last={i === ACCOUNT.length - 1} />
-              ))}
-            </View>
+              The one control that changes what this whole app is. It is a
+              full-width block rather than a row in a list because it is not a
+              destination: nothing else in this menu replaces the tab bar.
+
+              Shown only to somebody the SERVER approved. An unapproved
+              applicant sees the application row below instead, which is the
+              honest offer — there is nothing to switch to yet.
+            */}
+            {canRide && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.switcher,
+                  onShift && styles.switcherOn,
+                  pressed && styles.pressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={onShift ? "Switch to shopping" : "Switch to rider mode"}
+                onPress={() => {
+                  onClose();
+                  switchTo(onShift ? "customer" : "rider");
+                }}
+              >
+                <View style={[styles.switcherIcon, onShift && styles.switcherIconOn]}>
+                  {onShift ? (
+                    <ShoppingBag size={19} color={c.primary} strokeWidth={2} />
+                  ) : (
+                    <Bike size={19} color={c.success} strokeWidth={2} />
+                  )}
+                </View>
+                <View style={styles.switcherCopy}>
+                  <Text style={styles.switcherTitle}>
+                    {onShift ? "Switch to shopping" : "Switch to rider mode"}
+                  </Text>
+                  <Text style={styles.switcherHint}>
+                    {onShift
+                      ? "Browse shops and order"
+                      : rider.data?.is_online
+                        ? "You are online"
+                        : "Go online and take deliveries"}
+                  </Text>
+                </View>
+                <RefreshCw size={16} color={c.textMuted} strokeWidth={2.2} />
+              </Pressable>
+            )}
+
+            {/* ── On shift ─────────────────────────────────────────── */}
+            {onShift ? (
+              <>
+                <Text style={styles.caption}>Your shift</Text>
+                <View style={styles.card}>
+                  {RIDER_WORK.map((l, i) => (
+                    <Row key={l.label} link={l} onPress={() => go(l)} last={i === RIDER_WORK.length - 1} />
+                  ))}
+                </View>
+              </>
+            ) : (
+              <>
+                {/* ── Riding ───────────────────────────────────────── */}
+                {!canRide && (
+                  <>
+                    <Text style={styles.caption}>Riding</Text>
+                    <View style={styles.card}>
+                      <Row
+                        link={{ icon: Bike, label: r.label, route: r.route, needsAccount: true, value: r.value }}
+                        onPress={() => go({ route: r.route, needsAccount: true })}
+                        last
+                      />
+                    </View>
+                  </>
+                )}
+
+                {/* ── Account ──────────────────────────────────────── */}
+                <Text style={styles.caption}>Account</Text>
+                <View style={styles.card}>
+                  {ACCOUNT.map((l, i) => (
+                    <Row key={l.label} link={l} onPress={() => go(l)} last={i === ACCOUNT.length - 1} />
+                  ))}
+                </View>
+              </>
+            )}
 
             {/* ── Support ──────────────────────────────────────────── */}
             <Text style={styles.caption}>Support</Text>
@@ -470,6 +552,31 @@ const makeStyles = (c: ThemeColors) =>
       paddingVertical: 6,
     },
     editText: { ...typography.tiny, color: c.text, fontWeight: "700", fontSize: 11.5 },
+
+    switcher: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 11,
+      backgroundColor: c.successBg,
+      borderWidth: 1,
+      borderColor: c.success,
+      borderRadius: 18,
+      padding: 11,
+      marginTop: spacing.sm,
+    },
+    switcherOn: { backgroundColor: c.brand[100], borderColor: c.primary },
+    switcherIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: c.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    switcherIconOn: { backgroundColor: c.surface },
+    switcherCopy: { flex: 1, gap: 1 },
+    switcherTitle: { ...typography.label, color: c.text, fontSize: 14 },
+    switcherHint: { ...typography.tiny, color: c.textSecondary, fontSize: 11.5 },
 
     caption: {
       ...typography.tiny,

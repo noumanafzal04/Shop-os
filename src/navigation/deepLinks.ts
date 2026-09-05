@@ -71,6 +71,15 @@ export function resolveDeepLink(link: string | undefined | null): void {
       });
       return;
 
+    // A rider hearing about themselves. `rider` alone is the working screen,
+    // which is where an approval belongs — it is the thing that just became
+    // possible. `rider/application` is where a rejection's reason is printed
+    // and where it is corrected.
+    case "rider":
+      if (id === "application") navigationRef.navigate("RiderApply", undefined);
+      else navigationRef.navigate("RiderHome", undefined);
+      return;
+
     // Saved items. Both spellings on purpose: the screen is called Favorites
     // and people call it a wishlist, and a link that 404s because of which
     // word someone typed is a link that looks broken.

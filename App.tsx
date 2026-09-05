@@ -28,6 +28,7 @@ import { RootNavigator } from "./src/navigation/RootNavigator";
 import { ThemeProvider, useTheme } from "./src/theme";
 import { ToastHost } from "./src/common/ui/toast";
 import { ConfirmHost } from "./src/common/ui/confirm";
+import { ModeSwitchCover } from "./src/common/ui/ModeSwitchCover";
 import { prefs } from "./src/common/utils/prefs";
 import { useAuthStore } from "./src/stores/authStore";
 import { OnboardingScreen } from "./src/modules/onboarding/OnboardingScreen";
@@ -148,6 +149,12 @@ function Rooted({ saved }: { saved: { theme: ThemePreference; onboarded: boolean
           )}
           <ToastHost />
           <ConfirmHost />
+          {/*
+            Above the navigator, because it covers a navigator being replaced.
+            Mounted at the root rather than inside either mode, for the same
+            reason: it has to outlive the tree it is hiding.
+          */}
+          <ModeSwitchCover />
         </QueryClientProvider>
       </ThemeProvider>
     </SafeAreaProvider>
