@@ -52,7 +52,23 @@ const TOPICS: Topic[] = [
   },
   {
     q: "My order has not arrived",
-    a: "Open Orders and tap the order to see where it is. The shop's phone number is on that screen — for anything about the food or the goods themselves, the shop is the quickest answer.",
+    a: "Open Orders and tap the order to see where it is. That screen says how long ago it last checked and has a refresh button beside the title, so you can ask again without leaving it. The shop's phone number is there too — for anything about the food or the goods themselves, the shop is the quickest answer.",
+  },
+  {
+    q: "What is the 4-digit code on my order?",
+    a: "It appears once a rider is on the way, and they ask for it at your door. It is how the app knows your order actually reached you rather than somebody else — so read it out only when you have the order in your hands. Nobody will ever ask for it over the phone.",
+  },
+  {
+    q: "Can I see where my rider is?",
+    a: "Once they have collected your order, their name shows on the order screen along with how far along they are. If their phone is reporting its position you will see a Live marker; if it is not, we would rather show nothing than a pin from ten minutes ago.",
+  },
+  {
+    q: "Can I deliver orders myself?",
+    a: "Yes. Open the menu and tap Become a rider — it is the same account you shop with, so there is nothing new to install. You choose your vehicle, photograph your CNIC and licence, and send it in. Somebody checks it, usually within a day. Once you are approved a Rider mode appears in the same menu: go online when you want to work, take deliveries near you, and go offline when you are done.",
+  },
+  {
+    q: "I am a rider — how do I get paid?",
+    a: "You earn the delivery fee on each order you complete; Earnings in the menu shows what you have made. Cash you collect at the door is the SHOP'S money, not yours — it is shown separately as Cash in hand, and the shop marks it settled when you hand it over.",
   },
 ];
 

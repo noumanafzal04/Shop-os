@@ -60,3 +60,17 @@ jest.mock('@react-native-community/geolocation', () => ({
     requestAuthorization: jest.fn(),
   },
 }));
+
+/**
+ * The camera.
+ *
+ * `react-native-image-picker` is a native module: under Jest it has no
+ * TurboModule behind it, and its own source ships untranspiled. Mocked to
+ * "the person cancelled", which is the state every screen must already
+ * handle — so a test that forgets to override this exercises the branch
+ * most likely to be wrong rather than an imaginary happy path.
+ */
+jest.mock('react-native-image-picker', () => ({
+  launchCamera: jest.fn(async () => ({ didCancel: true })),
+  launchImageLibrary: jest.fn(async () => ({ didCancel: true })),
+}));

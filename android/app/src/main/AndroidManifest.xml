@@ -5,6 +5,17 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!--
+      A rider photographs their CNIC and driving licence to apply.
+
+      CAMERA is declared but NOT required: `react-native-image-picker` also
+      opens the gallery, and a device with no camera must still be able to
+      install the app rather than be filtered out of the Play Store listing by
+      a permission the shopping half never uses.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"

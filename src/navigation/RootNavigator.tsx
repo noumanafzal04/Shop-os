@@ -31,6 +31,10 @@ import { LocationScreen } from "../modules/marketplace/screens/LocationScreen";
 import { AccountScreen } from "../modules/account/screens/AccountScreen";
 import { NotificationsScreen } from "../modules/account/screens/NotificationsScreen";
 import { BrowseScreen } from "../modules/marketplace/screens/BrowseScreen";
+import { RiderApplyScreen } from "../modules/rider/screens/RiderApplyScreen";
+import { RiderEarningsScreen } from "../modules/rider/screens/RiderEarningsScreen";
+import { RiderHomeScreen } from "../modules/rider/screens/RiderHomeScreen";
+import { RiderJobScreen } from "../modules/rider/screens/RiderJobScreen";
 import { SettingsScreen } from "../modules/account/screens/SettingsScreen";
 import { HelpScreen } from "../modules/account/screens/HelpScreen";
 import { ProfileScreen } from "../modules/account/screens/ProfileScreen";
@@ -118,6 +122,17 @@ function CustomerArea() {
       <CustomerStack.Screen name="Help" component={HelpScreen} />
       <CustomerStack.Screen name="Profile" component={ProfileScreen} />
       <CustomerStack.Screen name="Browse" component={BrowseScreen} />
+
+      {/*
+        The rider hat. Four screens in the SAME stack as the shopping ones,
+        deliberately: one account wears both, and a separate navigator would
+        mean signing out of one to reach the other. `RiderHomeScreen` gates
+        itself on approval, so these routes are safe to reach from anywhere.
+      */}
+      <CustomerStack.Screen name="RiderApply" component={RiderApplyScreen} />
+      <CustomerStack.Screen name="RiderHome" component={RiderHomeScreen} />
+      <CustomerStack.Screen name="RiderJob" component={RiderJobScreen} />
+      <CustomerStack.Screen name="RiderEarnings" component={RiderEarningsScreen} />
 
       {/*
         Signing in is a MODAL on the shopping stack, not a screen in front of

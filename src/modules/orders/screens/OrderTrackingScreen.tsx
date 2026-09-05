@@ -1,9 +1,11 @@
 import React from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
-import { ArrowLeft, Check, MapPin, Phone } from "lucide-react-native";
+import { ArrowLeft, Bike, Check, MapPin, Phone } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AppButton } from "../../../common/ui/AppButton";
+import { RefreshPill } from "../../../common/ui/RefreshPill";
+import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { confirm } from "../../../common/ui/confirm";
 import { toast } from "../../../common/ui/toast";
 import { useMarketShop } from "../../marketplace/hooks/useMarketplace";
@@ -56,6 +58,7 @@ export function OrderTrackingScreen() {
   const { id } = useRoute<RouteProp<Params, "Order">>().params;
   const order = useMyOrder(id);
   const cancel = useCancelMyOrder();
+  const pull = usePullToRefresh(order.refetch);
   const o = order.data;
 
   // The shop's own record, for its phone number. The order payload does not
@@ -99,12 +102,19 @@ export function OrderTrackingScreen() {
         </Pressable>
         <Text style={styles.title}>Order</Text>
         {/*
-          A SPACER, so the title sits centred between two equal margins. It
-          used to reuse `styles.back`, which carries a surface fill and a
-          border — so the balancing gap rendered as a white circle floating in
-          the top right with nothing in it.
+          The right-hand slot is no longer a spacer.
+
+          It held an empty View to balance the back button — and before that,
+          the BUTTON's own style, which rendered the balancing gap as a white
+          circle floating in the top right with nothing in it. Now it holds
+          the thing this screen was missing: how old what you are reading is,
+          and a way to ask again without leaving and coming back.
         */}
-        <View style={styles.headerSpacer} />
+        <RefreshPill
+          at={order.dataUpdatedAt ? new Date(order.dataUpdatedAt).toISOString() : null}
+          busy={order.isFetching}
+          onPress={() => order.refetch()}
+        />
       </View>
 
       {order.isLoading || !o ? (
@@ -112,7 +122,16 @@ export function OrderTrackingScreen() {
           <Skeleton width="100%" height={200} borderRadius={radius.lg} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            // The gesture's own spinner. This screen polls every ten seconds
+            // while a rider is carrying the order, and `isRefetching` would
+            // put the indicator on screen for every one of those.
+            <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={c.primary} />
+          }
+        >
           {/* Status card */}
           <View style={styles.card}>
             <View style={styles.cardTop}>
@@ -159,6 +178,57 @@ export function OrderTrackingScreen() {
               </View>
             )}
           </View>
+
+          {/*
+            WHO IS BRINGING IT.
+
+            Above the address on purpose: once somebody is carrying the order,
+            "where is my rider" is the question this screen is open for, and
+            the address is a thing the customer already knows.
+          */}
+          {!!o.rider && !cancelled && (
+            <View style={[styles.card, o.rider.stage === "on_the_way" && styles.riderCardLive]}>
+              <View style={styles.riderTop}>
+                <View style={styles.riderAvatar}>
+                  <Bike size={18} color={c.primary} strokeWidth={2.2} />
+                </View>
+                <View style={styles.riderCopy}>
+                  <Text style={styles.riderName} numberOfLines={1}>
+                    {o.rider.name}
+                  </Text>
+                  <Text style={styles.riderStage}>
+                    {o.rider.stage === "delivered"
+                      ? "Delivered"
+                      : o.rider.stage === "on_the_way"
+                        ? "On the way to you"
+                        : o.rider.stage === "to_pickup"
+                          ? "Going to the shop"
+                          : "Assigned to your order"}
+                  </Text>
+                </View>
+                {o.rider.latitude != null && (
+                  <View style={styles.livePill}>
+                    <View style={styles.liveDot} />
+                    <Text style={styles.liveText}>Live</Text>
+                  </View>
+                )}
+              </View>
+
+              {/*
+                THE HANDOVER CODE. The rider asks for it at the door and
+                cannot close the delivery without it, so it is the largest
+                thing on the card while it matters — and absent entirely
+                before and after, because a code shown at checkout is a number
+                nobody remembers by the time it is wanted.
+              */}
+              {!!o.delivery_otp && (
+                <View style={styles.otpBox}>
+                  <Text style={styles.otpCaption}>Give this code to the rider</Text>
+                  <Text style={styles.otpCode}>{o.delivery_otp}</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Delivery info */}
           {o.fulfillment_type === "delivery" && !!o.delivery_address && (
@@ -255,7 +325,6 @@ const makeStyles = (c: ThemeColors) =>
     alignItems: "center",
     justifyContent: "center",
   },
-  headerSpacer: { width: 40 },
   headline: { ...typography.title, fontSize: 20, color: c.text, marginTop: spacing.sm },
   itemsMore: { ...typography.tiny, color: c.textMuted, paddingVertical: 4 },
   call: {
@@ -311,6 +380,42 @@ const makeStyles = (c: ThemeColors) =>
   stepLabelDone: { color: c.text, fontWeight: "500" },
   stepLabelActive: { fontWeight: "700", color: c.brand[700] },
   stepHint: { ...typography.tiny, color: c.gray[400], marginTop: 1 },
+
+  riderCardLive: { borderColor: c.primary, borderWidth: 1.5 },
+  riderTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  riderAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: c.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  riderCopy: { flex: 1, gap: 2 },
+  riderName: { ...typography.label, color: c.text, fontSize: 15 },
+  riderStage: { ...typography.tiny, color: c.textSecondary },
+  livePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: c.successBg,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.success },
+  liveText: { ...typography.tiny, color: c.success, fontWeight: "800", fontSize: 10 },
+
+  otpBox: {
+    alignItems: "center",
+    backgroundColor: c.warmSoft,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.sm,
+    gap: 2,
+  },
+  otpCaption: { ...typography.tiny, color: c.onWarm, fontWeight: "700" },
+  otpCode: { ...typography.display, color: c.onWarm, fontSize: 30, letterSpacing: 8 },
 
   addrRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   addrText: { ...typography.small, color: c.gray[600], flex: 1 },

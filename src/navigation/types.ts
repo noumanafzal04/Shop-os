@@ -29,6 +29,14 @@ export type CustomerStackParamList = {
     | { q?: string; business_type?: string; title?: string; filters?: BrowseFilters }
     | undefined;
 
+  // The rider hat. Same stack as the shopping screens on purpose — one
+  // account wears both, and a separate navigator would mean signing out of
+  // one to reach the other.
+  RiderApply: undefined;
+  RiderHome: undefined;
+  RiderJob: { id: string };
+  RiderEarnings: undefined;
+
   // Modals. A guest browses the whole app and is asked to sign in only where an
   // account is genuinely required, without losing the screen they were on.
   SignIn: undefined;
@@ -44,8 +52,9 @@ export type CustomerStackParamList = {
  * which already sells with no network. See `BusinessAccountScreen`, which is
  * what a shop's account now lands on.
  *
- * The rider side will be a fourth entry here, reached by a switch in the
- * account menu rather than by a different login — one account, two hats.
+ * The rider side is NOT a fourth entry: it lives inside `Customer`, on the
+ * same stack, reached by a link in the side menu. One account, two hats — and
+ * a separate root would have meant signing out of one to reach the other.
  */
 export type RootStackParamList = {
   /** Guests and customers alike — see `RootNavigator` for why they share one. */
