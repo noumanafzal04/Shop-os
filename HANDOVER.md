@@ -6745,3 +6745,188 @@ now, reset per call, merged into the response by the till's controller.
 Backend 2470 / 2472 · panel 1463 / 124 · tsc 0 · eslint 0 errors · Playwright
 device projects 237 passed. Full argument in
 [`docs/decisions/shopos-offered-must-be-reachable.md`](docs/decisions/shopos-offered-must-be-reachable.md).
+
+---
+
+## The customer app takes its shape
+
+**2026-09-05 · mobile**
+
+A day of design references. Every one of them uncovered something already
+broken, which is the part worth writing down.
+
+**The basket was a screen you had to scroll to check.** A cart exists so
+somebody can see everything they are about to pay for at once and press one
+button; ours fitted five lines. The space had gone to furniture: a three-step
+progress bar announcing a step the tab bar already showed (48px), rows that
+stacked name / options / stepper three deep beside a 56px thumbnail (86px
+each), and a footer spending 140px on a label, a number, a line of small print
+and a button. 330px of an 800px screen before a single item was drawn. Rebuilt
+to a costed budget — header 46, row 70, bill 152 — it fits eight, and a normal
+order of three to six things does not scroll at all. The options line was the
+quiet one: it is empty for most items, so every row paid for a third line of
+height that usually had nothing in it.
+
+**And the basket screen was not in the flow.** The shop's sticky bar said *View
+cart* and navigated to Checkout. The one screen where you change a quantity or
+drop a line was skipped on the way to the screen that asks for your address,
+and the only way to reach it was to notice the tab. Checkout had no back button
+either — a modal whose only way out was an outline button below the totals,
+under a form long enough that reaching it meant scrolling past everything you
+had just filled in.
+
+**Checkout was the cart again with a payment form attached.** It listed the
+whole basket with a stepper on every row; eleven items pushed the address, the
+total and the button off the bottom. Two copies of the cart could not disagree
+only because they shared a store — they still made the same screen twice.
+
+**Four shortcuts, one destination.** `Offers`, `Pick-up`, `New shops` and `Top
+rated` each navigated to the shop list passing only a TITLE. Four buttons, one
+unfiltered list of every shop, four headings over it. Nothing failed; the screen
+looked finished; the claim was the heading. They carry their filter as part of
+their definition now, and a guard fails if one narrows nothing, if two narrow
+the same thing, or if one names a sort the server would 422. *Pick-up* is gone
+rather than fixed — `pickup_enabled` defaults to true for every shop, so
+filtering on it returns the whole marketplace: a correct filter and a useless
+shortcut.
+
+**The filters existed already, on the server, with no caller.**
+`/marketplace/products` and `/marketplace/products/facets` — price range, sort,
+category, size, rating, on-sale, in-stock, every option counted from the same
+query the listing runs — were built for the web aisle and had no caller on the
+mobile side at all. The app's only filters were two chips narrowing the page of
+search results already on screen. So the filter sheet is a door, not a feature:
+`BrowseScreen` + `FilterSheet`, with the button reading "Show 42 results" from
+the real count. The price slider's bounds come from the server too — a
+hardcoded 0–10,000 puts an entire grocery aisle inside the first eighth of the
+track, where no two prices can be told apart.
+
+**Two shopping trolleys in one tab bar.** `mart` and `grocery` both mapped to
+`ShoppingCart`, which is also the middle button: one meaning "groceries" and one
+meaning "what you are buying right now". One edit, in the one icon map.
+
+**The splash screen was gated on the server.** `useBootstrapSession` held
+`status: "booting"` until `/auth/me` answered. An access token lives one hour,
+so the ordinary case — opening the app the next morning — is a 401 after up to
+twenty seconds, then up to another twenty refreshing, with the app on its own
+logo throughout. Measured at about three minutes. Tokens on the phone are
+enough to open it; the profile arrives behind. That change had a consequence
+worth naming: the route test was `user?.role !== "customer"`, which is TRUE for
+a null user, so every returning customer would have seen "you are in the wrong
+app" until their profile loaded.
+
+**Three things deliberately not fixed.** White on the new `#E94E00` is about
+3.1:1 — fine for bold display text and button labels, not for body text, and
+that is the cost of the warmer hue rather than an oversight. `prefs` keeps the
+theme choice in the Keychain, which is for secrets, because this app has no
+key-value store at all and AsyncStorage is a native module. Geist is not
+installed; the files are not in the repo.
+
+tsc 0 · eslint 0 errors · jest 22 suites / 230 tests. Full argument in
+[`docs/decisions/shopos-mobile-customer-shape.md`](docs/decisions/shopos-mobile-customer-shape.md).
+
+---
+
+## The same app, on a real phone
+
+**2026-09-05 · mobile · second pass**
+
+**Seven pushed screens were cut off at the bottom.** `edges={["top"]}` is right
+for a TAB — the floating bar covers the gesture area, and padding it again opens
+a dead strip under every list. It is wrong for everything else, because nothing
+sits below a pushed screen: the location picker, search, reservations,
+favourites, order tracking, notifications and addresses all put their last row —
+and on some, their only button — under the gesture bar. All seven look perfect
+on an emulator that has no gesture bar, which is the whole reason this is a rule
+now: `bottomInset.test.ts` reads both navigators out of `RootNavigator` and
+fails on any stack-only screen that pins the top edge, and separately asserts
+that `MarketScreen` — which is the Grocery tab AND `ShopList` — computes it per
+instance rather than writing one answer into its JSX.
+
+**The navigator had no theme.** `NavigationContainer` was left on
+`DefaultTheme`, whose background is a light grey in BOTH themes. It shows
+wherever a screen does not cover it, and the clearest case was the tab bar's
+rounded top corners: two bright notches cut out of the bar on a dark page.
+Nothing in the palette was wrong; the palette was not being asked.
+
+**Two screens could not be left.** Favourites and Reservations are both
+reachable from the side menu and neither had a back control — the only way out
+was the phone's own gesture, which nothing on screen mentions. They share a
+`ScreenHeader` now, and a guard walks every non-modal stack screen.
+
+**Three headers still carried the white-circle spacer** — the bug fixed on the
+tracking screen a fortnight ago: a title centred by an empty View that reused
+the BACK BUTTON's style, so the balancing gap rendered as an empty circle
+floating in the top right. `ScreenHeader` left-aligns its title, so there is no
+gap to balance and nothing for a spacer to get wrong.
+
+**Six back arrows were drawn in `c.black`** and were invisible on a dark phone.
+The dark-mode guard could not see one of them, because every one of those
+screens calls `useColors()` perfectly correctly — it forbids the token outright
+now.
+
+**There was no way to edit your own profile at all**, no screen and no endpoint.
+`PUT /auth/profile` arrived with the screen. Changing an email or phone drops
+its verified mark: `email_verified_at` means "we sent a code THERE and somebody
+read it", and carrying that to a new address is a claim the system cannot
+support.
+
+**The location picker's only control did not work.** Street search needs a
+geocoding key and none is configured, so somebody whose GPS guessed the wrong
+city could not correct it. `GET /marketplace/cities` answers from our own rows,
+and it is the half that matters — the marketplace lists BY CITY, and a pin four
+streets over changes nothing about which shops appear. Only cities that have a
+marketplace-visible shop; offering an empty one is the same fault as a filter
+rail counting from a hardcoded list.
+
+The Account tab is a proper account page now (name, View profile, the three
+things anybody opens it for as tiles, everything else as a list), the side menu
+wears the brand rather than the tab bar's ink, and the home header is back to a
+hamburger — the avatar was showing you who you were in the one place the Account
+tab already does.
+
+Backend 27 passed on the touched suites · mobile tsc 0 · eslint 0 errors · jest
+24 suites / 264 tests.
+
+---
+
+## What the photograph showed
+
+**2026-09-05 · mobile · third pass**
+
+The second pass fixed seven screens that pinned `edges={["top"]}` — and did not
+fix the thing the photograph actually showed, because two more places spend the
+bottom inset and neither goes through `SafeScreen`.
+
+**The tab bar was reading the wrong inset.** React Navigation renders a custom
+tab bar inside a context whose bottom inset is ZERO: it treats the inset as its
+own to spend and hands the real figure to the bar as a PROP. So
+`useSafeAreaInsets()` — correct on every other screen in this app — returned 0
+there, and `Math.max(insets.bottom, 8)` gave the bar eight points of clearance
+under a forty-eight point navigation bar. The labels touched the buttons and the
+basket disc was cut in half. On a gesture-navigation emulator 8 nearly covers
+the inset, which is why it survived every check until a photograph of a real
+phone arrived.
+
+**An absolutely-positioned bar does not sit inside its parent's padding.** Yoga
+measures `bottom` from the border box, so `SafeScreen`'s inset — which correctly
+holds the shop's LIST clear of the navigation bar — does nothing for the sticky
+cart bar floating above it. On a three-button phone it sat underneath the
+buttons, with "View cart · Rs 3,980" showing through them.
+
+**The guard I wrote for the first of those had a bug of its own.** It grepped
+the raw file for `useSafeAreaInsets(` and matched the DOCBLOCK explaining why
+the hook is wrong there — a guard that cannot tell prose from code fails on the
+explanation of the bug it exists to prevent. It strips comments first now.
+
+**And the splash was two Keychain reads long.** The saved settings gate the
+first paint and the session gates the splash, and they ran one after the other:
+`App` awaited the settings, mounted the tree, and only then did the bootstrap
+begin reading tokens. Two sequential trips to the Android Keystore for two
+answers that do not depend on each other. They run together now, and
+`hydrateTokens` returns immediately when the tokens are already in memory.
+
+Reproduced on the emulator by switching it to three-button navigation, fixed,
+and confirmed there: the bar clears the buttons and the basket is whole.
+
+tsc 0 · eslint 0 errors · jest 24 suites / 267 tests.
