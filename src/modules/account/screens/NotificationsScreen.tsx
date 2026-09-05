@@ -4,9 +4,10 @@ import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Bell } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
-import { Skeleton } from "../../../common/ui/Skeleton";
+import { SkeletonListRow } from "../../../common/ui/Skeleton";
+import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { apiGet } from "../../../common/api/client";
-import { colors, radius, spacing, typography } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 
 interface AppNotification {
   id: string;
@@ -17,6 +18,8 @@ interface AppNotification {
 }
 
 export function NotificationsScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const list = useQuery({
     queryKey: ["notifications"],
@@ -25,21 +28,34 @@ export function NotificationsScreen() {
   const rows = list.data?.data ?? [];
 
   return (
-    <SafeScreen backgroundColor={colors.bg} edges={["top"]}>
+    <SafeScreen backgroundColor={c.bg}>
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeft size={20} color={colors.black} strokeWidth={2} />
+          <ArrowLeft size={20} color={c.text} strokeWidth={2} />
         </Pressable>
         <Text style={styles.title}>Notifications</Text>
-        <View style={styles.back} />
+        {/*
+          A SPACER, so the title sits centred between two equal margins — and
+          it must NOT reuse `styles.back`, which carries a surface fill and a
+          border. Reused, the balancing gap renders as an empty white circle
+          floating in the top right. Same bug, third screen.
+        */}
+        <View style={styles.headSpacer} />
       </View>
 
       {list.isLoading ? (
         <View style={styles.list}>
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} width="100%" height={72} borderRadius={radius.lg} />
+            <SkeletonListRow key={i} />
           ))}
         </View>
+      ) : list.isError ? (
+        <LoadFailed
+          what="your notifications"
+          error={list.error}
+          onRetry={() => list.refetch()}
+          retrying={list.isFetching}
+        />
       ) : (
         <FlatList
           data={rows}
@@ -47,7 +63,7 @@ export function NotificationsScreen() {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Bell size={32} color={colors.gray[300]} strokeWidth={1.6} />
+              <Bell size={32} color={c.gray[300]} strokeWidth={1.6} />
               <Text style={styles.empty}>Nothing yet — order updates will land here.</Text>
             </View>
           }
@@ -63,7 +79,8 @@ export function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -71,31 +88,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
+  headSpacer: { width: 40 },
   back: {
     width: 40,
     height: 40,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { ...typography.h3, color: colors.black },
+  title: { ...typography.h3, color: c.text },
 
   list: { padding: spacing.md, gap: spacing.xs },
   emptyWrap: { alignItems: "center", gap: spacing.sm, paddingTop: spacing.xxl },
-  empty: { ...typography.small, color: colors.gray[400] },
+  empty: { ...typography.small, color: c.gray[400] },
 
   row: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     padding: spacing.md,
     gap: 3,
   },
-  rowUnread: { borderColor: colors.brand[300], backgroundColor: colors.brand[50] },
-  rowTitle: { ...typography.label, color: colors.black },
-  rowBody: { ...typography.small, color: colors.gray[600] },
+  rowUnread: { borderColor: c.brand[300], backgroundColor: c.brand[50] },
+  rowTitle: { ...typography.label, color: c.text },
+  rowBody: { ...typography.small, color: c.gray[600] },
 });

@@ -53,6 +53,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   /** Load tokens from the Keychain into memory. True if tokens exist. */
   hydrateTokens: async () => {
+    // Already in memory: skip the round trip.
+    //
+    // This is called twice on a cold start — once by `App`, to run it
+    // ALONGSIDE the saved-settings read rather than after it, and once by
+    // `useBootstrapSession`. The Keychain is not free, and two sequential
+    // reads were most of the wait on the splash screen.
+    if (get().accessToken) return true;
+
     const tokens = await secureStorage.getTokens();
     if (!tokens) return false;
     set({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });

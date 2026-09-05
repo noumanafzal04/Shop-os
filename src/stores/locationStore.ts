@@ -3,6 +3,7 @@ import { PermissionsAndroid, Platform } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
 import { marketplaceService, type LocateResult } from "../modules/marketplace/services/marketplaceService";
 import { reverseGeocode } from "../services/geo";
+import { BRAND } from "../common/brand";
 
 /**
  * Foodpanda model — NO city picker. On launch: GPS → /marketplace/locate →
@@ -53,7 +54,7 @@ export const useLocationStore = create<LocationState>((set, get) => ({
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           {
             title: "Find shops near you",
-            message: "ShopOS uses your location to show nearby shops and delivery options.",
+            message: `${BRAND.name} uses your location to show nearby shops and delivery options.`,
             buttonPositive: "Allow",
           },
         );

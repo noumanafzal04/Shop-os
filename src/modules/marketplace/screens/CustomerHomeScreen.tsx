@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FlatList,
   Image,
@@ -10,35 +10,39 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Bell, ChevronDown, MapPin, Search, Star } from "lucide-react-native";
+import {
+  Bell,
+  ChevronDown,
+  MapPin,
+  Menu,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { SideMenu } from "../../../navigation/SideMenu";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
-import { Skeleton } from "../../../common/ui/Skeleton";
-import { colors, radius, spacing, typography } from "../../../theme";
+import { Skeleton, SkeletonListRow } from "../../../common/ui/Skeleton";
+import { LoadFailed } from "../../../common/ui/LoadFailed";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useAuthStore } from "../../../stores/authStore";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useHomeFeed } from "../hooks/useMarketplace";
+import { formatDistance } from "../shopFacts";
+import { PromoCarousel } from "../components/PromoCarousel";
+import { ShopFactsRow } from "../components/ShopFactsRow";
 import { marketplaceService, type HomeBanner, type PublicShop } from "../services/marketplaceService";
-
-/** Business-type chip icons — emoji keeps it asset-free and crisp. */
-const TYPE_ICONS: Record<string, string> = {
-  restaurant: "🍕",
-  grocery: "🛒",
-  pharmacy: "💊",
-  retail: "🛍️",
-  salon: "💇",
-  workshop: "🔧",
-  service: "🧰",
-  wholesale: "📦",
-  books: "📚",
-  hardware: "🛠️",
-};
+import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
+import { SHORTCUTS, tradeIcon } from "../tradeIcon";
+import { shopCover, shopInitial } from "../shopCover";
 
 const typeLabel = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export function CustomerHomeScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const user = useAuthStore((s) => s.user);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { status, lat, lng, label, detect } = useLocationStore();
 
   // First launch: resolve GPS → city automatically (foodpanda-style).
@@ -47,6 +51,7 @@ export function CustomerHomeScreen() {
   }, [status, detect]);
 
   const feed = useHomeFeed({ lat: lat ?? undefined, lng: lng ?? undefined });
+  const pull = usePullToRefresh(feed.refetch);
   const firstName = user?.name?.split(" ")[0];
 
   const onBanner = async (b: HomeBanner) => {
@@ -59,91 +64,215 @@ export function CustomerHomeScreen() {
   const openShop = (shop: PublicShop) => navigation.navigate("MarketShop", { slug: shop.slug });
 
   return (
-    <SafeScreen backgroundColor={colors.brand[500]} edges={["top"]}>
-      <FocusedStatusBar style="light-content" background={colors.brand[500]} />
+    <SafeScreen backgroundColor={c.brand[500]} edges={["top"]}>
+      <FocusedStatusBar style="light-content" background={c.brand[500]} />
       <ScrollView
         style={styles.scroll}
+        contentContainerStyle={styles.scrollGround}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={feed.isRefetching} onRefresh={() => feed.refetch()} tintColor={colors.brand[500]} />
+          <RefreshControl
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
+            tintColor={c.brand[500]}
+            // The scroll view starts UNDER the red header, so the spinner's
+            // default position is on top of the welcome line.
+            progressViewOffset={140}
+          />
         }
       >
         {/* ── Green hero header ─────────────────────────────────── */}
         <View style={styles.header}>
+          {/*
+            The ADDRESS leads, not a greeting.
+            
+            It was "Welcome, / Nouman" in display type with the delivery
+            location tucked underneath in small caps — which puts the app's
+            most consequential control, the one that decides which shops even
+            appear, third in the reading order behind a word that tells nobody
+            anything. A person's own name is not news to them.
+          */}
           <View style={styles.headerTop}>
-            <View style={styles.hello}>
-              <Text style={styles.welcome}>Welcome{firstName ? "," : ""}</Text>
-              <Text style={styles.name}>{firstName ?? "Guest"}</Text>
-            </View>
-            <Pressable style={styles.bell} onPress={() => navigation.navigate("Notifications")}>
-              <Bell size={20} color={colors.white} strokeWidth={2} />
+            {/*
+              A hamburger, not an avatar.
+
+              The avatar carried an initial and opened the menu, which made one
+              control mean two things — and the Account TAB is now a full
+              account page with the same initial on it, so the header was
+              showing you who you were twice.
+            */}
+            <Pressable
+              style={styles.burger}
+              onPress={() => setMenuOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Menu"
+            >
+              <Menu size={21} color={c.white} strokeWidth={2.4} />
+            </Pressable>
+
+            <Pressable
+              style={styles.place}
+              onPress={() => navigation.navigate("Location")}
+              accessibilityRole="button"
+              accessibilityLabel="Change delivery location"
+            >
+              <View style={styles.placeLabelRow}>
+                <Text style={styles.placeLabel}>Deliver to</Text>
+                <ChevronDown size={13} color={c.brand[200]} strokeWidth={3} />
+              </View>
+              <View style={styles.placeRow}>
+                <MapPin size={15} color={c.white} strokeWidth={2.6} />
+                <Text style={styles.placeName} numberOfLines={1}>
+                  {status === "locating" ? "Finding you…" : label ?? "Set your location"}
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={styles.bell}
+              onPress={() => navigation.navigate("Notifications")}
+              accessibilityRole="button"
+              accessibilityLabel="Notifications"
+            >
+              <Bell size={20} color={c.white} strokeWidth={2} />
             </Pressable>
           </View>
 
-          {/* Location row — tap to change the delivery address */}
-          <Pressable style={styles.locationRow} onPress={() => navigation.navigate("Location")}>
-            <MapPin size={14} color={colors.white} strokeWidth={2.2} />
-            <Text style={styles.locationText} numberOfLines={1}>
-              {status === "locating" ? "Finding you…" : label ?? "Set your location"}
-            </Text>
-            <ChevronDown size={14} color={colors.brand[100]} strokeWidth={2.2} />
-          </Pressable>
+          {/*
+            One short line.
 
-          {/* Search — opens the universal search screen */}
-          <Pressable style={styles.searchBar} onPress={() => navigation.navigate("Search")}>
-            <Search size={18} color={colors.gray[400]} strokeWidth={2} />
-            <Text style={styles.searchHint}>Search food, groceries, medicine…</Text>
+            The first version — "Hi Nouman, what are you looking for?" — wrapped
+            onto two lines of 25px display type and turned the header into a
+            third of the screen before a single shop appeared. A header is a
+            place you pass through.
+          */}
+          <Text style={styles.headline} numberOfLines={1}>
+            {firstName ? `Hi ${firstName}` : "Welcome"}
+          </Text>
+
+          {/*
+            Search and filter in ONE control.
+
+            They answer different questions — search finds a thing you can
+            name, the aisle finds everything under Rs 500 — but they are the
+            same gesture from the same place, and two separate round buttons
+            beside a bar is three objects doing the work of one.
+          */}
+          <Pressable
+            style={styles.searchBar}
+            accessibilityRole="button"
+            onPress={() => navigation.navigate("Search")}
+          >
+            <Search size={18} color={c.gray[400]} strokeWidth={2} />
+            <Text style={styles.searchHint} numberOfLines={1}>
+              Search food, groceries, medicine…
+            </Text>
+            <Pressable
+              style={styles.searchFilter}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Browse and filter all products"
+              onPress={() => navigation.navigate("Browse")}
+            >
+              <SlidersHorizontal size={17} color={c.primary} strokeWidth={2.4} />
+            </Pressable>
           </Pressable>
         </View>
 
         {/* ── Light content area ────────────────────────────────── */}
         <View style={styles.body}>
-          {/* Quick actions (foodpanda-style tiles) */}
-          <View style={styles.quickRow}>
-            {(
-              [
-                ["🏷️", "Offers", () => navigation.navigate("ShopList", { title: "Shops with offers" })],
-                ["🛍️", "Pick-up", () => navigation.navigate("ShopList", { title: "Pick-up" })],
-                ["✨", "New shops", () => navigation.navigate("ShopList", { title: "New shops" })],
-                ["⭐", "Top rated", () => navigation.navigate("ShopList", { title: "Top rated" })],
-              ] as Array<[string, string, () => void]>
-            ).map(([emoji, label, go]) => (
-              <Pressable key={label} style={styles.quick} onPress={go}>
-                <View style={styles.quickIcon}>
-                  <Text style={styles.quickEmoji}>{emoji}</Text>
+          {/*
+            One request builds this whole screen — banners, nearby, top rated,
+            deals. So one failure does not empty a section, it empties the page,
+            and the page then says "No shops around here yet" about a city full
+            of them.
+          */}
+          {feed.isError && (
+            <LoadFailed
+              what="shops near you"
+              error={feed.error}
+              onRetry={() => feed.refetch()}
+              retrying={feed.isFetching}
+            />
+          )}
+          {/*
+            ONE grid, two kinds of shortcut.
+
+            They were built as two components — a fixed row of 70px tiles with
+            a 58px rounded square, and a horizontal scroller of 64px tiles with
+            a 56px circle. Four squares over four circles, at two sizes, on two
+            pitches: nothing lined up vertically and the eye read eight
+            unrelated buttons rather than two rows of the same thing.
+
+            The KINDS still differ — the first four narrow the aisle, the rest
+            open a trade — and that is a difference of destination, not of
+            drawing. So one tile, one size, one column pitch, and a single
+            `flexWrap` row that keeps them aligned however many trades the
+            server sends.
+          */}
+          <View style={styles.tiles}>
+            {SHORTCUTS.map(({ key, label: shortcut, icon: Icon, tone, filters }) => (
+              <Pressable
+                key={key}
+                style={styles.tile}
+                accessibilityRole="button"
+                accessibilityLabel={shortcut}
+                onPress={() => navigation.navigate("Browse", { title: shortcut, filters })}
+              >
+                <View
+                  style={[
+                    styles.tileIcon,
+                    // Solid amber, not a pale amber glyph on a paler amber
+                    // tile — that pairing was 1.3:1 and the icon vanished.
+                    { backgroundColor: tone === "offer" ? c.warm : c.brand[100] },
+                  ]}
+                >
+                  <Icon
+                    size={23}
+                    color={tone === "offer" ? c.onWarm : c.primary}
+                    strokeWidth={2}
+                  />
                 </View>
-                <Text style={styles.quickLabel}>{label}</Text>
+                <Text style={styles.tileLabel} numberOfLines={1}>
+                  {shortcut}
+                </Text>
               </Pressable>
             ))}
-          </View>
 
-          {/* Business-type chips */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chips}
-            style={styles.chipsScroll}
-          >
             {(feed.data?.business_types ?? []).map((t) => (
               <Pressable
                 key={t.type}
-                style={styles.chip}
-                onPress={() => navigation.navigate("ShopList", { business_type: t.type, title: typeLabel(t.type) })}
+                style={styles.tile}
+                accessibilityRole="button"
+                accessibilityLabel={typeLabel(t.type)}
+                onPress={() =>
+                  navigation.navigate("ShopList", {
+                    business_type: t.type,
+                    title: typeLabel(t.type),
+                  })
+                }
               >
-                <View style={styles.chipIcon}>
-                  <Text style={styles.chipEmoji}>{TYPE_ICONS[t.type] ?? "🏬"}</Text>
+                <View style={styles.tileIcon}>
+                  {React.createElement(tradeIcon(t.type), {
+                    size: 23,
+                    color: c.primary,
+                    strokeWidth: 2,
+                  })}
                 </View>
-                <Text style={styles.chipLabel}>{typeLabel(t.type)}</Text>
+                <Text style={styles.tileLabel} numberOfLines={1}>
+                  {typeLabel(t.type)}
+                </Text>
               </Pressable>
             ))}
+
             {feed.isLoading &&
-              [0, 1, 2, 3, 4].map((i) => (
-                <View key={i} style={styles.chip}>
-                  <Skeleton width={56} height={56} borderRadius={radius.full} />
+              [0, 1, 2, 3].map((i) => (
+                <View key={i} style={styles.tile}>
+                  <Skeleton width={56} height={56} borderRadius={18} />
                   <Skeleton width={44} height={10} borderRadius={4} />
                 </View>
               ))}
-          </ScrollView>
+          </View>
 
           {/* Out-of-service notice */}
           {status === "unserved" && (
@@ -154,27 +283,12 @@ export function CustomerHomeScreen() {
             </View>
           )}
 
-          {/* Promo banners */}
-          {(feed.data?.banners.length ?? 0) > 0 && (
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={feed.data!.banners}
-              keyExtractor={(b) => b.id}
-              contentContainerStyle={styles.bannerRow}
-              renderItem={({ item }) => (
-                <Pressable style={styles.banner} onPress={() => onBanner(item)}>
-                  {item.image_url ? (
-                    <Image source={{ uri: item.image_url }} style={styles.bannerImg} resizeMode="cover" />
-                  ) : (
-                    <View style={[styles.bannerImg, styles.bannerFallback]}>
-                      <Text style={styles.bannerTitleAlt}>{item.title}</Text>
-                    </View>
-                  )}
-                </Pressable>
-              )}
-            />
-          )}
+          {/*
+            Always rendered, even with nothing sold: the strip carries the
+            app's own placeholders instead, so the home screen does not change
+            shape depending on whether anyone bought an advert.
+          */}
+          <PromoCarousel banners={feed.data?.banners ?? []} onPress={onBanner} />
 
           {/* Near you */}
           <SectionHeader
@@ -184,7 +298,7 @@ export function CustomerHomeScreen() {
           {feed.isLoading ? (
             <View style={styles.hRow}>
               {[0, 1].map((i) => (
-                <Skeleton key={i} width={220} height={120} borderRadius={radius.lg} />
+                <SkeletonListRow key={i} width={240} />
               ))}
             </View>
           ) : (
@@ -214,11 +328,24 @@ export function CustomerHomeScreen() {
                     style={styles.dealCard}
                     onPress={() => item.shop && navigation.navigate("MarketShop", { slug: item.shop.slug })}
                   >
-                    <View style={styles.dealImgWrap}>
+                    {/*
+                      The cover is keyed on the DEAL, not on its shop: a shop's
+                      three offers sitting side by side in one colour looks like
+                      one card repeated. Keyed per item they read as three
+                      things, which is what they are.
+                    */}
+                    <View
+                      style={[
+                        styles.dealImgWrap,
+                        !item.image && { backgroundColor: shopCover(item.id).bg },
+                      ]}
+                    >
                       {item.image ? (
                         <Image source={{ uri: item.image }} style={styles.dealImg} resizeMode="cover" />
                       ) : (
-                        <Text style={styles.dealInitial}>{item.name.charAt(0)}</Text>
+                        <Text style={[styles.dealInitial, { color: shopCover(item.id).fg }]}>
+                          {shopInitial(item.name)}
+                        </Text>
                       )}
                       <View style={styles.offBadge}>
                         <Text style={styles.offBadgeText}>{item.percent_off}% off</Text>
@@ -232,7 +359,7 @@ export function CustomerHomeScreen() {
                       </View>
                       <Text style={styles.dealShop} numberOfLines={1}>
                         {item.shop?.business_name}
-                        {item.distance_km != null ? ` · ${item.distance_km} km` : ""}
+                        {item.distance_km != null ? ` · ${formatDistance(item.distance_km)}` : ""}
                       </Text>
                     </View>
                   </Pressable>
@@ -271,11 +398,15 @@ export function CustomerHomeScreen() {
           <View style={{ height: spacing.xxl }} />
         </View>
       </ScrollView>
+
+      <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </SafeScreen>
   );
 }
 
 function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => void }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -289,11 +420,31 @@ function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => vo
 }
 
 function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: boolean; onPress: () => void }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const closed = shop.is_open_now === false;
+  const cover = shopCover(shop.slug);
+
   return (
     <Pressable style={[styles.shopCard, wide && styles.shopCardWide, closed && styles.shopClosed]} onPress={onPress}>
-      <View style={styles.shopLogo}>
-        <Text style={styles.shopInitial}>{shop.business_name.charAt(0)}</Text>
+      {/*
+        A COVER, not a pale letter tile.
+        
+        Every card carried the same brand-50 square with a red initial in it, so
+        a row of shops was a row of identical pink squares — which reads as a
+        page whose images failed rather than as a page designed without any.
+        The colour is derived from the slug, so a shop looks the same on every
+        screen and two shops never look like one.
+      */}
+      <View style={[styles.shopLogo, { backgroundColor: cover.bg }]}>
+        <Text style={[styles.shopInitial, { color: cover.fg }]}>
+          {shopInitial(shop.business_name)}
+        </Text>
+        {closed && (
+          <View style={styles.shutTag}>
+            <Text style={styles.shutText}>Shut</Text>
+          </View>
+        )}
       </View>
       <View style={styles.shopInfo}>
         <Text style={styles.shopName} numberOfLines={1}>{shop.business_name}</Text>
@@ -301,29 +452,30 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
           {typeLabel(shop.business_type ?? "shop")}
           {shop.city ? ` · ${shop.city.name}` : ""}
         </Text>
-        <View style={styles.shopStats}>
-          {shop.rating !== null && (
-            <View style={styles.stat}>
-              <Star size={12} color="#f5a623" fill="#f5a623" strokeWidth={0} />
-              <Text style={styles.statText}>{shop.rating}</Text>
-            </View>
-          )}
-          {shop.distance_km != null && (
-            <Text style={styles.statText}>{shop.distance_km} km</Text>
-          )}
-          {closed && <Text style={styles.closedText}>Closed</Text>}
-        </View>
+        {/*
+          Two, not three: this card is 240 wide and the list row is full width.
+          And ONE when the shop is shut — "Closed" is the only fact that changes
+          what anyone does next, so it should not be the one pushed off the end
+          by a delivery fee nobody can use tonight.
+        */}
+        {/*
+          `closed` is NOT passed: the cover already carries a "Shut" tag, and
+          saying it twice on one card spends the row's only two slots on a fact
+          the eye has already had.
+        */}
+        <ShopFactsRow shop={shop} limit={wide ? 3 : 2} />
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: colors.brand[500] },
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: c.brand[500] },
 
   // Header
   header: {
-    backgroundColor: colors.brand[500],
+    backgroundColor: c.brand[500],
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
@@ -331,9 +483,34 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: radius.xl,
   },
   headerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  hello: { gap: 2 },
-  welcome: { ...typography.small, color: colors.brand[100] },
-  name: { ...typography.title, color: colors.white },
+  burger: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  place: { flex: 1, alignItems: "center", gap: 1, paddingHorizontal: spacing.sm },
+  placeLabelRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  placeLabel: { ...typography.tiny, color: c.brand[200], fontWeight: "600", letterSpacing: 0.3 },
+  placeRow: { flexDirection: "row", alignItems: "center", gap: 5, maxWidth: "100%" },
+  headline: {
+    ...typography.display,
+    fontSize: 23,
+    color: c.white,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  searchFilter: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: c.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  placeName: { ...typography.title, color: c.white, fontSize: 19, flexShrink: 1 },
   bell: {
     width: 42,
     height: 42,
@@ -342,71 +519,56 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  locationRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: spacing.sm },
-  locationText: { ...typography.small, color: colors.white, fontWeight: "600", maxWidth: 240 },
   searchBar: {
-    marginTop: spacing.md,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.white,
+    backgroundColor: c.surface,
     borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    height: 48,
+    paddingLeft: spacing.md,
+    paddingRight: 8,
+    height: 52,
   },
-  searchHint: { ...typography.body, color: colors.gray[400] },
+  searchHint: { ...typography.body, color: c.gray[400], flex: 1 },
 
   // Body
-  body: { backgroundColor: colors.bg, minHeight: 600 },
-  quickRow: {
+  // The page colour, behind the header's rounded bottom corners as well as
+  // under the content. `SafeScreen` paints this screen brand red so the status
+  // bar matches the header — which also meant the header's corners revealed
+  // red on red and the rounding could not be seen at all.
+  scrollGround: { backgroundColor: c.bg },
+  body: { backgroundColor: c.bg, minHeight: 600 },
+  tiles: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
+    flexWrap: "wrap",
+    paddingHorizontal: spacing.sm,
     marginTop: spacing.md,
   },
-  quick: { alignItems: "center", gap: 6, width: 70 },
-  quickIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickEmoji: { fontSize: 26 },
-  quickLabel: { ...typography.tiny, color: colors.gray[600], fontWeight: "600" },
-  chipsScroll: { marginTop: spacing.md },
-  chips: { paddingHorizontal: spacing.md, gap: spacing.md },
-  chip: { alignItems: "center", gap: 6, width: 64 },
-  chipIcon: {
+  // A quarter of the row, so a fifth tile starts a second row directly under
+  // the first — the reason both kinds of shortcut share one container.
+  tile: { width: "25%", alignItems: "center", gap: 6, marginBottom: spacing.md },
+  // A tinted tile, not an outlined white box. The outline made identical
+  // frames and left the glyph to do all the work; the tint makes them read as
+  // one set of buttons before anyone reads a label.
+  tileIcon: {
     width: 56,
     height: 56,
-    borderRadius: radius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 18,
+    backgroundColor: c.brand[100],
     alignItems: "center",
     justifyContent: "center",
   },
-  chipEmoji: { fontSize: 24 },
-  chipLabel: { ...typography.tiny, color: colors.gray[600] },
+  tileLabel: { ...typography.tiny, color: c.textSecondary, fontWeight: "600" },
 
   notice: {
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
-    backgroundColor: colors.warningBg,
+    backgroundColor: c.warningBg,
     borderRadius: radius.md,
     padding: spacing.md,
   },
-  noticeText: { ...typography.small, color: colors.warning },
+  noticeText: { ...typography.small, color: c.warning },
 
-  bannerRow: { paddingHorizontal: spacing.md, gap: spacing.sm, marginTop: spacing.lg },
-  banner: { borderRadius: radius.lg, overflow: "hidden" },
-  bannerImg: { width: 300, height: 130, borderRadius: radius.lg },
-  bannerFallback: { backgroundColor: colors.cream, alignItems: "center", justifyContent: "center", padding: spacing.md },
-  bannerTitleAlt: { ...typography.h3, color: colors.black, textAlign: "center" },
 
   sectionHeader: {
     flexDirection: "row",
@@ -416,74 +578,88 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
-  sectionTitle: { ...typography.h3, color: colors.black, fontSize: 18 },
-  seeAll: { ...typography.label, color: colors.brand[600] },
+  sectionTitle: { ...typography.h3, color: c.text, fontSize: 18 },
+  seeAll: { ...typography.label, color: c.brand[600] },
 
   hRow: { paddingHorizontal: spacing.md, gap: spacing.sm },
   grid: { paddingHorizontal: spacing.md, gap: spacing.sm },
-  empty: { ...typography.small, color: colors.gray[400], paddingVertical: spacing.md },
+  empty: { ...typography.small, color: c.gray[400], paddingVertical: spacing.md },
 
   shopCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     width: 240,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     padding: spacing.sm,
   },
   shopCardWide: { width: "100%" },
   shopClosed: { opacity: 0.55 },
   shopLogo: {
-    width: 52,
-    height: 52,
+    width: 58,
+    height: 58,
     borderRadius: radius.md,
-    backgroundColor: colors.brand[50],
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
-  shopInitial: { ...typography.title, color: colors.brand[600] },
+  shopInitial: { ...typography.display, fontSize: 26 },
+  // Over the cover rather than beside the name: on a closed shop the cover is
+  // the first thing the eye lands on, and it is the fact that decides whether
+  // to read the rest.
+  shutTag: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(12,7,5,0.72)",
+    paddingVertical: 2,
+  },
+  shutText: {
+    ...typography.tiny,
+    color: "#ffffff",
+    textAlign: "center",
+    fontWeight: "800",
+    fontSize: 9,
+  },
   shopInfo: { flex: 1, gap: 2 },
-  shopName: { ...typography.label, color: colors.black, fontSize: 15 },
-  shopMeta: { ...typography.tiny, color: colors.gray[500] },
-  shopStats: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  stat: { flexDirection: "row", alignItems: "center", gap: 3 },
-  statText: { ...typography.tiny, color: colors.gray[600] },
-  closedText: { ...typography.tiny, color: colors.error, fontWeight: "700" },
+  shopName: { ...typography.label, color: c.text, fontSize: 15 },
+  shopMeta: { ...typography.tiny, color: c.gray[500] },
 
   // Deals carousel
   dealCard: {
     width: 168,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     overflow: "hidden",
   },
   dealImgWrap: {
     height: 108,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
   },
   dealImg: { width: "100%", height: "100%" },
-  dealInitial: { fontSize: 34, fontWeight: "700", color: colors.gray[200] },
+  dealInitial: { fontSize: 40, fontWeight: "800", letterSpacing: -1 },
   offBadge: {
     position: "absolute",
     left: 8,
     top: 8,
-    backgroundColor: colors.brand[500],
+    backgroundColor: c.brand[500],
     borderRadius: radius.full,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  offBadgeText: { ...typography.tiny, color: colors.white, fontWeight: "700", fontSize: 10 },
+  offBadgeText: { ...typography.tiny, color: c.white, fontWeight: "700", fontSize: 10 },
   dealBody: { padding: spacing.sm, gap: 2 },
-  dealName: { ...typography.label, color: colors.black, fontSize: 14 },
+  dealName: { ...typography.label, color: c.text, fontSize: 14 },
   dealPriceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  dealPrice: { ...typography.label, color: colors.brand[600], fontSize: 14 },
-  dealStrike: { ...typography.tiny, color: colors.gray[400], textDecorationLine: "line-through" },
-  dealShop: { ...typography.tiny, color: colors.gray[500] },
+  dealPrice: { ...typography.label, color: c.brand[600], fontSize: 14 },
+  dealStrike: { ...typography.tiny, color: c.gray[400], textDecorationLine: "line-through" },
+  dealShop: { ...typography.tiny, color: c.gray[500] },
 });

@@ -1,0 +1,13 @@
+<resources>
+    <!--
+      The brand, for the frame Android draws BEFORE JavaScript exists.
+
+      Without this the launcher shows a white sheet for the second or so it
+      takes to start the runtime, and the app appears to flash before it opens.
+      The colour has to be duplicated here because a native resource cannot
+      read `src/theme/tokens.ts` — see `src/common/brand.ts` for the rest of
+      what a rename has to touch.
+    -->
+    <color name="brand">#E94E00</color>
+    <color name="brand_dark">#C04000</color>
+</resources>

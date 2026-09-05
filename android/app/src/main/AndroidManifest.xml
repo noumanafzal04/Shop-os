@@ -25,6 +25,42 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
+
+        <!--
+          The app's own scheme: cartze://shop/burger-hut
+
+          Works only where the app is already installed, and most chat apps do
+          not make it tappable. It is the fallback, not the share link.
+        -->
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="cartze" />
+        </intent-filter>
+
+        <!--
+          The real share link: https://cartze.shop/shop/burger-hut
+
+          It is tappable everywhere and, for anyone without the app, it opens
+          the website instead of failing — which is why a share button should
+          produce THIS and never the scheme above.
+
+          NOT YET LIVE. `autoVerify` makes Android fetch
+
+              https://cartze.shop/.well-known/assetlinks.json
+
+          and open the app only if that file names this package and this
+          signing certificate. Until the file is published, Android 12+ sends
+          these links to the browser — the correct fallback, and inert rather
+          than broken. Publishing it is a server change, not an app one.
+        -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" android:host="cartze.shop" />
+        </intent-filter>
       </activity>
     </application>
 </manifest>

@@ -37,11 +37,25 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
   }
 }
 
-/** Free-text address search → pickable suggestions (autocomplete). */
+/** True when a provider key is configured and an address search can be made. */
+export function canSearchAddresses(): boolean {
+  return MAPS_PROVIDER === "google" ? !!GOOGLE_MAPS_API_KEY : !!GEOAPIFY_API_KEY;
+}
+
+/**
+ * Free-text address search → pickable suggestions (autocomplete).
+ *
+ * `null` means the search COULD NOT BE MADE — no provider key. `[]` means it
+ * was made and matched nothing. They are different answers and the screen owes
+ * the person a different sentence for each: without the distinction, an unset
+ * key looks exactly like "your street does not exist", for every street, for
+ * ever, with nothing on screen to say otherwise.
+ */
 export async function searchAddress(
   text: string,
   bias?: { lat: number; lng: number },
-): Promise<AddressSuggestion[]> {
+): Promise<AddressSuggestion[] | null> {
+  if (!canSearchAddresses()) return null;
   if (text.trim().length < 3) return [];
   try {
     if (MAPS_PROVIDER === "google" && GOOGLE_MAPS_API_KEY) {

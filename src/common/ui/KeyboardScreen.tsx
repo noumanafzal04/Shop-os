@@ -6,12 +6,23 @@ import {
   ScrollView,
   StyleSheet,
   TouchableWithoutFeedback,
+  View,
   type ViewStyle,
 } from "react-native";
 
 interface Props {
   children: React.ReactNode;
   contentStyle?: ViewStyle;
+  /**
+   * A bar pinned under the scroll — an action the person should be able to
+   * reach without scrolling to find it.
+   *
+   * It sits INSIDE the KeyboardAvoidingView on purpose. Pinned outside, iOS
+   * lifts the scroll and leaves the bar under the keyboard, which is the exact
+   * failure this component exists to prevent: on the checkout screen, being
+   * unable to reach the button costs the order.
+   */
+  footer?: React.ReactNode;
 }
 
 /**
@@ -19,8 +30,9 @@ interface Props {
  *  - inputs are never covered by the keyboard (iOS padding / Android resize)
  *  - tapping outside an input dismisses the keyboard
  *  - taps on buttons work while the keyboard is open (persistTaps)
+ *  - an optional pinned `footer` that rides above the keyboard too
  */
-export function KeyboardScreen({ children, contentStyle }: Props) {
+export function KeyboardScreen({ children, contentStyle, footer }: Props) {
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -36,6 +48,7 @@ export function KeyboardScreen({ children, contentStyle }: Props) {
           {children}
         </ScrollView>
       </TouchableWithoutFeedback>
+      {footer != null && <View>{footer}</View>}
     </KeyboardAvoidingView>
   );
 }

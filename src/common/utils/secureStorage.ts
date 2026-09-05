@@ -9,6 +9,10 @@ export interface StoredTokens {
   refreshToken: string;
 }
 
+// An ADDRESS, not a brand. This names the Keychain entry holding the session,
+// so renaming it does not move the tokens — it points at an empty entry and
+// signs every user out silently. It keeps this spelling whatever the product
+// is called; see `src/common/brand.ts`.
 const SERVICE = "shopos.auth";
 
 export const secureStorage = {

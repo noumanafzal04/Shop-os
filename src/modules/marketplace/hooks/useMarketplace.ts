@@ -5,7 +5,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useAuthStore } from "../../../stores/authStore";
-import { marketplaceService, type RegisterPayload } from "../services/marketplaceService";
+import {
+  marketplaceService,
+  type BrowseFilters,
+  type RegisterPayload,
+} from "../services/marketplaceService";
 
 export function useHomeFeed(params: { lat?: number; lng?: number; city_id?: string }) {
   return useQuery({
@@ -50,10 +54,67 @@ export function useMarketProducts(slug: string | undefined, params: { search?: s
   });
 }
 
+/**
+ * The aisle, filtered.
+ *
+ * `keepPreviousData` on purpose: changing a filter should re-sort the list
+ * under the sheet, not blank it. An empty screen between two results reads as
+ * "your filter matched nothing" for as long as the request takes.
+ */
+export function useBrowse(filters: BrowseFilters, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ["market", "browse", filters],
+    queryFn: () => marketplaceService.browse(filters),
+    enabled: options.enabled ?? true,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The counts beside each option, and the price slider's real bounds.
+ *
+ * Driven by the sheet's DRAFT filters rather than the applied ones, so the
+ * numbers answer "what would I get" while somebody is still deciding — which
+ * is the only moment they are useful.
+ */
+export function useFacets(filters: BrowseFilters, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ["market", "facets", filters],
+    queryFn: async () => (await marketplaceService.facets(filters)).data,
+    enabled: options.enabled ?? true,
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** The cities the marketplace delivers in, optionally narrowed by name. */
+export function useCities(q: string) {
+  return useQuery({
+    queryKey: ["market", "cities", q.trim()],
+    queryFn: async () => (await marketplaceService.cities(q)).data,
+    placeholderData: keepPreviousData,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+/** One product by id — the destination of a shared product link. */
+export function useMarketProduct(id: string | undefined) {
+  return useQuery({
+    queryKey: ["market", "product", id],
+    queryFn: async () => (await marketplaceService.product(id!)).data,
+    enabled: !!id,
+  });
+}
+
 export function useRegisterCustomer() {
   const setAuth = useAuthStore((s) => s.setAuth);
 
   return useMutation({
+    // Reported by the screen itself — the sign-up form marks the field that is wrong — so the global
+    // toast would say the same thing twice, in two shapes, one of
+    // them floating over the form the person is still reading.
+    // See `queryClient.ts`.
+    meta: { silent: true },
     mutationFn: (payload: RegisterPayload) => marketplaceService.register(payload),
     // Navigation reacts to the store flipping to authenticated-customer.
     onSuccess: async ({ data }) => {
@@ -91,6 +152,11 @@ export function useReserve() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    // Reported by the screen itself — the shop screen answers with an Alert naming the item — so the global
+    // toast would say the same thing twice, in two shapes, one of
+    // them floating over the form the person is still reading.
+    // See `queryClient.ts`.
+    meta: { silent: true },
     mutationFn: (payload: {
       shop_slug: string;
       product_id: string;

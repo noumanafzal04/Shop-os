@@ -9,12 +9,15 @@ import {
   View,
 } from "react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
-import { SkeletonCard } from "../../../common/ui/Skeleton";
-import { colors, radius, spacing, typography } from "../../../theme";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
+import { SkeletonStatusCard } from "../../../common/ui/Skeleton";
+import { LoadFailed } from "../../../common/ui/LoadFailed";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useCancelReservation, useCustomerReservations } from "../hooks/useMarketplace";
 import type { CustomerReservation } from "../services/marketplaceService";
+import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
+import { money } from "../../../common/format";
 
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
 const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   pending: { bg: "#fffaeb", fg: "#b54708" },
@@ -29,7 +32,10 @@ const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
  * Customer's reservations — pending/accepted ones can be cancelled.
  */
 export function ReservationsScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const reservations = useCustomerReservations(true);
+  const pull = usePullToRefresh(reservations.refetch);
   const cancel = useCancelReservation();
 
   const rows = reservations.data?.data ?? [];
@@ -43,17 +49,22 @@ export function ReservationsScreen() {
   };
 
   return (
-    <SafeScreen backgroundColor={colors.gray[50]} edges={["top"]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Reservations</Text>
-        <Text style={styles.sub}>Long-press to cancel a pending one</Text>
-      </View>
+    <SafeScreen backgroundColor={c.gray[50]}>
+      <ScreenHeader title="Reservations" subtitle="Long-press to cancel a pending one" />
 
       {reservations.isLoading ? (
         <View style={styles.list}>
-          <SkeletonCard />
-          <SkeletonCard />
+          <SkeletonStatusCard />
+          <SkeletonStatusCard />
+          <SkeletonStatusCard />
         </View>
+      ) : reservations.isError ? (
+        <LoadFailed
+          what="your reservations"
+          error={reservations.error}
+          onRetry={() => reservations.refetch()}
+          retrying={reservations.isFetching}
+        />
       ) : (
         <FlatList
           data={rows}
@@ -61,8 +72,8 @@ export function ReservationsScreen() {
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl
-              refreshing={reservations.isRefetching}
-              onRefresh={() => reservations.refetch()}
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
             />
           }
           renderItem={({ item }) => {
@@ -104,26 +115,27 @@ export function ReservationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   header: { padding: spacing.md },
-  title: { ...typography.title, fontSize: 22, color: colors.gray[900] },
-  sub: { ...typography.small, color: colors.gray[500], marginTop: 2 },
+  title: { ...typography.title, fontSize: 22, color: c.gray[900] },
+  sub: { ...typography.small, color: c.gray[500], marginTop: 2 },
   list: { padding: spacing.md, paddingTop: 0 },
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.gray[200],
+    borderColor: c.border,
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
   rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm },
-  name: { ...typography.label, fontSize: 15, color: colors.gray[900], flex: 1 },
+  name: { ...typography.label, fontSize: 15, color: c.gray[900], flex: 1 },
   badge: { borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   badgeText: { fontSize: 11, fontWeight: "600" },
-  meta: { ...typography.small, color: colors.gray[500], marginTop: spacing.xs },
-  pickup: { ...typography.small, color: colors.brand[600], marginTop: spacing.xs, fontWeight: "600" },
+  meta: { ...typography.small, color: c.gray[500], marginTop: spacing.xs },
+  pickup: { ...typography.small, color: c.brand[600], marginTop: spacing.xs, fontWeight: "600" },
   empty: { alignItems: "center", paddingVertical: spacing.xl * 2 },
-  emptyTitle: { ...typography.label, color: colors.gray[700] },
-  emptyText: { ...typography.small, color: colors.gray[500], marginTop: spacing.xs },
+  emptyTitle: { ...typography.label, color: c.gray[700] },
+  emptyText: { ...typography.small, color: c.gray[500], marginTop: spacing.xs },
 });

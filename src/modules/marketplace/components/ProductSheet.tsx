@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, ChevronDown, Minus, Plus, X } from "lucide-react-native";
-import { colors, radius, spacing, typography } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import type { PublicModifierGroup, PublicProduct } from "../services/marketplaceService";
+import { money, qtyText } from "../../../common/format";
 
-const money = (n: number) => `Rs ${n.toLocaleString()}`;
-const fmtQty = (n: number) => String(parseFloat(n.toFixed(3)));
 
 export interface ConfiguredLine {
   variant_id: string | null;
@@ -29,6 +29,9 @@ export function ProductSheet({
   onClose: () => void;
   onAdd: (line: ConfiguredLine) => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const isWeight = product.sold_by === "weight";
   const step = isWeight ? 0.25 : 1;
   const hasVariants = product.variants.length > 0;
@@ -102,7 +105,7 @@ export function ProductSheet({
       <View style={styles.sheet}>
         <View style={styles.grabber} />
         <Pressable style={styles.close} onPress={onClose} hitSlop={8}>
-          <X size={18} color={colors.gray[500]} strokeWidth={2.2} />
+          <X size={18} color={c.gray[500]} strokeWidth={2.2} />
         </Pressable>
         <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
           {/* Hero image */}
@@ -197,14 +200,14 @@ export function ProductSheet({
                           on && (single ? styles.radioOn : styles.checkOn),
                         ]}
                       >
-                        {!single && on && <Check size={13} color={colors.white} strokeWidth={3} />}
+                        {!single && on && <Check size={13} color={c.white} strokeWidth={3} />}
                       </View>
                     </Pressable>
                   );
                 })}
                 {hidden > 0 && (
                   <Pressable style={styles.viewMore} onPress={() => setExpanded((e) => ({ ...e, [g.id]: true }))}>
-                    <ChevronDown size={15} color={colors.gray[500]} strokeWidth={2.2} />
+                    <ChevronDown size={15} color={c.gray[500]} strokeWidth={2.2} />
                     <Text style={styles.viewMoreText}>View {hidden} more</Text>
                   </Pressable>
                 )}
@@ -216,17 +219,17 @@ export function ProductSheet({
         </ScrollView>
 
         {/* Qty + add — pinned */}
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
           <View style={styles.qtyRow}>
             <Pressable style={styles.qtyBtn} onPress={() => setQty((q) => Math.max(step, q - step))}>
-              <Minus size={16} color={colors.gray[700]} strokeWidth={2.4} />
+              <Minus size={16} color={c.gray[700]} strokeWidth={2.4} />
             </Pressable>
             <Text style={styles.qty}>
-              {fmtQty(qty)}
+              {qtyText(qty)}
               {isWeight && product.unit ? ` ${product.unit}` : ""}
             </Text>
             <Pressable style={[styles.qtyBtn, styles.qtyBtnPlus]} onPress={() => setQty((q) => q + step)}>
-              <Plus size={16} color={colors.white} strokeWidth={2.4} />
+              <Plus size={16} color={c.white} strokeWidth={2.4} />
             </Pressable>
           </View>
           <Pressable style={[styles.addBtn, !valid && styles.addBtnOff]} disabled={!valid} onPress={add}>
@@ -238,10 +241,11 @@ export function ProductSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(16,26,38,0.55)" },
   sheet: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     maxHeight: "82%",
@@ -251,7 +255,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: radius.full,
-    backgroundColor: colors.gray[200],
+    backgroundColor: c.gray[200],
     marginTop: spacing.sm,
   },
   scroll: { paddingHorizontal: spacing.md },
@@ -259,23 +263,23 @@ const styles = StyleSheet.create({
   hero: {
     height: 190,
     borderRadius: radius.lg,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
     marginTop: spacing.sm,
   },
   heroImg: { width: "100%", height: "100%" },
-  heroInitial: { fontSize: 56, fontWeight: "700", color: colors.gray[200] },
+  heroInitial: { fontSize: 56, fontWeight: "700", color: c.gray[200] },
 
   head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.md },
   headInfo: { flex: 1, gap: 2 },
-  name: { ...typography.title, color: colors.black, fontSize: 20 },
+  name: { ...typography.title, color: c.text, fontSize: 20 },
   priceCol: { alignItems: "flex-end", gap: 2 },
-  price: { ...typography.title, color: colors.brand[600], fontSize: 18 },
-  perUnit: { ...typography.small, color: colors.gray[400] },
-  strike: { ...typography.small, color: colors.gray[400], textDecorationLine: "line-through" },
-  desc: { ...typography.small, color: colors.gray[500], marginTop: spacing.xs, marginBottom: spacing.sm },
+  price: { ...typography.title, color: c.brand[600], fontSize: 18 },
+  perUnit: { ...typography.small, color: c.gray[400] },
+  strike: { ...typography.small, color: c.gray[400], textDecorationLine: "line-through" },
+  desc: { ...typography.small, color: c.gray[500], marginTop: spacing.xs, marginBottom: spacing.sm },
   close: {
     position: "absolute",
     top: spacing.md,
@@ -284,9 +288,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -298,17 +302,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.xs,
   },
-  groupTitle: { ...typography.h3, color: colors.black, fontSize: 16 },
-  rule: { ...typography.tiny, color: colors.gray[500], marginTop: 1 },
+  groupTitle: { ...typography.h3, color: c.text, fontSize: 16 },
+  rule: { ...typography.tiny, color: c.gray[500], marginTop: 1 },
   pill: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     borderRadius: radius.full,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  pillRequired: { backgroundColor: colors.brand[50] },
-  pillText: { ...typography.tiny, color: colors.gray[500], fontWeight: "600" },
-  pillTextRequired: { color: colors.brand[700] },
+  pillRequired: { backgroundColor: c.brand[50] },
+  pillText: { ...typography.tiny, color: c.gray[500], fontWeight: "600" },
+  pillTextRequired: { color: c.brand[700] },
 
   option: {
     flexDirection: "row",
@@ -316,39 +320,45 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
-  optionText: { ...typography.body, color: colors.black, flex: 1, fontSize: 14, fontWeight: "500" },
-  optionTextOff: { color: colors.gray[400] },
-  optionPrice: { ...typography.small, color: colors.gray[500] },
+  optionText: { ...typography.body, color: c.text, flex: 1, fontSize: 14, fontWeight: "500" },
+  optionTextOff: { color: c.gray[400] },
+  optionPrice: { ...typography.small, color: c.gray[500] },
   radio: {
     width: 20,
     height: 20,
     borderRadius: radius.full,
     borderWidth: 2,
-    borderColor: colors.gray[300],
+    borderColor: c.gray[300],
   },
-  radioOn: { borderColor: colors.brand[500], borderWidth: 6 },
+  radioOn: { borderColor: c.brand[500], borderWidth: 6 },
   check: {
     width: 22,
     height: 22,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: colors.gray[300],
+    borderColor: c.gray[300],
     alignItems: "center",
     justifyContent: "center",
   },
-  checkOn: { borderColor: colors.brand[500], backgroundColor: colors.brand[500] },
+  checkOn: { borderColor: c.brand[500], backgroundColor: c.brand[500] },
   viewMore: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: spacing.sm },
-  viewMoreText: { ...typography.small, color: colors.gray[600], fontWeight: "600" },
+  viewMoreText: { ...typography.small, color: c.gray[600], fontWeight: "600" },
 
+  // `paddingBottom` is applied at the call site from the device's inset. The
+  // sheet is the LAST thing on the screen, so nothing else is left to hold the
+  // Add-to-cart button clear of the home indicator — and a button under the
+  // gesture bar is a button that swipes the app away instead of buying
+  // anything.
   footer: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
   },
   qtyRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   qtyBtn: {
@@ -356,21 +366,21 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceAlt,
+    borderColor: c.border,
+    backgroundColor: c.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
   },
-  qtyBtnPlus: { backgroundColor: colors.brand[500], borderColor: colors.brand[500] },
-  qty: { ...typography.label, color: colors.black, minWidth: 44, textAlign: "center" },
+  qtyBtnPlus: { backgroundColor: c.brand[500], borderColor: c.brand[500] },
+  qty: { ...typography.label, color: c.text, minWidth: 44, textAlign: "center" },
   addBtn: {
     flex: 1,
     height: 48,
     borderRadius: radius.full,
-    backgroundColor: colors.brand[500],
+    backgroundColor: c.brand[500],
     alignItems: "center",
     justifyContent: "center",
   },
   addBtnOff: { opacity: 0.4 },
-  addText: { ...typography.label, color: colors.white, fontSize: 15 },
+  addText: { ...typography.label, color: c.white, fontSize: 15 },
 });

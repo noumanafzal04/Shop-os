@@ -69,6 +69,11 @@ export function useMyOrder(id: string | undefined) {
 export function usePlaceOrder() {
   const queryClient = useQueryClient();
   return useMutation({
+    // Reported by the screen itself — checkout shows the refusal in place, beside the order it refused — so the global
+    // toast would say the same thing twice, in two shapes, one of
+    // them floating over the form the person is still reading.
+    // See `queryClient.ts`.
+    meta: { silent: true },
     mutationFn: (payload: PlaceOrderPayload) =>
       apiPost<CustomerOrder>("/customer/orders", { idempotency_key: makeKey(), ...payload }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),

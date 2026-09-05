@@ -9,38 +9,47 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
-import { SkeletonCard } from "../../../common/ui/Skeleton";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
+import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { AppButton } from "../../../common/ui/AppButton";
-import { colors, radius, spacing, typography } from "../../../theme";
+import { LoadFailed } from "../../../common/ui/LoadFailed";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useFavorites } from "../hooks/useMarketplace";
 import { useLogout } from "../../auth/hooks/useAuth";
 import { useAuthStore } from "../../../stores/authStore";
+import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 
 /**
  * Customer's favorite shops + account actions.
  */
 export function FavoritesScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const user = useAuthStore((s) => s.user);
   const favorites = useFavorites(true);
+  const pull = usePullToRefresh(favorites.refetch);
   const logout = useLogout();
 
   const rows = favorites.data ?? [];
 
   return (
-    <SafeScreen backgroundColor={colors.gray[50]} edges={["top"]}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Favorites</Text>
-          <Text style={styles.sub}>{user?.name}</Text>
-        </View>
-      </View>
+    <SafeScreen backgroundColor={c.gray[50]}>
+      <ScreenHeader title="Favourites" subtitle={user?.name} />
 
       {favorites.isLoading ? (
         <View style={styles.list}>
-          <SkeletonCard />
-          <SkeletonCard />
+          <SkeletonListRow />
+          <SkeletonListRow />
+          <SkeletonListRow />
         </View>
+      ) : favorites.isError ? (
+        <LoadFailed
+          what="your saved shops"
+          error={favorites.error}
+          onRetry={() => favorites.refetch()}
+          retrying={favorites.isFetching}
+        />
       ) : (
         <FlatList
           data={rows}
@@ -48,8 +57,8 @@ export function FavoritesScreen() {
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl
-              refreshing={favorites.isRefetching}
-              onRefresh={() => favorites.refetch()}
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
             />
           }
           renderItem={({ item }) => (
@@ -93,18 +102,19 @@ export function FavoritesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   header: { padding: spacing.md },
-  title: { ...typography.title, fontSize: 22, color: colors.gray[900] },
-  sub: { ...typography.small, color: colors.gray[500], marginTop: 2 },
+  title: { ...typography.title, fontSize: 22, color: c.gray[900] },
+  sub: { ...typography.small, color: c.gray[500], marginTop: 2 },
   list: { padding: spacing.md, paddingTop: 0 },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.white,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.gray[200],
+    borderColor: c.border,
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
@@ -112,17 +122,17 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: radius.md,
-    backgroundColor: colors.brand[50],
+    backgroundColor: c.brand[50],
     alignItems: "center",
     justifyContent: "center",
     marginRight: spacing.md,
   },
-  logoLetter: { fontSize: 20, fontWeight: "700", color: colors.brand[500] },
+  logoLetter: { fontSize: 20, fontWeight: "700", color: c.brand[500] },
   info: { flex: 1 },
-  name: { ...typography.label, fontSize: 15, color: colors.gray[900] },
-  meta: { ...typography.small, color: colors.gray[500], marginTop: 2, textTransform: "capitalize" },
-  heart: { fontSize: 18, color: colors.brand[500] },
+  name: { ...typography.label, fontSize: 15, color: c.gray[900] },
+  meta: { ...typography.small, color: c.gray[500], marginTop: 2, textTransform: "capitalize" },
+  heart: { fontSize: 18, color: c.brand[500] },
   empty: { alignItems: "center", paddingVertical: spacing.xl * 2 },
-  emptyTitle: { ...typography.label, color: colors.gray[700] },
-  emptyText: { ...typography.small, color: colors.gray[500], marginTop: spacing.xs },
+  emptyTitle: { ...typography.label, color: c.gray[700] },
+  emptyText: { ...typography.small, color: c.gray[500], marginTop: spacing.xs },
 });

@@ -1,16 +1,18 @@
 import React, { useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeft, Search, Star, Store } from "lucide-react-native";
+import { ArrowLeft, Search, SlidersHorizontal, Star, Store } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { Skeleton } from "../../../common/ui/Skeleton";
-import { colors, radius, spacing, typography } from "../../../theme";
+import { LoadFailed } from "../../../common/ui/LoadFailed";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useUniversalSearch } from "../hooks/useMarketplace";
+import { formatDistance } from "../shopFacts";
+import { money } from "../../../common/format";
 
-const money = (n: number) => `Rs ${n.toLocaleString()}`;
 
 type Tab = "all" | "products" | "shops";
 
@@ -19,6 +21,8 @@ type Tab = "all" | "products" | "shops";
  * (All | Products | Shops) + filter chips (Open now, 4★+).
  */
 export function SearchScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const { lat, lng } = useLocationStore();
   const [q, setQ] = useState("");
@@ -42,11 +46,11 @@ export function SearchScreen() {
   const showShops = tab !== "products";
 
   return (
-    <SafeScreen backgroundColor={colors.bg} edges={["top"]}>
+    <SafeScreen backgroundColor={c.bg}>
       {/* Search bar */}
       <View style={styles.searchRow}>
         <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeft size={20} color={colors.black} strokeWidth={2} />
+          <ArrowLeft size={20} color={c.text} strokeWidth={2} />
         </Pressable>
         <View style={styles.searchInput}>
           <AppTextInput
@@ -78,13 +82,35 @@ export function SearchScreen() {
             ))}
           </View>
 
-          {/* Filter chips (shops) */}
-          {showShops && (
-            <View style={styles.filters}>
-              <FilterChip label="Open now" on={openOnly} onPress={() => setOpenOnly((v) => !v)} />
-              <FilterChip label="4★ & up" on={topOnly} onPress={() => setTopOnly((v) => !v)} />
-            </View>
-          )}
+          <View style={styles.filters}>
+            {/*
+              Two chips that narrow the SHOPS already on screen — client side,
+              because search returns one page and there is nothing else to
+              filter. Honest about their scope and cheap.
+            */}
+            {showShops && (
+              <>
+                <FilterChip label="Open now" on={openOnly} onPress={() => setOpenOnly((v) => !v)} />
+                <FilterChip label="4★ & up" on={topOnly} onPress={() => setTopOnly((v) => !v)} />
+              </>
+            )}
+            {/*
+              And the door to the real thing: price, category, stock and sort,
+              applied by the SERVER across every shop. That question cannot be
+              answered by filtering a page of results, which is why it is a
+              different screen and not a third chip.
+            */}
+            {showProducts && (
+              <Pressable
+                style={styles.aisle}
+                accessibilityRole="button"
+                onPress={() => navigation.navigate("Browse", { q: debounced, title: debounced })}
+              >
+                <SlidersHorizontal size={13} color={c.onPrimary} strokeWidth={2.6} />
+                <Text style={styles.aisleText}>Filter products</Text>
+              </Pressable>
+            )}
+          </View>
         </>
       )}
 
@@ -99,6 +125,16 @@ export function SearchScreen() {
               <Skeleton key={i} width="100%" height={64} borderRadius={radius.lg} />
             ))}
           </View>
+                ) : results.isError ? (
+          // A search that failed is not a search that found nothing. "0 results
+          // for biryani" is a claim about the catalogue; this is a claim about
+          // the request, and only one of them is worth retrying.
+          <LoadFailed
+            what="search results"
+            error={results.error}
+            onRetry={() => results.refetch()}
+            retrying={results.isFetching}
+          />
         ) : (
           <>
             {searching && !results.isLoading && (
@@ -128,7 +164,7 @@ export function SearchScreen() {
                       <Text style={styles.rowTitle} numberOfLines={1}>{p.name}</Text>
                       <Text style={styles.rowMeta} numberOfLines={1}>
                         {p.shop?.business_name}
-                        {p.distance_km != null ? ` · ${p.distance_km} km` : ""}
+                        {p.distance_km != null ? ` · ${formatDistance(p.distance_km)}` : ""}
                       </Text>
                     </View>
                     <View style={styles.priceWrap}>
@@ -151,13 +187,13 @@ export function SearchScreen() {
                     onPress={() => navigation.navigate("MarketShop", { slug: s.slug })}
                   >
                     <View style={[styles.thumb, styles.shopThumb]}>
-                      <Store size={20} color={colors.brand[600]} strokeWidth={2} />
+                      <Store size={20} color={c.brand[600]} strokeWidth={2} />
                     </View>
                     <View style={styles.rowInfo}>
                       <Text style={styles.rowTitle} numberOfLines={1}>{s.business_name}</Text>
                       <Text style={styles.rowMeta} numberOfLines={1}>
                         {s.business_type}
-                        {s.distance_km != null ? ` · ${s.distance_km} km` : ""}
+                        {s.distance_km != null ? ` · ${formatDistance(s.distance_km)}` : ""}
                         {s.is_open_now === false ? " · Closed" : ""}
                       </Text>
                     </View>
@@ -177,10 +213,10 @@ export function SearchScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Categories</Text>
                 <View style={styles.catWrap}>
-                  {categories.map((c) => (
-                    <Pressable key={c.name} style={styles.catChip} onPress={() => setQ(c.name)}>
-                      <Text style={styles.catText}>{c.name}</Text>
-                      <Text style={styles.catCount}>{c.shops_count}</Text>
+                  {categories.map((cat) => (
+                    <Pressable key={cat.name} style={styles.catChip} onPress={() => setQ(cat.name)}>
+                      <Text style={styles.catText}>{cat.name}</Text>
+                      <Text style={styles.catCount}>{cat.shops_count}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -201,6 +237,8 @@ export function SearchScreen() {
 }
 
 function FilterChip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable style={[styles.filter, on && styles.filterOn]} onPress={onPress}>
       <Text style={[styles.filterText, on && styles.filterTextOn]}>{label}</Text>
@@ -208,7 +246,8 @@ function FilterChip({ label, on, onPress }: { label: string; on: boolean; onPres
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -220,9 +259,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -231,12 +270,12 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     paddingHorizontal: spacing.md,
   },
   tabBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, alignItems: "center" },
-  tabText: { ...typography.label, color: colors.gray[400], fontSize: 14 },
-  tabTextOn: { color: colors.brand[700] },
+  tabText: { ...typography.label, color: c.gray[400], fontSize: 14 },
+  tabTextOn: { color: c.brand[700] },
   tabLine: {
     position: "absolute",
     bottom: -1,
@@ -244,37 +283,47 @@ const styles = StyleSheet.create({
     right: spacing.sm,
     height: 2.5,
     borderRadius: 2,
-    backgroundColor: colors.brand[500],
+    backgroundColor: c.brand[500],
   },
 
+  aisle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: c.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  aisleText: { ...typography.tiny, color: c.onPrimary, fontWeight: "800" },
   filters: { flexDirection: "row", gap: spacing.xs, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   filter: {
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  filterOn: { backgroundColor: colors.brand[500], borderColor: colors.brand[500] },
-  filterText: { ...typography.tiny, color: colors.gray[600], fontWeight: "600" },
-  filterTextOn: { color: colors.white },
+  filterOn: { backgroundColor: c.brand[500], borderColor: c.brand[500] },
+  filterText: { ...typography.tiny, color: c.gray[600], fontWeight: "600" },
+  filterTextOn: { color: c.white },
 
-  resultCount: { ...typography.h3, color: colors.black, fontSize: 16, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  resultCount: { ...typography.h3, color: c.text, fontSize: 16, paddingHorizontal: spacing.md, paddingTop: spacing.md },
 
   hintWrap: { padding: spacing.xl, alignItems: "center" },
-  hint: { ...typography.small, color: colors.gray[400], textAlign: "center" },
+  hint: { ...typography.small, color: c.gray[400], textAlign: "center" },
 
   section: { paddingHorizontal: spacing.md, marginTop: spacing.md, gap: spacing.xs },
-  sectionTitle: { ...typography.label, color: colors.gray[500], fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
+  sectionTitle: { ...typography.label, color: c.gray[500], fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
 
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     padding: spacing.sm,
   },
@@ -282,35 +331,35 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   thumbImg: { width: "100%", height: "100%" },
-  thumbInitial: { ...typography.h3, color: colors.gray[400] },
-  shopThumb: { backgroundColor: colors.brand[50] },
+  thumbInitial: { ...typography.h3, color: c.gray[400] },
+  shopThumb: { backgroundColor: c.brand[50] },
   rowInfo: { flex: 1, gap: 2 },
-  rowTitle: { ...typography.label, color: colors.black, fontSize: 15 },
-  rowMeta: { ...typography.tiny, color: colors.gray[500] },
+  rowTitle: { ...typography.label, color: c.text, fontSize: 15 },
+  rowMeta: { ...typography.tiny, color: c.gray[500] },
   priceWrap: { alignItems: "flex-end" },
-  price: { ...typography.label, color: colors.brand[600] },
-  strike: { ...typography.tiny, color: colors.gray[400], textDecorationLine: "line-through" },
+  price: { ...typography.label, color: c.brand[600] },
+  strike: { ...typography.tiny, color: c.gray[400], textDecorationLine: "line-through" },
   rating: { flexDirection: "row", alignItems: "center", gap: 3 },
-  ratingText: { ...typography.tiny, color: colors.gray[600] },
+  ratingText: { ...typography.tiny, color: c.gray[600] },
 
   catWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   catChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
   },
-  catText: { ...typography.small, color: colors.black },
-  catCount: { ...typography.tiny, color: colors.brand[600], fontWeight: "700" },
+  catText: { ...typography.small, color: c.text },
+  catCount: { ...typography.tiny, color: c.brand[600], fontWeight: "700" },
 });

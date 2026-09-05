@@ -6,7 +6,7 @@ import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { AppButton } from "../../../common/ui/AppButton";
 import { ApiError } from "../../../common/types/api";
-import { colors, spacing, typography } from "../../../theme";
+import { spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useRegisterCustomer } from "../../marketplace/hooks/useMarketplace";
 
 /**
@@ -15,6 +15,8 @@ import { useRegisterCustomer } from "../../marketplace/hooks/useMarketplace";
  * the customer experience automatically.
  */
 export function SignUpScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const register = useRegisterCustomer();
 
@@ -28,15 +30,28 @@ export function SignUpScreen() {
   const generalError =
     apiError && Object.keys(apiError.errors).length === 0 ? apiError.message : null;
 
+  /**
+   * Close the sheet once the account exists — see `SignInScreen` for why
+   * nothing does this on its own now that guest and customer share one
+   * navigator. Registering signs the person straight in, so there is nothing
+   * left for this screen to do.
+   */
+  const dismiss = () => {
+    if (navigation.canGoBack()) navigation.goBack();
+  };
+
   const submit = () => {
     if (register.isPending) return;
-    register.mutate({
-      name: name.trim(),
-      email: email.trim() || undefined,
-      phone: phone.trim() || undefined,
-      password,
-      password_confirmation: password,
-    });
+    register.mutate(
+      {
+        name: name.trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        password,
+        password_confirmation: password,
+      },
+      { onSuccess: dismiss },
+    );
   };
 
   return (
@@ -102,25 +117,26 @@ export function SignUpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   content: { padding: spacing.lg, justifyContent: "center" },
-  title: { ...typography.title, color: colors.gray[900] },
+  title: { ...typography.title, color: c.gray[900] },
   subtitle: {
     ...typography.subtitle,
-    color: colors.gray[500],
+    color: c.gray[500],
     marginTop: spacing.xs,
     marginBottom: spacing.lg,
   },
   errorBox: {
     backgroundColor: "#fef3f2",
     borderWidth: 1,
-    borderColor: colors.error,
+    borderColor: c.error,
     borderRadius: 12,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  errorText: { color: colors.error, fontSize: 13 },
+  errorText: { color: c.error, fontSize: 13 },
   footerLink: { marginTop: spacing.lg, alignItems: "center" },
-  footerText: { ...typography.body, color: colors.gray[500] },
-  footerAccent: { color: colors.brand[500], fontWeight: "600" },
+  footerText: { ...typography.body, color: c.gray[500] },
+  footerAccent: { color: c.brand[500], fontWeight: "600" },
 });

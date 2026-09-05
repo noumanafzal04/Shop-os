@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
-import { colors, radius, shadow, spacing } from "../../theme";
+import { radius, shadow, spacing, type ThemeColors, useColors } from "../../theme";
 
 interface Props {
   title: string;
@@ -37,6 +37,8 @@ export function AppButton({
   icon: Icon,
   style,
 }: Props) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const lastPress = useRef(0);
   const guardedPress = () => {
     const now = Date.now();
@@ -47,7 +49,7 @@ export function AppButton({
 
   const isDisabled = disabled || loading;
   const solid = variant === "primary" || variant === "danger";
-  const fg = solid ? colors.white : variant === "outline" ? colors.gray[700] : colors.brand[600];
+  const fg = solid ? c.white : variant === "outline" ? c.gray[700] : c.brand[600];
 
   return (
     <Pressable
@@ -77,14 +79,15 @@ export function AppButton({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   base: { borderRadius: radius.md, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   md: { height: 50 },
   lg: { height: 56 },
   content: { flexDirection: "row", alignItems: "center", gap: 8 },
-  primary: { backgroundColor: colors.brand[500] },
-  danger: { backgroundColor: colors.error },
-  outline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.gray[300] },
+  primary: { backgroundColor: c.brand[500] },
+  danger: { backgroundColor: c.error },
+  outline: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.gray[300] },
   ghost: { backgroundColor: "transparent" },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.9 },

@@ -12,11 +12,13 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
-import { ArrowLeft, Bike, Clock, Heart, MapPin, Phone, Search, ShoppingBag, Star } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ArrowLeft, ArrowRight, Bike, Clock, Heart, MapPin, Phone, Search, ShoppingBag, Star } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { AddButton } from "../../../common/ui/AddButton";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
-import { Skeleton, SkeletonCard } from "../../../common/ui/Skeleton";
-import { colors, radius, spacing, typography } from "../../../theme";
+import { Skeleton, SkeletonMenuRow } from "../../../common/ui/Skeleton";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCartStore } from "../../../stores/cartStore";
@@ -24,26 +26,36 @@ import { useLocationStore } from "../../../stores/locationStore";
 import { ApiError } from "../../../common/types/api";
 import { ProductSheet, type ConfiguredLine } from "../components/ProductSheet";
 import type { PublicProduct } from "../services/marketplaceService";
+import { productBelongsToShop } from "../linkedProduct";
+import { formatDistance } from "../shopFacts";
+import { shopCover, shopInitial } from "../shopCover";
+import { toast } from "../../../common/ui/toast";
+import { confirm } from "../../../common/ui/confirm";
+import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
+import { money } from "../../../common/format";
 import {
   useFavorites,
+  useMarketProduct,
   useMarketProducts,
   useMarketShop,
   useReserve,
   useToggleFavorite,
 } from "../hooks/useMarketplace";
 
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
-type Params = { MarketShop: { slug: string } };
+type Params = { MarketShop: { slug: string; productId?: string } };
 
 /**
  * Shop page, foodpanda-style: hero image → name + rating → Delivery/Pick-up
  * toggle → delivery info card → menu search → category chips → products.
  */
 export function MarketShopScreen() {
+  const insets = useSafeAreaInsets();
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<Params, "MarketShop">>();
-  const { slug } = route.params;
+  const { slug, productId: linkedProductId } = route.params;
 
   const user = useAuthStore((s) => s.user);
   const isCustomer = user?.role === "customer";
@@ -58,10 +70,29 @@ export function MarketShopScreen() {
 
   const shop = useMarketShop(slug, { lat: lat ?? undefined, lng: lng ?? undefined });
   const products = useMarketProducts(slug, { search: debounced, category_id: catId || undefined });
+  const pull = usePullToRefresh(products.refetch);
   const favorites = useFavorites(isCustomer);
   const toggleFavorite = useToggleFavorite();
   const reserve = useReserve();
   const cart = useCartStore();
+
+  // ── A link that named one item ────────────────────────────────────
+  //
+  // Fetched by id rather than searched for in `rows`: the menu pages, so a
+  // link to the ninetieth dish would find nothing on the first screenful and
+  // open silently on the shop instead — which looks like the link was wrong.
+  const linked = useMarketProduct(linkedProductId);
+  const [linkOpened, setLinkOpened] = React.useState(false);
+
+  React.useEffect(() => {
+    if (linkOpened || !linked.data) return;
+    setLinkOpened(true); // once — a closed sheet must not spring back open
+
+    // A link names a shop and an item independently — see `linkedProduct.ts`.
+    if (!productBelongsToShop(linked.data, slug)) return;
+
+    setSheetProduct(linked.data);
+  }, [linked.data, linkOpened, slug]);
 
   // Snap the toggle to a supported mode once the shop config loads.
   React.useEffect(() => {
@@ -81,17 +112,66 @@ export function MarketShopScreen() {
   const hasPickup = shop.data?.fulfillment?.pickup ?? true;
   const closed = shop.data?.is_open_now === false;
   const cartCount = cart.shopSlug === slug ? cart.count() : 0;
-  const prep = shop.data?.prep_time_minutes ?? 30;
+  const cover = shopCover(slug);
+  // NOT defaulted to 30. A shop that has never set a prep time has not made a
+  // promise, and `?? 30` turns that silence into one — printed as this shop's
+  // own "Delivery 30–50 min" beside its own name. A kitchen that takes ninety
+  // minutes is then late by the app's arithmetic, not by its own.
+  //
+  // The shop CARD already says nothing when it is unset; this is the same rule
+  // in the other place the number is drawn.
+  const prep = shop.data?.prep_time_minutes ?? null;
   const hero = shop.data?.gallery?.[0];
+
+  /**
+   * Put a line in the basket — asking first if that would empty it.
+   *
+   * The basket holds one shop at a time: one order, one rider, one delivery
+   * fee. That is a fair rule and it used to be enforced in silence — tapping a
+   * kebab with eight things already in the basket discarded all eight with no
+   * word before or after, and the person found out at the cart.
+   */
+  const addLine = (line: Parameters<typeof cart.add>[1], qty?: number) => {
+    if (!cart.wouldReplace(slug)) {
+      cart.add(slug, line, qty);
+      return;
+    }
+
+    confirm
+      .ask({
+        title: "Start a new basket?",
+        message: `Your basket has items from another shop. ${shop.data?.business_name ?? "This shop"} delivers separately, so those will be removed.`,
+        confirmLabel: "Start new",
+        cancelLabel: "Keep my basket",
+        tone: "danger",
+      })
+      .then((yes) => {
+        if (yes) cart.add(slug, line, qty);
+      })
+      .catch(() => {});
+  };
 
   /** Simple products go straight in; anything configurable opens the sheet. */
   const onAdd = (p: PublicProduct) => {
+    // Refused HERE, not at checkout.
+    //
+    // The server refuses it either way — a prescription medicine cannot be
+    // bought without a pharmacist — but it refuses at the end, after somebody
+    // has chosen a shop, filled a basket and reached the last screen. The rule
+    // is the shop's; the timing was ours.
+    if (p.requires_prescription) {
+      toast.info(`${p.name} needs a prescription`, {
+        detail: "Ask the pharmacy — this one is sold in person, not online.",
+      });
+      return;
+    }
+
     const needsSheet = p.variants.length > 0 || p.modifier_groups.length > 0 || p.sold_by === "weight";
     if (needsSheet) {
       setSheetProduct(p);
       return;
     }
-    cart.add(slug, {
+    addLine({
       product_id: p.id,
       variant_id: null,
       name: p.name,
@@ -103,8 +183,7 @@ export function MarketShopScreen() {
 
   const onConfigured = (line: ConfiguredLine) => {
     const p = sheetProduct!;
-    cart.add(
-      slug,
+    addLine(
       {
         product_id: p.id,
         variant_id: line.variant_id,
@@ -153,17 +232,24 @@ export function MarketShopScreen() {
         {hero ? (
           <Image source={{ uri: hero }} style={styles.heroImg} resizeMode="cover" />
         ) : (
-          <View style={styles.heroFallback}>
-            <Text style={styles.heroInitial}>{shop.data?.business_name?.charAt(0) ?? "…"}</Text>
+          // The SAME derived cover as the card this shop was tapped from, so
+          // opening a shop does not change what it looks like. It used to be a
+          // brand-red block with a translucent white letter on it — the same
+          // block for every shop, and a letter at 85% opacity that read as a
+          // watermark rather than as the shop's mark.
+          <View style={[styles.heroFallback, { backgroundColor: cover.bg }]}>
+            <Text style={[styles.heroInitial, { color: cover.fg }]}>
+              {shopInitial(shop.data?.business_name)}
+            </Text>
           </View>
         )}
         <View style={styles.heroBar}>
           <Pressable style={styles.round} onPress={() => navigation.goBack()} hitSlop={8}>
-            <ArrowLeft size={20} color={colors.black} strokeWidth={2} />
+            <ArrowLeft size={20} color={c.text} strokeWidth={2} />
           </Pressable>
           <View style={styles.heroRight}>
             <Pressable style={styles.round} onPress={contactShop} hitSlop={8}>
-              <Phone size={18} color={colors.black} strokeWidth={2} />
+              <Phone size={18} color={c.text} strokeWidth={2} />
             </Pressable>
             {isCustomer && (
               <Pressable
@@ -174,8 +260,8 @@ export function MarketShopScreen() {
               >
                 <Heart
                   size={19}
-                  color={isFavorite ? colors.error : colors.black}
-                  fill={isFavorite ? colors.error : "transparent"}
+                  color={isFavorite ? c.error : c.text}
+                  fill={isFavorite ? c.error : "transparent"}
                   strokeWidth={2}
                 />
               </Pressable>
@@ -205,8 +291,8 @@ export function MarketShopScreen() {
               {shop.data.distance_km != null && (
                 <>
                   <Text style={styles.metaDot}>·</Text>
-                  <MapPin size={12} color={colors.gray[500]} strokeWidth={2.2} />
-                  <Text style={styles.metaDim}>{shop.data.distance_km} km</Text>
+                  <MapPin size={12} color={c.gray[500]} strokeWidth={2.2} />
+                  <Text style={styles.metaDim}>{formatDistance(shop.data.distance_km)}</Text>
                 </>
               )}
               <Text style={styles.metaDot}>·</Text>
@@ -243,40 +329,41 @@ export function MarketShopScreen() {
             {fulfillment === "delivery" && hasDelivery ? (
               <>
                 <View style={styles.infoRow}>
-                  <Bike size={16} color={colors.brand[600]} strokeWidth={2.2} />
+                  <Bike size={16} color={c.brand[600]} strokeWidth={2.2} />
                   <Text style={styles.infoText}>
-                    Delivery {prep}–{prep + 20} min
-                    {"  ·  "}
+                    {prep !== null ? `Delivery ${prep}–${prep + 20} min  ·  ` : "Delivery  ·  "}
                     {Number(shop.data.delivery_fee) > 0 ? `${money(shop.data.delivery_fee ?? 0)} fee` : "Free delivery"}
                   </Text>
                 </View>
                 {shop.data.delivery_radius_km != null && (
                   <View style={styles.infoRow}>
-                    <MapPin size={16} color={colors.gray[400]} strokeWidth={2.2} />
+                    <MapPin size={16} color={c.gray[400]} strokeWidth={2.2} />
                     <Text style={styles.infoDim}>Delivers within {shop.data.delivery_radius_km} km</Text>
                   </View>
                 )}
                 {shop.data.min_order_amount != null && (
                   <View style={styles.infoRow}>
-                    <ShoppingBag size={16} color={colors.gray[400]} strokeWidth={2.2} />
+                    <ShoppingBag size={16} color={c.gray[400]} strokeWidth={2.2} />
                     <Text style={styles.infoDim}>Min. order {money(shop.data.min_order_amount)}</Text>
                   </View>
                 )}
                 {shop.data.free_delivery_threshold != null && (
                   <View style={styles.infoRow}>
-                    <Bike size={16} color={colors.brand[400]} strokeWidth={2.2} />
+                    <Bike size={16} color={c.brand[400]} strokeWidth={2.2} />
                     <Text style={styles.infoText}>Free delivery above {money(shop.data.free_delivery_threshold)}</Text>
                   </View>
                 )}
               </>
             ) : (
               <View style={styles.infoRow}>
-                <ShoppingBag size={16} color={colors.brand[600]} strokeWidth={2.2} />
-                <Text style={styles.infoText}>Pick-up · ready in ~{prep} min</Text>
+                <ShoppingBag size={16} color={c.brand[600]} strokeWidth={2.2} />
+                <Text style={styles.infoText}>
+                  {prep !== null ? `Pick-up · ready in ~${prep} min` : "Pick-up · collect from the shop"}
+                </Text>
               </View>
             )}
             <View style={styles.infoRow}>
-              <Clock size={16} color={colors.gray[400]} strokeWidth={2.2} />
+              <Clock size={16} color={c.gray[400]} strokeWidth={2.2} />
               <Text style={styles.infoDim}>Cash on delivery</Text>
             </View>
           </View>
@@ -301,12 +388,12 @@ export function MarketShopScreen() {
       {/* Menu search */}
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
-          <Search size={17} color={colors.gray[400]} strokeWidth={2} />
+          <Search size={17} color={c.gray[400]} strokeWidth={2} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search menu…"
-            placeholderTextColor={colors.gray[400]}
+            placeholderTextColor={c.gray[400]}
             autoCapitalize="none"
             style={styles.searchInput}
           />
@@ -317,8 +404,8 @@ export function MarketShopScreen() {
       {(shop.data?.categories?.length ?? 0) > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
           <CatChip label="All" active={catId === ""} onPress={() => setCatId("")} />
-          {shop.data!.categories!.map((c) => (
-            <CatChip key={c.id} label={c.name} active={catId === c.id} onPress={() => setCatId(c.id)} />
+          {shop.data!.categories!.map((cat) => (
+            <CatChip key={cat.id} label={cat.name} active={catId === cat.id} onPress={() => setCatId(cat.id)} />
           ))}
         </ScrollView>
       )}
@@ -326,14 +413,14 @@ export function MarketShopScreen() {
   );
 
   return (
-    <SafeScreen backgroundColor={colors.bg}>
-      <FocusedStatusBar style="dark-content" background={colors.bg} />
+    <SafeScreen backgroundColor={c.bg}>
+      <FocusedStatusBar style="dark-content" background={c.bg} />
       <FlatList
         data={products.isLoading ? [] : rows}
         keyExtractor={(p) => p.id}
         ListHeaderComponent={header}
         contentContainerStyle={[styles.list, cartCount > 0 && { paddingBottom: 96 }]}
-        refreshControl={<RefreshControl refreshing={products.isRefetching} onRefresh={() => products.refetch()} />}
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         renderItem={({ item }) => {
           const img = item.images[0];
           const unavailable = item.type === "product" && (!item.in_stock || !item.available_now);
@@ -347,7 +434,19 @@ export function MarketShopScreen() {
                 )}
               </View>
               <View style={styles.productInfo}>
-                <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+                <View style={styles.nameRow}>
+                  <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+                  {/*
+                    Said BEFORE the tap. A refusal after a basket is built is a
+                    rule discovered at the worst moment; a badge is the same
+                    rule, stated where the decision is made.
+                  */}
+                  {item.requires_prescription && (
+                    <View style={styles.rxBadge}>
+                      <Text style={styles.rxText}>Rx</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.productMeta} numberOfLines={1}>
                   {item.category?.name ?? ""}
                   {item.type === "service" && item.duration_minutes ? ` · ${item.duration_minutes} min` : ""}
@@ -366,9 +465,7 @@ export function MarketShopScreen() {
               </View>
               {item.type === "product" ? (
                 acceptsOrders && !unavailable ? (
-                  <Pressable style={styles.addBtn} onPress={() => onAdd(item)}>
-                    <Text style={styles.addBtnText}>＋</Text>
-                  </Pressable>
+                  <AddButton size={34} label={item.name} onPress={() => onAdd(item)} />
                 ) : canReserve && item.in_stock ? (
                   <Pressable style={styles.reserveBtn} onPress={() => askReserve(item.id, item.name)} disabled={reserve.isPending}>
                     <Text style={styles.reserveText}>Reserve</Text>
@@ -385,8 +482,9 @@ export function MarketShopScreen() {
         ListEmptyComponent={
           products.isLoading ? (
             <View style={styles.skeletons}>
-              <SkeletonCard />
-              <SkeletonCard />
+              <SkeletonMenuRow />
+              <SkeletonMenuRow />
+              <SkeletonMenuRow />
             </View>
           ) : (
             <View style={styles.empty}>
@@ -398,14 +496,36 @@ export function MarketShopScreen() {
         }
       />
 
-      {/* Sticky cart bar → checkout */}
+      {/*
+        Sticky cart bar → THE CART.
+
+        It went straight to Checkout, which meant the basket screen was not in
+        the flow at all: the only way to reach it was to notice the tab. So the
+        one screen where you check what you are buying, change a quantity or
+        drop a line was skipped on the way to the screen that asks for your
+        address — and "View cart" was the label on the button that did it.
+      */}
       {cartCount > 0 && (
-        <Pressable style={styles.cartBar} onPress={() => navigation.navigate("Checkout", { slug })}>
+        <Pressable
+          style={[styles.cartBar, { bottom: insets.bottom + spacing.md }]}
+          accessibilityRole="button"
+          onPress={() => navigation.navigate("Tabs", { screen: "CartTab" })}
+        >
           <View style={styles.cartCount}>
             <Text style={styles.cartCountText}>{cartCount}</Text>
           </View>
           <Text style={styles.cartBarText}>View cart · {money(cart.subtotal())}</Text>
-          <Text style={styles.cartBarCta}>→</Text>
+          {/*
+            A drawn arrow in its own disc, not the character "→".
+            
+            A text arrow takes the font's weight and the font's optical size,
+            which on this bar came out thin and small beside a bold label — it
+            read as punctuation rather than as the thing you press. The disc
+            gives it a hit target and says the bar goes somewhere.
+          */}
+          <View style={styles.cartBarCta}>
+            <ArrowRight size={18} color={c.primary} strokeWidth={2.6} />
+          </View>
         </Pressable>
       )}
 
@@ -418,6 +538,8 @@ export function MarketShopScreen() {
 }
 
 function CatChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable style={[styles.cat, active && styles.catOn]} onPress={onPress}>
       <Text style={[styles.catText, active && styles.catTextOn]}>{label}</Text>
@@ -425,19 +547,15 @@ function CatChip({ label, active, onPress }: { label: string; active: boolean; o
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   list: { paddingBottom: spacing.xxl },
 
   // Hero
-  hero: { height: 168, backgroundColor: colors.brand[100] },
+  hero: { height: 168, backgroundColor: c.brand[100] },
   heroImg: { width: "100%", height: "100%" },
-  heroFallback: {
-    flex: 1,
-    backgroundColor: colors.brand[500],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroInitial: { fontSize: 64, fontWeight: "800", color: "rgba(255,255,255,0.85)" },
+  heroFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
+  heroInitial: { fontSize: 72, fontWeight: "800", letterSpacing: -2 },
   heroBar: {
     position: "absolute",
     top: spacing.sm,
@@ -451,68 +569,68 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.full,
-    backgroundColor: colors.white,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
 
   // Identity
   identity: { alignItems: "center", paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: 5 },
-  shopName: { ...typography.title, color: colors.black, fontSize: 22, textAlign: "center" },
+  shopName: { ...typography.title, color: c.text, fontSize: 22, textAlign: "center" },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaStrong: { ...typography.label, color: colors.black, fontSize: 13 },
-  metaDim: { ...typography.small, color: colors.gray[500], fontSize: 13 },
-  metaDot: { color: colors.gray[300], paddingHorizontal: 2 },
-  openText: { ...typography.label, color: colors.brand[600], fontSize: 13 },
-  closedText: { ...typography.label, color: colors.error, fontSize: 13 },
+  metaStrong: { ...typography.label, color: c.text, fontSize: 13 },
+  metaDim: { ...typography.small, color: c.gray[500], fontSize: 13 },
+  metaDot: { color: c.gray[300], paddingHorizontal: 2 },
+  openText: { ...typography.label, color: c.brand[600], fontSize: 13 },
+  closedText: { ...typography.label, color: c.error, fontSize: 13 },
 
   // Toggle
   toggleWrap: { alignItems: "center", marginTop: spacing.sm },
   toggle: {
     flexDirection: "row",
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.full,
     padding: 3,
   },
   toggleBtn: { paddingHorizontal: spacing.lg, paddingVertical: 7, borderRadius: radius.full },
-  toggleOn: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.brand[500] },
-  toggleText: { ...typography.label, color: colors.gray[500], fontSize: 13 },
-  toggleTextOn: { color: colors.brand[700] },
+  toggleOn: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.brand[500] },
+  toggleText: { ...typography.label, color: c.gray[500], fontSize: 13 },
+  toggleTextOn: { color: c.brand[700] },
   modePill: {
-    backgroundColor: colors.brand[50],
+    backgroundColor: c.brand[50],
     borderRadius: radius.full,
     paddingHorizontal: spacing.lg,
     paddingVertical: 8,
   },
-  modePillText: { ...typography.label, color: colors.brand[700], fontSize: 13 },
+  modePillText: { ...typography.label, color: c.brand[700], fontSize: 13 },
 
   // Info card
   infoCard: {
     marginHorizontal: spacing.md,
     marginTop: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     padding: spacing.md,
     gap: spacing.xs,
   },
   infoRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  infoText: { ...typography.label, color: colors.black, fontSize: 13.5 },
-  infoDim: { ...typography.small, color: colors.gray[500], fontSize: 13 },
+  infoText: { ...typography.label, color: c.text, fontSize: 13.5 },
+  infoDim: { ...typography.small, color: c.gray[500], fontSize: 13 },
 
   warnStrip: {
     marginHorizontal: spacing.md,
     marginTop: spacing.xs,
-    backgroundColor: colors.warningBg,
+    backgroundColor: c.warningBg,
     borderRadius: radius.md,
     padding: spacing.sm,
   },
-  warnText: { ...typography.tiny, color: colors.warning },
+  warnText: { ...typography.tiny, color: c.warning },
 
   // Search + cats
   searchWrap: { paddingHorizontal: spacing.md, marginTop: spacing.md },
@@ -520,26 +638,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     height: 44,
   },
-  searchInput: { flex: 1, ...typography.body, color: colors.black, padding: 0 },
+  searchInput: { flex: 1, ...typography.body, color: c.text, padding: 0 },
   cats: { paddingHorizontal: spacing.md, gap: spacing.xs, paddingVertical: spacing.sm },
   cat: {
     paddingHorizontal: spacing.md,
     paddingVertical: 7,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  catOn: { backgroundColor: colors.brand[500], borderColor: colors.brand[500] },
-  catText: { ...typography.small, color: colors.gray[600], fontSize: 13 },
-  catTextOn: { color: colors.white, fontWeight: "700" },
+  catOn: { backgroundColor: c.brand[500], borderColor: c.brand[500] },
+  catText: { ...typography.small, color: c.gray[600], fontSize: 13 },
+  catTextOn: { color: c.white, fontWeight: "700" },
 
   // Products
   skeletons: { padding: spacing.md, gap: spacing.sm },
@@ -547,9 +665,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     padding: spacing.sm,
     marginHorizontal: spacing.md,
@@ -560,52 +678,60 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   productImg: { width: "100%", height: "100%" },
-  productInitial: { ...typography.title, color: colors.gray[300] },
+  productInitial: { ...typography.title, color: c.gray[300] },
   productInfo: { flex: 1, gap: 2 },
-  productName: { ...typography.label, color: colors.black, fontSize: 15 },
-  productMeta: { ...typography.tiny, color: colors.gray[500] },
-  priceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  price: { ...typography.label, color: colors.brand[600], fontSize: 14.5 },
-  perUnit: { ...typography.tiny, color: colors.gray[400] },
-  strike: { ...typography.tiny, color: colors.gray[400], textDecorationLine: "line-through" },
-  offText: { ...typography.tiny, color: colors.error },
-  addBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.full,
-    backgroundColor: colors.brand[500],
-    alignItems: "center",
-    justifyContent: "center",
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  rxBadge: {
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    backgroundColor: c.infoBg,
   },
-  addBtnText: { color: colors.white, fontSize: 17, fontWeight: "700", marginTop: -1 },
+  rxText: { ...typography.tiny, color: c.info, fontWeight: "800", fontSize: 10 },
+  productName: { ...typography.label, color: c.text, fontSize: 15 },
+  productMeta: { ...typography.tiny, color: c.gray[500] },
+  priceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  price: { ...typography.label, color: c.brand[600], fontSize: 14.5 },
+  perUnit: { ...typography.tiny, color: c.gray[400] },
+  strike: { ...typography.tiny, color: c.gray[400], textDecorationLine: "line-through" },
+  offText: { ...typography.tiny, color: c.error },
   reserveBtn: {
     borderWidth: 1,
-    borderColor: colors.brand[500],
+    borderColor: c.brand[500],
     borderRadius: radius.full,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
   },
-  reserveText: { ...typography.tiny, color: colors.brand[700], fontWeight: "700" },
+  reserveText: { ...typography.tiny, color: c.brand[700], fontWeight: "700" },
 
   empty: { alignItems: "center", paddingVertical: spacing.xxl },
-  emptyTitle: { ...typography.body, color: colors.gray[500] },
+  emptyTitle: { ...typography.body, color: c.gray[500] },
 
   // Cart bar
+  /**
+   * `bottom` is set at the call site, from the safe-area inset.
+   *
+   * An absolutely-positioned child does NOT sit inside its parent's
+   * paddingBottom — Yoga measures `bottom` from the border box — so
+   * `SafeScreen`'s inset, which correctly holds the LIST clear of the
+   * navigation bar, does nothing for this bar. On a phone with three-button
+   * navigation it sat underneath the buttons, with "View cart · Rs 3,980"
+   * showing through them.
+   */
   cartBar: {
     position: "absolute",
     left: spacing.md,
     right: spacing.md,
-    bottom: spacing.md,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.brand[500],
+    backgroundColor: c.brand[500],
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     height: 52,
@@ -618,7 +744,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  cartCountText: { ...typography.tiny, color: colors.white, fontWeight: "800" },
-  cartBarText: { ...typography.label, color: colors.white, flex: 1, textAlign: "center", fontSize: 15 },
-  cartBarCta: { ...typography.title, color: colors.white, fontSize: 18 },
+  cartCountText: { ...typography.tiny, color: c.white, fontWeight: "800" },
+  cartBarText: { ...typography.label, color: c.white, flex: 1, textAlign: "center", fontSize: 15 },
+  cartBarCta: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.full,
+    // On the brand-filled bar, so it takes the token for things sitting ON the
+    // brand — not the white literal, which would follow neither theme.
+    backgroundColor: c.onPrimary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

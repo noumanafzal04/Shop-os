@@ -1,66 +1,96 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
-import { colors, radius, spacing, typography } from "../../theme";
-
-interface Action {
-  icon: LucideIcon;
-  onPress: () => void;
-  label?: string;
-}
+import { useNavigation } from "@react-navigation/native";
+import { ArrowLeft } from "lucide-react-native";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../theme";
 
 /**
- * Consistent large screen title with optional subtitle and a primary
- * icon-action (e.g. "add"). Used at the top of every list screen.
+ * The header every pushed screen wears: a way back, a title, and room on the
+ * right for one action.
+ *
+ * ── Why this is a component and not a pattern ────────────────────────
+ *
+ * Written out per screen, it went wrong twice in two different ways.
+ *
+ * Some screens simply had NO back button — Favourites and Reservations are
+ * both reachable from the side menu and neither could be left except with the
+ * phone's own key, which on a gesture-navigation phone is a swipe nobody is
+ * told about.
+ *
+ * The rest centred their title by putting an empty View opposite the button,
+ * and three of them gave that gap the BUTTON's style — so the balancing space
+ * rendered as an empty circle floating in the top right.
+ *
+ * The title here is left-aligned beside the button, so there is no gap to
+ * balance and nothing for a spacer to get wrong.
  */
-export function ScreenHeader({
-  title,
-  subtitle,
-  action,
-}: {
+
+interface Props {
   title: string;
+  /** A second line under the title — the shop, the count, who you are. */
   subtitle?: string;
-  action?: Action;
-}) {
+  /** One control on the right: a filter button, a gear, an Empty. */
+  right?: React.ReactNode;
+  /**
+   * Hidden only where there is genuinely nowhere to go — a root tab. Every
+   * pushed screen keeps it.
+   */
+  showBack?: boolean;
+  onBack?: () => void;
+}
+
+export function ScreenHeader({ title, subtitle, right, showBack = true, onBack }: Props) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const navigation = useNavigation<any>();
+
   return (
     <View style={styles.row}>
-      <View style={styles.text}>
-        <Text style={styles.title}>{title}</Text>
-        {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
-      </View>
-      {action && (
+      {showBack && (
         <Pressable
-          onPress={action.onPress}
-          style={({ pressed }) => [styles.action, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={onBack ?? (() => navigation.goBack())}
         >
-          <action.icon size={18} color={colors.white} strokeWidth={2.4} />
-          {!!action.label && <Text style={styles.actionLabel}>{action.label}</Text>}
+          <ArrowLeft size={19} color={c.text} strokeWidth={2.3} />
         </Pressable>
       )}
+      <View style={styles.copy}>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+        {!!subtitle && (
+          <Text style={styles.sub} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        )}
+      </View>
+      {right}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-  },
-  text: { flex: 1, paddingRight: spacing.md },
-  title: { ...typography.title, color: colors.gray[900] },
-  subtitle: { ...typography.small, color: colors.gray[500], marginTop: 2 },
-  action: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.brand[500],
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: radius.full,
-  },
-  actionLabel: { color: colors.white, fontWeight: "600", fontSize: 13 },
-});
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    back: {
+      width: 38,
+      height: 38,
+      borderRadius: radius.full,
+      backgroundColor: c.surfaceAlt,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    backPressed: { backgroundColor: c.border },
+    copy: { flex: 1 },
+    title: { ...typography.title, color: c.text },
+    sub: { ...typography.tiny, color: c.textSecondary, marginTop: 1 },
+  });

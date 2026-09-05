@@ -4,6 +4,14 @@
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <!--
+          The window's own colour, so the frame between tapping the icon and
+          the first React render is the brand rather than white. This is what
+          removes the flash; the animated splash in JS takes over from here.
+        -->
+        <item name="android:windowBackground">@color/brand</item>
+        <item name="android:statusBarColor">@color/brand</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
 </resources>

@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
-import { colors, spacing } from "../../theme";
+import { spacing, type ThemeColors, useColors } from "../../theme";
 
 /**
  * Global connectivity banner — mounts once at the app root and shows
  * whenever the device loses internet.
  */
 export function OfflineBanner() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {
@@ -26,11 +28,12 @@ export function OfflineBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   banner: {
-    backgroundColor: colors.error,
+    backgroundColor: c.error,
     paddingVertical: spacing.xs,
     alignItems: "center",
   },
-  text: { color: colors.white, fontSize: 12, fontWeight: "600" },
+  text: { color: c.white, fontSize: 12, fontWeight: "600" },
 });

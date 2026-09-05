@@ -16,6 +16,8 @@ export interface PublicShop {
   phone?: string | null;
   phone_requires_login?: boolean;
   features?: { delivery: boolean; reservations: boolean; services: boolean };
+  /** Whether it delivers at all — a zero fee alone cannot say. */
+  delivers?: boolean;
   delivery_fee?: number;
   delivery_radius_km?: number | null;
   delivers_to_me?: boolean;
@@ -102,6 +104,12 @@ export interface PublicProduct {
   /** Regular price when a sale is active — show a strikethrough. */
   original_price: number | null;
   brand: string | null;
+  /**
+   * A prescription-only medicine. The server has always sent this and the app
+   * never read it, so the refusal arrived at CHECKOUT — after a basket had
+   * been built around an item that could never be in it.
+   */
+  requires_prescription?: boolean;
   unit: string | null;
   sold_by: "unit" | "weight";
   min_order_qty: number | null;
@@ -114,6 +122,70 @@ export interface PublicProduct {
   modifier_groups: PublicModifierGroup[];
 }
 
+/**
+ * Everything the aisle can be narrowed by.
+ *
+ * These names are the SERVER's — `/marketplace/products` validates exactly this
+ * set — so a filter added on one side is a compile error on the other rather
+ * than a control that silently does nothing.
+ */
+export interface BrowseFilters {
+  q?: string;
+  city_id?: string;
+  business_type?: string;
+  /** Pins the aisle to one shop, for a filter opened from a shop's own menu. */
+  shop_slug?: string;
+  item_type?: string;
+  category?: string;
+  size?: string;
+  min_price?: number | null;
+  max_price?: number | null;
+  on_sale?: boolean;
+  in_stock?: boolean;
+  rating_min?: number | null;
+  sort?: "name" | "price_asc" | "price_desc" | "newest" | "discount" | "rating";
+  page?: number;
+  per_page?: number;
+}
+
+/** A product in the aisle carries the shop that sells it. */
+export type AisleProduct = PublicProduct & {
+  shop: {
+    slug: string;
+    business_name: string;
+    business_type: string | null;
+    city: { id: string; name: string } | null;
+    rating: number | null;
+    delivery_fee: number;
+  } | null;
+};
+
+/**
+ * What is worth choosing, and how many of it.
+ *
+ * Each axis is counted with every OTHER filter applied but not its own, so
+ * picking a different city never reads zero. `price` is the real range of the
+ * current result — the slider's bounds, not a guess.
+ */
+export interface AisleFacets {
+  total: number;
+  cities: Array<{ id: string; name: string; products_count: number }>;
+  business_types: Array<{ type: string | null; products_count: number }>;
+  categories: Array<{ name: string; products_count: number }>;
+  sizes: Array<{ name: string; products_count: number }>;
+  price: { min: number; max: number };
+  on_sale_count: number;
+}
+
+/** A city the marketplace actually delivers in. */
+export interface MarketCity {
+  id: string;
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+  shops_count: number;
+}
+
 export interface RegisterPayload {
   name: string;
   email?: string;
@@ -122,10 +194,56 @@ export interface RegisterPayload {
   password_confirmation: string;
 }
 
+
+/**
+ * A filter set, as query parameters.
+ *
+ * Two things this does that a spread would not:
+ *
+ *  - drops empty values, so an untouched filter is ABSENT rather than sent as
+ *    "" — the server treats a present-but-empty axis as a real answer on one
+ *    of them (`ids`), and an empty string is not what any of the others mean;
+ *  - sends booleans as 1/0. `false` in a query string arrives as the STRING
+ *    "false", which Laravel's `boolean` rule accepts and which is truthy —
+ *    so "on sale" would switch on the moment it was switched off.
+ */
+function browseParams(f: BrowseFilters): Record<string, string | number | undefined> {
+  const out: Record<string, string | number | undefined> = {};
+  const put = (k: string, v: string | number | null | undefined) => {
+    if (v !== null && v !== undefined && v !== "") out[k] = v;
+  };
+  put("q", f.q?.trim());
+  put("city_id", f.city_id);
+  put("business_type", f.business_type);
+  put("shop_slug", f.shop_slug);
+  put("item_type", f.item_type);
+  put("category", f.category);
+  put("size", f.size);
+  put("min_price", f.min_price);
+  put("max_price", f.max_price);
+  put("rating_min", f.rating_min);
+  put("sort", f.sort);
+  put("page", f.page);
+  put("per_page", f.per_page);
+  if (f.on_sale) out.on_sale = 1;
+  if (f.in_stock) out.in_stock = 1;
+  return out;
+}
+
 export const marketplaceService = {
   /** GPS → nearest city (no manual picker). */
   locate: (lat: number, lng: number) =>
     apiGet<LocateResult>("/marketplace/locate", { params: { lat, lng } }),
+
+  /**
+   * The cities somebody can be delivered in.
+   *
+   * Answered from our own rows, so the location picker works whether or not a
+   * geocoding key is configured — street search needs a provider, a city does
+   * not, and the marketplace lists by city anyway.
+   */
+  cities: (q?: string) =>
+    apiGet<MarketCity[]>("/marketplace/cities", { params: { q: q?.trim() || undefined } }),
 
   /** The whole home screen in one round trip. */
   home: (params: { lat?: number; lng?: number; city_id?: string }) =>
@@ -150,6 +268,20 @@ export const marketplaceService = {
       },
     }),
 
+  /**
+   * The aisle: every marketplace product, filtered.
+   *
+   * Separate from `products(slug)` — that one is a single shop's menu and
+   * takes no price or sort. This is the cross-shop list the filter sheet
+   * drives, and the only endpoint that answers a price range.
+   */
+  browse: (f: BrowseFilters) =>
+    apiGet<AisleProduct[]>("/marketplace/products", { params: browseParams(f) }),
+
+  /** The same query, counted per axis — see `AisleFacets`. */
+  facets: (f: BrowseFilters) =>
+    apiGet<AisleFacets>("/marketplace/products/facets", { params: browseParams(f) }),
+
   shop: (slug: string, params: { lat?: number; lng?: number } = {}) =>
     apiGet<PublicShop>(`/marketplace/shops/${slug}`, { params }),
 
@@ -161,6 +293,17 @@ export const marketplaceService = {
         page: params.page ?? 1,
       },
     }),
+
+  /**
+   * One product, by id. The list endpoint pages, so a shared link to the
+   * ninetieth item on a menu cannot be answered by searching what happens to
+   * be on screen — this asks for the one thing by name.
+   *
+   * Carries its shop, which is how a link that names only a product still
+   * knows which counter it came from.
+   */
+  product: (id: string) =>
+    apiGet<PublicProduct & { shop: PublicShop }>(`/marketplace/products/${id}`),
 
   register: (payload: RegisterPayload) =>
     apiPost<LoginResponse>("/auth/register", { device_name: "mobile", ...payload }),

@@ -6,9 +6,10 @@ import { ArrowLeft, MapPin, Plus, Trash2 } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AppButton } from "../../../common/ui/AppButton";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
-import { Skeleton } from "../../../common/ui/Skeleton";
+import { SkeletonListRow } from "../../../common/ui/Skeleton";
+import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
-import { colors, radius, spacing, typography } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useLocationStore } from "../../../stores/locationStore";
 
 interface CustomerAddress {
@@ -25,6 +26,8 @@ interface CustomerAddress {
  * pin — a full map picker replaces this later without API changes.
  */
 export function AddressesScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const qc = useQueryClient();
   const { lat, lng, label: cityLabel } = useLocationStore();
@@ -63,14 +66,14 @@ export function AddressesScreen() {
   });
 
   return (
-    <SafeScreen backgroundColor={colors.bg} edges={["top"]}>
+    <SafeScreen backgroundColor={c.bg}>
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeft size={20} color={colors.black} strokeWidth={2} />
+          <ArrowLeft size={20} color={c.text} strokeWidth={2} />
         </Pressable>
         <Text style={styles.title}>My addresses</Text>
         <Pressable style={styles.back} onPress={() => setAdding((v) => !v)} hitSlop={8}>
-          <Plus size={20} color={colors.brand[600]} strokeWidth={2.2} />
+          <Plus size={20} color={c.brand[600]} strokeWidth={2.2} />
         </Pressable>
       </View>
 
@@ -92,9 +95,16 @@ export function AddressesScreen() {
       {list.isLoading ? (
         <View style={styles.list}>
           {[0, 1].map((i) => (
-            <Skeleton key={i} width="100%" height={76} borderRadius={radius.lg} />
+            <SkeletonListRow key={i} />
           ))}
         </View>
+      ) : list.isError ? (
+        <LoadFailed
+          what="your saved addresses"
+          error={list.error}
+          onRetry={() => list.refetch()}
+          retrying={list.isFetching}
+        />
       ) : (
         <FlatList
           data={list.data ?? []}
@@ -103,7 +113,7 @@ export function AddressesScreen() {
           ListEmptyComponent={
             !adding ? (
               <View style={styles.emptyWrap}>
-                <MapPin size={32} color={colors.gray[300]} strokeWidth={1.6} />
+                <MapPin size={32} color={c.gray[300]} strokeWidth={1.6} />
                 <Text style={styles.empty}>No saved addresses — add one with +</Text>
               </View>
             ) : null
@@ -114,7 +124,7 @@ export function AddressesScreen() {
               onPress={() => !item.is_default && makeDefault.mutate(item.id)}
             >
               <View style={styles.rowIcon}>
-                <MapPin size={18} color={colors.brand[600]} strokeWidth={2} />
+                <MapPin size={18} color={c.brand[600]} strokeWidth={2} />
               </View>
               <View style={styles.rowInfo}>
                 <View style={styles.rowTop}>
@@ -124,7 +134,7 @@ export function AddressesScreen() {
                 <Text style={styles.rowAddress} numberOfLines={2}>{item.address}</Text>
               </View>
               <Pressable hitSlop={8} onPress={() => remove.mutate(item.id)}>
-                <Trash2 size={17} color={colors.gray[300]} strokeWidth={2} />
+                <Trash2 size={17} color={c.gray[300]} strokeWidth={2} />
               </Pressable>
             </Pressable>
           )}
@@ -134,7 +144,8 @@ export function AddressesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -146,61 +157,61 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { ...typography.h3, color: colors.black },
+  title: { ...typography.h3, color: c.text },
 
   form: {
     margin: spacing.md,
     marginBottom: 0,
     padding: spacing.md,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     gap: spacing.sm,
   },
-  pinNote: { ...typography.tiny, color: colors.gray[500] },
+  pinNote: { ...typography.tiny, color: c.gray[500] },
 
   list: { padding: spacing.md, gap: spacing.xs },
   emptyWrap: { alignItems: "center", gap: spacing.sm, paddingTop: spacing.xxl },
-  empty: { ...typography.small, color: colors.gray[400] },
+  empty: { ...typography.small, color: c.gray[400] },
 
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     padding: spacing.md,
   },
-  rowDefault: { borderColor: colors.brand[400] },
+  rowDefault: { borderColor: c.brand[400] },
   rowIcon: {
     width: 36,
     height: 36,
     borderRadius: radius.full,
-    backgroundColor: colors.brand[50],
+    backgroundColor: c.brand[50],
     alignItems: "center",
     justifyContent: "center",
   },
   rowInfo: { flex: 1, gap: 2 },
   rowTop: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  rowLabel: { ...typography.label, color: colors.black },
+  rowLabel: { ...typography.label, color: c.text },
   defaultBadge: {
     ...typography.tiny,
-    color: colors.brand[700],
-    backgroundColor: colors.brand[50],
+    color: c.brand[700],
+    backgroundColor: c.brand[50],
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.full,
     overflow: "hidden",
     fontWeight: "700",
   },
-  rowAddress: { ...typography.small, color: colors.gray[500] },
+  rowAddress: { ...typography.small, color: c.gray[500] },
 });

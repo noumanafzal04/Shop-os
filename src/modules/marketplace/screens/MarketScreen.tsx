@@ -11,15 +11,19 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { ArrowLeft, ChevronRight, Search, Star } from "lucide-react-native";
+import { ArrowLeft, ChevronRight, Search } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
-import { Skeleton } from "../../../common/ui/Skeleton";
-import { colors, radius, spacing, typography } from "../../../theme";
+import { SkeletonListRow } from "../../../common/ui/Skeleton";
+import { LoadFailed } from "../../../common/ui/LoadFailed";
+import { ShopFactsRow } from "../components/ShopFactsRow";
+import { shopCover, shopInitial } from "../shopCover";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useHomeFeed, useMarketShops } from "../hooks/useMarketplace";
 import type { PublicShop } from "../services/marketplaceService";
+import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 
 const typeLabel = (t: string | null) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : "Shop");
 
@@ -28,6 +32,8 @@ const typeLabel = (t: string | null) => (t ? t.charAt(0).toUpperCase() + t.slice
  * Green hero header + deals strip + designed shop rows (nearest first).
  */
 export function MarketScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
@@ -45,6 +51,7 @@ export function MarketScreen() {
     lat: lat ?? undefined,
     lng: lng ?? undefined,
   });
+  const pull = usePullToRefresh(shops.refetch);
   const rows = shops.data?.data ?? [];
 
   // Deals strip scoped to this list's business type (grocery tab → grocery deals).
@@ -53,16 +60,22 @@ export function MarketScreen() {
     (d) => !businessType || d.shop?.business_type === businessType,
   );
 
+  // The bottom inset depends on WHERE THIS SCREEN IS.
+  //
+  // It is the Grocery tab and it is also `ShopList`, pushed from a home
+  // shortcut. As a tab the floating bar covers the gesture area, so padding it
+  // again opens a dead strip; pushed, nothing is below it and its last row
+  // lands under the gesture bar. One component, two answers.
   return (
-    <SafeScreen backgroundColor={colors.brand[500]} edges={["top"]}>
-      <FocusedStatusBar style="light-content" background={colors.brand[500]} />
+    <SafeScreen backgroundColor={c.brand[500]} edges={isTab ? ["top"] : ["top", "bottom"]}>
+      <FocusedStatusBar style="light-content" background={c.brand[500]} />
 
       {/* ── Green hero header ─────────────────────────────────────── */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           {!isTab && (
             <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-              <ArrowLeft size={19} color={colors.white} strokeWidth={2.2} />
+              <ArrowLeft size={19} color={c.white} strokeWidth={2.2} />
             </Pressable>
           )}
           <View style={styles.headerText}>
@@ -71,12 +84,12 @@ export function MarketScreen() {
           </View>
         </View>
         <View style={styles.searchBar}>
-          <Search size={18} color={colors.gray[400]} strokeWidth={2} />
+          <Search size={18} color={c.gray[400]} strokeWidth={2} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search shops…"
-            placeholderTextColor={colors.gray[400]}
+            placeholderTextColor={c.gray[400]}
             autoCapitalize="none"
             style={styles.searchInput}
           />
@@ -90,7 +103,7 @@ export function MarketScreen() {
         keyExtractor={(s) => s.slug}
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={shops.isRefetching} onRefresh={() => shops.refetch()} tintColor={colors.brand[500]} />
+          <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={c.brand[500]} />
         }
         ListHeaderComponent={
           <>
@@ -141,9 +154,16 @@ export function MarketScreen() {
           shops.isLoading ? (
             <View style={styles.skeletons}>
               {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} width="100%" height={86} borderRadius={radius.lg} />
+                <SkeletonListRow key={i} />
               ))}
             </View>
+                    ) : shops.isError ? (
+            <LoadFailed
+              what="shops near you"
+              error={shops.error}
+              onRetry={() => shops.refetch()}
+              retrying={shops.isFetching}
+            />
           ) : (
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>No shops found</Text>
@@ -160,11 +180,18 @@ export function MarketScreen() {
 }
 
 function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const closed = shop.is_open_now === false;
+  const cover = shopCover(shop.slug);
   return (
     <Pressable style={[styles.row, closed && styles.rowClosed]} onPress={onPress}>
-      <View style={styles.logo}>
-        <Text style={styles.logoText}>{shop.business_name.charAt(0)}</Text>
+      {/* The same derived cover as the home row — a shop looks the same
+          wherever it appears. See `shopCover.ts`. */}
+      <View style={[styles.logo, { backgroundColor: cover.bg }]}>
+        <Text style={[styles.logoText, { color: cover.fg }]}>
+          {shopInitial(shop.business_name)}
+        </Text>
       </View>
       <View style={styles.rowInfo}>
         <Text style={styles.rowName} numberOfLines={1}>{shop.business_name}</Text>
@@ -172,29 +199,17 @@ function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
           {typeLabel(shop.business_type)}
           {shop.city ? ` · ${shop.city.name}` : ""}
         </Text>
-        <View style={styles.rowStats}>
-          {shop.rating !== null && (
-            <View style={styles.stat}>
-              <Star size={12} color="#f5a623" fill="#f5a623" strokeWidth={0} />
-              <Text style={styles.statText}>{shop.rating}</Text>
-            </View>
-          )}
-          {shop.distance_km != null && <Text style={styles.statText}>{shop.distance_km} km</Text>}
-          {closed ? (
-            <Text style={styles.closedText}>Closed</Text>
-          ) : (
-            <Text style={styles.openText}>Open</Text>
-          )}
-        </View>
+        <ShopFactsRow shop={shop} closed={closed} />
       </View>
-      <ChevronRight size={18} color={colors.gray[300]} strokeWidth={2.2} />
+      <ChevronRight size={18} color={c.gray[300]} strokeWidth={2.2} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   header: {
-    backgroundColor: colors.brand[500],
+    backgroundColor: c.brand[500],
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
     paddingBottom: spacing.md,
@@ -209,64 +224,64 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerText: { flex: 1 },
-  title: { ...typography.title, color: colors.white },
-  subtitle: { ...typography.tiny, color: colors.brand[100] },
+  title: { ...typography.title, color: c.white },
+  subtitle: { ...typography.tiny, color: c.brand[100] },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.white,
+    backgroundColor: c.surface,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     height: 46,
   },
-  searchInput: { flex: 1, ...typography.body, color: colors.black, padding: 0 },
+  searchInput: { flex: 1, ...typography.body, color: c.text, padding: 0 },
 
-  body: { flex: 1, backgroundColor: colors.bg },
+  body: { flex: 1, backgroundColor: c.bg },
   list: { padding: spacing.md, paddingBottom: spacing.xxl },
-  sectionTitle: { ...typography.h3, color: colors.black, fontSize: 17, marginBottom: spacing.sm, marginTop: spacing.xs },
+  sectionTitle: { ...typography.h3, color: c.text, fontSize: 17, marginBottom: spacing.sm, marginTop: spacing.xs },
 
   dealRow: { gap: spacing.sm, paddingBottom: spacing.md },
   dealCard: {
     width: 158,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     overflow: "hidden",
   },
-  dealImgWrap: { height: 96, backgroundColor: colors.surfaceAlt, alignItems: "center", justifyContent: "center" },
+  dealImgWrap: { height: 96, backgroundColor: c.surfaceAlt, alignItems: "center", justifyContent: "center" },
   dealImg: { width: "100%", height: "100%" },
-  dealInitial: { fontSize: 30, fontWeight: "700", color: colors.gray[200] },
+  dealInitial: { fontSize: 30, fontWeight: "700", color: c.gray[200] },
   offBadge: {
     position: "absolute",
     left: 8,
     top: 8,
-    backgroundColor: colors.brand[500],
+    backgroundColor: c.brand[500],
     borderRadius: radius.full,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  offBadgeText: { ...typography.tiny, color: colors.white, fontWeight: "700", fontSize: 10 },
+  offBadgeText: { ...typography.tiny, color: c.white, fontWeight: "700", fontSize: 10 },
   dealBody: { padding: spacing.sm, gap: 2 },
-  dealName: { ...typography.label, color: colors.black, fontSize: 13 },
+  dealName: { ...typography.label, color: c.text, fontSize: 13 },
   dealPriceRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  dealPrice: { ...typography.label, color: colors.brand[600], fontSize: 13 },
-  dealStrike: { ...typography.tiny, color: colors.gray[400], textDecorationLine: "line-through", fontSize: 10 },
-  dealShop: { ...typography.tiny, color: colors.gray[500], fontSize: 10 },
+  dealPrice: { ...typography.label, color: c.brand[600], fontSize: 13 },
+  dealStrike: { ...typography.tiny, color: c.gray[400], textDecorationLine: "line-through", fontSize: 10 },
+  dealShop: { ...typography.tiny, color: c.gray[500], fontSize: 10 },
 
   skeletons: { gap: spacing.sm },
   empty: { alignItems: "center", paddingVertical: spacing.xxl, gap: 4 },
-  emptyTitle: { ...typography.h3, color: colors.black },
-  emptyText: { ...typography.small, color: colors.gray[500], textAlign: "center" },
+  emptyTitle: { ...typography.h3, color: c.text },
+  emptyText: { ...typography.small, color: c.gray[500], textAlign: "center" },
 
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     padding: spacing.sm,
     marginBottom: spacing.xs,
@@ -276,17 +291,12 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: radius.md,
-    backgroundColor: colors.brand[50],
+    backgroundColor: c.brand[50],
     alignItems: "center",
     justifyContent: "center",
   },
-  logoText: { ...typography.title, color: colors.brand[600] },
+  logoText: { ...typography.display, fontSize: 24 },
   rowInfo: { flex: 1, gap: 2 },
-  rowName: { ...typography.label, color: colors.black, fontSize: 15.5 },
-  rowMeta: { ...typography.tiny, color: colors.gray[500] },
-  rowStats: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 1 },
-  stat: { flexDirection: "row", alignItems: "center", gap: 3 },
-  statText: { ...typography.tiny, color: colors.gray[600] },
-  openText: { ...typography.tiny, color: colors.brand[600], fontWeight: "700" },
-  closedText: { ...typography.tiny, color: colors.error, fontWeight: "700" },
+  rowName: { ...typography.label, color: c.text, fontSize: 15.5 },
+  rowMeta: { ...typography.tiny, color: c.gray[500] },
 });
