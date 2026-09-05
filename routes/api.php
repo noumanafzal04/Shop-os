@@ -151,6 +151,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     Route::prefix('marketplace')->group(function (): void {
         // GPS → nearest city (no manual city picker on mobile)
         Route::get('/locate', [MarketplaceController::class, 'locate']);
+        // The cities a shopper can be delivered in — our own rows, so the
+        // location picker works with or without a geocoding key.
+        Route::get('/cities', [MarketplaceController::class, 'cities']);
         // Universal search (products + shops + categories, one box)
         Route::get('/search', [MarketplaceController::class, 'search']);
         // Mobile home screen in one round trip
@@ -176,6 +179,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     Route::middleware(['auth:sanctum', 'abilities:access', 'tenant'])->group(function (): void {
         Route::prefix('auth')->group(function (): void {
             Route::get('/me', [AuthController::class, 'me']);
+            // Your own name and contact details. Not under `role:customer` —
+            // a shop owner editing their own name is the same operation.
+            Route::put('/profile', [AuthController::class, 'updateProfile']);
             Route::post('/password/change', [AuthController::class, 'changePassword']);
             Route::post('/logout', [AuthController::class, 'logout']);
             Route::post('/logout-all', [AuthController::class, 'logoutAll']);

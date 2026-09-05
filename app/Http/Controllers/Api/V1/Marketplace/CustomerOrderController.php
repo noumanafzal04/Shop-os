@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Marketplace;
 
 use App\Enums\FulfillmentType;
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Tenant;
@@ -71,9 +72,23 @@ class CustomerOrderController extends Controller
             ->with('items', 'branch:id,name,address,phone')
             ->findOrFail($id);
 
-        // Customers may only cancel before the shop starts preparing.
-        if (! in_array($order->status->value, ['pending', 'confirmed'], strict: true)) {
-            return ApiResponse::error('This order can no longer be cancelled — contact the shop.', 409, code: 'ORDER_NOT_CANCELLABLE');
+        // ── A customer may cancel only while NOBODY HAS ANSWERED YET ─────
+        //
+        // Until `confirmed` the order is a request. The moment the shop accepts
+        // it, the shop has committed something real — a slot in the kitchen,
+        // stock held off the shelf, sometimes a rider — and a customer undoing
+        // that from a phone leaves the shop carrying the cost of a decision it
+        // was never part of.
+        //
+        // `confirmed` used to be cancellable here, which made "accepted" mean
+        // nothing to the shop that said it. Past this point the answer is a
+        // conversation, not a button.
+        if ($order->status !== OrderStatus::Pending) {
+            return ApiResponse::error(
+                'The shop has already accepted this order — call them to cancel it.',
+                409,
+                code: 'ORDER_NOT_CANCELLABLE',
+            );
         }
 
         $order = $service->cancel($order, 'Cancelled by customer');

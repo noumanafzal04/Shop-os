@@ -71,6 +71,72 @@ class MarketplaceTest extends TestCase
         $this->getJson('/api/v1/marketplace/shops/'.$deleted->slug)->assertStatus(404);
     }
 
+    /**
+     * A card nobody can decide from is a card that has to be opened.
+     *
+     * The list used to carry a name, a rating and a distance — and nothing
+     * about the two things anyone actually chooses on: how long the food takes
+     * and what delivery costs. Both were detail-only, so the shop that turns
+     * out to be an hour away for Rs 200 was the one you found last.
+     */
+    public function test_the_shop_list_carries_what_a_card_needs_to_decide(): void
+    {
+        $this->onlineShop([
+            'business_name' => 'Cheesy Slice',
+            // A fee with paisa in it on purpose: a whole number survives an
+            // int cast unnoticed, so it cannot tell whether the value arrived
+            // as money or as a rounded-down approximation of it.
+            'delivery_fee' => 120.50,
+            'settings' => ['prep_time_minutes' => 45, 'free_delivery_threshold' => 1500],
+        ]);
+
+        $card = $this->getJson('/api/v1/marketplace/shops')
+            ->assertOk()
+            ->json('data.0');
+
+        $this->assertTrue($card['delivers']);
+        $this->assertSame(120.5, $card['delivery_fee']);
+        $this->assertSame(45, $card['prep_time_minutes']);
+        // JSON has one number type, so a whole 1500.0 reaches the client as
+        // 1500 — which is what the app reads, and what this asserts.
+        $this->assertSame(1500, $card['free_delivery_threshold']);
+    }
+
+    /**
+     * A shop that has set none of them says so, rather than saying zero.
+     *
+     * "Free delivery, ready in 0 minutes" is what a missing setting looks like
+     * once a client renders it, and it is a promise the shop never made.
+     */
+    /**
+     * A zero fee means two different things, and only this tells them apart.
+     *
+     * "Free delivery" on a shop that does not deliver is a card sending
+     * somebody across town to a counter.
+     */
+    public function test_a_pickup_only_shop_is_not_a_free_delivery_shop(): void
+    {
+        $type = BusinessTypes::defaultFeatures('retail');
+        $type['delivery'] = false;
+
+        $this->onlineShop(['delivery_fee' => 0, 'features' => $type]);
+
+        $card = $this->getJson('/api/v1/marketplace/shops')->assertOk()->json('data.0');
+
+        $this->assertFalse($card['delivers']);
+        $this->assertSame(0, $card['delivery_fee']);
+    }
+
+    public function test_an_unset_prep_time_is_null_and_not_zero(): void
+    {
+        $this->onlineShop(['settings' => []]);
+
+        $card = $this->getJson('/api/v1/marketplace/shops')->assertOk()->json('data.0');
+
+        $this->assertNull($card['prep_time_minutes']);
+        $this->assertNull($card['free_delivery_threshold']);
+    }
+
     public function test_grace_period_shop_still_listed(): void
     {
         $this->onlineShop(['business_name' => 'Grace Mart', 'subscription_ends_at' => now()->subDays(3)]);

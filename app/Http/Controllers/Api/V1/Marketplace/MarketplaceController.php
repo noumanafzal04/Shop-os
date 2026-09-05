@@ -63,6 +63,44 @@ class MarketplaceController extends Controller
      * Shop discovery. With lat/lng: nearest-first with distance_km on every
      * shop (location-based, foodpanda-style). Without: city/name browse.
      */
+    /**
+     * The cities somebody can actually be delivered in.
+     *
+     * ── Why this exists beside the map provider ──────────────────────
+     *
+     * Street-level search ("Johar Town") comes from a geocoder, which needs a
+     * key. Without one the picker returns nothing and the person is stuck on
+     * whatever GPS guessed — a screen whose only control does not work.
+     *
+     * A city is a row in our own database, so this always answers. It is also
+     * the more useful half: the marketplace lists by CITY, and a pin four
+     * streets away changes nothing about which shops appear.
+     *
+     * Only cities with a marketplace-visible shop. Offering one with nothing
+     * in it is the same fault as a filter rail counting from a hardcoded list.
+     */
+    public function cities(Request $request): JsonResponse
+    {
+        $q = trim((string) $request->query('q', ''));
+
+        $cities = City::query()
+            ->where('is_active', true)
+            ->whereIn('id', Tenant::query()->marketplaceVisible()->select('city_id'))
+            ->when($q !== '', fn ($b) => $b->where('name', 'like', "%{$q}%"))
+            ->orderBy('name')
+            ->limit(30)
+            ->get(['id', 'name', 'latitude', 'longitude'])
+            ->map(fn (City $c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'latitude' => $c->latitude,
+                'longitude' => $c->longitude,
+                'shops_count' => Tenant::query()->marketplaceVisible()->where('city_id', $c->id)->count(),
+            ]);
+
+        return ApiResponse::ok($cities);
+    }
+
     public function shops(Request $request): JsonResponse
     {
         $lat = $request->query('lat') !== null ? (float) $request->query('lat') : null;
@@ -759,6 +797,30 @@ class MarketplaceController extends Controller
             'reviews_count' => (int) ($tenant->reviews_count ?? 0),
             // On every card, so lists can grey-out closed shops.
             'is_open_now' => $tenant->isOpenNow(),
+
+            // ── What a card needs to be DECIDABLE ──────────────────────
+            //
+            // These were detail-only, so a list of shops could show a name, a
+            // rating and a distance and nothing about the two things anyone
+            // actually chooses on: how long it takes and what it costs to
+            // deliver. Every shop had to be opened to find out, and the one
+            // that turned out to be an hour away and Rs 200 was found last.
+            //
+            // Free to add: `delivery_fee` is a column, and `setting()` reads
+            // the settings JSON already loaded on the model — no query per
+            // shop, no eager load to remember.
+            // Whether it delivers AT ALL. Without this a fee of zero is two
+            // different shops — one that delivers free, and one you have to
+            // walk to — and a card reading the fee alone puts "Free delivery"
+            // on the counter you have to visit.
+            'delivers' => $tenant->deliveryEnabled(),
+            'delivery_fee' => (float) $tenant->delivery_fee,
+            'prep_time_minutes' => $tenant->setting('prep_time_minutes') !== null
+                ? (int) $tenant->setting('prep_time_minutes')
+                : null,
+            'free_delivery_threshold' => $tenant->setting('free_delivery_threshold') !== null
+                ? (float) $tenant->setting('free_delivery_threshold')
+                : null,
         ];
 
         if ($detailed) {
@@ -790,11 +852,8 @@ class MarketplaceController extends Controller
                     'pickup' => $tenant->pickupEnabled(),
                     'delivery' => $tenant->deliveryEnabled(),
                 ],
-                'delivery_fee' => (float) $tenant->delivery_fee,
                 'delivery_radius_km' => $tenant->setting('delivery_radius_km') !== null ? (float) $tenant->setting('delivery_radius_km') : null,
                 'min_order_amount' => $tenant->setting('min_order_amount') !== null ? (float) $tenant->setting('min_order_amount') : null,
-                'free_delivery_threshold' => $tenant->setting('free_delivery_threshold') !== null ? (float) $tenant->setting('free_delivery_threshold') : null,
-                'prep_time_minutes' => $tenant->setting('prep_time_minutes') !== null ? (int) $tenant->setting('prep_time_minutes') : null,
                 'accepts_orders' => $tenant->sellsOnline(),
                 'service_area' => $tenant->setting('service_area'),
                 'gallery' => GalleryImage::withoutTenancy()

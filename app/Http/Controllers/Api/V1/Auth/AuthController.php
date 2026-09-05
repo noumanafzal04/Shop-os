@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\OtpLoginRequest;
+use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -54,6 +55,35 @@ class AuthController extends Controller
     {
         return ApiResponse::ok(
             new UserResource($request->user()->load('tenant.city', 'tenant.plan')),
+        );
+    }
+
+    /**
+     * Your own name and contact details.
+     *
+     * ── Why a changed email or phone loses its verified mark ──────────
+     *
+     * `email_verified_at` says "we sent a code to THIS address and somebody
+     * read it". Typing a different address does not carry that over — keeping
+     * the timestamp would mean the system believes it verified an address it
+     * has never contacted, which is worse than not knowing.
+     */
+    public function updateProfile(UpdateProfileRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $data = $request->validated();
+
+        if (($data['email'] ?? null) !== $user->email) {
+            $user->email_verified_at = null;
+        }
+        if (($data['phone'] ?? null) !== $user->phone) {
+            $user->phone_verified_at = null;
+        }
+
+        $user->fill($data)->save();
+
+        return ApiResponse::ok(
+            new UserResource($user->fresh()->load('tenant.city', 'tenant.plan')),
         );
     }
 
