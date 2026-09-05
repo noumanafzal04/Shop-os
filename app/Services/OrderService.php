@@ -18,11 +18,13 @@ use App\Models\Sale;
 use App\Models\StockMovement;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\BranchContext;
 use App\Support\FulfillingBranch;
 use App\Support\Geo;
 use App\Support\ModifierResolver;
 use App\Support\Permissions;
 use App\Support\SoldOut;
+use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
@@ -46,7 +48,91 @@ class OrderService
         private readonly InventoryService $inventory,
         private readonly CreateSaleAction $createSale,
         private readonly NotificationService $notifications,
+        private readonly TenantContext $context,
+        private readonly BranchContext $branchContext,
     ) {}
+
+    /**
+     * RUN THIS AS THE ORDER'S OWN SHOP.
+     *
+     * Completing an order writes a Sale, and `CreateSaleAction` takes the
+     * tenant from the CONTEXT — which is right for the till and for the
+     * panel, where the person pressing the button is standing in the shop.
+     *
+     * A rider is not. Their request resolves no tenant at all, so when a rider
+     * closed a delivery from their phone the sale was built with a null tenant
+     * id and threw. It never showed up in a test because a test reuses one
+     * container across requests: the shop owner's `assign-rider` call a moment
+     * earlier left its tenant behind, and the rider's call quietly borrowed it.
+     * Clearing the context for non-tenant roles is what made it visible.
+     *
+     * So the shop is taken from the ORDER, which has always known it, and put
+     * back afterwards — a shop's own request must not come out of this
+     * pointing somewhere else.
+     */
+    private function asShopOf(Order $order, callable $work): mixed
+    {
+        return $this->asShop(
+            $order->tenant_id,
+            $work,
+            // AT THE BRANCH THAT FILLED IT. `orders.branch_id` is recorded at
+            // placement and never re-derived, so it is the only branch whose
+            // shelves this order actually came off.
+            //
+            // `CreateSaleAction` decrements `BranchContext`, which for a rider
+            // closing a delivery holds whatever the LAST request left there —
+            // in a shared container, another shop's branch entirely. That is
+            // the same bug as the hand adjustments that always hit Main and
+            // the forecourt tanks that belonged to no branch: a write that
+            // takes its branch from the ambient context rather than from the
+            // thing being written.
+            $order->branch_id,
+        );
+    }
+
+    /**
+     * The same, given the shop directly — placement has one before it has an
+     * order.
+     *
+     * BOTH SIDES OR NEITHER, and that is the part that bit. Holding stock and
+     * releasing it are one arithmetic in two halves: the hold ran on a customer
+     * request with no tenant, so `branch_id` fell to whatever
+     * `InventoryService` resolves without one, while completing ran as the shop
+     * and resolved its real default branch. Two different branches, and the
+     * second half found nothing to take. Wrapping only `complete()` made a
+     * symmetric wrong into an asymmetric one, which is worse.
+     */
+    private function asShop(Tenant|string $shop, callable $work, ?string $branchId = null): mixed
+    {
+        $tenantId = $shop instanceof Tenant ? $shop->id : $shop;
+        $before = $this->context->get();
+        $beforeBranch = $this->branchContext->get();
+
+        if ($before?->id !== $tenantId) {
+            $resolved = $shop instanceof Tenant ? $shop : Tenant::query()->find($tenantId);
+            if ($resolved !== null) {
+                $this->context->set($resolved);
+            }
+        }
+
+        // Named branch → use it. No branch named → make sure we are not
+        // standing in the previous request's, which is worse than standing in
+        // none: unset, the inventory path falls back to this tenant's Main.
+        $this->branchContext->set(
+            $branchId !== null ? Branch::withoutTenancy()->find($branchId) : null,
+        );
+
+        try {
+            return $work();
+        } finally {
+            if ($before !== null) {
+                $this->context->set($before);
+            } else {
+                $this->context->clear();
+            }
+            $this->branchContext->set($beforeBranch);
+        }
+    }
 
     /**
      * Place an order.
@@ -134,7 +220,7 @@ class OrderService
         }
 
         try {
-            return DB::transaction(function () use ($customer, $shop, $data, $fulfillment, $staff, $counter): Order {
+            return $this->asShop($shop, fn () => DB::transaction(function () use ($customer, $shop, $data, $fulfillment, $staff, $counter): Order {
                 // Serialize order-number generation for this tenant.
                 $lockedShop = Tenant::query()->whereKey($shop->id)->lockForUpdate()->first();
 
@@ -455,7 +541,7 @@ class OrderService
                 );
 
                 return $order->load('items');
-            });
+            }));
         } catch (QueryException $e) {
             // A concurrent same-key order request won the race — return the
             // original order instead of a unique-constraint 500.
@@ -530,7 +616,7 @@ class OrderService
             throw DomainException::conflict('This order can no longer be cancelled.', 'ORDER_NOT_CANCELLABLE');
         }
 
-        return DB::transaction(function () use ($order, $reason): Order {
+        return $this->asShopOf($order, fn () => DB::transaction(function () use ($order, $reason): Order {
             $this->releaseStock($order);
 
             $order->forceFill([
@@ -542,12 +628,12 @@ class OrderService
                 "Your order {$order->order_number} was cancelled. {$reason}");
 
             return $order;
-        });
+        }));
     }
 
     private function complete(Order $order): Order
     {
-        return DB::transaction(function () use ($order): Order {
+        return $this->asShopOf($order, fn () => DB::transaction(function () use ($order): Order {
             // Release the hold, then let the Sale re-decrement → net zero,
             // with proper revenue + invoice.
             $this->releaseStock($order);
@@ -612,7 +698,7 @@ class OrderService
                 "Your order {$order->order_number} is complete. Thank you!");
 
             return $order->load('sale');
-        });
+        }));
     }
 
     private function releaseStock(Order $order): void

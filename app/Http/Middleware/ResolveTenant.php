@@ -50,6 +50,34 @@ class ResolveTenant
             }
 
             $this->context->set($tenant);
+        } else {
+            /**
+             * NOBODY'S SHOP.
+             *
+             * A customer, a rider and a platform admin all operate outside any
+             * tenant, and this branch used to do nothing at all — it relied on
+             * the context being a fresh scoped singleton per request, which in
+             * production it is.
+             *
+             * It is not always. Anything that reuses one container across
+             * several requests — the test suite does, and so would a queue
+             * worker or an Octane process — carries the LAST tenant that was
+             * resolved into the next request. A customer request arriving
+             * behind a shop owner's then reads `Product`, `Order` and every
+             * other scoped model through that shop's fence, and finds nothing
+             * belonging to the shop it was actually asking about.
+             *
+             * Found by a rider test that placed an order at one shop after
+             * inviting the same rider at another: the order 404'd because the
+             * products were being looked up inside the second shop. That is a
+             * 404 in a test and a wrong answer anywhere the container is
+             * shared, so the context is now cleared rather than assumed empty.
+             *
+             * Same shape as the bug in the tenant-binding order — see
+             * `shopos-wall-between-shops`. A fence you rely on has to be set,
+             * not merely expected.
+             */
+            $this->context->clear();
         }
 
         return $next($request);
