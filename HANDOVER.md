@@ -7039,3 +7039,66 @@ same assumption.
 
 Backend 2593 tests, 2591 passed, 2 skipped, exit 0. Rider suites: 48 tests
 across the road and its edges.
+
+---
+
+## The cut, the push, and the second hat
+
+**2026-09-06 · backend + panel + mobile**
+
+**Push was talking to a dead endpoint.** `FcmSender` spoke the legacy FCM API,
+which Google switched off in July 2024. The file carried a note saying to swap
+it "in production" — and a note is not a swap, so every push this product sent
+after that date failed silently behind a queued job nobody watched. Rewritten
+for HTTP v1: an OAuth2 bearer minted from a service account and cached 55
+minutes against a 60-minute life, the JWT signed by hand rather than pulling in
+an SDK for one grant, one request per device because v1 has no
+`registration_ids` array, and pruning only on the three errors that actually
+mean "this device will never receive again".
+
+Writing those tests found a second bug: the old suite ran the push job by hand
+*after* `notify()` had already dispatched it under the sync queue, so every
+push in every test went twice. The legacy API hid it — all of a user's tokens
+went in one request — and v1 turned it into six sends to three phones.
+
+**Five notification types had nowhere to go.** `rider.*` was unknown to
+`DeepLinks`, so every approval and rejection shipped with a null link. Fixed on
+both sides, and the guard that should have caught it was rewritten: it had the
+right title and a hand-typed list of twelve, which could not have failed for a
+thirteenth. It greps the emitters now and expands the two interpolated forms
+from their enums.
+
+**Commission — the platform's cut, which had never been started.** A shop pays
+a PLAN for the software and COMMISSION on what the marketplace sold for it, and
+the two are billed apart so either can be questioned. Charged on online orders
+only, at completion, never at placement — a walk-in is a sale the platform had
+no part in, and an order that is placed may never be collected. The rate and
+the base are SNAPSHOTS written at completion: change the rate tomorrow and last
+month's invoice must not move. Off by default, and "off" is kept apart from
+"zero" so pausing billing does not lose the agreed number. One charge per order
+behind a unique index. Invoices are voided, never deleted, and voiding puts the
+charges back. `commission.manage` is its own platform permission — reading the
+revenue figures is not deciding them.
+
+A shop can check its own bill, order by order, on its Subscription page. A bill
+nobody can check is a bill nobody trusts.
+
+**Rider MODE, not a rider section.** The rider screens hung off the shopping
+stack, so somebody on shift still had Food, Grocery and a basket along the
+bottom of every screen. The mode now swaps the whole navigator: three tabs,
+no basket. The stored mode is a memory, never a permission — it is honoured
+only while the server still says approved, and `canRide` is tested at render as
+well as in the store, because an effect that has not run is not a fence. The
+switch holds a cover for 700ms and swaps the tree halfway through, so replacing
+a navigator reads as deliberate rather than as a glitch. `ScreenHeader` gained
+a hamburger, because a mode you can enter and not leave is a trap.
+
+**Two guards were caught being wrong.** The panel's date guard reported the
+first file to EXPLAIN the bug it looks for — it strips comments now, the same
+fix the mobile inset guard needed. And `routesExist` knew only the customer
+navigators, so rider mode would have made it report every working link as
+broken.
+
+Backend 2616 (2614 passed, 2 skipped, exit 0) · migrations up/down/up on MySQL
+and sqlite · mobile tsc 0, eslint 0 errors, jest 27 suites / 312 tests · panel
+tsc 0, eslint 0 errors, vitest 1487 tests · nine mutations, nine failures.

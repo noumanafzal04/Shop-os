@@ -195,3 +195,4 @@
 - [Mobile Customer Shape](shopos-mobile-customer-shape.md) — 2026-09-05: 7 defects the design refs exposed; palette → #E94E00
 - [Rider Side](shopos-rider-side.md) — rider = a USER beside the untouched tenant `riders` row; OrderStatus never changed; realtime = an honest poll
 - [Context Was Assumed](shopos-context-was-assumed.md) — STANDING: a write takes its tenant and branch from the ROW, not the request; rider tests were green for the wrong reason
+- [Commission & Push](shopos-commission-and-push.md) — platform's cut (rate is a snapshot); FCM v1 (legacy died Jul-2024); rider MODE swaps the navigator
