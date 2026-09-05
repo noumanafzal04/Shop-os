@@ -10,6 +10,9 @@ import { useRiders, useRiderMutations } from "../hooks/useOrders";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { Modal, ModalForm } from "../../../components/ui/modal";
+import { useRiderStatement } from "../hooks/useOrders";
+import { useMoney } from "../../shop/hooks/useShop";
 
 /**
  * The shop's own delivery riders (Model A). Assign them to delivery orders on
@@ -17,11 +20,22 @@ import Pager from "../../../components/ui/pager";
  */
 export default function RidersPage() {
   const confirm = useConfirm();
+  // The shop's own currency symbol, not a hardcoded "Rs" — one shop's setting
+  // is not every shop's.
+  const money = useMoney();
   const riders = useRiders();
-  const { create, update, remove } = useRiderMutations();
+  const { create, update, remove, invite, settle } = useRiderMutations();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Which rider's cash is being counted. Null = the dialog is shut, and the
+  // statement query is disabled — a shop with forty riders must not ask for
+  // forty statements to draw a list.
+  const [settling, setSettling] = useState<string | null>(null);
+  const [paid, setPaid] = useState("");
+  const [note, setNote] = useState("");
+  const statement = useRiderStatement(settling);
 
   const onError = (e: unknown) => setError(e instanceof ApiError ? e.message : "Action failed.");
 
@@ -31,6 +45,34 @@ export default function RidersPage() {
     create.mutate(
       { name: name.trim(), phone: phone.trim() || undefined },
       { onSuccess: () => { setName(""); setPhone(""); }, onError },
+    );
+  };
+
+  const addByCode = () => {
+    if (!code.trim()) return;
+    setError(null);
+    invite.mutate(code.trim().toUpperCase(), { onSuccess: () => setCode(""), onError });
+  };
+
+  const doSettle = () => {
+    if (settling == null) return;
+    setError(null);
+    settle.mutate(
+      {
+        id: settling,
+        // Blank means "all of it" — the server falls back to the counted cash.
+        // Sending 0 for an empty box would record that the shop took nothing.
+        amount_paid: paid.trim() === "" ? undefined : Number(paid),
+        note: note.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          setSettling(null);
+          setPaid("");
+          setNote("");
+        },
+        onError,
+      },
     );
   };
 
@@ -72,20 +114,60 @@ export default function RidersPage() {
 
       {error && <div className="mb-4"><Alert variant="error" title="Blocked" message={error} /></div>}
 
-      {/* Add a rider */}
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-          <div>
-            <Label>Rider name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ahmed" />
+      {/*
+        TWO WAYS TO ADD SOMEBODY, because there are two kinds of rider and a
+        shop has both.
+
+        A NAME is a contact card: your cousin with a motorbike, who has no app
+        and never will. You assign them an order and you move it along yourself.
+        That is how every rider in this product worked until now, and it keeps
+        working exactly as it did.
+
+        A RIDER ID belongs to somebody holding the app. They see your
+        deliveries on their phone, collect them, and close them at the door
+        with the customer's code. By code and not by name on purpose: a shop
+        able to search the platform's riders by name would be a searchable
+        directory of strangers' phone numbers.
+      */}
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+          <h3 className="mb-1 text-sm font-semibold text-gray-800 dark:text-white/90">Add your own rider</h3>
+          <p className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
+            A name and a number. You assign their deliveries and mark them delivered yourself.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <div>
+              <Label>Rider name</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ahmed" />
+            </div>
+            <div>
+              <Label>Phone (optional)</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+92…" />
+            </div>
+            <Button onClick={add} disabled={create.isPending || !name.trim()}>
+              {create.isPending ? "Adding…" : "+ Add"}
+            </Button>
           </div>
-          <div>
-            <Label>Phone (optional)</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+92…" />
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+          <h3 className="mb-1 text-sm font-semibold text-gray-800 dark:text-white/90">Add a rider with the app</h3>
+          <p className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
+            Ask them for their rider id — it is on their own Rider screen, like RDR-000123.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <div>
+              <Label>Rider id</Label>
+              <Input
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="RDR-000123"
+              />
+            </div>
+            <Button onClick={addByCode} disabled={invite.isPending || !code.trim()}>
+              {invite.isPending ? "Adding…" : "+ Add"}
+            </Button>
           </div>
-          <Button onClick={add} disabled={create.isPending || !name.trim()}>
-            {create.isPending ? "Adding…" : "+ Add rider"}
-          </Button>
         </div>
       </div>
 
@@ -104,6 +186,7 @@ export default function RidersPage() {
                 <th className="px-5 py-3 font-medium">Rider</th>
                 <th className="px-5 py-3 font-medium">Phone</th>
                 <th className="px-5 py-3 font-medium">On delivery</th>
+                <th className="px-5 py-3 font-medium">Cash held</th>
                 <th className="px-5 py-3 font-medium">Status</th>
                 <th className="px-5 py-3" />
               </tr>
@@ -111,13 +194,53 @@ export default function RidersPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {rows.map((r) => (
                 <tr key={r.id} className="text-gray-700 dark:text-gray-300">
-                  <td className="px-5 py-3 font-medium text-gray-800 dark:text-white/90">{r.name}</td>
+                  <td className="px-5 py-3 font-medium text-gray-800 dark:text-white/90">
+                    {r.name}
+                    {r.has_app && (
+                      <span className="ml-2 text-theme-xs font-normal text-gray-400">{r.rider_code}</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3">{r.phone ?? "—"}</td>
                   <td className="px-5 py-3">{r.active_deliveries ? `${r.active_deliveries} active` : "—"}</td>
                   <td className="px-5 py-3">
-                    <Badge color={r.is_active ? "success" : "light"}>{r.is_active ? "Active" : "Inactive"}</Badge>
+                    {/*
+                      The shop's own money, in somebody else's pocket. Shown as
+                      a plain dash at zero rather than "Rs 0", so a row with
+                      cash outstanding is the only row that reads as a number.
+                    */}
+                    {(r.cash_in_hand ?? 0) > 0 ? (
+                      <span className="font-medium text-warning-600 dark:text-warning-400">
+                        {money(r.cash_in_hand ?? 0)}
+                        <span className="ml-1 text-theme-xs font-normal text-gray-400">
+                          ({r.unsettled_orders})
+                        </span>
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge color={r.is_active ? "success" : "light"}>{r.is_active ? "Active" : "Inactive"}</Badge>
+                      {r.has_app && (
+                        <Badge color={r.is_online ? "success" : "light"}>
+                          {r.is_online ? "Online" : "Has app"}
+                        </Badge>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-3 text-right">
+                    {(r.cash_in_hand ?? 0) > 0 && (
+                      <button
+                        className={ROW_ACTION}
+                        onClick={() => {
+                          setError(null);
+                          setSettling(r.id);
+                        }}
+                      >
+                        Settle cash
+                      </button>
+                    )}
                     <button
                       className={ROW_ACTION}
                       onClick={() => { setError(null); update.mutate({ id: r.id, is_active: !r.is_active }, { onError }); }}
@@ -140,6 +263,74 @@ export default function RidersPage() {
         )}
         <Pager pagination={pagination} onPage={setPage} noun="riders" />
       </div>
+
+      {/*
+        TAKING THE CASH BACK.
+
+        Every delivered, unsettled cash order for this rider, listed so the
+        count can be checked against what is actually on the table. `Amount
+        paid` is left blank for the ordinary case — it exists for the evening
+        where the shop rounds, or holds something back, and the record has to
+        say what really changed hands rather than what should have.
+      */}
+      <Modal isOpen={settling !== null} onClose={() => setSettling(null)} className="max-w-lg">
+        <ModalForm
+          title={`Settle with ${statement.data?.rider.name ?? "rider"}`}
+          description="Everything they are holding for this shop, in one entry."
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setSettling(null)}>
+                Cancel
+              </Button>
+              <Button onClick={doSettle} disabled={settle.isPending || statement.isLoading}>
+                {settle.isPending ? "Recording…" : "Cash received"}
+              </Button>
+            </>
+          }
+        >
+          {statement.isLoading ? (
+            <p className="py-6 text-center text-sm text-gray-400">Loading…</p>
+          ) : (
+            <>
+              <div className="rounded-xl border border-gray-200 dark:border-gray-800">
+                <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Cash collected</span>
+                  <span className="text-lg font-semibold text-gray-800 dark:text-white/90">
+                    {money(statement.data?.cash_in_hand ?? 0)}
+                  </span>
+                </div>
+                <div className="max-h-56 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                  {(statement.data?.orders ?? []).map((o) => (
+                    <div key={o.id} className="flex items-center justify-between px-4 py-2 text-theme-sm">
+                      <span className="text-gray-700 dark:text-gray-300">{o.order_number}</span>
+                      <span className="text-gray-500 dark:text-gray-400">{money(o.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+                Of that, {money(statement.data?.rider_earned ?? 0)} is what the rider earned in
+                delivery fees. This entry records the cash — it does not pay them.
+              </p>
+
+              <div>
+                <Label>Amount actually paid (optional)</Label>
+                <Input
+                  type="number"
+                  value={paid}
+                  onChange={(e) => setPaid(e.target.value)}
+                  placeholder={String(statement.data?.cash_in_hand ?? 0)}
+                />
+              </div>
+              <div>
+                <Label>Note (optional)</Label>
+                <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Evening count" />
+              </div>
+            </>
+          )}
+        </ModalForm>
+      </Modal>
     </>
   );
 }

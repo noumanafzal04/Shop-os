@@ -119,5 +119,28 @@ export function useRiderMutations() {
     mutationFn: (id: string) => ordersService.deleteRider(id),
     onSuccess: invalidate,
   });
-  return { create, update, remove };
+  const invite = useMutation({
+    mutationFn: (rider_code: string) => ordersService.inviteRider(rider_code),
+    onSuccess: invalidate,
+  });
+  const settle = useMutation({
+    mutationFn: ({ id, ...payload }: { id: string; amount_paid?: number; note?: string }) =>
+      ordersService.settleRider(id, payload),
+    onSuccess: invalidate,
+  });
+  return { create, update, remove, invite, settle };
+}
+
+/**
+ * What one rider is holding, order by order.
+ *
+ * Fetched only while the settle dialog is open — a shop with forty riders must
+ * not ask for forty statements to draw a list.
+ */
+export function useRiderStatement(id: string | null) {
+  return useQuery({
+    queryKey: ["riders", "statement", id],
+    queryFn: async () => (await ordersService.riderStatement(id!)).data,
+    enabled: !!id,
+  });
 }

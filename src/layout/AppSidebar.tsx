@@ -392,6 +392,11 @@ const adminMainItems: NavItem[] = [
   { icon: <TaskIcon />, name: "Shop requests", path: "/admin/shop-requests" },
   { icon: <PaperPlaneIcon />, name: "Enquiries", path: "/admin/enquiries" },
   { icon: <ListIcon />, name: "Plans", path: "/admin/plans" },
+  // Riders waiting to be approved. On the MAIN rail rather than under
+  // Platform, because it is a queue with people in it — the same shape as
+  // Shop requests two rows up — and a queue nobody sees is a queue nobody
+  // works.
+  { icon: <UserCircleIcon />, name: "Riders", path: "/admin/riders" },
   { icon: <DollarLineIcon />, name: "Billing & Payments", path: "/admin/payments" },
 ];
 

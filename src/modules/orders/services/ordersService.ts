@@ -70,6 +70,44 @@ export interface Rider {
   phone: string | null;
   is_active: boolean;
   active_deliveries?: number;
+
+  /**
+   * The cash this rider is holding for THIS shop, and what they earned on it.
+   *
+   * Derived from the orders every time — delivered, paid in cash, not yet
+   * settled. There is no stored balance anywhere, on purpose: a second copy of
+   * a number the orders already answer drifts the first time one is refunded.
+   */
+  unsettled_orders?: number;
+  cash_in_hand?: number;
+
+  /**
+   * Whether this row is also a PERSON with the app.
+   *
+   * Null everywhere for a shop whose riders are its cousins with a phone
+   * number, which is the normal case and always will be. Set means the rider
+   * sees this shop's deliveries on their own phone and moves them along
+   * themselves.
+   */
+  has_app?: boolean;
+  rider_code?: string | null;
+  app_status?: string | null;
+  is_online?: boolean;
+  vehicle_type?: string | null;
+}
+
+/** One rider's unsettled cash, order by order. */
+export interface RiderStatement {
+  rider: Rider;
+  orders: Array<{
+    id: string;
+    order_number: string;
+    total: string;
+    delivery_fee: string;
+    delivered_at: string | null;
+  }>;
+  cash_in_hand: number;
+  rider_earned: number;
 }
 
 // Owner-side order shape (raw model)
@@ -163,4 +201,16 @@ export const ordersService = {
   updateRider: (id: string, payload: { name?: string; phone?: string; is_active?: boolean }) =>
     apiPatch<Rider>(`/riders/${id}`, payload),
   deleteRider: (id: string) => apiDelete<null>(`/riders/${id}`),
+
+  /**
+   * Add somebody who already has the app, by their rider id.
+   *
+   * By CODE and not by name, deliberately: a shop searching the platform's
+   * riders by name would be a searchable directory of strangers' phone
+   * numbers. The rider reads the code off their own screen and hands it over.
+   */
+  inviteRider: (rider_code: string) => apiPost<Rider>("/riders/invite", { rider_code }),
+  riderStatement: (id: string) => apiGet<RiderStatement>(`/riders/${id}/statement`),
+  settleRider: (id: string, payload: { amount_paid?: number; note?: string }) =>
+    apiPost<unknown>(`/riders/${id}/settle`, payload),
 };

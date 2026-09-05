@@ -36,6 +36,11 @@ const ADMIN_SCREEN_PERMISSIONS: Record<string, string> = {
   "/admin/banners": "banners.manage",
   "/admin/announcements": "announcements.manage",
   "/admin/staff": "platform_staff.manage",
+  // Its own permission, not folded into tenants.create: whoever opens this
+  // reads a stranger's CNIC and their photograph, and then decides whether
+  // they may stand at customers' doors holding cash. That is a decision about
+  // a PERSON, not about a business.
+  "/admin/riders": "riders.manage",
   // Super-admin only on the server, and no permission grants it.
   "/admin/audit-logs": SUPER_ADMIN_ONLY(),
 };
