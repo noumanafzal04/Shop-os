@@ -56,6 +56,18 @@ class Permissions
 
     public const ANNOUNCEMENTS_MANAGE = 'announcements.manage';
 
+    /**
+     * Deciding who may ride.
+     *
+     * Its own permission and not folded into `tenants.create`, because it is a
+     * decision about a PERSON rather than a business: whoever holds it reads a
+     * stranger's CNIC and their photograph, and then lets them stand at
+     * customers' doors holding cash. That is not the same authority as opening
+     * a shop, and the whole reason platform staff carry a permission list is so
+     * the two can be given to different people.
+     */
+    public const RIDERS_MANAGE = 'riders.manage';
+
     // ── Tenant scope (shop side) ────────────────────────────────────
     public const STAFF_MANAGE = 'staff.manage';
 
@@ -285,6 +297,10 @@ class Permissions
             'label' => 'Announcements',
             'hint' => 'Broadcasts a push notification to every shop or every customer. There is no unsend.',
         ],
+        self::RIDERS_MANAGE => [
+            'label' => 'Approve riders',
+            'hint' => "Reads applicants' CNIC and licence photographs, and decides who may carry customers' orders and cash.",
+        ],
 
         // Tenant scope
         self::STAFF_MANAGE => ['label' => 'Manage staff'],
@@ -430,6 +446,7 @@ class Permissions
             self::PLATFORM_STAFF_MANAGE,
             self::BANNERS_MANAGE,
             self::ANNOUNCEMENTS_MANAGE,
+            self::RIDERS_MANAGE,
         ];
     }
 

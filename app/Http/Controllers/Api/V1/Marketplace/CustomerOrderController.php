@@ -6,6 +6,7 @@ use App\Enums\FulfillmentType;
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\RiderProfile;
 use App\Models\Tenant;
 use App\Services\OrderService;
 use App\Support\ApiResponse;
@@ -19,7 +20,7 @@ class CustomerOrderController extends Controller
     {
         $orders = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name', 'branch:id,name,address,phone'])
+            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
             ->orderByDesc('placed_at')
             ->paginate(min((int) $request->query('per_page', 15), 100))
             ->through(fn (Order $o) => $this->serialize($o));
@@ -31,7 +32,7 @@ class CustomerOrderController extends Controller
     {
         $order = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name', 'branch:id,name,address,phone'])
+            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
             ->findOrFail($id);
 
         return ApiResponse::ok($this->serialize($order));
@@ -96,8 +97,35 @@ class CustomerOrderController extends Controller
         return ApiResponse::ok($this->serialize($order), 'Order cancelled');
     }
 
+    /**
+     * Where the rider is, if that is a fair thing to say right now.
+     *
+     * Three conditions, all of them necessary: they are carrying THIS order,
+     * they have a fix, and the fix is recent. Drop any one and the map shows a
+     * confident pin that is a guess.
+     *
+     * @return array{lat: ?float, lng: ?float}
+     */
+    private function riderPin(Order $o): array
+    {
+        $p = $o->rider?->riderProfile;
+
+        $live = $p !== null
+            && $o->picked_up_at !== null
+            && $o->delivered_at === null
+            && $p->latitude !== null
+            && $p->last_seen_at !== null
+            && $p->last_seen_at->gt(now()->subMinutes(RiderProfile::STALE_AFTER_MINUTES));
+
+        return $live
+            ? ['lat' => (float) $p->latitude, 'lng' => (float) $p->longitude]
+            : ['lat' => null, 'lng' => null];
+    }
+
     private function serialize(Order $o): array
     {
+        $pin = $this->riderPin($o);
+
         return [
             'id' => $o->id,
             'order_number' => $o->order_number,
@@ -129,16 +157,42 @@ class CustomerOrderController extends Controller
             'coupon_code' => $o->coupon_code,
             'delivery_fee' => $o->delivery_fee,
             'total' => $o->total,
-            // Delivery tracking (Model A): rider name + a friendly stage
-            // derived from the order status. Rider phone is never exposed.
+            // ── Delivery tracking ────────────────────────────────────
+            //
+            // The stage comes from the RIDER'S OWN timestamps now, not from
+            // the order status. Those two disagree by design for most of a
+            // delivery: an order sits at `preparing` while the rider is
+            // already on their way to collect it, and "assigned" was the only
+            // word the status had for that whole stretch.
+            //
+            // Rider phone is still never exposed — that decision has not
+            // changed. Their POSITION is, and only while they are carrying
+            // THIS order, and only while their phone is still saying where
+            // they are. A stale pin is worse than no pin: it shows a rider
+            // parked somewhere they left ten minutes ago.
             'rider' => $o->rider !== null ? [
                 'name' => $o->rider->name,
-                'stage' => match ($o->status->value) {
-                    'out_for_delivery' => 'on_the_way',
-                    'completed' => 'delivered',
+                'stage' => match (true) {
+                    $o->delivered_at !== null || $o->status->value === 'completed' => 'delivered',
+                    $o->picked_up_at !== null || $o->status->value === 'out_for_delivery' => 'on_the_way',
+                    $o->rider_accepted_at !== null => 'to_pickup',
                     default => 'assigned',
                 },
+                'accepted_at' => $o->rider_accepted_at?->toIso8601String(),
+                'picked_up_at' => $o->picked_up_at?->toIso8601String(),
+                'latitude' => $pin['lat'],
+                'longitude' => $pin['lng'],
             ] : null,
+            // THE CODE THE RIDER ASKS FOR AT THE DOOR.
+            //
+            // Only once it is actually on its way: handing it over at
+            // checkout would make it a number the customer forgets by the time
+            // it matters, and it is the only proof this app has that a
+            // delivery marked complete reached the person who paid.
+            'delivery_otp' => $o->picked_up_at !== null && $o->status->value === 'out_for_delivery'
+                ? $o->delivery_otp
+                : null,
+            'delivered_at' => $o->delivered_at?->toIso8601String(),
             'items' => $o->items->map(fn ($i) => [
                 'product_name' => $i->product_name,
                 'variant_name' => $i->variant_name,

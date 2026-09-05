@@ -55,8 +55,17 @@ class ShopSettings
             // feature flag — see Tenant::deliveryEnabled().
             'pickup_enabled' => true,
             'delivery_enabled' => true,
-            // Who carries deliveries: 'self' = the shop's own riders (Model A,
-            // available now) · 'platform' = the CartZe rider pool (coming soon).
+            // WHO CARRIES DELIVERIES.
+            //   self     the shop's own riders — a named card in `riders`,
+            //            with or without the app
+            //   platform the CartZe rider pool: any approved platform rider
+            //            may take this shop's unassigned delivery orders
+            //
+            // This comment described the setting for six weeks while the key
+            // itself was never in `defaults()` or `rules()` — so every read of
+            // it got null, the panel had nothing to bind to, and "platform =
+            // coming soon" was true for a reason nobody had noticed.
+            'delivery_provider' => 'self',
             'prep_time_minutes' => null,   // estimated prep / handover time
             'delivery_radius_km' => null,  // null = no distance limit (city-wide)
             'min_order_amount' => null,    // delivery orders below this are rejected
@@ -264,6 +273,7 @@ class ShopSettings
             'service_area' => ['sometimes', 'nullable', 'string', 'max:300'],
             'pickup_enabled' => ['sometimes', 'boolean'],
             'delivery_enabled' => ['sometimes', 'boolean'],
+            'delivery_provider' => ['sometimes', 'in:self,platform'],
             'prep_time_minutes' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:480'],
             'delivery_radius_km' => ['sometimes', 'nullable', 'numeric', 'min:0.5', 'max:100'],
             'min_order_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],

@@ -10,6 +10,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -69,6 +70,18 @@ class User extends Authenticatable
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * The rider hat, if this person has applied for one.
+     *
+     * A `hasOne`, not a role: a rider IS a customer who was approved, so the
+     * role column stays `customer` and nothing that branches on it changes.
+     * Null for everybody who never applied, which is almost everybody.
+     */
+    public function riderProfile(): HasOne
+    {
+        return $this->hasOne(RiderProfile::class);
     }
 
     public function isSuperAdmin(): bool

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardContr
 use App\Http\Controllers\Api\V1\Admin\EnquiryController as AdminEnquiryController;
 use App\Http\Controllers\Api\V1\Admin\InboxController;
 use App\Http\Controllers\Api\V1\Admin\PlanController;
+use App\Http\Controllers\Api\V1\Admin\RiderApplicationController;
 use App\Http\Controllers\Api\V1\Admin\ShopRequestController;
 use App\Http\Controllers\Api\V1\Admin\StaffController as AdminStaffController;
 use App\Http\Controllers\Api\V1\Admin\TenantController;
@@ -29,6 +30,8 @@ use App\Http\Controllers\Api\V1\Marketplace\ReviewController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Public\DemoController;
 use App\Http\Controllers\Api\V1\Public\EnquiryController;
+use App\Http\Controllers\Api\V1\Rider\RiderJobController;
+use App\Http\Controllers\Api\V1\Rider\RiderProfileController;
 use App\Http\Controllers\Api\V1\Tenant\AuditLogController as TenantAuditLogController;
 use App\Http\Controllers\Api\V1\Tenant\BankController;
 use App\Http\Controllers\Api\V1\Tenant\BatchController;
@@ -916,6 +919,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::middleware(['feature:delivery', 'permission:orders.manage'])->group(function (): void {
                 Route::get('/riders', [RiderController::class, 'index']);
                 Route::post('/riders', [RiderController::class, 'store']);
+                // Somebody who already has the app, added by their rider id.
+                // Before `/riders/{id}` so the word "invite" is not read as one.
+                Route::post('/riders/invite', [RiderController::class, 'invite']);
+                Route::get('/riders/{id}/statement', [RiderController::class, 'statement']);
+                Route::post('/riders/{id}/settle', [RiderController::class, 'settle']);
                 Route::patch('/riders/{id}', [RiderController::class, 'update']);
                 Route::delete('/riders/{id}', [RiderController::class, 'destroy']);
             });
@@ -1094,6 +1102,24 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             Route::get('/audit-logs', [AuditLogController::class, 'index'])->middleware('role:super_admin');
 
+            // Rider applications. A stranger who will hold a customer's cash
+            // and stand at their door is approved by a person, never by a
+            // form completing itself.
+            //
+            // `riders.manage` and NOT the role alone: whoever opens this reads
+            // an applicant's CNIC and their photograph, and the reason platform
+            // staff carry a permission list at all is so the person scheduling
+            // banner ads is not handed that.
+            Route::middleware('permission:riders.manage')->group(function (): void {
+                Route::get('/riders', [RiderApplicationController::class, 'index']);
+                Route::get('/riders/{id}', [RiderApplicationController::class, 'show']);
+                Route::post('/riders/{id}/review', [RiderApplicationController::class, 'review']);
+                Route::post('/riders/{id}/documents/{documentId}/review', [RiderApplicationController::class, 'reviewDocument']);
+                // Streamed from the PRIVATE disk behind this gate — a CNIC scan
+                // never gets a URL that needs no token.
+                Route::get('/riders/{id}/documents/{documentId}', [RiderApplicationController::class, 'document']);
+            });
+
             // Plans — read for all platform roles, writes Super-Admin only.
             Route::get('/plans', [PlanController::class, 'index']);
             Route::post('/plans', [PlanController::class, 'store'])->middleware('role:super_admin');
@@ -1195,6 +1221,40 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::post('/orders', [CustomerOrderController::class, 'store']);
             Route::get('/orders/{id}', [CustomerOrderController::class, 'show']);
             Route::post('/orders/{id}/cancel', [CustomerOrderController::class, 'cancel']);
+        });
+
+        // ── Rider side ────────────────────────────────────────────────
+        //
+        // `role:customer`, deliberately. A rider IS a customer who was
+        // approved — one account, two hats — so nothing that branches on the
+        // role column learns a sixth case. What separates a rider from
+        // everybody else is a `rider_profiles` row, and every endpoint below
+        // except the first two refuses without one.
+        //
+        // NO `tenant` middleware and no tenant scope: a rider carries for
+        // whoever has work. `RiderService` owns the fence that replaces the
+        // global scope here — see its class docblock.
+        Route::prefix('rider')->middleware('role:customer')->group(function (): void {
+            // Answers for everybody, including the people who have never
+            // applied: "no" is what the account screen needs.
+            Route::get('/me', [RiderProfileController::class, 'show']);
+            Route::post('/apply', [RiderProfileController::class, 'apply']);
+            Route::post('/documents', [RiderProfileController::class, 'uploadDocument']);
+            Route::get('/documents/{id}', [RiderProfileController::class, 'document']);
+            Route::post('/submit', [RiderProfileController::class, 'submit']);
+
+            // Duty
+            Route::post('/online', [RiderProfileController::class, 'setOnline']);
+            Route::post('/ping', [RiderProfileController::class, 'ping']);
+
+            // Work
+            Route::get('/board', [RiderJobController::class, 'board']);
+            Route::get('/history', [RiderJobController::class, 'history']);
+            Route::get('/earnings', [RiderJobController::class, 'earnings']);
+            Route::post('/jobs/{id}/accept', [RiderJobController::class, 'accept']);
+            Route::post('/jobs/{id}/decline', [RiderJobController::class, 'decline']);
+            Route::post('/jobs/{id}/pick-up', [RiderJobController::class, 'pickUp']);
+            Route::post('/jobs/{id}/deliver', [RiderJobController::class, 'deliver']);
         });
 
         // ── Tenant side: staff management (owner or staff w/ staff.manage) ──

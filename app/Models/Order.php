@@ -27,12 +27,21 @@ class Order extends Model
             'total' => 'decimal:2',
             'placed_at' => 'datetime',
             'rider_assigned_at' => 'datetime',
+            'rider_accepted_at' => 'datetime',
+            'rider_self_claimed' => 'boolean',
+            'picked_up_at' => 'datetime',
+            'delivered_at' => 'datetime',
         ];
     }
 
     public function rider(): BelongsTo
     {
         return $this->belongsTo(Rider::class);
+    }
+
+    public function riderSettlement(): BelongsTo
+    {
+        return $this->belongsTo(RiderSettlement::class);
     }
 
     /**
