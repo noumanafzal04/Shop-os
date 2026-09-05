@@ -29,6 +29,21 @@ const SOURCES = import.meta.glob("../../modules/**/*.{ts,tsx}", {
 /** A Date turned into a `yyyy-mm-dd` through UTC. */
 const BY_HAND = /toISOString\(\)\s*\.?\s*(?:slice\(0,\s*10\)|split\("T"\)\[0\]|split\('T'\)\[0\])/;
 
+/**
+ * Source with its comments removed.
+ *
+ * A grep cannot tell prose from code, and the FIRST file to explain this bug
+ * in a docblock was reported as committing it. That is how a guard ends up
+ * permanently red for the right reason, and how the next person's fix is to
+ * delete the explanation rather than the mistake.
+ *
+ * Same shape as the comment-stripper the mobile app's inset guard needed, for
+ * exactly the same reason.
+ */
+function codeOnly(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
 describe("a date the shop reads is a date in the shop's own timezone", () => {
   it("scans the modules at all, so a silent zero cannot pass as a clean sweep", () => {
     // The denominator. Without it a broken glob reports "no offenders".
@@ -41,11 +56,20 @@ describe("a date the shop reads is a date in the shop's own timezone", () => {
     expect(BY_HAND.test('const today = new Date().toISOString().slice(0, 10);')).toBe(true);
     expect(BY_HAND.test('const d = new Date().toISOString().split("T")[0];')).toBe(true);
     expect(BY_HAND.test("toIsoDate(new Date())")).toBe(false);
+
+    // …and stripping comments must not make it blind. A file that both
+    // EXPLAINS the mistake and commits it is still caught.
+    const both = [
+      "// never write new Date().toISOString().slice(0, 10)",
+      "const bad = new Date().toISOString().slice(0, 10);",
+    ].join("\n");
+    expect(BY_HAND.test(codeOnly(both))).toBe(true);
+    expect(BY_HAND.test(codeOnly("/* toISOString().slice(0, 10) is wrong */"))).toBe(false);
   });
 
   it("is not spelled by hand anywhere", () => {
     const offenders = Object.entries(SOURCES)
-      .filter(([, src]) => BY_HAND.test(src))
+      .filter(([, src]) => BY_HAND.test(codeOnly(src)))
       .map(([path]) => path.replace(/^.*\/modules\//, ""));
 
     expect(offenders).toEqual([]);

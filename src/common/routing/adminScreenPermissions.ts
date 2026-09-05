@@ -41,6 +41,11 @@ const ADMIN_SCREEN_PERMISSIONS: Record<string, string> = {
   // they may stand at customers' doors holding cash. That is a decision about
   // a PERSON, not about a business.
   "/admin/riders": "riders.manage",
+  // NOT `billing.view`, which reads the PLAN ledger — what shops pay for the
+  // software. This is the other debt, and the rate on it decides what every
+  // shop on the marketplace is charged. Whoever may READ the revenue figures
+  // is not automatically whoever may DECIDE them.
+  "/admin/commission": "commission.manage",
   // Super-admin only on the server, and no permission grants it.
   "/admin/audit-logs": SUPER_ADMIN_ONLY(),
 };

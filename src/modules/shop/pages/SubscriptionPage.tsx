@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { downloadCsv } from "../../../common/api/download";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
+import { CommissionOwed } from "../components/CommissionOwed";
 import { useSubscription } from "../hooks/useShop";
 import type { SubscriptionInfo } from "../services/shopService";
 
@@ -237,6 +238,15 @@ export default function SubscriptionPage() {
       </div>
 
       <Payments payments={data.payments} />
+
+      {/*
+        The OTHER thing this shop pays. Shown here because "what do I pay
+        CartZe" is one question with two answers, and splitting them across two
+        screens is how a shop concludes it has been billed twice for the same
+        thing. Renders nothing at all when the platform charges this shop
+        nothing.
+      */}
+      <CommissionOwed />
     </>
   );
 }

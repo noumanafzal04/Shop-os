@@ -396,8 +396,15 @@ const adminMainItems: NavItem[] = [
   // Platform, because it is a queue with people in it — the same shape as
   // Shop requests two rows up — and a queue nobody sees is a queue nobody
   // works.
-  { icon: <UserCircleIcon />, name: "Riders", path: "/admin/riders" },
+  // A PACKAGE, not a person. `UserCircleIcon` is Platform Staff four rows
+  // down, and two rows wearing one glyph is a rail you have to read word by
+  // word — the collision this list was already swept for once.
+  { icon: <BoxIcon />, name: "Riders", path: "/admin/riders" },
   { icon: <DollarLineIcon />, name: "Billing & Payments", path: "/admin/payments" },
+  // Beside Billing, because both are money — and NOT merged into it, because
+  // they are different debts. A plan is what a shop pays for the software;
+  // commission is a share of what the marketplace sold for them.
+  { icon: <PieChartIcon />, name: "Commission", path: "/admin/commission" },
 ];
 
 const adminPlatformItems: NavItem[] = [
