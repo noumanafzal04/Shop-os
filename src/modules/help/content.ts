@@ -1124,13 +1124,25 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "list",
         items: [
-          "Filters — a shopper narrows by city, kind of shop, category, size, price and rating. Your category names are what the aisle groups by, so two shops using the same name share a shelf.",
+          "Filters — a shopper narrows by city, kind of shop, category, size, price and rating, and sorts by price, newest, biggest discount or top rated. Your category names are what the aisle groups by, so two shops using the same name share a shelf.",
+          "Every option is COUNTED from the same list it filters, so a category with nothing in it is not offered at all — and a product with no category never appears under one.",
+          "Price — the slider's ends are the cheapest and dearest thing currently listed. A product priced far above the rest pushes everything else into a corner of it.",
           "In stock — a shopper can ask to see only what can be sent today. Anything you have marked sold out for the night drops out of that list and comes back when you turn it on again.",
           "Sizes — a product with sizes is listed once, and the shopper picks the size on the card. A size that has run out is shown crossed through rather than hidden, so they can see you normally have it.",
           "Options — items with choices or add-ons cannot be added straight from a card. They send the shopper to the product's own page, where the questions are asked.",
         ],
       },
-      { type: "note", text: "A shopper's basket can hold things from several shops at once. Each shop gets its own order, its own delivery charge and its own coupon — you only ever see your part of it." },
+      { type: "h", text: "One basket, or several — it depends where they are shopping" },
+      {
+        type: "list",
+        items: [
+          "On the website, a basket can hold things from several shops at once. Each shop gets its own order, its own delivery charge and its own coupon — you only ever see your part of it.",
+          "In the phone app, a basket belongs to ONE shop. Adding something from a second shop offers to start a fresh basket, and the app asks before emptying the old one.",
+        ],
+      },
+      { type: "note", text: "Either way an ORDER is always one shop's — the difference is only how many the shopper may fill at the same time. Nothing about how you receive or fulfil an order changes." },
+      { type: "h", text: "What the phone app shows before checkout" },
+      { type: "p", text: "Your delivery charge, your free-delivery threshold and your preparation time all appear in the shopper's basket, before they reach the address form. A threshold you have set is shown as \"Add Rs 300 more for free delivery\" — and a preparation time you have NOT set is left blank rather than guessed, so the app never promises a time on your behalf." },
       { type: "note", text: "Collections are the shelves of your online shop. Group products into them to give shoppers something to browse." },
     ],
   },
