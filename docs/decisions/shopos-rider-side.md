@@ -169,17 +169,62 @@ try. Found by running the rollback against a real MySQL database, which is the
 entire reason that is worth doing. The fix releases the constraint, drops the
 index, and puts the constraint back.
 
+## 11. The bug the edge cases found: a context that was assumed, not set
+
+Writing the edge-case suite turned up something the happy path could never
+show, and it is the most serious thing in this whole piece of work.
+
+**A rider closing a delivery had no shop.** `CreateSaleAction` — which
+`OrderService::complete()` calls to write the Sale — takes the tenant from
+`TenantContext` and the branch from `BranchContext`. That is right for a till
+and for the panel, where the person pressing the button is standing in the
+shop. A rider is not: their request resolves neither.
+
+It never failed a test because **a test reuses one container across requests**.
+`TenantContext` is a scoped singleton, and `ResolveTenant` only ever *set* it —
+it never cleared it for a customer, a rider or an admin. So the shop owner's
+`assign-rider` call a moment earlier left its tenant behind and the rider's
+call quietly borrowed it. Every rider delivery test passed for the wrong
+reason.
+
+Three fixes, each mutation-proven:
+
+1. **`ResolveTenant` now clears** the context for a role that owns no tenant.
+   Production gets a fresh container per request so this changes nothing
+   there — but a queue worker, an Octane process and the test suite all share
+   one, and "empty because nobody set it" is not a fence.
+2. **`OrderService` runs placement, completion and cancellation as the order's
+   own shop**, taken from the order rather than from the ambient context, and
+   restores whatever was there afterwards. Both sides or neither: wrapping only
+   `complete()` turned a symmetric wrong into an asymmetric one — the hold went
+   to one branch and the release to another, and the sale then found nothing to
+   take.
+3. **An order is finished at the branch that filled it** (`orders.branch_id`),
+   not at whatever branch the last request left in `BranchContext`. Same class
+   as the hand adjustments that always hit Main and the forecourt tanks that
+   belonged to no branch: a write taking its branch from the ambient context
+   instead of from the thing being written.
+
+Pinned by `test_an_order_is_finished_as_its_own_shop_at_its_own_branch`, which
+is shaped like the accident — the second shop's owner acts, then the rider
+finishes the first shop's order.
+
+**The lesson, which is not about riders.** Adding the first caller that is
+genuinely outside any tenant is what exposed this. Every path that writes
+tenant data from a request that has no tenant — a webhook, a queued job, a
+scheduled command — is standing on the same assumption.
+
 ---
 
 ## Gates
 
 | | |
 | --- | --- |
-| backend | 2567 tests, 2565 passed, 2 skipped, exit 0 |
+| backend | 2593 tests, 2591 passed, 2 skipped, exit 0 |
 | migrations | up → down → up on MySQL AND sqlite, foreign keys intact |
 | mobile | tsc 0 · eslint 0 errors · jest 26 suites / 294 tests |
 | panel | tsc 0 · eslint 0 errors · vitest 128 files / 1487 tests |
-| mutations | 5 guards removed, 5 failures — fence, OTP, offer payload, route, RefreshPill |
+| mutations | 8 removed, 8 failures — fence, OTP, offer payload, route, RefreshPill, and all three context fixes |
 
 ## Not built
 

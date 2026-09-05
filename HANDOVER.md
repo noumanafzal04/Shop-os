@@ -6995,3 +6995,47 @@ Backend 2567 (2565 passed, 2 skipped, exit 0) · migrations up/down/up on MySQL
 and sqlite with foreign keys intact · mobile tsc 0, eslint 0 errors, jest 26
 suites / 294 tests · panel tsc 0, eslint 0 errors, vitest 1487 tests · five
 mutations, five failures.
+
+---
+
+## What the edge cases found
+
+**2026-09-06 · backend**
+
+Writing twenty-five edge cases around the rider flow turned up something the
+happy path could not show, and it is more serious than anything else in that
+piece of work.
+
+**A rider closing a delivery had no shop.** `CreateSaleAction`, which
+completing an order calls to write the Sale, takes the tenant from
+`TenantContext` and the branch from `BranchContext`. Correct for a till, where
+the person pressing the button is standing in the shop. A rider is not standing
+anywhere — their request resolves neither.
+
+It never failed a test because a test reuses ONE container across requests, and
+`ResolveTenant` only ever *set* the context; it never cleared it for a customer,
+a rider or an admin. The shop owner's `assign-rider` call a moment earlier left
+its tenant behind and the rider's call borrowed it. Every rider delivery test
+was passing for the wrong reason.
+
+Three fixes, each proven by deleting it and watching the suite fail:
+
+1. `ResolveTenant` clears the context for a role that owns no tenant. Production
+   has a fresh container per request so nothing changes there — but a queue
+   worker, an Octane process and the test suite all share one, and "empty
+   because nobody set it" is not a fence.
+2. `OrderService` runs placement, completion and cancellation as the ORDER'S own
+   shop and restores what was there afterwards. Both sides or neither: wrapping
+   only `complete()` made a symmetric wrong asymmetric — the hold went to one
+   branch, the release to another, and the sale found nothing to take.
+3. An order is finished at the branch that FILLED it, not at whatever branch the
+   last request left behind. Same class as the hand adjustments that always hit
+   Main and the forecourt tanks that belonged to no branch.
+
+The lesson is not about riders. Adding the first caller genuinely outside any
+tenant is what exposed it; every path that writes tenant data from a request
+with no tenant — a webhook, a queued job, a scheduled command — stands on the
+same assumption.
+
+Backend 2593 tests, 2591 passed, 2 skipped, exit 0. Rider suites: 48 tests
+across the road and its edges.
