@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Admin\AnnouncementController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\V1\Admin\BillingController;
+use App\Http\Controllers\Api\V1\Admin\CommissionController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\EnquiryController as AdminEnquiryController;
 use App\Http\Controllers\Api\V1\Admin\InboxController;
@@ -82,6 +83,7 @@ use App\Http\Controllers\Api\V1\Tenant\RiderController;
 use App\Http\Controllers\Api\V1\Tenant\SaleController;
 use App\Http\Controllers\Api\V1\Tenant\SaleDocumentController;
 use App\Http\Controllers\Api\V1\Tenant\SearchController;
+use App\Http\Controllers\Api\V1\Tenant\ShopCommissionController;
 use App\Http\Controllers\Api\V1\Tenant\ShopController;
 use App\Http\Controllers\Api\V1\Tenant\SoldOutController;
 use App\Http\Controllers\Api\V1\Tenant\StaffController as TenantStaffController;
@@ -928,6 +930,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::delete('/riders/{id}', [RiderController::class, 'destroy']);
             });
 
+            // What this shop owes the platform. Read-only and gated on
+            // `settings.manage` — it is money the OWNER answers for, not
+            // something a cashier needs. A bill nobody can check is a bill
+            // nobody trusts, so the orders behind the number are here too.
+            Route::get('/commission', [ShopCommissionController::class, 'show'])
+                ->middleware('permission:settings.manage');
+
             // Reservations (owner side)
             Route::prefix('reservations')->middleware(['feature:reservations', 'permission:reservations.manage'])->group(function (): void {
                 Route::get('/', [ReservationController::class, 'index']);
@@ -1118,6 +1127,23 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Streamed from the PRIVATE disk behind this gate — a CNIC scan
                 // never gets a URL that needs no token.
                 Route::get('/riders/{id}/documents/{documentId}', [RiderApplicationController::class, 'document']);
+            });
+
+            // ── The platform's cut ───────────────────────────────────
+            //
+            // NOT under `billing.view`, which reads the PLAN ledger. This is
+            // the other debt — a share of what the marketplace sold — and the
+            // rate on it decides what every shop is charged.
+            Route::middleware('permission:commission.manage')->group(function (): void {
+                Route::get('/commission/settings', [CommissionController::class, 'settings']);
+                Route::put('/commission/settings', [CommissionController::class, 'updateSettings']);
+                Route::get('/commission', [CommissionController::class, 'index']);
+                Route::get('/commission/{tenantId}', [CommissionController::class, 'show']);
+                Route::put('/commission/{tenantId}/rate', [CommissionController::class, 'setRate']);
+                Route::post('/commission/{tenantId}/invoices', [CommissionController::class, 'raiseInvoice']);
+                Route::post('/commission-invoices/{id}/paid', [CommissionController::class, 'markPaid']);
+                Route::post('/commission-invoices/{id}/void', [CommissionController::class, 'voidInvoice']);
+                Route::post('/commission-charges/{id}/waive', [CommissionController::class, 'waive']);
             });
 
             // Plans — read for all platform roles, writes Super-Admin only.

@@ -36,9 +36,28 @@ return [
     ],
 
     // Push notifications. Empty key → dev log mode (no external calls).
+    /**
+     * Push, over FCM HTTP v1.
+     *
+     * `FCM_SERVER_KEY` is GONE and not deprecated-but-working: Google switched
+     * the legacy endpoint off in July 2024, so a server key authenticates
+     * nothing. v1 wants a SERVICE ACCOUNT.
+     *
+     * `credentials` accepts three shapes, in this order:
+     *   an absolute path to the service-account JSON,
+     *   a path inside the private disk (storage/app/private/…),
+     *   or the JSON itself, for a container platform with nowhere to mount it.
+     *
+     * Empty → dev log mode. The file is a CREDENTIAL: it never belongs in the
+     * repository, and the private disk is the right home for it because
+     * nothing serves that directory.
+     */
     'fcm' => [
-        'key' => env('FCM_SERVER_KEY'),
-        'endpoint' => env('FCM_ENDPOINT', 'https://fcm.googleapis.com/fcm/send'),
+        'credentials' => env('FCM_CREDENTIALS'),
+        // The Android notification channel a push arrives on. Named here
+        // because Android 8 and later drop a notification whose channel it
+        // does not recognise, silently.
+        'channel' => env('FCM_CHANNEL', 'default'),
     ],
 
     // SMS gateway (OTP + alerts). Empty → dev log mode.

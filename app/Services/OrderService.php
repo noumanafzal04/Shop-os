@@ -50,6 +50,7 @@ class OrderService
         private readonly NotificationService $notifications,
         private readonly TenantContext $context,
         private readonly BranchContext $branchContext,
+        private readonly CommissionService $commission,
     ) {}
 
     /**
@@ -693,6 +694,20 @@ class OrderService
                 'payment_status' => 'paid',
                 'sale_id' => $sale->id,
             ])->save();
+
+            /**
+             * WHAT THE PLATFORM EARNED, recorded here and nowhere else.
+             *
+             * At completion, not at placement: an order that is placed may be
+             * cancelled, refused, or never collected, and money that has not
+             * changed hands is not revenue. A platform that bills on intent
+             * spends its week issuing credit notes.
+             *
+             * Online orders only, and silently nothing for the rest — see
+             * `CommissionService`. Inside the same transaction as the sale, so
+             * a shop is never billed for a completion that rolled back.
+             */
+            $this->commission->chargeFor($order);
 
             $this->notifyCustomer($order, 'order.completed', 'Order completed',
                 "Your order {$order->order_number} is complete. Thank you!");

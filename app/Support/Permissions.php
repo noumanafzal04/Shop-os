@@ -68,6 +68,16 @@ class Permissions
      */
     public const RIDERS_MANAGE = 'riders.manage';
 
+    /**
+     * The platform's cut.
+     *
+     * Deliberately NOT `billing.view`, which reads the PLAN ledger — what
+     * shops pay for the software. This is the other debt, and setting the rate
+     * on it changes what every shop on the marketplace is charged. Whoever may
+     * read the revenue figures is not automatically whoever may decide them.
+     */
+    public const COMMISSION_MANAGE = 'commission.manage';
+
     // ── Tenant scope (shop side) ────────────────────────────────────
     public const STAFF_MANAGE = 'staff.manage';
 
@@ -297,6 +307,10 @@ class Permissions
             'label' => 'Announcements',
             'hint' => 'Broadcasts a push notification to every shop or every customer. There is no unsend.',
         ],
+        self::COMMISSION_MANAGE => [
+            'label' => 'Marketplace commission',
+            'hint' => 'Sets the percentage every shop is charged on an online order, and raises the invoices for it.',
+        ],
         self::RIDERS_MANAGE => [
             'label' => 'Approve riders',
             'hint' => "Reads applicants' CNIC and licence photographs, and decides who may carry customers' orders and cash.",
@@ -447,6 +461,7 @@ class Permissions
             self::BANNERS_MANAGE,
             self::ANNOUNCEMENTS_MANAGE,
             self::RIDERS_MANAGE,
+            self::COMMISSION_MANAGE,
         ];
     }
 

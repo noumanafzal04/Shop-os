@@ -41,6 +41,18 @@ class DeepLinks
             // and Disposals is where a return to the supplier is recorded.
             str_starts_with($type, 'stock.expiry.') => 'disposals',
             str_starts_with($type, 'subscription.') => 'subscription',
+            // ── A rider hearing about themselves ─────────────────────
+            //
+            // `rider.approved` is the one that changes what somebody can do,
+            // so it opens the place they can now do it. The other two are
+            // about the application, and the application is where the reason
+            // is printed and where a rejected one is corrected.
+            //
+            // These shipped with `data.link` null — the same gap the expiry
+            // alerts had, found the same way: by asking the emitters what they
+            // send rather than reading a list somebody kept by hand.
+            $type === 'rider.approved' => 'rider',
+            str_starts_with($type, 'rider.') => 'rider/application',
             $type === 'announcement' && isset($data['announcement_id']) => "announcements/{$data['announcement_id']}",
             default => null,
         };
