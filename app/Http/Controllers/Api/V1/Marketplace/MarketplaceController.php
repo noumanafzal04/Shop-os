@@ -11,6 +11,7 @@ use App\Models\GalleryImage;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Support\ApiResponse;
+use App\Support\BusinessTypes;
 use App\Support\Geo;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -114,7 +115,22 @@ class MarketplaceController extends Controller
             ->withAvg(['reviews as rating_avg' => fn ($q) => $q->where('is_published', true)], 'rating')
             ->withCount(['reviews as reviews_count' => fn ($q) => $q->where('is_published', true)])
             ->when($request->query('city_id'), fn ($q, $cityId) => $q->where('city_id', $cityId))
-            ->when($request->query('business_type'), fn ($q, $type) => $q->where('business_type', $type))
+            /**
+             * EVERY CODE THAT MEANS THE SAME TRADE.
+             *
+             * This was `where('business_type', $type)` — exact. The Grocery
+             * tab passes `grocery`, which is the LEGACY name for `mart`, so it
+             * asked for a code no shop created since the rename actually has
+             * and came back empty on an app full of grocery shops.
+             *
+             * The same trap sits under `food`/`restaurant` and under the four
+             * codes that became `retail`; `codesFor` is the one place that
+             * knows which names are the same trade.
+             */
+            ->when(
+                $request->query('business_type'),
+                fn ($q, $type) => $q->whereIn('business_type', BusinessTypes::codesFor($type)),
+            )
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('business_name', 'like', "%{$search}%")
@@ -473,7 +489,13 @@ class MarketplaceController extends Controller
                 ->orWhere('products.description', 'like', "%{$f['q']}%")
                 ->orWhere('tenants.business_name', 'like', "%{$f['q']}%")))
             ->when($on('city_id'), fn ($q) => $q->where('tenants.city_id', $f['city_id']))
-            ->when($on('business_type'), fn ($q) => $q->where('tenants.business_type', $f['business_type']))
+            // The aisle's own filter, same rule — see the note on the shop
+            // list above. A shopper narrowing to Grocery there was hitting the
+            // identical exact-match.
+            ->when(
+                $on('business_type'),
+                fn ($q) => $q->whereIn('tenants.business_type', BusinessTypes::codesFor($f['business_type'])),
+            )
             ->when($on('shop_slug'), fn ($q) => $q->where('tenants.slug', $f['shop_slug']))
             ->when($on('item_type'), fn ($q) => $q->where('products.item_type', $f['item_type']))
             ->when($on('category'), fn ($q) => $q->whereExists(fn ($e) => $e->from('categories')

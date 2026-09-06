@@ -282,6 +282,66 @@ class MarketplaceTest extends TestCase
             ->assertStatus(403);
     }
 
+    public function test_a_trade_filter_finds_shops_stored_under_the_old_name_for_it(): void
+    {
+        /**
+         * "Grocery tab — ALL shops not showing."
+         *
+         * The tab passes `business_type=grocery`, and `grocery` is the LEGACY
+         * name for `mart`: every shop created since the primary types replaced
+         * the narrow codes is stored as `mart`. The filter was
+         * `where('business_type', $type)` — exact — so the tab asked for a
+         * code almost nothing has and came back empty on an app full of
+         * grocery shops.
+         *
+         * The same trap sits under food/restaurant, and under the four codes
+         * that became retail.
+         */
+        // The family itself, exactly. Asserting only that the FILTER returns
+        // both shops passed on a `codesFor` that returned every legacy code
+        // there is — over-broad, and invisible because the one wrong shop in
+        // the fixture happened not to be in that list.
+        $this->assertSame(['grocery', 'mart'], BusinessTypes::codesFor('grocery'));
+        $this->assertSame(['mart', 'grocery'], BusinessTypes::codesFor('mart'));
+        $this->assertSame(['food', 'restaurant'], BusinessTypes::codesFor('food'));
+        $this->assertSame(['pharmacy', 'clinic'], BusinessTypes::codesFor('pharmacy'));
+        // A trade with no old name is just itself.
+        $this->assertSame(['petroleum'], BusinessTypes::codesFor('petroleum'));
+
+        $city = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
+
+        $modern = Tenant::factory()->create([
+            'business_name' => 'New Mart', 'online_shop_enabled' => true, 'setup_completed' => true,
+            'city_id' => $city->id, 'business_type' => 'mart',
+            'features' => BusinessTypes::defaultFeatures('mart'),
+        ]);
+        $old = Tenant::factory()->create([
+            'business_name' => 'Old Grocery', 'online_shop_enabled' => true, 'setup_completed' => true,
+            'city_id' => $city->id, 'business_type' => 'grocery',
+            'features' => BusinessTypes::defaultFeatures('grocery'),
+        ]);
+        $other = Tenant::factory()->create([
+            'business_name' => 'A Pharmacy', 'online_shop_enabled' => true, 'setup_completed' => true,
+            'city_id' => $city->id, 'business_type' => 'pharmacy',
+            'features' => BusinessTypes::defaultFeatures('pharmacy'),
+        ]);
+
+        foreach (['grocery', 'mart'] as $asked) {
+            $names = collect(
+                $this->getJson("/api/v1/marketplace/shops?business_type={$asked}")
+                    ->assertOk()
+                    ->json('data')
+            )->pluck('business_name');
+
+            // Both names, whichever one was asked for.
+            $this->assertTrue($names->contains($modern->business_name), "asked {$asked}, lost the mart");
+            $this->assertTrue($names->contains($old->business_name), "asked {$asked}, lost the grocery");
+            // …and the filter still FILTERS. Without this the test would pass
+            // on a query that had stopped narrowing anything at all.
+            $this->assertFalse($names->contains($other->business_name), "asked {$asked}, kept a pharmacy");
+        }
+    }
+
     public function test_a_shop_on_the_home_screen_carries_a_few_of_its_own_items(): void
     {
         // A row of shop names is a directory. A card showing three of the

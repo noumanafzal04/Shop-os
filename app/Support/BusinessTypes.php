@@ -556,6 +556,35 @@ class BusinessTypes
         return self::LEGACY_PRIMARY[$code] ?? $code;
     }
 
+    /**
+     * EVERY CODE THAT MEANS THE SAME TRADE, for a filter to match on.
+     *
+     * `primary()` answers "what is this really" and is the right question when
+     * you hold a shop. A FILTER holds the other end: somebody asked for
+     * `grocery`, and the shops that answer are the ones stored as `grocery`
+     * AND the ones stored as `mart`, because those are the same trade under
+     * two names — one of which this app has been writing since the primary
+     * types replaced the narrow ones.
+     *
+     * The bug: the Grocery tab passes `business_type=grocery` and the query
+     * was `where('business_type', $type)`. Exact. So the tab asked for a code
+     * no shop created since the rename actually has, and came back empty —
+     * "Grocery tab, all shops not showing", on an app full of grocery shops.
+     *
+     * @return list<string>
+     */
+    public static function codesFor(string $code): array
+    {
+        $primary = self::primary($code);
+
+        $legacy = array_keys(array_filter(
+            self::LEGACY_PRIMARY,
+            fn (string $to) => $to === $primary,
+        ));
+
+        return array_values(array_unique([$code, $primary, ...$legacy]));
+    }
+
     /** Suggested selling units for a type (legacy codes map to their primary). */
     public static function unitsFor(string $code): array
     {
