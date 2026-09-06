@@ -552,6 +552,27 @@ class MarketplaceController extends Controller
                 ->orWhere('generic_name', 'like', "%{$s}%")))
             ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
             ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
+            /**
+             * BY CATEGORY, THEN BY NAME.
+             *
+             * The app draws this menu as sections a customer can jump between
+             * — Pizza, Burgers, Starters, Drinks — which only works if a
+             * category's items are CONTIGUOUS. Ordered by name alone they
+             * interleave, and a menu of four sections becomes forty.
+             *
+             * Uncategorised items sort last rather than first: a shop that has
+             * filed most of its menu and not all of it should not open on the
+             * part it has not got round to. `category_id IS NULL` is 0/1 in
+             * both MySQL and sqlite, so this needs no driver split.
+             */
+            ->orderByRaw('category_id IS NULL')
+            // A correlated SUBQUERY, not a join. `categories` carries a
+            // `tenant_id` too, so joining it makes every existing `where` on
+            // this builder ambiguous — including the tenant fence, which is
+            // the one clause on the query that must never become uncertain.
+            ->orderBy(Category::query()
+                ->select('name')
+                ->whereColumn('categories.id', 'products.category_id'))
             ->orderBy('name')
             ->paginate(min((int) $request->query('per_page', 20), 100))
             ->through(fn (Product $p) => $this->publicProduct($p, $tenant->timezone));
@@ -804,7 +825,7 @@ class MarketplaceController extends Controller
      *
      * ── Discounted first ─────────────────────────────────────────────
      *
-     * Given four slots, the four worth showing are the ones with a price cut on
+     * Given five slots, the five worth showing are the ones with a price cut on
      * them. A shop with nothing on offer falls back to its newest, which is the
      * next most useful thing a card can say about a shop.
      *
@@ -813,6 +834,22 @@ class MarketplaceController extends Controller
      */
     private function withPreviews($serialized, $shops)
     {
+        /**
+         * HOW MANY THINGS A SHOP CARD SHOWS.
+         *
+         * Five, and the ceiling is what matters rather than the number. The
+         * strip scrolls sideways, so a sixth costs nothing in height — which
+         * is exactly why it needs a limit written down: with no ceiling this
+         * quietly becomes "everything the shop sells", and the home feed is
+         * the most requested endpoint in the product.
+         *
+         * Two would be too few to say what a shop IS. Beyond five, nobody
+         * scrolls a strip on a card they have not decided to open yet — that
+         * is what opening the shop is for, and the last tile in the strip is
+         * the way to do it.
+         */
+        $perShop = 5;
+
         $ids = $shops->pluck('id');
         if ($ids->isEmpty()) {
             return $serialized;
@@ -828,17 +865,17 @@ class MarketplaceController extends Controller
             ->orderByRaw('discount_price IS NULL')
             ->orderByDesc('created_at')
             // A hard ceiling rather than per-shop paging: the grouping below
-            // takes four each, and this only has to be enough that every shop
-            // is represented.
-            ->limit($ids->count() * 10)
+            // takes `$perShop` each, and this only has to be enough that every
+            // shop is represented.
+            ->limit($ids->count() * ($perShop * 3))
             ->get()
             ->groupBy('tenant_id');
 
-        return $serialized->map(function (array $shop) use ($products, $bySlug) {
+        return $serialized->map(function (array $shop) use ($products, $bySlug, $perShop) {
             $tenantId = $bySlug->firstWhere('slug', $shop['slug'])?->id;
 
             $shop['preview_products'] = collect($products[$tenantId] ?? [])
-                ->take(4)
+                ->take($perShop)
                 ->map(fn (Product $p) => [
                     'id' => $p->id,
                     'name' => $p->name,

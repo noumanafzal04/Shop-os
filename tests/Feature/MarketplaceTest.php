@@ -307,10 +307,14 @@ class MarketplaceTest extends TestCase
         $card = collect($nearby)->firstWhere('slug', $shop->slug);
         $this->assertNotNull($card);
 
-        // FOUR, not six: a card is a glance, not a catalogue.
-        $this->assertCount(4, $card['preview_products']);
+        // FIVE, not six, and the CEILING is the point rather than the number.
+        // The strip scrolls sideways, so a sixth costs nothing in height —
+        // which is exactly why it needs a limit written down, or this quietly
+        // becomes "everything the shop sells" on the most requested endpoint
+        // in the product. A card is a glance, not a catalogue.
+        $this->assertCount(5, $card['preview_products']);
 
-        // Discounted first — given four slots, the ones worth showing are the
+        // Discounted first — given five slots, the ones worth showing are the
         // ones with a price cut on them.
         $names = collect($card['preview_products'])->pluck('name')->all();
         $this->assertContains('Sugar', $names);
