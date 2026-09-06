@@ -1132,6 +1132,16 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ],
       },
       { type: "note", text: "The aisle has its own search box now, so a shopper who arrived from a shortcut \u2014 Offers, Pharmacy \u2014 can type a word without losing the filters they already set." },
+      { type: "h", text: "How your sale price is shown" },
+      { type: "p", text: "Set a sale price on a product and the phone app draws the pair everywhere it appears: the price you are charging in bold, your normal price struck through beside it, and an amber tag on the picture saying how much is off. Nothing needs switching on \u2014 it follows the product." },
+      {
+        type: "list",
+        items: [
+          "The struck-through price is only drawn when the sale price is genuinely LOWER. Filling in a regular price equal to your selling price shows one price, not a fake discount \u2014 the app will not advertise an offer you are not giving.",
+          "A cut too small to round to one per cent shows no tag. The prices still both appear; there is simply nothing worth shouting about.",
+          "\u201cBiggest discount\u201d is a sort order in the aisle and a rail on the home screen, both ranked by the SIZE of the cut \u2014 so a real markdown is what gets carried, not a token rupee off.",
+        ],
+      },
       {
         type: "list",
         items: [
