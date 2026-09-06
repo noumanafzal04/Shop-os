@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { ArrowLeft, Monitor, Moon, Sun, type LucideIcon } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { BRAND } from "../../../common/brand";
 import {
   radius,
@@ -62,7 +63,7 @@ export function SettingsScreen() {
             const on = preference === t.value;
             const Icon = t.icon;
             return (
-              <Pressable
+              <Touchable
                 key={t.value}
                 style={[styles.row, i > 0 && styles.rowDivided]}
                 accessibilityRole="radio"
@@ -79,7 +80,7 @@ export function SettingsScreen() {
                 <View style={[styles.radio, on && styles.radioOn]}>
                   {on && <View style={styles.radioDot} />}
                 </View>
-              </Pressable>
+              </Touchable>
             );
           })}
         </View>

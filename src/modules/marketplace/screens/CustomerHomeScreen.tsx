@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   FlatList,
   Image,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -19,6 +18,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { SideMenu } from "../../../navigation/SideMenu";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { Skeleton, SkeletonListRow } from "../../../common/ui/Skeleton";
@@ -29,6 +29,8 @@ import { useLocationStore } from "../../../stores/locationStore";
 import { useHomeFeed } from "../hooks/useMarketplace";
 import { formatDistance } from "../shopFacts";
 import { PromoCarousel } from "../components/PromoCarousel";
+import { ShopWithItems } from "../components/ShopWithItems";
+import { Appear } from "../../../common/ui/Appear";
 import { ShopFactsRow } from "../components/ShopFactsRow";
 import { marketplaceService, type HomeBanner, type PublicShop } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
@@ -101,16 +103,16 @@ export function CustomerHomeScreen() {
               account page with the same initial on it, so the header was
               showing you who you were twice.
             */}
-            <Pressable
+            <Touchable
               style={styles.burger}
               onPress={() => setMenuOpen(true)}
               accessibilityRole="button"
               accessibilityLabel="Menu"
             >
               <Menu size={21} color={c.white} strokeWidth={2.4} />
-            </Pressable>
+            </Touchable>
 
-            <Pressable
+            <Touchable
               style={styles.place}
               onPress={() => navigation.navigate("Location")}
               accessibilityRole="button"
@@ -126,16 +128,16 @@ export function CustomerHomeScreen() {
                   {status === "locating" ? "Finding you…" : label ?? "Set your location"}
                 </Text>
               </View>
-            </Pressable>
+            </Touchable>
 
-            <Pressable
+            <Touchable
               style={styles.bell}
               onPress={() => navigation.navigate("Notifications")}
               accessibilityRole="button"
               accessibilityLabel="Notifications"
             >
               <Bell size={20} color={c.white} strokeWidth={2} />
-            </Pressable>
+            </Touchable>
           </View>
 
           {/*
@@ -158,7 +160,7 @@ export function CustomerHomeScreen() {
             same gesture from the same place, and two separate round buttons
             beside a bar is three objects doing the work of one.
           */}
-          <Pressable
+          <Touchable
             style={styles.searchBar}
             accessibilityRole="button"
             onPress={() => navigation.navigate("Search")}
@@ -167,7 +169,7 @@ export function CustomerHomeScreen() {
             <Text style={styles.searchHint} numberOfLines={1}>
               Search food, groceries, medicine…
             </Text>
-            <Pressable
+            <Touchable
               style={styles.searchFilter}
               hitSlop={8}
               accessibilityRole="button"
@@ -175,8 +177,8 @@ export function CustomerHomeScreen() {
               onPress={() => navigation.navigate("Browse")}
             >
               <SlidersHorizontal size={17} color={c.primary} strokeWidth={2.4} />
-            </Pressable>
-          </Pressable>
+            </Touchable>
+          </Touchable>
         </View>
 
         {/* ── Light content area ────────────────────────────────── */}
@@ -212,7 +214,7 @@ export function CustomerHomeScreen() {
           */}
           <View style={styles.tiles}>
             {SHORTCUTS.map(({ key, label: shortcut, icon: Icon, tone, filters }) => (
-              <Pressable
+              <Touchable
                 key={key}
                 style={styles.tile}
                 accessibilityRole="button"
@@ -236,11 +238,11 @@ export function CustomerHomeScreen() {
                 <Text style={styles.tileLabel} numberOfLines={1}>
                   {shortcut}
                 </Text>
-              </Pressable>
+              </Touchable>
             ))}
 
             {(feed.data?.business_types ?? []).map((t) => (
-              <Pressable
+              <Touchable
                 key={t.type}
                 style={styles.tile}
                 accessibilityRole="button"
@@ -262,7 +264,7 @@ export function CustomerHomeScreen() {
                 <Text style={styles.tileLabel} numberOfLines={1}>
                   {typeLabel(t.type)}
                 </Text>
-              </Pressable>
+              </Touchable>
             ))}
 
             {feed.isLoading &&
@@ -324,7 +326,7 @@ export function CustomerHomeScreen() {
                 keyExtractor={(d) => d.id}
                 contentContainerStyle={styles.hRow}
                 renderItem={({ item }) => (
-                  <Pressable
+                  <Touchable
                     style={styles.dealCard}
                     onPress={() => item.shop && navigation.navigate("MarketShop", { slug: item.shop.slug })}
                   >
@@ -362,7 +364,7 @@ export function CustomerHomeScreen() {
                         {item.distance_km != null ? ` · ${formatDistance(item.distance_km)}` : ""}
                       </Text>
                     </View>
-                  </Pressable>
+                  </Touchable>
                 )}
               />
             </>
@@ -380,18 +382,43 @@ export function CustomerHomeScreen() {
             </>
           )}
 
-          {/* Explore shops — the long vertical tail of the page */}
+          {/*
+            ── The long tail, and it is the reason to keep scrolling ────
+
+            This used to be a grid of shop NAMES. A directory asks somebody to
+            open four shops to find out which has what they want; three
+            thumbnails of the actual items answers it on the card.
+
+            A SECOND banner slot sits a few shops down. One at the top is an
+            advert somebody scrolls past on the way in; one placed after they
+            have started browsing is one they are in the mood to read — which
+            is where every marketplace of this shape puts it.
+          */}
           {(feed.data?.nearby.length ?? 0) > 0 && (
             <>
               <SectionHeader
-                title="Explore shops"
+                title="All shops"
                 onSeeAll={() => navigation.navigate("ShopList", { title: "All shops" })}
               />
-              <View style={styles.grid}>
-                {feed.data!.nearby.map((s) => (
-                  <ShopCard key={`x-${s.slug}`} shop={s} wide onPress={() => openShop(s)} />
-                ))}
-              </View>
+              {feed.data!.nearby.map((s, i) => (
+                <React.Fragment key={`x-${s.slug}`}>
+                  <Appear index={i}>
+                    <ShopWithItems
+                      shop={s}
+                      onOpen={() => openShop(s)}
+                      onItem={(productId) =>
+                        navigation.navigate("MarketShop", { slug: s.slug, productId })
+                      }
+                    />
+                  </Appear>
+
+                  {i === 2 && (feed.data?.banners.length ?? 0) > 0 && (
+                    <View style={styles.midBanners}>
+                      <PromoCarousel banners={feed.data!.banners} onPress={onBanner} />
+                    </View>
+                  )}
+                </React.Fragment>
+              ))}
             </>
           )}
 
@@ -411,9 +438,9 @@ function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => vo
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {onSeeAll && (
-        <Pressable onPress={onSeeAll} hitSlop={8}>
+        <Touchable onPress={onSeeAll} hitSlop={8}>
           <Text style={styles.seeAll}>See all</Text>
-        </Pressable>
+        </Touchable>
       )}
     </View>
   );
@@ -426,7 +453,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
   const cover = shopCover(shop.slug);
 
   return (
-    <Pressable style={[styles.shopCard, wide && styles.shopCardWide, closed && styles.shopClosed]} onPress={onPress}>
+    <Touchable style={[styles.shopCard, wide && styles.shopCardWide, closed && styles.shopClosed]} onPress={onPress}>
       {/*
         A COVER, not a pale letter tile.
         
@@ -465,7 +492,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
         */}
         <ShopFactsRow shop={shop} limit={wide ? 3 : 2} />
       </View>
-    </Pressable>
+    </Touchable>
   );
 }
 
@@ -579,6 +606,9 @@ const makeStyles = (c: ThemeColors) =>
     marginBottom: spacing.sm,
   },
   sectionTitle: { ...typography.h3, color: c.text, fontSize: 18 },
+  // Breathing room around the mid-page advert, so it reads as its own thing
+  // rather than as a shop card that lost its name.
+  midBanners: { marginTop: spacing.xs, marginBottom: spacing.md },
   seeAll: { ...typography.label, color: c.brand[600] },
 
   hRow: { paddingHorizontal: spacing.md, gap: spacing.sm },

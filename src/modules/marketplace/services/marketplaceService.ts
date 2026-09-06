@@ -22,6 +22,24 @@ export interface PublicShop {
   delivery_radius_km?: number | null;
   delivers_to_me?: boolean;
   prep_time_minutes?: number | null;
+  /**
+   * A FEW OF THIS SHOP'S OWN ITEMS, for the card to show.
+   *
+   * Present on the home feed's shop list and absent everywhere else, which is
+   * why it is optional — the browse aisle already shows products and does not
+   * need them twice.
+   *
+   * Always an array when present, never missing: a card that has to check
+   * whether the field exists is a card that will one day forget.
+   */
+  preview_products?: Array<{
+    id: string;
+    name: string;
+    price: number;
+    /** Only when there IS a cut. A strike-through against the same number lies. */
+    original_price: number | null;
+    image: string | null;
+  }>;
   fulfillment?: { pickup: boolean; delivery: boolean };
   min_order_amount?: number | null;
   free_delivery_threshold?: number | null;

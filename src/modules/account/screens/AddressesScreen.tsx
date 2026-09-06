@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, MapPin, Plus, Trash2 } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { AppButton } from "../../../common/ui/AppButton";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
@@ -119,7 +120,7 @@ export function AddressesScreen() {
             ) : null
           }
           renderItem={({ item }) => (
-            <Pressable
+            <Touchable
               style={[styles.row, item.is_default && styles.rowDefault]}
               onPress={() => !item.is_default && makeDefault.mutate(item.id)}
             >
@@ -136,7 +137,7 @@ export function AddressesScreen() {
               <Pressable hitSlop={8} onPress={() => remove.mutate(item.id)}>
                 <Trash2 size={17} color={c.gray[300]} strokeWidth={2} />
               </Pressable>
-            </Pressable>
+            </Touchable>
           )}
         />
       )}

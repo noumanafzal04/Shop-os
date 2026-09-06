@@ -2,13 +2,13 @@ import React from "react";
 import {
   Alert,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { SkeletonStatusCard } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
@@ -79,7 +79,7 @@ export function ReservationsScreen() {
           renderItem={({ item }) => {
             const badge = STATUS_STYLE[item.status] ?? STATUS_STYLE.cancelled;
             return (
-              <Pressable style={styles.card} onLongPress={() => askCancel(item)}>
+              <Touchable style={styles.card} onLongPress={() => askCancel(item)}>
                 <View style={styles.rowTop}>
                   <Text style={styles.name} numberOfLines={1}>
                     {item.product_name}
@@ -98,7 +98,7 @@ export function ReservationsScreen() {
                     Pick up before {new Date(item.expires_at).toLocaleString()}
                   </Text>
                 )}
-              </Pressable>
+              </Touchable>
             );
           }}
           ListEmptyComponent={

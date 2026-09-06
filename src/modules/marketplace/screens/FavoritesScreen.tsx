@@ -1,7 +1,6 @@
 import React from "react";
 import {
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -9,6 +8,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { AppButton } from "../../../common/ui/AppButton";
@@ -62,7 +62,7 @@ export function FavoritesScreen() {
             />
           }
           renderItem={({ item }) => (
-            <Pressable
+            <Touchable
               style={styles.card}
               onPress={() => navigation.navigate("MarketShop", { slug: item.slug })}
             >
@@ -77,7 +77,7 @@ export function FavoritesScreen() {
                 </Text>
               </View>
               <Text style={styles.heart}>♥</Text>
-            </Pressable>
+            </Touchable>
           )}
           ListEmptyComponent={
             <View style={styles.empty}>

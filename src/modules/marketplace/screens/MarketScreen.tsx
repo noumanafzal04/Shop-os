@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   FlatList,
   Image,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ArrowLeft, ChevronRight, Search } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
@@ -74,9 +74,9 @@ export function MarketScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           {!isTab && (
-            <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
+            <Touchable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
               <ArrowLeft size={19} color={c.white} strokeWidth={2.2} />
-            </Pressable>
+            </Touchable>
           )}
           <View style={styles.headerText}>
             <Text style={styles.title}>{title}</Text>
@@ -117,7 +117,7 @@ export function MarketScreen() {
                   contentContainerStyle={styles.dealRow}
                 >
                   {deals.map((d) => (
-                    <Pressable
+                    <Touchable
                       key={d.id}
                       style={styles.dealCard}
                       onPress={() => d.shop && navigation.navigate("MarketShop", { slug: d.shop.slug })}
@@ -140,7 +140,7 @@ export function MarketScreen() {
                         </View>
                         <Text style={styles.dealShop} numberOfLines={1}>{d.shop?.business_name}</Text>
                       </View>
-                    </Pressable>
+                    </Touchable>
                   ))}
                 </ScrollView>
               </>
@@ -185,7 +185,7 @@ function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
   const closed = shop.is_open_now === false;
   const cover = shopCover(shop.slug);
   return (
-    <Pressable style={[styles.row, closed && styles.rowClosed]} onPress={onPress}>
+    <Touchable style={[styles.row, closed && styles.rowClosed]} onPress={onPress}>
       {/* The same derived cover as the home row — a shop looks the same
           wherever it appears. See `shopCover.ts`. */}
       <View style={[styles.logo, { backgroundColor: cover.bg }]}>
@@ -202,7 +202,7 @@ function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
         <ShopFactsRow shop={shop} closed={closed} />
       </View>
       <ChevronRight size={18} color={c.gray[300]} strokeWidth={2.2} />
-    </Pressable>
+    </Touchable>
   );
 }
 

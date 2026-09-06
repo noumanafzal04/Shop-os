@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Building2, Crosshair, MapPin, Search } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { apiGet } from "../../../common/api/client";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -137,7 +138,7 @@ export function LocationScreen() {
         ListHeaderComponent={
           <>
             {/* Use current location */}
-            <Pressable style={styles.currentRow} onPress={() => { detect(); navigation.goBack(); }}>
+            <Touchable style={styles.currentRow} onPress={() => { detect(); navigation.goBack(); }}>
               <View style={styles.currentIcon}>
                 <Crosshair size={18} color={c.brand[600]} strokeWidth={2.2} />
               </View>
@@ -145,7 +146,7 @@ export function LocationScreen() {
                 <Text style={styles.currentText}>Use my current location</Text>
                 {label && <Text style={styles.rowMeta} numberOfLines={1}>Now: {label}</Text>}
               </View>
-            </Pressable>
+            </Touchable>
             {status === "denied" && (
               <Text style={styles.deniedHint}>Location permission is off — search your address instead.</Text>
             )}
@@ -156,7 +157,7 @@ export function LocationScreen() {
                   {debounced.trim().length >= 2 ? "Cities" : "We deliver in"}
                 </Text>
                 {cityRows.map((city) => (
-                  <Pressable
+                  <Touchable
                     key={city.id}
                     style={styles.row}
                     accessibilityRole="button"
@@ -176,7 +177,7 @@ export function LocationScreen() {
                         {city.shops_count} {city.shops_count === 1 ? "shop" : "shops"}
                       </Text>
                     </View>
-                  </Pressable>
+                  </Touchable>
                 ))}
               </View>
             )}
@@ -185,20 +186,20 @@ export function LocationScreen() {
           </>
         }
         renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => pick(item.lat, item.lng, item.label)}>
+          <Touchable style={styles.row} onPress={() => pick(item.lat, item.lng, item.label)}>
             <MapPin size={17} color={c.gray[400]} strokeWidth={2} />
             <View style={styles.rowInfo}>
               <Text style={styles.rowTitle} numberOfLines={1}>{item.label}</Text>
               {!!item.detail && <Text style={styles.rowMeta} numberOfLines={1}>{item.detail}</Text>}
             </View>
-          </Pressable>
+          </Touchable>
         )}
         ListFooterComponent={
           authed && (saved.data?.length ?? 0) > 0 && query.trim().length < 3 ? (
             <View style={styles.savedBlock}>
               <Text style={styles.savedTitle}>Saved addresses</Text>
               {saved.data!.map((a) => (
-                <Pressable
+                <Touchable
                   key={a.id}
                   style={styles.row}
                   onPress={() =>
@@ -214,7 +215,7 @@ export function LocationScreen() {
                     </Text>
                     <Text style={styles.rowMeta} numberOfLines={1}>{a.address}</Text>
                   </View>
-                </Pressable>
+                </Touchable>
               ))}
             </View>
           ) : null

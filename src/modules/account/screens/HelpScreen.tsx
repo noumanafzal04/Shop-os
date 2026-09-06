@@ -3,6 +3,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-na
 import { useNavigation } from "@react-navigation/native";
 import { ArrowLeft, ChevronDown, ChevronUp, Mail } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { BRAND } from "../../../common/brand";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 
@@ -97,7 +98,7 @@ export function HelpScreen() {
         {TOPICS.map((t, i) => {
           const isOpen = open === i;
           return (
-            <Pressable
+            <Touchable
               key={t.q}
               style={[styles.item, isOpen && styles.itemOpen]}
               accessibilityRole="button"
@@ -113,7 +114,7 @@ export function HelpScreen() {
                 )}
               </View>
               {isOpen && <Text style={styles.a}>{t.a}</Text>}
-            </Pressable>
+            </Touchable>
           );
         })}
 

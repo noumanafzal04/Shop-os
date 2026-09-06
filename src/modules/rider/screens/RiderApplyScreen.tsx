@@ -14,6 +14,7 @@ import {
 } from "lucide-react-native";
 import { BRAND } from "../../../common/brand";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { AppButton } from "../../../common/ui/AppButton";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -218,7 +219,7 @@ export function RiderApplyScreen() {
             />
           )}
 
-          <Pressable
+          <Touchable
             style={styles.switchRow}
             accessibilityRole="switch"
             accessibilityState={{ checked: platform }}
@@ -235,7 +236,7 @@ export function RiderApplyScreen() {
             <View style={[styles.box, platform && styles.boxOn]}>
               {platform && <Check size={14} color={c.onPrimary} strokeWidth={3} />}
             </View>
-          </Pressable>
+          </Touchable>
 
           {editable && (
             <AppButton

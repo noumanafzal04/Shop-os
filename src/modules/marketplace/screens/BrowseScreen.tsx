@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Image, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ArrowLeft, PackageSearch, X } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { AddButton } from "../../../common/ui/AddButton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
@@ -143,7 +144,7 @@ export function BrowseScreen() {
   return (
     <SafeScreen backgroundColor={c.bg}>
       <View style={styles.head}>
-        <Pressable
+        <Touchable
           style={styles.back}
           hitSlop={8}
           accessibilityRole="button"
@@ -151,7 +152,7 @@ export function BrowseScreen() {
           onPress={() => navigation.goBack()}
         >
           <ArrowLeft size={19} color={c.text} strokeWidth={2.3} />
-        </Pressable>
+        </Touchable>
         <View style={styles.headCopy}>
           <Text style={styles.title} numberOfLines={1}>
             {params.title ?? (params.q ? `“${params.q}”` : "All products")}
@@ -170,7 +171,7 @@ export function BrowseScreen() {
           contentContainerStyle={styles.chipRow}
         >
           {chips.map((chip) => (
-            <Pressable
+            <Touchable
               key={chip.key}
               style={styles.chip}
               accessibilityRole="button"
@@ -179,7 +180,7 @@ export function BrowseScreen() {
             >
               <Text style={styles.chipText}>{chip.label}</Text>
               <X size={13} color={c.onPrimary} strokeWidth={2.6} />
-            </Pressable>
+            </Touchable>
           ))}
         </ScrollView>
       )}
@@ -225,7 +226,7 @@ export function BrowseScreen() {
             const cover = shopCover(item.id);
             const original = item.original_price;
             return (
-              <Pressable
+              <Touchable
                 style={styles.card}
                 accessibilityRole="button"
                 onPress={() =>
@@ -262,7 +263,7 @@ export function BrowseScreen() {
                     <Text style={styles.was}>{money(original)}</Text>
                   )}
                 </View>
-              </Pressable>
+              </Touchable>
             );
           }}
         />

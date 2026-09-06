@@ -1,5 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, type ViewStyle } from "react-native";
+import {
+  Animated,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Vibration,
+  type ViewStyle,
+} from "react-native";
 import { Check, Plus } from "lucide-react-native";
 import { radius, type ThemeColors, useColors } from "../../theme";
 
@@ -63,6 +70,19 @@ export function AddButton({ onPress, label, size = 34, style }: Props) {
   const press = () => {
     onPress();
     setAdded(true);
+    /**
+     * A TICK IN THE HAND.
+     *
+     * The one place in the shopping half that gets it, because adding to a
+     * basket is the one tap that COMMITS something — everything else navigates,
+     * and can be undone by going back. A phone that buzzes for every tap is a
+     * phone people switch the buzzing off on, and then it is not there for the
+     * tap that mattered.
+     *
+     * Twelve milliseconds is a tick, not a buzz. iOS ignores a duration this
+     * short and substitutes its own, which is the right feel there anyway.
+     */
+    Vibration.vibrate(Platform.OS === "android" ? 12 : 10);
     Animated.sequence([
       Animated.timing(scale, { toValue: 0.84, duration: 80, useNativeDriver: true }),
       Animated.spring(scale, {

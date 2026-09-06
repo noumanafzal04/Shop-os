@@ -3,6 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useNavigation } from "@react-navigation/native";
 import { ArrowLeft, Search, SlidersHorizontal, Star, Store } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { Skeleton } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
@@ -148,7 +149,7 @@ export function SearchScreen() {
               <View style={styles.section}>
                 {tab === "all" && <Text style={styles.sectionTitle}>Products</Text>}
                 {products.map((p) => (
-                  <Pressable
+                  <Touchable
                     key={p.id}
                     style={styles.row}
                     onPress={() => p.shop && navigation.navigate("MarketShop", { slug: p.shop.slug })}
@@ -171,7 +172,7 @@ export function SearchScreen() {
                       <Text style={styles.price}>{money(p.price)}</Text>
                       {p.original_price != null && <Text style={styles.strike}>{money(p.original_price)}</Text>}
                     </View>
-                  </Pressable>
+                  </Touchable>
                 ))}
               </View>
             )}
@@ -181,7 +182,7 @@ export function SearchScreen() {
               <View style={styles.section}>
                 {tab === "all" && <Text style={styles.sectionTitle}>Shops</Text>}
                 {shops.map((s) => (
-                  <Pressable
+                  <Touchable
                     key={s.slug}
                     style={styles.row}
                     onPress={() => navigation.navigate("MarketShop", { slug: s.slug })}
@@ -203,7 +204,7 @@ export function SearchScreen() {
                         <Text style={styles.ratingText}>{s.rating}</Text>
                       </View>
                     )}
-                  </Pressable>
+                  </Touchable>
                 ))}
               </View>
             )}

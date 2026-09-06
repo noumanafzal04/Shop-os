@@ -2,7 +2,6 @@ import React from "react";
 import {
   Animated,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -19,6 +18,7 @@ import {
   Wallet,
 } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { SideMenu } from "../../../navigation/SideMenu";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
@@ -123,7 +123,7 @@ export function RiderHomeScreen() {
               ? "Apply once, get approved, then go online whenever you want to work."
               : (rider.data.review_note ?? "Open your application to see what is left.")}
           </Text>
-          <Pressable
+          <Touchable
             style={styles.gateCta}
             accessibilityRole="button"
             onPress={() => navigation.navigate("RiderApply")}
@@ -132,7 +132,7 @@ export function RiderHomeScreen() {
               {rider.data == null ? "Become a rider" : "Open application"}
             </Text>
             <ChevronRight size={15} color={c.onPrimary} strokeWidth={2.6} />
-          </Pressable>
+          </Touchable>
         </View>
       </SafeScreen>
     );
@@ -181,7 +181,7 @@ export function RiderHomeScreen() {
         ListHeaderComponent={
           <>
             {/* ── On duty ───────────────────────────────────────────── */}
-            <Pressable
+            <Touchable
               style={[styles.duty, online && styles.dutyOn]}
               accessibilityRole="switch"
               accessibilityState={{ checked: online }}
@@ -202,13 +202,13 @@ export function RiderHomeScreen() {
                 </Text>
               </View>
               <Knob on={online} />
-            </Pressable>
+            </Touchable>
 
             {/* ── Today ─────────────────────────────────────────────── */}
             <View style={styles.stats}>
               <Stat icon={Package} label="Delivered" value={String(today?.deliveries ?? 0)} />
               <Stat icon={Wallet} label="Earned" value={money(today?.earned ?? 0)} />
-              <Pressable
+              <Touchable
                 style={styles.statPress}
                 accessibilityRole="button"
                 accessibilityLabel="Cash in hand"
@@ -220,7 +220,7 @@ export function RiderHomeScreen() {
                   value={money(today?.cash_in_hand ?? 0)}
                   warn={(today?.cash_in_hand ?? 0) > 0}
                 />
-              </Pressable>
+              </Touchable>
             </View>
 
             {/* ── Carrying now ──────────────────────────────────────── */}
@@ -343,8 +343,8 @@ export function JobCard({ job, onPress, mine }: { job: RiderJob; onPress: () => 
     job.stage === "on_the_way" ? "On the way" : job.stage === "to_pickup" ? "Collect it" : null;
 
   return (
-    <Pressable
-      style={({ pressed }) => [styles.job, mine && styles.jobMine, pressed && styles.jobPressed]}
+    <Touchable
+      style={[styles.job, mine && styles.jobMine]}
       accessibilityRole="button"
       accessibilityLabel={`Order ${job.order_number}`}
       onPress={onPress}
@@ -391,7 +391,7 @@ export function JobCard({ job, onPress, mine }: { job: RiderJob; onPress: () => 
           </View>
         )}
       </View>
-    </Pressable>
+    </Touchable>
   );
 }
 
@@ -460,7 +460,6 @@ const makeStyles = (c: ThemeColors) =>
       gap: 7,
     },
     jobMine: { borderColor: c.primary, borderWidth: 1.5 },
-    jobPressed: { opacity: 0.75 },
     jobTop: { flexDirection: "row", alignItems: "center", gap: 8 },
     grow: { flex: 1 },
     jobFee: { ...typography.h3, color: c.primary, fontSize: 17 },

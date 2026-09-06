@@ -1,8 +1,9 @@
 import React from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Bike, ReceiptText, Store } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Touchable } from "../../../common/ui/Touchable";
 import { SkeletonStatusCard } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -76,7 +77,7 @@ export function OrdersScreen() {
             // — it is a way to cancel an order by accident. Cancelling lives on
             // the order's own screen, where its state is on show.
             return (
-              <Pressable style={styles.card} onPress={() => navigation.navigate("Order", { id: item.id })}>
+              <Touchable style={styles.card} onPress={() => navigation.navigate("Order", { id: item.id })}>
                 <View style={styles.top}>
                   <Text style={styles.num}>{item.order_number}</Text>
                   <View style={[styles.badge, { backgroundColor: badge.bg }]}>
@@ -120,7 +121,7 @@ export function OrdersScreen() {
                   </View>
                   <Text style={styles.total}>{money(item.total)}</Text>
                 </View>
-              </Pressable>
+              </Touchable>
             );
           }}
           ListEmptyComponent={
