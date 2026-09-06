@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppNotification;
 use App\Models\City;
 use App\Models\Order;
 use App\Models\Product;
@@ -722,6 +723,84 @@ class RiderEdgeCasesTest extends TestCase
         $sale = Sale::withoutTenancy()->findOrFail($done->sale_id);
         $this->assertSame($this->shop->id, $sale->tenant_id);
         $this->assertSame($done->branch_id, $sale->branch_id);
+    }
+
+    // ── Being told there is work ─────────────────────────────────────
+
+    public function test_a_rider_handed_an_order_is_told_about_it(): void
+    {
+        // Nothing did this. A shop assigned an order and the rider found out by
+        // happening to look at their board — which, on a phone in a pocket, is
+        // never. The whole rider side rested on somebody staring at a screen.
+        $profile = $this->approvedRider($this->rider);
+        $cardId = $this->link($profile);
+        $order = $this->place();
+
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/assign-rider", ['rider_id' => $cardId])->assertOk();
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $this->rider->id,
+            'type' => 'rider.job_offered',
+        ]);
+
+        // …and it opens the board, where accepting lives. Not the order
+        // screen: a rider who has not taken it yet has no order.
+        $note = AppNotification::query()
+            ->where('user_id', $this->rider->id)->where('type', 'rider.job_offered')->firstOrFail();
+        $this->assertSame('rider', $note->data['link']);
+    }
+
+    public function test_a_phone_call_rider_is_not_notified_at_a_phone_they_have_no_app_on(): void
+    {
+        $cardId = $this->as($this->owner)->postJson('/api/v1/riders', ['name' => 'Cousin Asif'])
+            ->assertCreated()->json('data.id');
+        $order = $this->place();
+
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/assign-rider", ['rider_id' => $cardId])->assertOk();
+
+        $this->assertDatabaseMissing('app_notifications', ['type' => 'rider.job_offered']);
+    }
+
+    public function test_a_pool_job_reaches_the_riders_who_could_take_it(): void
+    {
+        $this->shop->forceFill(['settings' => ['delivery_provider' => 'platform']])->save();
+
+        $near = $this->approvedRider($this->rider, platform: true);
+
+        // Too far to be offered it — the pickup is in Lahore and this rider is
+        // parked beside the other shop, thirty-odd kilometres away.
+        $far = User::factory()->create();
+        $this->approvedRider($far, platform: true);
+        RiderProfile::query()->where('user_id', $far->id)
+            ->update(['latitude' => 31.71, 'longitude' => 73.98]);
+
+        // Online, approved, near — and NOT a platform rider, so not in the pool.
+        $shopsOwn = User::factory()->create();
+        $this->approvedRider($shopsOwn, platform: false);
+
+        $order = $this->place();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
+
+        $this->assertDatabaseHas('app_notifications', ['user_id' => $this->rider->id, 'type' => 'rider.job_offered']);
+        $this->assertDatabaseMissing('app_notifications', ['user_id' => $far->id, 'type' => 'rider.job_offered']);
+        $this->assertDatabaseMissing('app_notifications', ['user_id' => $shopsOwn->id, 'type' => 'rider.job_offered']);
+
+        $this->assertNotNull($near->id);
+    }
+
+    public function test_a_shop_that_carries_its_own_deliveries_tells_nobody_else(): void
+    {
+        // `delivery_provider` is `self` by default. A shop that assigns its own
+        // riders has already chosen, and telling strangers about that order
+        // would be offering work that is not going.
+        $this->approvedRider($this->rider, platform: true);
+
+        $order = $this->place();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
+
+        $this->assertDatabaseMissing('app_notifications', ['type' => 'rider.job_offered']);
     }
 
     // ── A shop with none of this ─────────────────────────────────────

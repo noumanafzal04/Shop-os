@@ -84,6 +84,11 @@ class BusinessTypes
         'services' => ['customers', 'documents'],
         'automotive' => ['customers', 'purchasing', 'stocktake', 'documents'],
         'petroleum' => ['customers', 'purchasing', 'stocktake'],
+        // An online seller keeps a customer book (the people who ordered), buys
+        // its stock from somebody, and runs promotions — that is most of what
+        // selling online IS. No labels and no stocktake: both are jobs done
+        // walking around a shop floor with a scanner, and there is no floor.
+        'online' => ['customers', 'purchasing', 'promotions', 'disposals'],
         // A books-only office sells nothing, so it has nobody to keep a book
         // about and nothing to discount.
         'finance' => [],
@@ -178,6 +183,45 @@ class BusinessTypes
                     ['value' => 'cloud_kitchen', 'label' => 'Cloud Kitchen'],
                     ['value' => 'juice_corner', 'label' => 'Juice / Shakes'],
                     ['value' => 'home_kitchen', 'label' => 'Home Kitchen'],
+                ],
+            ],
+            /**
+             * SELLS ONLINE AND NOWHERE ELSE.
+             *
+             * Every other type here assumes a counter: somebody standing at a
+             * till, a drawer to open, a shift to close. A business that only
+             * takes orders through the marketplace has none of that, and was
+             * being handed all of it — a POS it will never open, a shift it
+             * will never start, a drawer that never has cash in it.
+             *
+             * So: products, stock, images and the online shop, and nothing
+             * that presumes a shop floor. The money still lands in the ledger
+             * exactly as it does everywhere else, because completing an online
+             * order writes a Sale — the reports, the cashbook and the day
+             * summary need no special case for this type at all.
+             *
+             * DELIVERY is on and PICKUP stays available in the shop's own
+             * settings: an online-only seller is not necessarily a delivering
+             * one, and plenty ask the customer to collect.
+             */
+            'online' => [
+                'label' => 'Online Store',
+                'examples' => ['Instagram Shop', 'Home Baker', 'Online Boutique', 'Dropshipper', 'Cloud Kitchen', 'Home Business'],
+                'available' => true,
+                // `pos` is stated here and it is the ONLY type that states it.
+                // The default is on for everybody because almost every shop has
+                // a counter — and this one does not. `$features` is merged last
+                // in `defaultFeatures()` precisely so a type can say so.
+                'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => false, 'delivery' => true, 'dine_in' => false, 'pos' => false],
+                'product_categories' => ['Featured', 'New Arrivals', 'Best Sellers', 'Sale'],
+                'expense_categories' => ['Stock Purchase', 'Packaging', 'Delivery', 'Advertising', 'Platform Fees', 'Internet'],
+                'categories' => [
+                    ['value' => 'online_boutique', 'label' => 'Clothing & Boutique'],
+                    ['value' => 'home_kitchen', 'label' => 'Home Kitchen / Baker'],
+                    ['value' => 'handmade', 'label' => 'Handmade & Crafts'],
+                    ['value' => 'electronics_online', 'label' => 'Gadgets & Accessories'],
+                    ['value' => 'beauty_online', 'label' => 'Beauty & Skincare'],
+                    ['value' => 'general_online', 'label' => 'General Online Store'],
                 ],
             ],
             'mart' => [

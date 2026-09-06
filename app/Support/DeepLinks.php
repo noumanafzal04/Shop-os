@@ -51,6 +51,9 @@ class DeepLinks
             // These shipped with `data.link` null — the same gap the expiry
             // alerts had, found the same way: by asking the emitters what they
             // send rather than reading a list somebody kept by hand.
+            // A job offer opens the BOARD, where accepting it lives. Not the
+            // order screen: a rider who has not taken it yet has no order.
+            $type === 'rider.job_offered' => 'rider',
             $type === 'rider.approved' => 'rider',
             str_starts_with($type, 'rider.') => 'rider/application',
             $type === 'announcement' && isset($data['announcement_id']) => "announcements/{$data['announcement_id']}",

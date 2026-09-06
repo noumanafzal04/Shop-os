@@ -779,6 +779,103 @@ class RiderService
 
     // ─────────────────────────────────────────────────────────────────────
 
+    /**
+     * TELL A RIDER THERE IS WORK.
+     *
+     * Nothing did this. A shop assigned an order to a rider and the rider found
+     * out by happening to look at their board — which, on a phone in a pocket,
+     * is never. The whole rider side rested on somebody staring at a screen.
+     *
+     * Two audiences, and they are different:
+     *
+     *   ASSIGNED  one named person, who was chosen. They are told directly.
+     *   POOL      every approved platform rider near the shop, none of whom
+     *             was chosen. First to accept takes it, and the rest get a
+     *             board that no longer lists it.
+     *
+     * The dedupe key is the ORDER plus the rider, so a job re-offered after a
+     * hand-back reaches them again — an order that goes quiet the second time
+     * is an order nobody collects.
+     */
+    public function offerToRider(Order $order, Rider $card): void
+    {
+        $card->loadMissing('riderProfile.user');
+        $user = $card->riderProfile?->user;
+
+        if ($user === null || ! $card->riderProfile->status->canRide()) {
+            return; // a phone-call rider has no app to be told on
+        }
+
+        $this->notifications->notify(
+            $user,
+            'rider.job_offered',
+            'New delivery',
+            $this->offerLine($order),
+            ['order_id' => $order->id],
+            "rider-offer-{$order->id}-{$card->id}-".now()->timestamp,
+        );
+    }
+
+    /**
+     * Put a pool job in front of the riders who could actually take it.
+     *
+     * Online, approved, still reporting, within reach of the PICKUP, and not
+     * already at their job limit. Anybody else would get a notification for
+     * work that is not theirs to do, and a rider whose phone buzzes for jobs
+     * they cannot take stops reading the buzzes.
+     */
+    public function offerToPool(Order $order): int
+    {
+        [$lat, $lng] = self::pickupPoint($order);
+        if ($lat === null || $lng === null) {
+            return 0;
+        }
+
+        $riders = RiderProfile::query()
+            ->with('user')
+            ->where('status', RiderStatus::Approved->value)
+            ->where('is_platform', true)
+            ->where('is_online', true)
+            ->whereNotNull('latitude')
+            ->where('last_seen_at', '>', now()->subMinutes(RiderProfile::STALE_AFTER_MINUTES))
+            ->get()
+            ->filter(fn (RiderProfile $p) => Geo::distanceKm(
+                (float) $p->latitude, (float) $p->longitude, $lat, $lng,
+            ) <= self::POOL_RADIUS_KM)
+            ->filter(fn (RiderProfile $p) => $this->activeJobs($p)->count() < self::MAX_ACTIVE_JOBS);
+
+        foreach ($riders as $profile) {
+            if ($profile->user === null) {
+                continue;
+            }
+            $this->notifications->notify(
+                $profile->user,
+                'rider.job_offered',
+                'New delivery near you',
+                $this->offerLine($order),
+                ['order_id' => $order->id],
+                "rider-pool-{$order->id}-{$profile->id}",
+            );
+        }
+
+        return $riders->count();
+    }
+
+    /**
+     * The one line a rider decides on.
+     *
+     * The fee first, because that is the decision — a notification that leads
+     * with the shop's name asks somebody to open the app to find out whether
+     * it is worth opening the app.
+     */
+    private function offerLine(Order $order): string
+    {
+        $order->loadMissing('tenant:id,business_name');
+        $fee = number_format((float) $order->delivery_fee, 0);
+
+        return "Rs {$fee} · {$order->tenant?->business_name}";
+    }
+
     private function tellCustomer(Order $order, string $type, string $title, string $body): void
     {
         $order->loadMissing('customer');

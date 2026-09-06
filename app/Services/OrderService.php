@@ -581,6 +581,25 @@ class OrderService
         $this->notifyCustomer($order, "order.{$to->value}", 'Order update',
             "Your order {$order->order_number} is now: ".str_replace('_', ' ', $to->value).'.');
 
+        // ── The moment a pool job becomes real ───────────────────────
+        //
+        // A shop ACCEPTING is when there is something to collect. Before that
+        // the order is a request the shop may still refuse, and offering it to
+        // riders would fill their phones with work that evaporates.
+        //
+        // Only for a shop that has opted into the platform pool, and only
+        // while nobody is carrying it — a shop that assigns its own riders has
+        // already chosen, and telling strangers about that order would be
+        // offering work that is not going.
+        if ($to === OrderStatus::Confirmed
+            && $order->fulfillment_type === FulfillmentType::Delivery
+            && $order->rider_id === null) {
+            $shop = $this->context->get() ?? Tenant::query()->find($order->tenant_id);
+            if (($shop?->setting('delivery_provider') ?? 'self') === 'platform') {
+                app(RiderService::class)->offerToPool($order);
+            }
+        }
+
         return $order;
     }
 
@@ -606,6 +625,11 @@ class OrderService
         if ($rider !== null) {
             $this->notifyCustomer($order, 'order.rider_assigned', 'Rider assigned',
                 "{$rider->name} will deliver your order {$order->order_number}.");
+
+            // AND THE RIDER. Nothing did this: a shop handed an order to
+            // somebody and the only way they found out was by happening to
+            // look at their board, which on a phone in a pocket is never.
+            app(RiderService::class)->offerToRider($order, $rider);
         }
 
         return $order->load('rider');
