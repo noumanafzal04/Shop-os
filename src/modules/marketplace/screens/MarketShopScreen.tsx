@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Animated,
   FlatList,
   Pressable,
   RefreshControl,
@@ -70,20 +71,6 @@ type Params = { MarketShop: { slug: string; productId?: string } };
  * with a list that is still growing as the rest of the menu arrives.
  */
 type MenuRow =
-  /**
-   * The category bar, as ROW ZERO.
-   *
-   * It lived in `ListHeaderComponent` and scrolled away with the hero, so the
-   * contents page was only reachable by scrolling back to the top — which is
-   * the opposite of what a contents page is for. As a row it can be pinned by
-   * `stickyHeaderIndices`, which is the platform's own sticky: no JS runs per
-   * frame, and it costs nothing while nobody is scrolling.
-   *
-   * It also has to be row zero for the JUMPS to stay correct — every heading's
-   * index is its position in this same array, so putting the bar in it means
-   * the offsets need no arithmetic anywhere else.
-   */
-  | { kind: "chips"; key: string }
   | { kind: "heading"; key: string; name: string }
   | { kind: "product"; key: string; product: PublicProduct };
 
@@ -169,7 +156,7 @@ export function MarketShopScreen() {
    * second opinion about the order, formed with less information.
    */
   const { menu, jumps } = React.useMemo(() => {
-    const out: MenuRow[] = [{ kind: "chips", key: "chips" }];
+    const out: MenuRow[] = [];
     const at = new Map<string, number>();
     let last: string | null = null;
 
@@ -188,6 +175,47 @@ export function MarketShopScreen() {
   /** Which section the top of the list is in, for the chip that lights up. */
   const [section, setSection] = React.useState<string | null>(null);
   const listRef = React.useRef<FlatList<MenuRow>>(null);
+
+  /**
+   * HOW A CONTENTS BAR STAYS ON SCREEN, and why it is not `stickyHeaderIndices`.
+   *
+   * It was. On the New Architecture that crashed the shop screen outright:
+   *
+   *     addViewAt: failed to insert view [3320] into parent [2750] at index 50
+   *     index=50 count=1     SurfaceMountingManager.kt:389
+   *
+   * A Fabric mount mismatch — React asking the native tree to put a child at
+   * index 50 of a parent holding one. `stickyHeaderIndices` re-parents the
+   * sticky row into a wrapper of its own, and doing that to a row inside a
+   * VIRTUALISED list, whose cells mount and unmount under it, is two trees
+   * disagreeing about the same view. This row made it certain: it changed
+   * TYPE between renders, from a zero-height spacer to a bar, at the exact
+   * index the sticky machinery was holding.
+   *
+   * So the bar is drawn twice instead, and never inside the list. The inline
+   * copy scrolls with the header like any other content; the pinned copy sits
+   * above the list and slides down as the inline one goes past. Two elements,
+   * one state, and nothing re-parented — the scroll offset is an
+   * `Animated.Value` on the native driver, so this costs nothing per frame
+   * either.
+   */
+  const scrollY = React.useRef(new Animated.Value(0)).current;
+  const [chipsY, setChipsY] = React.useState(0);
+
+  const pinned = React.useMemo(
+    () =>
+      chipsY <= 0
+        ? -CHIP_BAR
+        : (scrollY.interpolate({
+            // A one-point range, clamped: the bar is either above the fold or
+            // it is not, and there is nothing to fade — a contents bar that is
+            // half-arrived is a contents bar somebody cannot press.
+            inputRange: [chipsY - 1, chipsY],
+            outputRange: [-CHIP_BAR, 0],
+            extrapolate: "clamp",
+          }) as unknown as number),
+    [chipsY, scrollY],
+  );
 
   const jumpTo = (name: string | null) => {
     const index = name == null ? 0 : jumps.get(name);
@@ -520,13 +548,37 @@ export function MarketShopScreen() {
         </View>
       </View>
 
-
+      {/*
+        The contents bar, inline. `onLayout` gives the pinned copy below the
+        one number it needs: where this one stops being on screen. Measured
+        rather than assumed, because everything above it — a closed-shop
+        warning, a delivery card, a shop with no rating — is conditional.
+      */}
+      {jumps.size > 1 && (
+        <View style={styles.catsBar} onLayout={(e) => setChipsY(e.nativeEvent.layout.y)}>
+          <CatBar names={[...jumps.keys()]} active={section} onPick={jumpTo} />
+        </View>
+      )}
     </>
   );
 
   return (
     <SafeScreen backgroundColor={c.bg}>
       <FocusedStatusBar style="dark-content" background={c.bg} />
+      {/*
+        The pinned copy. Absolutely placed over the top of the list and slid
+        into view by the scroll offset — the inline one is still in the header
+        doing the scrolling, and this one takes over the moment it leaves.
+      */}
+      {jumps.size > 1 && (
+        <Animated.View
+          pointerEvents={chipsY > 0 ? "auto" : "none"}
+          style={[styles.catsPinned, { transform: [{ translateY: pinned }] }]}
+        >
+          <CatBar names={[...jumps.keys()]} active={section} onPick={jumpTo} />
+        </Animated.View>
+      )}
+
       <FlatList
         ref={listRef}
         data={products.isLoading ? [] : menu}
@@ -536,6 +588,12 @@ export function MarketShopScreen() {
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         onViewableItemsChanged={onViewable}
         viewabilityConfig={viewability}
+        // Native driver: the pinned bar's position is an interpolation of this
+        // value, so nothing crosses to JS while a finger is moving.
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+          useNativeDriver: true,
+        })}
+        scrollEventThrottle={16}
         /*
           A JUMP INTO A LIST NOBODY HAS SCROLLED YET.
 
@@ -559,52 +617,7 @@ export function MarketShopScreen() {
             });
           }, 120);
         }}
-        /*
-          ROW ONE, pinned. Zero is `ListHeaderComponent` — the hero, the shop's
-          name and the menu search — so one is the category bar, which sticks
-          to the top the moment the hero has scrolled past it.
-
-          The platform's own sticky rather than an `onScroll` handler: nothing
-          runs per frame, and nothing to keep in step with a list whose height
-          changes as the rest of the menu arrives.
-        */
-        stickyHeaderIndices={[1]}
         renderItem={({ item: row }) => {
-          if (row.kind === "chips") {
-            /*
-              ── A TABLE OF CONTENTS, not a filter ──────────────────
-
-              These chips used to refetch the menu with a `category_id`:
-              pressing "Burgers" made everything else disappear and come back
-              over the network. That is the right shape for an aisle spanning
-              every shop and the wrong one for a single menu — here they are a
-              contents page, and what somebody wants is to be taken to that
-              part of it with the rest still under their thumb.
-
-              Built from the MENU rather than from `shop.categories`, so a chip
-              cannot name a section that has nothing in it, and cannot be
-              pressed to jump somewhere that does not exist.
-            */
-            if (jumps.size < 2) return <View style={styles.catsEmpty} />;
-            return (
-              <View style={styles.catsBar}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.cats}
-                >
-                  {[...jumps.keys()].map((name) => (
-                    <CatChip
-                      key={name}
-                      label={name}
-                      active={section === name}
-                      onPress={() => jumpTo(name)}
-                    />
-                  ))}
-                </ScrollView>
-              </View>
-            );
-          }
           if (row.kind === "heading") {
             return <Text style={styles.section}>{row.name}</Text>;
           }
@@ -726,6 +739,35 @@ export function MarketShopScreen() {
   );
 }
 
+/**
+ * THE CONTENTS BAR. One component, rendered in two places.
+ *
+ * Inline in the header, and again pinned above the list — see the comment on
+ * `pinned` for why it is drawn twice rather than made sticky. Two elements
+ * with one piece of state between them: both read `active` and both call the
+ * same `onPick`, so there is no second opinion about which section is open.
+ */
+function CatBar({
+  names,
+  active,
+  onPick,
+}: {
+  names: string[];
+  active: string | null;
+  onPick: (name: string) => void;
+}) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
+      {names.map((name) => (
+        <CatChip key={name} label={name} active={active === name} onPress={() => onPick(name)} />
+      ))}
+    </ScrollView>
+  );
+}
+
 function CatChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -753,7 +795,24 @@ const makeStyles = (c: ThemeColors) =>
   },
   // A shop with one category still needs row one to exist, or the sticky index
   // lands on the first product and pins a burger to the top of the screen.
-  catsEmpty: { height: 0 },
+  /**
+   * The pinned copy, over the list.
+   *
+   * `zIndex` as well as `elevation`: on Android a later sibling wins by
+   * elevation and on iOS by zIndex, and this has to be above a list that is
+   * scrolling underneath it on both.
+   */
+  catsPinned: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    elevation: 10,
+    backgroundColor: c.bg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border,
+  },
   /**
    * A section heading inside the menu.
    *

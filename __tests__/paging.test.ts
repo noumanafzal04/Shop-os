@@ -138,10 +138,21 @@ describe("the shop menu", () => {
     path.join(PROJECT_ROOT, "src/modules/marketplace/hooks/useMarketplace.ts"),
     "utf8",
   );
-  const screen = fs.readFileSync(
-    path.join(PROJECT_ROOT, "src/modules/marketplace/screens/MarketShopScreen.tsx"),
-    "utf8",
-  );
+  /**
+   * COMMENTS STRIPPED.
+   *
+   * The rule below is "no `stickyHeaderIndices` anywhere", and the docblock
+   * that explains WHY it was removed names it four times. A guard that cannot
+   * tell a rule from the description of a rule fails on the commit that writes
+   * the rule down — twice in one day, in this repo.
+   */
+  const screen = fs
+    .readFileSync(
+      path.join(PROJECT_ROOT, "src/modules/marketplace/screens/MarketShopScreen.tsx"),
+      "utf8",
+    )
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
 
   it("reaches past page one", () => {
     // A restaurant with a thirty-item menu had ten items that could not be
@@ -176,20 +187,45 @@ describe("the shop menu", () => {
     expect(screen).toMatch(/\bonScrollToIndexFailed=\{/);
   });
 
-  it("pins the contents bar once the hero has gone past", () => {
-    // It lived in `ListHeaderComponent` and scrolled away with the hero, so
-    // the contents page could only be reached by scrolling back to the top —
-    // which is the opposite of what a contents page is for.
-    //
-    // Index ONE: zero is the list header. Pinning zero would stick the hero.
-    expect(screen).toMatch(/stickyHeaderIndices=\{\[1\]\}/);
-    // The bar has to be SEEDED as row zero of the menu, not merely mentioned:
-    // asserting the string `kind: "chips"` also matches the type declaration
-    // and the branch that renders it, so it survived the array being emptied.
-    expect(screen).toMatch(/const out: MenuRow\[\] = \[\{ kind: "chips", key: "chips" \}\];/);
-    // Opaque, or the menu scrolls through the chips — a sticky row inherits
-    // no ground from the page underneath it.
-    expect(screen).toMatch(/catsBar: \{\s*backgroundColor: c\.bg/);
+  it("keeps the contents bar on screen WITHOUT re-parenting a virtualised row", () => {
+    /**
+     * THE CRASH THIS REPLACED.
+     *
+     *     addViewAt: failed to insert view [3320] into parent [2750] at index 50
+     *     index=50 count=1      SurfaceMountingManager.kt:389
+     *
+     * `stickyHeaderIndices` re-parents the sticky row into a wrapper of its
+     * own. Doing that to a row inside a VIRTUALISED list, whose cells mount
+     * and unmount underneath it, is two trees disagreeing about one view — and
+     * on Fabric that is a red screen, not a glitch. This row made it certain:
+     * it changed TYPE between renders, from a zero-height spacer to a bar, at
+     * the exact index the sticky machinery was holding.
+     *
+     * The bar is drawn twice now and never inside the list.
+     */
+    expect(screen).not.toMatch(/stickyHeaderIndices/);
+    // No row kind for it either — it is not list content any more.
+    expect(screen).not.toMatch(/kind: "chips"/);
+
+    // One component, two placements, one piece of state.
+    expect((screen.match(/<CatBar\b/g) ?? []).length).toBe(2);
+    expect(screen).toMatch(/function CatBar\(/);
+    expect(screen).toMatch(/catsPinned: \{\s*position: "absolute"/);
+    // BOTH stacking properties. Android orders siblings by `elevation` and
+    // iOS by `zIndex`, and this bar has a list scrolling underneath it on
+    // both — with one of them missing it is a bar the menu slides over.
+    expect(screen).toMatch(/zIndex: \d+/);
+    expect(screen).toMatch(/elevation: \d+/);
+  });
+
+  it("slides the pinned bar with the scroll, off the JS thread", () => {
+    // A bar whose position is computed in JS on every scroll event is the
+    // jankiest thing an app of this shape can do.
+    expect(screen).toMatch(/Animated\.event\(\[\{ nativeEvent: \{ contentOffset: \{ y: scrollY \} \} \}\], \{\s*useNativeDriver: true,/);
+    // MEASURED, not assumed: everything above the bar is conditional.
+    expect(screen).toMatch(/onLayout=\{\(e\) => setChipsY\(e\.nativeEvent\.layout\.y\)\}/);
+    expect(screen).toMatch(/inputRange: \[chipsY - 1, chipsY\]/);
+    expect(screen).toMatch(/extrapolate: "clamp"/);
   });
 
   it("lands a jump BELOW the pinned bar, not underneath it", () => {
@@ -204,10 +240,9 @@ describe("the shop menu", () => {
     expect(screen).toMatch(/const CHIP_BAR = \d+;/);
   });
 
-  it("keeps row one occupied even when there is nothing to pin", () => {
-    // A shop with one category still needs a row at index one, or the sticky
-    // index lands on the first product and pins a burger to the top.
-    expect(screen).toMatch(/if \(jumps\.size < 2\) return <View style=\{styles\.catsEmpty\} \/>;/);
+  it("draws no bar at all for a shop with one section", () => {
+    // A contents page listing one thing is a label, not a contents page.
+    expect((screen.match(/\{jumps\.size > 1 && \(/g) ?? []).length).toBe(2);
   });
 
   it("holds its viewability config still", () => {
