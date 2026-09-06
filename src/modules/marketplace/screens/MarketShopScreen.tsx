@@ -70,8 +70,31 @@ type Params = { MarketShop: { slug: string; productId?: string } };
  * with a list that is still growing as the rest of the menu arrives.
  */
 type MenuRow =
+  /**
+   * The category bar, as ROW ZERO.
+   *
+   * It lived in `ListHeaderComponent` and scrolled away with the hero, so the
+   * contents page was only reachable by scrolling back to the top — which is
+   * the opposite of what a contents page is for. As a row it can be pinned by
+   * `stickyHeaderIndices`, which is the platform's own sticky: no JS runs per
+   * frame, and it costs nothing while nobody is scrolling.
+   *
+   * It also has to be row zero for the JUMPS to stay correct — every heading's
+   * index is its position in this same array, so putting the bar in it means
+   * the offsets need no arithmetic anywhere else.
+   */
+  | { kind: "chips"; key: string }
   | { kind: "heading"; key: string; name: string }
   | { kind: "product"; key: string; product: PublicProduct };
+
+/**
+ * How tall the pinned bar is, so a jump lands BELOW it rather than under it.
+ *
+ * `scrollToIndex` puts a row at the very top of the viewport, and the top of
+ * the viewport is where the sticky bar is — so without this offset every jump
+ * hid the heading it had just been asked to go to.
+ */
+const CHIP_BAR = 54; // 10 + (7 + 18 + 7 + 2 border) + 10
 
 export function MarketShopScreen() {
   const insets = useSafeAreaInsets();
@@ -146,7 +169,7 @@ export function MarketShopScreen() {
    * second opinion about the order, formed with less information.
    */
   const { menu, jumps } = React.useMemo(() => {
-    const out: MenuRow[] = [];
+    const out: MenuRow[] = [{ kind: "chips", key: "chips" }];
     const at = new Map<string, number>();
     let last: string | null = null;
 
@@ -171,8 +194,14 @@ export function MarketShopScreen() {
     if (index == null) return;
     setSection(name);
     // `viewPosition: 0` puts the heading at the top rather than centring it,
-    // which is what "go to Burgers" means.
-    listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0 });
+    // which is what "go to Burgers" means — and `viewOffset` keeps it clear of
+    // the bar that is pinned there.
+    listRef.current?.scrollToIndex({
+      index,
+      animated: true,
+      viewPosition: 0,
+      viewOffset: CHIP_BAR,
+    });
   };
 
   /**
@@ -491,32 +520,7 @@ export function MarketShopScreen() {
         </View>
       </View>
 
-      {/*
-        ── A TABLE OF CONTENTS, not a filter ────────────────────────
 
-        These chips used to refetch the menu with a `category_id`: pressing
-        "Burgers" made everything else disappear and come back over the
-        network. That is the right shape for an aisle spanning every shop and
-        the wrong one for a single menu — here the chips are a contents page,
-        and what somebody wants is to be taken to that part of it, with the
-        rest still under their thumb.
-
-        Built from the MENU rather than from `shop.categories`, so a chip
-        cannot name a section that has nothing in it — and cannot be pressed
-        to jump somewhere that does not exist.
-      */}
-      {jumps.size > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
-          {[...jumps.keys()].map((name) => (
-            <CatChip
-              key={name}
-              label={name}
-              active={section === name}
-              onPress={() => jumpTo(name)}
-            />
-          ))}
-        </ScrollView>
-      )}
     </>
   );
 
@@ -547,10 +551,60 @@ export function MarketShopScreen() {
             animated: true,
           });
           setTimeout(() => {
-            listRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0 });
+            listRef.current?.scrollToIndex({
+              index: info.index,
+              animated: true,
+              viewPosition: 0,
+              viewOffset: CHIP_BAR,
+            });
           }, 120);
         }}
+        /*
+          ROW ONE, pinned. Zero is `ListHeaderComponent` — the hero, the shop's
+          name and the menu search — so one is the category bar, which sticks
+          to the top the moment the hero has scrolled past it.
+
+          The platform's own sticky rather than an `onScroll` handler: nothing
+          runs per frame, and nothing to keep in step with a list whose height
+          changes as the rest of the menu arrives.
+        */
+        stickyHeaderIndices={[1]}
         renderItem={({ item: row }) => {
+          if (row.kind === "chips") {
+            /*
+              ── A TABLE OF CONTENTS, not a filter ──────────────────
+
+              These chips used to refetch the menu with a `category_id`:
+              pressing "Burgers" made everything else disappear and come back
+              over the network. That is the right shape for an aisle spanning
+              every shop and the wrong one for a single menu — here they are a
+              contents page, and what somebody wants is to be taken to that
+              part of it with the rest still under their thumb.
+
+              Built from the MENU rather than from `shop.categories`, so a chip
+              cannot name a section that has nothing in it, and cannot be
+              pressed to jump somewhere that does not exist.
+            */
+            if (jumps.size < 2) return <View style={styles.catsEmpty} />;
+            return (
+              <View style={styles.catsBar}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.cats}
+                >
+                  {[...jumps.keys()].map((name) => (
+                    <CatChip
+                      key={name}
+                      label={name}
+                      active={section === name}
+                      onPress={() => jumpTo(name)}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            );
+          }
           if (row.kind === "heading") {
             return <Text style={styles.section}>{row.name}</Text>;
           }
@@ -686,6 +740,21 @@ const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   list: { paddingBottom: spacing.xxl },
   /**
+   * The pinned bar's own surface.
+   *
+   * Opaque, and with a rule under it. A sticky row inherits nothing from the
+   * page — the menu scrolls UNDERNEATH it — so a transparent bar shows every
+   * product row sliding through the chips.
+   */
+  catsBar: {
+    backgroundColor: c.bg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border,
+  },
+  // A shop with one category still needs row one to exist, or the sticky index
+  // lands on the first product and pins a burger to the top of the screen.
+  catsEmpty: { height: 0 },
+  /**
    * A section heading inside the menu.
    *
    * Loud enough to find while scrolling past — this is what the chips jump to,
@@ -800,11 +869,13 @@ const makeStyles = (c: ThemeColors) =>
     height: 44,
   },
   searchInput: { flex: 1, ...typography.body, color: c.text, padding: 0 },
-  cats: { paddingHorizontal: spacing.md, gap: spacing.xs, paddingVertical: spacing.sm },
+  cats: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingVertical: 10 },
   cat: {
     paddingHorizontal: spacing.md,
     paddingVertical: 7,
-    borderRadius: radius.full,
+    // 17, not `radius.full`: a very large radius renders as a square on small
+    // views under the new architecture, and these are 34 points tall.
+    borderRadius: 17,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,

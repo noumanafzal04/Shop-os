@@ -163,7 +163,7 @@ describe("the shop menu", () => {
   it("makes the category chips a contents page, not a filter", () => {
     // Pressing "Burgers" used to refetch with `category_id`, so the rest of
     // the menu disappeared and came back over the network.
-    expect(screen).toMatch(/scrollToIndex\(\{ index, animated: true, viewPosition: 0 \}\)/);
+    expect(screen).toMatch(/listRef\.current\?\.scrollToIndex\(\{[\s\S]{0,160}?viewPosition: 0,/);
     expect(screen).not.toMatch(/category_id: catId/);
   });
 
@@ -174,6 +174,40 @@ describe("the shop menu", () => {
     // matched `onScrollToIndexFailedX` — a mutation that renames the handler
     // and silently drops it — because a bare substring is not a prop.
     expect(screen).toMatch(/\bonScrollToIndexFailed=\{/);
+  });
+
+  it("pins the contents bar once the hero has gone past", () => {
+    // It lived in `ListHeaderComponent` and scrolled away with the hero, so
+    // the contents page could only be reached by scrolling back to the top —
+    // which is the opposite of what a contents page is for.
+    //
+    // Index ONE: zero is the list header. Pinning zero would stick the hero.
+    expect(screen).toMatch(/stickyHeaderIndices=\{\[1\]\}/);
+    // The bar has to be SEEDED as row zero of the menu, not merely mentioned:
+    // asserting the string `kind: "chips"` also matches the type declaration
+    // and the branch that renders it, so it survived the array being emptied.
+    expect(screen).toMatch(/const out: MenuRow\[\] = \[\{ kind: "chips", key: "chips" \}\];/);
+    // Opaque, or the menu scrolls through the chips — a sticky row inherits
+    // no ground from the page underneath it.
+    expect(screen).toMatch(/catsBar: \{\s*backgroundColor: c\.bg/);
+  });
+
+  it("lands a jump BELOW the pinned bar, not underneath it", () => {
+    // `scrollToIndex` puts a row at the very top of the viewport, and the top
+    // of the viewport is where the bar now is — so without the offset every
+    // jump hid the heading it had just been asked to go to.
+    // BOTH scroll calls — the jump and the retry after a failed index. One
+    // assertion passed while either one had lost its offset, because the other
+    // still carried the string.
+    expect((screen.match(/viewOffset: CHIP_BAR/g) ?? []).length).toBe(2);
+    expect((screen.match(/scrollToIndex\(\{/g) ?? []).length).toBe(2);
+    expect(screen).toMatch(/const CHIP_BAR = \d+;/);
+  });
+
+  it("keeps row one occupied even when there is nothing to pin", () => {
+    // A shop with one category still needs a row at index one, or the sticky
+    // index lands on the first product and pins a burger to the top.
+    expect(screen).toMatch(/if \(jumps\.size < 2\) return <View style=\{styles\.catsEmpty\} \/>;/);
   });
 
   it("holds its viewability config still", () => {

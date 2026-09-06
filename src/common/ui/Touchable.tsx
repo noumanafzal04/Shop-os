@@ -1,13 +1,12 @@
 import React from "react";
 import {
   Animated,
-  Platform,
   Pressable,
-  Vibration,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import { tick } from "./haptics";
 
 /**
  * A THING THAT ANSWERS WHEN YOU TOUCH IT.
@@ -127,7 +126,7 @@ export function Touchable({
           press(scaleTo, 0.9, false);
           // 12ms is a tick, not a buzz. iOS ignores a duration this short and
           // gives its own default, which is what we want there anyway.
-          if (haptic) Vibration.vibrate(Platform.OS === "android" ? 12 : 10);
+          if (haptic) tick();
         }
         onPressIn?.(e);
       }}
