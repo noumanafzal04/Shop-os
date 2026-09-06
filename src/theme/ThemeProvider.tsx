@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Appearance } from "react-native";
-import { themes, type ThemeColors, type ThemeName } from "./themes";
+import { riderThemes, themes, type ThemeColors, type ThemeName } from "./themes";
+import { useModeStore } from "../stores/modeStore";
 import { radius, shadow, spacing, typography } from "./tokens";
 
 /**
@@ -63,13 +64,28 @@ export function ThemeProvider({
     return () => sub.remove();
   }, []);
 
+  /**
+   * WHICH HALF OF THE APP IS ON SCREEN.
+   *
+   * The mode swaps the whole navigator, and now it swaps the palette with it:
+   * the shopping side is the brand's red-orange, the working side is green.
+   * Read here rather than threaded through every screen, because a colour that
+   * some screens knew about and others did not would be worse than one colour.
+   *
+   * Subscribed to the STORE, not to a prop — `ModeSwitchCover` holds a cover
+   * over the swap for a few hundred milliseconds, so the repaint happens while
+   * nothing is visible.
+   */
+  const mode = useModeStore((s) => s.mode);
+
   const value = useMemo<ThemeContextValue>(() => {
     const name = resolve(preference, system);
+    const palette = mode === "rider" ? riderThemes : themes;
 
     return {
       name,
       isDark: name === "dark",
-      colors: themes[name],
+      colors: palette[name],
       spacing,
       radius,
       typography,
@@ -80,7 +96,7 @@ export function ThemeProvider({
         onPreferenceChange?.(p);
       },
     };
-  }, [preference, system, onPreferenceChange]);
+  }, [preference, system, mode, onPreferenceChange]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

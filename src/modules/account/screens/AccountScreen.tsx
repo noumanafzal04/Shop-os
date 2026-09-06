@@ -18,6 +18,9 @@ import {
   ShieldCheckIcon,
   SignOutIcon,
   StarIcon,
+  IdCardIcon,
+  ParcelIcon,
+  WalletIcon,
   type Icon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -27,6 +30,7 @@ import { AppButton } from "../../../common/ui/AppButton";
 import { confirm } from "../../../common/ui/confirm";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useAuthStore } from "../../../stores/authStore";
+import { useModeStore } from "../../../stores/modeStore";
 import { useLogout } from "../../auth/hooks/useAuth";
 import { useRiderProfile } from "../../rider/hooks/useRider";
 import { BRAND } from "../../../common/brand";
@@ -57,6 +61,13 @@ interface Link {
   label: string;
   hint?: string;
   route: string;
+  /**
+   * For a destination inside the OTHER navigator's tabs.
+   *
+   * A bare tab name bubbles up to the stack, finds nothing and warns; naming
+   * a nested route means naming both halves.
+   */
+  params?: object;
 }
 
 /**
@@ -99,6 +110,41 @@ const ORDERING: Link[] = [
   { icon: CalendarIcon, label: "Reservations", hint: "Tables you have booked", route: "Reservations" },
 ];
 
+/**
+ * ── ON SHIFT, THIS IS A DIFFERENT PAGE ───────────────────────────────
+ *
+ * `RiderAccountTab` renders THIS screen — so a rider on shift was being
+ * offered Favourites, Reservations and "My reviews": three rows about
+ * shopping, on the account page of somebody who is working. Two of them lead
+ * to screens that make no sense mid-delivery, and the third is about shops
+ * they buy from rather than shops they collect from.
+ *
+ * A rider's account is the same person and a different job. What they need is
+ * the board, the money, and the paperwork that keeps them approved.
+ */
+const RIDER_WORK: Link[] = [
+  {
+    icon: ParcelIcon,
+    label: "My deliveries",
+    hint: "The board, and anything you are carrying",
+    route: "RiderTabs",
+    params: { screen: "RiderBoardTab" },
+  },
+  {
+    icon: WalletIcon,
+    label: "Earnings",
+    hint: "What you have made, and cash still to hand over",
+    route: "RiderTabs",
+    params: { screen: "RiderEarningsTab" },
+  },
+  {
+    icon: IdCardIcon,
+    label: "Rider account",
+    hint: "Vehicle, documents and your approval",
+    route: "RiderApply",
+  },
+];
+
 const APP: Link[] = [
   { icon: PaletteIcon, label: "Appearance", hint: "Light, dark or follow the phone", route: "Settings" },
   {
@@ -113,6 +159,13 @@ export function AccountScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
+  /**
+   * Which half of the app this page is being read in.
+   *
+   * The rider tabs render THIS screen, so without asking it offers somebody
+   * mid-delivery their favourites and their table bookings.
+   */
+  const onShift = useModeStore((st) => st.mode) === "rider";
   const user = useAuthStore((s) => s.user);
   const status = useAuthStore((s) => s.status);
   const signOut = useLogout();
@@ -241,18 +294,32 @@ export function AccountScreen() {
           ))}
         </View>
 
-        <Text style={styles.section}>Ordering</Text>
-        <View style={styles.card}>
-          {ORDERING.map((l, i) => (
-            <Row key={l.label} link={l} divided={i > 0} onPress={() => open(l.route)} />
-          ))}
-          {/*
-            A VALUE, not a link. There is one way to pay and no screen behind
-            it — a chevron here would open a page saying the same six words,
-            and a row that opens nothing is why people stop trusting the rest.
-          */}
-          <ValueRow icon={BanknoteIcon} label="Payment" value="Cash on delivery" divided />
-        </View>
+        {onShift ? (
+          <>
+            <Text style={styles.section}>Your shift</Text>
+            <View style={styles.card}>
+              {RIDER_WORK.map((l, i) => (
+                <Row key={l.label} link={l} divided={i > 0} onPress={() => open(l.route, l.params)} />
+              ))}
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.section}>Ordering</Text>
+            <View style={styles.card}>
+              {ORDERING.map((l, i) => (
+                <Row key={l.label} link={l} divided={i > 0} onPress={() => open(l.route)} />
+              ))}
+              {/*
+                A VALUE, not a link. There is one way to pay and no screen
+                behind it — a chevron here would open a page saying the same
+                six words, and a row that opens nothing is why people stop
+                trusting the rest.
+              */}
+              <ValueRow icon={BanknoteIcon} label="Payment" value="Cash on delivery" divided />
+            </View>
+          </>
+        )}
 
         {/*
           ── EARNING, RATHER THAN SPENDING ─────────────────────────────
@@ -262,6 +329,8 @@ export function AccountScreen() {
           their board, somebody part-way through goes back to the form they
           left, and somebody who has never asked is invited.
         */}
+        {!onShift && (
+          <>
         <Text style={styles.section}>Earn with us</Text>
         <View style={styles.card}>
           <Row
@@ -282,6 +351,8 @@ export function AccountScreen() {
             onPress={() => open(riderStatus === "approved" ? "RiderHome" : "RiderApply")}
           />
         </View>
+          </>
+        )}
 
         <Text style={styles.section}>App</Text>
         <View style={styles.card}>

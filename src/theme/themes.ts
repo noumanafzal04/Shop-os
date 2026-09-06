@@ -235,7 +235,87 @@ export const darkColors: ThemeColors = {
   black: "#0c0705",
 };
 
+/**
+ * ── THE RIDER'S OWN COLOUR ────────────────────────────────────────────
+ *
+ * "rider ka theme seprate kro." Same app, same shapes, one hue swapped: the
+ * shopping side is the brand's red-orange and the working side is green.
+ *
+ * ── Why green, and why not a third colour ────────────────────────────
+ *
+ * Green is already this app's word for "go" — it is what `success` is drawn
+ * in, and what the online toggle turns when a rider starts a shift. Making it
+ * the rider side's PRIMARY means the whole screen agrees with the one control
+ * that matters most there, instead of a red button sitting on a green
+ * "online" pill.
+ *
+ * It also solves a problem the mode switch has: two navigators that look
+ * identical, and a rider who is not sure which one they are in. A hue is
+ * readable from across a room.
+ *
+ * Nothing else moves. The greys, the surfaces, the borders, the type and the
+ * spacing are shared, because this is one app wearing a different badge — not
+ * a second design that will drift.
+ */
+const riderBrand: ColorScale = {
+  50: "#f2f8e8",
+  100: "#e3f0cd",
+  200: "#c9e29f",
+  300: "#a8ce6a",
+  400: "#8bba42",
+  /**
+   * 500: the working side's full strength.
+   *
+   * #557F1D, not the palette's own green[500] #5C8A20 — which measures 4.11:1
+   * against white and would have been the second colour in this app whose
+   * button labels do not clear AA. This one is 4.73:1.
+   *
+   * Worth the two shades because of WHERE it is read: a rider is looking at
+   * this outdoors, on a bike, in Lahore sun. The customer side's 3.1:1 is a
+   * stated cost paid for the brand's own hue; there is no brand reason to pay
+   * it twice.
+   */
+  500: "#557f1d",
+  600: "#456b14",
+  700: "#3a5a11",
+  800: "#2e470d",
+  900: "#24380a",
+};
+
+const riderDarkBrand: ColorScale = {
+  50: "#152003",
+  100: "#1d2c06",
+  200: "#2b400b",
+  300: "#3f5c12",
+  400: "#6d9b2c",
+  // Brighter than full strength on a dark ground, so a pressed control lifts
+  // rather than sinks — the same rule as `darkBrand` above.
+  500: "#8ec63f",
+  600: "#a3d65c",
+  700: "#b9e37f",
+  800: "#d2eeab",
+  900: "#e8f7d6",
+};
+
+/** One theme, re-keyed to a different brand scale. */
+const wearing = (base: ThemeColors, scale: ColorScale): ThemeColors => ({
+  ...base,
+  brand: scale,
+  primary: scale[500],
+  primaryPressed: scale[600],
+  primarySoft: scale[50],
+});
+
+export const riderLightColors: ThemeColors = wearing(lightColors, riderBrand);
+export const riderDarkColors: ThemeColors = wearing(darkColors, riderDarkBrand);
+
 export type ThemeName = "light" | "dark";
+
+/** The working side's pair, keyed the same way. */
+export const riderThemes: Record<ThemeName, ThemeColors> = {
+  light: riderLightColors,
+  dark: riderDarkColors,
+};
 
 export const themes: Record<ThemeName, ThemeColors> = {
   light: lightColors,
