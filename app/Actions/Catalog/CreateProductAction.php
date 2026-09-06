@@ -44,10 +44,42 @@ class CreateProductAction
             $itemType = $data['item_type'] ?? ItemTypes::PHYSICAL;
             $coarse = ItemTypes::coarse($itemType); // product | service
             $canTrack = ItemTypes::canTrackInventory($itemType);
+
+            /**
+             * A SHOP THAT DOES NOT COUNT STOCK MAKES PRODUCTS THAT DO NOT
+             * CLAIM TO.
+             *
+             * The item type decides what a thing IS — a physical product can
+             * hold stock, a dish cannot. The module decides whether this shop
+             * counts any, and until now only the first was asked.
+             *
+             * That combination is not hypothetical. An Online Store has no
+             * inventory module and is offered exactly one item type,
+             * `physical_product`, whose profile says stock is required. So
+             * every product it created was born tracking stock at a quantity of
+             * zero, with no screen anywhere to raise it — and the FIRST ORDER
+             * for anything failed with "only 0 in stock". A shop that cannot
+             * sell is not a shop.
+             *
+             * A shop granted inventory later keeps its old products untracked,
+             * which is right: they never counted, and inventing a figure for
+             * them would be inventing stock.
+             *
+             * ── And ONLY the default ─────────────────────────────────
+             *
+             * An explicit `track_inventory: true` still wins, because it is
+             * somebody saying so. A restaurant whose inventory module is off
+             * may still want to count the frozen kebabs in the chest freezer,
+             * and refusing that would be overruling a person with a template.
+             * What changes is what happens when NOBODY said anything — and
+             * silence should not mean "count stock you have no screen for".
+             */
+            $countsStock = $this->context->get()?->featureEnabled('inventory') ?? true;
+
             // Types that can hold stock default per their profile (physical /
             // medicine = on, food = off); an explicit flag overrides.
             $tracksStock = $canTrack
-                && ($data['track_inventory'] ?? ItemTypes::defaultTracksInventory($itemType));
+                && ($data['track_inventory'] ?? (ItemTypes::defaultTracksInventory($itemType) && $countsStock));
 
             $product = Product::query()->create([
                 'type' => $coarse,

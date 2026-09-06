@@ -84,11 +84,18 @@ class BusinessTypes
         'services' => ['customers', 'documents'],
         'automotive' => ['customers', 'purchasing', 'stocktake', 'documents'],
         'petroleum' => ['customers', 'purchasing', 'stocktake'],
-        // An online seller keeps a customer book (the people who ordered), buys
-        // its stock from somebody, and runs promotions — that is most of what
-        // selling online IS. No labels and no stocktake: both are jobs done
-        // walking around a shop floor with a scanner, and there is no floor.
-        'online' => ['customers', 'purchasing', 'promotions', 'disposals'],
+        // NOTHING. Deliberately the shortest list here.
+        //
+        // An Instagram shop is one person with a phone. Handing them a
+        // customer book, a purchase-order workflow, disposals and a promotions
+        // engine on day one is handing them nine screens to ignore before they
+        // find the two they need. Every one of those is a module an admin can
+        // grant the day it is actually wanted.
+        //
+        // The whole type is: list what you sell, take the order. That is the
+        // flow a vendor app has, and it is the reason people can use one
+        // without being taught.
+        'online' => [],
         // A books-only office sells nothing, so it has nobody to keep a book
         // about and nothing to discount.
         'finance' => [],
@@ -208,11 +215,25 @@ class BusinessTypes
                 'label' => 'Online Store',
                 'examples' => ['Instagram Shop', 'Home Baker', 'Online Boutique', 'Dropshipper', 'Cloud Kitchen', 'Home Business'],
                 'available' => true,
+                // ── The smallest shop that works ──────────────────────
+                //
                 // `pos` is stated here and it is the ONLY type that states it.
                 // The default is on for everybody because almost every shop has
                 // a counter — and this one does not. `$features` is merged last
                 // in `defaultFeatures()` precisely so a type can say so.
-                'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => false, 'delivery' => true, 'dine_in' => false, 'pos' => false],
+                //
+                // INVENTORY IS OFF, which is the other deliberate one. A home
+                // baker does not count stock; a boutique with twelve dresses
+                // does. Off by default and granted the day it is wanted, rather
+                // than a stock figure on every product that nobody maintains
+                // and everybody then distrusts.
+                //
+                // A shop with only these four still sells: an order comes in,
+                // is accepted, is completed, and writes a Sale. Nothing in that
+                // chain needs a module this type does not have — and a test
+                // pins it, because a type that offers a job it cannot do is
+                // the defect this product has already met.
+                'features' => ['products' => true, 'services' => false, 'inventory' => false, 'marketplace' => true, 'reservations' => false, 'delivery' => true, 'dine_in' => false, 'pos' => false, 'expenses' => false],
                 'product_categories' => ['Featured', 'New Arrivals', 'Best Sellers', 'Sale'],
                 'expense_categories' => ['Stock Purchase', 'Packaging', 'Delivery', 'Advertising', 'Platform Fees', 'Internet'],
                 'categories' => [

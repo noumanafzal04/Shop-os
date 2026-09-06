@@ -194,8 +194,13 @@ class Modules
             $map['images'] = true;
         }
 
-        // Settle the dependency graph. Bounded by the number of modules — one
-        // pass can only ever switch something off, so it cannot cycle.
+        // PRUNE. A module whose dependency is missing cannot be left on — that
+        // is a screen that loads and dies on its first query. Bounded by the
+        // number of modules, and one-directional (it can only switch things
+        // off), so it cannot cycle.
+        //
+        // This is the TEMPLATE's answer. What a PERSON ticking a box should get
+        // is different, and lives in `settle()`.
         do {
             $changed = false;
             foreach ($known as $key => $meta) {
@@ -213,6 +218,84 @@ class Modules
         } while ($changed);
 
         return $map;
+    }
+
+    /**
+     * WHAT A PERSON MEANT BY THE BOX THEY JUST PRESSED.
+     *
+     * `normalize()` prunes, which is right for a business type's template: a
+     * proposal listing something its own flags do not support should lose it.
+     * It is the WRONG answer for somebody ticking a checkbox, because ticking
+     * Purchasing without Inventory silently switched Purchasing back off —
+     * they pressed a thing, they saved, and the thing was not there.
+     *
+     * So the direction follows WHAT CHANGED, not the final map:
+     *
+     *   turned ON   → pull its dependencies in with it. You want Purchasing,
+     *                 so you get Inventory. Nothing you asked for disappears.
+     *   turned OFF  → take its dependents with it. Switching off the catalog
+     *                 must not leave a Fuel screen standing on nothing, and
+     *                 pulling the catalog back in to save Fuel would be
+     *                 refusing to do the one thing that was asked.
+     *
+     * A single call that says both — products off, inventory on — is a
+     * contradiction, and OFF wins: it is the more specific instruction and the
+     * safer one.
+     *
+     * @param  array<string, bool>  $before  the shop's current map
+     * @param  array<string, mixed>  $changes  only the keys somebody touched
+     * @return array<string, bool>
+     */
+    public static function settle(array $before, array $changes): array
+    {
+        $known = self::all();
+
+        $map = [];
+        foreach ($known as $key => $_) {
+            $map[$key] = (bool) ($changes[$key] ?? $before[$key] ?? false);
+        }
+
+        $turnedOff = [];
+        foreach ($changes as $key => $value) {
+            if (array_key_exists($key, $known) && ! $value) {
+                $turnedOff[$key] = true;
+            }
+        }
+
+        if ($map['marketplace']) {
+            $map['images'] = true;
+        }
+
+        // ① PULL IN. Anything on gets what it needs — except a key this same
+        //    call switched off, which stays off.
+        do {
+            $changed = false;
+            foreach ($known as $key => $meta) {
+                if (! $map[$key]) {
+                    continue;
+                }
+                foreach ($meta['depends'] as $needs) {
+                    if (($map[$needs] ?? false) || isset($turnedOff[$needs])) {
+                        continue;
+                    }
+                    $map[$needs] = true;
+                    $changed = true;
+                }
+            }
+        } while ($changed);
+
+        // ② PRUNE what is still standing on nothing. Only reachable for a
+        //    dependency this call explicitly switched off — everything else was
+        //    satisfied above.
+        $settled = self::normalize($map);
+
+        // Marketplace can have been pulled in, and it forces images. Settled
+        // again rather than trusted to have been settled before the graph moved.
+        if ($settled['marketplace']) {
+            $settled['images'] = true;
+        }
+
+        return $settled;
     }
 
     /**

@@ -405,9 +405,20 @@ class Tenant extends BaseModel
      */
     public function applyModules(array $modules, bool $merge = true): static
     {
-        $features = Modules::normalize(
-            $merge ? array_merge($this->features ?? [], $modules) : $modules,
-        );
+        /**
+         * A PERSON is writing this, so the direction follows WHAT CHANGED.
+         *
+         * Ticking Purchasing without Inventory used to switch Purchasing back
+         * off — somebody pressed a box, saved, and the box was empty. Now what
+         * they turned ON brings its dependencies with it, and what they turned
+         * OFF still takes its dependents. See `Modules::settle()`.
+         *
+         * A wholesale replacement (`$merge` false) has no "before" to compare
+         * against, so it is a template rather than a choice and prunes.
+         */
+        $features = $merge
+            ? Modules::settle($this->features ?? [], $modules)
+            : Modules::normalize($modules);
 
         $this->forceFill([
             'features' => $features,

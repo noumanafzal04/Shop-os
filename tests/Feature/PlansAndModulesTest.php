@@ -6,6 +6,7 @@ use App\Actions\Shop\ApplyBusinessTypeDefaultsAction;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\BusinessTypes;
 use App\Support\Modules;
 use App\Support\PlanLimits;
 use Database\Seeders\PlanSeeder;
@@ -200,6 +201,67 @@ class PlansAndModulesTest extends TestCase
         foreach (['inventory', 'marketplace', 'delivery', 'images', 'fuel', 'dine_in'] as $module) {
             $this->assertFalse($fresh->featureEnabled($module), "{$module} should be off without products");
         }
+    }
+
+    public function test_ticking_a_module_brings_what_it_needs_with_it(): void
+    {
+        // The complaint this answers, in the user's words: "main aik select
+        // karun, dusra na ho — jo us se link ho wo hona hi chahiye."
+        //
+        // Purchasing needs Inventory. Ticking Purchasing on a shop without it
+        // used to switch Purchasing straight back off: somebody pressed a box,
+        // saved, and the box was empty, with nothing on screen to say why.
+        $tenant = $this->shop('services'); // no inventory, no purchasing
+        $this->assertFalse($tenant->featureEnabled('inventory'));
+        $this->assertFalse($tenant->featureEnabled('purchasing'));
+
+        $tenant->applyModules(['purchasing' => true]);
+
+        $fresh = $tenant->fresh();
+        $this->assertTrue($fresh->featureEnabled('purchasing'), 'the box that was ticked stays ticked');
+        $this->assertTrue($fresh->featureEnabled('inventory'), 'and what it needs came with it');
+        // …and its own dependency, two links up.
+        $this->assertTrue($fresh->featureEnabled('products'));
+    }
+
+    public function test_switching_a_dependency_off_still_takes_its_dependents(): void
+    {
+        // The other direction, and it must NOT pull the catalog back in to
+        // save them — that would be refusing to do the one thing asked.
+        $tenant = $this->shop('mart');
+
+        $tenant->applyModules(['products' => false]);
+
+        $fresh = $tenant->fresh();
+        $this->assertFalse($fresh->featureEnabled('products'));
+        foreach (['inventory', 'marketplace', 'delivery', 'images', 'purchasing'] as $module) {
+            $this->assertFalse($fresh->featureEnabled($module), "{$module} should be off without products");
+        }
+    }
+
+    public function test_one_call_that_says_both_lets_off_win(): void
+    {
+        // A contradiction — turn the catalog off, turn inventory on — and OFF
+        // is the more specific instruction and the safer one.
+        $tenant = $this->shop('mart');
+
+        $tenant->applyModules(['products' => false, 'inventory' => true]);
+
+        $fresh = $tenant->fresh();
+        $this->assertFalse($fresh->featureEnabled('products'));
+        $this->assertFalse($fresh->featureEnabled('inventory'));
+    }
+
+    public function test_a_business_types_template_still_prunes_rather_than_pulling_in(): void
+    {
+        // The distinction the whole thing turns on. A food shop's template
+        // proposes `purchasing` while its own `inventory` is off — and adding
+        // a store room to a café because a template mentioned purchasing would
+        // be a proposal that rewrote the type.
+        $proposal = BusinessTypes::defaultFeatures('food');
+
+        $this->assertFalse($proposal['inventory'], 'a café keeps no store room by default');
+        $this->assertFalse($proposal['purchasing'], 'so the proposal loses purchasing rather than gaining inventory');
     }
 
     public function test_ticking_the_online_store_actually_puts_the_shop_online(): void
