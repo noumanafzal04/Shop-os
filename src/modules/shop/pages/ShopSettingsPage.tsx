@@ -434,6 +434,30 @@ export default function ShopSettingsPage() {
                         <Input value={String(prefs.service_area ?? "")} onChange={(e) => setP("service_area", e.target.value)} placeholder="e.g. We serve Gulberg, DHA, Model Town" />
                       </Field>
                       {!!prefs.delivery_enabled && (
+                        <>
+                        {/* WHO CARRIES IT — the setting the offer engine reads.
+                            It existed in the backend, was documented, validated
+                            and acted on, and had no control anywhere: every shop
+                            took whatever `defaults()` said and none of them could
+                            say otherwise. A shop with its own delivery boy needs
+                            this as much as the pool needs the other half. */}
+                        <Field
+                          label="Who delivers"
+                          hint={String(prefs.delivery_provider ?? "platform") === "platform"
+                            ? "CartZe riders nearby are offered the order once you accept it. If nobody takes it within a few minutes we tell you, and you can still hand it to your own rider."
+                            : "Only riders you have added under Riders will carry your orders. CartZe riders are never offered them."}
+                        >
+                          <Select
+                            className="max-w-xs"
+                            value={String(prefs.delivery_provider ?? "platform")}
+                            options={[
+                              { value: "platform", label: "CartZe riders" },
+                              { value: "self", label: "My own riders" },
+                            ]}
+                            placeholder="CartZe riders"
+                            onChange={(v) => setP("delivery_provider", v)}
+                          />
+                        </Field>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <Field label="Delivery radius (km)" hint="Orders beyond this distance are rejected.">
                             <Input type="number" min="0.5" step={0.5} value={prefs.delivery_radius_km != null ? String(prefs.delivery_radius_km) : ""} onChange={(e) => setP("delivery_radius_km", e.target.value === "" ? null : Number(e.target.value))} placeholder="No limit" />
@@ -448,6 +472,7 @@ export default function ShopSettingsPage() {
                             <Input type="number" min="0" value={prefs.free_delivery_threshold != null ? String(prefs.free_delivery_threshold) : ""} onChange={(e) => setP("free_delivery_threshold", e.target.value === "" ? null : Number(e.target.value))} placeholder="Never" />
                           </Field>
                         </div>
+                        </>
                       )}
                     </SectionCard>
                   </>

@@ -117,6 +117,12 @@ export interface ShopSettings {
   service_area: string | null;
   pickup_enabled: boolean;
   delivery_enabled: boolean;
+  /**
+   * Who carries a delivery order once the shop accepts it.
+   * `platform` is the default — see `ShopSettings::defaults()`, which the
+   * rider offer engine reads on both the PHP and the SQL side.
+   */
+  delivery_provider: "platform" | "self";
   prep_time_minutes: number | string | null;
   delivery_radius_km: number | string | null;
   min_order_amount: number | string | null;

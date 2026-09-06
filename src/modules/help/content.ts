@@ -750,7 +750,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "Finding one order" },
       { type: "p", text: "Search by order number, the customer\u2019s name or the number they rang from. You can also narrow by date, by delivery or pickup, and by where the order came from \u2014 your online shop, the phone, WhatsApp or the counter. That last one answers whether the online shop is earning its keep." },
       { type: "h", text: "How a platform rider is found" },
-      { type: "p", text: "If your delivery is set to platform riders, accepting an order puts it in front of the riders NEAREST your shop first, and widens from there \u2014 three kilometres straight away, six after half a minute, then as far as your trade sensibly reaches. Nobody outside the current ring can see it or take it, so the rider four hundred metres away gets first refusal rather than whoever happened to be looking at their phone." },
+      { type: "p", text: "Unless you have set Who delivers to your own riders, accepting an order puts it in front of the riders NEAREST your shop first, and widens from there \u2014 three kilometres straight away, six after half a minute, then as far as your trade sensibly reaches. Nobody outside the current ring can see it or take it, so the rider four hundred metres away gets first refusal rather than whoever happened to be looking at their phone." },
       {
         type: "list",
         items: [
@@ -1204,7 +1204,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "ADD A RIDER WITH THE APP for somebody who carries deliveries on their phone. Ask them for their rider id \u2014 it looks like RDR-000123 and is on their own Rider screen \u2014 and type it in. You add them by that code and not by name on purpose: a shop able to search every rider by name would be a searchable list of strangers' phone numbers." },
       { type: "p", text: "A rider with the app sees your delivery on their phone, accepts it, collects it, and closes it at the door with a four-digit code the customer reads out. The order moves through exactly the same stages either way \u2014 they press the buttons instead of you." },
       { type: "h", text: "Riders you did not add" },
-      { type: "p", text: "Set Delivery provider to \u201cPlatform riders\u201d in Shop Settings and any approved rider near you can take your unassigned delivery orders. Leave it on \u201cYour own riders\u201d and only the people on this page ever see your work." },
+      { type: "p", text: "CartZe riders carry your deliveries unless you say otherwise. Once you accept a delivery order, approved riders near your shop are offered it and the first one to take it collects it \u2014 you do not have to assign anybody. Shop Settings \u2192 Order fulfillment \u2192 Who delivers is where that is changed." },
+      { type: "p", text: "Set Who delivers to \u201cMy own riders\u201d and only the people on this page ever see your work \u2014 nothing is offered to anybody else, and you assign every delivery yourself as before." },
+      { type: "p", text: "If nobody takes an order within a few minutes we tell you it is still waiting. It stays on offer, and you can hand it to one of your own riders at any point." },
       { type: "h", text: "The cash" },
       { type: "p", text: "Cash collected on delivery is recorded when the rider hands it in, not when the order was placed. The Cash held column is what each rider is currently carrying for you \u2014 delivered, paid in cash, not yet handed back. Press Settle cash to see it order by order and record what you actually took." },
       { type: "warn", text: "Settling records the money coming back to the shop. It does not pay the rider their delivery fees \u2014 that is between you and them." },
