@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Enums\RiderDocumentType;
 use App\Enums\RiderStatus;
 use App\Exceptions\DomainException;
+use App\Jobs\WidenDeliveryOffer;
 use App\Models\Order;
 use App\Models\Rider;
 use App\Models\RiderDocument;
@@ -14,6 +15,7 @@ use App\Models\RiderProfile;
 use App\Models\RiderSettlement;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\BusinessTypes;
 use App\Support\Geo;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
@@ -54,7 +56,60 @@ class RiderService
      */
     public const MAX_ACTIVE_JOBS = 3;
 
-    /** How far a platform rider is shown work from. */
+    /**
+     * ── HOW A DELIVERY IS OFFERED ────────────────────────────────────
+     *
+     * Nearest first, widening. Each entry is [seconds after the shop accepted,
+     * radius in kilometres from the PICKUP].
+     *
+     * Three kilometres is roughly ten minutes on a motorbike through a
+     * Pakistani city, which is the distance at which a rider says yes without
+     * thinking about it. Thirty seconds is long enough to look at a phone and
+     * short enough that a customer is not waiting on somebody's pocket.
+     *
+     * The last stage is the trade's own ceiling — see `MAX_RADIUS_KM`.
+     */
+    public const OFFER_STAGES = [
+        [0, 3.0],
+        [30, 6.0],
+        [90, null],   // null = open it to the trade's full radius
+    ];
+
+    /**
+     * After this long with nobody, the SHOP is told.
+     *
+     * Not a failure — a shop that knows at three minutes can ring its own
+     * rider, and a shop that finds out when the customer complains cannot.
+     */
+    public const OFFER_GIVE_UP_SECONDS = 180;
+
+    /**
+     * HOW FAR IS WORTH GOING, per trade.
+     *
+     * Food goes cold, so five kilometres is already generous. A tyre or a book
+     * does not, and a rider will happily cross a city for a fee that makes the
+     * trip worth it. Keyed on the PRIMARY type, so `grocery` follows `mart`
+     * and `restaurant` follows `food` without repeating either.
+     */
+    public const MAX_RADIUS_KM = [
+        'food' => 5.0,
+        'pharmacy' => 7.0,
+        'mart' => 8.0,
+        'retail' => 12.0,
+    ];
+
+    /** Anything not named above. */
+    public const DEFAULT_MAX_RADIUS_KM = 8.0;
+
+    /** The widest an offer ever gets for this shop. */
+    public static function maxRadiusFor(?Tenant $shop): float
+    {
+        $primary = BusinessTypes::primary($shop?->business_type ?? '');
+
+        return self::MAX_RADIUS_KM[$primary] ?? self::DEFAULT_MAX_RADIUS_KM;
+    }
+
+    /** Kept for the board's fallback when an order carries no radius yet. */
     public const POOL_RADIUS_KM = 8.0;
 
     /**
@@ -817,32 +872,29 @@ class RiderService
     }
 
     /**
-     * Put a pool job in front of the riders who could actually take it.
+     * OPEN THE OFFER, at whatever width it has reached.
      *
-     * Online, approved, still reporting, within reach of the PICKUP, and not
-     * already at their job limit. Anybody else would get a notification for
-     * work that is not theirs to do, and a rider whose phone buzzes for jobs
-     * they cannot take stops reading the buzzes.
+     * Called once when a shop accepts, and again by `WidenDeliveryOffer` at
+     * thirty and ninety seconds. Each call notifies only the riders who are
+     * NEWLY in range — a rider four hundred metres away who was told at zero
+     * seconds does not want the same job announced to them twice more.
+     *
+     * Returns how many were told, which is what the widening job uses to
+     * decide whether saying more is worth another notification.
      */
-    public function offerToPool(Order $order): int
+    public function offerToPool(Order $order, ?float $previousRadius = null): int
     {
         [$lat, $lng] = self::pickupPoint($order);
         if ($lat === null || $lng === null) {
             return 0;
         }
 
-        $riders = RiderProfile::query()
-            ->with('user')
-            ->where('status', RiderStatus::Approved->value)
-            ->where('is_platform', true)
-            ->where('is_online', true)
-            ->whereNotNull('latitude')
-            ->where('last_seen_at', '>', now()->subMinutes(RiderProfile::STALE_AFTER_MINUTES))
-            ->get()
-            ->filter(fn (RiderProfile $p) => Geo::distanceKm(
-                (float) $p->latitude, (float) $p->longitude, $lat, $lng,
-            ) <= self::POOL_RADIUS_KM)
-            ->filter(fn (RiderProfile $p) => $this->activeJobs($p)->count() < self::MAX_ACTIVE_JOBS);
+        $radius = (float) ($order->offer_radius_km ?? self::POOL_RADIUS_KM);
+
+        $riders = $this->availableNear($lat, $lng, $radius)
+            // Newly in range only. Everyone closer already heard about it.
+            ->filter(fn (RiderProfile $p) => $previousRadius === null
+                || Geo::distanceKm((float) $p->latitude, (float) $p->longitude, $lat, $lng) > $previousRadius);
 
         foreach ($riders as $profile) {
             if ($profile->user === null) {
@@ -859,6 +911,65 @@ class RiderService
         }
 
         return $riders->count();
+    }
+
+    /**
+     * Riders who could actually take a job at this spot.
+     *
+     * Online, approved, still reporting, within reach, and not already at
+     * their limit. Anybody else would be told about work that is not theirs to
+     * do — and a rider whose phone buzzes for jobs they cannot take stops
+     * reading the buzzes.
+     *
+     * @return \Illuminate\Support\Collection<int, RiderProfile>
+     */
+    private function availableNear(float $lat, float $lng, float $radiusKm)
+    {
+        return RiderProfile::query()
+            ->with('user')
+            ->where('status', RiderStatus::Approved->value)
+            ->where('is_platform', true)
+            ->where('is_online', true)
+            ->whereNotNull('latitude')
+            ->where('last_seen_at', '>', now()->subMinutes(RiderProfile::STALE_AFTER_MINUTES))
+            ->get()
+            ->filter(fn (RiderProfile $p) => Geo::distanceKm(
+                (float) $p->latitude, (float) $p->longitude, $lat, $lng,
+            ) <= $radiusKm)
+            ->filter(fn (RiderProfile $p) => $this->activeJobs($p)->count() < self::MAX_ACTIVE_JOBS);
+    }
+
+    /**
+     * START THE CLOCK. Called when a shop accepts a delivery it is not
+     * carrying itself.
+     *
+     * The first stage is written and offered here, synchronously, because a
+     * rider three hundred metres away should hear about it before the queue
+     * worker has finished waking up. The widening is queued.
+     */
+    public function beginOffering(Order $order): void
+    {
+        $order->forceFill([
+            'offer_radius_km' => self::OFFER_STAGES[0][1],
+            'offered_at' => now(),
+        ])->save();
+
+        $this->offerToPool($order);
+
+        WidenDeliveryOffer::dispatch($order->id, 1)
+            ->delay(now()->addSeconds(self::OFFER_STAGES[1][0]));
+    }
+
+    /**
+     * Take an order off the pool board.
+     *
+     * Called the moment somebody accepts it, and by `decline()` in reverse.
+     * Without this a job that has been taken stays on every other rider's
+     * board until they refresh — and they tap it, and are told it is gone.
+     */
+    public function closeOffer(Order $order): void
+    {
+        $order->forceFill(['offer_radius_km' => null])->save();
     }
 
     /**

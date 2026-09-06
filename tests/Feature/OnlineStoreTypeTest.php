@@ -272,6 +272,47 @@ class OnlineStoreTypeTest extends TestCase
         $this->assertDatabaseHas('orders', ['id' => $order['id'], 'status' => 'completed']);
     }
 
+    public function test_what_it_sells_decides_whether_it_counts_anything(): void
+    {
+        // The user's own line: "food mein nahi hoti — pizza, burger. Lekin
+        // pharmacy, grocery, garments mein hoti hai."
+        //
+        // A home baker makes a cake when a cake is ordered; there is no stock
+        // of cakes, and a quantity on the product would be a number nobody can
+        // keep true. A boutique with twelve dresses in one size has exactly
+        // twelve, and selling a thirteenth is the whole reason inventory
+        // exists.
+        $this->assertFalse(
+            BusinessTypes::defaultFeatures('online', 'home_kitchen')['inventory'],
+            'a home kitchen counts nothing',
+        );
+
+        foreach (['online_boutique', 'handmade', 'electronics_online', 'beauty_online'] as $keepsStock) {
+            $this->assertTrue(
+                BusinessTypes::defaultFeatures('online', $keepsStock)['inventory'],
+                "{$keepsStock} sells countable things",
+            );
+        }
+
+        // Nobody chose a sub-type: the safer default, and one an admin can
+        // change in a click.
+        $this->assertFalse(BusinessTypes::defaultFeatures('online')['inventory']);
+    }
+
+    public function test_a_sub_type_can_add_stock_but_never_take_a_till(): void
+    {
+        // The rule the food type already relies on, checked for this one: a
+        // sub-type only ever turns inventory ON. If it could turn things off,
+        // the type and its category would argue and the type would lose.
+        $boutique = BusinessTypes::defaultFeatures('online', 'online_boutique');
+
+        $this->assertTrue($boutique['inventory']);
+        // …and everything the TYPE decided still stands.
+        $this->assertFalse($boutique['pos']);
+        $this->assertFalse($boutique['dine_in']);
+        $this->assertTrue($boutique['marketplace']);
+    }
+
     public function test_it_can_be_created_from_the_admin_console(): void
     {
         // The create screen reads its list from the API, so a type that is not

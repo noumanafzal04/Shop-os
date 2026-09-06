@@ -624,6 +624,22 @@ class BusinessTypes
      */
     private const STOCK_KEEPING_CATEGORIES = [
         'food' => ['restaurant', 'fast_food', 'cafe', 'bakery', 'cloud_kitchen'],
+
+        /**
+         * WHAT AN ONLINE SHOP SELLS DECIDES WHETHER IT COUNTS ANYTHING.
+         *
+         * A home baker makes a cake when a cake is ordered — there is no stock
+         * of cakes, and a quantity on the product would be a number nobody can
+         * keep true. A boutique with twelve dresses in one size has exactly
+         * twelve, and selling a thirteenth is the whole reason inventory
+         * exists.
+         *
+         * Same distinction the food type already draws between a restaurant
+         * with a store room and a juice corner without one, and the same
+         * mechanism — a sub-type only ever turns inventory ON, never off, so
+         * the parent type and its category cannot argue.
+         */
+        'online' => ['online_boutique', 'handmade', 'electronics_online', 'beauty_online', 'general_online'],
     ];
 
     /**
