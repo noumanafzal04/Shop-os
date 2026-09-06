@@ -33,8 +33,8 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react-native";
-import { BRAND } from "../common/brand";
 import { confirm } from "../common/ui/confirm";
+import { Touchable } from "../common/ui/Touchable";
 import { spacing, type ThemeColors, typography, useColors } from "../theme";
 import { useAuthStore } from "../stores/authStore";
 import { useLogout } from "../modules/auth/hooks/useAuth";
@@ -319,8 +319,8 @@ export function SideMenu({ visible, onClose }: Props) {
             showsVerticalScrollIndicator={false}
           >
             {/* ── Who you are ──────────────────────────────────────── */}
-            <Pressable
-              style={({ pressed }) => [styles.who, pressed && styles.pressed]}
+            <Touchable
+              style={styles.who}
               accessibilityRole="button"
               accessibilityLabel={signedIn ? "Edit your profile" : "Sign in"}
               onPress={() => go({ route: signedIn ? "Profile" : "SignIn" })}
@@ -329,7 +329,7 @@ export function SideMenu({ visible, onClose }: Props) {
                 {signedIn && user?.name ? (
                   <Text style={styles.avatarText}>{user.name.trim().charAt(0).toUpperCase()}</Text>
                 ) : (
-                  <UserRound size={22} color={c.primary} strokeWidth={2.2} />
+                  <UserRound size={24} color={c.onPrimary} strokeWidth={2.2} />
                 )}
               </View>
               <View style={styles.whoCopy}>
@@ -342,65 +342,14 @@ export function SideMenu({ visible, onClose }: Props) {
               </View>
               <View style={styles.editPill}>
                 {signedIn ? (
-                  <>
-                    <Pencil size={13} color={c.text} strokeWidth={2.2} />
-                    <Text style={styles.editText}>Edit</Text>
-                  </>
+                  <Pencil size={14} color={c.primary} strokeWidth={2.4} />
                 ) : (
                   <Text style={styles.editText}>Sign in</Text>
                 )}
               </View>
-            </Pressable>
+            </Touchable>
 
-            {/*
-              ── THE SWITCH ───────────────────────────────────────────
-
-              The one control that changes what this whole app is. It is a
-              full-width block rather than a row in a list because it is not a
-              destination: nothing else in this menu replaces the tab bar.
-
-              Shown only to somebody the SERVER approved. An unapproved
-              applicant sees the application row below instead, which is the
-              honest offer — there is nothing to switch to yet.
-            */}
-            {canRide && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.switcher,
-                  onShift && styles.switcherOn,
-                  pressed && styles.pressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={onShift ? "Switch to shopping" : "Switch to rider mode"}
-                onPress={() => {
-                  onClose();
-                  switchTo(onShift ? "customer" : "rider");
-                }}
-              >
-                <View style={[styles.switcherIcon, onShift && styles.switcherIconOn]}>
-                  {onShift ? (
-                    <ShoppingBag size={19} color={c.primary} strokeWidth={2} />
-                  ) : (
-                    <Bike size={19} color={c.success} strokeWidth={2} />
-                  )}
-                </View>
-                <View style={styles.switcherCopy}>
-                  <Text style={styles.switcherTitle}>
-                    {onShift ? "Switch to shopping" : "Switch to rider mode"}
-                  </Text>
-                  <Text style={styles.switcherHint}>
-                    {onShift
-                      ? "Browse shops and order"
-                      : rider.data?.is_online
-                        ? "You are online"
-                        : "Go online and take deliveries"}
-                  </Text>
-                </View>
-                <RefreshCw size={16} color={c.textMuted} strokeWidth={2.2} />
-              </Pressable>
-            )}
-
-            {/* ── On shift ─────────────────────────────────────────── */}
+            {/* ── The lists ────────────────────────────────────────── */}
             {onShift ? (
               <>
                 <Text style={styles.caption}>Your shift</Text>
@@ -412,21 +361,6 @@ export function SideMenu({ visible, onClose }: Props) {
               </>
             ) : (
               <>
-                {/* ── Riding ───────────────────────────────────────── */}
-                {!canRide && (
-                  <>
-                    <Text style={styles.caption}>Riding</Text>
-                    <View style={styles.card}>
-                      <Row
-                        link={{ icon: Bike, label: r.label, route: r.route, needsAccount: true, value: r.value }}
-                        onPress={() => go({ route: r.route, needsAccount: true })}
-                        last
-                      />
-                    </View>
-                  </>
-                )}
-
-                {/* ── Account ──────────────────────────────────────── */}
                 <Text style={styles.caption}>Account</Text>
                 <View style={styles.card}>
                   {ACCOUNT.map((l, i) => (
@@ -436,23 +370,95 @@ export function SideMenu({ visible, onClose }: Props) {
               </>
             )}
 
-            {/* ── Support ──────────────────────────────────────────── */}
             <Text style={styles.caption}>Support</Text>
             <View style={styles.card}>
               {APP.map((l, i) => (
-                <Row key={l.label} link={l} onPress={() => go(l)} last={i === APP.length - 1 && !signedIn} />
+                <Row key={l.label} link={l} onPress={() => go(l)} last={i === APP.length - 1} />
               ))}
-              {signedIn && (
-                <Row
-                  link={{ icon: LogOut, label: "Log out", route: "", tone: "danger" }}
-                  onPress={signOut}
-                  last
-                />
-              )}
             </View>
 
-            <Text style={styles.brand}>{BRAND.name}</Text>
           </ScrollView>
+
+          {/*
+            ── PINNED, because these two are not destinations ──────────
+
+            Everything above is a place to go and belongs in the scroll. These
+            two CHANGE WHAT THE APP IS, and a control that changes the app
+            should not be something you have to go looking for at the bottom of
+            a list — which is exactly what happened: the switch existed for
+            weeks and was asked for by somebody who had it.
+
+            The switch is also shown to people who cannot use it yet, greyed,
+            with the reason on it. A control that appears only once you qualify
+            is a control nobody knows to qualify FOR.
+          */}
+          <View style={styles.footer}>
+            {signedIn && (
+              <Touchable
+                style={[
+                  styles.switcher,
+                  onShift && styles.switcherOn,
+                  !canRide && styles.switcherOff,
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canRide }}
+                accessibilityLabel={
+                  !canRide
+                    ? "Become a rider"
+                    : onShift
+                      ? "Switch to shopping"
+                      : "Switch to rider mode"
+                }
+                onPress={() => {
+                  onClose();
+                  if (!canRide) {
+                    navigation.navigate("RiderApply");
+                    return;
+                  }
+                  switchTo(onShift ? "customer" : "rider");
+                }}
+              >
+                <View style={styles.switcherIcon}>
+                  {onShift ? (
+                    <ShoppingBag size={19} color={c.onPrimary} strokeWidth={2.2} />
+                  ) : (
+                    <Bike size={19} color={c.onPrimary} strokeWidth={2.2} />
+                  )}
+                </View>
+                <View style={styles.switcherCopy}>
+                  <Text style={styles.switcherTitle}>
+                    {!canRide ? r.label : onShift ? "Switch to shopping" : "Switch to rider mode"}
+                  </Text>
+                  <Text style={styles.switcherHint} numberOfLines={1}>
+                    {!canRide
+                      ? (r.value ?? "Deliver orders and earn")
+                      : onShift
+                        ? "Browse shops and order"
+                        : rider.data?.is_online
+                          ? "You are online"
+                          : "Go online and take deliveries"}
+                  </Text>
+                </View>
+                {canRide ? (
+                  <RefreshCw size={17} color={c.onPrimary} strokeWidth={2.4} />
+                ) : (
+                  <ChevronRight size={17} color={c.onPrimary} strokeWidth={2.4} />
+                )}
+              </Touchable>
+            )}
+
+            {signedIn && (
+              <Touchable
+                style={styles.logout}
+                accessibilityRole="button"
+                accessibilityLabel="Log out"
+                onPress={signOut}
+              >
+                <LogOut size={18} color={c.error} strokeWidth={2.2} />
+                <Text style={styles.logoutText}>Log out</Text>
+              </Touchable>
+            )}
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -483,7 +489,14 @@ function Row({
       accessibilityLabel={link.label}
       onPress={onPress}
     >
-      <Icon size={20} color={danger ? c.error : c.text} strokeWidth={1.8} />
+      {/*
+        Brand-coloured, and bare. Every icon used to be `c.text`, which made
+        the left edge of the panel a column of grey glyphs — and the version
+        before that gave each one a tinted TILE, eleven coloured squares
+        competing down the same edge. Colour on the mark itself is the middle
+        one: the list has life and still reads as a list.
+      */}
+      <Icon size={20} color={danger ? c.error : c.primary} strokeWidth={2} />
       <Text style={[styles.rowLabel, danger && styles.rowLabelDanger]} numberOfLines={1}>
         {link.label}
       </Text>
@@ -522,26 +535,53 @@ const makeStyles = (c: ThemeColors) =>
       overflow: "hidden",
     },
 
+    /**
+     * PINNED. The scroll ends above it, never behind it.
+     *
+     * A hairline and the page colour rather than a shadow: this app draws no
+     * shadows anywhere, and a floating bar with a halo under it would be the
+     * only one.
+     */
+    footer: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+      backgroundColor: c.surface,
+      padding: spacing.sm,
+      gap: spacing.xs,
+    },
+
     scroll: { flex: 1 },
     list: { padding: spacing.sm, paddingBottom: spacing.lg },
 
+    /**
+     * TINTED, not white.
+     *
+     * Every card in this panel was the same white on the same grey, so the one
+     * that says who you are — the thing the panel opens with — had no more
+     * weight than "Reservations". A brand tint costs nothing and gives the top
+     * of the panel somewhere for the eye to land first.
+     */
     who: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      backgroundColor: c.surface,
+      gap: 11,
+      backgroundColor: c.brand[50],
+      borderWidth: 1,
+      borderColor: c.brand[100],
       borderRadius: 18,
-      padding: 10,
+      padding: 11,
     },
     avatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: c.brand[100],
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      // FILLED, where it used to be a tint holding tinted text. An avatar is
+      // the one place a menu is allowed to be loud.
+      backgroundColor: c.primary,
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { ...typography.title, color: c.primary, fontSize: 19 },
+    avatarText: { ...typography.title, color: c.onPrimary, fontSize: 20 },
     whoCopy: { flex: 1, gap: 1 },
     whoName: { ...typography.label, color: c.text, fontSize: 15 },
     whoSub: { ...typography.tiny, color: c.textMuted, fontSize: 11.5 },
@@ -549,46 +589,78 @@ const makeStyles = (c: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       gap: 5,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bg,
-      borderRadius: 14,
-      paddingHorizontal: 11,
-      paddingVertical: 6,
+      backgroundColor: c.surface,
+      borderRadius: 16,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
     },
     editText: { ...typography.tiny, color: c.text, fontWeight: "700", fontSize: 11.5 },
 
+    /**
+     * FILLED, because it is the loudest thing this menu does.
+     *
+     * It was a tinted card among tinted cards and somebody who HAD it asked
+     * where it was. A control that replaces the entire app should not have to
+     * be found.
+     *
+     * Green on shift, brand off it — the colour says which way the switch will
+     * take you rather than which mode you are in, because the label already
+     * says that.
+     */
     switcher: {
       flexDirection: "row",
       alignItems: "center",
       gap: 11,
-      backgroundColor: c.successBg,
-      borderWidth: 1,
-      borderColor: c.success,
-      borderRadius: 18,
+      backgroundColor: c.success,
+      borderRadius: 16,
       padding: 11,
-      marginTop: spacing.sm,
     },
-    switcherOn: { backgroundColor: c.brand[100], borderColor: c.primary },
+    switcherOn: { backgroundColor: c.primary },
+    /**
+     * NOT YET APPROVED — and still the brand colour.
+     *
+     * It was grey, on the reasoning that a control you cannot use should not
+     * shout. Wrong reading of what it is: this is not a disabled switch, it is
+     * an INVITATION, and it leads somewhere useful — the application. Greying
+     * out the one row that asks somebody to start earning is the opposite of
+     * what it should do.
+     */
+    switcherOff: { backgroundColor: c.primary },
     switcherIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor: c.surface,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: "rgba(255,255,255,0.22)",
       alignItems: "center",
       justifyContent: "center",
     },
-    switcherIconOn: { backgroundColor: c.surface },
     switcherCopy: { flex: 1, gap: 1 },
-    switcherTitle: { ...typography.label, color: c.text, fontSize: 14 },
-    switcherHint: { ...typography.tiny, color: c.textSecondary, fontSize: 11.5 },
+    switcherTitle: { ...typography.label, color: c.onPrimary, fontSize: 14 },
+    switcherHint: { ...typography.tiny, color: "rgba(255,255,255,0.85)", fontSize: 11.5 },
+
+    logout: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.errorBg,
+      backgroundColor: c.errorBg,
+      paddingVertical: 11,
+    },
+    logoutText: { ...typography.label, color: c.error, fontSize: 14 },
 
     caption: {
       ...typography.tiny,
       color: c.textMuted,
-      fontWeight: "700",
-      fontSize: 11.5,
-      paddingHorizontal: 6,
+      fontWeight: "800",
+      fontSize: 10.5,
+      // Uppercase and spaced: a caption should read as a label on a drawer,
+      // not as another row that happens to be smaller.
+      textTransform: "uppercase",
+      letterSpacing: 1.1,
+      paddingHorizontal: 8,
       marginTop: spacing.md,
       marginBottom: 7,
     },
@@ -617,10 +689,4 @@ const makeStyles = (c: ThemeColors) =>
     value: { ...typography.tiny, color: c.textMuted, fontSize: 11.5, fontWeight: "600" },
     valueOn: { color: c.success },
 
-    brand: {
-      ...typography.tiny,
-      color: c.gray[300],
-      textAlign: "center",
-      paddingTop: spacing.lg,
-    },
   });

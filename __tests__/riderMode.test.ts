@@ -152,3 +152,54 @@ describe("on shift, the shopping half is gone", () => {
     expect(branch).toMatch(/mode === "rider" && canRide/);
   });
 });
+
+describe("the switch can be found", () => {
+  const menu = fs.readFileSync(path.join(PROJECT_ROOT, "src/navigation/SideMenu.tsx"), "utf8");
+  const code = menu.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+  it("is offered to everybody signed in, not only to approved riders", () => {
+    // The complaint, verbatim: "Switch mode kidhar hai?" — asked by somebody
+    // who HAD it. It was rendered only when `canRide`, so an applicant, and
+    // anybody who had not applied, saw no sign the mode existed at all. A
+    // control that appears once you qualify is a control nobody knows to
+    // qualify FOR.
+    const footer = code.slice(code.indexOf("styles.footer"));
+
+    expect(footer).toMatch(/\{signedIn && \(\s*<Touchable[\s\S]*?styles\.switcher/);
+    // …and it is NOT gated on approval any more.
+    expect(footer).not.toMatch(/\{canRide && \(\s*<Touchable[\s\S]*?styles\.switcher/);
+  });
+
+  it("makes becoming a rider an invitation rather than a disabled control", () => {
+    // It was grey, which reads as "you cannot press this". It is the one row
+    // that asks somebody to start earning, and it leads somewhere useful.
+    const styles = code.slice(code.indexOf("switcherOff:"));
+    expect(styles).toMatch(/switcherOff: \{ backgroundColor: c\.primary \}/);
+  });
+
+  it("leads an unapproved person to the application rather than pretending", () => {
+    expect(code).toMatch(/if \(!canRide\) \{[\s\S]*?navigate\("RiderApply"\)/);
+  });
+
+  it("sits below the scroll, pinned, with the way out", () => {
+    // Everything above is a place to GO and belongs in the scroll. These two
+    // change what the app is, and were at the bottom of a scrolling list —
+    // which is how one of them went unfound.
+    const scrollEnds = code.indexOf("</ScrollView>");
+    const footerAt = code.indexOf("styles.footer");
+    const logoutAt = code.indexOf("styles.logout");
+
+    expect(scrollEnds).toBeGreaterThan(-1);
+    expect(footerAt).toBeGreaterThan(scrollEnds);
+    expect(logoutAt).toBeGreaterThan(scrollEnds);
+  });
+
+  it("leaves the menus themselves scrollable", () => {
+    // The lists must stay in the ScrollView — pinning everything would make a
+    // small phone unable to reach Help.
+    const scroll = code.slice(code.indexOf("<ScrollView"), code.indexOf("</ScrollView>"));
+
+    expect(scroll).toMatch(/ACCOUNT\.map/);
+    expect(scroll).toMatch(/APP\.map/);
+  });
+});

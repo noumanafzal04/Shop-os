@@ -33,7 +33,18 @@ interface Prefs {
    * rider, so a preference cannot become a permission.
    */
   mode?: "customer" | "rider";
+  /**
+   * The last few things somebody searched for.
+   *
+   * Kept on the DEVICE and never sent anywhere. A search history is a record
+   * of what a person was thinking about, and the server has no use for it —
+   * so it stays where it can be cleared by clearing the app.
+   */
+  searches?: string[];
 }
+
+/** How many are remembered. Enough to be useful, short enough to scan. */
+const RECENT_SEARCHES = 8;
 
 async function read(): Promise<Prefs> {
   try {
@@ -77,5 +88,28 @@ export const prefs = {
 
   async setMode(mode: "customer" | "rider"): Promise<void> {
     await write({ ...(await read()), mode });
+  },
+
+  /**
+   * Remember a search, most recent first, without duplicates.
+   *
+   * Case-insensitive de-duplication: somebody who types "panadol" and then
+   * "Panadol" has searched for one thing, and a list showing both is a list
+   * that looks broken.
+   */
+  async rememberSearch(term: string): Promise<void> {
+    const clean = term.trim();
+    if (clean.length < 2) return;
+
+    const current = await read();
+    const kept = (current.searches ?? []).filter(
+      (s) => s.toLowerCase() !== clean.toLowerCase(),
+    );
+
+    await write({ ...current, searches: [clean, ...kept].slice(0, RECENT_SEARCHES) });
+  },
+
+  async forgetSearches(): Promise<void> {
+    await write({ ...(await read()), searches: [] });
   },
 };

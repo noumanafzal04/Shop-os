@@ -14,7 +14,8 @@ import { radius, spacing, type ThemeColors, typography, useColors } from "../../
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { useCartStore } from "../../../stores/cartStore";
 import { useBrowse } from "../hooks/useMarketplace";
-import { FilterButton, FilterSheet, activeFilterCount } from "../components/FilterSheet";
+import { FilterSheet, activeFilterCount } from "../components/FilterSheet";
+import { QuickFilters } from "../components/QuickFilters";
 import { shopCover, shopInitial } from "../shopCover";
 import type { AisleProduct, BrowseFilters } from "../services/marketplaceService";
 
@@ -161,8 +162,23 @@ export function BrowseScreen() {
             {list.isPending ? "Looking…" : `${rows.length}${rows.length === 24 ? "+" : ""} items`}
           </Text>
         </View>
-        <FilterButton count={active} onPress={() => setSheetOpen(true)} />
       </View>
+
+      {/*
+        THE FOUR QUESTIONS PEOPLE ACTUALLY ASK, one tap each.
+
+        The Filter button used to be the only control here, so "only things on
+        sale" — one tap's worth of intent — cost four: open a sheet, find the
+        row, tick it, press Show. This bar is not a second filter UI; pressing a
+        pill writes the identical `BrowseFilters` the sheet would have written,
+        and the sheet still owns everything with more than two answers.
+      */}
+      <QuickFilters
+        filters={filters}
+        onChange={setFilters}
+        onOpenAll={() => setSheetOpen(true)}
+        activeCount={active}
+      />
 
       {chips.length > 0 && (
         <ScrollView

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeft, Search, SlidersHorizontal, Star, Store } from "lucide-react-native";
+import { ArrowLeft, Clock, Search, SlidersHorizontal, Star, Store } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -13,6 +13,8 @@ import { useLocationStore } from "../../../stores/locationStore";
 import { useUniversalSearch } from "../hooks/useMarketplace";
 import { formatDistance } from "../shopFacts";
 import { money } from "../../../common/format";
+import { prefs } from "../../../common/utils/prefs";
+import { SHORTCUTS } from "../tradeIcon";
 
 
 type Tab = "all" | "products" | "shops";
@@ -31,6 +33,33 @@ export function SearchScreen() {
   const [openOnly, setOpenOnly] = useState(false);
   const [topOnly, setTopOnly] = useState(false);
   const debounced = useDebouncedValue(q, 250);
+
+  /**
+   * What this person looked for before.
+   *
+   * Read once, on the device, and never sent anywhere — a search history is a
+   * record of what somebody was thinking about, and the server has no use for
+   * it.
+   */
+  const [recent, setRecent] = useState<string[]>([]);
+  React.useEffect(() => {
+    let alive = true;
+    prefs.all().then((p) => alive && setRecent(p.searches ?? [])).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /**
+   * Remembered when the SEARCH SETTLES, not on every keystroke.
+   *
+   * `debounced` is the term that was actually sent, so the history holds what
+   * was looked for rather than every prefix somebody typed on the way there.
+   */
+  React.useEffect(() => {
+    if (debounced.trim().length < 2) return;
+    prefs.rememberSearch(debounced).catch(() => {});
+  }, [debounced]);
 
   const results = useUniversalSearch(debounced, { lat: lat ?? undefined, lng: lng ?? undefined });
   const d = results.data;
@@ -117,8 +146,84 @@ export function SearchScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {!searching ? (
-          <View style={styles.hintWrap}>
-            <Text style={styles.hint}>Type at least 2 letters — we search products, shops and categories at once.</Text>
+          /*
+            ── A SEARCH SCREEN WITH NOTHING ON IT YET ──────────────────
+
+            It was one grey sentence explaining the minimum length — true, and
+            the least useful thing this screen could be showing. Somebody who
+            opened search either knows what they want, in which case the
+            keyboard is already up, or is browsing, in which case they want
+            somewhere to start.
+
+            So: what they looked for before, and four ways in. Both are one tap
+            and neither needs typing.
+          */
+          <View style={styles.landing}>
+            {recent.length > 0 && (
+              <>
+                <View style={styles.landingHead}>
+                  <Text style={styles.landingTitle}>Recent</Text>
+                  <Touchable
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear recent searches"
+                    onPress={() => {
+                      setRecent([]);
+                      prefs.forgetSearches().catch(() => {});
+                    }}
+                  >
+                    <Text style={styles.landingClear}>Clear</Text>
+                  </Touchable>
+                </View>
+                <View style={styles.recentWrap}>
+                  {recent.map((term) => (
+                    <Touchable
+                      key={term}
+                      style={styles.recentChip}
+                      scaleTo={0.94}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Search ${term}`}
+                      onPress={() => setQ(term)}
+                    >
+                      <Clock size={13} color={c.textMuted} strokeWidth={2.2} />
+                      <Text style={styles.recentText} numberOfLines={1}>
+                        {term}
+                      </Text>
+                    </Touchable>
+                  ))}
+                </View>
+              </>
+            )}
+
+            <Text style={[styles.landingTitle, styles.landingSpaced]}>Browse</Text>
+            <View style={styles.tileGrid}>
+              {SHORTCUTS.map((s) => {
+                const Icon = s.icon;
+                return (
+                  <Touchable
+                    key={s.key}
+                    style={styles.tile}
+                    scaleTo={0.95}
+                    accessibilityRole="button"
+                    accessibilityLabel={s.label}
+                    onPress={() =>
+                      navigation.navigate("Browse", { title: s.label, filters: s.filters })
+                    }
+                  >
+                    <View style={[styles.tileIcon, s.tone === "offer" && styles.tileIconOffer]}>
+                      <Icon
+                        size={20}
+                        color={s.tone === "offer" ? c.onPrimary : c.primary}
+                        strokeWidth={2.2}
+                      />
+                    </View>
+                    <Text style={styles.tileText} numberOfLines={2}>
+                      {s.label}
+                    </Text>
+                  </Touchable>
+                );
+              })}
+            </View>
           </View>
         ) : results.isLoading ? (
           <View style={styles.section}>
@@ -311,6 +416,46 @@ const makeStyles = (c: ThemeColors) =>
   filterTextOn: { color: c.white },
 
   resultCount: { ...typography.h3, color: c.text, fontSize: 16, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+
+  landing: { padding: spacing.md, paddingTop: spacing.sm },
+  landingHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  landingTitle: { ...typography.label, color: c.text, fontSize: 13.5 },
+  landingSpaced: { marginTop: spacing.lg },
+  landingClear: { ...typography.tiny, color: c.primary, fontWeight: "700" },
+
+  recentWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm },
+  recentChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "100%",
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: 17,
+    paddingHorizontal: 12,
+    height: 34,
+  },
+  recentText: { ...typography.small, color: c.text, fontSize: 13, flexShrink: 1 },
+
+  tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  // Four across, with the gaps taken out of the share. One row, so the whole
+  // set is visible without a sideways scroll nobody knows is there.
+  tile: { width: "22%", alignItems: "center", gap: 6 },
+  tileIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: c.brand[50],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tileIconOffer: { backgroundColor: c.primary },
+  tileText: { ...typography.tiny, color: c.text, fontSize: 11, textAlign: "center" },
 
   hintWrap: { padding: spacing.xl, alignItems: "center" },
   hint: { ...typography.small, color: c.gray[400], textAlign: "center" },

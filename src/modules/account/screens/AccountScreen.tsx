@@ -15,6 +15,8 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
+import { Touchable } from "../../../common/ui/Touchable";
 import { AppButton } from "../../../common/ui/AppButton";
 import { confirm } from "../../../common/ui/confirm";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -89,23 +91,38 @@ export function AccountScreen() {
   };
 
   return (
-    <SafeScreen backgroundColor={c.bg} edges={["top"]}>
-      <View style={styles.head}>
-        <Text style={styles.headTitle}>Account</Text>
-        <Pressable
-          style={styles.gear}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Settings"
-          onPress={() => navigation.navigate("Settings")}
-        >
-          <SettingsIcon size={20} color={c.text} strokeWidth={2} />
-        </Pressable>
-      </View>
+    /*
+      ── A BRAND BLOCK, AND A SHEET THAT SITS OVER IT ──────────────────
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
-        {/* Who you are — and the only control that changes it. */}
-        <Pressable
+      The page was white cards on grey from the first pixel: correct, and
+      completely flat. The one screen that is ABOUT somebody had no more
+      presence than a settings list.
+
+      So the top is a block of brand colour carrying the name, and the content
+      begins on a rounded sheet that overlaps it — the shape every food app of
+      this kind uses, for the reason they use it: it gives the page a top, and
+      it puts the three things people came for on the fold.
+
+      `edges={["top"]}` because the tab bar owns the bottom inset.
+    */
+    <SafeScreen backgroundColor={c.primary} edges={["top"]}>
+      <FocusedStatusBar style="light-content" background={c.primary} />
+
+      <View style={styles.hero}>
+        <View style={styles.heroTop}>
+          <Text style={styles.heroTitle}>Account</Text>
+          <Touchable
+            style={styles.gear}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            onPress={() => navigation.navigate("Settings")}
+          >
+            <SettingsIcon size={19} color={c.onPrimary} strokeWidth={2.2} />
+          </Touchable>
+        </View>
+
+        <Touchable
           style={styles.who}
           accessibilityRole="button"
           accessibilityLabel={signedIn ? "View profile" : "Sign in"}
@@ -115,19 +132,44 @@ export function AccountScreen() {
             {signedIn && user?.name ? (
               <Text style={styles.avatarText}>{user.name.trim().charAt(0).toUpperCase()}</Text>
             ) : (
-              <UserRound size={26} color={c.onPrimary} strokeWidth={2} />
+              <UserRound size={26} color={c.primary} strokeWidth={2.2} />
             )}
           </View>
           <View style={styles.whoCopy}>
             <Text style={styles.whoName} numberOfLines={1}>
-              {signedIn ? (user?.name ?? "Your account") : "You're browsing as a guest"}
+              {signedIn ? (user?.name ?? "Your account") : "Browsing as a guest"}
             </Text>
-            <Text style={styles.whoLink}>
-              {signedIn ? "View profile" : "Sign in to order and follow deliveries"}
+            <Text style={styles.whoSub} numberOfLines={1}>
+              {signedIn
+                ? (user?.email ?? user?.phone ?? "Signed in")
+                : "Sign in to order and follow deliveries"}
             </Text>
           </View>
-          <ChevronRight size={18} color={c.textMuted} strokeWidth={2.2} />
-        </Pressable>
+          {signedIn ? (
+            <View style={styles.editPill}>
+              <Text style={styles.editText}>Edit</Text>
+            </View>
+          ) : (
+            <ChevronRight size={18} color={c.onPrimary} strokeWidth={2.4} />
+          )}
+        </Touchable>
+      </View>
+
+      <ScrollView
+        style={styles.sheet}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.body}
+      >
+        {/*
+          THE THREE REASONS ANYBODY OPENS THIS TAB, on the fold and raised off
+          the sheet so they read as buttons rather than as the first row of a
+          list.
+        */}
+        <View style={styles.tiles}>
+          <Tile icon={Receipt} label="Orders" onPress={() => open("OrdersTab")} />
+          <Tile icon={Heart} label="Favourites" onPress={() => open("Favorites")} />
+          <Tile icon={MapPin} label="Addresses" onPress={() => open("Addresses")} />
+        </View>
 
         {!signedIn && (
           <AppButton
@@ -137,13 +179,6 @@ export function AccountScreen() {
           />
         )}
 
-        {/* The three reasons anybody opens this tab. */}
-        <View style={styles.tiles}>
-          <Tile icon={Receipt} label="Orders" onPress={() => open("OrdersTab")} />
-          <Tile icon={Heart} label="Favourites" onPress={() => open("Favorites")} />
-          <Tile icon={MapPin} label="Addresses" onPress={() => open("Addresses")} />
-        </View>
-
         <Text style={styles.section}>General</Text>
         <View style={styles.card}>
           {GENERAL.map((l, i) => (
@@ -152,16 +187,17 @@ export function AccountScreen() {
         </View>
 
         {signedIn && (
-          <Pressable
-            style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed]}
+          <Touchable
+            style={styles.signOut}
             accessibilityRole="button"
+            accessibilityLabel="Log out"
             onPress={askSignOut}
           >
             <LogOut size={17} color={c.error} strokeWidth={2.2} />
             <Text style={styles.signOutText}>
               {signOut.isPending ? "Signing out…" : "Log out"}
             </Text>
-          </Pressable>
+          </Touchable>
         )}
       </ScrollView>
     </SafeScreen>
@@ -223,51 +259,76 @@ function Row({
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-    head: {
+    /**
+     * THE BLOCK THE PAGE STANDS ON.
+     *
+     * This screen was white cards on grey from the first pixel — correct, and
+     * completely flat. The one page that is ABOUT somebody had no more
+     * presence than a settings list.
+     *
+     * The content below begins on a rounded sheet that OVERLAPS this. The
+     * overlap is a negative margin on the sheet rather than a positive one
+     * here, so the hero keeps its own height whatever the sheet does.
+     */
+    hero: {
+      backgroundColor: c.primary,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.xs,
+      paddingBottom: spacing.xl,
+    },
+    heroTop: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      marginBottom: spacing.md,
     },
-    headTitle: { ...typography.title, color: c.text },
+    heroTitle: { ...typography.title, color: c.onPrimary, fontSize: 21 },
     gear: {
-      width: 38,
-      height: 38,
-      borderRadius: radius.full,
-      backgroundColor: c.surfaceAlt,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      // A wash of the same white the text is, rather than a second colour.
+      // One tint keeps the block reading as one object.
+      backgroundColor: "rgba(255,255,255,0.18)",
       alignItems: "center",
       justifyContent: "center",
     },
 
+    sheet: {
+      flex: 1,
+      backgroundColor: c.bg,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      marginTop: -18,
+    },
     body: { padding: spacing.md, paddingBottom: spacing.xl },
 
-    who: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.sm,
-      backgroundColor: c.surface,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: radius.lg,
-      padding: spacing.md,
-    },
+    who: { flexDirection: "row", alignItems: "center", gap: 12 },
     avatar: {
-      width: 50,
-      height: 50,
-      borderRadius: 25,
-      backgroundColor: c.primary,
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      backgroundColor: c.onPrimary,
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { ...typography.h3, color: c.onPrimary, fontSize: 21 },
-    whoCopy: { flex: 1 },
-    whoName: { ...typography.h3, color: c.text, fontSize: 17 },
-    whoLink: { ...typography.small, color: c.primary, fontWeight: "700", marginTop: 2 },
+    avatarText: { ...typography.title, color: c.primary, fontSize: 23 },
+    whoCopy: { flex: 1, gap: 2 },
+    whoName: { ...typography.h3, color: c.onPrimary, fontSize: 18 },
+    whoSub: { ...typography.tiny, color: c.brand[100] },
+    editPill: {
+      backgroundColor: "rgba(255,255,255,0.22)",
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    editText: { ...typography.tiny, color: c.onPrimary, fontWeight: "800" },
 
     signIn: { marginTop: spacing.md },
 
-    tiles: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+    // Raised onto the sheet's top edge, so the three things people came for
+    // read as buttons rather than as the first row of a list.
+    tiles: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
     tile: {
       flex: 1,
       alignItems: "center",

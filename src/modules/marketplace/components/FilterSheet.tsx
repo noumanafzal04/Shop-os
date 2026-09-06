@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Check, SlidersHorizontal, Star } from "lucide-react-native";
+import { Check, Star } from "lucide-react-native";
 import { BottomSheet } from "../../../common/ui/BottomSheet";
 import { PriceRange } from "../../../common/ui/PriceRange";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -351,38 +351,6 @@ function Toggle({
   );
 }
 
-/** The control that opens the sheet, with a badge for how many are on. */
-export function FilterButton({
-  count,
-  onPress,
-  tone = "surface",
-}: {
-  count: number;
-  onPress: () => void;
-  /** `onBrand` for a button sitting on the hero header's fill. */
-  tone?: "surface" | "onBrand";
-}) {
-  const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
-  const onBrand = tone === "onBrand";
-  return (
-    <Pressable
-      style={[styles.fBtn, onBrand && styles.fBtnOnBrand]}
-      hitSlop={6}
-      accessibilityRole="button"
-      accessibilityLabel={count > 0 ? `Filters, ${count} active` : "Filters"}
-      onPress={onPress}
-    >
-      <SlidersHorizontal size={18} color={onBrand ? c.white : c.text} strokeWidth={2.2} />
-      {count > 0 && (
-        <View style={styles.fBadge}>
-          <Text style={styles.fBadgeText}>{count}</Text>
-        </View>
-      )}
-    </Pressable>
-  );
-}
-
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
     // flexShrink, not flex: inside a panel with a maxHeight, a ScrollView with
@@ -449,28 +417,4 @@ const makeStyles = (c: ThemeColors) =>
     applyText: { ...typography.label, color: c.onPrimary, fontSize: 15 },
     applyTextEmpty: { color: c.textMuted },
 
-    fBtn: {
-      width: 42,
-      height: 42,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.surface,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    fBtnOnBrand: { backgroundColor: "rgba(255,255,255,0.16)", borderColor: "rgba(255,255,255,0.28)" },
-    fBadge: {
-      position: "absolute",
-      top: -5,
-      right: -5,
-      minWidth: 18,
-      height: 18,
-      paddingHorizontal: 4,
-      borderRadius: radius.full,
-      backgroundColor: c.warm,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    fBadgeText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 10 },
   });
