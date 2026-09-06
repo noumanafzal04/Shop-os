@@ -64,6 +64,18 @@ const TOPICS: Topic[] = [
     a: "Once they have collected your order, their name shows on the order screen along with how far along they are. If their phone is reporting its position you will see a Live marker; if it is not, we would rather show nothing than a pin from ten minutes ago.",
   },
   {
+    q: "How do I change my password?",
+    a: "Account \u2192 Security. You need the one you use now, and the new one has to be at least 8 characters and different from the old. Changing it signs out every OTHER device straight away \u2014 this phone stays signed in.",
+  },
+  {
+    q: "Someone else may have my password",
+    a: "Account \u2192 Security shows every device signed in to your account, when each was last used, and which one is the phone you are holding. Sign out the ones you do not recognise, then change your password. If you are not sure which is which, Sign out everywhere ends all of them \u2014 including this phone \u2014 and you sign back in once.",
+  },
+  {
+    q: "Which version am I running?",
+    a: "It is at the foot of the Account page, under App. Worth reading out if you are reporting something that looks wrong \u2014 it is how we know whether the problem is already fixed in a newer build.",
+  },
+  {
     q: "Can I deliver orders myself?",
     a: "Yes. Open the menu and tap Become a rider — it is the same account you shop with, so there is nothing new to install. You choose your vehicle, photograph your CNIC and licence, and send it in. Somebody checks it, usually within a day. Once you are approved a Rider mode appears in the same menu: go online when you want to work, take deliveries near you, and go offline when you are done.",
   },

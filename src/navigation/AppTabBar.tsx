@@ -2,16 +2,16 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import {
-  Bike,
-  CircleUserRound,
-  ReceiptText,
-  Search,
-  ShoppingCart,
-  Wallet,
-  type LucideIcon,
-} from "lucide-react-native";
+  BasketGlyph,
+  CartGlyph,
+  HomeGlyph,
+  ParcelGlyph,
+  PersonGlyph,
+  ReceiptGlyph,
+  type TabIconProps,
+  WalletGlyph,
+} from "../common/ui/icons/TabIcons";
 import { useTheme } from "../theme";
-import { tradeIcon } from "../modules/marketplace/tradeIcon";
 import { cartCountOf, useCartStore } from "../stores/cartStore";
 
 /**
@@ -50,20 +50,39 @@ import { cartCountOf, useCartStore } from "../stores/cartStore";
 interface Item {
   route: string;
   label: string;
-  icon: LucideIcon;
+  icon: React.ComponentType<TabIconProps>;
 }
 
+/**
+ * ── WHY THIS BAR HAS ITS OWN GLYPHS ──────────────────────────────────
+ *
+ * Everywhere else in the app an icon is a Lucide outline, and that is right:
+ * one family, one stroke weight, one colour. A bottom bar is the exception,
+ * because it has a job no other row of icons has — saying WHICH ONE YOU ARE
+ * ON — and it has to say it at 22 points, without a label being read.
+ *
+ * This bar used to answer with half a point of stroke width and two greys.
+ * Selected and unselected looked the same at arm's length. The five glyphs in
+ * `common/ui/icons/TabIcons` are drawn as silhouettes so the selected one can
+ * be SOLID and in the brand colour, which is how every app of this kind
+ * answers it and the reason they all do.
+ *
+ * They are deliberately NOT read from the trade-icon map any more. That map
+ * exists so the chips, the shortcuts and the shop cards cannot drift apart,
+ * and its icons are stroked-only — reading it here is what made two of these
+ * slots impossible to fill. The bar states its own set instead, which is five
+ * lines and not a copy of anything.
+ */
 const ITEMS: Record<string, Item> = {
-  // Read from the ONE trade-icon map, not a second copy of it — that copy
-  // is how this tab kept the crossed-utensils glyph after the trade chips
-  // were moved off it.
-  FoodTab: { route: "FoodTab", label: "Food", icon: tradeIcon("food") },
+  // The home screen, called Home. It was labelled "Food" while showing the
+  // marketplace home, with a crossed-utensils glyph — a first tab that names
+  // one of the shortcuts inside it.
+  FoodTab: { route: "FoodTab", label: "Home", icon: HomeGlyph },
   // A basket, deliberately not a trolley: the middle button is a trolley and
   // two of them in one bar is two words for different things.
-  GroceryTab: { route: "GroceryTab", label: "Grocery", icon: tradeIcon("mart") },
-  OrdersTab: { route: "OrdersTab", label: "Orders", icon: ReceiptText },
-  AccountTab: { route: "AccountTab", label: "Account", icon: CircleUserRound },
-  SearchTab: { route: "SearchTab", label: "Search", icon: Search },
+  GroceryTab: { route: "GroceryTab", label: "Grocery", icon: BasketGlyph },
+  OrdersTab: { route: "OrdersTab", label: "Orders", icon: ReceiptGlyph },
+  AccountTab: { route: "AccountTab", label: "Account", icon: PersonGlyph },
 
   // ── Rider mode ──────────────────────────────────────────────────
   //
@@ -74,9 +93,9 @@ const ITEMS: Record<string, Item> = {
   //
   // No basket here, and that is the point of the mode: somebody delivering is
   // not shopping.
-  RiderBoardTab: { route: "RiderBoardTab", label: "Deliveries", icon: Bike },
-  RiderEarningsTab: { route: "RiderEarningsTab", label: "Earnings", icon: Wallet },
-  RiderAccountTab: { route: "RiderAccountTab", label: "Account", icon: CircleUserRound },
+  RiderBoardTab: { route: "RiderBoardTab", label: "Deliveries", icon: ParcelGlyph },
+  RiderEarningsTab: { route: "RiderEarningsTab", label: "Earnings", icon: WalletGlyph },
+  RiderAccountTab: { route: "RiderAccountTab", label: "Account", icon: PersonGlyph },
 };
 
 export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
@@ -134,10 +153,29 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
               style={styles.slot}
             >
               {/*
+                ── THE MIDDLE BUTTON, THIRD ATTEMPT ────────────────────
+                
                 In the bar, not out of it. The raised version needed a thick
                 ring in the page's colour to stop it reading as a hole punched
-                through the bar — and a button that needs a cut-out around it
-                to be legible is a button fighting its own container.
+                through the bar — a button that needs a cut-out around it to be
+                legible is a button fighting its own container.
+                
+                What was wrong with the version after that: a flat brand circle
+                with a hairline outline cart inside it. Correct, and it read as
+                a coloured dot. Three things fix that without raising it again:
+                
+                  · a HALO — the brand at a tenth of its strength, behind the
+                    disc. It gives depth on a theme that forbids shadows, and
+                    it is the only thing in the bar that says the basket is a
+                    different KIND of control from the four beside it.
+                  · a SOLID glyph, with the handle knocked back out in the
+                    disc's own colour, so the shape reads at 24 points instead
+                    of dissolving into the fill behind it.
+                  · a squircle rather than a circle, which is the corner the
+                    rest of this app turns everywhere else.
+                
+                The halo strengthens when the tab is selected — the one state
+                this button never showed at all.
               */}
               {/*
                 The badge is positioned against the DISC, not the slot.
@@ -147,8 +185,14 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
                 open space beside the button it was counting.
               */}
               <View style={styles.discWrap}>
+                <View
+                  style={[
+                    styles.halo,
+                    { backgroundColor: c.primary, opacity: focused ? 0.2 : 0.11 },
+                  ]}
+                />
                 <View style={[styles.disc, { backgroundColor: c.primary }]}>
-                  <ShoppingCart size={23} color={c.onPrimary} strokeWidth={2.4} />
+                  <CartGlyph size={24} color={c.onPrimary} filled knockout={c.primary} />
                 </View>
                 {count > 0 && (
                   <View style={[styles.badge, { backgroundColor: c.warm, borderColor: c.surface }]}>
@@ -174,10 +218,21 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
             accessibilityLabel={item.label}
             style={styles.slot}
           >
+            {/*
+              SOLID WHEN YOU ARE ON IT, outline when you are not — and the
+              brand colour rather than a darker grey. Two greys and half a
+              point of stroke was the whole of the old answer, and at arm's
+              length it was no answer.
+              
+              `knockout` is the bar's own colour: the lines inside a filled
+              receipt or basket are punched back out of the shape, so a solid
+              glyph keeps its detail instead of becoming a blob.
+            */}
             <Icon
               size={22}
-              color={focused ? c.text : c.textMuted}
-              strokeWidth={focused ? 2.5 : 1.9}
+              filled={focused}
+              color={focused ? c.primary : c.textMuted}
+              knockout={c.surface}
             />
             <Text
               numberOfLines={1}
@@ -185,7 +240,7 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
                 typography.tiny,
                 styles.label,
                 focused ? styles.labelOn : styles.labelOff,
-                { color: focused ? c.text : c.textMuted },
+                { color: focused ? c.primary : c.textMuted },
               ]}
             >
               {item.label}
@@ -209,22 +264,33 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
-  slot: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3, height: 48 },
+  slot: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3, height: 50 },
   label: { fontSize: 10.5 },
   labelOn: { fontWeight: "700" },
   labelOff: { fontWeight: "500" },
-  discWrap: { width: 48, height: 48 },
+  discWrap: { width: 50, height: 50, alignItems: "center", justifyContent: "center" },
+  // The brand at a tenth of its strength, one step wider than the disc. Depth
+  // on a theme with no shadows in it.
+  halo: {
+    position: "absolute",
+    width: 50,
+    height: 50,
+    borderRadius: 17,
+  },
   disc: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    // A squircle, not a circle: every other rounded thing in this app turns
+    // this corner, and a lone perfect circle in the middle of them reads as
+    // borrowed.
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
   },
   badge: {
     position: "absolute",
-    top: -4,
-    right: -6,
+    top: 0,
+    right: 1,
     minWidth: 19,
     height: 19,
     borderRadius: 10,

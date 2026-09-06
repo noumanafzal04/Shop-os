@@ -23,6 +23,7 @@ export type CustomerStackParamList = {
   Notifications: undefined;
   Addresses: undefined;
   Settings: undefined;
+  Security: undefined;
   Help: undefined;
   Profile: undefined;
   Browse:
@@ -73,6 +74,7 @@ export type RiderStackParamList = {
   RiderApply: undefined;
   Profile: undefined;
   Settings: undefined;
+  Security: undefined;
   Help: undefined;
   Notifications: undefined;
 };

@@ -12,6 +12,14 @@ export const authService = {
 
   logout: () => apiPost<null>("/auth/logout"),
 
+  /**
+   * Every device, this one included — the server deletes all of the user's
+   * tokens, so the phone that asked is signed out too. That is the point: it
+   * is what somebody presses when they think another person has their
+   * password, and leaving the asking device signed in would be an odd promise.
+   */
+  logoutAll: () => apiPost<null>("/auth/logout-all"),
+
   requestOtp: (identifier: string, purpose: "login" | "password_reset" | "verification") =>
     apiPost<{ debug_code?: string } | null>("/auth/otp/request", { identifier, purpose }),
 

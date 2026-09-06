@@ -32,6 +32,21 @@ export const BRAND = {
   domain: "cartze.shop",
 
   /**
+   * WHAT IS INSTALLED, as a person reads it.
+   *
+   * Stated here and not read from anywhere, because there is nowhere to read
+   * it FROM: `versionName` lives in Gradle and `CFBundleShortVersionString` in
+   * a plist, neither of which JavaScript can see without a native module this
+   * app deliberately does not have.
+   *
+   * A constant that has to agree with a file it cannot read is a constant that
+   * will one day disagree quietly — so `appVersion.test.ts` reads the Gradle
+   * file and fails when the two drift. That is the whole reason this line is
+   * safe to trust on a support call, which is the only reason it is shown.
+   */
+  version: "1.0",
+
+  /**
    * The deep-link scheme, e.g. `cartze://orders/123`.
    *
    * NOT derived from `name`: it is registered in native config, so changing it

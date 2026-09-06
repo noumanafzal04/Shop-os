@@ -48,22 +48,52 @@ export function useLogin() {
  * another.
  */
 export function useLogout() {
-  const clear = useAuthStore((s) => s.clear);
-  const queryClient = useQueryClient();
+  const endSession = useEndSession();
 
   return useMutation({
     mutationFn: () => authService.logout(),
     // Local session dies even if the server call failed (offline logout).
-    onSettled: async () => {
-      await teardownPush(); // unregister this device from push first
-      await clear();
-      queryClient.clear();
-
-      // After the store has flipped, so the navigator has already swapped to
-      // whatever a guest sees before this lands on top of it.
-      if (navigationRef.isReady()) navigationRef.navigate("SignIn", undefined);
-    },
+    onSettled: endSession,
   });
+}
+
+/**
+ * SIGN OUT EVERYWHERE — the same ending, a wider server call.
+ *
+ * Shares `useEndSession` rather than repeating it, because the defect this
+ * app has already had once is two buttons that both say "sign out" and mean
+ * different things: one revoked the token and dropped the push registration,
+ * the other only emptied the store. Whichever the person pressed decided
+ * whether their session was really over.
+ */
+export function useLogoutEverywhere() {
+  const endSession = useEndSession();
+
+  return useMutation({
+    mutationFn: () => authService.logoutAll(),
+    onSettled: endSession,
+  });
+}
+
+/**
+ * WHAT SIGNING OUT ACTUALLY DOES, in one place.
+ *
+ * Push first: a device left registered keeps buzzing about orders belonging to
+ * an account whose owner has left this phone.
+ */
+function useEndSession() {
+  const clear = useAuthStore((s) => s.clear);
+  const queryClient = useQueryClient();
+
+  return useCallback(async () => {
+    await teardownPush(); // unregister this device from push first
+    await clear();
+    queryClient.clear();
+
+    // After the store has flipped, so the navigator has already swapped to
+    // whatever a guest sees before this lands on top of it.
+    if (navigationRef.isReady()) navigationRef.navigate("SignIn", undefined);
+  }, [clear, queryClient]);
 }
 
 /**
