@@ -56,16 +56,30 @@ class ShopSettings
             'pickup_enabled' => true,
             'delivery_enabled' => true,
             // WHO CARRIES DELIVERIES.
-            //   self     the shop's own riders — a named card in `riders`,
-            //            with or without the app
             //   platform the CartZe rider pool: any approved platform rider
             //            may take this shop's unassigned delivery orders
+            //   self     the shop's own riders — a named card in `riders`,
+            //            with or without the app
             //
-            // This comment described the setting for six weeks while the key
-            // itself was never in `defaults()` or `rules()` — so every read of
-            // it got null, the panel had nothing to bind to, and "platform =
-            // coming soon" was true for a reason nobody had noticed.
-            'delivery_provider' => 'self',
+            // PLATFORM IS THE DEFAULT, and that is a product decision rather
+            // than a technical one: a shop that signs up to a marketplace has
+            // signed up to its riders. Leaving it on `self` meant the pool was
+            // empty for every shop that had never heard of the setting, which
+            // is all of them — an offer engine that could not fire.
+            //
+            // Opting out is safe and reversible from Shop Settings → Delivery,
+            // and a shop that forgets to is not stranded: nobody taking the
+            // order raises `TellShopNobodyTookIt`, which tells the shop it can
+            // hand the order to its own rider. The failure mode of the wrong
+            // default is a three-minute delay, not a lost order.
+            //
+            // READ IN TWO PLACES, AND THEY MUST AGREE. `Tenant::setting()`
+            // merges this array over the stored JSON, so an absent key lands
+            // here; `RiderService::platformShopIds()` queries the JSON column
+            // directly, where an absent key is SQL NULL and matches nothing.
+            // That query asks this array what an absent key means — see the
+            // note there before changing either.
+            'delivery_provider' => 'platform',
             'prep_time_minutes' => null,   // estimated prep / handover time
             'delivery_radius_km' => null,  // null = no distance limit (city-wide)
             'min_order_amount' => null,    // delivery orders below this are rejected

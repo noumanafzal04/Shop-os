@@ -411,11 +411,20 @@ class RiderSideTest extends TestCase
 
     public function test_the_pool_only_shows_shops_that_opted_into_it(): void
     {
+        // SAID ON THE ROW, not inherited.
+        //
+        // This half used to be silent and simply trusted `self` to be the
+        // default. When the default moved to `platform` the test failed here
+        // — correctly, and usefully: a test that leans on a default is really
+        // a test of the default, and it stops testing the opt-out the moment
+        // the default agrees with it.
+        $this->shop->forceFill(['settings' => ['delivery_provider' => 'self']])->save();
+
         $order = $this->placeDelivery();
         $this->approvedRider($this->rider, platform: true);
         $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
 
-        // The shop still carries its own deliveries — nothing on the board.
+        // The shop carries its own deliveries — nothing on the board.
         $this->as($this->rider)->getJson('/api/v1/rider/board')
             ->assertOk()->assertJsonCount(0, 'data.offers');
 

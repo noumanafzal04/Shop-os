@@ -18,6 +18,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
 use App\Support\Geo;
+use App\Support\ShopSettings;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -540,13 +541,38 @@ class RiderService
         return [$lat !== null ? (float) $lat : null, $lng !== null ? (float) $lng : null];
     }
 
-    /** @return list<string> tenants that have opted into the platform pool */
+    /**
+     * Tenants whose deliveries the pool may carry.
+     *
+     * ── Why this is not simply `where(... = 'platform')` ─────────────
+     *
+     * `delivery_provider` is read on two sides of the same rule and they
+     * resolve an ABSENT key differently. `Tenant::setting()` merges
+     * `ShopSettings::defaults()` over the stored JSON, so a shop that has
+     * never opened the setting reads the default. This query reads the JSON
+     * column, where an absent key is SQL NULL and matches nothing.
+     *
+     * Left alone, flipping the default to `platform` would have offered every
+     * order (`OrderService` uses `setting()`) and shown it to nobody (this
+     * uses SQL) — the offer engine running with an empty pool, ending in a
+     * "no rider yet" notice three minutes later with no cause visible
+     * anywhere. Half a rule is worse than either half.
+     *
+     * So the default is ASKED FOR rather than assumed: flip
+     * `ShopSettings::defaults()` back to `self` and this query stops matching
+     * absent keys in the same commit, with no second edit to remember.
+     *
+     * @return list<string> tenants the pool may carry for
+     */
     private function platformShopIds(): array
     {
-        return Tenant::query()
-            ->where('settings->delivery_provider', 'platform')
-            ->pluck('id')
-            ->all();
+        $query = Tenant::query()->where('settings->delivery_provider', 'platform');
+
+        if ((ShopSettings::defaults()['delivery_provider'] ?? 'self') === 'platform') {
+            $query->orWhereNull('settings->delivery_provider');
+        }
+
+        return $query->pluck('id')->all();
     }
 
     /**

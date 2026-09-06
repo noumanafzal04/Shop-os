@@ -595,7 +595,7 @@ class OrderService
             && $order->fulfillment_type === FulfillmentType::Delivery
             && $order->rider_id === null) {
             $shop = $this->context->get() ?? Tenant::query()->find($order->tenant_id);
-            if (($shop?->setting('delivery_provider') ?? 'self') === 'platform') {
+            if ($shop?->setting('delivery_provider') === 'platform') {
                 // `beginOffering`, not `offerToPool`: the first writes the
                 // opening radius, offers it to the riders inside it and
                 // queues the widening; the second is one rung of that ladder

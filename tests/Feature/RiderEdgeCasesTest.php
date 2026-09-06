@@ -792,15 +792,64 @@ class RiderEdgeCasesTest extends TestCase
 
     public function test_a_shop_that_carries_its_own_deliveries_tells_nobody_else(): void
     {
-        // `delivery_provider` is `self` by default. A shop that assigns its own
-        // riders has already chosen, and telling strangers about that order
-        // would be offering work that is not going.
+        // A shop that assigns its own riders has already chosen, and telling
+        // strangers about that order would be offering work that is not going.
+        //
+        // Stated on the row, not left to the default. This test used to lean on
+        // `self` being the default and so proved nothing about the opt-out once
+        // the default moved — it would have gone green while the setting was
+        // ignored entirely.
+        $this->shop->forceFill(['settings' => ['delivery_provider' => 'self']])->save();
         $this->approvedRider($this->rider, platform: true);
 
         $order = $this->place();
         $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
 
         $this->assertDatabaseMissing('app_notifications', ['type' => 'rider.job_offered']);
+    }
+
+    /**
+     * THE SHOP THAT NEVER OPENED THE SETTING.
+     *
+     * Which is every shop that existed before the control did — their
+     * `settings` JSON has no `delivery_provider` key at all.
+     *
+     * The key is read on two sides. `Tenant::setting()` merges
+     * `ShopSettings::defaults()` over the stored JSON and lands on the default;
+     * `RiderService::platformShopIds()` queries the JSON column, where an
+     * absent key is SQL NULL and matches nothing. With only the default
+     * flipped, this order would be OFFERED by `OrderService` and shown to
+     * nobody by `RiderService` — an offer engine running against an empty pool,
+     * ending three minutes later in a "no rider yet" notice with no cause
+     * visible on any screen.
+     *
+     * So the assertion is deliberately about the rider's own list, not just the
+     * notification: the notification is written by the half that was already
+     * right.
+     */
+    public function test_a_shop_that_never_touched_the_setting_is_in_the_pool(): void
+    {
+        // No `delivery_provider` key — the state every existing shop is in.
+        $this->shop->forceFill(['settings' => ['delivery_enabled' => true]])->save();
+        $this->assertArrayNotHasKey('delivery_provider', $this->shop->fresh()->settings ?? []);
+
+        $this->approvedRider($this->rider, platform: true);
+
+        $order = $this->place();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
+
+        // Half one: it was offered.
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $this->rider->id,
+            'type' => 'rider.job_offered',
+        ]);
+
+        // Half two: the rider can actually see it. This is the half that the
+        // SQL query would have failed silently.
+        $this->as($this->rider)->getJson('/api/v1/rider/board')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.offers')
+            ->assertJsonPath('data.offers.0.id', $order['id']);
     }
 
     // ── A shop with none of this ─────────────────────────────────────
