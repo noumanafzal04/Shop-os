@@ -118,7 +118,7 @@ const makeStyles = (c: ThemeColors) =>
     back: {
       width: 38,
       height: 38,
-      borderRadius: radius.full,
+      borderRadius: 19,
       backgroundColor: c.surfaceAlt,
       alignItems: "center",
       justifyContent: "center",
@@ -158,14 +158,14 @@ const makeStyles = (c: ThemeColors) =>
     radio: {
       width: 20,
       height: 20,
-      borderRadius: radius.full,
+      borderRadius: 10,
       borderWidth: 2,
       borderColor: c.border,
       alignItems: "center",
       justifyContent: "center",
     },
     radioOn: { borderColor: c.primary },
-    radioDot: { width: 10, height: 10, borderRadius: radius.full, backgroundColor: c.primary },
+    radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.primary },
 
     note: { ...typography.tiny, color: c.textMuted, marginTop: spacing.sm },
 

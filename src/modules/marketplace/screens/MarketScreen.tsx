@@ -19,7 +19,8 @@ import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { ShopFactsRow } from "../components/ShopFactsRow";
-import { shopCover, shopInitial } from "../shopCover";
+import { shopInitial, useShopCover } from "../shopCover";
+import { OfferBadge, Price } from "../../../common/ui/Price";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useLocationStore } from "../../../stores/locationStore";
@@ -130,16 +131,16 @@ export function MarketScreen() {
                         ) : (
                           <Text style={styles.dealInitial}>{d.name.charAt(0)}</Text>
                         )}
-                        <View style={styles.offBadge}>
-                          <Text style={styles.offBadgeText}>{d.percent_off}% off</Text>
-                        </View>
+                        <OfferBadge
+                          value={d.price}
+                          was={d.original_price}
+                          percent={d.percent_off}
+                          style={styles.offBadge}
+                        />
                       </View>
                       <View style={styles.dealBody}>
                         <Text style={styles.dealName} numberOfLines={1}>{d.name}</Text>
-                        <View style={styles.dealPriceRow}>
-                          <Text style={styles.dealPrice}>Rs {d.price.toLocaleString()}</Text>
-                          <Text style={styles.dealStrike}>Rs {d.original_price.toLocaleString()}</Text>
-                        </View>
+                        <Price value={d.price} was={d.original_price} size="md" tone="brand" />
                         <Text style={styles.dealShop} numberOfLines={1}>{d.shop?.business_name}</Text>
                       </View>
                     </Touchable>
@@ -202,7 +203,8 @@ function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const closed = shop.is_open_now === false;
-  const cover = shopCover(shop.slug);
+  const coverFor = useShopCover();
+  const cover = coverFor(shop.slug);
   return (
     <Touchable style={[styles.row, closed && styles.rowClosed]} onPress={onPress}>
       {/* The same derived cover as the home row — a shop looks the same
@@ -237,7 +239,7 @@ const makeStyles = (c: ThemeColors) =>
   back: {
     width: 38,
     height: 38,
-    borderRadius: radius.full,
+    borderRadius: 19,
     backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
@@ -272,21 +274,10 @@ const makeStyles = (c: ThemeColors) =>
   dealImgWrap: { height: 96, backgroundColor: c.surfaceAlt, alignItems: "center", justifyContent: "center" },
   dealImg: { width: "100%", height: "100%" },
   dealInitial: { fontSize: 30, fontWeight: "700", color: c.gray[200] },
-  offBadge: {
-    position: "absolute",
-    left: 8,
-    top: 8,
-    backgroundColor: c.brand[500],
-    borderRadius: radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  offBadgeText: { ...typography.tiny, color: c.white, fontWeight: "700", fontSize: 10 },
-  dealBody: { padding: spacing.sm, gap: 2 },
-  dealName: { ...typography.label, color: c.text, fontSize: 13 },
-  dealPriceRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  dealPrice: { ...typography.label, color: c.brand[600], fontSize: 13 },
-  dealStrike: { ...typography.tiny, color: c.gray[400], textDecorationLine: "line-through", fontSize: 10 },
+  // Position only — `OfferBadge` owns its own fill, and that fill is amber.
+  offBadge: { position: "absolute", left: 8, top: 8 },
+  dealBody: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10, gap: 3 },
+  dealName: { ...typography.label, color: c.text, fontSize: 13.5 },
   dealShop: { ...typography.tiny, color: c.gray[500], fontSize: 10 },
 
   more: { paddingVertical: spacing.lg, alignItems: "center" },

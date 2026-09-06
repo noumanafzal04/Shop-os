@@ -1,14 +1,19 @@
 import React from "react";
-import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { ArrowRight, Minus, Plus, ShoppingBag, TicketPercent, Trash2 } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AddButton } from "../../../common/ui/AddButton";
+import { Touchable } from "../../../common/ui/Touchable";
+import { SmartImage } from "../../../common/ui/SmartImage";
+import { AppButton } from "../../../common/ui/AppButton";
+import { Appear } from "../../../common/ui/Appear";
+import { Price } from "../../../common/ui/Price";
 import { confirm } from "../../../common/ui/confirm";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useCartStore, cartKeyOf } from "../../../stores/cartStore";
 import { useMarketProducts, useMarketShop } from "../../marketplace/hooks/useMarketplace";
-import { shopCover, shopInitial } from "../../marketplace/shopCover";
+import { shopInitial, useShopCover } from "../../marketplace/shopCover";
 import type { PublicProduct } from "../../marketplace/services/marketplaceService";
 import { money, qtyText } from "../../../common/format";
 
@@ -42,6 +47,7 @@ export function CartScreen() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const cart = useCartStore();
+  const coverFor = useShopCover();
   const slug = cart.shopSlug;
 
   const shop = useMarketShop(slug ?? undefined);
@@ -68,6 +74,7 @@ export function CartScreen() {
       variant_id: null,
       name: p.name,
       unit_price: Number(p.price),
+      image: p.images[0] ?? null,
       sold_by: p.sold_by,
       unit_label: p.unit,
     });
@@ -118,6 +125,19 @@ export function CartScreen() {
           </View>
           <Text style={styles.emptyTitle}>Your cart is empty</Text>
           <Text style={styles.emptyText}>Browse shops near you and add something tasty.</Text>
+          {/*
+            A WAY OUT.
+
+            The empty state told somebody to go browsing and gave them nothing
+            to press. On the tab that is hardest to leave — the basket is a leaf
+            of the tab bar, so there is no back arrow either — the only exit was
+            to notice a different tab along the bottom.
+          */}
+          <AppButton
+            title="Browse shops"
+            onPress={() => navigation.navigate("FoodTab")}
+            style={styles.emptyCta}
+          />
         </View>
       </SafeScreen>
     );
@@ -166,18 +186,24 @@ export function CartScreen() {
         keyExtractor={(l) => cartKeyOf(l)}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const k = cartKeyOf(item);
           const step = item.sold_by === "weight" ? 0.25 : 1;
-          // Same derived cover the shop cards use: a wall of identical pale
-          // tiles reads as a page whose images failed, at any size.
-          const cover = shopCover(item.product_id);
+          // The derived cover, for a line whose product has no photograph. It
+          // is the fallback now rather than the only option — the picture the
+          // person was looking at one screen ago rides on the line.
+          const cover = coverFor(item.product_id);
           const unit = item.sold_by === "weight" && item.unit_label ? ` ${item.unit_label}` : "";
           return (
-            <View style={styles.line}>
-              <View style={[styles.lineThumb, { backgroundColor: cover.bg }]}>
-                <Text style={[styles.lineInitial, { color: cover.fg }]}>{shopInitial(item.name)}</Text>
-              </View>
+            <Appear index={index}>
+              <View style={styles.line}>
+                <SmartImage
+                  uri={item.image}
+                  fallback={shopInitial(item.name)}
+                  fallbackBackground={cover.bg}
+                  fallbackColor={cover.fg}
+                  style={styles.lineThumb}
+                />
 
               <View style={styles.lineInfo}>
                 <Text style={styles.lineName} numberOfLines={1}>
@@ -232,20 +258,21 @@ export function CartScreen() {
               >
                 <Trash2 size={15} color={c.textMuted} strokeWidth={2} />
               </Pressable>
-            </View>
+              </View>
+            </Appear>
           );
         }}
         ListFooterComponent={
           <>
             {!!slug && (
-              <Pressable
+              <Touchable
                 style={styles.addMore}
                 accessibilityRole="button"
                 onPress={() => navigation.navigate("MarketShop", { slug })}
               >
                 <Plus size={15} color={c.primary} strokeWidth={2.6} />
                 <Text style={styles.addMoreText}>Add more items</Text>
-              </Pressable>
+              </Touchable>
             )}
 
             {suggestions.length > 0 && (
@@ -262,17 +289,26 @@ export function CartScreen() {
                   contentContainerStyle={styles.xRow}
                 >
                   {suggestions.map((p) => {
-                    const cover = shopCover(p.id);
+                    const cover = coverFor(p.id);
                     return (
-                      <View key={p.id} style={styles.xCard}>
-                        <View style={[styles.xThumb, !p.images[0] && { backgroundColor: cover.bg }]}>
-                          {p.images[0] ? (
-                            <Image source={{ uri: p.images[0] }} style={styles.xImg} resizeMode="cover" />
-                          ) : (
-                            <Text style={[styles.xInitial, { color: cover.fg }]}>{shopInitial(p.name)}</Text>
-                          )}
+                      <Touchable
+                        key={p.id}
+                        style={styles.xCard}
+                        scaleTo={0.95}
+                        accessibilityRole="button"
+                        accessibilityLabel={p.name}
+                        onPress={() => addSuggestion(p)}
+                      >
+                        <View style={styles.xThumb}>
+                          <SmartImage
+                            uri={p.images[0] ?? null}
+                            fallback={shopInitial(p.name)}
+                            fallbackBackground={cover.bg}
+                            fallbackColor={cover.fg}
+                            style={styles.xImg}
+                          />
                           <AddButton
-                            size={26}
+                            size={28}
                             label={p.name}
                             style={styles.xAdd}
                             onPress={() => addSuggestion(p)}
@@ -281,8 +317,8 @@ export function CartScreen() {
                         <Text style={styles.xName} numberOfLines={1}>
                           {p.name}
                         </Text>
-                        <Text style={styles.xPrice}>{money(Number(p.price))}</Text>
-                      </View>
+                        <Price value={p.price} was={p.original_price} size="sm" />
+                      </Touchable>
                     );
                   })}
                 </ScrollView>
@@ -407,7 +443,7 @@ const makeStyles = (c: ThemeColors) =>
     emptyIcon: {
       width: 84,
       height: 84,
-      borderRadius: radius.full,
+      borderRadius: 42,
       backgroundColor: c.primarySoft,
       alignItems: "center",
       justifyContent: "center",
@@ -415,8 +451,12 @@ const makeStyles = (c: ThemeColors) =>
     },
     emptyTitle: { ...typography.h3, color: c.text },
     emptyText: { ...typography.small, color: c.textSecondary, textAlign: "center" },
+    emptyCta: { marginTop: spacing.md, alignSelf: "stretch" },
 
-    list: { paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm, gap: 6 },
+    // 10 between lines, not 6. A basket is checked at a glance, and six points
+    // between bordered cards is close enough that eight lines read as one
+    // striped block — the same complaint the home cards had.
+    list: { paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm, gap: 10 },
     line: {
       flexDirection: "row",
       alignItems: "center",
@@ -425,17 +465,10 @@ const makeStyles = (c: ThemeColors) =>
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: radius.md,
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.sm,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
     },
-    lineThumb: {
-      width: 44,
-      height: 44,
-      borderRadius: radius.sm,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    lineInitial: { fontSize: 19, fontWeight: "700" },
+    lineThumb: { width: 48, height: 48, borderRadius: radius.sm },
     lineInfo: { flex: 1, gap: 2 },
     lineName: { ...typography.label, color: c.text, fontSize: 14 },
     lineMeta: { ...typography.tiny, color: c.textMuted },
@@ -447,14 +480,17 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: c.surfaceAlt,
       borderWidth: 1,
       borderColor: c.border,
-      borderRadius: radius.full,
+      borderRadius: 17,
       padding: 3,
-      gap: 3,
+      gap: 4,
     },
     stepBtn: {
-      width: 24,
-      height: 24,
-      borderRadius: radius.full,
+      width: 26,
+      height: 26,
+      // An explicit 13, not `radius.full`: a very large radius renders as a
+      // SQUARE on small views under the new architecture, which is what these
+      // two buttons were — square corners inside a rounded stepper.
+      borderRadius: 13,
       backgroundColor: c.primary,
       alignItems: "center",
       justifyContent: "center",
@@ -478,23 +514,14 @@ const makeStyles = (c: ThemeColors) =>
     addMoreText: { ...typography.label, color: c.primary, fontSize: 13.5 },
 
     sectionTitle: { ...typography.h3, color: c.text, fontSize: 15, marginTop: spacing.md, marginBottom: spacing.sm },
-    xRow: { gap: spacing.sm, paddingBottom: spacing.xs },
-    xCard: { width: 104 },
-    xThumb: {
-      height: 72,
-      borderRadius: radius.md,
-      backgroundColor: c.surfaceAlt,
-      alignItems: "center",
-      justifyContent: "center",
-      overflow: "hidden",
-    },
+    xRow: { gap: 12, paddingBottom: spacing.xs },
+    xCard: { width: 116, gap: 6 },
+    xThumb: { height: 86, borderRadius: radius.md, overflow: "hidden" },
     xImg: { width: "100%", height: "100%" },
-    xInitial: { fontSize: 24, fontWeight: "700" },
     // Position only — the disc itself is `AddButton`, which owns its own
     // colour and its own press.
     xAdd: { position: "absolute", right: 5, bottom: 5 },
-    xName: { ...typography.tiny, color: c.text, fontWeight: "600", marginTop: 5 },
-    xPrice: { ...typography.tiny, color: c.textMuted },
+    xName: { ...typography.small, color: c.text, fontSize: 12.5, fontWeight: "600" },
 
     // Sized to ride inside the bill without pushing a row off the list: 38px
     // and a hairline, not a 52px panel.
@@ -512,7 +539,7 @@ const makeStyles = (c: ThemeColors) =>
     couponIcon: {
       width: 26,
       height: 26,
-      borderRadius: radius.full,
+      borderRadius: 13,
       backgroundColor: c.primary,
       alignItems: "center",
       justifyContent: "center",
@@ -523,7 +550,7 @@ const makeStyles = (c: ThemeColors) =>
       color: c.onPrimary,
       fontWeight: "800",
       backgroundColor: c.primary,
-      borderRadius: radius.full,
+      borderRadius: 12,
       paddingHorizontal: 12,
       paddingVertical: 5,
       overflow: "hidden",

@@ -243,7 +243,7 @@ const makeStyles = (c: ThemeColors) =>
       alignSelf: "center",
       width: 40,
       height: 4,
-      borderRadius: radius.full,
+      borderRadius: 2,
       backgroundColor: c.border,
       marginTop: 10,
       marginBottom: 6,
@@ -261,7 +261,7 @@ const makeStyles = (c: ThemeColors) =>
     close: {
       width: 30,
       height: 30,
-      borderRadius: radius.full,
+      borderRadius: 15,
       backgroundColor: c.surfaceAlt,
       alignItems: "center",
       justifyContent: "center",

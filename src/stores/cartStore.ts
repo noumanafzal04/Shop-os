@@ -6,6 +6,20 @@ export interface CartLine {
   name: string;
   unit_price: number;
   quantity: number;
+  /**
+   * The product's photograph, for the basket to show.
+   *
+   * The cart drew a coloured letter for every line — the derived placeholder
+   * that stands in for a missing photo — including for the items whose photo
+   * the person had just been looking at one screen earlier. The picture is
+   * what somebody recognises a line by; an "M" is what somebody recognises a
+   * line by when there is nothing better.
+   *
+   * Carried on the line rather than fetched: the basket already knows what is
+   * in it, and re-reading the shop's whole catalogue to find three URLs is a
+   * request that can fail and leave the basket blank.
+   */
+  image?: string | null;
   /** Weight items step by 0.25 and allow fractions. */
   sold_by?: "unit" | "weight";
   unit_label?: string | null;

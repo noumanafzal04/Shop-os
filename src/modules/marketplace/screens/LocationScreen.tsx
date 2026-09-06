@@ -254,7 +254,7 @@ const makeStyles = (c: ThemeColors) =>
   back: {
     width: 40,
     height: 40,
-    borderRadius: radius.full,
+    borderRadius: 20,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,
@@ -285,7 +285,7 @@ const makeStyles = (c: ThemeColors) =>
   currentIcon: {
     width: 36,
     height: 36,
-    borderRadius: radius.full,
+    borderRadius: 18,
     backgroundColor: c.surface,
     alignItems: "center",
     justifyContent: "center",

@@ -28,11 +28,12 @@ import { ProductSheet, type ConfiguredLine } from "../components/ProductSheet";
 import type { PublicProduct } from "../services/marketplaceService";
 import { productBelongsToShop } from "../linkedProduct";
 import { formatDistance } from "../shopFacts";
-import { shopCover, shopInitial } from "../shopCover";
+import { shopInitial, useShopCover } from "../shopCover";
 import { toast } from "../../../common/ui/toast";
 import { confirm } from "../../../common/ui/confirm";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { money } from "../../../common/format";
+import { OfferBadge, Price } from "../../../common/ui/Price";
 import {
   useFavorites,
   useMarketProduct,
@@ -112,7 +113,8 @@ export function MarketShopScreen() {
   const hasPickup = shop.data?.fulfillment?.pickup ?? true;
   const closed = shop.data?.is_open_now === false;
   const cartCount = cart.shopSlug === slug ? cart.count() : 0;
-  const cover = shopCover(slug);
+  const coverFor = useShopCover();
+  const cover = coverFor(slug);
   // NOT defaulted to 30. A shop that has never set a prep time has not made a
   // promise, and `?? 30` turns that silence into one — printed as this shop's
   // own "Delivery 30–50 min" beside its own name. A kitchen that takes ninety
@@ -176,6 +178,7 @@ export function MarketShopScreen() {
       variant_id: null,
       name: p.name,
       unit_price: Number(p.price),
+      image: p.images[0] ?? null,
       sold_by: p.sold_by,
       unit_label: p.unit,
     });
@@ -189,6 +192,7 @@ export function MarketShopScreen() {
         variant_id: line.variant_id,
         name: line.variant_name ? `${p.name} / ${line.variant_name}` : p.name,
         unit_price: line.unit_price,
+        image: p.images[0] ?? null,
         sold_by: p.sold_by,
         unit_label: p.unit,
         modifier_option_ids: line.modifier_option_ids.length ? line.modifier_option_ids : undefined,
@@ -454,11 +458,11 @@ export function MarketShopScreen() {
                   {item.modifier_groups.length > 0 ? " · customizable" : ""}
                 </Text>
                 <View style={styles.priceRow}>
-                  <Text style={styles.price}>
-                    {money(item.price)}
-                    {item.sold_by === "weight" && item.unit ? <Text style={styles.perUnit}>/{item.unit}</Text> : null}
-                  </Text>
-                  {item.original_price != null && <Text style={styles.strike}>{money(item.original_price)}</Text>}
+                  <Price value={item.price} was={item.original_price} size="md" />
+                  {item.sold_by === "weight" && item.unit ? (
+                    <Text style={styles.perUnit}>/{item.unit}</Text>
+                  ) : null}
+                  <OfferBadge value={item.price} was={item.original_price} />
                 </View>
                 {!item.available_now && item.in_stock && <Text style={styles.offText}>Not available right now</Text>}
                 {!item.in_stock && item.type === "product" && <Text style={styles.offText}>Out of stock</Text>}
@@ -568,7 +572,7 @@ const makeStyles = (c: ThemeColors) =>
   round: {
     width: 40,
     height: 40,
-    borderRadius: radius.full,
+    borderRadius: 20,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,
@@ -697,9 +701,7 @@ const makeStyles = (c: ThemeColors) =>
   productName: { ...typography.label, color: c.text, fontSize: 15 },
   productMeta: { ...typography.tiny, color: c.gray[500] },
   priceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  price: { ...typography.label, color: c.brand[600], fontSize: 14.5 },
   perUnit: { ...typography.tiny, color: c.gray[400] },
-  strike: { ...typography.tiny, color: c.gray[400], textDecorationLine: "line-through" },
   offText: { ...typography.tiny, color: c.error },
   reserveBtn: {
     borderWidth: 1,
@@ -739,7 +741,7 @@ const makeStyles = (c: ThemeColors) =>
   cartCount: {
     width: 24,
     height: 24,
-    borderRadius: radius.full,
+    borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.25)",
     alignItems: "center",
     justifyContent: "center",
@@ -749,7 +751,7 @@ const makeStyles = (c: ThemeColors) =>
   cartBarCta: {
     width: 30,
     height: 30,
-    borderRadius: radius.full,
+    borderRadius: 15,
     // On the brand-filled bar, so it takes the token for things sitting ON the
     // brand — not the white literal, which would follow neither theme.
     backgroundColor: c.onPrimary,

@@ -125,7 +125,7 @@ const makeStyles = (c: ThemeColors) =>
   back: {
     width: 40,
     height: 40,
-    borderRadius: radius.full,
+    borderRadius: 20,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,

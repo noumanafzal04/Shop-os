@@ -5,6 +5,7 @@ import { Check, ChevronDown, Minus, Plus, X } from "lucide-react-native";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import type { PublicModifierGroup, PublicProduct } from "../services/marketplaceService";
 import { money, qtyText } from "../../../common/format";
+import { OfferBadge, Price } from "../../../common/ui/Price";
 
 
 export interface ConfiguredLine {
@@ -126,10 +127,14 @@ export function ProductSheet({
               ) : null}
             </View>
             <View style={styles.priceCol}>
-              <Text style={styles.price}>{money(Number(product.price))}</Text>
-              {product.original_price != null && (
-                <Text style={styles.strike}>{money(product.original_price)}</Text>
-              )}
+              {/*
+                One component, one rule. The strike used to be drawn whenever
+                `original_price` was non-null, which prints "Rs 300, Rs 300
+                struck through" for a shop that fills the regular price in
+                without running a sale — an offer the app invented.
+              */}
+              <Price value={product.price} was={product.original_price} size="lg" tone="brand" />
+              <OfferBadge value={product.price} was={product.original_price} />
             </View>
           </View>
           {!!product.description && <Text style={styles.desc}>{product.description}</Text>}
@@ -254,7 +259,7 @@ const makeStyles = (c: ThemeColors) =>
     alignSelf: "center",
     width: 40,
     height: 4,
-    borderRadius: radius.full,
+    borderRadius: 2,
     backgroundColor: c.gray[200],
     marginTop: spacing.sm,
   },
@@ -275,10 +280,8 @@ const makeStyles = (c: ThemeColors) =>
   head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.md },
   headInfo: { flex: 1, gap: 2 },
   name: { ...typography.title, color: c.text, fontSize: 20 },
-  priceCol: { alignItems: "flex-end", gap: 2 },
-  price: { ...typography.title, color: c.brand[600], fontSize: 18 },
+  priceCol: { alignItems: "flex-end", gap: 5 },
   perUnit: { ...typography.small, color: c.gray[400] },
-  strike: { ...typography.small, color: c.gray[400], textDecorationLine: "line-through" },
   desc: { ...typography.small, color: c.gray[500], marginTop: spacing.xs, marginBottom: spacing.sm },
   close: {
     position: "absolute",
@@ -287,7 +290,7 @@ const makeStyles = (c: ThemeColors) =>
     zIndex: 2,
     width: 34,
     height: 34,
-    borderRadius: radius.full,
+    borderRadius: 17,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,
@@ -328,7 +331,7 @@ const makeStyles = (c: ThemeColors) =>
   radio: {
     width: 20,
     height: 20,
-    borderRadius: radius.full,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: c.gray[300],
   },
@@ -364,7 +367,7 @@ const makeStyles = (c: ThemeColors) =>
   qtyBtn: {
     width: 38,
     height: 38,
-    borderRadius: radius.full,
+    borderRadius: 19,
     borderWidth: 1,
     borderColor: c.border,
     backgroundColor: c.surfaceAlt,

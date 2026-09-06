@@ -169,6 +169,37 @@ export function SkeletonListRow({ width }: { width?: number }) {
   );
 }
 
+/**
+ * A shop card in a rail: the cover band, then the name and its facts.
+ *
+ * It matches `ShopCard`'s rail shape point for point — 264 wide, a 118 cover —
+ * because the whole job of a skeleton is that nothing moves when the data
+ * lands. The rail used to wait behind `SkeletonListRow`, a sideways row with a
+ * 52px tile, and the section visibly re-laid itself on every load.
+ */
+export function SkeletonShopCard() {
+  const { colors: c, radius } = useTheme();
+
+  return (
+    <View
+      style={{
+        width: 264,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: c.border,
+        backgroundColor: c.surface,
+        overflow: "hidden",
+      }}
+    >
+      <Skeleton width={264} height={118} borderRadius={0} />
+      <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
+        <Skeleton width="65%" height={15} />
+        <Skeleton width="45%" height={11} style={{ marginTop: 8 }} />
+      </View>
+    </View>
+  );
+}
+
 /** A line on a shop's menu: thumbnail, name, price, and the add button. */
 export function SkeletonMenuRow() {
   const { colors: c, radius, spacing } = useTheme();

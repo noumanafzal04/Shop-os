@@ -27,7 +27,8 @@ import { useCartStore } from "../../../stores/cartStore";
 import { useBrowse } from "../hooks/useMarketplace";
 import { FilterSheet, activeFilterCount } from "../components/FilterSheet";
 import { QuickFilters } from "../components/QuickFilters";
-import { shopCover, shopInitial } from "../shopCover";
+import { shopInitial, useShopCover } from "../shopCover";
+import { OfferBadge, Price } from "../../../common/ui/Price";
 import type { AisleProduct, BrowseFilters } from "../services/marketplaceService";
 
 /**
@@ -54,6 +55,7 @@ type Params = {
 
 export function BrowseScreen() {
   const c = useColors();
+  const coverFor = useShopCover();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const params = (useRoute().params ?? {}) as NonNullable<Params["Browse"]>;
@@ -132,6 +134,7 @@ export function BrowseScreen() {
       variant_id: null,
       name: p.name,
       unit_price: Number(p.price),
+      image: p.images[0] ?? null,
       sold_by: p.sold_by,
       unit_label: p.unit,
     };
@@ -346,7 +349,7 @@ export function BrowseScreen() {
             )
           }
           renderItem={({ item }) => {
-            const cover = shopCover(item.id);
+            const cover = coverFor(item.id);
             const original = item.original_price;
             return (
               <Touchable
@@ -370,6 +373,8 @@ export function BrowseScreen() {
                   {!configurable(item) && !item.requires_prescription && (
                     <AddButton size={30} label={item.name} style={styles.add} onPress={() => add(item)} />
                   )}
+                  {/* Top LEFT — the add button already owns the bottom right. */}
+                  <OfferBadge value={item.price} was={original} style={styles.off} />
                 </View>
 
                 <Text style={styles.name} numberOfLines={2}>
@@ -380,12 +385,7 @@ export function BrowseScreen() {
                     {item.shop.business_name}
                   </Text>
                 )}
-                <View style={styles.priceRow}>
-                  <Text style={styles.price}>{money(item.price)}</Text>
-                  {original != null && original > Number(item.price) && (
-                    <Text style={styles.was}>{money(original)}</Text>
-                  )}
-                </View>
+                <Price value={item.price} was={original} size="sm" />
               </Touchable>
             );
           }}
@@ -415,7 +415,7 @@ const makeStyles = (c: ThemeColors) =>
     back: {
       width: 38,
       height: 38,
-      borderRadius: radius.full,
+      borderRadius: 19,
       backgroundColor: c.surfaceAlt,
       alignItems: "center",
       justifyContent: "center",
@@ -467,9 +467,7 @@ const makeStyles = (c: ThemeColors) =>
 
     name: { ...typography.label, color: c.text, fontSize: 13.5, marginTop: 7 },
     shop: { ...typography.tiny, color: c.textMuted, marginTop: 1 },
-    priceRow: { flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 3 },
-    price: { ...typography.label, color: c.primary, fontSize: 14 },
-    was: { ...typography.tiny, color: c.textMuted, textDecorationLine: "line-through" },
+    off: { position: "absolute", left: 6, top: 6 },
 
     more: { paddingVertical: spacing.lg, alignItems: "center" },
   end: {

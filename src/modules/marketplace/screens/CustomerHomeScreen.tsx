@@ -16,12 +16,14 @@ import {
   Menu,
   Search,
   SlidersHorizontal,
+  Star,
 } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
+import { SmartImage } from "../../../common/ui/SmartImage";
 import { SideMenu } from "../../../navigation/SideMenu";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
-import { Skeleton, SkeletonListRow } from "../../../common/ui/Skeleton";
+import { Skeleton, SkeletonShopCard } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useAuthStore } from "../../../stores/authStore";
@@ -35,7 +37,8 @@ import { ShopFactsRow } from "../components/ShopFactsRow";
 import { marketplaceService, type HomeBanner, type PublicShop } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { SHORTCUTS, tradeIcon } from "../tradeIcon";
-import { shopCover, shopInitial } from "../shopCover";
+import { OfferBadge, Price } from "../../../common/ui/Price";
+import { shopInitial, useShopCover } from "../shopCover";
 
 const typeLabel = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
@@ -45,6 +48,7 @@ export function CustomerHomeScreen() {
   const navigation = useNavigation<any>();
   const user = useAuthStore((s) => s.user);
   const [menuOpen, setMenuOpen] = useState(false);
+  const coverFor = useShopCover();
   const { status, lat, lng, label, detect } = useLocationStore();
 
   // First launch: resolve GPS → city automatically (foodpanda-style).
@@ -300,7 +304,7 @@ export function CustomerHomeScreen() {
           {feed.isLoading ? (
             <View style={styles.hRow}>
               {[0, 1].map((i) => (
-                <SkeletonListRow key={i} width={240} />
+                <SkeletonShopCard key={i} />
               ))}
             </View>
           ) : (
@@ -339,26 +343,39 @@ export function CustomerHomeScreen() {
                     <View
                       style={[
                         styles.dealImgWrap,
-                        !item.image && { backgroundColor: shopCover(item.id).bg },
+                        !item.image && { backgroundColor: coverFor(item.id).bg },
                       ]}
                     >
                       {item.image ? (
                         <Image source={{ uri: item.image }} style={styles.dealImg} resizeMode="cover" />
                       ) : (
-                        <Text style={[styles.dealInitial, { color: shopCover(item.id).fg }]}>
+                        <Text style={[styles.dealInitial, { color: coverFor(item.id).fg }]}>
                           {shopInitial(item.name)}
                         </Text>
                       )}
-                      <View style={styles.offBadge}>
-                        <Text style={styles.offBadgeText}>{item.percent_off}% off</Text>
-                      </View>
+                      {/*
+                        The server scored and sorted this rail by `percent_off`,
+                        so its own number is passed through rather than
+                        recomputed — two rounded rupee figures can disagree with
+                        the ordering of the list they are sitting in.
+                      */}
+                      <OfferBadge
+                        value={item.price}
+                        was={item.original_price}
+                        percent={item.percent_off}
+                        style={styles.offBadge}
+                      />
                     </View>
                     <View style={styles.dealBody}>
                       <Text style={styles.dealName} numberOfLines={1}>{item.name}</Text>
-                      <View style={styles.dealPriceRow}>
-                        <Text style={styles.dealPrice}>Rs {item.price.toLocaleString()}</Text>
-                        <Text style={styles.dealStrike}>Rs {item.original_price.toLocaleString()}</Text>
-                      </View>
+                      {/*
+                        `money()`, by way of `Price`. This row built its own
+                        string with `"Rs " + n.toLocaleString()`, which is the
+                        eighth copy of a formatter that lives in one file
+                        precisely so a decimal from the server cannot come out
+                        as "Rs NaN" on one screen and correct on the next.
+                      */}
+                      <Price value={item.price} was={item.original_price} size="md" tone="brand" />
                       <Text style={styles.dealShop} numberOfLines={1}>
                         {item.shop?.business_name}
                         {item.distance_km != null ? ` · ${formatDistance(item.distance_km)}` : ""}
@@ -402,7 +419,17 @@ export function CustomerHomeScreen() {
               />
               {feed.data!.nearby.map((s, i) => (
                 <React.Fragment key={`x-${s.slug}`}>
-                  <Appear index={i}>
+                  {/*
+                    INSET, like everything else on the page.
+
+                    These were the one block on the home screen with no
+                    horizontal padding — the rails, the grid and the tiles are
+                    all 16 in from the edge and the long tail ran to the glass.
+                    Asked about directly: "cards edge ks sath q lga diye?" The
+                    answer was that the card carried no margin and the list
+                    that renders it had none either, so nothing was deciding.
+                  */}
+                  <Appear index={i} style={styles.tailCard}>
                     <ShopWithItems
                       shop={s}
                       onOpen={() => openShop(s)}
@@ -449,48 +476,99 @@ function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => vo
 function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: boolean; onPress: () => void }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const coverFor = useShopCover();
   const closed = shop.is_open_now === false;
-  const cover = shopCover(shop.slug);
+  const cover = coverFor(shop.slug);
+
+  /**
+   * TWO SHAPES, AND THE DIFFERENCE IS THE RAIL.
+   *
+   * "bary shops cards" — the rail card was 240 points wide and spent 58 of
+   * them on a logo and the rest on two lines of type, which is a list row that
+   * happens to be sideways. A card in a rail has no neighbours above or below
+   * to be read against, so it has to carry its own weight: a cover band, then
+   * the name under it. That is the shape every marketplace uses for exactly
+   * this slot, and it is the reason those rails read as a shelf.
+   *
+   * The WIDE one stays a row on purpose. Full width with a 120pt cover band
+   * would be three shops per screen, and "Top rated" is a shortlist somebody
+   * is comparing — comparing wants rows.
+   */
+  if (wide) {
+    return (
+      <Touchable style={[styles.wideCard, closed && styles.shopClosed]} onPress={onPress}>
+        <View style={styles.wideLogo}>
+          <SmartImage
+            uri={shop.logo_path}
+            fallback={shopInitial(shop.business_name)}
+            fallbackBackground={cover.bg}
+            fallbackColor={cover.fg}
+            style={styles.wideLogoImg}
+          />
+          {closed && (
+            <View style={styles.shutTag}>
+              <Text style={styles.shutText}>Shut</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.shopInfo}>
+          <Text style={styles.wideName} numberOfLines={1}>{shop.business_name}</Text>
+          <Text style={styles.shopMeta} numberOfLines={1}>
+            {typeLabel(shop.business_type ?? "shop")}
+            {shop.city ? ` · ${shop.city.name}` : ""}
+          </Text>
+          {/*
+            `closed` is NOT passed: the cover already carries a "Shut" tag, and
+            saying it twice on one card spends the row's slots on a fact the
+            eye has already had.
+          */}
+          <ShopFactsRow shop={shop} limit={3} />
+        </View>
+      </Touchable>
+    );
+  }
 
   return (
-    <Touchable style={[styles.shopCard, wide && styles.shopCardWide, closed && styles.shopClosed]} onPress={onPress}>
+    <Touchable style={[styles.railCard, closed && styles.shopClosed]} onPress={onPress}>
       {/*
-        A COVER, not a pale letter tile.
-        
+        A COVER BAND, not a pale letter tile.
+
         Every card carried the same brand-50 square with a red initial in it, so
         a row of shops was a row of identical pink squares — which reads as a
         page whose images failed rather than as a page designed without any.
         The colour is derived from the slug, so a shop looks the same on every
-        screen and two shops never look like one.
+        screen and two shops never look like one. It follows the theme now as
+        well: see `shopCover.ts`, and the six grounds it no longer uses.
       */}
-      <View style={[styles.shopLogo, { backgroundColor: cover.bg }]}>
-        <Text style={[styles.shopInitial, { color: cover.fg }]}>
-          {shopInitial(shop.business_name)}
-        </Text>
+      <View style={[styles.railCover, { backgroundColor: cover.bg }]}>
+        <SmartImage
+          uri={shop.logo_path}
+          fallback={shopInitial(shop.business_name)}
+          fallbackBackground={cover.bg}
+          fallbackColor={cover.fg}
+          style={styles.railCoverImg}
+        />
+        {shop.rating != null && (
+          <View style={styles.railRating}>
+            <Star size={11} color={c.warm} fill={c.warm} strokeWidth={0} />
+            <Text style={styles.railRatingText}>{shop.rating.toFixed(1)}</Text>
+          </View>
+        )}
         {closed && (
-          <View style={styles.shutTag}>
-            <Text style={styles.shutText}>Shut</Text>
+          <View style={styles.railShut}>
+            <Text style={styles.shutText}>Closed</Text>
           </View>
         )}
       </View>
-      <View style={styles.shopInfo}>
-        <Text style={styles.shopName} numberOfLines={1}>{shop.business_name}</Text>
-        <Text style={styles.shopMeta} numberOfLines={1}>
-          {typeLabel(shop.business_type ?? "shop")}
-          {shop.city ? ` · ${shop.city.name}` : ""}
-        </Text>
+
+      <View style={styles.railBody}>
+        <Text style={styles.railName} numberOfLines={1}>{shop.business_name}</Text>
         {/*
-          Two, not three: this card is 240 wide and the list row is full width.
-          And ONE when the shop is shut — "Closed" is the only fact that changes
-          what anyone does next, so it should not be the one pushed off the end
-          by a delivery fee nobody can use tonight.
+          Two facts, not three: the rating is on the cover already, and this
+          card is 264 wide — a fee, a distance and a prep time run past its own
+          edge and are cut off mid-word by the card beside it.
         */}
-        {/*
-          `closed` is NOT passed: the cover already carries a "Shut" tag, and
-          saying it twice on one card spends the row's only two slots on a fact
-          the eye has already had.
-        */}
-        <ShopFactsRow shop={shop} limit={wide ? 3 : 2} />
+        <ShopFactsRow shop={shop} limit={2} />
       </View>
     </Touchable>
   );
@@ -603,40 +681,76 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "space-between",
     paddingHorizontal: spacing.md,
     marginTop: spacing.lg,
-    marginBottom: spacing.sm,
+    marginBottom: 12,
   },
-  sectionTitle: { ...typography.h3, color: c.text, fontSize: 18 },
+  sectionTitle: { ...typography.h3, color: c.text, fontSize: 18.5 },
   // Breathing room around the mid-page advert, so it reads as its own thing
   // rather than as a shop card that lost its name.
   midBanners: { marginTop: spacing.xs, marginBottom: spacing.md },
   seeAll: { ...typography.label, color: c.brand[600] },
 
-  hRow: { paddingHorizontal: spacing.md, gap: spacing.sm },
-  grid: { paddingHorizontal: spacing.md, gap: spacing.sm },
+  // 12 between siblings, 16 to the page edge. They were both 8, which is the
+  // gap that makes a rail read as one striped block instead of as cards.
+  hRow: { paddingHorizontal: spacing.md, gap: 12, paddingVertical: 2 },
+  grid: { paddingHorizontal: spacing.md, gap: 12 },
+  tailCard: { paddingHorizontal: spacing.md },
   empty: { ...typography.small, color: c.gray[400], paddingVertical: spacing.md },
 
-  shopCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    width: 240,
+  // ── Rail card ────────────────────────────────────────────────────
+  // 264, not 240: the cover band needs to read as a picture rather than as a
+  // stripe, and two-thirds of a third card peeking in at the right edge is
+  // what tells a thumb the rail scrolls.
+  railCard: {
+    width: 264,
     backgroundColor: c.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: c.border,
-    padding: spacing.sm,
-  },
-  shopCardWide: { width: "100%" },
-  shopClosed: { opacity: 0.55 },
-  shopLogo: {
-    width: 58,
-    height: 58,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
     overflow: "hidden",
   },
-  shopInitial: { ...typography.display, fontSize: 26 },
+  railCover: { height: 118, alignItems: "center", justifyContent: "center" },
+  railCoverImg: { width: "100%", height: "100%" },
+  railRating: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: c.surface,
+    borderRadius: 9,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  railRatingText: { ...typography.tiny, color: c.text, fontWeight: "800", fontSize: 11 },
+  railShut: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(12,7,5,0.72)",
+    paddingVertical: 4,
+  },
+  railBody: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, gap: 1 },
+  railName: { ...typography.h3, color: c.text, fontSize: 16 },
+
+  // ── Wide row ─────────────────────────────────────────────────────
+  wideCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    width: "100%",
+    backgroundColor: c.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: c.border,
+    padding: 12,
+  },
+  wideLogo: { width: 64, height: 64, borderRadius: 16, overflow: "hidden" },
+  wideLogoImg: { width: 64, height: 64 },
+  wideName: { ...typography.h3, color: c.text, fontSize: 15.5 },
+
+  shopClosed: { opacity: 0.72 },
   // Over the cover rather than beside the name: on a closed shop the cover is
   // the first thing the eye lands on, and it is the fact that decides whether
   // to read the rest.
@@ -653,15 +767,14 @@ const makeStyles = (c: ThemeColors) =>
     color: "#ffffff",
     textAlign: "center",
     fontWeight: "800",
-    fontSize: 9,
+    fontSize: 9.5,
   },
   shopInfo: { flex: 1, gap: 2 },
-  shopName: { ...typography.label, color: c.text, fontSize: 15 },
-  shopMeta: { ...typography.tiny, color: c.gray[500] },
+  shopMeta: { ...typography.tiny, color: c.textMuted },
 
   // Deals carousel
   dealCard: {
-    width: 168,
+    width: 176,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,
@@ -669,27 +782,18 @@ const makeStyles = (c: ThemeColors) =>
     overflow: "hidden",
   },
   dealImgWrap: {
-    height: 108,
+    height: 124,
     backgroundColor: c.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
   },
   dealImg: { width: "100%", height: "100%" },
   dealInitial: { fontSize: 40, fontWeight: "800", letterSpacing: -1 },
-  offBadge: {
-    position: "absolute",
-    left: 8,
-    top: 8,
-    backgroundColor: c.brand[500],
-    borderRadius: radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  offBadgeText: { ...typography.tiny, color: c.white, fontWeight: "700", fontSize: 10 },
-  dealBody: { padding: spacing.sm, gap: 2 },
-  dealName: { ...typography.label, color: c.text, fontSize: 14 },
-  dealPriceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  dealPrice: { ...typography.label, color: c.brand[600], fontSize: 14 },
-  dealStrike: { ...typography.tiny, color: c.gray[400], textDecorationLine: "line-through" },
+  // Position only — `OfferBadge` owns its own fill, and that fill is AMBER.
+  // It was `brand[500]`, which is the colour of every button in this app, on a
+  // label nobody can press, sitting on a photograph.
+  offBadge: { position: "absolute", left: 8, top: 8 },
+  dealBody: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, gap: 3 },
+  dealName: { ...typography.label, color: c.text, fontSize: 14.5 },
   dealShop: { ...typography.tiny, color: c.gray[500] },
 });

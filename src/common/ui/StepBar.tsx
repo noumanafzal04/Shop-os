@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { radius, type ThemeColors, typography, useColors } from "../../theme";
+import { type ThemeColors, typography, useColors } from "../../theme";
 
 /**
  * Order-flow progress: ① Menu ── ② Cart ── ③ Checkout.
@@ -38,7 +38,7 @@ const makeStyles = (c: ThemeColors) =>
   dot: {
     width: 26,
     height: 26,
-    borderRadius: radius.full,
+    borderRadius: 13,
     backgroundColor: c.surfaceAlt,
     borderWidth: 1,
     borderColor: c.border,

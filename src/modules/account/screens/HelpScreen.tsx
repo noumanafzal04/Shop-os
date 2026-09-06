@@ -84,6 +84,18 @@ const TOPICS: Topic[] = [
     a: "It is at the foot of the Account page, under App. Worth reading out if you are reporting something that looks wrong \u2014 it is how we know whether the problem is already fixed in a newer build.",
   },
   {
+    q: "What does the crossed-out price mean?",
+    a: "The shop is running a sale. The bold price is what you pay; the one struck through beside it is what the item normally costs, and the amber tag on the picture says how much is off. If there is no struck-through price, the item is at its normal price — a shop cannot show a discount it is not giving.",
+  },
+  {
+    q: "Where is my order right now?",
+    a: "Open Orders. Anything still moving sits at the top under Ongoing, with a bar showing how far along it is — placed, accepted, being prepared, ready, on the way. Tap it to follow the rider on the map and to see the four digits they will ask for at the door.",
+  },
+  {
+    q: "Why does my basket empty when I add something from another shop?",
+    a: "One order goes to one shop, so it can be prepared and brought in one delivery. The app always asks before it clears the basket, and pressing Keep my basket leaves it exactly as it was.",
+  },
+  {
     q: "Can I deliver orders myself?",
     a: "Yes. Open the menu and tap Become a rider — it is the same account you shop with, so there is nothing new to install. You choose your vehicle, photograph your CNIC and licence, and send it in. Somebody checks it, usually within a day. Once you are approved a Rider mode appears in the same menu: go online when you want to work, take deliveries near you, and go offline when you are done.",
   },
@@ -165,7 +177,7 @@ const makeStyles = (c: ThemeColors) =>
     back: {
       width: 38,
       height: 38,
-      borderRadius: radius.full,
+      borderRadius: 19,
       backgroundColor: c.surfaceAlt,
       alignItems: "center",
       justifyContent: "center",

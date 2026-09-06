@@ -1,3 +1,5 @@
+import { useTheme } from "../../theme";
+
 /**
  * What a shop looks like before it has uploaded a photograph.
  *
@@ -9,8 +11,28 @@
  * where every cover is the same pale tint reads as a page that failed to load,
  * which is exactly how the home screen looked.
  *
- * The tones stay inside the brand's own family — reds, ambers, a warm ink —
- * so the variety is a texture rather than a second design.
+ * ── The correction: variety came at the cost of weight ────────────────
+ *
+ * The first set of six was drawn from the palette's FILLS — #E94E00, #983405,
+ * #221711 among them. Each is correct on its own and the set was wrong
+ * together, because on a marketplace almost nobody has uploaded a logo yet:
+ * two shops in every six came out as a near-black block, and the home screen —
+ * a light screen, on a light theme — read as a dark app. The complaint,
+ * verbatim: "cards py bht dark color use kia huwa jinki images ni".
+ *
+ * A placeholder is standing in for a photograph, and its job is to be
+ * DISTINGUISHABLE, not to be loud. So the weight moved off the ground and onto
+ * the letter: six light grounds far enough apart in hue that a grid still has
+ * texture, each with a saturated ink that carries the identity. Nothing here
+ * is darker than the page it sits on.
+ *
+ * ── And it follows the theme now ──────────────────────────────────────
+ *
+ * The old tones were literal hexes shared by both themes, so the same block
+ * that was too dark on white was a glare on near-black. Six pale washes on a
+ * dark page would be worse. The dark set below is the same six hues at the
+ * other end: deep muted grounds with a light ink, so a placeholder reads as
+ * part of the card rather than as a hole in it.
  *
  * ── Why it is derived and not stored ──────────────────────────────────
  *
@@ -29,16 +51,31 @@ export interface ShopCover {
 /**
  * Six grounds, each with the ink that reads on it.
  *
- * Deliberately unequal in lightness: six tints of one weight would give the
- * variety without the texture, and the grid would still look flat.
+ * Spread by HUE rather than by lightness. The previous set varied lightness on
+ * purpose, for texture, and that is what made a third of the grid dark; six
+ * tints of one weight in six different hues gives the same "these are
+ * different things" reading without any of them being heavy.
+ *
+ * Every pairing below is at least 6:1, which is the level a single large
+ * letter needs and comfortably above the 4.5:1 floor.
  */
-const TONES: ShopCover[] = [
-  { bg: "#E94E00", fg: "#FFFFFF" }, // the brand
-  { bg: "#FB7331", fg: "#3A1A00" }, // the accent
-  { bg: "#EBC249", fg: "#3A2A00" }, // amber
-  { bg: "#80B931", fg: "#1E2E08" }, // green
-  { bg: "#983405", fg: "#FFE4D3" }, // deep
-  { bg: "#221711", fg: "#FFC3A2" }, // ink
+const LIGHT: ShopCover[] = [
+  { bg: "#ffd9c2", fg: "#8f2e00" }, // peach — the brand's own hue
+  { bg: "#ffe9cc", fg: "#8a4a00" }, // apricot
+  { bg: "#faeec0", fg: "#6a5000" }, // amber
+  { bg: "#dfefc4", fg: "#3f5f12" }, // olive
+  { bg: "#ffdcd2", fg: "#9a2f16" }, // clay
+  { bg: "#ece2da", fg: "#5b483b" }, // sand
+];
+
+/** The same six, for a near-black page: deep ground, light ink. */
+const DARK: ShopCover[] = [
+  { bg: "#3a2318", fg: "#ffb894" },
+  { bg: "#3b2a14", fg: "#f5c98a" },
+  { bg: "#332d12", fg: "#ebd37e" },
+  { bg: "#232d14", fg: "#b9d97f" },
+  { bg: "#3a211a", fg: "#ffaf98" },
+  { bg: "#2b2420", fg: "#d5c4b6" },
 ];
 
 /**
@@ -54,9 +91,28 @@ function hash(slug: string): number {
   return Math.abs(h);
 }
 
-export function shopCover(slug: string | null | undefined): ShopCover {
-  if (!slug) return TONES[0];
-  return TONES[hash(slug) % TONES.length];
+/**
+ * The cover for a seed.
+ *
+ * `dark` is a parameter rather than a hook so the function stays callable from
+ * a test and from a `renderItem` closure. Screens should use `useShopCover()`
+ * below, which supplies it from the theme.
+ */
+export function shopCover(slug: string | null | undefined, dark = false): ShopCover {
+  const tones = dark ? DARK : LIGHT;
+  if (!slug) return tones[0];
+  return tones[hash(slug) % tones.length];
+}
+
+/**
+ * The cover function, already told which theme it is in.
+ *
+ * Returned as a function rather than a value because one screen draws covers
+ * for a list — a hook per row is not available inside `renderItem`.
+ */
+export function useShopCover(): (slug: string | null | undefined) => ShopCover {
+  const { isDark } = useTheme();
+  return (slug) => shopCover(slug, isDark);
 }
 
 /** The letter drawn on the cover when a shop has no logo. */

@@ -4,7 +4,7 @@ import { ArrowUpLeft, Package, Store, Tag } from "lucide-react-native";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { money } from "../../../common/format";
-import { shopCover, shopInitial } from "../shopCover";
+import { shopInitial, useShopCover } from "../shopCover";
 import { spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import type { SearchResult } from "../services/marketplaceService";
 
@@ -123,6 +123,7 @@ interface Props {
 
 export function SearchSuggestions({ suggestions, onPick, onFill }: Props) {
   const c = useColors();
+  const coverFor = useShopCover();
   const styles = React.useMemo(() => makeStyles(c), [c]);
 
   if (suggestions.length === 0) return null;
@@ -130,7 +131,7 @@ export function SearchSuggestions({ suggestions, onPick, onFill }: Props) {
   return (
     <View style={styles.wrap}>
       {suggestions.map((s) => {
-        const cover = shopCover(s.seed);
+        const cover = coverFor(s.seed);
         const Mark = s.kind === "shop" ? Store : s.kind === "category" ? Tag : Package;
 
         return (

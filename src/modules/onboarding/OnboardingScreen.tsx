@@ -248,7 +248,7 @@ const makeStyles = (c: ThemeColors) =>
     },
 
     dots: { flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: spacing.md },
-    dot: { width: 7, height: 7, borderRadius: radius.full, backgroundColor: c.border },
+    dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.border },
     // A pill, not a bigger circle: the active step reads as "further along"
     // rather than merely "selected".
     dotOn: { width: 22, backgroundColor: c.primary },

@@ -12,7 +12,7 @@ import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useUniversalSearch } from "../hooks/useMarketplace";
 import { formatDistance } from "../shopFacts";
-import { money } from "../../../common/format";
+import { Price } from "../../../common/ui/Price";
 import { prefs } from "../../../common/utils/prefs";
 import { SHORTCUTS } from "../tradeIcon";
 import {
@@ -318,10 +318,7 @@ export function SearchScreen() {
                         {p.distance_km != null ? ` · ${formatDistance(p.distance_km)}` : ""}
                       </Text>
                     </View>
-                    <View style={styles.priceWrap}>
-                      <Text style={styles.price}>{money(p.price)}</Text>
-                      {p.original_price != null && <Text style={styles.strike}>{money(p.original_price)}</Text>}
-                    </View>
+                    <Price value={p.price} was={p.original_price} size="md" />
                   </Touchable>
                 ))}
               </View>
@@ -409,7 +406,7 @@ const makeStyles = (c: ThemeColors) =>
   back: {
     width: 40,
     height: 40,
-    borderRadius: radius.full,
+    borderRadius: 20,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,
@@ -533,9 +530,6 @@ const makeStyles = (c: ThemeColors) =>
   rowInfo: { flex: 1, gap: 2 },
   rowTitle: { ...typography.label, color: c.text, fontSize: 15 },
   rowMeta: { ...typography.tiny, color: c.gray[500] },
-  priceWrap: { alignItems: "flex-end" },
-  price: { ...typography.label, color: c.brand[600] },
-  strike: { ...typography.tiny, color: c.gray[400], textDecorationLine: "line-through" },
   rating: { flexDirection: "row", alignItems: "center", gap: 3 },
   ratingText: { ...typography.tiny, color: c.gray[600] },
 

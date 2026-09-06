@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { ArrowLeft, Menu } from "lucide-react-native";
-import { radius, spacing, type ThemeColors, typography, useColors } from "../../theme";
+import { spacing, type ThemeColors, typography, useColors } from "../../theme";
 
 /**
  * The header every pushed screen wears: a way back, a title, and room on the
@@ -105,7 +105,7 @@ const makeStyles = (c: ThemeColors) =>
     back: {
       width: 38,
       height: 38,
-      borderRadius: radius.full,
+      borderRadius: 19,
       backgroundColor: c.surfaceAlt,
       alignItems: "center",
       justifyContent: "center",

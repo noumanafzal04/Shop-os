@@ -359,7 +359,7 @@ const makeStyles = (c: ThemeColors) =>
   back: {
     width: 40,
     height: 40,
-    borderRadius: radius.full,
+    borderRadius: 20,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,
@@ -405,7 +405,7 @@ const makeStyles = (c: ThemeColors) =>
   dot: {
     width: 22,
     height: 22,
-    borderRadius: radius.full,
+    borderRadius: 11,
     borderWidth: 2,
     borderColor: c.border,
     backgroundColor: c.surface,

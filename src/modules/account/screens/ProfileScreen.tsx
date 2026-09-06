@@ -218,7 +218,7 @@ const makeStyles = (c: ThemeColors) =>
     back: {
       width: 38,
       height: 38,
-      borderRadius: radius.full,
+      borderRadius: 19,
       backgroundColor: c.surfaceAlt,
       alignItems: "center",
       justifyContent: "center",
