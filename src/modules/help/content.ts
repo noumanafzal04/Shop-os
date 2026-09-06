@@ -1143,6 +1143,16 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ],
       },
       { type: "note", text: "The aisle has its own search box now, so a shopper who arrived from a shortcut \u2014 Offers, Pharmacy \u2014 can type a word without losing the filters they already set." },
+      { type: "h", text: "Being findable at nine in the evening" },
+      { type: "p", text: "The aisle can now be narrowed to shops that are OPEN and to ones that do not charge for delivery \u2014 two questions a hungry customer asks that no product filter could answer. Both read your own settings: your business hours decide the first, and your delivery fee the second." },
+      {
+        type: "list",
+        items: [
+          "Hours you have not filled in mean ALWAYS OPEN, not closed \u2014 so a shop with no schedule is never hidden by this filter. If yours closes, set the hours; if it does not, leave them.",
+          "\u201cFree delivery\u201d needs a zero fee AND delivery switched on. A pickup-only shop also has a fee of zero and is deliberately left out \u2014 the app will not promise a delivery you do not make.",
+          "A customer can also search your CATEGORY names inside the filter panel once you have more than ten, so what you call an aisle is what gets it found.",
+        ],
+      },
       { type: "h", text: "How your sale price is shown" },
       { type: "p", text: "Set a sale price on a product and the phone app draws the pair everywhere it appears: the price you are charging in bold, your normal price struck through beside it, and an amber tag on the picture saying how much is off. Nothing needs switching on \u2014 it follows the product." },
       {
