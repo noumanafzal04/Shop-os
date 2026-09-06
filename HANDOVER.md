@@ -7214,3 +7214,32 @@ file it was born in; and the skeleton orphan guard could not tell a hook from a
 placeholder.
 
 Mobile tsc 0, eslint 0 errors, 40 suites / 502 tests.
+
+**The rating was on the card twice.** It led `shopFacts()` and sat in a chip
+beside the shop's name — the same number three inches apart at two sizes. The
+chip stayed, because it is the one that can be COMPARED: pinned right, four
+shops' ratings line up in a column. `RatingChip` is now the only place it is
+drawn, and every card has one.
+
+**The facts line stopped being a sentence.** `4.5 · 25 min · Rs 150 delivery`
+at 11pt — three different KINDS of thing run together by the weakest separator
+there is. Each fact has its own mark and its own space, and the row wraps
+rather than clipping "Rs 150 deliv" mid-word.
+
+**The overlay everybody opens was the one that behaved differently.** Every
+other overlay is one `Animated` value on the native driver with a spring and a
+drag; `ProductSheet` was `<Modal animationType="slide">` — on the interaction
+that happens most. It is the shared `BottomSheet` now. The confirm dialog had
+the same fault, which is worse there: that is what somebody sees at the moment
+they are asked to destroy something.
+
+**A shop menu is read whole.** The screen asked for page one of an endpoint
+that pages at twenty, so a thirty-item menu had ten items unreachable by any
+gesture. The category chips were a filter — pressing "Burgers" refetched and
+the rest of the menu vanished over the network. The menu is ordered by category
+server-side (by a correlated subquery, because joining `categories` makes the
+tenant fence ambiguous), the app loads all of it, and the chips scroll to a
+section and light up as you pass it.
+
+Backend 2659 (exit 0) · mobile tsc 0, eslint 0 errors, 41 suites / 517 tests ·
+11 mutations, 11 caught.
