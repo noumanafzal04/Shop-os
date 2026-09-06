@@ -37,6 +37,21 @@ import {
  * `transform` and `opacity` are the only two properties this app can animate
  * off the JS thread, and both are used here for exactly that reason. A press
  * animation that stutters while a list is rendering is worse than none.
+ *
+ * ── The mistake this file made first, and what it cost ────────────────
+ *
+ * The style was put on an INNER `Animated.View` and the `Pressable` left bare,
+ * to keep the touch target from moving with the scale. That reasoning was
+ * sound and the consequence was much worse: the Pressable became a
+ * content-sized box in every flex row and grid it sat in, so `width: "48%"`
+ * on the card inside it resolved against the wrong parent and the home
+ * screen's layout collapsed.
+ *
+ * A style prop is a LAYOUT contract as much as a visual one, and a component
+ * that quietly moves it one level down is a component that cannot be dropped
+ * in where a `Pressable` was. So the element itself is animated: identical
+ * layout to what it replaces, and three per cent of movement on a touch target
+ * is not something a finger notices.
  */
 
 interface Props extends Omit<PressableProps, "style"> {
@@ -102,9 +117,11 @@ export function Touchable({
   );
 
   return (
-    <Pressable
+    <AnimatedPressable
       {...rest}
       disabled={disabled}
+      // The style stays exactly where a `Pressable` would have put it.
+      style={[style, { opacity: dim, transform: [{ scale }] }]}
       onPressIn={(e) => {
         if (!disabled) {
           press(scaleTo, 0.9, false);
@@ -119,16 +136,16 @@ export function Touchable({
         onPressOut?.(e);
       }}
     >
-      {/*
-        The animation lives on an inner view, not on the Pressable itself.
-        `Animated.createAnimatedComponent(Pressable)` works, but scaling the
-        element that owns the touch target moves the target with it — and a
-        row that shrinks under a finger then reports the finger as having
-        slid off it.
-      */}
-      <Animated.View style={[style, { opacity: dim, transform: [{ scale }] }]}>
-        {children}
-      </Animated.View>
-    </Pressable>
+      {children}
+    </AnimatedPressable>
   );
 }
+
+/**
+ * Created once, at module scope.
+ *
+ * `Animated.createAnimatedComponent` inside the component body returns a NEW
+ * component type on every render, and React then unmounts and remounts the
+ * whole subtree each time — which on a list is every card, every frame.
+ */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

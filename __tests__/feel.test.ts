@@ -72,6 +72,41 @@ describe("a card or a row reacts to being pressed", () => {
     expect(offenders.join("\n")).toBe("");
   });
 
+  it("keeps the style prop where a Pressable would have put it", () => {
+    /**
+     * THE REGRESSION THIS EXISTS BECAUSE OF.
+     *
+     * `Touchable` first put the caller's style on an INNER `Animated.View` and
+     * left the `Pressable` bare — sound reasoning about touch targets, and it
+     * broke the home screen. A bare Pressable is a content-sized box in every
+     * flex row and grid it sits in, so `width: "48%"` on the card inside it
+     * resolved against the wrong parent and the layout collapsed.
+     *
+     * A style prop is a LAYOUT contract as much as a visual one. A drop-in
+     * replacement for `Pressable` that moves it one level down is not a
+     * drop-in replacement.
+     */
+    const src = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/Touchable.tsx"), "utf8"));
+
+    // The style and the animation land on the SAME element.
+    expect(src).toMatch(/<AnimatedPressable[\s\S]*?style=\{\[style,\s*\{\s*opacity: dim/);
+    // …and nothing wraps the children in a second layout box.
+    expect(src).not.toMatch(/<Animated\.View style=\{\[style/);
+  });
+
+  it("does not rebuild its animated component on every render", () => {
+    // `createAnimatedComponent` inside the body returns a new component TYPE
+    // each render, and React unmounts and remounts the whole subtree — on a
+    // list, that is every card, every frame.
+    const src = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/Touchable.tsx"), "utf8"));
+    const at = src.indexOf("createAnimatedComponent");
+    const fn = src.indexOf("export function Touchable");
+
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBeGreaterThan(fn); // declared after the component, at module scope
+    expect(src).toMatch(/^const AnimatedPressable = Animated\.createAnimatedComponent/m);
+  });
+
   it("uses the shared one rather than a fresh copy of the animation", () => {
     // Six screens each springing their own `Animated.Value` on press is six
     // curves that will drift apart. One component owns the feel.
