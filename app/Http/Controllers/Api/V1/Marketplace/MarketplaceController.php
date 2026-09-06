@@ -15,6 +15,7 @@ use App\Support\Geo;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -775,13 +776,83 @@ class MarketplaceController extends Controller
             })
             ->values();
 
+        $nearbyShops = $nearby->limit(12)->get();
+
         return ApiResponse::ok([
             'banners' => $banners,
-            'nearby' => $serialize($nearby->limit(12)->get()),
+            'nearby' => $this->withPreviews($serialize($nearbyShops), $nearbyShops),
             'top_rated' => $serialize($topRated),
             'deals' => $deals,
             'business_types' => $types,
         ]);
+    }
+
+    /**
+     * A FEW OF EACH SHOP'S ITEMS, ON THE SHOP'S OWN CARD.
+     *
+     * A row of shop names is a directory. A card that shows three of the things
+     * the shop actually sells is a reason to tap it — and it is how somebody
+     * decides between two burger places without opening either.
+     *
+     * ── One query for all of them ────────────────────────────────────
+     *
+     * Not one per shop. Twelve shops on a home screen is twelve round trips
+     * that each look cheap, and the home feed is the single most requested
+     * endpoint in the product. So this fetches for every shop at once and
+     * groups in PHP, capped so a shop with four thousand items cannot drag the
+     * whole page down.
+     *
+     * ── Discounted first ─────────────────────────────────────────────
+     *
+     * Given four slots, the four worth showing are the ones with a price cut on
+     * them. A shop with nothing on offer falls back to its newest, which is the
+     * next most useful thing a card can say about a shop.
+     *
+     * @param  Collection<int, array<string, mixed>>  $serialized
+     * @param  Collection<int, Tenant>  $shops
+     */
+    private function withPreviews($serialized, $shops)
+    {
+        $ids = $shops->pluck('id');
+        if ($ids->isEmpty()) {
+            return $serialized;
+        }
+
+        $bySlug = $shops->keyBy('id');
+
+        $products = Product::withoutTenancy()
+            ->whereIn('tenant_id', $ids)
+            ->where('is_active', true)
+            ->where('visible_in_marketplace', true)
+            ->with('images')
+            ->orderByRaw('discount_price IS NULL')
+            ->orderByDesc('created_at')
+            // A hard ceiling rather than per-shop paging: the grouping below
+            // takes four each, and this only has to be enough that every shop
+            // is represented.
+            ->limit($ids->count() * 10)
+            ->get()
+            ->groupBy('tenant_id');
+
+        return $serialized->map(function (array $shop) use ($products, $bySlug) {
+            $tenantId = $bySlug->firstWhere('slug', $shop['slug'])?->id;
+
+            $shop['preview_products'] = collect($products[$tenantId] ?? [])
+                ->take(4)
+                ->map(fn (Product $p) => [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'price' => $p->sellingPrice(),
+                    // Only when there IS a cut — a strike-through against the
+                    // same number is a discount badge that lies.
+                    'original_price' => $p->sellingPrice() < (float) $p->price ? (float) $p->price : null,
+                    'image' => $p->images->first()?->url,
+                ])
+                ->values()
+                ->all();
+
+            return $shop;
+        });
     }
 
     private function publicShop(Tenant $tenant, bool $detailed = false): array

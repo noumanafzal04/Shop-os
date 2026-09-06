@@ -281,4 +281,66 @@ class MarketplaceTest extends TestCase
         $this->actingAsUser($owner)->getJson('/api/v1/customer/favorites')
             ->assertStatus(403);
     }
+
+    public function test_a_shop_on_the_home_screen_carries_a_few_of_its_own_items(): void
+    {
+        // A row of shop names is a directory. A card showing three of the
+        // things the shop actually sells is a reason to tap it — and it is how
+        // somebody chooses between two burger places without opening either.
+        $shop = Tenant::factory()->create([
+            'online_shop_enabled' => true, 'setup_completed' => true,
+            'business_type' => 'grocery', 'features' => BusinessTypes::defaultFeatures('grocery'),
+        ]);
+
+        foreach ([['Rice', 900, null], ['Sugar', 300, 240], ['Tea', 700, null], ['Oil', 1200, 999], ['Salt', 80, null], ['Flour', 500, null]] as [$name, $price, $cut]) {
+            Product::withoutTenancy()->create([
+                'tenant_id' => $shop->id, 'type' => 'product', 'item_type' => 'physical_product',
+                'name' => $name, 'price' => $price, 'discount_price' => $cut,
+                'is_active' => true, 'visible_in_marketplace' => true,
+            ]);
+        }
+
+        $nearby = $this->getJson('/api/v1/marketplace/home')
+            ->assertOk()
+            ->json('data.nearby');
+
+        $card = collect($nearby)->firstWhere('slug', $shop->slug);
+        $this->assertNotNull($card);
+
+        // FOUR, not six: a card is a glance, not a catalogue.
+        $this->assertCount(4, $card['preview_products']);
+
+        // Discounted first — given four slots, the ones worth showing are the
+        // ones with a price cut on them.
+        $names = collect($card['preview_products'])->pluck('name')->all();
+        $this->assertContains('Sugar', $names);
+        $this->assertContains('Oil', $names);
+
+        $sugar = collect($card['preview_products'])->firstWhere('name', 'Sugar');
+        $this->assertSame(240.0, (float) $sugar['price']);
+        $this->assertSame(300.0, (float) $sugar['original_price']);
+
+        // …and a full-price item carries NO original price. A strike-through
+        // against the same number is a discount badge that lies.
+        $rice = collect($card['preview_products'])->firstWhere('name', 'Rice');
+        if ($rice !== null) {
+            $this->assertNull($rice['original_price']);
+        }
+    }
+
+    public function test_a_shop_with_nothing_listed_still_gets_a_card(): void
+    {
+        // An empty preview is an empty array, not a missing key — a card that
+        // has to check whether the field exists is a card that will one day
+        // forget.
+        $shop = Tenant::factory()->create([
+            'online_shop_enabled' => true, 'setup_completed' => true,
+            'business_type' => 'grocery', 'features' => BusinessTypes::defaultFeatures('grocery'),
+        ]);
+
+        $card = collect($this->getJson('/api/v1/marketplace/home')->assertOk()->json('data.nearby'))
+            ->firstWhere('slug', $shop->slug);
+
+        $this->assertSame([], $card['preview_products']);
+    }
 }
