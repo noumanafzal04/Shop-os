@@ -1,6 +1,6 @@
 import { failed } from "../../common/api/failed";
 import { useToast } from "../../components/ui/toast";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { Dropdown } from "../ui/dropdown/Dropdown";
@@ -11,7 +11,7 @@ import {
   type AppNotification,
 } from "../../modules/notifications/hooks/useNotifications";
 import { screenForLink } from "../../modules/notifications/deepLink";
-import { useAuthStore } from "../../stores/authStore";
+import { useCan } from "../../stores/useCan";
 
 /** Relative "time ago" without pulling in a date library. */
 function timeAgo(iso: string): string {
@@ -48,14 +48,9 @@ export default function NotificationDropdown() {
 
   const closeDropdown = () => setIsOpen(false);
 
-  // Mirrors authStore.hasPermission, the same way the sidebar does it: an owner
-  // holds everything, a staff member holds what they were given.
-  const role = useAuthStore((s) => s.user?.role);
-  const permissions = useAuthStore((s) => s.user?.permissions);
-  const can = useCallback(
-    (permission: string) => role === "shop_owner" || (permissions?.includes(permission) ?? false),
-    [role, permissions],
-  );
+  // One copy of the rule, shared with the sidebar and with order alerts. This
+  // file used to hold its own, under a comment admitting it was a mirror.
+  const can = useCan();
 
   /**
    * Read it, and go where it points.

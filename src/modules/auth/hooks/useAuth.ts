@@ -5,6 +5,7 @@ import { authService } from "../services/authService";
 import { homeForRole } from "../../../common/routing/guards";
 import { ensureDatabaseBelongsTo } from "../../offline/db/tillOwner";
 import type { LoginPayload } from "../types";
+import { disablePush } from "../../../services/webPush";
 
 export function useLogin() {
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -36,7 +37,22 @@ export function useLogout() {
   const navigate = useNavigate();
 
   return useMutation({
-    mutationFn: () => authService.logout(),
+    /**
+     * The push token goes FIRST, while the session still exists.
+     *
+     * `DELETE /devices` needs the bearer that is about to be thrown away, and
+     * a token left registered means this browser keeps buzzing about a shop
+     * whoever is holding it has just signed out of. On a shared phone that is
+     * somebody else's orders.
+     *
+     * Awaited but never allowed to fail the sign-out: a network hiccup must
+     * not trap somebody in a session they asked to leave.
+     */
+    mutationFn: async () => {
+      await disablePush();
+
+      return authService.logout();
+    },
     // Local session dies regardless of whether the server call succeeded.
     onSettled: () => {
       clear();

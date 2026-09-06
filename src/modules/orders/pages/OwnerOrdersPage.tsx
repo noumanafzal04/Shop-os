@@ -4,6 +4,7 @@ import { Link } from "react-router";
 
 import { ApiError } from "../../../common/types/api";
 import PageMeta from "../../../components/common/PageMeta";
+import { OrderAlerts } from "../../notifications/OrderAlerts";
 import Alert from "../../../components/ui/alert/Alert";
 import Button from "../../../components/ui/button/Button";
 import {
@@ -175,6 +176,15 @@ export default function OwnerOrdersPage() {
   return (
     <>
       <PageMeta title="Orders | CartZe" description="Online orders" />
+
+      {/*
+        Asked for HERE, from a button, and nowhere else. A browser asks for
+        notification permission once and a dismissal is close to permanent, so
+        the request belongs on the screen where the reason is obvious rather
+        than on a page load. Renders nothing once alerts are on — and nothing
+        at all in a build with no Firebase project.
+      */}
+      <OrderAlerts />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>

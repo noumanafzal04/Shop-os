@@ -5,6 +5,7 @@ import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
 import { useMe } from "../modules/auth/hooks/useAuth";
+import { OrderAlertsListener } from "../modules/notifications/OrderAlerts";
 
 const LayoutContent: React.FC = () => {
   const { railWide, isMobileOpen } = useSidebar();
@@ -76,6 +77,12 @@ const LayoutContent: React.FC = () => {
             that was the "Shop street address" field. Reachable with a scroll,
             but a shop should not have to find that out by tapping a banner. */}
         <div className="p-4 mx-auto max-w-(--breakpoint-2xl) pb-[calc(1rem+var(--pinned-bottom,0px))] md:p-6 md:pb-[calc(1.5rem+var(--pinned-bottom,0px))]">
+          {/*
+            Listens on EVERY shop screen, not only Orders. An order arrives
+            while somebody is editing a product, and a chime that only sounds
+            on the orders page is a chime for people already looking.
+          */}
+          <OrderAlertsListener />
           <Outlet />
         </div>
       </div>
