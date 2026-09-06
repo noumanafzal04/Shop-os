@@ -147,6 +147,31 @@ export interface PublicProduct {
  * set — so a filter added on one side is a compile error on the other rather
  * than a control that silently does nothing.
  */
+/**
+ * WHAT A LIST OF SHOPS CAN BE NARROWED BY.
+ *
+ * Deliberately the same NAMES as `BrowseFilters` where they overlap —
+ * `open_now`, `free_delivery`, `rating_min`. One vocabulary, so a filter means
+ * the same thing wherever it is asked, and a shopper's choice can be carried
+ * from the shop list into the aisle without translating it.
+ *
+ * It is a separate type because the two lists answer different questions: a
+ * shop has no size and no sale price, and offering `min_price` on a list of
+ * shops would be a control with nothing behind it.
+ */
+export interface ShopQuery {
+  city_id?: string;
+  search?: string;
+  business_type?: string;
+  lat?: number;
+  lng?: number;
+  open_now?: boolean;
+  free_delivery?: boolean;
+  rating_min?: number | null;
+  sort?: "rating";
+  page?: number;
+}
+
 export interface BrowseFilters {
   q?: string;
   city_id?: string;
@@ -288,7 +313,7 @@ export const marketplaceService = {
   bannerClick: (id: string) =>
     apiPost<{ target: HomeBanner["target"] }>(`/marketplace/banners/${id}/click`),
 
-  shops: (params: { city_id?: string; search?: string; lat?: number; lng?: number; business_type?: string; page?: number }) =>
+  shops: (params: ShopQuery) =>
     apiGet<PublicShop[]>("/marketplace/shops", {
       params: {
         city_id: params.city_id || undefined,
@@ -296,6 +321,12 @@ export const marketplaceService = {
         lat: params.lat,
         lng: params.lng,
         business_type: params.business_type || undefined,
+        // Sent only when ON. A `false` on the wire is a filter the server has
+        // to decide the meaning of; an absent one is unambiguous.
+        open_now: params.open_now ? 1 : undefined,
+        free_delivery: params.free_delivery ? 1 : undefined,
+        rating_min: params.rating_min ?? undefined,
+        sort: params.sort || undefined,
         page: params.page ?? 1,
       },
     }),

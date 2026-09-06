@@ -108,3 +108,72 @@ describe("finding a category among sixty", () => {
     expect(sheet).toMatch(/No category matches/);
   });
 });
+
+/**
+ * THE SAME QUESTIONS, ON THE LIST OF SHOPS.
+ *
+ * "Grocery screen jahan sari shops list, wahan filter jo kaha tha."
+ *
+ * Open now and Free delivery went to the product AISLE first, because that is
+ * where filters were asked for. They belong on a list of shops more: the aisle
+ * is a list of things, this is a list of shops, and "is it open" is a question
+ * about a shop. Somebody on the Grocery tab at nine in the evening was reading
+ * a page of names, half of them shut, with no way to say so.
+ */
+describe("the shops list can be narrowed too", () => {
+  const bar = read("src/modules/marketplace/components/ShopFilters.tsx");
+  const screen = read("src/modules/marketplace/screens/MarketScreen.tsx");
+  const svc = read("src/modules/marketplace/services/marketplaceService.ts");
+
+  it("offers the three questions a shop can answer", () => {
+    expect(bar).toMatch(/label="Open now"/);
+    expect(bar).toMatch(/label="Free delivery"/);
+    expect(bar).toMatch(/label="4★ and up"/);
+  });
+
+  it("uses the SAME parameter names the aisle uses", () => {
+    // One vocabulary, so a filter means the same thing wherever it is asked —
+    // and a shopper's choice could be carried between the two screens without
+    // being translated on the way.
+    for (const key of ["open_now", "free_delivery", "rating_min"]) {
+      expect(`${key}: ${bar.includes(key)}`).toBe(`${key}: true`);
+    }
+  });
+
+  it("sends them to the server rather than filtering the page it has", () => {
+    // The list pages. Filtering what happens to be loaded would hide shops
+    // that are open and further down.
+    expect(svc).toMatch(/open_now: params\.open_now \? 1 : undefined/);
+    expect(svc).toMatch(/free_delivery: params\.free_delivery \? 1 : undefined/);
+    expect(svc).toMatch(/rating_min: params\.rating_min \?\? undefined/);
+  });
+
+  it("keeps the shopper's choice apart from the screen's own", () => {
+    // The trade and the pin are what the SCREEN decided; a filter must never
+    // be able to clear those.
+    expect(screen).toMatch(/const \[filters, setFilters\] = useState<ShopQuery>\(\{\}\)/);
+    expect(screen).toMatch(/\.\.\.filters,\s*search: debounced,\s*business_type: businessType,/);
+  });
+
+  it("sits outside the list, not in its header", () => {
+    // It stays put while the list scrolls, which is what a filter bar is for
+    // — and a header row inside a virtualised list is the shape that crashed
+    // the shop page twice.
+    const before = screen.slice(0, screen.indexOf("<FlatList"));
+    expect(before).toMatch(/<ShopFilters value=\{filters\} onChange=\{setFilters\} \/>/);
+  });
+
+  it("does not offer a shop a control only a product has", () => {
+    // A shop has no size and no sale price. Reusing the aisle's bar would have
+    // meant a control with nothing behind it, which is the thing this app
+    // keeps finding and deleting.
+    // Matched against how a FILTER is written — `value.x` and `set({ x` —
+    // rather than the bare word: `\bsize\b` also matches `size={13}` on an
+    // icon, which is an assertion about nothing.
+    for (const key of ["min_price", "max_price", "size", "on_sale"]) {
+      expect(`${key}: ${new RegExp(`value\\.${key}\\b|set\\(\\{ ${key}\\b`).test(bar)}`).toBe(
+        `${key}: false`,
+      );
+    }
+  });
+});

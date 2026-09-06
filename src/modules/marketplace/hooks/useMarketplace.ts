@@ -10,6 +10,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import {
   marketplaceService,
   type BrowseFilters,
+  type ShopQuery,
   type RegisterPayload,
 } from "../services/marketplaceService";
 
@@ -38,7 +39,7 @@ export function useUniversalSearch(q: string, params: { lat?: number; lng?: numb
  * ninety shops showed twenty and stopped, with nothing on screen to say the
  * other seventy existed.
  */
-export function useMarketShops(params: { city_id?: string; search?: string; lat?: number; lng?: number; business_type?: string }) {
+export function useMarketShops(params: ShopQuery) {
   return useInfiniteQuery({
     queryKey: ["market", "shops", params],
     queryFn: ({ pageParam }) => marketplaceService.shops({ ...params, page: pageParam }),

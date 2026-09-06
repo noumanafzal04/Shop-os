@@ -23,6 +23,7 @@ import { Touchable } from "../../../common/ui/Touchable";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { sameTrade } from "../tradeIcon";
+import { ShopFilters } from "../components/ShopFilters";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { ShopFactsRow } from "../components/ShopFactsRow";
 import { RatingChip } from "../components/RatingChip";
@@ -33,7 +34,7 @@ import { radius, spacing, type ThemeColors, typography, useColors } from "../../
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useHomeFeed, useMarketShops } from "../hooks/useMarketplace";
-import type { PublicShop } from "../services/marketplaceService";
+import type { PublicShop, ShopQuery } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 
 const typeLabel = (t: string | null) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : "Shop");
@@ -57,7 +58,16 @@ export function MarketScreen() {
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search, 350);
 
+  /**
+   * WHAT THE SHOPPER NARROWED IT TO.
+   *
+   * Kept apart from the base query — the trade and the pin are what the SCREEN
+   * decided, and a Reset must never clear those. Same split the aisle uses.
+   */
+  const [filters, setFilters] = useState<ShopQuery>({});
+
   const shops = useMarketShops({
+    ...filters,
     search: debounced,
     business_type: businessType,
     lat: lat ?? undefined,
@@ -110,6 +120,15 @@ export function MarketScreen() {
           />
         </View>
       </View>
+
+      {/*
+        ── NARROWING A LIST OF SHOPS ──────────────────────────────
+
+        Outside the list, not in its header: it stays put while the list
+        scrolls, which is what a filter bar is for — and a header row inside a
+        virtualised list is the shape that crashed the shop page twice today.
+      */}
+      <ShopFilters value={filters} onChange={setFilters} />
 
       {/* ── Body ──────────────────────────────────────────────────── */}
       <FlatList
