@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Appearance } from "react-native";
-import { riderThemes, themes, type ThemeColors, type ThemeName } from "./themes";
+import { emberThemes, leafThemes, type ThemeColors, type ThemeName } from "./themes";
 import { useModeStore } from "../stores/modeStore";
 import { radius, shadow, spacing, typography } from "./tokens";
 
@@ -67,8 +67,13 @@ export function ThemeProvider({
   /**
    * WHICH HALF OF THE APP IS ON SCREEN.
    *
-   * The mode swaps the whole navigator, and now it swaps the palette with it:
-   * the shopping side is the brand's red-orange, the working side is green.
+   * The mode swaps the whole navigator, and it swaps the palette with it.
+   *
+   * SHOPPING IS GREEN and working is the brand's red-orange — the way round
+   * they were chosen after seeing both on a phone. The palettes are named for
+   * their colours rather than their side precisely so this line can be turned
+   * over without every name becoming wrong.
+   *
    * Read here rather than threaded through every screen, because a colour that
    * some screens knew about and others did not would be worse than one colour.
    *
@@ -80,7 +85,7 @@ export function ThemeProvider({
 
   const value = useMemo<ThemeContextValue>(() => {
     const name = resolve(preference, system);
-    const palette = mode === "rider" ? riderThemes : themes;
+    const palette = mode === "rider" ? emberThemes : leafThemes;
 
     return {
       name,
@@ -99,6 +104,26 @@ export function ThemeProvider({
   }, [preference, system, mode, onPreferenceChange]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
+/**
+ * THE COLOURS OF THE HALF OF THE APP YOU ARE NOT IN.
+ *
+ * For the two controls whose whole job is to take somebody to the other side:
+ * "Deliver with CartZe" on the account page, and the mode switch in the menu.
+ * A control that leads somewhere ought to look like where it leads — pressing
+ * an orange button and arriving in an orange app is the switch explaining
+ * itself before it is pressed.
+ *
+ * Deliberately narrow. This is not a way for any screen to reach for a second
+ * palette; two colours on a page is a page with no accent. Two controls use
+ * it, and both of them are doors.
+ */
+export function useOppositeColors(): ThemeColors {
+  const { name } = useTheme();
+  const mode = useModeStore((s) => s.mode);
+
+  return (mode === "rider" ? leafThemes : emberThemes)[name];
 }
 
 /**

@@ -190,8 +190,18 @@ export function BottomSheet({
         >
           <View {...pan.panHandlers}>
             <View style={styles.grabber} />
-            {(title || action) && (
-              <View style={styles.head}>
+            {/*
+              THE CROSS IS ALWAYS THERE.
+
+              This header only rendered when a sheet had a `title` or an
+              `action` — so the product sheet, which has neither, could be left
+              by dragging it down or tapping the dark behind it and by nothing
+              else. Both are gestures somebody has to already know.
+
+              A grabber is a hint; a cross is a control. It costs 30 points in
+              a corner nothing else wants.
+            */}
+            <View style={styles.head}>
                 <Text style={styles.title} numberOfLines={1}>
                   {title}
                 </Text>
@@ -207,8 +217,7 @@ export function BottomSheet({
                     <XIcon size={17} color={c.textSecondary} />
                   </Pressable>
                 </View>
-              </View>
-            )}
+            </View>
           </View>
 
           {children}
@@ -255,7 +264,11 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      // 6, not `spacing.sm`: with no title this row is just the cross, and a
+      // sheet that opens with an empty bar above its content has spent the
+      // space a photograph wanted.
+      paddingTop: 6,
+      paddingBottom: spacing.sm,
       gap: spacing.sm,
     },
     title: { ...typography.h3, color: c.text, flex: 1 },

@@ -111,14 +111,26 @@ describe("the provider follows the mode", () => {
 
   afterEach(() => useModeStore.setState({ mode: "customer", switching: false, target: null }));
 
-  it("paints the shopping side in the brand", async () => {
+  it("paints the shopping side green", async () => {
+    // Which side wears which was turned over after seeing both on a phone.
+    // The palettes are named for their COLOURS — `ember`, `leaf` — so this is
+    // the only line that decides it, and it can move again without a rename.
     useModeStore.setState({ mode: "customer" });
+    expect(await paint()).toBe(riderLightColors.primary);
+  });
+
+  it("paints the working side in the brand's red-orange", async () => {
+    useModeStore.setState({ mode: "rider" });
     expect(await paint()).toBe(lightColors.primary);
   });
 
-  it("paints the working side in the rider's own colour", async () => {
+  it("gives the two sides genuinely different colours, whichever way round", async () => {
+    // The rule that survives the swap: two navigators that look identical is a
+    // rider who is not certain which one they are in.
+    useModeStore.setState({ mode: "customer" });
+    const shopping = await paint();
     useModeStore.setState({ mode: "rider" });
-    expect(await paint()).toBe(riderLightColors.primary);
+    expect(await paint()).not.toBe(shopping);
   });
 });
 

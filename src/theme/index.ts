@@ -1,8 +1,16 @@
 export { brand, cream, gray, ink, radius, shadow, spacing, typography, warm, type ColorScale } from "./tokens";
-export { darkColors, lightColors, themes, type ThemeColors, type ThemeName } from "./themes";
+export {
+  darkColors,
+  emberThemes,
+  leafThemes,
+  lightColors,
+  type ThemeColors,
+  type ThemeName,
+} from "./themes";
 export {
   ThemeProvider,
   useColors,
+  useOppositeColors,
   useTheme,
   type Theme,
   type ThemePreference,

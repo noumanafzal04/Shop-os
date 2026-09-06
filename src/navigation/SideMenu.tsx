@@ -34,7 +34,7 @@ import {
 } from "../common/ui/icons";
 import { confirm } from "../common/ui/confirm";
 import { Touchable } from "../common/ui/Touchable";
-import { spacing, type ThemeColors, typography, useColors } from "../theme";
+import { spacing, type ThemeColors, typography, useColors, useOppositeColors } from "../theme";
 import { useAuthStore } from "../stores/authStore";
 import { useLogout } from "../modules/auth/hooks/useAuth";
 import { useRiderProfile } from "../modules/rider/hooks/useRider";
@@ -159,6 +159,7 @@ function riderLink(profile: RiderProfile | null | undefined): { label: string; v
 
 export function SideMenu({ visible, onClose }: Props) {
   const c = useColors();
+  const other = useOppositeColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -406,11 +407,24 @@ export function SideMenu({ visible, onClose }: Props) {
           <View style={styles.footer}>
             {signedIn && (
               <Touchable
-                style={[
-                  styles.switcher,
-                  onShift && styles.switcherOn,
-                  !canRide && styles.switcherOff,
-                ]}
+                /*
+                  THE COLOUR OF WHERE IT GOES.
+
+                  This button always leads to the OTHER half of the app, so it
+                  wears that half's colour: green while you are working and
+                  about to go shopping, the brand's orange while you are
+                  shopping and about to go and work. Pressing an orange button
+                  and arriving in an orange app is the switch explaining itself
+                  before it is pressed — and it is the same rule as the
+                  "Deliver with CartZe" row on the account page.
+
+                  Which is also why the not-yet-approved state is the SAME
+                  colour rather than grey. It was grey once, on the reasoning
+                  that a control you cannot use should not shout; that is the
+                  wrong reading of what it is. This is not a disabled switch,
+                  it is an invitation, and it leads somewhere useful.
+                */
+                style={[styles.switcher, { backgroundColor: other.primary }]}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: !canRide }}
                 accessibilityLabel={
@@ -431,9 +445,9 @@ export function SideMenu({ visible, onClose }: Props) {
               >
                 <View style={styles.switcherIcon}>
                   {onShift ? (
-                    <BagIcon size={19} color={c.onPrimary} />
+                    <BagIcon size={19} color={c.white} />
                   ) : (
-                    <MotorcycleIcon size={19} color={c.onPrimary} />
+                    <MotorcycleIcon size={19} color={c.white} />
                   )}
                 </View>
                 <View style={styles.switcherCopy}>
@@ -622,21 +636,10 @@ const makeStyles = (c: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       gap: 11,
-      backgroundColor: c.success,
       borderRadius: 16,
       padding: 11,
     },
-    switcherOn: { backgroundColor: c.primary },
-    /**
-     * NOT YET APPROVED — and still the brand colour.
-     *
-     * It was grey, on the reasoning that a control you cannot use should not
-     * shout. Wrong reading of what it is: this is not a disabled switch, it is
-     * an INVITATION, and it leads somewhere useful — the application. Greying
-     * out the one row that asks somebody to start earning is the opposite of
-     * what it should do.
-     */
-    switcherOff: { backgroundColor: c.primary },
+
     switcherIcon: {
       width: 36,
       height: 36,

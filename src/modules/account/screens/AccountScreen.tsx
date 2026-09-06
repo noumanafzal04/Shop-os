@@ -28,7 +28,7 @@ import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppButton } from "../../../common/ui/AppButton";
 import { confirm } from "../../../common/ui/confirm";
-import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors, useOppositeColors } from "../../../theme";
 import { useAuthStore } from "../../../stores/authStore";
 import { useModeStore } from "../../../stores/modeStore";
 import { useLogout } from "../../auth/hooks/useAuth";
@@ -166,6 +166,7 @@ export function AccountScreen() {
    * mid-delivery their favourites and their table bookings.
    */
   const onShift = useModeStore((st) => st.mode) === "rider";
+  const other = useOppositeColors();
   const user = useAuthStore((s) => s.user);
   const status = useAuthStore((s) => s.status);
   const signOut = useLogout();
@@ -348,6 +349,8 @@ export function AccountScreen() {
               route: riderStatus === "approved" ? "RiderHome" : "RiderApply",
             }}
             divided={false}
+            // The colour of where it goes — see `useOppositeColors`.
+            accent={other.primary}
             onPress={() => open(riderStatus === "approved" ? "RiderHome" : "RiderApply")}
           />
         </View>
@@ -449,10 +452,21 @@ function Row({
   link,
   divided,
   onPress,
+  accent,
 }: {
   link: Link;
   divided: boolean;
   onPress: () => void;
+  /**
+   * A row that leads to the OTHER half of the app, wearing its colour.
+   *
+   * Used by exactly one row — "Deliver with CartZe". A control that leads
+   * somewhere ought to look like where it leads: pressing an orange row and
+   * arriving in an orange app is the switch explaining itself before it is
+   * pressed, and it is the only row on this page that changes what the app is
+   * rather than opening a page inside it.
+   */
+  accent?: string;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -474,8 +488,8 @@ function Row({
         something to start with, which is the shape the GearIcon screen was
         already using two taps away.
       */}
-      <View style={styles.rowIcon}>
-        <Icon size={17} color={c.textSecondary} />
+      <View style={[styles.rowIcon, accent != null && { backgroundColor: accent }]}>
+        <Icon size={17} color={accent != null ? c.white : c.textSecondary} />
       </View>
       <View style={styles.rowCopy}>
         <Text style={styles.rowLabel}>{link.label}</Text>

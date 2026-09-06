@@ -277,17 +277,88 @@ export function RootNavigator() {
   const rider = useRiderProfile();
   const canRide = rider.data?.status === "approved";
   const hydrated = React.useRef(false);
+  /**
+   * WHETHER THE APP KNOWS WHICH HAT IT IS WEARING.
+   *
+   * The restore itself was already correct — the stored mode, honoured only
+   * while the server still approves it. What was wrong was WHEN it landed:
+   * the splash lifted as soon as auth was known, so a rider who closed the app
+   * on their board reopened into the shopping tabs and was moved across a beat
+   * later, once `prefs.all()` resolved.
+   *
+   * A mode is not a preference the app can apply late. It decides which
+   * navigator exists, so arriving a frame after the first paint is a visible
+   * flip of the entire app — and on a slow read, long enough to tap something
+   * in the wrong half.
+   *
+   * So the splash waits for it. It is one keychain read behind a request that
+   * has to happen anyway.
+   */
+  const [modeKnown, setModeKnown] = React.useState(false);
 
   React.useEffect(() => {
-    if (status !== "authenticated" || !rider.isSuccess) return;
+    /**
+     * SETTLED, not succeeded.
+     *
+     * This waited on `rider.isSuccess` — and a query that ERRORS is never
+     * successful. `/rider/me` failing, or a session whose user is not a
+     * customer at all, left `modeKnown` false for ever and the app on its
+     * splash screen: a spinner with no way out, from one request that did not
+     * come back.
+     *
+     * Caught by the business-account test, which renders exactly that: a
+     * signed-in user the rider endpoint has nothing to say about.
+     *
+     * `isFetched` is true either way, and an errored query leaves `canRide`
+     * false — which is the safe answer to "should this person open on a job
+     * board" regardless of why we could not ask.
+     */
+    if (status !== "authenticated" || !rider.isFetched) return;
 
     if (!hydrated.current) {
       hydrated.current = true;
-      prefs.all().then((p) => hydrateMode(p.mode, canRide)).catch(() => {});
+      prefs
+        .all()
+        .then((p) => hydrateMode(p.mode, canRide))
+        // A prefs read that fails is a device that cannot tell us, not a
+        // reason to hold the app on a splash for ever. Customer is the answer
+        // it already defaults to.
+        .catch(() => {})
+        .finally(() => setModeKnown(true));
       return;
     }
     syncMode(canRide);
-  }, [status, rider.isSuccess, canRide, hydrateMode, syncMode]);
+  }, [status, rider.isFetched, canRide, hydrateMode, syncMode]);
+
+  /**
+   * EVERY WAY THE GATE HAS TO OPEN ANYWAY.
+   *
+   * Waiting for the mode is an OPTIMISATION — it buys a rider a first paint on
+   * the right half of the app. It must never be the reason the app does not
+   * open, and twice now it was:
+   *
+   *   · `isSuccess` — a query that ERRORS is never successful, so a failed
+   *     `/rider/me` left the splash up for ever.
+   *   · `isFetched` — better, and still nothing for an account the endpoint is
+   *     never asked about. A business login sat on the splash instead of
+   *     reaching the screen that tells them they are in the wrong app.
+   *
+   * So: a guest has no mode, a non-customer never sees the tabs, and after a
+   * short wait NOBODY does. The fallback is what makes this safe — whatever
+   * else is wrong, the app opens.
+   */
+  React.useEffect(() => {
+    if (status === "guest") setModeKnown(true);
+    if (status === "authenticated" && user != null && user.role !== "customer") setModeKnown(true);
+  }, [status, user]);
+
+  React.useEffect(() => {
+    if (modeKnown) return;
+    // Long enough for a keychain read and a request that is already in flight;
+    // short enough that a hung network is a flicker rather than a dead app.
+    const id = setTimeout(() => setModeKnown(true), 2500);
+    return () => clearTimeout(id);
+  }, [modeKnown]);
 
   // Signing out takes the hat off with it. A shared phone must not open on
   // somebody else's job board.
@@ -298,7 +369,7 @@ export function RootNavigator() {
   // Not a spinner on a white page: the launcher's own frame is brand red now
   // (`android/app/src/main/res/values/styles.xml`), so this continues that
   // colour and nothing flashes between tapping the icon and the first screen.
-  if (status === "booting") return <Splash />;
+  if (status === "booting" || !modeKnown) return <Splash />;
 
   return (
     <NavigationContainer theme={navTheme} ref={navigationRef} onReady={flushPendingDeepLink}>

@@ -69,10 +69,27 @@ export function ProductSheet({
       return { ...s, [g.id]: [...cur, oid] };
     });
 
-  const valid = product.modifier_groups.every((g) => {
-    const n = (sel[g.id] ?? []).length;
-    return n >= g.min_select && (g.max_select === 0 || n <= g.max_select);
-  });
+  /**
+   * Every size this product comes in is sold out.
+   *
+   * Not an edge case on a menu that goes 86 per size: a cold coffee with a
+   * Large and a Regular can lose both by nine in the evening. What made it a
+   * BUG rather than a state was that `valid` below only ever asked about
+   * modifier groups — so a sized product with nothing in stock had "Choose an
+   * option · Required" over two disabled rows, no size selected, and an Add to
+   * cart button that worked. The refusal then arrived from the server at
+   * checkout, which is the worst moment to discover it.
+   */
+  const noSizeLeft = hasVariants && !product.variants.some((v) => v.in_stock);
+
+  const valid =
+    // A product WITH sizes needs one chosen. The initial state picks the first
+    // in stock, so this is only ever false when there is nothing to pick.
+    (!hasVariants || variantId !== null) &&
+    product.modifier_groups.every((g) => {
+      const n = (sel[g.id] ?? []).length;
+      return n >= g.min_select && (g.max_select === 0 || n <= g.max_select);
+    });
 
   const { unitPrice, label } = useMemo(() => {
     const variant = variantId ? product.variants.find((v) => v.id === variantId) : null;
@@ -142,12 +159,35 @@ export function ProductSheet({
             </Pressable>
           </View>
           <Pressable style={[styles.addBtn, !valid && styles.addBtnOff]} disabled={!valid} onPress={add}>
-            <Text style={styles.addText}>Add to cart · {money(total)}</Text>
+            {/*
+              A DISABLED BUTTON THAT SAYS WHY.
+              
+              "Add to cart" greyed out is a button somebody presses three times
+              before scrolling up to look for the reason. Naming it costs one
+              line and turns a dead control into an answer.
+            */}
+            <Text style={styles.addText}>
+              {noSizeLeft
+                ? "Sold out"
+                : !valid
+                  ? "Choose an option above"
+                  : `Add to cart · ${money(total)}`}
+            </Text>
           </Pressable>
         </View>
       }
     >
-      <View>
+      {/*
+        THE SHEET PADS ITS HEAD AND ITS FOOTER, NOT ITS CONTENT.
+
+        Deliberately, so a sheet can hold a full-bleed row — and the reason
+        this screen came out with its prices, its Required badges and its radio
+        buttons sliced off at the right edge. The padding used to come from
+        this component's own `styles.sheet`, which went when the panel moved
+        onto `BottomSheet`, and nothing said so: the rows simply ran past the
+        glass.
+      */}
+      <View style={styles.body}>
           {/* Hero image */}
           <View style={styles.hero}>
             <SmartImage
@@ -186,10 +226,16 @@ export function ProductSheet({
               <View style={styles.groupHead}>
                 <View>
                   <Text style={styles.groupTitle}>Choose an option</Text>
-                  <Text style={styles.rule}>select 1</Text>
+                  <Text style={styles.rule}>{noSizeLeft ? "none left today" : "select 1"}</Text>
                 </View>
-                <View style={[styles.pill, styles.pillRequired]}>
-                  <Text style={[styles.pillText, styles.pillTextRequired]}>Required</Text>
+                {/*
+                  "Required" over rows that are all disabled is an instruction
+                  nobody can follow. When every size has gone the badge says
+                  what actually happened instead.
+                */}
+                <View style={[styles.pill, noSizeLeft ? styles.pillOff : styles.pillRequired]}>
+                  <Text style={[styles.pillText, noSizeLeft ? styles.pillTextOff : styles.pillTextRequired]}>
+                    {noSizeLeft ? "Sold out" : "Required"}</Text>
                 </View>
               </View>
               {product.variants.map((v) => {
@@ -268,6 +314,9 @@ export function ProductSheet({
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
+    body: { paddingHorizontal: spacing.md, paddingBottom: spacing.md },
+    pillOff: { backgroundColor: c.errorBg },
+    pillTextOff: { color: c.error },
 
   hero: {
     height: 190,

@@ -45,7 +45,117 @@ const ROOT = PROJECT_ROOT;
  * and holding prose to this rule would push people to write no prose. Only
  * what the app can RENDER is checked.
  */
-const isComment = (line: string) => /^\s*(\/\/|\/\*|\*)/.test(line);
+/**
+ * Comments blanked, LINE NUMBERS KEPT — and STRINGS LEFT ALONE.
+ *
+ * ── Two wrong versions of this, and the second was worse ─────────────
+ *
+ * It began as `/^\s*(\/\/|\/\*|\*)/` per line, which sees a comment that
+ * STARTS a line and is blind to the middle of a block. A JSX comment written
+ * as indented prose, with no leading asterisks, is invisible to it — the third
+ * guard in this repo to fail on its own documentation in one day.
+ *
+ * The obvious fix — two regexes, one for block comments and one for `//` to
+ * end of line — is worse than the bug. `//` appears inside every URL, so
+ *
+ *     const PROD_URL = "https://cartze.shop/api/v1";
+ *
+ * came out as `const PROD_URL = "https:` and the brand name vanished. A guard
+ * whose whole job is to find the product's name in shipped strings, blinded to
+ * the one string that is most likely to carry it.
+ *
+ * So this walks the source instead, and a `//` or a `/*` inside a string
+ * literal is just text. Blanked rather than deleted, so a real hit still
+ * reports a line number somebody can open.
+ */
+const stripComments = (src: string): string => {
+  let out = "";
+  let i = 0;
+  /** The quote we are inside, or null. Template literals count. */
+  let quote: string | null = null;
+
+  while (i < src.length) {
+    const ch = src[i];
+    const next = src[i + 1];
+
+    if (quote != null) {
+      // A backslash escapes whatever follows, including the closing quote.
+      if (ch === "\\") {
+        out += src.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      out += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === '"' || ch === "'" || ch === "`") {
+      quote = ch;
+      out += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "/" && next === "*") {
+      const close = src.indexOf("*/", i + 2);
+      const stop = close === -1 ? src.length : close + 2;
+      // Newlines kept so every later line keeps its number.
+      out += src.slice(i, stop).replace(/[^\n]/g, " ");
+      i = stop;
+      continue;
+    }
+
+    if (ch === "/" && next === "/") {
+      const nl = src.indexOf("\n", i);
+      const stop = nl === -1 ? src.length : nl;
+      out += " ".repeat(stop - i);
+      i = stop;
+      continue;
+    }
+
+    out += ch;
+    i += 1;
+  }
+
+  return out;
+};
+
+describe("the comment stripper itself", () => {
+  // A detector checked against a known-good and a known-bad input, so a change
+  // that breaks it fails HERE rather than reporting a clean sweep everywhere.
+  it("removes a block comment, whatever the line starts with", () => {
+    const out = stripComments('const a = 1;\n/*\n  CartZe is the brand.\n*/\nconst b = 2;');
+    expect(out).not.toMatch(/CartZe/);
+    // Line numbers survive, so an offence can still be opened.
+    expect(out.split("\n")).toHaveLength(5);
+  });
+
+  it("removes a trailing line comment", () => {
+    expect(stripComments('const a = 1; // CartZe')).not.toMatch(/CartZe/);
+  });
+
+  it("LEAVES A URL ALONE", () => {
+    // The bug the naive version had: `//` inside a scheme ate the rest of the
+    // line, so the one string most likely to carry the brand was the one the
+    // guard could not see.
+    const url = 'const PROD_URL = "https://cartze.shop/api/v1";';
+    expect(stripComments(url)).toBe(url);
+  });
+
+  it("leaves a comment marker inside a string alone", () => {
+    const s1 = `const a = "/* not a comment */";`;
+    expect(stripComments(s1)).toBe(s1);
+    const s2 = "const a = `https://cartze.shop`;";
+    expect(stripComments(s2)).toBe(s2);
+  });
+
+  it("is not fooled by an escaped quote", () => {
+    const line = 'const a = "he said \\"// cartze\\"";';
+    expect(stripComments(line)).toBe(line);
+  });
+});
 
 describe("the product's name lives in exactly one place", () => {
   const files = [...sourceFiles(path.join(ROOT, "src")), path.join(ROOT, "App.tsx")];
@@ -60,11 +170,9 @@ describe("the product's name lives in exactly one place", () => {
     "%s does not spell the brand out",
     (rel, full) => {
       const reason = ALLOWED.get(rel);
-      const offences = fs
-        .readFileSync(full, "utf8")
+      const offences = stripComments(fs.readFileSync(full, "utf8"))
         .split("\n")
         .map((line, i) => [i + 1, line] as const)
-        .filter(([, line]) => !isComment(line))
         .filter(([, line]) => NAMES.some((n) => line.toLowerCase().includes(n)))
         .map(([n, line]) => `  ${rel}:${n}  ${line.trim()}`);
 

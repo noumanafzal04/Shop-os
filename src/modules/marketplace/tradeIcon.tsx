@@ -76,6 +76,45 @@ const BY_TRADE: Record<string, Icon> = {
   general: StorefrontIcon,
 };
 
+/**
+ * THE LEGACY NAME FOR EACH PRIMARY TRADE.
+ *
+ * The same table the server keeps, and it has to exist on both sides for the
+ * same reason the icons above do: shops created before the primary types
+ * existed are still stored under the narrow code they were made with.
+ *
+ * `grocery` and `mart` are one trade under two names, and so are `restaurant`
+ * and `food`. Comparing the strings — which is what every filter did — asks a
+ * question about spelling.
+ */
+const SAME_TRADE: Record<string, string> = {
+  restaurant: "food",
+  grocery: "mart",
+  clinic: "pharmacy",
+  salon: "services",
+  workshop: "automotive",
+  service: "services",
+  wholesale: "retail",
+  books: "retail",
+  hardware: "retail",
+};
+
+/** What a trade code really is, with the legacy names resolved. */
+export const primaryTrade = (code: string | null | undefined): string =>
+  code == null ? "" : (SAME_TRADE[code] ?? code);
+
+/**
+ * Do these two codes mean the same shop?
+ *
+ * The bug this exists for: the Grocery tab passes `grocery`, and the deals
+ * strip on it filtered `d.shop?.business_type === businessType`. Every shop
+ * created since the rename is stored as `mart`, so the strip was empty on a
+ * tab full of grocery shops — the client-side half of the same fault the
+ * server had.
+ */
+export const sameTrade = (a: string | null | undefined, b: string | null | undefined): boolean =>
+  primaryTrade(a) === primaryTrade(b);
+
 /** Never null: an unknown trade gets a question mark, not an empty tile. */
 export function tradeIcon(trade: string | null | undefined): Icon {
   if (!trade) return StorefrontIcon;

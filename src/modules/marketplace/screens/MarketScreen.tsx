@@ -22,6 +22,7 @@ import { Appear } from "../../../common/ui/Appear";
 import { Touchable } from "../../../common/ui/Touchable";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
+import { sameTrade } from "../tradeIcon";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { ShopFactsRow } from "../components/ShopFactsRow";
 import { RatingChip } from "../components/RatingChip";
@@ -68,7 +69,10 @@ export function MarketScreen() {
   // Deals strip scoped to this list's business type (grocery tab → grocery deals).
   const feed = useHomeFeed({ lat: lat ?? undefined, lng: lng ?? undefined });
   const deals = (feed.data?.deals ?? []).filter(
-    (d) => !businessType || d.shop?.business_type === businessType,
+    // `sameTrade`, not `===`. The tab passes `grocery` and every shop created
+    // since the primary types replaced the narrow codes is stored as `mart` —
+    // so an exact comparison emptied the strip on a tab full of them.
+    (d) => !businessType || sameTrade(d.shop?.business_type, businessType),
   );
 
   // The bottom inset depends on WHERE THIS SCREEN IS.

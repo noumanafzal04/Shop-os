@@ -311,8 +311,21 @@ export const riderDarkColors: ThemeColors = wearing(darkColors, riderDarkBrand);
 
 export type ThemeName = "light" | "dark";
 
-/** The working side's pair, keyed the same way. */
-export const riderThemes: Record<ThemeName, ThemeColors> = {
+/**
+ * The two palettes, named for what they ARE.
+ *
+ * They were `themes` and `riderThemes` — a name that says where a colour is
+ * USED, which lasted until the two were swapped over and every name became a
+ * lie. `ember` is the brand's red-orange and `leaf` is the green; which side
+ * of the app wears which is a decision that lives in one line of
+ * `ThemeProvider`, and can move again without renaming anything.
+ */
+export const emberThemes: Record<ThemeName, ThemeColors> = {
+  light: lightColors,
+  dark: darkColors,
+};
+
+export const leafThemes: Record<ThemeName, ThemeColors> = {
   light: riderLightColors,
   dark: riderDarkColors,
 };
