@@ -1,11 +1,19 @@
 import React, { useMemo, useState } from "react";
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Check, ChevronDown, Minus, Plus, X } from "lucide-react-native";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  MinusIcon,
+  PlusIcon,
+  XIcon,
+} from "../../../common/ui/icons";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import type { PublicModifierGroup, PublicProduct } from "../services/marketplaceService";
 import { money, qtyText } from "../../../common/format";
 import { OfferBadge, Price } from "../../../common/ui/Price";
+import { SmartImage } from "../../../common/ui/SmartImage";
+import { shopInitial, useShopCover } from "../shopCover";
 
 
 export interface ConfiguredLine {
@@ -32,6 +40,7 @@ export function ProductSheet({
 }) {
   const insets = useSafeAreaInsets();
   const c = useColors();
+  const cover = useShopCover()(product.id);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const isWeight = product.sold_by === "weight";
   const step = isWeight ? 0.25 : 1;
@@ -106,16 +115,18 @@ export function ProductSheet({
       <View style={styles.sheet}>
         <View style={styles.grabber} />
         <Pressable style={styles.close} onPress={onClose} hitSlop={8}>
-          <X size={18} color={c.gray[500]} strokeWidth={2.2} />
+          <XIcon size={18} color={c.gray[500]} />
         </Pressable>
         <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
           {/* Hero image */}
           <View style={styles.hero}>
-            {image ? (
-              <Image source={{ uri: image }} style={styles.heroImg} resizeMode="cover" />
-            ) : (
-              <Text style={styles.heroInitial}>{product.name.charAt(0)}</Text>
-            )}
+            <SmartImage
+              uri={image ?? null}
+              fallback={shopInitial(product.name)}
+              fallbackBackground={cover.bg}
+              fallbackColor={cover.fg}
+              style={styles.heroImg}
+            />
           </View>
 
           {/* Name + price */}
@@ -205,14 +216,14 @@ export function ProductSheet({
                           on && (single ? styles.radioOn : styles.checkOn),
                         ]}
                       >
-                        {!single && on && <Check size={13} color={c.white} strokeWidth={3} />}
+                        {!single && on && <CheckIcon size={13} color={c.white} />}
                       </View>
                     </Pressable>
                   );
                 })}
                 {hidden > 0 && (
                   <Pressable style={styles.viewMore} onPress={() => setExpanded((e) => ({ ...e, [g.id]: true }))}>
-                    <ChevronDown size={15} color={c.gray[500]} strokeWidth={2.2} />
+                    <ChevronDownIcon size={15} color={c.gray[500]} />
                     <Text style={styles.viewMoreText}>View {hidden} more</Text>
                   </Pressable>
                 )}
@@ -227,14 +238,14 @@ export function ProductSheet({
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
           <View style={styles.qtyRow}>
             <Pressable style={styles.qtyBtn} onPress={() => setQty((q) => Math.max(step, q - step))}>
-              <Minus size={16} color={c.gray[700]} strokeWidth={2.4} />
+              <MinusIcon size={16} color={c.gray[700]} />
             </Pressable>
             <Text style={styles.qty}>
               {qtyText(qty)}
               {isWeight && product.unit ? ` ${product.unit}` : ""}
             </Text>
             <Pressable style={[styles.qtyBtn, styles.qtyBtnPlus]} onPress={() => setQty((q) => q + step)}>
-              <Plus size={16} color={c.white} strokeWidth={2.4} />
+              <PlusIcon size={16} color={c.white} />
             </Pressable>
           </View>
           <Pressable style={[styles.addBtn, !valid && styles.addBtnOff]} disabled={!valid} onPress={add}>

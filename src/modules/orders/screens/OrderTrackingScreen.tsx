@@ -1,7 +1,14 @@
 import React from "react";
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
-import { ArrowLeft, Bike, Check, MapPin, Phone, Star } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  MapPinIcon,
+  MotorcycleIcon,
+  PhoneIcon,
+  StarIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AppButton } from "../../../common/ui/AppButton";
 import { RefreshPill } from "../../../common/ui/RefreshPill";
@@ -115,7 +122,7 @@ export function OrderTrackingScreen() {
     <SafeScreen backgroundColor={c.bg}>
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeft size={20} color={c.text} strokeWidth={2} />
+          <ArrowLeftIcon size={20} color={c.text} />
         </Pressable>
         <Text style={styles.title}>Order</Text>
         {/*
@@ -177,7 +184,7 @@ export function OrderTrackingScreen() {
                     <View key={s} style={styles.stepRow}>
                       <View style={styles.stepRail}>
                         <View style={[styles.dot, done && styles.dotDone, active && styles.dotActive]}>
-                          {done && <Check size={11} color={c.white} strokeWidth={3.2} />}
+                          {done && <CheckIcon size={11} color={c.white} />}
                         </View>
                         {!last && <View style={[styles.rail, i < currentIdx && styles.railDone]} />}
                       </View>
@@ -207,7 +214,7 @@ export function OrderTrackingScreen() {
             <View style={[styles.card, o.rider.stage === "on_the_way" && styles.riderCardLive]}>
               <View style={styles.riderTop}>
                 <View style={styles.riderAvatar}>
-                  <Bike size={18} color={c.primary} strokeWidth={2.2} />
+                  <MotorcycleIcon size={18} color={c.primary} />
                 </View>
                 <View style={styles.riderCopy}>
                   <Text style={styles.riderName} numberOfLines={1}>
@@ -251,7 +258,7 @@ export function OrderTrackingScreen() {
           {o.fulfillment_type === "delivery" && !!o.delivery_address && (
             <View style={styles.card}>
               <View style={styles.addrRow}>
-                <MapPin size={16} color={c.brand[600]} strokeWidth={2.2} />
+                <MapPinIcon size={16} color={c.brand[600]} />
                 <Text style={styles.addrText}>{o.delivery_address}</Text>
               </View>
             </View>
@@ -303,7 +310,7 @@ export function OrderTrackingScreen() {
           */}
           {!!phone && !cancelled && o.status !== "completed" && (
             <Pressable style={styles.call} accessibilityRole="button" onPress={callShop}>
-              <Phone size={17} color={c.primary} strokeWidth={2.3} />
+              <PhoneIcon size={17} color={c.primary} />
               <Text style={styles.callText}>Call {o.shop?.business_name ?? "the shop"}</Text>
             </Pressable>
           )}
@@ -327,7 +334,7 @@ export function OrderTrackingScreen() {
             <AppButton
               title={mine ? "Edit your review" : `Rate ${o.shop?.business_name ?? "this shop"}`}
               variant={mine ? "outline" : "primary"}
-              icon={Star}
+              icon={StarIcon}
               onPress={() => setRating(true)}
             />
           )}

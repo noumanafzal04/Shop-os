@@ -2,15 +2,15 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import {
-  BasketGlyph,
-  CartGlyph,
-  HomeGlyph,
-  ParcelGlyph,
-  PersonGlyph,
-  ReceiptGlyph,
-  type TabIconProps,
-  WalletGlyph,
-} from "../common/ui/icons/TabIcons";
+  BasketIcon,
+  CartIcon,
+  HomeIcon,
+  type IconProps,
+  ParcelIcon,
+  PersonIcon,
+  ReceiptIcon,
+  WalletIcon,
+} from "../common/ui/icons";
 import { useTheme } from "../theme";
 import { cartCountOf, useCartStore } from "../stores/cartStore";
 
@@ -50,7 +50,7 @@ import { cartCountOf, useCartStore } from "../stores/cartStore";
 interface Item {
   route: string;
   label: string;
-  icon: React.ComponentType<TabIconProps>;
+  icon: React.ComponentType<IconProps>;
 }
 
 /**
@@ -77,12 +77,12 @@ const ITEMS: Record<string, Item> = {
   // The home screen, called Home. It was labelled "Food" while showing the
   // marketplace home, with a crossed-utensils glyph — a first tab that names
   // one of the shortcuts inside it.
-  FoodTab: { route: "FoodTab", label: "Home", icon: HomeGlyph },
+  FoodTab: { route: "FoodTab", label: "Home", icon: HomeIcon },
   // A basket, deliberately not a trolley: the middle button is a trolley and
   // two of them in one bar is two words for different things.
-  GroceryTab: { route: "GroceryTab", label: "Grocery", icon: BasketGlyph },
-  OrdersTab: { route: "OrdersTab", label: "Orders", icon: ReceiptGlyph },
-  AccountTab: { route: "AccountTab", label: "Account", icon: PersonGlyph },
+  GroceryTab: { route: "GroceryTab", label: "Grocery", icon: BasketIcon },
+  OrdersTab: { route: "OrdersTab", label: "Orders", icon: ReceiptIcon },
+  AccountTab: { route: "AccountTab", label: "Account", icon: PersonIcon },
 
   // ── Rider mode ──────────────────────────────────────────────────
   //
@@ -93,9 +93,9 @@ const ITEMS: Record<string, Item> = {
   //
   // No basket here, and that is the point of the mode: somebody delivering is
   // not shopping.
-  RiderBoardTab: { route: "RiderBoardTab", label: "Deliveries", icon: ParcelGlyph },
-  RiderEarningsTab: { route: "RiderEarningsTab", label: "Earnings", icon: WalletGlyph },
-  RiderAccountTab: { route: "RiderAccountTab", label: "Account", icon: PersonGlyph },
+  RiderBoardTab: { route: "RiderBoardTab", label: "Deliveries", icon: ParcelIcon },
+  RiderEarningsTab: { route: "RiderEarningsTab", label: "Earnings", icon: WalletIcon },
+  RiderAccountTab: { route: "RiderAccountTab", label: "Account", icon: PersonIcon },
 };
 
 export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
@@ -192,7 +192,7 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
                   ]}
                 />
                 <View style={[styles.disc, { backgroundColor: c.primary }]}>
-                  <CartGlyph size={24} color={c.onPrimary} filled knockout={c.primary} />
+                  <CartIcon size={24} color={c.onPrimary} bold />
                 </View>
                 {count > 0 && (
                   <View style={[styles.badge, { backgroundColor: c.warm, borderColor: c.surface }]}>
@@ -223,17 +223,11 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
               brand colour rather than a darker grey. Two greys and half a
               point of stroke was the whole of the old answer, and at arm's
               length it was no answer.
-              
-              `knockout` is the bar's own colour: the lines inside a filled
-              receipt or basket are punched back out of the shape, so a solid
-              glyph keeps its detail instead of becoming a blob.
+
+              Two weights of the same drawing, so nothing moves and nothing
+              changes size — the state is entirely in the fill and the colour.
             */}
-            <Icon
-              size={22}
-              filled={focused}
-              color={focused ? c.primary : c.textMuted}
-              knockout={c.surface}
-            />
+            <Icon size={23} bold={focused} color={focused ? c.primary : c.textMuted} />
             <Text
               numberOfLines={1}
               style={[

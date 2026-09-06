@@ -2,16 +2,16 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { launchCamera, launchImageLibrary, type Asset } from "react-native-image-picker";
 import {
-  Bike,
-  Car,
-  Check,
-  CircleAlert,
-  Clock,
-  IdCard,
-  Truck,
-  Upload,
-  type LucideIcon,
-} from "lucide-react-native";
+  CarIcon,
+  CheckIcon,
+  ClockIcon,
+  IdCardIcon,
+  MotorcycleIcon,
+  TruckIcon,
+  UploadIcon,
+  WarningIcon,
+  type Icon,
+} from "../../../common/ui/icons";
 import { BRAND } from "../../../common/brand";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -43,11 +43,11 @@ import type { VehicleType } from "../services/riderService";
  * server say what it wants.
  */
 
-const VEHICLES: { value: VehicleType; label: string; icon: LucideIcon }[] = [
-  { value: "bike", label: "Motorbike", icon: Bike },
-  { value: "cycle", label: "Bicycle", icon: Bike },
-  { value: "car", label: "Car", icon: Car },
-  { value: "van", label: "Van", icon: Truck },
+const VEHICLES: { value: VehicleType; label: string; icon: Icon }[] = [
+  { value: "bike", label: "Motorbike", icon: MotorcycleIcon },
+  { value: "cycle", label: "Bicycle", icon: MotorcycleIcon },
+  { value: "car", label: "Car", icon: CarIcon },
+  { value: "van", label: "Van", icon: TruckIcon },
 ];
 
 export function RiderApplyScreen() {
@@ -190,7 +190,7 @@ export function RiderApplyScreen() {
                 disabled={locked}
                 onPress={() => setVehicle(v.value)}
               >
-                <Icon size={20} color={on ? c.onPrimary : c.text} strokeWidth={2} />
+                <Icon size={20} color={on ? c.onPrimary : c.text} />
                 <Text style={[styles.vehicleText, on && styles.vehicleTextOn]}>{v.label}</Text>
               </Pressable>
             );
@@ -200,7 +200,7 @@ export function RiderApplyScreen() {
         <View style={styles.card}>
           <AppTextInput
             label="CNIC number"
-            icon={IdCard}
+            icon={IdCardIcon}
             value={cnic}
             onChangeText={setCnic}
             editable={editable}
@@ -234,7 +234,7 @@ export function RiderApplyScreen() {
               </Text>
             </View>
             <View style={[styles.box, platform && styles.boxOn]}>
-              {platform && <Check size={14} color={c.onPrimary} strokeWidth={3} />}
+              {platform && <CheckIcon size={14} color={c.onPrimary} />}
             </View>
           </Touchable>
 
@@ -273,13 +273,13 @@ export function RiderApplyScreen() {
                       ]}
                     >
                       {busy === d.type ? (
-                        <Clock size={17} color={c.textMuted} strokeWidth={2.2} />
+                        <ClockIcon size={17} color={c.textMuted} />
                       ) : have && !rejected ? (
-                        <Check size={17} color={c.success} strokeWidth={2.6} />
+                        <CheckIcon size={17} color={c.success} />
                       ) : rejected ? (
-                        <CircleAlert size={17} color={c.error} strokeWidth={2.4} />
+                        <WarningIcon size={17} color={c.error} />
                       ) : (
-                        <Upload size={17} color={c.textMuted} strokeWidth={2.2} />
+                        <UploadIcon size={17} color={c.textMuted} />
                       )}
                     </View>
                     <View style={styles.docCopy}>

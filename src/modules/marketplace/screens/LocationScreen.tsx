@@ -2,7 +2,13 @@ import React, { useEffect, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Crosshair, MapPin, Search } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  BuildingIcon,
+  CrosshairIcon,
+  MapPinIcon,
+  SearchIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -87,7 +93,7 @@ export function LocationScreen() {
     <SafeScreen backgroundColor={c.bg}>
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeft size={20} color={c.text} strokeWidth={2} />
+          <ArrowLeftIcon size={20} color={c.text} />
         </Pressable>
         <Text style={styles.title}>Delivery location</Text>
         {/*
@@ -101,7 +107,7 @@ export function LocationScreen() {
 
       <View style={styles.searchWrap}>
         <AppTextInput
-          icon={Search}
+          icon={SearchIcon}
           placeholder="Search a city, area or landmark…"
           value={query}
           onChangeText={setQuery}
@@ -140,7 +146,7 @@ export function LocationScreen() {
             {/* Use current location */}
             <Touchable style={styles.currentRow} onPress={() => { detect(); navigation.goBack(); }}>
               <View style={styles.currentIcon}>
-                <Crosshair size={18} color={c.brand[600]} strokeWidth={2.2} />
+                <CrosshairIcon size={18} color={c.brand[600]} />
               </View>
               <View style={styles.rowInfo}>
                 <Text style={styles.currentText}>Use my current location</Text>
@@ -169,7 +175,7 @@ export function LocationScreen() {
                     }
                   >
                     <View style={styles.cityIcon}>
-                      <Building2 size={16} color={c.primary} strokeWidth={2.2} />
+                      <BuildingIcon size={16} color={c.primary} />
                     </View>
                     <View style={styles.rowInfo}>
                       <Text style={styles.rowTitle}>{city.name}</Text>
@@ -187,7 +193,7 @@ export function LocationScreen() {
         }
         renderItem={({ item }) => (
           <Touchable style={styles.row} onPress={() => pick(item.lat, item.lng, item.label)}>
-            <MapPin size={17} color={c.gray[400]} strokeWidth={2} />
+            <MapPinIcon size={17} color={c.gray[400]} />
             <View style={styles.rowInfo}>
               <Text style={styles.rowTitle} numberOfLines={1}>{item.label}</Text>
               {!!item.detail && <Text style={styles.rowMeta} numberOfLines={1}>{item.detail}</Text>}
@@ -208,7 +214,7 @@ export function LocationScreen() {
                       : undefined
                   }
                 >
-                  <MapPin size={17} color={c.brand[600]} strokeWidth={2} />
+                  <MapPinIcon size={17} color={c.brand[600]} />
                   <View style={styles.rowInfo}>
                     <Text style={styles.rowTitle}>
                       {a.label} {a.is_default && <Text style={styles.defaultTag}>· default</Text>}

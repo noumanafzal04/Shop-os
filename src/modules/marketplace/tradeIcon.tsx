@@ -1,26 +1,26 @@
 import type { BrowseFilters } from "./services/marketplaceService";
 import {
-  BadgePercent,
-  BookOpen,
-  Car,
-  CircleHelp,
-  Croissant,
-  Drill,
-  Fuel,
-  Footprints,
-  Landmark,
-  Package,
-  Pill,
-  Scissors,
-  ShoppingBag,
-  ShoppingBasket,
-  Sparkles,
-  Star,
-  Store,
-  Utensils,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react-native";
+  BagIcon,
+  BankIcon,
+  BasketIcon,
+  BookIcon,
+  BoxIcon,
+  CarIcon,
+  CoinsIcon,
+  CroissantIcon,
+  DrillIcon,
+  FuelIcon,
+  PillIcon,
+  QuestionIcon,
+  ScissorsIcon,
+  SparkleIcon,
+  StarIcon,
+  StorefrontIcon,
+  TagIcon,
+  UtensilsIcon,
+  WrenchIcon,
+  type Icon,
+} from "../../common/ui/icons";
 
 /**
  * The icon for a kind of shop.
@@ -34,8 +34,9 @@ import {
  * that is meant to read as one set of buttons. It also looks different on every
  * Android skin, which is not a design so much as a hope.
  *
- * Lucide is already a dependency, draws at the stroke weight the rest of the
- * app uses, and takes the theme's colour like everything else.
+ * These are Phosphor's drawings, the same set the tab bar and the menus use —
+ * so a trade tile, a menu row and the bar underneath are one family rather
+ * than three. See `common/ui/icons`.
  *
  * ── Why the ROW is one colour ─────────────────────────────────────────
  *
@@ -45,47 +46,47 @@ import {
  * six unrelated stickers.
  */
 
-const BY_TRADE: Record<string, LucideIcon> = {
+const BY_TRADE: Record<string, Icon> = {
   // Current trade codes.
-  food: Utensils,
+  food: UtensilsIcon,
   // A BASKET, not a cart. The tab bar draws this beside the basket button,
   // which is a cart — two shopping trolleys in a five-item bar, one meaning
   // "groceries" and one meaning "what you are buying right now".
-  mart: ShoppingBasket,
-  pharmacy: Pill,
-  retail: ShoppingBag,
-  services: Wrench,
-  automotive: Car,
-  petroleum: Fuel,
-  finance: Landmark,
+  mart: BasketIcon,
+  pharmacy: PillIcon,
+  retail: BagIcon,
+  services: WrenchIcon,
+  automotive: CarIcon,
+  petroleum: FuelIcon,
+  finance: BankIcon,
 
   // Older codes that still reach the app from a shop created before the
   // current set — a missing icon is a blank square on a home screen, so they
   // keep their glyph rather than falling through.
-  restaurant: Utensils,
-  grocery: ShoppingBasket,
-  clinic: Pill,
-  salon: Scissors,
-  workshop: Drill,
-  service: Wrench,
-  wholesale: Package,
-  books: BookOpen,
-  hardware: Wrench,
-  bakery: Croissant,
-  general: Store,
+  restaurant: UtensilsIcon,
+  grocery: BasketIcon,
+  clinic: PillIcon,
+  salon: ScissorsIcon,
+  workshop: DrillIcon,
+  service: WrenchIcon,
+  wholesale: BoxIcon,
+  books: BookIcon,
+  hardware: WrenchIcon,
+  bakery: CroissantIcon,
+  general: StorefrontIcon,
 };
 
 /** Never null: an unknown trade gets a question mark, not an empty tile. */
-export function tradeIcon(trade: string | null | undefined): LucideIcon {
-  if (!trade) return Store;
-  return BY_TRADE[trade] ?? CircleHelp;
+export function tradeIcon(trade: string | null | undefined): Icon {
+  if (!trade) return StorefrontIcon;
+  return BY_TRADE[trade] ?? QuestionIcon;
 }
 
 /** What the four shortcut tiles above the shop rows point at. */
 export interface Shortcut {
   key: string;
   label: string;
-  icon: LucideIcon;
+  icon: Icon;
   /** Offers earn the warm accent; the rest stay in the brand family. */
   tone?: "offer";
   /** What this shortcut actually narrows. Not optional — see below. */
@@ -111,8 +112,8 @@ export interface Shortcut {
  * genuinely ask and the aisle can genuinely answer.
  */
 export const SHORTCUTS: Shortcut[] = [
-  { key: "offers", label: "Offers", icon: BadgePercent, tone: "offer", filters: { on_sale: true, sort: "discount" } },
-  { key: "cheap", label: "Under Rs 500", icon: Footprints, filters: { max_price: 500, sort: "price_asc" } },
-  { key: "new", label: "New arrivals", icon: Sparkles, filters: { sort: "newest" } },
-  { key: "top", label: "Top rated", icon: Star, filters: { rating_min: 4, sort: "rating" } },
+  { key: "offers", label: "Offers", icon: TagIcon, tone: "offer", filters: { on_sale: true, sort: "discount" } },
+  { key: "cheap", label: "Under Rs 500", icon: CoinsIcon, filters: { max_price: 500, sort: "price_asc" } },
+  { key: "new", label: "New arrivals", icon: SparkleIcon, filters: { sort: "newest" } },
+  { key: "top", label: "Top rated", icon: StarIcon, filters: { rating_min: 4, sort: "rating" } },
 ];

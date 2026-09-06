@@ -1,6 +1,8 @@
 import React from "react";
 import { Linking, StyleSheet, Text, View } from "react-native";
-import { Monitor } from "lucide-react-native";
+import {
+  MonitorIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AppButton } from "../../../common/ui/AppButton";
 import { BRAND } from "../../../common/brand";
@@ -30,7 +32,7 @@ export function BusinessAccountScreen() {
     <SafeScreen backgroundColor={c.bg}>
       <View style={styles.wrap}>
         <View style={[styles.icon, { backgroundColor: c.surfaceAlt }]}>
-          <Monitor size={30} color={c.textSecondary} strokeWidth={2} />
+          <MonitorIcon size={30} color={c.textSecondary} />
         </View>
 
         <Text style={[typography.title, styles.title, { color: c.text }]}>

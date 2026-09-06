@@ -1,6 +1,12 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Check, ChevronDown, SlidersHorizontal, Star, Tag } from "lucide-react-native";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  SlidersIcon,
+  StarIcon,
+  TagIcon,
+} from "../../../common/ui/icons";
 import { Touchable } from "../../../common/ui/Touchable";
 import { BottomSheet } from "../../../common/ui/BottomSheet";
 import { spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -79,10 +85,9 @@ export function QuickFilters({ filters, onChange, onOpenAll, activeCount }: Prop
           accessibilityLabel={activeCount > 0 ? `Filters, ${activeCount} on` : "All filters"}
           onPress={onOpenAll}
         >
-          <SlidersHorizontal
+          <SlidersIcon
             size={14}
             color={activeCount > 0 ? c.onPrimary : c.text}
-            strokeWidth={2.4}
           />
           <Text style={[styles.pillText, activeCount > 0 && styles.pillTextOn]}>Filters</Text>
           {activeCount > 0 && (
@@ -101,14 +106,14 @@ export function QuickFilters({ filters, onChange, onOpenAll, activeCount }: Prop
 
         <Pill
           label="On sale"
-          icon={Tag}
+          icon={TagIcon}
           on={!!filters.on_sale}
           onPress={() => toggle({ on_sale: filters.on_sale ? undefined : true })}
         />
 
         <Pill
           label="4★ and up"
-          icon={Star}
+          icon={StarIcon}
           on={filters.rating_min === 4}
           // Four is the number people mean by "well rated" — five is a filter
           // that returns three shops, and three is not a filter.
@@ -145,7 +150,7 @@ export function QuickFilters({ filters, onChange, onOpenAll, activeCount }: Prop
                 }}
               >
                 <Text style={[styles.sortText, on && styles.sortTextOn]}>{s.label}</Text>
-                {on && <Check size={17} color={c.primary} strokeWidth={2.6} />}
+                {on && <CheckIcon size={17} color={c.primary} />}
               </Touchable>
             );
           })}
@@ -163,7 +168,7 @@ function Pill({
   onPress,
 }: {
   label: string;
-  icon?: typeof Tag;
+  icon?: typeof TagIcon;
   on: boolean;
   chevron?: boolean;
   onPress: () => void;
@@ -180,12 +185,12 @@ function Pill({
       accessibilityLabel={label}
       onPress={onPress}
     >
-      {Icon != null && <Icon size={13} color={on ? c.onPrimary : c.textSecondary} strokeWidth={2.4} />}
+      {Icon != null && <Icon size={13} color={on ? c.onPrimary : c.textSecondary} />}
       <Text style={[styles.pillText, on && styles.pillTextOn]} numberOfLines={1}>
         {label}
       </Text>
       {chevron && (
-        <ChevronDown size={13} color={on ? c.onPrimary : c.textMuted} strokeWidth={2.6} />
+        <ChevronDownIcon size={13} color={on ? c.onPrimary : c.textMuted} />
       )}
     </Touchable>
   );

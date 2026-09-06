@@ -2,7 +2,12 @@ import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, MapPin, Plus, Trash2 } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  MapPinIcon,
+  PlusIcon,
+  TrashIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppButton } from "../../../common/ui/AppButton";
@@ -70,11 +75,11 @@ export function AddressesScreen() {
     <SafeScreen backgroundColor={c.bg}>
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeft size={20} color={c.text} strokeWidth={2} />
+          <ArrowLeftIcon size={20} color={c.text} />
         </Pressable>
         <Text style={styles.title}>My addresses</Text>
         <Pressable style={styles.back} onPress={() => setAdding((v) => !v)} hitSlop={8}>
-          <Plus size={20} color={c.brand[600]} strokeWidth={2.2} />
+          <PlusIcon size={20} color={c.brand[600]} />
         </Pressable>
       </View>
 
@@ -114,7 +119,7 @@ export function AddressesScreen() {
           ListEmptyComponent={
             !adding ? (
               <View style={styles.emptyWrap}>
-                <MapPin size={32} color={c.gray[300]} strokeWidth={1.6} />
+                <MapPinIcon size={32} color={c.gray[300]} />
                 <Text style={styles.empty}>No saved addresses — add one with +</Text>
               </View>
             ) : null
@@ -125,7 +130,7 @@ export function AddressesScreen() {
               onPress={() => !item.is_default && makeDefault.mutate(item.id)}
             >
               <View style={styles.rowIcon}>
-                <MapPin size={18} color={c.brand[600]} strokeWidth={2} />
+                <MapPinIcon size={18} color={c.brand[600]} />
               </View>
               <View style={styles.rowInfo}>
                 <View style={styles.rowTop}>
@@ -135,7 +140,7 @@ export function AddressesScreen() {
                 <Text style={styles.rowAddress} numberOfLines={2}>{item.address}</Text>
               </View>
               <Pressable hitSlop={8} onPress={() => remove.mutate(item.id)}>
-                <Trash2 size={17} color={c.gray[300]} strokeWidth={2} />
+                <TrashIcon size={17} color={c.gray[300]} />
               </Pressable>
             </Touchable>
           )}

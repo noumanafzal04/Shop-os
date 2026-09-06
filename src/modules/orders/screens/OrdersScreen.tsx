@@ -8,7 +8,12 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Bike, ChevronRight, ReceiptText, Store } from "lucide-react-native";
+import {
+  ChevronRightIcon,
+  MotorcycleIcon,
+  ReceiptIcon,
+  StorefrontIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
 import { Appear } from "../../../common/ui/Appear";
@@ -95,7 +100,7 @@ export function OrdersScreen() {
     return (
       <SafeScreen backgroundColor={c.bg} edges={["top"]}>
         <SignInWall
-          icon={ReceiptText}
+          icon={ReceiptIcon}
           title="Your orders live in your account"
           message="Sign in to see what you've ordered, follow a delivery, or order it again."
         />
@@ -180,7 +185,7 @@ function OrderCard({
   const look = statusLook(order.status, order.fulfillment_type);
   const badge = statusColors(look.tone, c);
   const delivery = order.fulfillment_type === "delivery";
-  const Mode = delivery ? Bike : Store;
+  const Mode = delivery ? MotorcycleIcon : StorefrontIcon;
 
   const steps = stepsFor(order.fulfillment_type);
   const at = stepOf(order.status, order.fulfillment_type);
@@ -250,7 +255,7 @@ function OrderCard({
 
       <View style={styles.footer}>
         <View style={styles.metaRow}>
-          <Mode size={14} color={c.textSecondary} strokeWidth={2.2} />
+          <Mode size={14} color={c.textSecondary} />
           <Text style={styles.meta}>{delivery ? "Delivery" : "Pick-up"}</Text>
         </View>
 
@@ -265,10 +270,10 @@ function OrderCard({
           {live ? (
             <View style={styles.trackCta}>
               <Text style={styles.trackCtaText}>Track</Text>
-              <ChevronRight size={13} color={c.primary} strokeWidth={2.8} />
+              <ChevronRightIcon size={13} color={c.primary} />
             </View>
           ) : (
-            <ChevronRight size={16} color={c.textMuted} strokeWidth={2.2} />
+            <ChevronRightIcon size={16} color={c.textMuted} />
           )}
         </View>
       </View>

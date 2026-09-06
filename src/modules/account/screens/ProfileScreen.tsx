@@ -2,7 +2,15 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, AtSign, BadgeCheck, Phone, UserRound } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+} from "../../../common/ui/icons";
+import {
+  BadgeCheckIcon,
+  EnvelopeIcon,
+  PersonIcon,
+  PhoneIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -87,7 +95,7 @@ export function ProfileScreen() {
           accessibilityLabel="Back"
           onPress={() => navigation.goBack()}
         >
-          <ArrowLeft size={19} color={c.text} strokeWidth={2.3} />
+          <ArrowLeftIcon size={19} color={c.text} />
         </Pressable>
         <Text style={styles.title}>Profile</Text>
       </View>
@@ -111,7 +119,7 @@ export function ProfileScreen() {
             {name.trim() ? (
               <Text style={styles.avatarText}>{name.trim().charAt(0).toUpperCase()}</Text>
             ) : (
-              <UserRound size={30} color={c.onPrimary} strokeWidth={2} />
+              <PersonIcon size={30} color={c.onPrimary} />
             )}
           </View>
           <Text style={styles.avatarHint}>
@@ -127,7 +135,7 @@ export function ProfileScreen() {
 
         <AppTextInput
           label="Full name"
-          icon={UserRound}
+          icon={PersonIcon}
           placeholder="Your name"
           value={name}
           onChangeText={setName}
@@ -137,7 +145,7 @@ export function ProfileScreen() {
         <View style={styles.field}>
           <AppTextInput
             label="Email"
-            icon={AtSign}
+            icon={EnvelopeIcon}
             placeholder="you@example.com"
             value={email}
             onChangeText={setEmail}
@@ -155,7 +163,7 @@ export function ProfileScreen() {
         <View style={styles.field}>
           <AppTextInput
             label="Phone"
-            icon={Phone}
+            icon={PhoneIcon}
             placeholder="03xx xxxxxxx"
             value={phone}
             onChangeText={setPhone}
@@ -200,7 +208,7 @@ function Mark({
   if (!verified) return null;
   return (
     <View style={styles.verified}>
-      <BadgeCheck size={13} color={c.success} strokeWidth={2.4} />
+      <BadgeCheckIcon size={13} color={c.success} />
       <Text style={styles.verifiedText}>Confirmed</Text>
     </View>
   );

@@ -9,7 +9,15 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
-import { ArrowRight, Banknote, Bike, Store, type LucideIcon } from "lucide-react-native";
+import {
+  ArrowRightIcon,
+} from "../../common/ui/icons";
+import {
+  BanknoteIcon,
+  MotorcycleIcon,
+  StorefrontIcon,
+  type Icon,
+} from "../../common/ui/icons";
 import { SafeScreen } from "../../common/ui/SafeScreen";
 import { BRAND } from "../../common/brand";
 import { tradeIcon } from "../marketplace/tradeIcon";
@@ -41,29 +49,29 @@ import { radius, spacing, type ThemeColors, typography, useColors } from "../../
  */
 
 interface Slide {
-  icon: LucideIcon;
+  icon: Icon;
   /** Two more, drawn smaller and behind, so the artwork is a composition. */
-  behind: [LucideIcon, LucideIcon];
+  behind: [Icon, Icon];
   title: string;
   body: string;
 }
 
 const SLIDES: Slide[] = [
   {
-    icon: Store,
+    icon: StorefrontIcon,
     behind: [tradeIcon("food"), tradeIcon("mart")],
     title: "Your street, in your pocket",
     body: "Food, groceries and medicine from the shops closest to you — with what they actually have in stock today.",
   },
   {
-    icon: Bike,
-    behind: [tradeIcon("pharmacy"), Store],
+    icon: MotorcycleIcon,
+    behind: [tradeIcon("pharmacy"), StorefrontIcon],
     title: "One shop, one delivery",
     body: "A basket belongs to a single shop, so your order is prepared and delivered together. Adding from another shop starts a fresh basket — we always ask first.",
   },
   {
-    icon: Banknote,
-    behind: [Bike, Store],
+    icon: BanknoteIcon,
+    behind: [MotorcycleIcon, StorefrontIcon],
     title: "Pay when it arrives",
     body: "Cash on delivery, every time. Nothing is charged up front, and you can follow your order from the moment the shop accepts it.",
   },
@@ -147,7 +155,7 @@ export function OnboardingScreen({ onDone }: Props) {
           onPress={advance}
         >
           {last && <Text style={styles.nextText}>Start shopping</Text>}
-          <ArrowRight size={20} color={c.onPrimary} strokeWidth={2.6} />
+          <ArrowRightIcon size={20} color={c.onPrimary} />
         </Pressable>
       </View>
     </SafeScreen>
@@ -166,13 +174,13 @@ function Art({ slide }: { slide: Slide }) {
   return (
     <View style={styles.art}>
       <View style={[styles.tile, styles.tileA]}>
-        <A size={34} color={c.primary} strokeWidth={1.7} />
+        <A size={34} color={c.primary} />
       </View>
       <View style={[styles.tile, styles.tileB]}>
-        <B size={30} color={c.warm} strokeWidth={1.7} />
+        <B size={30} color={c.warm} />
       </View>
       <View style={[styles.tile, styles.tileLead]}>
-        <Lead size={58} color={c.onPrimary} strokeWidth={1.6} />
+        <Lead size={58} color={c.onPrimary} />
       </View>
     </View>
   );

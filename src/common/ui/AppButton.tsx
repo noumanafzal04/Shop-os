@@ -7,7 +7,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import type { Icon } from "./icons";
 import { radius, shadow, spacing, type ThemeColors, useColors } from "../../theme";
 
 interface Props {
@@ -17,7 +17,7 @@ interface Props {
   disabled?: boolean;
   variant?: "primary" | "outline" | "ghost" | "danger";
   size?: "md" | "lg";
-  icon?: LucideIcon;
+  icon?: Icon;
   style?: ViewStyle;
 }
 
@@ -71,7 +71,7 @@ export function AppButton({
         <ActivityIndicator color={fg} />
       ) : (
         <View style={styles.content}>
-          {Icon && <Icon size={18} color={fg} strokeWidth={2.2} />}
+          {Icon && <Icon size={18} color={fg} />}
           <Text style={[styles.text, { color: fg }]}>{title}</Text>
         </View>
       )}

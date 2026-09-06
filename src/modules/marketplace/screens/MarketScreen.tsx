@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -11,7 +10,11 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { ArrowLeft, ChevronRight, Search } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  ChevronRightIcon,
+  SearchIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Appear } from "../../../common/ui/Appear";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -20,6 +23,7 @@ import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { ShopFactsRow } from "../components/ShopFactsRow";
 import { shopInitial, useShopCover } from "../shopCover";
+import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
@@ -36,6 +40,7 @@ const typeLabel = (t: string | null) => (t ? t.charAt(0).toUpperCase() + t.slice
  */
 export function MarketScreen() {
   const c = useColors();
+  const coverFor = useShopCover();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -78,7 +83,7 @@ export function MarketScreen() {
         <View style={styles.headerTop}>
           {!isTab && (
             <Touchable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-              <ArrowLeft size={19} color={c.white} strokeWidth={2.2} />
+              <ArrowLeftIcon size={19} color={c.white} />
             </Touchable>
           )}
           <View style={styles.headerText}>
@@ -87,7 +92,7 @@ export function MarketScreen() {
           </View>
         </View>
         <View style={styles.searchBar}>
-          <Search size={18} color={c.gray[400]} strokeWidth={2} />
+          <SearchIcon size={18} color={c.gray[400]} />
           <TextInput
             value={search}
             onChangeText={setSearch}
@@ -126,11 +131,13 @@ export function MarketScreen() {
                       onPress={() => d.shop && navigation.navigate("MarketShop", { slug: d.shop.slug })}
                     >
                       <View style={styles.dealImgWrap}>
-                        {d.image ? (
-                          <Image source={{ uri: d.image }} style={styles.dealImg} resizeMode="cover" />
-                        ) : (
-                          <Text style={styles.dealInitial}>{d.name.charAt(0)}</Text>
-                        )}
+                        <SmartImage
+                          uri={d.image}
+                          fallback={shopInitial(d.name)}
+                          fallbackBackground={coverFor(d.id).bg}
+                          fallbackColor={coverFor(d.id).fg}
+                          style={styles.dealImg}
+                        />
                         <OfferBadge
                           value={d.price}
                           was={d.original_price}
@@ -222,7 +229,7 @@ function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
         </Text>
         <ShopFactsRow shop={shop} closed={closed} />
       </View>
-      <ChevronRight size={18} color={c.gray[300]} strokeWidth={2.2} />
+      <ChevronRightIcon size={18} color={c.gray[300]} />
     </Touchable>
   );
 }

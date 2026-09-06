@@ -1,6 +1,9 @@
 import React from "react";
 import { ActivityIndicator, Animated, Easing, Modal, StyleSheet, Text, View } from "react-native";
-import { Bike, ShoppingBag } from "lucide-react-native";
+import {
+  BagIcon,
+  MotorcycleIcon,
+} from "../../common/ui/icons";
 import { spacing, type ThemeColors, typography, useColors } from "../../theme";
 import { useModeStore } from "../../stores/modeStore";
 
@@ -61,14 +64,14 @@ export function ModeSwitchCover() {
   if (!switching) return null;
 
   const toRider = target === "rider";
-  const Icon = toRider ? Bike : ShoppingBag;
+  const Icon = toRider ? MotorcycleIcon : BagIcon;
 
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent>
       <View style={[styles.root, toRider && styles.rootRider]}>
         <Animated.View style={[styles.card, { opacity: fade, transform: [{ translateY: lift }] }]}>
           <View style={styles.disc}>
-            <Icon size={30} color={toRider ? c.success : c.primary} strokeWidth={1.9} />
+            <Icon size={30} color={toRider ? c.success : c.primary} />
           </View>
           <Text style={styles.title}>{toRider ? "Rider mode" : "Shopping"}</Text>
           <Text style={styles.body}>

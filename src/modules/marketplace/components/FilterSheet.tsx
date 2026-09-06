@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Check, Star } from "lucide-react-native";
+import {
+  CheckIcon,
+  StarIcon,
+} from "../../../common/ui/icons";
 import { BottomSheet } from "../../../common/ui/BottomSheet";
 import { PriceRange } from "../../../common/ui/PriceRange";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -311,7 +314,7 @@ function Chip({
       accessibilityState={{ selected: on }}
       onPress={onPress}
     >
-      {icon && <Star size={12} color={on ? c.onPrimary : c.warm} fill={on ? c.onPrimary : c.warm} />}
+      {icon && <StarIcon size={12} color={on ? c.onPrimary : c.warm} />}
       <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
       {count !== undefined && (
         <Text style={[styles.chipCount, on && styles.chipCountOn]}>{count}</Text>
@@ -345,7 +348,7 @@ function Toggle({
         {!!hint && <Text style={styles.toggleHint}>{hint}</Text>}
       </View>
       <View style={[styles.box, on && styles.boxOn]}>
-        {on && <Check size={14} color={c.onPrimary} strokeWidth={3} />}
+        {on && <CheckIcon size={14} color={c.onPrimary} />}
       </View>
     </Pressable>
   );

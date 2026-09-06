@@ -1,7 +1,11 @@
 import React from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { MessageSquareQuote, Star, Store } from "lucide-react-native";
+import {
+  QuoteIcon,
+  StarIcon,
+  StorefrontIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -99,7 +103,7 @@ export function ReviewsScreen() {
               </View>
             ) : (
               <View style={styles.empty}>
-                <MessageSquareQuote size={34} color={c.textMuted} strokeWidth={1.6} />
+                <QuoteIcon size={34} color={c.textMuted} />
                 <Text style={styles.emptyTitle}>Nothing rated yet</Text>
                 <Text style={styles.emptyText}>
                   When an order is delivered, the order screen offers to rate the
@@ -122,7 +126,7 @@ export function ReviewsScreen() {
                   }
                 >
                   <View style={styles.mark}>
-                    <Store size={17} color={c.primary} strokeWidth={2.2} />
+                    <StorefrontIcon size={17} color={c.primary} />
                   </View>
                   <View style={styles.headCopy}>
                     <Text style={styles.shop} numberOfLines={1}>
@@ -130,12 +134,10 @@ export function ReviewsScreen() {
                     </Text>
                     <View style={styles.stars}>
                       {[1, 2, 3, 4, 5].map((n) => (
-                        <Star
+                        <StarIcon
                           key={n}
                           size={13}
                           color={n <= item.rating ? c.warm : c.border}
-                          fill={n <= item.rating ? c.warm : "transparent"}
-                          strokeWidth={1.6}
                         />
                       ))}
                     </View>

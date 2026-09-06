@@ -1,6 +1,8 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Star } from "lucide-react-native";
+import {
+  StarIcon,
+} from "../../../common/ui/icons";
 import { useTheme } from "../../../theme";
 import { shopFactsShort } from "../shopFacts";
 import type { PublicShop } from "../services/marketplaceService";
@@ -37,7 +39,7 @@ export function ShopFactsRow({
       {facts.map((f, i) => (
         <View key={f.key} style={styles.fact}>
           {f.key === "rating" && (
-            <Star size={12} color={c.warm} fill={c.warm} strokeWidth={0} />
+            <StarIcon size={12} color={c.warm} />
           )}
           <Text
             numberOfLines={1}

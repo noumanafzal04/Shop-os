@@ -9,7 +9,13 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AlertTriangle, CheckCircle2, Info, XCircle, type LucideIcon } from "lucide-react-native";
+import {
+  AlertTriangleIcon,
+  CheckCircleIcon,
+  InfoIcon,
+  XCircleIcon,
+  type Icon,
+} from "../../../common/ui/icons";
 import { useTheme } from "../../../theme";
 import type { ThemeColors } from "../../../theme";
 import { useToastStore, type Toast, type ToastKind } from "./toastStore";
@@ -24,11 +30,11 @@ import { useToastStore, type Toast, type ToastKind } from "./toastStore";
  * it must not.
  */
 
-const ICONS: Record<ToastKind, LucideIcon> = {
-  success: CheckCircle2,
-  error: XCircle,
-  warning: AlertTriangle,
-  info: Info,
+const ICONS: Record<ToastKind, Icon> = {
+  success: CheckCircleIcon,
+  error: XCircleIcon,
+  warning: AlertTriangleIcon,
+  info: InfoIcon,
 };
 
 /** Ground, hairline and icon per kind — flat, the way the rest of the app is. */
@@ -131,7 +137,7 @@ function ToastCard({ toast }: { toast: Toast }) {
           },
         ]}
       >
-        <Icon size={20} color={icon} strokeWidth={2.2} />
+        <Icon size={20} color={icon} />
         <View style={styles.copy}>
           <Text
             numberOfLines={2}

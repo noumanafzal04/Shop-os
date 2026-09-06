@@ -1,7 +1,6 @@
 import React from "react";
 import {
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -11,6 +10,7 @@ import {
   type NativeSyntheticEvent,
 } from "react-native";
 import { useTheme } from "../../../theme";
+import { SmartImage } from "../../../common/ui/SmartImage";
 import type { HomeBanner } from "../services/marketplaceService";
 
 /**
@@ -127,7 +127,11 @@ export function PromoCarousel({
                 style={[styles.card, size, { backgroundColor: c.surfaceAlt }]}
               >
                 {item.image_url ? (
-                  <Image source={{ uri: item.image_url }} style={size} resizeMode="cover" />
+                  // `SmartImage`, so an advert that is still downloading
+                  // shimmers rather than sitting as an empty grey card — this
+                  // is the widest picture on the home screen and the slowest
+                  // to arrive.
+                  <SmartImage uri={item.image_url} style={size} />
                 ) : (
                   // A banner whose artwork failed still has to be tappable and
                   // still has to be the right SIZE, or the row reflows around

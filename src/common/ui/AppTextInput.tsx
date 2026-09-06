@@ -7,13 +7,17 @@ import {
   View,
   type TextInputProps,
 } from "react-native";
-import { Eye, EyeOff, type LucideIcon } from "lucide-react-native";
+import {
+  EyeIcon,
+  EyeOffIcon,
+  type Icon,
+} from "./icons";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../theme";
 
 interface Props extends TextInputProps {
   label?: string;
   error?: string | null;
-  icon?: LucideIcon;
+  icon?: Icon | Icon;
   /**
    * Something at the far end of the field — a clear cross, a unit, a scan
    * button. Inside the border so it reads as part of the input rather than as
@@ -44,7 +48,7 @@ export function AppTextInput({ label, error, icon: Icon, trailing, secureTextEnt
           !!error && styles.errored,
         ]}
       >
-        {Icon && <Icon size={18} color={focused ? c.brand[500] : c.gray[400]} strokeWidth={2} />}
+        {Icon && <Icon size={18} color={focused ? c.brand[500] : c.gray[400]} />}
         <TextInput
           placeholderTextColor={c.gray[400]}
           secureTextEntry={hidden}
@@ -56,7 +60,7 @@ export function AppTextInput({ label, error, icon: Icon, trailing, secureTextEnt
         {!secureTextEntry && trailing}
         {secureTextEntry && (
           <Pressable onPress={() => setHidden((h) => !h)} hitSlop={8}>
-            {hidden ? <EyeOff size={18} color={c.gray[400]} /> : <Eye size={18} color={c.gray[500]} />}
+            {hidden ? <EyeOffIcon size={18} color={c.gray[400]} /> : <EyeIcon size={18} color={c.gray[500]} />}
           </Pressable>
         )}
       </View>

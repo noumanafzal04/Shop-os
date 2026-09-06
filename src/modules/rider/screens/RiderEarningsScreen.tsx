@@ -1,6 +1,11 @@
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Banknote, Package, Store, Wallet } from "lucide-react-native";
+import {
+  BanknoteIcon,
+  BoxIcon,
+  StorefrontIcon,
+  WalletIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { SideMenu } from "../../../navigation/SideMenu";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
@@ -100,7 +105,7 @@ export function RiderEarningsScreen() {
           <>
             {/* ── Yours ─────────────────────────────────────────────── */}
             <View style={styles.hero}>
-              <Wallet size={20} color={c.onPrimary} strokeWidth={2.2} />
+              <WalletIcon size={20} color={c.onPrimary} />
               <Text style={styles.heroValue}>{money(earnings.data?.earned ?? 0)}</Text>
               <Text style={styles.heroLabel}>
                 Earned from {earnings.data?.deliveries ?? 0} deliver
@@ -111,7 +116,7 @@ export function RiderEarningsScreen() {
             {/* ── Theirs ────────────────────────────────────────────── */}
             <View style={styles.cash}>
               <View style={styles.cashHead}>
-                <Banknote size={18} color={c.onWarm} strokeWidth={2.2} />
+                <BanknoteIcon size={18} color={c.onWarm} />
                 <Text style={styles.cashTitle}>Cash in hand</Text>
                 <Text style={styles.cashValue}>{money(earnings.data?.cash_in_hand ?? 0)}</Text>
               </View>
@@ -131,7 +136,7 @@ export function RiderEarningsScreen() {
                       key={`${s.shop}-${i}`}
                       style={[styles.shop, i < earnings.data!.by_shop.length - 1 && styles.shopDivided]}
                     >
-                      <Store size={16} color={c.textMuted} strokeWidth={2} />
+                      <StorefrontIcon size={16} color={c.textMuted} />
                       <View style={styles.shopCopy}>
                         <Text style={styles.shopName} numberOfLines={1}>
                           {s.shop ?? "Shop"}
@@ -148,7 +153,7 @@ export function RiderEarningsScreen() {
             )}
 
             <View style={styles.note}>
-              <Package size={15} color={c.textMuted} strokeWidth={2} />
+              <BoxIcon size={15} color={c.textMuted} />
               <Text style={styles.noteText}>
                 A shop settles with you from their own screen. Once they do, the amount above drops
                 and what you earned stays.

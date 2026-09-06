@@ -15,24 +15,24 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import {
-  Bell,
-  Bike,
-  CalendarClock,
-  ChevronRight,
-  FileText,
-  Heart,
-  LifeBuoy,
-  LogOut,
-  MapPin,
-  Pencil,
-  Receipt,
-  RefreshCw,
-  Settings,
-  ShoppingBag,
-  UserRound,
-  Wallet,
-  type LucideIcon,
-} from "lucide-react-native";
+  BagIcon,
+  BellIcon,
+  CalendarIcon,
+  ChevronRightIcon,
+  FileTextIcon,
+  GearIcon,
+  HeartIcon,
+  LifeBuoyIcon,
+  MapPinIcon,
+  MotorcycleIcon,
+  PencilIcon,
+  PersonIcon,
+  ReceiptIcon,
+  RefreshIcon,
+  SignOutIcon,
+  WalletIcon,
+  type Icon,
+} from "../common/ui/icons";
 import { confirm } from "../common/ui/confirm";
 import { Touchable } from "../common/ui/Touchable";
 import { spacing, type ThemeColors, typography, useColors } from "../theme";
@@ -86,7 +86,7 @@ interface Props {
 }
 
 interface Link {
-  icon: LucideIcon;
+  icon: Icon;
   label: string;
   route: string;
   params?: object;
@@ -98,17 +98,17 @@ interface Link {
 }
 
 const ACCOUNT: Link[] = [
-  { icon: UserRound, label: "Account information", route: "Profile", needsAccount: true },
-  { icon: Receipt, label: "My orders", route: "OrdersTab", needsAccount: true },
-  { icon: MapPin, label: "Address management", route: "Addresses", needsAccount: true },
-  { icon: Heart, label: "Favourites", route: "Favorites", needsAccount: true },
-  { icon: CalendarClock, label: "Reservations", route: "Reservations", needsAccount: true },
+  { icon: PersonIcon, label: "Account information", route: "Profile", needsAccount: true },
+  { icon: ReceiptIcon, label: "My orders", route: "OrdersTab", needsAccount: true },
+  { icon: MapPinIcon, label: "Address management", route: "Addresses", needsAccount: true },
+  { icon: HeartIcon, label: "Favourites", route: "Favorites", needsAccount: true },
+  { icon: CalendarIcon, label: "Reservations", route: "Reservations", needsAccount: true },
 ];
 
 const APP: Link[] = [
-  { icon: Bell, label: "Notifications", route: "Notifications", needsAccount: true },
-  { icon: Settings, label: "Settings", route: "Settings" },
-  { icon: LifeBuoy, label: "Help centre", route: "Help" },
+  { icon: BellIcon, label: "Notifications", route: "Notifications", needsAccount: true },
+  { icon: GearIcon, label: "Settings", route: "Settings" },
+  { icon: LifeBuoyIcon, label: "Help centre", route: "Help" },
 ];
 
 /**
@@ -123,9 +123,9 @@ const RIDER_WORK: Link[] = [
   // Through the tab navigator by name, the same way the basket is reached from
   // a shop screen. A bare tab name would bubble up to the stack, find nothing,
   // and warn — navigating to a nested route means naming both halves.
-  { icon: Bike, label: "My deliveries", route: "RiderTabs", params: { screen: "RiderBoardTab" }, needsAccount: true },
-  { icon: Wallet, label: "Earnings", route: "RiderTabs", params: { screen: "RiderEarningsTab" }, needsAccount: true },
-  { icon: FileText, label: "My rider account", route: "RiderApply", needsAccount: true },
+  { icon: MotorcycleIcon, label: "My deliveries", route: "RiderTabs", params: { screen: "RiderBoardTab" }, needsAccount: true },
+  { icon: WalletIcon, label: "Earnings", route: "RiderTabs", params: { screen: "RiderEarningsTab" }, needsAccount: true },
+  { icon: FileTextIcon, label: "My rider account", route: "RiderApply", needsAccount: true },
 ];
 
 /**
@@ -329,7 +329,7 @@ export function SideMenu({ visible, onClose }: Props) {
                 {signedIn && user?.name ? (
                   <Text style={styles.avatarText}>{user.name.trim().charAt(0).toUpperCase()}</Text>
                 ) : (
-                  <UserRound size={24} color={c.onPrimary} strokeWidth={2.2} />
+                  <PersonIcon size={24} color={c.onPrimary} />
                 )}
               </View>
               <View style={styles.whoCopy}>
@@ -342,7 +342,7 @@ export function SideMenu({ visible, onClose }: Props) {
               </View>
               <View style={styles.editPill}>
                 {signedIn ? (
-                  <Pencil size={14} color={c.primary} strokeWidth={2.4} />
+                  <PencilIcon size={14} color={c.primary} />
                 ) : (
                   <Text style={styles.editText}>Sign in</Text>
                 )}
@@ -420,9 +420,9 @@ export function SideMenu({ visible, onClose }: Props) {
               >
                 <View style={styles.switcherIcon}>
                   {onShift ? (
-                    <ShoppingBag size={19} color={c.onPrimary} strokeWidth={2.2} />
+                    <BagIcon size={19} color={c.onPrimary} />
                   ) : (
-                    <Bike size={19} color={c.onPrimary} strokeWidth={2.2} />
+                    <MotorcycleIcon size={19} color={c.onPrimary} />
                   )}
                 </View>
                 <View style={styles.switcherCopy}>
@@ -440,9 +440,9 @@ export function SideMenu({ visible, onClose }: Props) {
                   </Text>
                 </View>
                 {canRide ? (
-                  <RefreshCw size={17} color={c.onPrimary} strokeWidth={2.4} />
+                  <RefreshIcon size={17} color={c.onPrimary} />
                 ) : (
-                  <ChevronRight size={17} color={c.onPrimary} strokeWidth={2.4} />
+                  <ChevronRightIcon size={17} color={c.onPrimary} />
                 )}
               </Touchable>
             )}
@@ -454,7 +454,7 @@ export function SideMenu({ visible, onClose }: Props) {
                 accessibilityLabel="Log out"
                 onPress={signOut}
               >
-                <LogOut size={18} color={c.error} strokeWidth={2.2} />
+                <SignOutIcon size={18} color={c.error} />
                 <Text style={styles.logoutText}>Log out</Text>
               </Touchable>
             )}
@@ -496,7 +496,7 @@ function Row({
         competing down the same edge. Colour on the mark itself is the middle
         one: the list has life and still reads as a list.
       */}
-      <Icon size={20} color={danger ? c.error : c.primary} strokeWidth={2} />
+      <Icon size={20} color={danger ? c.error : c.primary} />
       <Text style={[styles.rowLabel, danger && styles.rowLabelDanger]} numberOfLines={1}>
         {link.label}
       </Text>
@@ -508,7 +508,7 @@ function Row({
           </Text>
         </View>
       )}
-      {!danger && <ChevronRight size={17} color={c.gray[300]} strokeWidth={2.2} />}
+      {!danger && <ChevronRightIcon size={17} color={c.gray[300]} />}
     </Pressable>
   );
 }

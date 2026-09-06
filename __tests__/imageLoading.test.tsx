@@ -1,6 +1,6 @@
 import React from "react";
 import ReactTestRenderer from "react-test-renderer";
-import { PROJECT_ROOT, fs, path } from "./support/node";
+import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
 import { ThemeProvider } from "../src/theme";
 import { SmartImage } from "../src/common/ui/SmartImage";
 
@@ -132,6 +132,44 @@ describe("one animation, shared", () => {
     expect(src).toMatch(/const \{ progress, still \} = useShimmer\(\)/);
     // Reduce motion is honoured by NOT drawing it, not by slowing it down.
     expect(src).toMatch(/waiting && ! ?still && measured > 0/);
+  });
+
+  it("leaves no remote picture drawn without one", () => {
+    // Asked for after the shop page's banner sat as a motionless coloured
+    // block: "shop detail screen banner loader… is tarhan ki cheezain khud b
+    // dekh lo." There were eight, and the banner was the one anybody noticed
+    // because it is the biggest.
+    //
+    // A bare <Image> on a URL is three missing things at once: no fade, no
+    // shimmer, and — the one that leaves a permanent hole — no `onError`. A
+    // deleted file or an expired link is a rectangle of nothing for ever.
+    const files = sourceFiles(path.join(PROJECT_ROOT, "src")).filter((f) => f.endsWith(".tsx"));
+    expect(files.length).toBeGreaterThan(30);
+
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = codeOnly(fs.readFileSync(f, "utf8"));
+      for (const m of src.matchAll(/<Image\b[\s\S]{0,200}?\/>/g)) {
+        // A local `require()` asset is bundled: it is there on the first
+        // frame, and there is nothing to wait for.
+        if (!/source=\{\{\s*uri/.test(m[0])) continue;
+        offenders.push(`  ${path.relative(PROJECT_ROOT, f)}:${src.slice(0, m.index ?? 0).split("\n").length}`);
+      }
+    }
+
+    expect(
+      offenders.length === 0 ? "" : "Use <SmartImage>:\n" + offenders.join("\n"),
+    ).toBe("");
+  });
+
+  it("recognises the shape it is looking for", () => {
+    // The detector, against a known-bad line and a known-good one, so a regex
+    // that stops matching fails HERE rather than reporting a clean sweep.
+    const bad = '<Image source={{ uri: x }} style={s} />';
+    const local = '<Image source={require("./logo.png")} style={s} />';
+    expect(/<Image\b[\s\S]{0,200}?\/>/.test(bad)).toBe(true);
+    expect(/source=\{\{\s*uri/.test(bad)).toBe(true);
+    expect(/source=\{\{\s*uri/.test(local)).toBe(false);
   });
 
   it("animates only what the native driver can carry", () => {

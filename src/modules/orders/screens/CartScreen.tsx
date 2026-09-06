@@ -1,7 +1,14 @@
 import React from "react";
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowRight, Minus, Plus, ShoppingBag, TicketPercent, Trash2 } from "lucide-react-native";
+import {
+  ArrowRightIcon,
+  BagIcon,
+  MinusIcon,
+  PlusIcon,
+  TicketIcon,
+  TrashIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AddButton } from "../../../common/ui/AddButton";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -121,7 +128,7 @@ export function CartScreen() {
         </View>
         <View style={styles.emptyWrap}>
           <View style={styles.emptyIcon}>
-            <ShoppingBag size={34} color={c.primary} strokeWidth={1.8} />
+            <BagIcon size={34} color={c.primary} />
           </View>
           <Text style={styles.emptyTitle}>Your cart is empty</Text>
           <Text style={styles.emptyText}>Browse shops near you and add something tasty.</Text>
@@ -176,7 +183,7 @@ export function CartScreen() {
           accessibilityLabel="Empty basket"
           onPress={emptyBasket}
         >
-          <Trash2 size={15} color={c.error} strokeWidth={2.2} />
+          <TrashIcon size={15} color={c.error} />
           <Text style={styles.clearText}>Empty</Text>
         </Pressable>
       </View>
@@ -222,7 +229,7 @@ export function CartScreen() {
 
               <View style={styles.stepper}>
                 {/*
-                  Minus stays minus. It used to turn into a bin at a quantity
+                  MinusIcon stays minus. It used to turn into a bin at a quantity
                   of one, so the control changed meaning under the thumb — and
                   removing a line meant noticing that it had. The bin is its
                   own button now, on the right, where a row's actions go.
@@ -233,7 +240,7 @@ export function CartScreen() {
                   accessibilityLabel={`Less ${item.name}`}
                   onPress={() => cart.setQty(k, item.quantity - step)}
                 >
-                  <Minus size={13} color={c.textSecondary} strokeWidth={2.6} />
+                  <MinusIcon size={13} color={c.textSecondary} />
                 </Pressable>
                 <Text style={styles.qty}>
                   {qtyText(item.quantity)}
@@ -245,7 +252,7 @@ export function CartScreen() {
                   accessibilityLabel={`More ${item.name}`}
                   onPress={() => cart.setQty(k, item.quantity + step)}
                 >
-                  <Plus size={13} color={c.onPrimary} strokeWidth={2.6} />
+                  <PlusIcon size={13} color={c.onPrimary} />
                 </Pressable>
               </View>
 
@@ -256,7 +263,7 @@ export function CartScreen() {
                 accessibilityLabel={`Remove ${item.name}`}
                 onPress={() => cart.setQty(k, 0)}
               >
-                <Trash2 size={15} color={c.textMuted} strokeWidth={2} />
+                <TrashIcon size={15} color={c.textMuted} />
               </Pressable>
               </View>
             </Appear>
@@ -270,7 +277,7 @@ export function CartScreen() {
                 accessibilityRole="button"
                 onPress={() => navigation.navigate("MarketShop", { slug })}
               >
-                <Plus size={15} color={c.primary} strokeWidth={2.6} />
+                <PlusIcon size={15} color={c.primary} />
                 <Text style={styles.addMoreText}>Add more items</Text>
               </Touchable>
             )}
@@ -358,7 +365,7 @@ export function CartScreen() {
             onPress={() => navigation.navigate("Checkout", { slug })}
           >
             <View style={styles.couponIcon}>
-              <TicketPercent size={15} color={c.onPrimary} strokeWidth={2.3} />
+              <TicketIcon size={15} color={c.onPrimary} />
             </View>
             <Text style={styles.couponText}>Have a coupon code?</Text>
             <Text style={styles.couponCta}>Apply</Text>
@@ -409,7 +416,7 @@ export function CartScreen() {
           onPress={() => slug && navigation.navigate("Checkout", { slug })}
         >
           <Text style={styles.ctaText}>Checkout now</Text>
-          <ArrowRight size={17} color={c.onPrimary} strokeWidth={2.6} />
+          <ArrowRightIcon size={17} color={c.onPrimary} />
         </Pressable>
       </View>
     </SafeScreen>

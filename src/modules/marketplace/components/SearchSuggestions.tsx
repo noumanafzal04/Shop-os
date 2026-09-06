@@ -1,6 +1,11 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { ArrowUpLeft, Package, Store, Tag } from "lucide-react-native";
+import {
+  ArrowUpLeftIcon,
+  BoxIcon,
+  StorefrontIcon,
+  TagIcon,
+} from "../../../common/ui/icons";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { money } from "../../../common/format";
@@ -132,7 +137,7 @@ export function SearchSuggestions({ suggestions, onPick, onFill }: Props) {
     <View style={styles.wrap}>
       {suggestions.map((s) => {
         const cover = coverFor(s.seed);
-        const Mark = s.kind === "shop" ? Store : s.kind === "category" ? Tag : Package;
+        const Mark = s.kind === "shop" ? StorefrontIcon : s.kind === "category" ? TagIcon : BoxIcon;
 
         return (
           <Touchable
@@ -144,7 +149,7 @@ export function SearchSuggestions({ suggestions, onPick, onFill }: Props) {
           >
             {s.kind === "category" ? (
               <View style={styles.mark}>
-                <Mark size={17} color={c.primary} strokeWidth={2.2} />
+                <Mark size={17} color={c.primary} />
               </View>
             ) : (
               <SmartImage
@@ -182,7 +187,7 @@ export function SearchSuggestions({ suggestions, onPick, onFill }: Props) {
               accessibilityLabel={`Search for ${s.label}`}
               onPress={() => onFill(s.label)}
             >
-              <ArrowUpLeft size={16} color={c.textMuted} strokeWidth={2.2} />
+              <ArrowUpLeftIcon size={16} color={c.textMuted} />
             </Touchable>
           </Touchable>
         );

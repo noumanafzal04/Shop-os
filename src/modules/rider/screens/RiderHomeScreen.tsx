@@ -9,14 +9,14 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
-  Banknote,
-  Bike,
-  ChevronRight,
-  MapPin,
-  Package,
-  Store,
-  Wallet,
-} from "lucide-react-native";
+  BanknoteIcon,
+  BoxIcon,
+  ChevronRightIcon,
+  MapPinIcon,
+  MotorcycleIcon,
+  StorefrontIcon,
+  WalletIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SideMenu } from "../../../navigation/SideMenu";
@@ -113,7 +113,7 @@ export function RiderHomeScreen() {
         <SideMenu visible={menu} onClose={() => setMenu(false)} />
         <View style={styles.gate}>
           <View style={styles.gateIcon}>
-            <Bike size={30} color={c.primary} strokeWidth={1.8} />
+            <MotorcycleIcon size={30} color={c.primary} />
           </View>
           <Text style={styles.gateTitle}>
             {rider.data == null ? "You are not a rider yet" : rider.data.status_label}
@@ -131,7 +131,7 @@ export function RiderHomeScreen() {
             <Text style={styles.gateCtaText}>
               {rider.data == null ? "Become a rider" : "Open application"}
             </Text>
-            <ChevronRight size={15} color={c.onPrimary} strokeWidth={2.6} />
+            <ChevronRightIcon size={15} color={c.onPrimary} />
           </Touchable>
         </View>
       </SafeScreen>
@@ -206,8 +206,8 @@ export function RiderHomeScreen() {
 
             {/* ── Today ─────────────────────────────────────────────── */}
             <View style={styles.stats}>
-              <Stat icon={Package} label="Delivered" value={String(today?.deliveries ?? 0)} />
-              <Stat icon={Wallet} label="Earned" value={money(today?.earned ?? 0)} />
+              <Stat icon={BoxIcon} label="Delivered" value={String(today?.deliveries ?? 0)} />
+              <Stat icon={WalletIcon} label="Earned" value={money(today?.earned ?? 0)} />
               <Touchable
                 style={styles.statPress}
                 accessibilityRole="button"
@@ -215,7 +215,7 @@ export function RiderHomeScreen() {
                 onPress={() => navigation.navigate("RiderEarnings")}
               >
                 <Stat
-                  icon={Banknote}
+                  icon={BanknoteIcon}
                   label="Cash in hand"
                   value={money(today?.cash_in_hand ?? 0)}
                   warn={(today?.cash_in_hand ?? 0) > 0}
@@ -308,7 +308,7 @@ function Stat({
   value,
   warn,
 }: {
-  icon: typeof Package;
+  icon: typeof BoxIcon;
   label: string;
   value: string;
   warn?: boolean;
@@ -317,7 +317,7 @@ function Stat({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.stat}>
-      <Icon size={16} color={warn ? c.warning : c.textMuted} strokeWidth={2} />
+      <Icon size={16} color={warn ? c.warning : c.textMuted} />
       <Text style={[styles.statValue, warn && styles.statValueWarn]} numberOfLines={1}>
         {value}
       </Text>
@@ -366,14 +366,14 @@ export function JobCard({ job, onPress, mine }: { job: RiderJob; onPress: () => 
       </View>
 
       <View style={styles.leg}>
-        <Store size={15} color={c.primary} strokeWidth={2.2} />
+        <StorefrontIcon size={15} color={c.primary} />
         <Text style={styles.legText} numberOfLines={1}>
           {job.shop.name}
           {job.shop.branch ? ` · ${job.shop.branch}` : ""}
         </Text>
       </View>
       <View style={styles.leg}>
-        <MapPin size={15} color={c.textMuted} strokeWidth={2.2} />
+        <MapPinIcon size={15} color={c.textMuted} />
         <Text style={styles.legText} numberOfLines={1}>
           {job.delivery_address ?? job.drop_area ?? "Nearby"}
         </Text>
@@ -386,7 +386,7 @@ export function JobCard({ job, onPress, mine }: { job: RiderJob; onPress: () => 
         </Text>
         {job.cash_to_collect > 0 && (
           <View style={styles.cashPill}>
-            <Banknote size={12} color={c.onWarm} strokeWidth={2.4} />
+            <BanknoteIcon size={12} color={c.onWarm} />
             <Text style={styles.cashText}>Collect {money(job.cash_to_collect)}</Text>
           </View>
         )}

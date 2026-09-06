@@ -1,6 +1,9 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { ChevronRight, Star } from "lucide-react-native";
+import {
+  ChevronRightIcon,
+  StarIcon,
+} from "../../../common/ui/icons";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
@@ -119,11 +122,11 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
         */}
         {shop.rating != null ? (
           <View style={styles.rating}>
-            <Star size={12} color={c.warm} fill={c.warm} strokeWidth={0} />
+            <StarIcon size={12} color={c.warm} />
             <Text style={styles.ratingText}>{shop.rating.toFixed(1)}</Text>
           </View>
         ) : (
-          <ChevronRight size={18} color={c.textMuted} strokeWidth={2.2} />
+          <ChevronRightIcon size={18} color={c.textMuted} />
         )}
       </Touchable>
 
@@ -190,7 +193,7 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
             onPress={onOpen}
           >
             <View style={styles.moreDisc}>
-              <ChevronRight size={20} color={c.primary} strokeWidth={2.4} />
+              <ChevronRightIcon size={20} color={c.primary} />
             </View>
             <Text style={styles.moreText} numberOfLines={2}>
               See all

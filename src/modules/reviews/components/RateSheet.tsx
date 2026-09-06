@@ -1,6 +1,8 @@
 import React from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
-import { Star } from "lucide-react-native";
+import {
+  StarIcon,
+} from "../../../common/ui/icons";
 import { BottomSheet } from "../../../common/ui/BottomSheet";
 import { AppButton } from "../../../common/ui/AppButton";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -107,13 +109,11 @@ export function RateSheet({ visible, onClose, shopSlug, shopName, existing }: Pr
                 accessibilityLabel={`${n} star${n === 1 ? "" : "s"}`}
                 onPress={() => setRating(n)}
               >
-                <Star
+                <StarIcon
                   size={38}
                   color={on ? c.warm : c.border}
                   // Filled rather than outlined once it is chosen: five hollow
                   // stars and four hollow stars look the same at a glance.
-                  fill={on ? c.warm : "transparent"}
-                  strokeWidth={1.6}
                 />
               </Touchable>
             );

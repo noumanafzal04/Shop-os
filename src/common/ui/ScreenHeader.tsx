@@ -1,7 +1,10 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeft, Menu } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  MenuIcon,
+} from "../../common/ui/icons";
 import { spacing, type ThemeColors, typography, useColors } from "../../theme";
 
 /**
@@ -64,7 +67,7 @@ export function ScreenHeader({ title, subtitle, right, showBack = true, onBack, 
           accessibilityLabel="Menu"
           onPress={onMenu}
         >
-          <Menu size={20} color={c.text} strokeWidth={2.3} />
+          <MenuIcon size={20} color={c.text} />
         </Pressable>
       )}
       {onMenu == null && showBack && (
@@ -75,7 +78,7 @@ export function ScreenHeader({ title, subtitle, right, showBack = true, onBack, 
           accessibilityLabel="Back"
           onPress={onBack ?? (() => navigation.goBack())}
         >
-          <ArrowLeft size={19} color={c.text} strokeWidth={2.3} />
+          <ArrowLeftIcon size={19} color={c.text} />
         </Pressable>
       )}
       <View style={styles.copy}>

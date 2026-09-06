@@ -1,7 +1,14 @@
 import React, { useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeft, ChevronDown, ChevronUp, Mail } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+} from "../../../common/ui/icons";
+import {
+  EnvelopeIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
 import { BRAND } from "../../../common/brand";
@@ -125,7 +132,7 @@ export function HelpScreen() {
           accessibilityLabel="Back"
           onPress={() => navigation.goBack()}
         >
-          <ArrowLeft size={19} color={c.text} strokeWidth={2.3} />
+          <ArrowLeftIcon size={19} color={c.text} />
         </Pressable>
         <Text style={styles.title}>Help centre</Text>
       </View>
@@ -144,9 +151,9 @@ export function HelpScreen() {
               <View style={styles.qRow}>
                 <Text style={styles.q}>{t.q}</Text>
                 {isOpen ? (
-                  <ChevronUp size={17} color={c.primary} strokeWidth={2.4} />
+                  <ChevronUpIcon size={17} color={c.primary} />
                 ) : (
-                  <ChevronDown size={17} color={c.textMuted} strokeWidth={2.4} />
+                  <ChevronDownIcon size={17} color={c.textMuted} />
                 )}
               </View>
               {isOpen && <Text style={styles.a}>{t.a}</Text>}
@@ -161,7 +168,7 @@ export function HelpScreen() {
             Linking.openURL(`https://${BRAND.domain}`).catch(() => {});
           }}
         >
-          <Mail size={17} color={c.primary} strokeWidth={2.2} />
+          <EnvelopeIcon size={17} color={c.primary} />
           <Text style={styles.contactText}>Still stuck? Visit {BRAND.domain}</Text>
         </Pressable>
       </ScrollView>

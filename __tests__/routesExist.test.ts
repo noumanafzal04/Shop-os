@@ -106,17 +106,36 @@ describe("every screen this app navigates to is registered", () => {
     expect(broken.join("\n")).toBe("");
   });
 
-  it("registers everywhere the side menu can send somebody", () => {
-    // The menu builds its rider row from a function that returns a route NAME
-    // per application state — five states, and only one of them is the one a
-    // developer has on screen while writing it.
-    const src = codeOnly(fs.readFileSync(path.join(ROOT, "src/navigation/SideMenu.tsx"), "utf8"));
+  it("registers every destination held as DATA, wherever the list lives", () => {
+    // A menu that keeps its rows in an array names its destinations as plain
+    // strings in a `route:` field — never passed to `navigate()` at the point
+    // they are written, so neither of the scans above sees them.
+    //
+    // This knew only `SideMenu.tsx`, and the account page has exactly the same
+    // shape of list. A rename ran over it, turned `route: "Settings"` into
+    // `route: "GearIcon"`, and the guard written for this bug class watched the
+    // one file it was born in while an identical list two directories away
+    // pointed at a screen that does not exist. That is the guards-share-a-
+    // blind-spot rule with one guard.
+    const files = sourceFiles(path.join(ROOT, "src"));
+    const broken: string[] = [];
+    let named = 0;
 
-    const named = [...src.matchAll(/route:\s*"([\w]+)"/g)].map((m) => m[1]);
-    expect(named.length).toBeGreaterThanOrEqual(8);
-
-    for (const route of named) {
-      expect(routes.has(route)).toBe(true);
+    for (const file of files) {
+      const src = codeOnly(fs.readFileSync(file, "utf8"));
+      src.split("\n").forEach((line, i) => {
+        for (const m of line.matchAll(/route:\s*"([\w]+)"/g)) {
+          named++;
+          if (!routes.has(m[1])) {
+            broken.push(`  ${path.relative(ROOT, file)}:${i + 1}  → ${m[1]}`);
+          }
+        }
+      });
     }
+
+    // The denominator. A regex that stopped matching would report a clean
+    // sweep of nothing at all.
+    expect(named).toBeGreaterThanOrEqual(12);
+    expect(broken.join("\n")).toBe("");
   });
 });

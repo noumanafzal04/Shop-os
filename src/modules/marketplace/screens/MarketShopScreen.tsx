@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   Alert,
   FlatList,
-  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,7 +12,18 @@ import {
 } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft, ArrowRight, Bike, Clock, Heart, MapPin, Phone, Search, ShoppingBag, Star } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  BagIcon,
+  ClockIcon,
+  HeartIcon,
+  MapPinIcon,
+  MotorcycleIcon,
+  PhoneIcon,
+  SearchIcon,
+  StarIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AddButton } from "../../../common/ui/AddButton";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
@@ -29,6 +39,7 @@ import type { PublicProduct } from "../services/marketplaceService";
 import { productBelongsToShop } from "../linkedProduct";
 import { formatDistance } from "../shopFacts";
 import { shopInitial, useShopCover } from "../shopCover";
+import { SmartImage } from "../../../common/ui/SmartImage";
 import { toast } from "../../../common/ui/toast";
 import { confirm } from "../../../common/ui/confirm";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
@@ -233,27 +244,34 @@ export function MarketShopScreen() {
     <>
       {/* ── Hero ──────────────────────────────────────────────────── */}
       <View style={styles.hero}>
-        {hero ? (
-          <Image source={{ uri: hero }} style={styles.heroImg} resizeMode="cover" />
-        ) : (
-          // The SAME derived cover as the card this shop was tapped from, so
-          // opening a shop does not change what it looks like. It used to be a
-          // brand-red block with a translucent white letter on it — the same
-          // block for every shop, and a letter at 85% opacity that read as a
-          // watermark rather than as the shop's mark.
-          <View style={[styles.heroFallback, { backgroundColor: cover.bg }]}>
-            <Text style={[styles.heroInitial, { color: cover.fg }]}>
-              {shopInitial(shop.data?.business_name)}
-            </Text>
-          </View>
-        )}
+        {/*
+          The SAME derived cover as the card this shop was tapped from, so
+          opening a shop does not change what it looks like. It used to be a
+          brand-red block with a translucent white letter on it — the same
+          block for every shop, and a letter at 85% opacity that read as a
+          watermark rather than as the shop's mark.
+
+          A `SmartImage` rather than a bare `<Image>`, which is the difference
+          between a hero that shimmers and then fades in, and one that is a
+          motionless coloured block for two seconds and then, suddenly, a
+          photograph. This is the biggest picture in the app; it is the one
+          worth getting right. It also gains the thing a bare Image has never
+          had here — an answer for a URL that 404s.
+        */}
+        <SmartImage
+          uri={hero ?? null}
+          fallback={shopInitial(shop.data?.business_name)}
+          fallbackBackground={cover.bg}
+          fallbackColor={cover.fg}
+          style={styles.heroImg}
+        />
         <View style={styles.heroBar}>
           <Pressable style={styles.round} onPress={() => navigation.goBack()} hitSlop={8}>
-            <ArrowLeft size={20} color={c.text} strokeWidth={2} />
+            <ArrowLeftIcon size={20} color={c.text} />
           </Pressable>
           <View style={styles.heroRight}>
             <Pressable style={styles.round} onPress={contactShop} hitSlop={8}>
-              <Phone size={18} color={c.text} strokeWidth={2} />
+              <PhoneIcon size={18} color={c.text} />
             </Pressable>
             {isCustomer && (
               <Pressable
@@ -262,11 +280,9 @@ export function MarketShopScreen() {
                 disabled={toggleFavorite.isPending}
                 hitSlop={8}
               >
-                <Heart
+                <HeartIcon
                   size={19}
                   color={isFavorite ? c.error : c.text}
-                  fill={isFavorite ? c.error : "transparent"}
-                  strokeWidth={2}
                 />
               </Pressable>
             )}
@@ -287,7 +303,7 @@ export function MarketShopScreen() {
             <View style={styles.metaRow}>
               {shop.data.rating !== null && (
                 <>
-                  <Star size={13} color="#f5a623" fill="#f5a623" strokeWidth={0} />
+                  <StarIcon size={13} color={c.warm} />
                   <Text style={styles.metaStrong}>{shop.data.rating}</Text>
                   <Text style={styles.metaDim}>({shop.data.reviews_count} ratings)</Text>
                 </>
@@ -295,7 +311,7 @@ export function MarketShopScreen() {
               {shop.data.distance_km != null && (
                 <>
                   <Text style={styles.metaDot}>·</Text>
-                  <MapPin size={12} color={c.gray[500]} strokeWidth={2.2} />
+                  <MapPinIcon size={12} color={c.gray[500]} />
                   <Text style={styles.metaDim}>{formatDistance(shop.data.distance_km)}</Text>
                 </>
               )}
@@ -333,7 +349,7 @@ export function MarketShopScreen() {
             {fulfillment === "delivery" && hasDelivery ? (
               <>
                 <View style={styles.infoRow}>
-                  <Bike size={16} color={c.brand[600]} strokeWidth={2.2} />
+                  <MotorcycleIcon size={16} color={c.brand[600]} />
                   <Text style={styles.infoText}>
                     {prep !== null ? `Delivery ${prep}–${prep + 20} min  ·  ` : "Delivery  ·  "}
                     {Number(shop.data.delivery_fee) > 0 ? `${money(shop.data.delivery_fee ?? 0)} fee` : "Free delivery"}
@@ -341,33 +357,33 @@ export function MarketShopScreen() {
                 </View>
                 {shop.data.delivery_radius_km != null && (
                   <View style={styles.infoRow}>
-                    <MapPin size={16} color={c.gray[400]} strokeWidth={2.2} />
+                    <MapPinIcon size={16} color={c.gray[400]} />
                     <Text style={styles.infoDim}>Delivers within {shop.data.delivery_radius_km} km</Text>
                   </View>
                 )}
                 {shop.data.min_order_amount != null && (
                   <View style={styles.infoRow}>
-                    <ShoppingBag size={16} color={c.gray[400]} strokeWidth={2.2} />
+                    <BagIcon size={16} color={c.gray[400]} />
                     <Text style={styles.infoDim}>Min. order {money(shop.data.min_order_amount)}</Text>
                   </View>
                 )}
                 {shop.data.free_delivery_threshold != null && (
                   <View style={styles.infoRow}>
-                    <Bike size={16} color={c.brand[400]} strokeWidth={2.2} />
+                    <MotorcycleIcon size={16} color={c.brand[400]} />
                     <Text style={styles.infoText}>Free delivery above {money(shop.data.free_delivery_threshold)}</Text>
                   </View>
                 )}
               </>
             ) : (
               <View style={styles.infoRow}>
-                <ShoppingBag size={16} color={c.brand[600]} strokeWidth={2.2} />
+                <BagIcon size={16} color={c.brand[600]} />
                 <Text style={styles.infoText}>
                   {prep !== null ? `Pick-up · ready in ~${prep} min` : "Pick-up · collect from the shop"}
                 </Text>
               </View>
             )}
             <View style={styles.infoRow}>
-              <Clock size={16} color={c.gray[400]} strokeWidth={2.2} />
+              <ClockIcon size={16} color={c.gray[400]} />
               <Text style={styles.infoDim}>Cash on delivery</Text>
             </View>
           </View>
@@ -392,7 +408,7 @@ export function MarketShopScreen() {
       {/* Menu search */}
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
-          <Search size={17} color={c.gray[400]} strokeWidth={2} />
+          <SearchIcon size={17} color={c.gray[400]} />
           <TextInput
             value={search}
             onChangeText={setSearch}
@@ -431,11 +447,13 @@ export function MarketShopScreen() {
           return (
             <View style={[styles.productCard, unavailable && styles.productOff]}>
               <View style={styles.productThumb}>
-                {img ? (
-                  <Image source={{ uri: img }} style={styles.productImg} resizeMode="cover" />
-                ) : (
-                  <Text style={styles.productInitial}>{item.name.charAt(0)}</Text>
-                )}
+                <SmartImage
+                  uri={img ?? null}
+                  fallback={shopInitial(item.name)}
+                  fallbackBackground={coverFor(item.id).bg}
+                  fallbackColor={coverFor(item.id).fg}
+                  style={styles.productImg}
+                />
               </View>
               <View style={styles.productInfo}>
                 <View style={styles.nameRow}>
@@ -528,7 +546,7 @@ export function MarketShopScreen() {
             gives it a hit target and says the bar goes somewhere.
           */}
           <View style={styles.cartBarCta}>
-            <ArrowRight size={18} color={c.primary} strokeWidth={2.6} />
+            <ArrowRightIcon size={18} color={c.primary} />
           </View>
         </Pressable>
       )}
@@ -636,7 +654,7 @@ const makeStyles = (c: ThemeColors) =>
   },
   warnText: { ...typography.tiny, color: c.warning },
 
-  // Search + cats
+  // SearchIcon + cats
   searchWrap: { paddingHorizontal: spacing.md, marginTop: spacing.md },
   searchBar: {
     flexDirection: "row",

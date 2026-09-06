@@ -1,6 +1,8 @@
 import React from "react";
 import { Animated, Easing, Pressable, StyleSheet, Text } from "react-native";
-import { RotateCw } from "lucide-react-native";
+import {
+  RotateIcon,
+} from "../../common/ui/icons";
 import { radius, type ThemeColors, typography, useColors } from "../../theme";
 
 /**
@@ -80,7 +82,7 @@ export function RefreshPill({ at, busy, onPress, compact }: Props) {
       disabled={busy}
     >
       <Animated.View style={{ transform: [{ rotate }] }}>
-        <RotateCw size={14} color={c.textSecondary} strokeWidth={2.4} />
+        <RotateIcon size={14} color={c.textSecondary} />
       </Animated.View>
       {!compact && (
         <Text style={styles.text} numberOfLines={1}>

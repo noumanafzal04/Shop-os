@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { AlertCircle, AtSign, Lock } from "lucide-react-native";
+import {
+  EnvelopeIcon,
+  LockIcon,
+  WarningIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -76,7 +80,7 @@ export function SignInScreen() {
 
         {errorMessage && (
           <View style={styles.errorBox}>
-            <AlertCircle size={16} color={c.error} />
+            <WarningIcon size={16} color={c.error} />
             <Text style={styles.errorText}>{errorMessage}</Text>
           </View>
         )}
@@ -84,7 +88,7 @@ export function SignInScreen() {
         <View style={styles.form}>
           <AppTextInput
             label="Email or phone"
-            icon={AtSign}
+            icon={EnvelopeIcon}
             placeholder="you@example.com"
             autoCapitalize="none"
             autoCorrect={false}
@@ -94,7 +98,7 @@ export function SignInScreen() {
           />
           <AppTextInput
             label="Password"
-            icon={Lock}
+            icon={LockIcon}
             placeholder="Enter your password"
             secureTextEntry
             value={password}

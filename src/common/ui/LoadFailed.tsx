@@ -1,6 +1,9 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { CloudOff, RefreshCw } from "lucide-react-native";
+import {
+  CloudOffIcon,
+  RefreshIcon,
+} from "../../common/ui/icons";
 import { AppButton } from "./AppButton";
 import { useTheme } from "../../theme";
 import { ApiError } from "../types/api";
@@ -51,7 +54,7 @@ export function LoadFailed({
           { backgroundColor: c.surfaceAlt, borderRadius: radius.lg, marginBottom: spacing.md },
         ]}
       >
-        <CloudOff size={26} color={c.textMuted} strokeWidth={1.9} />
+        <CloudOffIcon size={26} color={c.textMuted} />
       </View>
 
       <Text style={[typography.label, styles.center, { color: c.text }]}>
@@ -66,7 +69,7 @@ export function LoadFailed({
       <AppButton
         title="Try again"
         variant="outline"
-        icon={RefreshCw}
+        icon={RefreshIcon}
         onPress={onRetry}
         loading={retrying}
         style={{ marginTop: spacing.lg }}

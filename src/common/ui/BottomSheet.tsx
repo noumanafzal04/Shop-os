@@ -12,7 +12,9 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { X } from "lucide-react-native";
+import {
+  XIcon,
+} from "../../common/ui/icons";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../theme";
 
 /**
@@ -202,7 +204,7 @@ export function BottomSheet({
                     accessibilityLabel="Close"
                     onPress={onClose}
                   >
-                    <X size={17} color={c.textSecondary} strokeWidth={2.4} />
+                    <XIcon size={17} color={c.textSecondary} />
                   </Pressable>
                 </View>
               </View>

@@ -2,13 +2,13 @@ import React from "react";
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import {
-  Banknote,
-  CheckCircle2,
-  Navigation,
-  Phone,
-  Store,
-  MapPin,
-} from "lucide-react-native";
+  BanknoteIcon,
+  CheckCircleIcon,
+  MapPinIcon,
+  NavigationIcon,
+  PhoneIcon,
+  StorefrontIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { AppButton } from "../../../common/ui/AppButton";
@@ -135,7 +135,7 @@ export function RiderJobScreen() {
       <SafeScreen edges={["top", "bottom"]}>
         <ScreenHeader title="Delivery" />
         <View style={styles.gone}>
-          <CheckCircle2 size={34} color={c.success} strokeWidth={1.8} />
+          <CheckCircleIcon size={34} color={c.success} />
           <Text style={styles.goneTitle}>This one is finished</Text>
           <Text style={styles.goneBody}>
             It is no longer on your board. Anything you delivered today is in your earnings.
@@ -161,7 +161,7 @@ export function RiderJobScreen() {
           <>
             {/* ── Collect from ───────────────────────────────────────── */}
             <Leg
-              icon={Store}
+              icon={StorefrontIcon}
               caption="Collect from"
               title={job.shop.name ?? "Shop"}
               body={[job.shop.branch, job.shop.address].filter(Boolean).join(" · ") || "Ask at the counter"}
@@ -172,7 +172,7 @@ export function RiderJobScreen() {
 
             {/* ── Deliver to ─────────────────────────────────────────── */}
             <Leg
-              icon={MapPin}
+              icon={MapPinIcon}
               caption="Deliver to"
               title={job.customer_name ?? job.drop_area ?? "Nearby"}
               body={
@@ -209,7 +209,7 @@ export function RiderJobScreen() {
             {/* ── The money ──────────────────────────────────────────── */}
             <View style={[styles.card, job.cash_to_collect > 0 && styles.cashCard]}>
               <View style={styles.moneyRow}>
-                <Banknote size={17} color={job.cash_to_collect > 0 ? c.onWarm : c.textMuted} strokeWidth={2.2} />
+                <BanknoteIcon size={17} color={job.cash_to_collect > 0 ? c.onWarm : c.textMuted} />
                 <Text style={styles.moneyLabel}>
                   {job.cash_to_collect > 0 ? "Collect from the customer" : "Already paid"}
                 </Text>
@@ -279,7 +279,7 @@ function Leg({
   onNavigate,
   done,
 }: {
-  icon: typeof Store;
+  icon: typeof StorefrontIcon;
   caption: string;
   title: string;
   body: string;
@@ -295,9 +295,9 @@ function Leg({
       <View style={styles.legTop}>
         <View style={[styles.legIcon, done && styles.legIconDone]}>
           {done ? (
-            <CheckCircle2 size={17} color={c.success} strokeWidth={2.4} />
+            <CheckCircleIcon size={17} color={c.success} />
           ) : (
-            <Icon size={17} color={c.primary} strokeWidth={2.2} />
+            <Icon size={17} color={c.primary} />
           )}
         </View>
         <View style={styles.legCopy}>
@@ -313,7 +313,7 @@ function Leg({
         <View style={styles.legActions}>
           {onCall && (
             <Pressable style={styles.legBtn} accessibilityRole="button" accessibilityLabel="Call" onPress={onCall}>
-              <Phone size={14} color={c.text} strokeWidth={2.2} />
+              <PhoneIcon size={14} color={c.text} />
               <Text style={styles.legBtnText}>Call</Text>
             </Pressable>
           )}
@@ -324,7 +324,7 @@ function Leg({
               accessibilityLabel="Directions"
               onPress={onNavigate}
             >
-              <Navigation size={14} color={c.text} strokeWidth={2.2} />
+              <NavigationIcon size={14} color={c.text} />
               <Text style={styles.legBtnText}>Directions</Text>
             </Pressable>
           )}

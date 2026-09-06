@@ -3,18 +3,18 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft,
-  Banknote,
-  Bike,
-  ChevronRight,
-  Clock,
-  MapPin,
-  PartyPopper,
-  ShoppingBag,
-  Store,
-  Ticket,
-  TriangleAlert,
-} from "lucide-react-native";
+  AlertTriangleIcon,
+  ArrowLeftIcon,
+  BagIcon,
+  BanknoteIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  ConfettiIcon,
+  MapPinIcon,
+  MotorcycleIcon,
+  StorefrontIcon,
+  TicketIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -157,7 +157,7 @@ export function CheckoutScreen() {
     return (
       <SafeScreen backgroundColor={c.bg}>
         <SignInWall
-          icon={ShoppingBag}
+          icon={BagIcon}
           title="Sign in to place your order"
           message="Your basket is saved. We need an account so the shop knows who to deliver to and you can follow the order."
         />
@@ -183,7 +183,7 @@ export function CheckoutScreen() {
           accessibilityLabel="Back to cart"
           onPress={() => navigation.goBack()}
         >
-          <ArrowLeft size={19} color={c.text} strokeWidth={2.3} />
+          <ArrowLeftIcon size={19} color={c.text} />
         </Pressable>
         <View style={styles.headCopy}>
           <Text style={styles.title}>Checkout</Text>
@@ -242,7 +242,7 @@ export function CheckoutScreen() {
           onPress={() => navigation.goBack()}
         >
           <View style={styles.basketIcon}>
-            <ShoppingBag size={18} color={c.onPrimary} strokeWidth={2.2} />
+            <BagIcon size={18} color={c.onPrimary} />
           </View>
           <View style={styles.basketCopy}>
             <Text style={styles.basketCount}>
@@ -253,7 +253,7 @@ export function CheckoutScreen() {
             </Text>
           </View>
           <Text style={styles.basketEdit}>Edit</Text>
-          <ChevronRight size={16} color={c.textMuted} strokeWidth={2.4} />
+          <ChevronRightIcon size={16} color={c.textMuted} />
         </Pressable>
 
         {/*
@@ -273,10 +273,9 @@ export function CheckoutScreen() {
               accessibilityState={{ selected: fulfillment === "pickup" }}
               onPress={() => setFulfillment("pickup")}
             >
-              <Store
+              <StorefrontIcon
                 size={15}
                 color={fulfillment === "pickup" ? c.onPrimary : c.textSecondary}
-                strokeWidth={2.2}
               />
               <Text style={[styles.segTxt, fulfillment === "pickup" && styles.segTxtOn]}>Pickup</Text>
             </Pressable>
@@ -288,10 +287,9 @@ export function CheckoutScreen() {
               accessibilityState={{ selected: fulfillment === "delivery" }}
               onPress={() => setFulfillment("delivery")}
             >
-              <Bike
+              <MotorcycleIcon
                 size={15}
                 color={fulfillment === "delivery" ? c.onPrimary : c.textSecondary}
-                strokeWidth={2.2}
               />
               <Text style={[styles.segTxt, fulfillment === "delivery" && styles.segTxtOn]}>
                 Delivery
@@ -308,7 +306,7 @@ export function CheckoutScreen() {
               const on = addressId === a.id;
               return (
                 <Pressable key={a.id} style={[styles.addr, on && styles.addrOn]} onPress={() => setAddressId(a.id)}>
-                  <MapPin size={15} color={on ? c.brand[600] : c.gray[400]} strokeWidth={2.2} />
+                  <MapPinIcon size={15} color={on ? c.brand[600] : c.gray[400]} />
                   <View style={styles.addrInfo}>
                     <Text style={styles.addrLabel}>{a.label}{a.is_default ? " · default" : ""}</Text>
                     <Text style={styles.addrText} numberOfLines={1}>{a.address}</Text>
@@ -320,7 +318,7 @@ export function CheckoutScreen() {
               style={[styles.addr, addressId === null && styles.addrOn]}
               onPress={() => setAddressId(null)}
             >
-              <MapPin size={15} color={addressId === null ? c.brand[600] : c.gray[400]} strokeWidth={2.2} />
+              <MapPinIcon size={15} color={addressId === null ? c.brand[600] : c.gray[400]} />
               <Text style={styles.addrLabel}>Type a different address</Text>
             </Pressable>
             {addressId === null && (
@@ -328,7 +326,7 @@ export function CheckoutScreen() {
             )}
             {shop.data?.delivers_to_me === false && (
               <View style={styles.rangeWarnRow}>
-                <TriangleAlert size={13} color={c.warning} strokeWidth={2.4} />
+                <AlertTriangleIcon size={13} color={c.warning} />
                 <Text style={styles.rangeWarn}>
                   Your current pin looks outside this shop's delivery range.
                 </Text>
@@ -341,7 +339,7 @@ export function CheckoutScreen() {
         <View style={styles.couponRow}>
           <View style={styles.couponInput}>
             <AppTextInput
-              icon={Ticket}
+              icon={TicketIcon}
               placeholder="Coupon code (optional)"
               value={coupon}
               onChangeText={(v) => setCoupon(v.toUpperCase())}
@@ -360,7 +358,7 @@ export function CheckoutScreen() {
         )}
         {fulfillment === "delivery" && earnedFreeDelivery && (
           <View style={styles.freeBox}>
-            <PartyPopper size={16} color={c.success} strokeWidth={2.2} />
+            <ConfettiIcon size={16} color={c.success} />
             <Text style={styles.freeText}>You've earned FREE delivery!</Text>
           </View>
         )}
@@ -401,7 +399,7 @@ export function CheckoutScreen() {
         */}
         {prep !== null && (
           <View style={styles.eta}>
-            <Clock size={15} color={c.textSecondary} strokeWidth={2.2} />
+            <ClockIcon size={15} color={c.textSecondary} />
             <Text style={styles.etaText}>
               {fulfillment === "delivery"
                 ? `Estimated delivery: ${prep}–${prep + 20} min`
@@ -412,7 +410,7 @@ export function CheckoutScreen() {
 
         <Text style={styles.section}>Payment method</Text>
         <View style={styles.payRow}>
-          <Banknote size={19} color={c.success} strokeWidth={2} />
+          <BanknoteIcon size={19} color={c.success} />
           <View style={styles.payCopy}>
             <Text style={styles.payText}>Cash on delivery</Text>
             <Text style={styles.payHint}>Pay when you receive your order</Text>

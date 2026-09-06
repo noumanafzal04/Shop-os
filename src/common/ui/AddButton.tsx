@@ -7,7 +7,10 @@ import {
   Vibration,
   type ViewStyle,
 } from "react-native";
-import { Check, Plus } from "lucide-react-native";
+import {
+  CheckIcon,
+  PlusIcon,
+} from "../../common/ui/icons";
 import { radius, type ThemeColors, useColors } from "../../theme";
 
 /**
@@ -114,9 +117,9 @@ export function AddButton({ onPress, label, size = 34, style }: Props) {
         ]}
       >
         {added ? (
-          <Check size={icon} color={c.onPrimary} strokeWidth={3} />
+          <CheckIcon size={icon} color={c.onPrimary} />
         ) : (
-          <Plus size={icon} color={c.onPrimary} strokeWidth={2.8} />
+          <PlusIcon size={icon} color={c.onPrimary} />
         )}
       </Pressable>
     </Animated.View>

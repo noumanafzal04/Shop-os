@@ -1,7 +1,14 @@
 import React, { useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeft, Clock, Search, SlidersHorizontal, Star, Store } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  ClockIcon,
+  SearchIcon,
+  SlidersIcon,
+  StarIcon,
+  StorefrontIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -13,6 +20,8 @@ import { useLocationStore } from "../../../stores/locationStore";
 import { useUniversalSearch } from "../hooks/useMarketplace";
 import { formatDistance } from "../shopFacts";
 import { Price } from "../../../common/ui/Price";
+import { SmartImage } from "../../../common/ui/SmartImage";
+import { shopInitial, useShopCover } from "../shopCover";
 import { prefs } from "../../../common/utils/prefs";
 import { SHORTCUTS } from "../tradeIcon";
 import {
@@ -30,6 +39,7 @@ type Tab = "all" | "products" | "shops";
  */
 export function SearchScreen() {
   const c = useColors();
+  const coverFor = useShopCover();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const { lat, lng } = useLocationStore();
@@ -109,14 +119,14 @@ export function SearchScreen() {
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      {/* Search bar */}
+      {/* SearchIcon bar */}
       <View style={styles.searchRow}>
         <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeft size={20} color={c.text} strokeWidth={2} />
+          <ArrowLeftIcon size={20} color={c.text} />
         </Pressable>
         <View style={styles.searchInput}>
           <AppTextInput
-            icon={Search}
+            icon={SearchIcon}
             placeholder="Search food, groceries, medicine…"
             value={q}
             onChangeText={setQ}
@@ -173,7 +183,7 @@ export function SearchScreen() {
                   navigation.navigate("Browse", { q: debounced })
                 }
               >
-                <SlidersHorizontal size={13} color={c.onPrimary} strokeWidth={2.6} />
+                <SlidersIcon size={13} color={c.onPrimary} />
                 <Text style={styles.aisleText}>Filter products</Text>
               </Pressable>
             )}
@@ -222,7 +232,7 @@ export function SearchScreen() {
                       accessibilityLabel={`Search ${term}`}
                       onPress={() => setQ(term)}
                     >
-                      <Clock size={13} color={c.textMuted} strokeWidth={2.2} />
+                      <ClockIcon size={13} color={c.textMuted} />
                       <Text style={styles.recentText} numberOfLines={1}>
                         {term}
                       </Text>
@@ -251,7 +261,6 @@ export function SearchScreen() {
                       <Icon
                         size={20}
                         color={s.tone === "offer" ? c.onPrimary : c.primary}
-                        strokeWidth={2.2}
                       />
                     </View>
                     <Text style={styles.tileText} numberOfLines={2}>
@@ -304,13 +313,13 @@ export function SearchScreen() {
                     style={styles.row}
                     onPress={() => p.shop && navigation.navigate("MarketShop", { slug: p.shop.slug })}
                   >
-                    <View style={styles.thumb}>
-                      {p.image ? (
-                        <Image source={{ uri: p.image }} style={styles.thumbImg} />
-                      ) : (
-                        <Text style={styles.thumbInitial}>{p.name.charAt(0)}</Text>
-                      )}
-                    </View>
+                    <SmartImage
+                      uri={p.image}
+                      fallback={shopInitial(p.name)}
+                      fallbackBackground={coverFor(p.id).bg}
+                      fallbackColor={coverFor(p.id).fg}
+                      style={styles.thumb}
+                    />
                     <View style={styles.rowInfo}>
                       <Text style={styles.rowTitle} numberOfLines={1}>{p.name}</Text>
                       <Text style={styles.rowMeta} numberOfLines={1}>
@@ -335,7 +344,7 @@ export function SearchScreen() {
                     onPress={() => navigation.navigate("MarketShop", { slug: s.slug })}
                   >
                     <View style={[styles.thumb, styles.shopThumb]}>
-                      <Store size={20} color={c.brand[600]} strokeWidth={2} />
+                      <StorefrontIcon size={20} color={c.brand[600]} />
                     </View>
                     <View style={styles.rowInfo}>
                       <Text style={styles.rowTitle} numberOfLines={1}>{s.business_name}</Text>
@@ -347,7 +356,7 @@ export function SearchScreen() {
                     </View>
                     {s.rating !== null && (
                       <View style={styles.rating}>
-                        <Star size={12} color="#f5a623" fill="#f5a623" strokeWidth={0} />
+                        <StarIcon size={12} color={c.warm} />
                         <Text style={styles.ratingText}>{s.rating}</Text>
                       </View>
                     )}

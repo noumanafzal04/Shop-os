@@ -2,13 +2,13 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  KeyRound,
-  Lock,
-  LogOut,
-  Monitor,
-  Smartphone,
-  Tablet,
-} from "lucide-react-native";
+  KeyIcon,
+  LockIcon,
+  MonitorIcon,
+  Phone2Icon,
+  SignOutIcon,
+  TabletIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
@@ -49,9 +49,9 @@ import { useLogoutEverywhere } from "../../auth/hooks/useAuth";
 /** How a device is named. There are three shapes and they carry no more. */
 function deviceIcon(name: string) {
   const n = name.toLowerCase();
-  if (n.includes("tablet") || n.includes("ipad")) return Tablet;
-  if (n.includes("web") || n.includes("panel") || n.includes("desktop")) return Monitor;
-  return Smartphone;
+  if (n.includes("tablet") || n.includes("ipad")) return TabletIcon;
+  if (n.includes("web") || n.includes("panel") || n.includes("desktop")) return MonitorIcon;
+  return Phone2Icon;
 }
 
 /**
@@ -193,7 +193,7 @@ export function SecurityScreen() {
 
           <AppTextInput
             label="Current password"
-            icon={Lock}
+            icon={LockIcon}
             secureTextEntry
             value={current}
             onChangeText={setCurrent}
@@ -202,7 +202,7 @@ export function SecurityScreen() {
           />
           <AppTextInput
             label="New password"
-            icon={KeyRound}
+            icon={KeyIcon}
             secureTextEntry
             value={next}
             onChangeText={setNext}
@@ -211,7 +211,7 @@ export function SecurityScreen() {
           />
           <AppTextInput
             label="New password again"
-            icon={KeyRound}
+            icon={KeyIcon}
             secureTextEntry
             value={confirmation}
             onChangeText={setConfirmation}
@@ -265,7 +265,6 @@ export function SecurityScreen() {
                     <Icon
                       size={18}
                       color={s.is_current ? c.onPrimary : c.textSecondary}
-                      strokeWidth={2.1}
                     />
                   </View>
                   <View style={styles.deviceCopy}>
@@ -308,7 +307,7 @@ export function SecurityScreen() {
           accessibilityLabel="Sign out everywhere"
           onPress={askEverywhere}
         >
-          <LogOut size={17} color={c.error} strokeWidth={2.2} />
+          <SignOutIcon size={17} color={c.error} />
           <Text style={styles.everywhereText}>
             {everywhere.isPending ? "Signing out…" : "Sign out everywhere"}
           </Text>

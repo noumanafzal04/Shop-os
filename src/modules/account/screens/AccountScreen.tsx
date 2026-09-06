@@ -2,24 +2,24 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
-  Banknote,
-  Bell,
-  Bike,
-  CalendarClock,
-  ChevronRight,
-  Heart,
-  Info,
-  LifeBuoy,
-  LogOut,
-  MapPin,
-  Palette,
-  Receipt,
-  Settings as SettingsIcon,
-  ShieldCheck,
-  Star,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react-native";
+  BanknoteIcon,
+  BellIcon,
+  CalendarIcon,
+  ChevronRightIcon,
+  GearIcon,
+  HeartIcon,
+  InfoIcon,
+  LifeBuoyIcon,
+  MapPinIcon,
+  MotorcycleIcon,
+  PaletteIcon,
+  PersonIcon,
+  ReceiptIcon,
+  ShieldCheckIcon,
+  SignOutIcon,
+  StarIcon,
+  type Icon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -53,7 +53,7 @@ import { BRAND } from "../../../common/brand";
  */
 
 interface Link {
-  icon: LucideIcon;
+  icon: Icon;
   label: string;
   hint?: string;
   route: string;
@@ -79,30 +79,30 @@ interface Link {
  * broken silently.
  */
 const ME: Link[] = [
-  { icon: UserRound, label: "Profile", hint: "Name, email and phone", route: "Profile" },
+  { icon: PersonIcon, label: "Profile", hint: "Name, email and phone", route: "Profile" },
   {
-    icon: ShieldCheck,
+    icon: ShieldCheckIcon,
     label: "Security",
     hint: "Password and the devices signed in",
     route: "Security",
   },
-  { icon: Bell, label: "Notifications", hint: "Order updates and offers", route: "Notifications" },
+  { icon: BellIcon, label: "Notifications", hint: "Order updates and offers", route: "Notifications" },
 ];
 
 const ORDERING: Link[] = [
   {
-    icon: Star,
+    icon: StarIcon,
     label: "My reviews",
     hint: "What you said about the shops you buy from",
     route: "Reviews",
   },
-  { icon: CalendarClock, label: "Reservations", hint: "Tables you have booked", route: "Reservations" },
+  { icon: CalendarIcon, label: "Reservations", hint: "Tables you have booked", route: "Reservations" },
 ];
 
 const APP: Link[] = [
-  { icon: Palette, label: "Appearance", hint: "Light, dark or follow the phone", route: "Settings" },
+  { icon: PaletteIcon, label: "Appearance", hint: "Light, dark or follow the phone", route: "Settings" },
   {
-    icon: LifeBuoy,
+    icon: LifeBuoyIcon,
     label: "Help centre",
     hint: "How ordering, payment and cancelling work",
     route: "Help",
@@ -173,7 +173,7 @@ export function AccountScreen() {
             accessibilityLabel="Settings"
             onPress={() => navigation.navigate("Settings")}
           >
-            <SettingsIcon size={19} color={c.onPrimary} strokeWidth={2.2} />
+            <GearIcon size={19} color={c.onPrimary} />
           </Touchable>
         </View>
 
@@ -187,7 +187,7 @@ export function AccountScreen() {
             {signedIn && user?.name ? (
               <Text style={styles.avatarText}>{user.name.trim().charAt(0).toUpperCase()}</Text>
             ) : (
-              <UserRound size={26} color={c.primary} strokeWidth={2.2} />
+              <PersonIcon size={26} color={c.primary} />
             )}
           </View>
           <View style={styles.whoCopy}>
@@ -205,7 +205,7 @@ export function AccountScreen() {
               <Text style={styles.editText}>Edit</Text>
             </View>
           ) : (
-            <ChevronRight size={18} color={c.onPrimary} strokeWidth={2.4} />
+            <ChevronRightIcon size={18} color={c.onPrimary} />
           )}
         </Touchable>
       </View>
@@ -221,9 +221,9 @@ export function AccountScreen() {
           list.
         */}
         <View style={styles.tiles}>
-          <Tile icon={Receipt} label="Orders" onPress={() => open("OrdersTab")} />
-          <Tile icon={Heart} label="Favourites" onPress={() => open("Favorites")} />
-          <Tile icon={MapPin} label="Addresses" onPress={() => open("Addresses")} />
+          <Tile icon={ReceiptIcon} label="Orders" onPress={() => open("OrdersTab")} />
+          <Tile icon={HeartIcon} label="Favourites" onPress={() => open("Favorites")} />
+          <Tile icon={MapPinIcon} label="Addresses" onPress={() => open("Addresses")} />
         </View>
 
         {!signedIn && (
@@ -251,7 +251,7 @@ export function AccountScreen() {
             it — a chevron here would open a page saying the same six words,
             and a row that opens nothing is why people stop trusting the rest.
           */}
-          <ValueRow icon={Banknote} label="Payment" value="Cash on delivery" divided />
+          <ValueRow icon={BanknoteIcon} label="Payment" value="Cash on delivery" divided />
         </View>
 
         {/*
@@ -266,7 +266,7 @@ export function AccountScreen() {
         <View style={styles.card}>
           <Row
             link={{
-              icon: Bike,
+              icon: MotorcycleIcon,
               label: riderStatus === "approved" ? "Rider mode" : "Deliver with " + BRAND.name,
               hint:
                 riderStatus === "approved"
@@ -294,7 +294,7 @@ export function AccountScreen() {
             bouncing them to a sign-in form for either is the app refusing to
             explain itself to somebody deciding whether to join.
           */}
-          <ValueRow icon={Info} label="Version" value={BRAND.version} divided />
+          <ValueRow icon={InfoIcon} label="Version" value={BRAND.version} divided />
         </View>
 
         {signedIn && (
@@ -304,7 +304,7 @@ export function AccountScreen() {
             accessibilityLabel="Log out"
             onPress={askSignOut}
           >
-            <LogOut size={17} color={c.error} strokeWidth={2.2} />
+            <SignOutIcon size={17} color={c.error} />
             <Text style={styles.signOutText}>
               {signOut.isPending ? "Signing out…" : "Log out"}
             </Text>
@@ -320,7 +320,7 @@ function Tile({
   label,
   onPress,
 }: {
-  icon: LucideIcon;
+  icon: Icon;
   label: string;
   onPress: () => void;
 }) {
@@ -334,7 +334,7 @@ function Tile({
       onPress={onPress}
     >
       <View style={styles.tileIcon}>
-        <Icon size={20} color={c.primary} strokeWidth={2.1} />
+        <Icon size={20} color={c.primary} />
       </View>
       <Text style={styles.tileLabel}>{label}</Text>
     </Pressable>
@@ -354,7 +354,7 @@ function ValueRow({
   value,
   divided,
 }: {
-  icon: LucideIcon;
+  icon: Icon;
   label: string;
   value: string;
   divided: boolean;
@@ -364,7 +364,7 @@ function ValueRow({
   return (
     <View style={[styles.row, divided && styles.rowDivided]}>
       <View style={styles.rowIcon}>
-        <Icon size={17} color={c.textSecondary} strokeWidth={2.1} />
+        <Icon size={17} color={c.textSecondary} />
       </View>
       <View style={styles.rowCopy}>
         <Text style={styles.rowLabel}>{label}</Text>
@@ -400,17 +400,17 @@ function Row({
         page read as a settings list from 2013 — the icons were the same
         weight as the dividers and carried no more emphasis. A soft square
         behind each one gives the column an edge to line up on and the row
-        something to start with, which is the shape the Settings screen was
+        something to start with, which is the shape the GearIcon screen was
         already using two taps away.
       */}
       <View style={styles.rowIcon}>
-        <Icon size={17} color={c.textSecondary} strokeWidth={2.1} />
+        <Icon size={17} color={c.textSecondary} />
       </View>
       <View style={styles.rowCopy}>
         <Text style={styles.rowLabel}>{link.label}</Text>
         {!!link.hint && <Text style={styles.rowHint}>{link.hint}</Text>}
       </View>
-      <ChevronRight size={16} color={c.textMuted} strokeWidth={2.2} />
+      <ChevronRightIcon size={16} color={c.textMuted} />
     </Pressable>
   );
 }

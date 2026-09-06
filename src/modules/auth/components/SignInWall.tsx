@@ -1,7 +1,9 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { type LucideIcon } from "lucide-react-native";
+import {
+  type Icon,
+} from "../../../common/ui/icons";
 import { AppButton } from "../../../common/ui/AppButton";
 import { useTheme } from "../../../theme";
 
@@ -25,7 +27,7 @@ export function SignInWall({
   title,
   message,
 }: {
-  icon: LucideIcon;
+  icon: Icon;
   title: string;
   /** Why an account is needed HERE — never a generic "please sign in". */
   message: string;
@@ -41,7 +43,7 @@ export function SignInWall({
           { backgroundColor: c.primarySoft, borderRadius: radius.lg, marginBottom: spacing.lg },
         ]}
       >
-        <Icon size={30} color={c.primary} strokeWidth={1.9} />
+        <Icon size={30} color={c.primary} />
       </View>
 
       <Text style={[typography.title, styles.center, { color: c.text, marginBottom: spacing.sm }]}>

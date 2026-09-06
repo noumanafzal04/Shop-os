@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   FlatList,
-  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,14 +9,14 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
-  Bell,
-  ChevronDown,
-  MapPin,
-  Menu,
-  Search,
-  SlidersHorizontal,
-  Star,
-} from "lucide-react-native";
+  BellIcon,
+  ChevronDownIcon,
+  MapPinIcon,
+  MenuIcon,
+  SearchIcon,
+  SlidersIcon,
+  StarIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
@@ -113,7 +112,7 @@ export function CustomerHomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Menu"
             >
-              <Menu size={21} color={c.white} strokeWidth={2.4} />
+              <MenuIcon size={21} color={c.white} />
             </Touchable>
 
             <Touchable
@@ -124,10 +123,10 @@ export function CustomerHomeScreen() {
             >
               <View style={styles.placeLabelRow}>
                 <Text style={styles.placeLabel}>Deliver to</Text>
-                <ChevronDown size={13} color={c.brand[200]} strokeWidth={3} />
+                <ChevronDownIcon size={13} color={c.brand[200]} />
               </View>
               <View style={styles.placeRow}>
-                <MapPin size={15} color={c.white} strokeWidth={2.6} />
+                <MapPinIcon size={15} color={c.white} />
                 <Text style={styles.placeName} numberOfLines={1}>
                   {status === "locating" ? "Finding you…" : label ?? "Set your location"}
                 </Text>
@@ -140,7 +139,7 @@ export function CustomerHomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Notifications"
             >
-              <Bell size={20} color={c.white} strokeWidth={2} />
+              <BellIcon size={20} color={c.white} />
             </Touchable>
           </View>
 
@@ -169,7 +168,7 @@ export function CustomerHomeScreen() {
             accessibilityRole="button"
             onPress={() => navigation.navigate("Search")}
           >
-            <Search size={18} color={c.gray[400]} strokeWidth={2} />
+            <SearchIcon size={18} color={c.gray[400]} />
             <Text style={styles.searchHint} numberOfLines={1}>
               Search food, groceries, medicine…
             </Text>
@@ -180,7 +179,7 @@ export function CustomerHomeScreen() {
               accessibilityLabel="Browse and filter all products"
               onPress={() => navigation.navigate("Browse")}
             >
-              <SlidersHorizontal size={17} color={c.primary} strokeWidth={2.4} />
+              <SlidersIcon size={17} color={c.primary} />
             </Touchable>
           </Touchable>
         </View>
@@ -236,7 +235,6 @@ export function CustomerHomeScreen() {
                   <Icon
                     size={23}
                     color={tone === "offer" ? c.onWarm : c.primary}
-                    strokeWidth={2}
                   />
                 </View>
                 <Text style={styles.tileLabel} numberOfLines={1}>
@@ -261,8 +259,7 @@ export function CustomerHomeScreen() {
                 <View style={styles.tileIcon}>
                   {React.createElement(tradeIcon(t.type), {
                     size: 23,
-                    color: c.primary,
-                    strokeWidth: 2,
+                    color: c.primary
                   })}
                 </View>
                 <Text style={styles.tileLabel} numberOfLines={1}>
@@ -340,19 +337,14 @@ export function CustomerHomeScreen() {
                       one card repeated. Keyed per item they read as three
                       things, which is what they are.
                     */}
-                    <View
-                      style={[
-                        styles.dealImgWrap,
-                        !item.image && { backgroundColor: coverFor(item.id).bg },
-                      ]}
-                    >
-                      {item.image ? (
-                        <Image source={{ uri: item.image }} style={styles.dealImg} resizeMode="cover" />
-                      ) : (
-                        <Text style={[styles.dealInitial, { color: coverFor(item.id).fg }]}>
-                          {shopInitial(item.name)}
-                        </Text>
-                      )}
+                    <View style={styles.dealImgWrap}>
+                      <SmartImage
+                        uri={item.image}
+                        fallback={shopInitial(item.name)}
+                        fallbackBackground={coverFor(item.id).bg}
+                        fallbackColor={coverFor(item.id).fg}
+                        style={styles.dealImg}
+                      />
                       {/*
                         The server scored and sorted this rail by `percent_off`,
                         so its own number is passed through rather than
@@ -550,7 +542,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
         />
         {shop.rating != null && (
           <View style={styles.railRating}>
-            <Star size={11} color={c.warm} fill={c.warm} strokeWidth={0} />
+            <StarIcon size={11} color={c.warm} />
             <Text style={styles.railRatingText}>{shop.rating.toFixed(1)}</Text>
           </View>
         )}

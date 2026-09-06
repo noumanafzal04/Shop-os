@@ -1,7 +1,13 @@
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeft, Monitor, Moon, Sun, type LucideIcon } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  MonitorIcon,
+  MoonIcon,
+  SunIcon,
+  type Icon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
 import { BRAND } from "../../../common/brand";
@@ -29,10 +35,10 @@ import {
  * the things behind them do.
  */
 
-const THEMES: Array<{ value: ThemePreference; label: string; hint: string; icon: LucideIcon }> = [
-  { value: "system", label: "System", hint: "Follow the phone", icon: Monitor },
-  { value: "light", label: "Light", hint: "Always light", icon: Sun },
-  { value: "dark", label: "Dark", hint: "Always dark", icon: Moon },
+const THEMES: Array<{ value: ThemePreference; label: string; hint: string; icon: Icon }> = [
+  { value: "system", label: "System", hint: "Follow the phone", icon: MonitorIcon },
+  { value: "light", label: "Light", hint: "Always light", icon: SunIcon },
+  { value: "dark", label: "Dark", hint: "Always dark", icon: MoonIcon },
 ];
 
 export function SettingsScreen() {
@@ -51,7 +57,7 @@ export function SettingsScreen() {
           accessibilityLabel="Back"
           onPress={() => navigation.goBack()}
         >
-          <ArrowLeft size={19} color={c.text} strokeWidth={2.3} />
+          <ArrowLeftIcon size={19} color={c.text} />
         </Pressable>
         <Text style={styles.title}>Settings</Text>
       </View>
@@ -71,7 +77,7 @@ export function SettingsScreen() {
                 onPress={() => setPreference(t.value)}
               >
                 <View style={[styles.rowIcon, on && styles.rowIconOn]}>
-                  <Icon size={17} color={on ? c.onPrimary : c.textSecondary} strokeWidth={2.2} />
+                  <Icon size={17} color={on ? c.onPrimary : c.textSecondary} />
                 </View>
                 <View style={styles.rowCopy}>
                   <Text style={styles.rowLabel}>{t.label}</Text>

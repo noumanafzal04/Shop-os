@@ -9,7 +9,10 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { ArrowLeft, Bell } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  BellIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
@@ -53,7 +56,7 @@ export function NotificationsScreen() {
     <SafeScreen backgroundColor={c.bg}>
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeft size={20} color={c.text} strokeWidth={2} />
+          <ArrowLeftIcon size={20} color={c.text} />
         </Pressable>
         <Text style={styles.title}>Notifications</Text>
         {/*
@@ -96,7 +99,7 @@ export function NotificationsScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Bell size={32} color={c.gray[300]} strokeWidth={1.6} />
+              <BellIcon size={32} color={c.gray[300]} />
               <Text style={styles.empty}>Nothing yet — order updates will land here.</Text>
             </View>
           }

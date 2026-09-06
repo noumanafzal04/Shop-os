@@ -44,12 +44,10 @@ jest.mock('react-native-svg', () => {
   };
 });
 
-// lucide exports ~1400 named icons — return a stub for ANY of them.
-jest.mock('lucide-react-native', () => {
-  const React = require('react');
-  const Icon = () => React.createElement('LucideIcon', null);
-  return new Proxy({ __esModule: true }, { get: (t, p) => (p === '__esModule' ? true : Icon) });
-});
+// The lucide mock is gone with the package. Every icon in this app is now
+// Phosphor path data in `src/common/ui/icons` — plain components over the
+// `react-native-svg` stub above, so there is nothing left to mock and the
+// tests that assert on <Path d="…"> can see the real drawings.
 
 // Geolocation is a native module — stub it (tests drive the store directly).
 jest.mock('@react-native-community/geolocation', () => ({

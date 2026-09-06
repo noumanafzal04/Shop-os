@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,7 +9,12 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { ArrowLeft, PackageSearch, Search, X } from "lucide-react-native";
+import {
+  ArrowLeftIcon,
+  PackageSearchIcon,
+  SearchIcon,
+  XIcon,
+} from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -28,6 +32,7 @@ import { useBrowse } from "../hooks/useMarketplace";
 import { FilterSheet, activeFilterCount } from "../components/FilterSheet";
 import { QuickFilters } from "../components/QuickFilters";
 import { shopInitial, useShopCover } from "../shopCover";
+import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
 import type { AisleProduct, BrowseFilters } from "../services/marketplaceService";
 
@@ -199,11 +204,11 @@ export function BrowseScreen() {
           accessibilityLabel="Back"
           onPress={() => navigation.goBack()}
         >
-          <ArrowLeft size={19} color={c.text} strokeWidth={2.3} />
+          <ArrowLeftIcon size={19} color={c.text} />
         </Touchable>
         <View style={styles.headCopy}>
           <AppTextInput
-            icon={Search}
+            icon={SearchIcon}
             placeholder={params.title ? `Search in ${params.title}` : "Search all products…"}
             value={term}
             onChangeText={setTerm}
@@ -218,7 +223,7 @@ export function BrowseScreen() {
                   accessibilityLabel="Clear search"
                   onPress={() => setTerm("")}
                 >
-                  <X size={16} color={c.textMuted} strokeWidth={2.4} />
+                  <XIcon size={16} color={c.textMuted} />
                 </Touchable>
               ) : null
             }
@@ -269,7 +274,7 @@ export function BrowseScreen() {
               onPress={chip.clear}
             >
               <Text style={styles.chipText}>{chip.label}</Text>
-              <X size={13} color={c.onPrimary} strokeWidth={2.6} />
+              <XIcon size={13} color={c.onPrimary} />
             </Touchable>
           ))}
         </ScrollView>
@@ -326,7 +331,7 @@ export function BrowseScreen() {
               </View>
             ) : (
               <View style={styles.empty}>
-                <PackageSearch size={34} color={c.textMuted} strokeWidth={1.6} />
+                <PackageSearchIcon size={34} color={c.textMuted} />
                 <Text style={styles.emptyTitle} numberOfLines={2}>
                   {q ? `Nothing matches “${q}”` : "Nothing matches"}
                 </Text>
@@ -359,12 +364,14 @@ export function BrowseScreen() {
                   item.shop && navigation.navigate("MarketShop", { slug: item.shop.slug })
                 }
               >
-                <View style={[styles.thumb, !item.images[0] && { backgroundColor: cover.bg }]}>
-                  {item.images[0] ? (
-                    <Image source={{ uri: item.images[0] }} style={styles.img} resizeMode="cover" />
-                  ) : (
-                    <Text style={[styles.initial, { color: cover.fg }]}>{shopInitial(item.name)}</Text>
-                  )}
+                <View style={styles.thumb}>
+                  <SmartImage
+                    uri={item.images[0] ?? null}
+                    fallback={shopInitial(item.name)}
+                    fallbackBackground={cover.bg}
+                    fallbackColor={cover.fg}
+                    style={styles.img}
+                  />
                   {item.requires_prescription && (
                     <View style={styles.rx}>
                       <Text style={styles.rxText}>Rx</Text>
