@@ -147,4 +147,50 @@ class BannerTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->actingAs($owner)->getJson('/api/v1/admin/banners')->assertForbidden();
     }
+
+    public function test_a_banner_too_large_for_php_is_refused_with_a_reason(): void
+    {
+        /**
+         * "Couldn't save — The image failed to upload."
+         *
+         * Reported from the admin panel with a 1200x600 PNG out of an image
+         * generator. Nothing was wrong with the image: the rule said
+         * `max:4096` while PHP's own `upload_max_filesize` defaults to 2M, so
+         * anything between two and four megabytes never reached validation at
+         * all — the upload arrived invalid and Laravel answered with the least
+         * helpful sentence it owns.
+         *
+         * A rule that promises more than the server accepts is a rule that
+         * lies, and the lie surfaces as a mystery. Two megabytes on both
+         * sides, and a message that names the cause.
+         */
+        Storage::fake('public');
+
+        $res = $this->asAdmin()->postJson('/api/v1/admin/banners', [
+            // 3 MB: inside the OLD rule, outside what PHP takes.
+            'image' => UploadedFile::fake()->create('promo.png', 3072, 'image/png'),
+            'target_type' => 'none',
+            'placement' => 'home',
+        ]);
+
+        $res->assertStatus(422);
+        $this->assertStringContainsString(
+            '2 MB',
+            (string) $res->json('errors.image.0'),
+            'the refusal has to say WHAT is wrong, not that something failed',
+        );
+    }
+
+    public function test_a_banner_within_the_limit_still_saves(): void
+    {
+        // The denominator. Without this, tightening the rule to zero would
+        // pass the test above and break every upload.
+        Storage::fake('public');
+
+        $this->asAdmin()->postJson('/api/v1/admin/banners', [
+            'image' => UploadedFile::fake()->create('promo.jpg', 400, 'image/jpeg'),
+            'target_type' => 'none',
+            'placement' => 'home',
+        ])->assertCreated();
+    }
 }

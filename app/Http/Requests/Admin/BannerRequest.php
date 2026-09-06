@@ -22,7 +22,22 @@ class BannerRequest extends FormRequest
         $creating = $this->route('banner') === null;
 
         return [
-            'image' => [$creating ? 'required' : 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            /**
+             * 2 MB, because that is what PHP actually accepts.
+             *
+             * This said `max:4096`. PHP's own `upload_max_filesize` defaults
+             * to 2M, and a file over THAT never reaches validation — the
+             * upload arrives invalid and Laravel says "The image failed to
+             * upload", which is the least helpful sentence it owns. Reported
+             * exactly that way: a 1200x600 PNG out of an image generator,
+             * refused with no reason anybody could act on.
+             *
+             * A rule that promises more than the server accepts is a rule that
+             * lies, and the lie surfaces as a mystery. Matching PHP's default
+             * costs nothing: a 1200x600 banner as JPG is under 300 KB, and
+             * only PNG at that size gets near two megabytes.
+             */
+            'image' => [$creating ? 'required' : 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'title' => ['nullable', 'string', 'max:120'],
             'tenant_id' => ['nullable', 'uuid', Rule::exists('tenants', 'id')->whereNull('deleted_at')],
             'target_type' => ['sometimes', Rule::in(['shop', 'product', 'url', 'none'])],
@@ -64,5 +79,21 @@ class BannerRequest extends FormRequest
                 $v->errors()->add('target_url', 'Enter the link for a URL banner.');
             }
         });
+    }
+
+    /**
+     * The one message worth overriding here.
+     *
+     * Laravel says "The image failed to upload" for BOTH a too-large file and
+     * a genuinely broken one, and neither tells somebody what to do. The size
+     * is the cause almost every time, so the message names it.
+     */
+    public function messages(): array
+    {
+        return [
+            'image.max' => 'That image is too large. Banners must be under 2 MB — saving it as JPG rather than PNG usually does it.',
+            'image.uploaded' => 'That image is too large for the server to accept. Banners must be under 2 MB — save it as JPG rather than PNG.',
+            'image.image' => 'That file is not an image. Use a JPG, PNG or WebP.',
+        ];
     }
 }
