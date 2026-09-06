@@ -15,6 +15,11 @@ import { formatDistance } from "../shopFacts";
 import { money } from "../../../common/format";
 import { prefs } from "../../../common/utils/prefs";
 import { SHORTCUTS } from "../tradeIcon";
+import {
+  SearchSuggestions,
+  type Suggestion,
+  suggestionsFrom,
+} from "../components/SearchSuggestions";
 
 
 type Tab = "all" | "products" | "shops";
@@ -75,6 +80,33 @@ export function SearchScreen() {
   const showProducts = tab !== "shops";
   const showShops = tab !== "products";
 
+  /**
+   * ── THE SIX BEST MATCHES, ABOVE THE SECTIONS ────────────────────────
+   *
+   * Built from the response the sections below already use: one request, two
+   * presentations. Re-ranking here would be a second opinion formed with less
+   * information than the server had, so the order arrives and is kept.
+   *
+   * On the All tab only — Products and Shops are somebody who has said which
+   * KIND they want, and a mixed list is the wrong answer to that.
+   */
+  const suggestions = React.useMemo(() => suggestionsFrom(d), [d]);
+
+  /** Picking one goes where it leads; a category narrows the aisle instead. */
+  const openSuggestion = (s: Suggestion) => {
+    if (s.kind === "category") {
+      navigation.navigate("Browse", { title: s.label, filters: { category: s.label } });
+      return;
+    }
+    // A product whose shop the search did not return has nowhere to go. Put it
+    // in the box rather than swallowing the press.
+    if (s.slug == null) {
+      setQ(s.label);
+      return;
+    }
+    navigation.navigate("MarketShop", { slug: s.slug });
+  };
+
   return (
     <SafeScreen backgroundColor={c.bg}>
       {/* Search bar */}
@@ -134,7 +166,12 @@ export function SearchScreen() {
               <Pressable
                 style={styles.aisle}
                 accessibilityRole="button"
-                onPress={() => navigation.navigate("Browse", { q: debounced, title: debounced })}
+                onPress={() =>
+                  // No `title`: the aisle puts the term in its own box now, and
+                  // a heading saying the same word twice reads as a label
+                  // rather than as something you can change.
+                  navigation.navigate("Browse", { q: debounced })
+                }
               >
                 <SlidersHorizontal size={13} color={c.onPrimary} strokeWidth={2.6} />
                 <Text style={styles.aisleText}>Filter products</Text>
@@ -243,6 +280,14 @@ export function SearchScreen() {
           />
         ) : (
           <>
+            {tab === "all" && (
+              <SearchSuggestions
+                suggestions={suggestions}
+                onPick={openSuggestion}
+                onFill={setQ}
+              />
+            )}
+
             {searching && !results.isLoading && (
               <Text style={styles.resultCount}>
                 {total} result{total === 1 ? "" : "s"} for "{debounced}"

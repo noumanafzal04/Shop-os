@@ -14,13 +14,21 @@ interface Props extends TextInputProps {
   label?: string;
   error?: string | null;
   icon?: LucideIcon;
+  /**
+   * Something at the far end of the field — a clear cross, a unit, a scan
+   * button. Inside the border so it reads as part of the input rather than as
+   * a control that happens to sit beside it.
+   *
+   * Ignored on a password field, which already owns that corner.
+   */
+  trailing?: React.ReactNode;
 }
 
 /**
  * Rounded, icon-capable input with a clear focus ring and inline password
  * reveal. Consistent across every form in the app.
  */
-export function AppTextInput({ label, error, icon: Icon, secureTextEntry, style, ...rest }: Props) {
+export function AppTextInput({ label, error, icon: Icon, trailing, secureTextEntry, style, ...rest }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const [focused, setFocused] = useState(false);
@@ -45,6 +53,7 @@ export function AppTextInput({ label, error, icon: Icon, secureTextEntry, style,
           onBlur={(e) => { setFocused(false); rest.onBlur?.(e); }}
           {...rest}
         />
+        {!secureTextEntry && trailing}
         {secureTextEntry && (
           <Pressable onPress={() => setHidden((h) => !h)} hitSlop={8}>
             {hidden ? <EyeOff size={18} color={c.gray[400]} /> : <Eye size={18} color={c.gray[500]} />}

@@ -10,8 +10,9 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { ArrowLeft, PackageSearch, X } from "lucide-react-native";
+import { ArrowLeft, PackageSearch, Search, X } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AddButton } from "../../../common/ui/AddButton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
@@ -21,6 +22,7 @@ import { toast } from "../../../common/ui/toast";
 import { money } from "../../../common/format";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
+import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useCartStore } from "../../../stores/cartStore";
 import { useBrowse } from "../hooks/useMarketplace";
 import { FilterSheet, activeFilterCount } from "../components/FilterSheet";
@@ -57,13 +59,31 @@ export function BrowseScreen() {
   const params = (useRoute().params ?? {}) as NonNullable<Params["Browse"]>;
 
   /**
+   * ── A PAGE YOU CAN TYPE ON ──────────────────────────────────────────
+   *
+   * The aisle had no box at all. Arriving from a home shortcut — Offers,
+   * Pharmacy — you could narrow by price, rating, category and stock, and you
+   * could not say the one word you came for. The only way to search was to
+   * back out to the search screen and lose every filter on the way.
+   *
+   * Seeded from whatever opened the screen, so a term carried in from search
+   * appears in the box rather than only in the heading, where it looked like a
+   * label and not like something you could change.
+   */
+  const [term, setTerm] = useState(params.q ?? "");
+  const q = useDebouncedValue(term, 300).trim();
+
+  /**
    * What the screen was opened WITH, and what the sheet may change.
    *
    * Kept apart so Reset cannot widen a list somebody opened from "Pharmacy" to
-   * every shop in the country — see `FilterSheet`'s `base`.
+   * every shop in the country — see `FilterSheet`'s `base`. The typed term
+   * belongs on this side too: Reset clears the FILTERS, and clearing somebody's
+   * search along with them is not what that word means. It also keeps the
+   * sheet's live count honest, because the count is taken against `base`.
    */
   const base: BrowseFilters = {
-    q: params.q,
+    q: q || undefined,
     business_type: params.business_type,
   };
   // Seeded from whatever opened this screen — a home shortcut arrives with its
@@ -74,6 +94,18 @@ export function BrowseScreen() {
 
   const query = { ...base, ...filters, per_page: 24 };
   const list = useBrowse(query);
+
+  /**
+   * A NEW SEARCH STARTS AT THE TOP.
+   *
+   * Three pages down, typing a word leaves the window where it was — over a
+   * shorter list, which RN clamps to the end of it. So it reads as "my search
+   * returned the bottom of something", and a pull nobody expected to need.
+   */
+  const listRef = React.useRef<FlatList<AisleProduct>>(null);
+  React.useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [q]);
   const pull = usePullToRefresh(list.refetch);
   // Every page, flattened. `pages` is what an infinite query keeps; the screen
   // wants one list.
@@ -167,19 +199,41 @@ export function BrowseScreen() {
           <ArrowLeft size={19} color={c.text} strokeWidth={2.3} />
         </Touchable>
         <View style={styles.headCopy}>
-          <Text style={styles.title} numberOfLines={1}>
-            {params.title ?? (params.q ? `“${params.q}”` : "All products")}
-          </Text>
-          <Text style={styles.sub}>
-            {/*
-              The REAL total, from the server's own count. It used to print
-              `24+` — the screen admitting it had one page and no idea what was
-              behind it.
-            */}
-            {list.isPending ? "Looking…" : `${total} item${total === 1 ? "" : "s"}`}
-          </Text>
+          <AppTextInput
+            icon={Search}
+            placeholder={params.title ? `Search in ${params.title}` : "Search all products…"}
+            value={term}
+            onChangeText={setTerm}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+            trailing={
+              term.length > 0 ? (
+                <Touchable
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                  onPress={() => setTerm("")}
+                >
+                  <X size={16} color={c.textMuted} strokeWidth={2.4} />
+                </Touchable>
+              ) : null
+            }
+          />
         </View>
       </View>
+
+      {/*
+        WHAT THE LIST IS, and how much of it there is — under the box now
+        rather than beside it, because the box took the line the heading had.
+
+        The count is the server's own total. It used to print `24+`: the screen
+        admitting it had one page and no idea what was behind it.
+      */}
+      <Text style={styles.sub} numberOfLines={1}>
+        {params.title ? `${params.title} · ` : ""}
+        {list.isPending ? "Looking…" : `${total} item${total === 1 ? "" : "s"}`}
+      </Text>
 
       {/*
         THE FOUR QUESTIONS PEOPLE ACTUALLY ASK, one tap each.
@@ -227,6 +281,7 @@ export function BrowseScreen() {
         />
       ) : (
         <FlatList
+          ref={listRef}
           data={rows}
           keyExtractor={(p) => p.id}
           numColumns={2}
@@ -269,11 +324,23 @@ export function BrowseScreen() {
             ) : (
               <View style={styles.empty}>
                 <PackageSearch size={34} color={c.textMuted} strokeWidth={1.6} />
-                <Text style={styles.emptyTitle}>Nothing matches</Text>
+                <Text style={styles.emptyTitle} numberOfLines={2}>
+                  {q ? `Nothing matches “${q}”` : "Nothing matches"}
+                </Text>
                 <Text style={styles.emptyText}>
-                  {active > 0
-                    ? "Try widening a filter — the sheet says how many results each change would give."
-                    : "There is nothing listed here yet."}
+                  {/*
+                    Three different situations wearing one sentence before: a
+                    word that found nothing, filters that are too narrow, and a
+                    shelf that is genuinely empty. Only one of them is the
+                    person's fault, and only two are worth acting on.
+                  */}
+                  {q && active > 0
+                    ? "Try another word, or take a filter off."
+                    : q
+                      ? "Try another word — spelling, or a shorter one."
+                      : active > 0
+                        ? "Try widening a filter — the sheet says how many results each change would give."
+                        : "There is nothing listed here yet."}
                 </Text>
               </View>
             )
@@ -354,8 +421,12 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
     },
     headCopy: { flex: 1 },
-    title: { ...typography.title, color: c.text, fontSize: 20 },
-    sub: { ...typography.tiny, color: c.textMuted, marginTop: 1 },
+    sub: {
+      ...typography.tiny,
+      color: c.textMuted,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
+    },
 
     chipRow: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
     chip: {
