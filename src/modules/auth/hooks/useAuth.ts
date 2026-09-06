@@ -3,6 +3,7 @@ import { useCallback, useEffect } from "react";
 import { useAuthStore } from "../../../stores/authStore";
 import { authService } from "../services/authService";
 import { teardownPush } from "../../../services/push";
+import { navigationRef } from "../../../navigation/deepLinks";
 import type { LoginPayload } from "../types";
 
 export function useLogin() {
@@ -22,6 +23,30 @@ export function useLogin() {
   });
 }
 
+/**
+ * SIGNING OUT — one path, and it ends somewhere.
+ *
+ * ── Why the side menu had to stop doing its own ──────────────────────
+ *
+ * There were two sign-outs. The account screen called this hook; the side menu
+ * called `authStore.clear()` directly. So which button somebody pressed
+ * decided whether the server token was revoked and whether this device stopped
+ * receiving push — the menu's version did neither. A token left alive is a
+ * session anybody holding the phone can resume, and a device left registered
+ * keeps buzzing about a shop its owner has signed out of.
+ *
+ * ── And why it lands on the sign-in screen ───────────────────────────
+ *
+ * Clearing the session leaves a GUEST, and a guest may browse the whole app —
+ * which is right, and which made signing out look like nothing had happened.
+ * The screen did not change; the name in the menu simply went away.
+ *
+ * So it opens sign-in. As a MODAL, deliberately: it acknowledges the thing
+ * that was just done and offers the obvious next step, and anybody who
+ * actually wanted to carry on browsing dismisses it and does. A hard redirect
+ * would take the shop away from somebody who signed out of one account to use
+ * another.
+ */
 export function useLogout() {
   const clear = useAuthStore((s) => s.clear);
   const queryClient = useQueryClient();
@@ -33,6 +58,10 @@ export function useLogout() {
       await teardownPush(); // unregister this device from push first
       await clear();
       queryClient.clear();
+
+      // After the store has flipped, so the navigator has already swapped to
+      // whatever a guest sees before this lands on top of it.
+      if (navigationRef.isReady()) navigationRef.navigate("SignIn", undefined);
     },
   });
 }

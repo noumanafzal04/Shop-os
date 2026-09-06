@@ -37,6 +37,7 @@ import { BRAND } from "../common/brand";
 import { confirm } from "../common/ui/confirm";
 import { spacing, type ThemeColors, typography, useColors } from "../theme";
 import { useAuthStore } from "../stores/authStore";
+import { useLogout } from "../modules/auth/hooks/useAuth";
 import { useRiderProfile } from "../modules/rider/hooks/useRider";
 import { useModeStore } from "../stores/modeStore";
 import type { RiderProfile } from "../modules/rider/services/riderService";
@@ -166,7 +167,11 @@ export function SideMenu({ visible, onClose }: Props) {
 
   const user = useAuthStore((s) => s.user);
   const status = useAuthStore((s) => s.status);
-  const clearSession = useAuthStore((s) => s.clear);
+  // The SAME sign-out the account screen uses. This file used to call
+  // `authStore.clear()` on its own, which skipped revoking the server token
+  // and skipped unregistering this device from push — two buttons, two
+  // different amounts of signing out.
+  const logout = useLogout();
   const signedIn = status === "authenticated";
   const rider = useRiderProfile();
   const mode = useModeStore((s) => s.mode);
@@ -277,7 +282,7 @@ export function SideMenu({ visible, onClose }: Props) {
         tone: "danger",
       })
       .then((yes) => {
-        if (yes) clearSession().catch(() => {});
+        if (yes) logout.mutate();
       })
       .catch(() => {});
   };
