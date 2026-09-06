@@ -14,6 +14,7 @@ import {
   BellIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { apiGet } from "../../../common/api/client";
@@ -85,7 +86,7 @@ export function NotificationsScreen() {
         <FlatList
           data={rows}
           keyExtractor={(n) => n.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, styles.grow]}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
             if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
@@ -98,10 +99,11 @@ export function NotificationsScreen() {
             ) : null
           }
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <BellIcon size={32} color={c.gray[300]} />
-              <Text style={styles.empty}>Nothing yet — order updates will land here.</Text>
-            </View>
+            <EmptyState
+              icon={BellIcon}
+              title="No notifications yet"
+              message="When a shop accepts your order, or a rider sets off with it, you will hear about it here."
+            />
           }
           renderItem={({ item }) => (
             <View style={[styles.row, !item.read_at && styles.rowUnread]}>
@@ -139,8 +141,14 @@ const makeStyles = (c: ThemeColors) =>
 
   more: { paddingVertical: spacing.lg, alignItems: "center" },
   list: { padding: spacing.md, gap: spacing.xs },
-  emptyWrap: { alignItems: "center", gap: spacing.sm, paddingTop: spacing.xxl },
-  empty: { ...typography.small, color: c.gray[400] },
+  /**
+   * SO THE EMPTY STATE HAS A SCREEN TO CENTRE IN.
+   *
+   * `ListEmptyComponent` is laid out inside the content container, and a
+   * content container is only as tall as its content — so without this it
+   * centres inside nothing and lands at the top.
+   */
+  grow: { flexGrow: 1 },
 
   row: {
     backgroundColor: c.surface,

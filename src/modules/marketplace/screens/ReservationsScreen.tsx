@@ -8,6 +8,9 @@ import {
   View,
 } from "react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
+import { useNavigation } from "@react-navigation/native";
+import { CalendarIcon } from "../../../common/ui/icons";
 import { Touchable } from "../../../common/ui/Touchable";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { SkeletonStatusCard } from "../../../common/ui/Skeleton";
@@ -32,6 +35,7 @@ const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
  * Customer's reservations — pending/accepted ones can be cancelled.
  */
 export function ReservationsScreen() {
+  const navigation = useNavigation<any>();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const reservations = useCustomerReservations(true);
@@ -69,7 +73,7 @@ export function ReservationsScreen() {
         <FlatList
           data={rows}
           keyExtractor={(r) => r.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, styles.grow]}
           refreshControl={
             <RefreshControl
               refreshing={pull.refreshing}
@@ -102,12 +106,12 @@ export function ReservationsScreen() {
             );
           }}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No reservations yet</Text>
-              <Text style={styles.emptyText}>
-                Find a shop in the market and tap Reserve on an item.
-              </Text>
-            </View>
+            <EmptyState
+              icon={CalendarIcon}
+              title="No reservations yet"
+              message="Some shops let you hold an item and collect it later. Tap Reserve on anything that offers it."
+              action={{ label: "Browse shops", onPress: () => navigation.navigate("FoodTab") }}
+            />
           }
         />
       )}
@@ -121,6 +125,8 @@ const makeStyles = (c: ThemeColors) =>
   title: { ...typography.title, fontSize: 22, color: c.gray[900] },
   sub: { ...typography.small, color: c.gray[500], marginTop: 2 },
   list: { padding: spacing.md, paddingTop: 0 },
+  /** So `ListEmptyComponent` has a screen to centre in. */
+  grow: { flexGrow: 1 },
   card: {
     backgroundColor: c.surface,
     borderRadius: radius.md,
@@ -131,11 +137,8 @@ const makeStyles = (c: ThemeColors) =>
   },
   rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm },
   name: { ...typography.label, fontSize: 15, color: c.gray[900], flex: 1 },
-  badge: { borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  badge: { borderRadius: 12, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   badgeText: { fontSize: 11, fontWeight: "600" },
   meta: { ...typography.small, color: c.gray[500], marginTop: spacing.xs },
   pickup: { ...typography.small, color: c.brand[600], marginTop: spacing.xs, fontWeight: "600" },
-  empty: { alignItems: "center", paddingVertical: spacing.xl * 2 },
-  emptyTitle: { ...typography.label, color: c.gray[700] },
-  emptyText: { ...typography.small, color: c.gray[500], marginTop: spacing.xs },
 });

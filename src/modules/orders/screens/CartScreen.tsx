@@ -10,10 +10,10 @@ import {
   TrashIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { AddButton } from "../../../common/ui/AddButton";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
-import { AppButton } from "../../../common/ui/AppButton";
 import { Appear } from "../../../common/ui/Appear";
 import { Price } from "../../../common/ui/Price";
 import { confirm } from "../../../common/ui/confirm";
@@ -126,26 +126,17 @@ export function CartScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Cart</Text>
         </View>
-        <View style={styles.emptyWrap}>
-          <View style={styles.emptyIcon}>
-            <BagIcon size={34} color={c.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>Your cart is empty</Text>
-          <Text style={styles.emptyText}>Browse shops near you and add something tasty.</Text>
-          {/*
-            A WAY OUT.
-
-            The empty state told somebody to go browsing and gave them nothing
-            to press. On the tab that is hardest to leave — the basket is a leaf
-            of the tab bar, so there is no back arrow either — the only exit was
-            to notice a different tab along the bottom.
-          */}
-          <AppButton
-            title="Browse shops"
-            onPress={() => navigation.navigate("FoodTab")}
-            style={styles.emptyCta}
-          />
-        </View>
+        <EmptyState
+          icon={BagIcon}
+          title="Your cart is empty"
+          message="Browse shops near you and add something. Your basket holds one shop at a time, so it all arrives together."
+          /*
+            A WAY OUT. The cart is a leaf of the tab bar — no back arrow — and
+            this state used to tell somebody to go browsing while giving them
+            nothing to press.
+          */
+          action={{ label: "Browse shops", onPress: () => navigation.navigate("FoodTab") }}
+        />
       </SafeScreen>
     );
   }
@@ -439,26 +430,6 @@ const makeStyles = (c: ThemeColors) =>
     shopName: { ...typography.tiny, color: c.textSecondary, marginTop: 1 },
     clearBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
     clearText: { ...typography.tiny, color: c.error, fontWeight: "700" },
-
-    emptyWrap: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      gap: spacing.sm,
-      paddingHorizontal: spacing.xl,
-    },
-    emptyIcon: {
-      width: 84,
-      height: 84,
-      borderRadius: 42,
-      backgroundColor: c.primarySoft,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: spacing.sm,
-    },
-    emptyTitle: { ...typography.h3, color: c.text },
-    emptyText: { ...typography.small, color: c.textSecondary, textAlign: "center" },
-    emptyCta: { marginTop: spacing.md, alignSelf: "stretch" },
 
     // 10 between lines, not 6. A basket is checked at a glance, and six points
     // between bordered cards is close enough that eight lines read as one

@@ -371,7 +371,7 @@ const makeStyles = (c: ThemeColors) =>
       gap: 5,
       paddingHorizontal: 13,
       paddingVertical: 9,
-      borderRadius: radius.full,
+      borderRadius: 19,
       borderWidth: 1,
       borderColor: c.border,
       backgroundColor: c.surfaceAlt,

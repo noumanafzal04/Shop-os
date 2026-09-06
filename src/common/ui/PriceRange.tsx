@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { PanResponder, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { radius, spacing, type ThemeColors, typography, useColors } from "../../theme";
+import { spacing, type ThemeColors, typography, useColors } from "../../theme";
 import { money } from "../format";
 
 /**
@@ -192,18 +192,18 @@ const makeStyles = (c: ThemeColors) =>
     trackRow: { height: THUMB + 8, justifyContent: "center" },
     track: {
       height: 4,
-      borderRadius: radius.full,
+      borderRadius: 2,
       backgroundColor: c.surfaceAlt,
       borderWidth: 1,
       borderColor: c.border,
       marginHorizontal: THUMB / 2,
     },
-    fill: { position: "absolute", height: 4, borderRadius: radius.full, backgroundColor: c.primary },
+    fill: { position: "absolute", height: 4, borderRadius: 2, backgroundColor: c.primary },
     thumb: {
       position: "absolute",
       width: THUMB,
       height: THUMB,
-      borderRadius: radius.full,
+      borderRadius: 14,
       backgroundColor: c.surface,
       borderWidth: 3,
       borderColor: c.primary,

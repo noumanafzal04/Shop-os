@@ -15,6 +15,7 @@ import {
   StorefrontIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { Appear } from "../../../common/ui/Appear";
 import { SkeletonStatusCard } from "../../../common/ui/Skeleton";
@@ -131,7 +132,7 @@ export function OrdersScreen() {
         <FlatList
           data={rows}
           keyExtractor={(r) => r.key}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, styles.grow]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={c.primary} />}
           onEndReachedThreshold={0.5}
@@ -159,10 +160,12 @@ export function OrdersScreen() {
             )
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No orders yet</Text>
-              <Text style={styles.emptyText}>Browse the Market and add items to your cart.</Text>
-            </View>
+            <EmptyState
+              icon={ReceiptIcon}
+              title="No orders yet"
+              message="Everything you order shows up here — you can follow a delivery, or order the same thing again."
+              action={{ label: "Browse shops", onPress: () => navigation.navigate("FoodTab") }}
+            />
           }
         />
       )}
@@ -288,6 +291,8 @@ const makeStyles = (c: ThemeColors) =>
     sub: { ...typography.small, color: c.textSecondary, marginTop: 2 },
     more: { paddingVertical: spacing.lg, alignItems: "center" },
     list: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg },
+    /** So `ListEmptyComponent` has a screen to centre in. */
+    grow: { flexGrow: 1 },
 
     groupTitle: {
       ...typography.tiny,
@@ -357,8 +362,4 @@ const makeStyles = (c: ThemeColors) =>
       paddingVertical: 4,
     },
     trackCtaText: { ...typography.tiny, color: c.primary, fontWeight: "800" },
-
-    empty: { alignItems: "center", paddingVertical: spacing.xl * 2 },
-    emptyTitle: { ...typography.label, color: c.textSecondary },
-    emptyText: { ...typography.small, color: c.textMuted, marginTop: spacing.xs },
   });

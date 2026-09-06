@@ -311,7 +311,15 @@ export function CustomerHomeScreen() {
               data={feed.data?.nearby ?? []}
               keyExtractor={(s) => s.slug}
               contentContainerStyle={styles.hRow}
-              ListEmptyComponent={<Text style={styles.empty}>No shops around here yet.</Text>}
+              /*
+                NOT `EmptyState`. This is a HORIZONTAL rail inside a scrolling
+                page — a full-screen centred panel with an icon plate would be
+                a 300pt hole in the middle of the home screen. The shared
+                component is for a screen whose whole job is that one list.
+              */
+              ListEmptyComponent={
+                <Text style={styles.empty}>No shops around here yet — try widening your location.</Text>
+              }
               renderItem={({ item }) => <ShopCard shop={item} onPress={() => openShop(item)} />}
             />
           )}
@@ -614,7 +622,7 @@ const makeStyles = (c: ThemeColors) =>
   bell: {
     width: 42,
     height: 42,
-    borderRadius: radius.full,
+    borderRadius: 21,
     backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
@@ -624,7 +632,7 @@ const makeStyles = (c: ThemeColors) =>
     alignItems: "center",
     gap: spacing.sm,
     backgroundColor: c.surface,
-    borderRadius: radius.full,
+    borderRadius: 22,
     paddingLeft: spacing.md,
     paddingRight: 8,
     height: 52,

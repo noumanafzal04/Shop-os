@@ -25,6 +25,7 @@ import {
   StarIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { AddButton } from "../../../common/ui/AddButton";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { Skeleton, SkeletonMenuRow } from "../../../common/ui/Skeleton";
@@ -603,7 +604,7 @@ export function MarketShopScreen() {
           memory and removes an entire class of mount mismatch.
         */
         removeClippedSubviews={false}
-        contentContainerStyle={[styles.list, cartCount > 0 && { paddingBottom: 96 }]}
+        contentContainerStyle={[styles.list, styles.grow, cartCount > 0 && { paddingBottom: 96 }]}
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         onViewableItemsChanged={onViewable}
         viewabilityConfig={viewability}
@@ -702,11 +703,16 @@ export function MarketShopScreen() {
               <SkeletonMenuRow />
             </View>
           ) : (
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>
-                {debounced ? "Nothing matches your search" : "Nothing listed yet"}
-              </Text>
-            </View>
+            <EmptyState
+              icon={BagIcon}
+              tone={debounced ? "muted" : "warm"}
+              title={debounced ? `Nothing matches “${debounced}”` : "Nothing listed yet"}
+              message={
+                debounced
+                  ? "Try a shorter word — the menu is searched by name and brand."
+                  : "This shop has not put anything on its menu yet."
+              }
+            />
           )
         }
       />
@@ -794,6 +800,8 @@ function CatChip({ label, active, onPress }: { label: string; active: boolean; o
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   list: { paddingBottom: spacing.xxl },
+  /** So `ListEmptyComponent` has a screen to centre in. */
+  grow: { flexGrow: 1 },
   /**
    * The pinned bar's own surface.
    *
@@ -888,16 +896,20 @@ const makeStyles = (c: ThemeColors) =>
     backgroundColor: c.surfaceAlt,
     borderWidth: 1,
     borderColor: c.border,
-    borderRadius: radius.full,
+    // 20 = (34 tall button + 3 padding each side) / 2. Not `radius.full`: a
+    // very large radius renders as a square on small views under the new
+    // architecture, which on a segmented control is a rounded button sitting
+    // in a rectangle.
+    borderRadius: 20,
     padding: 3,
   },
-  toggleBtn: { paddingHorizontal: spacing.lg, paddingVertical: 7, borderRadius: radius.full },
+  toggleBtn: { paddingHorizontal: spacing.lg, paddingVertical: 7, borderRadius: 17 },
   toggleOn: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.brand[500] },
   toggleText: { ...typography.label, color: c.gray[500], fontSize: 13 },
   toggleTextOn: { color: c.brand[700] },
   modePill: {
     backgroundColor: c.brand[50],
-    borderRadius: radius.full,
+    borderRadius: 18,
     paddingHorizontal: spacing.lg,
     paddingVertical: 8,
   },
@@ -936,7 +948,7 @@ const makeStyles = (c: ThemeColors) =>
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,
-    borderRadius: radius.full,
+    borderRadius: 22,
     paddingHorizontal: spacing.md,
     height: 44,
   },
@@ -999,14 +1011,11 @@ const makeStyles = (c: ThemeColors) =>
   reserveBtn: {
     borderWidth: 1,
     borderColor: c.brand[500],
-    borderRadius: radius.full,
+    borderRadius: 16,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
   },
   reserveText: { ...typography.tiny, color: c.brand[700], fontWeight: "700" },
-
-  empty: { alignItems: "center", paddingVertical: spacing.xxl },
-  emptyTitle: { ...typography.body, color: c.gray[500] },
 
   // Cart bar
   /**
@@ -1027,7 +1036,7 @@ const makeStyles = (c: ThemeColors) =>
     alignItems: "center",
     gap: spacing.sm,
     backgroundColor: c.brand[500],
-    borderRadius: radius.full,
+    borderRadius: 22,
     paddingHorizontal: spacing.md,
     height: 52,
   },

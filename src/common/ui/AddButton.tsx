@@ -10,7 +10,7 @@ import {
   PlusIcon,
 } from "../../common/ui/icons";
 import { tick } from "./haptics";
-import { radius, type ThemeColors, useColors } from "../../theme";
+import { type ThemeColors, useColors } from "../../theme";
 
 /**
  * The circle that puts one thing in the basket.
@@ -110,7 +110,7 @@ export function AddButton({ onPress, label, size = 34, style }: Props) {
         accessibilityLabel={added ? `${label} added` : `Add ${label}`}
         style={({ pressed }) => [
           styles.btn,
-          { width: size, height: size, borderRadius: radius.full },
+          { width: size, height: size, borderRadius: 14 },
           added && styles.done,
           pressed && !added && styles.pressed,
         ]}

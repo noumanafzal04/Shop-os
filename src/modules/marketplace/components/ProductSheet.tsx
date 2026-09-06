@@ -299,7 +299,7 @@ const makeStyles = (c: ThemeColors) =>
   rule: { ...typography.tiny, color: c.gray[500], marginTop: 1 },
   pill: {
     backgroundColor: c.surfaceAlt,
-    borderRadius: radius.full,
+    borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -363,7 +363,7 @@ const makeStyles = (c: ThemeColors) =>
   addBtn: {
     flex: 1,
     height: 48,
-    borderRadius: radius.full,
+    borderRadius: 22,
     backgroundColor: c.brand[500],
     alignItems: "center",
     justifyContent: "center",

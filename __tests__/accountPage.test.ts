@@ -128,3 +128,30 @@ describe("security screen", () => {
     expect(everywhere.slice(0, 400)).toMatch(/onSettled: endSession/);
   });
 });
+
+/**
+ * THE SIDE MENU'S PROFILE ROW.
+ *
+ * "sidebar user profile py edit icon ki bajaye arrow icon lagao." It carried a
+ * pencil — "edit these details" — and pressing it opens the whole account
+ * page: a profile, an avatar, a verified badge, a way out. Naming ONE of the
+ * things a screen does is worse than naming none, because somebody looking for
+ * their orders does not press "edit".
+ */
+describe("the profile row points at a page, not at a field", () => {
+  const menu = fs
+    .readFileSync(path.join(PROJECT_ROOT, "src/navigation/SideMenu.tsx"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+
+  it("shows a chevron to somebody signed in", () => {
+    expect(menu).toMatch(/signedIn \? \(\s*<ChevronRightIcon/);
+    expect(menu).not.toMatch(/PencilIcon/);
+  });
+
+  it("still offers a guest the thing they need instead", () => {
+    // The denominator: a chevron to a stranger points at a page that will ask
+    // them to sign in anyway, so that half stays a button that says so.
+    expect(menu).toMatch(/<Text style=\{styles\.editText\}>Sign in<\/Text>/);
+  });
+});

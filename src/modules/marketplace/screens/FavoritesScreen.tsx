@@ -8,6 +8,8 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
+import { HeartIcon } from "../../../common/ui/icons";
 import { Touchable } from "../../../common/ui/Touchable";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
@@ -54,7 +56,7 @@ export function FavoritesScreen() {
         <FlatList
           data={rows}
           keyExtractor={(s) => s.slug}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, styles.grow]}
           refreshControl={
             <RefreshControl
               refreshing={pull.refreshing}
@@ -80,12 +82,12 @@ export function FavoritesScreen() {
             </Touchable>
           )}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No favorites yet</Text>
-              <Text style={styles.emptyText}>
-                Browse the market and tap ♡ on shops you love.
-              </Text>
-            </View>
+            <EmptyState
+              icon={HeartIcon}
+              title="No favourites yet"
+              message="Tap the heart on a shop and it will be waiting here next time."
+              action={{ label: "Browse shops", onPress: () => navigation.navigate("FoodTab") }}
+            />
           }
           ListFooterComponent={
             <AppButton
@@ -108,6 +110,8 @@ const makeStyles = (c: ThemeColors) =>
   title: { ...typography.title, fontSize: 22, color: c.gray[900] },
   sub: { ...typography.small, color: c.gray[500], marginTop: 2 },
   list: { padding: spacing.md, paddingTop: 0 },
+  /** So `ListEmptyComponent` has a screen to centre in. */
+  grow: { flexGrow: 1 },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -132,7 +136,4 @@ const makeStyles = (c: ThemeColors) =>
   name: { ...typography.label, fontSize: 15, color: c.gray[900] },
   meta: { ...typography.small, color: c.gray[500], marginTop: 2, textTransform: "capitalize" },
   heart: { fontSize: 18, color: c.brand[500] },
-  empty: { alignItems: "center", paddingVertical: spacing.xl * 2 },
-  emptyTitle: { ...typography.label, color: c.gray[700] },
-  emptyText: { ...typography.small, color: c.gray[500], marginTop: spacing.xs },
 });

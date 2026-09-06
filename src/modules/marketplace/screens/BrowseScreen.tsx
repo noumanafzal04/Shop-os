@@ -16,6 +16,7 @@ import {
   XIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AddButton } from "../../../common/ui/AddButton";
@@ -294,7 +295,7 @@ export function BrowseScreen() {
           keyExtractor={(p) => p.id}
           numColumns={2}
           columnWrapperStyle={styles.col}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, styles.grow]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={c.primary} />
@@ -330,27 +331,27 @@ export function BrowseScreen() {
                 ))}
               </View>
             ) : (
-              <View style={styles.empty}>
-                <PackageSearchIcon size={34} color={c.textMuted} />
-                <Text style={styles.emptyTitle} numberOfLines={2}>
-                  {q ? `Nothing matches “${q}”` : "Nothing matches"}
-                </Text>
-                <Text style={styles.emptyText}>
-                  {/*
-                    Three different situations wearing one sentence before: a
-                    word that found nothing, filters that are too narrow, and a
-                    shelf that is genuinely empty. Only one of them is the
-                    person's fault, and only two are worth acting on.
-                  */}
-                  {q && active > 0
+              <EmptyState
+                icon={PackageSearchIcon}
+                tone="muted"
+                title={q ? `Nothing matches “${q}”` : "Nothing matches"}
+                message={
+                  /*
+                    Three different situations wore one sentence before: a word
+                    that found nothing, filters that are too narrow, and a shelf
+                    that is genuinely empty. Only one of them is the person's
+                    fault, and only two are worth acting on.
+                  */
+                  q && active > 0
                     ? "Try another word, or take a filter off."
                     : q
-                      ? "Try another word — spelling, or a shorter one."
+                      ? "Try a shorter word, or a different spelling."
                       : active > 0
                         ? "Try widening a filter — the sheet says how many results each change would give."
-                        : "There is nothing listed here yet."}
-                </Text>
-              </View>
+                        : "There is nothing listed here yet."
+                }
+                action={active > 0 ? { label: "Clear filters", onPress: () => setFilters({}) } : undefined}
+              />
             )
           }
           renderItem={({ item }) => {
@@ -441,13 +442,17 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: "center",
       gap: 6,
       backgroundColor: c.primary,
-      borderRadius: radius.full,
+      borderRadius: 17,
       paddingHorizontal: 12,
       paddingVertical: 7,
     },
     chipText: { ...typography.tiny, color: c.onPrimary, fontWeight: "700" },
 
     list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl, gap: spacing.md },
+
+    /** So `ListEmptyComponent` has a screen to centre in. */
+
+    grow: { flexGrow: 1 },
     col: { gap: spacing.md },
     card: { flex: 1 },
     thumb: {
@@ -466,7 +471,7 @@ const makeStyles = (c: ThemeColors) =>
       left: 7,
       top: 7,
       backgroundColor: c.warm,
-      borderRadius: radius.full,
+      borderRadius: 13,
       paddingHorizontal: 8,
       paddingVertical: 3,
     },
@@ -484,7 +489,4 @@ const makeStyles = (c: ThemeColors) =>
     paddingVertical: spacing.lg,
   },
   loading: { gap: spacing.sm, paddingTop: spacing.sm },
-    empty: { alignItems: "center", gap: 6, paddingTop: spacing.xxl, paddingHorizontal: spacing.xl },
-    emptyTitle: { ...typography.h3, color: c.text, marginTop: spacing.sm },
-    emptyText: { ...typography.small, color: c.textSecondary, textAlign: "center" },
   });

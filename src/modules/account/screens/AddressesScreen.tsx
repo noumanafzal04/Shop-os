@@ -9,6 +9,7 @@ import {
   TrashIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppButton } from "../../../common/ui/AppButton";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -115,13 +116,14 @@ export function AddressesScreen() {
         <FlatList
           data={list.data ?? []}
           keyExtractor={(a) => a.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, styles.grow]}
           ListEmptyComponent={
             !adding ? (
-              <View style={styles.emptyWrap}>
-                <MapPinIcon size={32} color={c.gray[300]} />
-                <Text style={styles.empty}>No saved addresses — add one with +</Text>
-              </View>
+              <EmptyState
+                icon={MapPinIcon}
+                title="No saved addresses"
+                message="Add the places you order to and checkout stops asking for them."
+              />
             ) : null
           }
           renderItem={({ item }) => (
@@ -184,8 +186,8 @@ const makeStyles = (c: ThemeColors) =>
   pinNote: { ...typography.tiny, color: c.gray[500] },
 
   list: { padding: spacing.md, gap: spacing.xs },
-  emptyWrap: { alignItems: "center", gap: spacing.sm, paddingTop: spacing.xxl },
-  empty: { ...typography.small, color: c.gray[400] },
+  /** So `ListEmptyComponent` has a screen to centre in. */
+  grow: { flexGrow: 1 },
 
   row: {
     flexDirection: "row",
@@ -215,7 +217,7 @@ const makeStyles = (c: ThemeColors) =>
     backgroundColor: c.brand[50],
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: radius.full,
+    borderRadius: 12,
     overflow: "hidden",
     fontWeight: "700",
   },

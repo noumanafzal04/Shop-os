@@ -25,7 +25,6 @@ import {
   LifeBuoyIcon,
   MapPinIcon,
   MotorcycleIcon,
-  PencilIcon,
   PersonIcon,
   ReceiptIcon,
   RefreshIcon,
@@ -340,13 +339,25 @@ export function SideMenu({ visible, onClose }: Props) {
                   {signedIn ? (user?.email ?? user?.phone ?? "Signed in") : "Sign in to order"}
                 </Text>
               </View>
-              <View style={styles.editPill}>
-                {signedIn ? (
-                  <PencilIcon size={14} color={c.primary} />
-                ) : (
+              {/*
+                A CHEVRON, not a pencil.
+
+                The pencil said "edit these details", and pressing it opens
+                the whole account page — a profile, an avatar, a verified
+                badge, a way out. Naming one of the things a screen does is
+                worse than naming none: somebody looking for their orders
+                does not press "edit".
+
+                A chevron says the only thing that is reliably true — there is
+                more this way.
+              */}
+              {signedIn ? (
+                <ChevronRightIcon size={18} color={c.textMuted} />
+              ) : (
+                <View style={styles.editPill}>
                   <Text style={styles.editText}>Sign in</Text>
-                )}
-              </View>
+                </View>
+              )}
             </Touchable>
 
             {/* ── The lists ────────────────────────────────────────── */}

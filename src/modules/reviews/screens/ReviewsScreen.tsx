@@ -7,6 +7,7 @@ import {
   StorefrontIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { Touchable } from "../../../common/ui/Touchable";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
@@ -91,7 +92,7 @@ export function ReviewsScreen() {
         <FlatList
           data={rows}
           keyExtractor={(r) => r.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, styles.grow]}
           showsVerticalScrollIndicator={false}
           refreshing={pull.refreshing}
           onRefresh={pull.onRefresh}
@@ -102,14 +103,12 @@ export function ReviewsScreen() {
                 <SkeletonListRow />
               </View>
             ) : (
-              <View style={styles.empty}>
-                <QuoteIcon size={34} color={c.textMuted} />
-                <Text style={styles.emptyTitle}>Nothing rated yet</Text>
-                <Text style={styles.emptyText}>
-                  When an order is delivered, the order screen offers to rate the
-                  shop. It takes one tap.
-                </Text>
-              </View>
+              <EmptyState
+                icon={QuoteIcon}
+                tone="muted"
+                title="Nothing rated yet"
+                message="When an order arrives, its own screen offers to rate the shop. It takes one tap."
+              />
             )
           }
           renderItem={({ item, index }) => (
@@ -201,6 +200,8 @@ export function ReviewsScreen() {
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
     list: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xxl },
+    /** So `ListEmptyComponent` has a screen to centre in. */
+    grow: { flexGrow: 1 },
     loading: { gap: spacing.sm },
 
     card: {
@@ -245,8 +246,4 @@ const makeStyles = (c: ThemeColors) =>
     action: { paddingVertical: 4, paddingHorizontal: 10 },
     actionText: { ...typography.small, color: c.primary, fontWeight: "700" },
     remove: { color: c.error },
-
-    empty: { alignItems: "center", gap: 6, paddingTop: spacing.xxl, paddingHorizontal: spacing.xl },
-    emptyTitle: { ...typography.h3, color: c.text, marginTop: spacing.sm },
-    emptyText: { ...typography.small, color: c.textSecondary, textAlign: "center", lineHeight: 19 },
   });

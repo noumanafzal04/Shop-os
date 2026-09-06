@@ -10,6 +10,7 @@ import {
   SearchIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { apiGet } from "../../../common/api/client";
@@ -119,26 +120,24 @@ export function LocationScreen() {
         data={suggestions}
         keyExtractor={(s, i) => `${s.lat}-${s.lng}-${i}`}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, styles.grow]}
         ListEmptyComponent={
           // Three different silences, and the screen used to show the same
           // blank space for all of them.
           !debounced.trim() || debounced.trim().length < 3 ? null : searching ? null : !canSearch ? (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyTitle}>Street search isn&rsquo;t set up yet</Text>
-              <Text style={styles.emptyText}>
-                Pick a city above, or use “Use my current location” — both work
-                without it.
-              </Text>
-            </View>
+            <EmptyState
+              icon={CrosshairIcon}
+              tone="muted"
+              title="Street search isn’t set up yet"
+              message="Pick a city above, or use “Use my current location” — both work without it."
+            />
           ) : (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyTitle}>No matches</Text>
-              <Text style={styles.emptyText}>
-                Try a landmark or a wider area, or drop a pin with “Use my
-                current location”.
-              </Text>
-            </View>
+            <EmptyState
+              icon={MapPinIcon}
+              tone="muted"
+              title="No matches"
+              message="Try a landmark or a wider area, or drop a pin with “Use my current location”."
+            />
           )
         }
         ListHeaderComponent={
@@ -269,15 +268,9 @@ const makeStyles = (c: ThemeColors) =>
   },
   title: { ...typography.h3, color: c.text },
   searchWrap: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
-  emptyWrap: { alignItems: "center", paddingVertical: spacing.xl, paddingHorizontal: spacing.lg },
-  emptyTitle: { ...typography.label, color: c.text, textAlign: "center" },
-  emptyText: {
-    ...typography.small,
-    color: c.textSecondary,
-    textAlign: "center",
-    marginTop: spacing.xs,
-  },
   list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xxl },
+  /** So `ListEmptyComponent` has a screen to centre in. */
+  grow: { flexGrow: 1 },
 
   currentRow: {
     flexDirection: "row",

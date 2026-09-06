@@ -3,7 +3,7 @@ import { Animated, Easing, Pressable, StyleSheet, Text } from "react-native";
 import {
   RotateIcon,
 } from "../../common/ui/icons";
-import { radius, type ThemeColors, typography, useColors } from "../../theme";
+import { type ThemeColors, typography, useColors } from "../../theme";
 
 /**
  * "This is how old what you are looking at is. Tap to ask again."
@@ -126,7 +126,7 @@ const makeStyles = (c: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      borderRadius: radius.full,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: c.border,
       backgroundColor: c.surface,

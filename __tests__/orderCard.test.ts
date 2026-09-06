@@ -177,6 +177,35 @@ describe("the layout rules the screens were failing", () => {
     expect(src).toMatch(/tailCard: \{ paddingHorizontal: spacing\.md \}/);
   });
 
+  it("has no `radius.full` left anywhere", () => {
+    /**
+     * THE SECOND HALF OF THE SAME RULE.
+     *
+     * The scan below only ever looked at style blocks with a fixed numeric
+     * WIDTH, so it found thirty round buttons and missed every PILL — a chip,
+     * a badge, a segmented-control track, anything whose size comes from its
+     * padding. Twenty-eight of them, including the "On offer" chip whose
+     * cross was reported as clipped on a real device.
+     *
+     * A rule that catches one shape of the same bug is a rule that gets
+     * re-learned. `radius.full` is 9999 and there is no view in this app large
+     * enough to need it, so the honest rule is: not at all.
+     */
+    const files = sourceFiles(PROJECT_ROOT + "/src").filter((f) => f.endsWith(".tsx"));
+    expect(files.length).toBeGreaterThan(30);
+
+    const offenders = files
+      .flatMap((f) =>
+        codeOnly(fs.readFileSync(f, "utf8"))
+          .split("\n")
+          .map((line, i) => [i + 1, line] as const)
+          .filter(([, line]) => /borderRadius:\s*radius\.full/.test(line))
+          .map(([n]) => `  ${path.relative(PROJECT_ROOT, f)}:${n}`),
+      );
+
+    expect(offenders.join("\n")).toBe("");
+  });
+
   it("never puts `radius.full` on a view small enough to render square", () => {
     // Documented and then re-introduced twice: a very large radius renders as
     // a SQUARE on small views under the new architecture. The cart's stepper
@@ -201,9 +230,15 @@ describe("the layout rules the screens were failing", () => {
   it("gives the basket a way out when it is empty", () => {
     // The cart is a leaf of the tab bar — no back arrow — and its empty state
     // told somebody to go browsing without giving them anything to press.
+    // Anchored on the COMPONENT rather than on a style name: this asserted
+    // `<AppButton>` inside a block starting at `emptyWrap`, and both went when
+    // the cart moved onto the shared `EmptyState` — leaving the slice empty
+    // and the assertion matching nothing at all.
     const src = read("src/modules/orders/screens/CartScreen.tsx");
-    const empty = src.slice(src.indexOf("emptyWrap"), src.indexOf("const count ="));
-    expect(empty).toMatch(/<AppButton[\s\S]*?navigation\.navigate/);
+    const empty = src.slice(src.indexOf("<EmptyState"), src.indexOf("const count ="));
+
+    expect(empty).not.toBe("");
+    expect(empty).toMatch(/action=\{\{[\s\S]*?navigation\.navigate/);
   });
 
   it("shows the picture the person was just looking at, in their basket", () => {

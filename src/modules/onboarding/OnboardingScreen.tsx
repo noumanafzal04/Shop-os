@@ -280,7 +280,7 @@ const makeStyles = (c: ThemeColors) =>
       gap: spacing.sm,
       width: 58,
       height: 58,
-      borderRadius: radius.full,
+      borderRadius: 22,
       backgroundColor: c.primary,
     },
     nextWide: { width: "auto", paddingHorizontal: spacing.lg },

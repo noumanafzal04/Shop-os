@@ -14,10 +14,12 @@ import {
   ChevronRightIcon,
   MapPinIcon,
   MotorcycleIcon,
+  ParcelIcon,
   StorefrontIcon,
   WalletIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SideMenu } from "../../../navigation/SideMenu";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
@@ -170,7 +172,7 @@ export function RiderHomeScreen() {
       <FlatList
         data={offers}
         keyExtractor={(j) => j.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, styles.listGrow]}
         refreshControl={
           // The spinner belongs to the GESTURE, not to any refetch. This
           // screen polls every fifteen seconds — bound to `isRefetching` the
@@ -244,22 +246,24 @@ export function RiderHomeScreen() {
           </>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>
-              {!online
+          <EmptyState
+            icon={ParcelIcon}
+            tone={online ? "muted" : "warm"}
+            title={
+              !online
                 ? "Go online to see work"
                 : active.length >= (board.data?.job_limit ?? 3)
                   ? "You are at your limit"
-                  : "No deliveries near you"}
-            </Text>
-            <Text style={styles.emptyBody}>
-              {!online
+                  : "No deliveries near you"
+            }
+            message={
+              !online
                 ? "Nothing is offered to a rider who is off duty."
                 : active.length >= (board.data?.job_limit ?? 3)
                   ? `Deliver one of your ${active.length} orders and the board opens again.`
-                  : "This page checks again every few seconds."}
-            </Text>
-          </View>
+                  : "A job is offered to the riders nearest the shop first, then wider. This checks again every few seconds."
+            }
+          />
         }
         renderItem={({ item }) => (
           <JobCard job={item} onPress={() => navigation.navigate("RiderJob", { id: item.id })} />
@@ -398,6 +402,8 @@ export function JobCard({ job, onPress, mine }: { job: RiderJob; onPress: () => 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
     list: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.xs },
+    /** So `ListEmptyComponent` has a screen to centre in. */
+    listGrow: { flexGrow: 1 },
 
     duty: {
       flexDirection: "row",
@@ -494,10 +500,6 @@ const makeStyles = (c: ThemeColors) =>
     },
     cashText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 10.5 },
 
-    empty: { alignItems: "center", paddingVertical: spacing.xl, gap: 5 },
-    emptyTitle: { ...typography.h3, color: c.text, fontSize: 15.5 },
-    emptyBody: { ...typography.small, color: c.textMuted, textAlign: "center" },
-
     gate: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg, gap: 8 },
     gateIcon: {
       width: 72,
@@ -515,7 +517,7 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: "center",
       gap: 5,
       backgroundColor: c.primary,
-      borderRadius: radius.full,
+      borderRadius: 21,
       paddingHorizontal: 18,
       paddingVertical: 11,
       marginTop: spacing.sm,

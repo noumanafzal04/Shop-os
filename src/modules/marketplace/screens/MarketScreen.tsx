@@ -14,8 +14,10 @@ import {
   ArrowLeftIcon,
   ChevronRightIcon,
   SearchIcon,
+  StorefrontIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { EmptyState } from "../../../common/ui/EmptyState";
 import { Appear } from "../../../common/ui/Appear";
 import { Touchable } from "../../../common/ui/Touchable";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
@@ -110,7 +112,7 @@ export function MarketScreen() {
         style={styles.body}
         data={rows}
         keyExtractor={(s) => s.slug}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, styles.grow]}
         refreshControl={
           <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={c.brand[500]} />
         }
@@ -176,12 +178,16 @@ export function MarketScreen() {
               retrying={shops.isFetching}
             />
           ) : (
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No shops found</Text>
-              <Text style={styles.emptyText}>
-                {debounced ? "Try a different search." : "Check back soon — new shops join every week."}
-              </Text>
-            </View>
+            <EmptyState
+              icon={StorefrontIcon}
+              tone={debounced ? "muted" : "warm"}
+              title={debounced ? `Nothing matches “${debounced}”` : "No shops here yet"}
+              message={
+                debounced
+                  ? "Try a shorter word, or a different spelling."
+                  : "New shops join every week. Widening your location will find more."
+              }
+            />
           )
         }
         // Half a screen ahead, and guarded against `onEndReached` firing more
@@ -263,7 +269,7 @@ const makeStyles = (c: ThemeColors) =>
     alignItems: "center",
     gap: spacing.sm,
     backgroundColor: c.surface,
-    borderRadius: radius.full,
+    borderRadius: 22,
     paddingHorizontal: spacing.md,
     height: 46,
   },
@@ -271,6 +277,8 @@ const makeStyles = (c: ThemeColors) =>
 
   body: { flex: 1, backgroundColor: c.bg },
   list: { padding: spacing.md, paddingBottom: spacing.xxl },
+  /** So `ListEmptyComponent` has a screen to centre in. */
+  grow: { flexGrow: 1 },
   sectionTitle: { ...typography.h3, color: c.text, fontSize: 17, marginBottom: spacing.sm, marginTop: spacing.xs },
 
   dealRow: { gap: spacing.sm, paddingBottom: spacing.md },
@@ -293,9 +301,6 @@ const makeStyles = (c: ThemeColors) =>
 
   more: { paddingVertical: spacing.lg, alignItems: "center" },
   skeletons: { gap: spacing.sm },
-  empty: { alignItems: "center", paddingVertical: spacing.xxl, gap: 4 },
-  emptyTitle: { ...typography.h3, color: c.text },
-  emptyText: { ...typography.small, color: c.gray[500], textAlign: "center" },
 
   row: {
     flexDirection: "row",
