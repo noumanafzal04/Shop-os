@@ -749,6 +749,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "note", text: "If a delivery has nobody carrying it, a strip appears at the top saying how many \u2014 one press shows just those. That is the one thing on this screen that costs money if it is missed: a customer waiting for a bike that was never sent." },
       { type: "h", text: "Finding one order" },
       { type: "p", text: "Search by order number, the customer\u2019s name or the number they rang from. You can also narrow by date, by delivery or pickup, and by where the order came from \u2014 your online shop, the phone, WhatsApp or the counter. That last one answers whether the online shop is earning its keep." },
+      { type: "h", text: "How a platform rider is found" },
+      { type: "p", text: "If your delivery is set to platform riders, accepting an order puts it in front of the riders NEAREST your shop first, and widens from there \u2014 three kilometres straight away, six after half a minute, then as far as your trade sensibly reaches. Nobody outside the current ring can see it or take it, so the rider four hundred metres away gets first refusal rather than whoever happened to be looking at their phone." },
+      {
+        type: "list",
+        items: [
+          "How far the last ring goes depends on what you sell. Food stops at five kilometres because it goes cold; a pharmacy seven, a general store eight, other retail twelve.",
+          "A rider who accepts and then hands it back puts it straight back on offer, at the width it had reached \u2014 not back to the start, because the customer has been waiting the whole time.",
+          "The moment somebody accepts, it disappears from every other rider\u2019s board. Nobody taps a job that is already gone.",
+        ],
+      },
+      { type: "warn", text: "After three minutes with nobody, you get a \u201cNo rider yet\u201d notice. It is not a failure and the order is still on offer \u2014 it is so you can ring your own rider instead of finding out when the customer does." },
       { type: "note", text: "Payment is cash on delivery. It is recorded when the money actually reaches you, not when the order is placed." },
     ],
   },
