@@ -1,5 +1,6 @@
 import { useState } from "react";
 import PageMeta from "../../../components/common/PageMeta";
+import BannerPreview from "../components/BannerPreview";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
@@ -51,7 +52,35 @@ export default function AdminBannersPage() {
   const err = mutation.error instanceof ApiError ? mutation.error.firstFieldError() ?? mutation.error.message : null;
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  /**
+   * WHAT THE SERVER WILL ACTUALLY TAKE.
+   *
+   * PHP's own `upload_max_filesize` defaults to 2M, and a file over that never
+   * reaches Laravel — the upload arrives invalid and the only thing that comes
+   * back is "The image failed to upload", which was reported here verbatim: a
+   * 1200x600 PNG out of an image generator, refused with no reason anybody
+   * could act on.
+   *
+   * The rule is 2 MB on both sides now. Checking it HERE as well is not
+   * belt-and-braces — it is the difference between an answer in a hundred
+   * milliseconds and an answer after a two-megabyte upload that was always
+   * going to be thrown away.
+   */
+  const MAX_BYTES = 2 * 1024 * 1024;
+
+  const [tooBig, setTooBig] = useState<string | null>(null);
+
   const pickFile = (f: File | null) => {
+    if (f != null && f.size > MAX_BYTES) {
+      setTooBig(
+        `That image is ${(f.size / 1024 / 1024).toFixed(1)} MB. Banners must be under 2 MB — ` +
+          "saving it as JPG rather than PNG usually does it.",
+      );
+      setFile(null);
+      setPreview(null);
+      return;
+    }
+    setTooBig(null);
     setFile(f);
     setPreview(f ? URL.createObjectURL(f) : null);
   };
@@ -71,6 +100,23 @@ export default function AdminBannersPage() {
     });
     editor.openModal();
   };
+
+  /**
+   * What a tap will do, in one sentence.
+   *
+   * The target is three fields — a type, a shop, a URL — and whether they add
+   * up to a working link is not readable from any one of them. Saying the
+   * OUTCOME is the cheapest way to catch a banner pointing nowhere before it
+   * is published, which is otherwise only findable by tapping it on a phone.
+   */
+  const targetSentence = ((): string | null => {
+    const type = form.target_type || "shop";
+    if (type === "none") return null;
+    if (type === "url") return form.target_url ? `opens ${form.target_url}` : null;
+    if (type === "shop") return shopName ? `opens ${shopName}` : null;
+    if (type === "product") return form.target_product_id ? "opens that product" : null;
+    return null;
+  })();
 
   const save = () => {
     if (mutation.isPending) return;
@@ -140,15 +186,36 @@ export default function AdminBannersPage() {
         <div className="space-y-3">
           <div>
             <label className="mb-1 block text-theme-xs text-gray-400">Banner image {editing && "(leave empty to keep)"}</label>
-            {(preview || (editing && editing.image_url)) && (
-              <img
-                src={preview ?? editing?.image_url ?? ""}
-                alt="Banner preview"
-                className="mb-2 h-32 w-full rounded-lg border border-gray-200 object-cover dark:border-gray-700"
-              />
-            )}
+            {/*
+              THE PREVIEW, where the decision is made.
+
+              It shows both shapes, because they are not the same shape: the
+              phone lays a banner out at 2:1 and the website at roughly 3.5:1,
+              both with `object-cover` — so the same artwork keeps its top and
+              bottom on one and loses them on the other. There was no way to
+              know that without publishing and going to look.
+            */}
+            <BannerPreview
+              src={preview ?? editing?.image_url ?? null}
+              title={form.title}
+              action={targetSentence}
+            />
+
             <input type="file" accept="image/*" onChange={(e) => pickFile(e.target.files?.[0] ?? null)} className="text-sm" />
-            <p className="mt-1 text-theme-xs text-gray-400">Recommended 1200×480 (wide banner).</p>
+            {/*
+              2:1, because that is the ratio the phone draws.
+
+              This said 1200x480 — 2.5:1 — while `PromoCarousel` lays the card
+              out at `width / 2`. Every banner uploaded to the old advice was
+              being cropped top and bottom by the app, which is where a
+              headline goes.
+            */}
+            <p className="mt-1 text-theme-xs text-gray-400">
+              1200×600 (2:1), JPG under 2 MB. Keep text inside the middle 84% — the app crops the edges on narrow phones.
+            </p>
+            {tooBig && (
+              <p className="mt-1 text-theme-xs text-error-500">{tooBig}</p>
+            )}
           </div>
           <Input placeholder="Title / caption (optional)" value={form.title ?? ""} onChange={(e) => set("title", e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
