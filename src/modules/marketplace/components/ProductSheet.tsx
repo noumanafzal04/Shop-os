@@ -1,12 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { BottomSheet } from "../../../common/ui/BottomSheet";
 import {
   CheckIcon,
   ChevronDownIcon,
   MinusIcon,
   PlusIcon,
-  XIcon,
 } from "../../../common/ui/icons";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import type { PublicModifierGroup, PublicProduct } from "../services/marketplaceService";
@@ -38,7 +37,6 @@ export function ProductSheet({
   onClose: () => void;
   onAdd: (line: ConfiguredLine) => void;
 }) {
-  const insets = useSafeAreaInsets();
   const c = useColors();
   const cover = useShopCover()(product.id);
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -110,14 +108,46 @@ export function ProductSheet({
   };
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.grabber} />
-        <Pressable style={styles.close} onPress={onClose} hitSlop={8}>
-          <XIcon size={18} color={c.gray[500]} />
-        </Pressable>
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
+    /*
+      THE SHARED SHEET, not a bare Modal.
+
+      Every other overlay in this app — the filter sheet, the sort sheet, the
+      side menu, the toast — is one `Animated` value on the native driver, with
+      a spring on release and a backdrop whose opacity is interpolated from the
+      panel's own position. This one was `<Modal animationType="slide">`: the
+      platform's default, which cannot be dragged, does not fade its backdrop,
+      and lands with a linear stop instead of a settle.
+
+      It is also the sheet people open MOST — every product tap — so it was the
+      one overlay in the app that felt different, on the interaction that
+      happens most often. Swapping it in also gets drag-to-dismiss for free,
+      which is the gesture anybody who has used the filter sheet will already
+      have tried here.
+    */
+    <BottomSheet
+      visible
+      onClose={onClose}
+      footer={
+        <View style={styles.footerInner}>
+          <View style={styles.qtyRow}>
+            <Pressable style={styles.qtyBtn} onPress={() => setQty((q) => Math.max(step, q - step))}>
+              <MinusIcon size={16} color={c.gray[700]} />
+            </Pressable>
+            <Text style={styles.qty}>
+              {qtyText(qty)}
+              {isWeight && product.unit ? ` ${product.unit}` : ""}
+            </Text>
+            <Pressable style={[styles.qtyBtn, styles.qtyBtnPlus]} onPress={() => setQty((q) => q + step)}>
+              <PlusIcon size={16} color={c.white} />
+            </Pressable>
+          </View>
+          <Pressable style={[styles.addBtn, !valid && styles.addBtnOff]} disabled={!valid} onPress={add}>
+            <Text style={styles.addText}>Add to cart · {money(total)}</Text>
+          </Pressable>
+        </View>
+      }
+    >
+      <View>
           {/* Hero image */}
           <View style={styles.hero}>
             <SmartImage
@@ -231,50 +261,13 @@ export function ProductSheet({
             );
           })}
 
-          <View style={{ height: spacing.md }} />
-        </ScrollView>
-
-        {/* Qty + add — pinned */}
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-          <View style={styles.qtyRow}>
-            <Pressable style={styles.qtyBtn} onPress={() => setQty((q) => Math.max(step, q - step))}>
-              <MinusIcon size={16} color={c.gray[700]} />
-            </Pressable>
-            <Text style={styles.qty}>
-              {qtyText(qty)}
-              {isWeight && product.unit ? ` ${product.unit}` : ""}
-            </Text>
-            <Pressable style={[styles.qtyBtn, styles.qtyBtnPlus]} onPress={() => setQty((q) => q + step)}>
-              <PlusIcon size={16} color={c.white} />
-            </Pressable>
-          </View>
-          <Pressable style={[styles.addBtn, !valid && styles.addBtnOff]} disabled={!valid} onPress={add}>
-            <Text style={styles.addText}>Add to cart · {money(total)}</Text>
-          </Pressable>
-        </View>
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(16,26,38,0.55)" },
-  sheet: {
-    backgroundColor: c.surface,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    maxHeight: "82%",
-  },
-  grabber: {
-    alignSelf: "center",
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: c.gray[200],
-    marginTop: spacing.sm,
-  },
-  scroll: { paddingHorizontal: spacing.md },
 
   hero: {
     height: 190,
@@ -294,20 +287,6 @@ const makeStyles = (c: ThemeColors) =>
   priceCol: { alignItems: "flex-end", gap: 5 },
   perUnit: { ...typography.small, color: c.gray[400] },
   desc: { ...typography.small, color: c.gray[500], marginTop: spacing.xs, marginBottom: spacing.sm },
-  close: {
-    position: "absolute",
-    top: spacing.md,
-    right: spacing.md,
-    zIndex: 2,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 
   group: { marginTop: spacing.md },
   groupHead: {
@@ -365,15 +344,9 @@ const makeStyles = (c: ThemeColors) =>
   // Add-to-cart button clear of the home indicator — and a button under the
   // gesture bar is a button that swipes the app away instead of buying
   // anything.
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: c.border,
-  },
+  // The footer's INSIDE. `BottomSheet` owns the bar itself — its border,
+  // its surface and the safe-area padding underneath it.
+  footerInner: { gap: 10 },
   qtyRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   qtyBtn: {
     width: 38,

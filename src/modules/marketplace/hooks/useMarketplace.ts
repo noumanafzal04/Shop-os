@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   keepPreviousData,
   useInfiniteQuery,
@@ -67,6 +68,62 @@ export function useMarketProducts(slug: string | undefined, params: { search?: s
     enabled: !!slug,
     placeholderData: keepPreviousData,
   });
+}
+
+/**
+ * A SHOP'S WHOLE MENU.
+ *
+ * ── Two bugs in one hook ─────────────────────────────────────────────
+ *
+ * The shop screen used `useMarketProducts`, which asks for page one and
+ * nothing else. The endpoint pages at twenty — so a restaurant with a
+ * thirty-item menu had ten items that could not be reached by any gesture on
+ * that screen. Not "hard to reach": unreachable, and the screen gave no sign
+ * there was more.
+ *
+ * And the category chips were a FILTER: pressing "Burgers" refetched the menu
+ * with `category_id`, so the rest of it disappeared and came back over the
+ * network. That is the right shape for an aisle spanning every shop and the
+ * wrong one for a single menu, where the chips are a table of contents and
+ * what somebody wants is to be taken to that part of it.
+ *
+ * ── Why the whole thing, rather than infinite scroll ─────────────────
+ *
+ * Because the chips have to be able to jump to a section that has not been
+ * scrolled to yet. A menu is bounded — one shop, ordered by category server
+ * side — so this asks for a hundred at a time and keeps going until it has all
+ * of it. The first hundred render immediately; the rest fill in behind, and
+ * for almost every shop there is no second request at all.
+ *
+ * `search` still goes to the SERVER, because it searches the whole menu rather
+ * than the part that happens to be loaded.
+ */
+export function useShopMenu(slug: string | undefined, search?: string) {
+  const query = useInfiniteQuery({
+    queryKey: ["market", "menu", slug, search ?? ""],
+    queryFn: ({ pageParam }) =>
+      marketplaceService.productsPage(slug!, { search, page: pageParam, per_page: 100 }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => {
+      const p = last.meta?.pagination;
+      if (p == null || p.current_page >= p.last_page) return undefined;
+
+      return p.current_page + 1;
+    },
+    enabled: !!slug,
+    placeholderData: keepPreviousData,
+  });
+
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+
+  // Keep going until the menu is complete. Guarded on `isFetchingNextPage`
+  // because this effect re-runs on every page that lands, and without it the
+  // second page would be requested as many times as there are renders.
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  return query;
 }
 
 /**

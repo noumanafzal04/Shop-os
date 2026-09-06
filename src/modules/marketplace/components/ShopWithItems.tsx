@@ -2,13 +2,13 @@ import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   ChevronRightIcon,
-  StarIcon,
 } from "../../../common/ui/icons";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
 import { shopInitial, useShopCover } from "../shopCover";
 import { ShopFactsRow } from "./ShopFactsRow";
+import { RatingChip } from "./RatingChip";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import type { PublicShop } from "../services/marketplaceService";
 
@@ -121,10 +121,7 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
           reading four names first.
         */}
         {shop.rating != null ? (
-          <View style={styles.rating}>
-            <StarIcon size={12} color={c.warm} />
-            <Text style={styles.ratingText}>{shop.rating.toFixed(1)}</Text>
-          </View>
+          <RatingChip rating={shop.rating} />
         ) : (
           <ChevronRightIcon size={18} color={c.textMuted} />
         )}
@@ -246,16 +243,6 @@ const makeStyles = (c: ThemeColors) =>
 
     headText: { flex: 1, gap: 1 },
     name: { ...typography.h3, color: c.text, fontSize: 16.5 },
-    rating: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 3,
-      backgroundColor: c.warmSoft,
-      borderRadius: 9,
-      paddingHorizontal: 7,
-      paddingVertical: 4,
-    },
-    ratingText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 11 },
 
     strip: { gap: 12, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
     item: { width: 132 },

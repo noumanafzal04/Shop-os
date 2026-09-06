@@ -303,6 +303,26 @@ export const marketplaceService = {
   shop: (slug: string, params: { lat?: number; lng?: number } = {}) =>
     apiGet<PublicShop>(`/marketplace/shops/${slug}`, { params }),
 
+  /**
+   * One PAGE of a shop's menu, envelope and all.
+   *
+   * `products` above unwraps to the array, which is what a caller wanting a
+   * single page wants and useless to one that has to know whether there is
+   * another. The menu is read whole — see `useShopMenu` — and that needs the
+   * meta.
+   */
+  productsPage: (
+    slug: string,
+    params: { search?: string; page?: number; per_page?: number },
+  ) =>
+    apiGet<PublicProduct[]>(`/marketplace/shops/${slug}/products`, {
+      params: {
+        search: params.search || undefined,
+        page: params.page ?? 1,
+        per_page: params.per_page ?? 100,
+      },
+    }),
+
   products: (slug: string, params: { search?: string; category_id?: string; page?: number }) =>
     apiGet<PublicProduct[]>(`/marketplace/shops/${slug}/products`, {
       params: {

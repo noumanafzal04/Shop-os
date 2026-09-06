@@ -126,3 +126,60 @@ describe("the lists that page", () => {
     expect(offenders.join("\n")).toBe("");
   });
 });
+
+/**
+ * A SHOP'S MENU IS READ WHOLE.
+ *
+ * Two bugs lived in one line — `useMarketProducts(slug, …)`, which asks for
+ * page one and nothing else, on an endpoint that pages at twenty.
+ */
+describe("the shop menu", () => {
+  const src = fs.readFileSync(
+    path.join(PROJECT_ROOT, "src/modules/marketplace/hooks/useMarketplace.ts"),
+    "utf8",
+  );
+  const screen = fs.readFileSync(
+    path.join(PROJECT_ROOT, "src/modules/marketplace/screens/MarketShopScreen.tsx"),
+    "utf8",
+  );
+
+  it("reaches past page one", () => {
+    // A restaurant with a thirty-item menu had ten items that could not be
+    // reached by any gesture on that screen — not hard to reach, unreachable,
+    // and the screen gave no sign there was more.
+    expect(src).toMatch(/export function useShopMenu/);
+    expect(src).toMatch(/useInfiniteQuery/);
+    expect(screen).toMatch(/useShopMenu\(slug/);
+    expect(screen).not.toMatch(/useMarketProducts\(slug/);
+  });
+
+  it("keeps asking until it has all of it", () => {
+    // The chips jump to a section, so a section that has not been scrolled to
+    // yet still has to exist. Guarded on `isFetchingNextPage`, or the effect
+    // re-requests page two on every render that page one causes.
+    expect(src).toMatch(/if \(hasNextPage && !isFetchingNextPage\) void fetchNextPage\(\)/);
+  });
+
+  it("makes the category chips a contents page, not a filter", () => {
+    // Pressing "Burgers" used to refetch with `category_id`, so the rest of
+    // the menu disappeared and came back over the network.
+    expect(screen).toMatch(/scrollToIndex\(\{ index, animated: true, viewPosition: 0 \}\)/);
+    expect(screen).not.toMatch(/category_id: catId/);
+  });
+
+  it("survives a jump into rows nothing has measured yet", () => {
+    // `scrollToIndex` past the measured window is an exception, not a near
+    // miss — and only ever on a device.
+    // The prop, not a name that merely CONTAINS it: the first version of this
+    // matched `onScrollToIndexFailedX` — a mutation that renames the handler
+    // and silently drops it — because a bare substring is not a prop.
+    expect(screen).toMatch(/\bonScrollToIndexFailed=\{/);
+  });
+
+  it("holds its viewability config still", () => {
+    // A fresh object each render makes FlatList throw "Changing
+    // viewabilityConfig on the fly is not supported".
+    expect(screen).toMatch(/const viewability = React\.useRef\(/);
+    expect(screen).toMatch(/const onViewable = React\.useRef\(/);
+  });
+});

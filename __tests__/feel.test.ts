@@ -144,6 +144,76 @@ describe("an entrance plays once", () => {
   });
 });
 
+describe("every overlay behaves like the others", () => {
+  const files = sourceFiles(path.join(ROOT, "src")).filter((f) => f.endsWith(".tsx"));
+
+  it("scanned the components", () => {
+    expect(files.length).toBeGreaterThan(30);
+  });
+
+  it("has no panel riding on the platform's own slide", () => {
+    /**
+     * THE ONE THAT WAS DIFFERENT, on the interaction that happens most.
+     *
+     * The filter sheet, the sort sheet, the side menu and the toast are each
+     * one `Animated` value on the native driver: a spring on release, a
+     * backdrop whose opacity is interpolated from the panel's own position,
+     * and a drag to dismiss. `ProductSheet` — opened by every product tap in
+     * the app — was `<Modal animationType="slide">`, which cannot be dragged,
+     * does not fade its backdrop, and stops linearly instead of settling.
+     *
+     * Nothing about that is slow. It is INCONSISTENT, and an app where the
+     * most-used sheet is the one that behaves differently reads as unfinished
+     * however good the other four are.
+     *
+     * `animationType="none"` is the CORRECT value here, not the absence of a
+     * decision: a Modal in this app is a bare container for something that
+     * animates itself. Anything else means the platform is running a second
+     * entrance over the top of ours, at its own speed.
+     */
+    const offenders = files
+      .flatMap((f) =>
+        codeOnly(fs.readFileSync(f, "utf8"))
+          .split("\n")
+          .map((line, i) => [i + 1, line] as const)
+          .filter(([, line]) => /animationType=/.test(line) && !/animationType="none"/.test(line))
+          .map(([n, line]) => `  ${path.relative(ROOT, f)}:${n}  ${line.trim()}`),
+      );
+
+    expect(offenders.join("\n")).toBe("");
+  });
+
+  it("drives every overlay off the JS thread", () => {
+    // A backdrop that stutters while a list is still rendering behind it is
+    // the single most noticeable jank in an app of this shape.
+    for (const rel of [
+      "src/common/ui/BottomSheet.tsx",
+      "src/navigation/SideMenu.tsx",
+      "src/common/ui/toast/ToastHost.tsx",
+      "src/common/ui/ModeSwitchCover.tsx",
+    ]) {
+      const src = codeOnly(fs.readFileSync(path.join(ROOT, rel), "utf8"));
+      expect(`${rel}: ${/useNativeDriver: true/.test(src)}`).toBe(`${rel}: true`);
+      expect(`${rel}: ${/useNativeDriver: false/.test(src)}`).toBe(`${rel}: false`);
+    }
+  });
+
+  it("keeps a sheet mounted long enough to animate out", () => {
+    // Unmounting on the visible prop is why a sheet VANISHES instead of
+    // closing — the most common way a good exit animation is never seen.
+    const src = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/BottomSheet.tsx"), "utf8"));
+    expect(src).toMatch(/const \[mounted, setMounted\] = useState\(visible\)/);
+    expect(src).toMatch(/animateOut/);
+  });
+
+  it("lets a sheet be dragged shut, not only pressed shut", () => {
+    // The gesture anybody who has used one sheet will try on the next.
+    const src = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/BottomSheet.tsx"), "utf8"));
+    expect(src).toMatch(/PanResponder\.create/);
+    expect(src).toMatch(/Animated\.spring/);
+  });
+});
+
 describe("a picture arrives without a bang", () => {
   const img = codeOnly(
     fs.readFileSync(path.join(ROOT, "src/common/ui/SmartImage.tsx"), "utf8"),

@@ -67,7 +67,9 @@ export function ModeSwitchCover() {
   const Icon = toRider ? MotorcycleIcon : BagIcon;
 
   return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent>
+    // NONE: this cover fades and lifts its own content, above. The platform's
+    // own fade on top of that is two entrances running at two speeds.
+    <Modal visible transparent animationType="none" statusBarTranslucent>
       <View style={[styles.root, toRider && styles.rootRider]}>
         <Animated.View style={[styles.card, { opacity: fade, transform: [{ translateY: lift }] }]}>
           <View style={styles.disc}>

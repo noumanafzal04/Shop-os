@@ -105,10 +105,23 @@ describe("what fits on a card", () => {
     // and a row of cards exists to be scanned.
     expect(shopFactsShort(full)).toHaveLength(3);
     expect(shopFactsShort(full).map((f) => f.text)).toEqual([
-      "4.6",
       "30 min",
       "Rs 90 delivery",
+      "Free over Rs 1,200",
     ]);
+  });
+
+  it("never says the rating, because the card already shows it", () => {
+    // It led this list AND sat in a chip beside the shop's name — the same
+    // number twice on one card, three inches apart, at two sizes. Removing it
+    // also gave a slot back: with only three shown, the rating was pushing the
+    // delivery fee — the fact that changes what somebody orders — off the end.
+    const rated = shopFacts(shop({ rating: 4.6, prep_time_minutes: 30, delivery_fee: 90 }));
+
+    expect(rated.map((f) => f.key)).not.toContain("rating");
+    expect(rated.map((f) => f.text)).not.toContain("4.6");
+    // The denominator: the other facts still arrive.
+    expect(rated.map((f) => f.key)).toEqual(["prep", "fee"]);
   });
 
   it("marks an offer so it can be coloured", () => {

@@ -4,6 +4,8 @@ import { money } from "../../common/format";
 /**
  * The line under a shop's name: what it costs, how long it takes, how far.
  *
+ * Not how good it is — see below.
+ *
  * ── Why this is one function and not two card layouts ──────────────────
  *
  * The same shop appears as a card on the home row and as a row in the shops
@@ -41,9 +43,24 @@ export const formatDistance = (km: number): string =>
 export function shopFacts(shop: PublicShop): ShopFact[] {
   const facts: ShopFact[] = [];
 
-  if (shop.rating !== null && shop.rating !== undefined) {
-    facts.push({ key: "rating", text: `${shop.rating}` });
-  }
+  /**
+   * NO RATING HERE.
+   *
+   * It used to lead this list, and every card that draws it also draws a
+   * rating CHIP beside the shop's name — so the same number appeared twice on
+   * one card, three inches apart, at two different sizes. Asked about
+   * directly: "rating 2 bar q show ho rhi cards py?"
+   *
+   * The chip won because it is the better of the two: pinned to the right of
+   * the name it lines up down a whole list, so four shops can be compared on
+   * the number without reading four names first. A rating buried third in a
+   * grey sentence cannot be compared with anything.
+   *
+   * Which also freed a slot. `limit` is 2 or 3 on every caller, and the rating
+   * was spending one of them on a fact the card was already showing — pushing
+   * the delivery fee, the thing that actually changes what somebody orders,
+   * off the end.
+   */
 
   if (shop.prep_time_minutes) {
     facts.push({ key: "prep", text: `${shop.prep_time_minutes} min` });

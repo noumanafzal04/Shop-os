@@ -22,6 +22,7 @@ import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { ShopFactsRow } from "../components/ShopFactsRow";
+import { RatingChip } from "../components/RatingChip";
 import { shopInitial, useShopCover } from "../shopCover";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
@@ -222,7 +223,10 @@ function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
         </Text>
       </View>
       <View style={styles.rowInfo}>
-        <Text style={styles.rowName} numberOfLines={1}>{shop.business_name}</Text>
+        <View style={styles.rowNameLine}>
+          <Text style={styles.rowName} numberOfLines={1}>{shop.business_name}</Text>
+          <RatingChip rating={shop.rating} />
+        </View>
         <Text style={styles.rowMeta} numberOfLines={1}>
           {typeLabel(shop.business_type)}
           {shop.city ? ` · ${shop.city.name}` : ""}
@@ -315,6 +319,7 @@ const makeStyles = (c: ThemeColors) =>
   },
   logoText: { ...typography.display, fontSize: 24 },
   rowInfo: { flex: 1, gap: 2 },
-  rowName: { ...typography.label, color: c.text, fontSize: 15.5 },
+  rowNameLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  rowName: { flexShrink: 1, ...typography.label, color: c.text, fontSize: 15.5 },
   rowMeta: { ...typography.tiny, color: c.gray[500] },
 });

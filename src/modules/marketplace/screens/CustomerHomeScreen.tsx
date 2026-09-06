@@ -15,7 +15,6 @@ import {
   MenuIcon,
   SearchIcon,
   SlidersIcon,
-  StarIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -33,6 +32,7 @@ import { PromoCarousel } from "../components/PromoCarousel";
 import { ShopWithItems } from "../components/ShopWithItems";
 import { Appear } from "../../../common/ui/Appear";
 import { ShopFactsRow } from "../components/ShopFactsRow";
+import { RatingChip } from "../components/RatingChip";
 import { marketplaceService, type HomeBanner, type PublicShop } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { SHORTCUTS, tradeIcon } from "../tradeIcon";
@@ -504,7 +504,15 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
           )}
         </View>
         <View style={styles.shopInfo}>
-          <Text style={styles.wideName} numberOfLines={1}>{shop.business_name}</Text>
+          {/*
+            The name and the rating on ONE line, the chip pinned right — the
+            same shape as every other card, so a rating is always in the same
+            place whichever list somebody is reading.
+          */}
+          <View style={styles.wideNameRow}>
+            <Text style={styles.wideName} numberOfLines={1}>{shop.business_name}</Text>
+            <RatingChip rating={shop.rating} />
+          </View>
           <Text style={styles.shopMeta} numberOfLines={1}>
             {typeLabel(shop.business_type ?? "shop")}
             {shop.city ? ` · ${shop.city.name}` : ""}
@@ -540,12 +548,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
           fallbackColor={cover.fg}
           style={styles.railCoverImg}
         />
-        {shop.rating != null && (
-          <View style={styles.railRating}>
-            <StarIcon size={11} color={c.warm} />
-            <Text style={styles.railRatingText}>{shop.rating.toFixed(1)}</Text>
-          </View>
-        )}
+        <RatingChip rating={shop.rating} variant="plate" style={styles.railRating} />
         {closed && (
           <View style={styles.railShut}>
             <Text style={styles.shutText}>Closed</Text>
@@ -702,19 +705,7 @@ const makeStyles = (c: ThemeColors) =>
   },
   railCover: { height: 118, alignItems: "center", justifyContent: "center" },
   railCoverImg: { width: "100%", height: "100%" },
-  railRating: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: c.surface,
-    borderRadius: 9,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  railRatingText: { ...typography.tiny, color: c.text, fontWeight: "800", fontSize: 11 },
+  railRating: { position: "absolute", top: 8, right: 8 },
   railShut: {
     position: "absolute",
     left: 0,
@@ -740,7 +731,8 @@ const makeStyles = (c: ThemeColors) =>
   },
   wideLogo: { width: 64, height: 64, borderRadius: 16, overflow: "hidden" },
   wideLogoImg: { width: 64, height: 64 },
-  wideName: { ...typography.h3, color: c.text, fontSize: 15.5 },
+  wideNameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  wideName: { ...typography.h3, color: c.text, fontSize: 15.5, flexShrink: 1 },
 
   shopClosed: { opacity: 0.72 },
   // Over the cover rather than beside the name: on a closed shop the cover is

@@ -48,8 +48,8 @@ import { OfferBadge, Price } from "../../../common/ui/Price";
 import {
   useFavorites,
   useMarketProduct,
-  useMarketProducts,
   useMarketShop,
+  useShopMenu,
   useReserve,
   useToggleFavorite,
 } from "../hooks/useMarketplace";
@@ -61,6 +61,18 @@ type Params = { MarketShop: { slug: string; productId?: string } };
  * Shop page, foodpanda-style: hero image → name + rating → Delivery/Pick-up
  * toggle → delivery info card → menu search → category chips → products.
  */
+/**
+ * A row of the menu: a category heading, or one thing to buy.
+ *
+ * The headings are ROWS rather than section objects because a chip has to be
+ * able to say "scroll to row fourteen", and `SectionList`'s `scrollToLocation`
+ * takes a section index and an item within it — two numbers to keep in step
+ * with a list that is still growing as the rest of the menu arrives.
+ */
+type MenuRow =
+  | { kind: "heading"; key: string; name: string }
+  | { kind: "product"; key: string; product: PublicProduct };
+
 export function MarketShopScreen() {
   const insets = useSafeAreaInsets();
   const c = useColors();
@@ -75,13 +87,12 @@ export function MarketShopScreen() {
 
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search, 350);
-  const [catId, setCatId] = useState("");
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
 
   const [sheetProduct, setSheetProduct] = useState<PublicProduct | null>(null);
 
   const shop = useMarketShop(slug, { lat: lat ?? undefined, lng: lng ?? undefined });
-  const products = useMarketProducts(slug, { search: debounced, category_id: catId || undefined });
+  const products = useShopMenu(slug, debounced || undefined);
   const pull = usePullToRefresh(products.refetch);
   const favorites = useFavorites(isCustomer);
   const toggleFavorite = useToggleFavorite();
@@ -117,7 +128,67 @@ export function MarketShopScreen() {
   }, [shop.data]);
 
   const isFavorite = (favorites.data ?? []).some((f) => f.slug === slug);
-  const rows = products.data?.data ?? [];
+  const rows = React.useMemo(
+    () => (products.data?.pages ?? []).flatMap((page) => page.data as PublicProduct[]),
+    [products.data],
+  );
+
+  /**
+   * THE MENU AS SECTIONS, and the index of each heading.
+   *
+   * One flat array because `FlatList` takes one, and the headings ride in it
+   * as rows of their own — which is also what makes `scrollToIndex` possible:
+   * a chip knows the row number of its own heading, so pressing it is a jump
+   * rather than a request.
+   *
+   * The server orders by category already, so this only has to notice where
+   * one ends and the next begins. Doing the GROUPING here as well would be a
+   * second opinion about the order, formed with less information.
+   */
+  const { menu, jumps } = React.useMemo(() => {
+    const out: MenuRow[] = [];
+    const at = new Map<string, number>();
+    let last: string | null = null;
+
+    for (const p of rows) {
+      const name = p.category?.name ?? "More";
+      if (name !== last) {
+        at.set(name, out.length);
+        out.push({ kind: "heading", key: `h:${name}`, name });
+        last = name;
+      }
+      out.push({ kind: "product", key: p.id, product: p });
+    }
+    return { menu: out, jumps: at };
+  }, [rows]);
+
+  /** Which section the top of the list is in, for the chip that lights up. */
+  const [section, setSection] = React.useState<string | null>(null);
+  const listRef = React.useRef<FlatList<MenuRow>>(null);
+
+  const jumpTo = (name: string | null) => {
+    const index = name == null ? 0 : jumps.get(name);
+    if (index == null) return;
+    setSection(name);
+    // `viewPosition: 0` puts the heading at the top rather than centring it,
+    // which is what "go to Burgers" means.
+    listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0 });
+  };
+
+  /**
+   * A heading is a row, so the topmost VISIBLE heading is the section.
+   *
+   * `viewabilityConfig` has to be a stable object — a fresh one each render
+   * makes FlatList throw "Changing viewabilityConfig on the fly is not
+   * supported", which is the kind of crash that only happens on a device.
+   */
+  const viewability = React.useRef({ itemVisiblePercentThreshold: 10 }).current;
+  const onViewable = React.useRef(
+    ({ viewableItems }: { viewableItems: Array<{ item: MenuRow }> }) => {
+      const head = viewableItems.find((v) => v.item.kind === "heading");
+      if (head != null && head.item.kind === "heading") setSection(head.item.name);
+    },
+  ).current;
   const canReserve = isCustomer && (shop.data?.features?.reservations ?? false);
   const acceptsOrders = isCustomer && (shop.data?.accepts_orders ?? false);
   const hasDelivery = shop.data?.fulfillment?.delivery ?? shop.data?.features?.delivery ?? true;
@@ -420,12 +491,29 @@ export function MarketShopScreen() {
         </View>
       </View>
 
-      {/* Category chips */}
-      {(shop.data?.categories?.length ?? 0) > 0 && (
+      {/*
+        ── A TABLE OF CONTENTS, not a filter ────────────────────────
+
+        These chips used to refetch the menu with a `category_id`: pressing
+        "Burgers" made everything else disappear and come back over the
+        network. That is the right shape for an aisle spanning every shop and
+        the wrong one for a single menu — here the chips are a contents page,
+        and what somebody wants is to be taken to that part of it, with the
+        rest still under their thumb.
+
+        Built from the MENU rather than from `shop.categories`, so a chip
+        cannot name a section that has nothing in it — and cannot be pressed
+        to jump somewhere that does not exist.
+      */}
+      {jumps.size > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
-          <CatChip label="All" active={catId === ""} onPress={() => setCatId("")} />
-          {shop.data!.categories!.map((cat) => (
-            <CatChip key={cat.id} label={cat.name} active={catId === cat.id} onPress={() => setCatId(cat.id)} />
+          {[...jumps.keys()].map((name) => (
+            <CatChip
+              key={name}
+              label={name}
+              active={section === name}
+              onPress={() => jumpTo(name)}
+            />
           ))}
         </ScrollView>
       )}
@@ -436,12 +524,37 @@ export function MarketShopScreen() {
     <SafeScreen backgroundColor={c.bg}>
       <FocusedStatusBar style="dark-content" background={c.bg} />
       <FlatList
-        data={products.isLoading ? [] : rows}
-        keyExtractor={(p) => p.id}
+        ref={listRef}
+        data={products.isLoading ? [] : menu}
+        keyExtractor={(row) => row.key}
         ListHeaderComponent={header}
         contentContainerStyle={[styles.list, cartCount > 0 && { paddingBottom: 96 }]}
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
-        renderItem={({ item }) => {
+        onViewableItemsChanged={onViewable}
+        viewabilityConfig={viewability}
+        /*
+          A JUMP INTO A LIST NOBODY HAS SCROLLED YET.
+
+          `scrollToIndex` on a list of variable-height rows can land short,
+          because FlatList only knows the heights of what it has measured.
+          Without this handler that is an exception, not a near miss — so it
+          scrolls as far as it can, waits a frame for the rows in between to
+          measure, and finishes the jump.
+        */
+        onScrollToIndexFailed={(info) => {
+          listRef.current?.scrollToOffset({
+            offset: info.averageItemLength * info.index,
+            animated: true,
+          });
+          setTimeout(() => {
+            listRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0 });
+          }, 120);
+        }}
+        renderItem={({ item: row }) => {
+          if (row.kind === "heading") {
+            return <Text style={styles.section}>{row.name}</Text>;
+          }
+          const item = row.product;
           const img = item.images[0];
           const unavailable = item.type === "product" && (!item.in_stock || !item.available_now);
           return (
@@ -572,6 +685,25 @@ function CatChip({ label, active, onPress }: { label: string; active: boolean; o
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   list: { paddingBottom: spacing.xxl },
+  /**
+   * A section heading inside the menu.
+   *
+   * Loud enough to find while scrolling past — this is what the chips jump to,
+   * and a heading that reads like another product name gives somebody no way
+   * to tell they have arrived. Drawn on the page colour so it separates from
+   * the white product rows above and below it.
+   */
+  section: {
+    ...typography.h3,
+    color: c.text,
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+    backgroundColor: c.bg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
 
   // Hero
   hero: { height: 168, backgroundColor: c.brand[100] },
