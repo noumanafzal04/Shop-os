@@ -7184,3 +7184,33 @@ Backend 2655 (2653 passed, 2 skipped, exit 0) · 18 offer mutations, 15 caught �
 the three misses are equivalent mutants, each state being guarded twice.
 Mobile tsc 0, eslint 0 errors, jest 40 suites / 489 tests · 7 shimmer mutations,
 7 caught.
+
+**One icon family, and it is not a dependency.** Every icon in the mobile app
+is Phosphor path data now — MIT, generated into `src/common/ui/icons/index.tsx`
+by `scripts/build-icons.mjs`, 83 glyphs at two weights. The drawings are
+imported and the code is not: a few kilobytes of path strings, no package,
+taken from the source repository rather than the gallery that mirrors it so the
+licence travels with them. `lucide-react-native` is uninstalled — keeping it for
+"everything else" put two families on the home screen, tiles in one and the
+header above them in the other.
+
+**Two weights, and neither is a solid.** `regular`/`fill` was the obvious pair
+and wrong on a phone: at 22 points a filled house is a pentagon and a filled
+basket is a bucket, and the interior is exactly what made each icon
+recognisable. `regular`/`bold` was too heavy. It is `light`/`regular` — the
+selected state is the weight the unselected one used to be.
+
+**Every remote picture has a loading state.** Eight bare `<Image>` tags on URLs,
+the shop page's banner among them: no fade, no shimmer, and — the one that
+leaves a permanent hole — no `onError`. `SmartImage` shimmers while, and only
+while, something is coming; a shop that has uploaded nothing shows its letter
+without a shimmer, because that letter is the answer rather than a placeholder.
+
+Three guards were caught being wrong in one pass. A regex rename ran over string
+literals and turned `route: "Settings"` into `route: "GearIcon"` — a label
+anybody would spot and a route name nobody would until the button did nothing;
+`routesExist` caught the side menu and missed the account page, reading the one
+file it was born in; and the skeleton orphan guard could not tell a hook from a
+placeholder.
+
+Mobile tsc 0, eslint 0 errors, 40 suites / 502 tests.
