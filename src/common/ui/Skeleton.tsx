@@ -34,8 +34,15 @@ interface SkeletonProps {
   style?: ViewStyle;
 }
 
-/** One sweep across every skeleton on screen, shared so they move together. */
-function useShimmer(): { progress: Animated.Value; still: boolean } {
+/**
+ * One sweep across every skeleton on screen, shared so they move together.
+ *
+ * Exported because `SmartImage` waits for a photograph the same way a skeleton
+ * waits for a row, and two loading animations on one card at two different
+ * speeds is worse than either alone. One curve, one duration, one reduce-motion
+ * answer — the hook IS the shared feel.
+ */
+export function useShimmer(): { progress: Animated.Value; still: boolean } {
   const progress = React.useRef(new Animated.Value(0)).current;
   const [still, setStill] = React.useState(false);
 

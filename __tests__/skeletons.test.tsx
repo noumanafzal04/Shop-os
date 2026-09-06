@@ -41,15 +41,27 @@ describe("every skeleton is one somebody waits behind", () => {
     const source = fs.readFileSync(path.join(ROOT, "src/common/ui/Skeleton.tsx"), "utf8");
     const exported = [...source.matchAll(/^export function (\w+)/gm)].map((m) => m[1]);
 
+    // COMPONENTS, not every export. `useShimmer` is exported from this file so
+    // `SmartImage` can wait for a photograph on the same curve the skeletons
+    // wait for a row — one animation, one duration, one reduce-motion answer.
+    // It is a hook, so it is never written as `<useShimmer />`, and a guard
+    // that cannot tell a hook from a placeholder fails on the commit that
+    // shares the animation. Hooks are still checked below, by their call.
+    const components = exported.filter((n) => !/^use[A-Z]/.test(n));
+    const hooks = exported.filter((n) => /^use[A-Z]/.test(n));
+
     // A count of findings is not evidence without a count of attempts.
-    expect(exported.length).toBeGreaterThan(2);
+    expect(components.length).toBeGreaterThan(2);
 
     const screens = sourceFiles(path.join(ROOT, "src"))
       .filter((f) => !f.endsWith("Skeleton.tsx"))
       .map((f) => fs.readFileSync(f, "utf8"))
       .join("\n");
 
-    const orphans = exported.filter((name) => !new RegExp(`<${name}[\\s/>]`).test(screens));
+    const orphans = [
+      ...components.filter((name) => !new RegExp(`<${name}[\\s/>]`).test(screens)),
+      ...hooks.filter((name) => !new RegExp(`\\b${name}\\(`).test(screens)),
+    ];
 
     // An unused placeholder is not harmless: the next screen that reaches for
     // it inherits whatever shape it happens to have, which is how one card with

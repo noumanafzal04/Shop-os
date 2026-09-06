@@ -100,6 +100,10 @@ const TOPICS: Topic[] = [
     a: "Yes. Open the menu and tap Become a rider — it is the same account you shop with, so there is nothing new to install. You choose your vehicle, photograph your CNIC and licence, and send it in. Somebody checks it, usually within a day. Once you are approved a Rider mode appears in the same menu: go online when you want to work, take deliveries near you, and go offline when you are done.",
   },
   {
+    q: "I am a rider — why don't I see every job?",
+    a: "A delivery is offered to the riders nearest the shop first and widens outwards — three kilometres straight away, six after half a minute, then as far as that kind of shop reasonably reaches. So a job you cannot see is one somebody closer is being asked about first. Wait a moment and it may appear; if somebody nearer takes it, it will not. Keeping your location on is what puts you in the first ring.",
+  },
+  {
     q: "I am a rider — how do I get paid?",
     a: "You earn the delivery fee on each order you complete; Earnings in the menu shows what you have made. Cash you collect at the door is the SHOP'S money, not yours — it is shown separately as Cash in hand, and the shop marks it settled when you hand it over.",
   },
