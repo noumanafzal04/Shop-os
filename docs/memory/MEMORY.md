@@ -198,3 +198,4 @@
 - [Commission & Push](shopos-commission-and-push.md) — platform's cut (rate is a snapshot); FCM v1 (legacy died Jul-2024); rider MODE swaps the navigator
 - [Price And The Card](shopos-price-and-card.md) — a strike-through must be TRUE; shopCover went light; radius.full renders square on 30 small views
 - [Orders, Live First](shopos-orders-live-first.md) — Ongoing/Earlier from loaded rows; one status vocabulary; pickup has no delivery leg
+- [Staged Delivery Offer](shopos-staged-offer.md) — nearest-first widening; the BOARD is the offer, not the notification; a declined job must be reopened
