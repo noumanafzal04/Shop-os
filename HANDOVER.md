@@ -7102,3 +7102,50 @@ broken.
 Backend 2616 (2614 passed, 2 skipped, exit 0) · migrations up/down/up on MySQL
 and sqlite · mobile tsc 0, eslint 0 errors, jest 27 suites / 312 tests · panel
 tsc 0, eslint 0 errors, vitest 1487 tests · nine mutations, nine failures.
+
+**One price, one cut.** `Rs 250 / R̶s̶ ̶3̶0̶0̶` was hand-written in seven files and
+had drifted into five designs — and all five drew the strike on
+`original_price != null`, so a shop filling in a regular price without running a
+sale had the app advertise a discount in its name. The `% off` badge computed
+itself inline and would render "0% off" on a one-rupee cut, in `brand[500]` —
+the colour of every button — on a photograph nobody can press.
+`common/ui/Price.tsx` owns both: the comparison lives there once, a percentage
+below one point returns null so a caller cannot draw a badge that says nothing,
+and the badge is amber, per the palette's own rule that warm is never a button.
+
+**The placeholder palette was two-thirds too heavy.** `shopCover` picked from
+the palette's FILLS, `#983405` and `#221711` among them — so on a marketplace
+where almost nobody has uploaded a logo, two shops in every six were a
+near-black block on a white screen. The weight moved off the ground and onto the
+letter: six light grounds spread by HUE, saturated ink, all ≥6:1. It follows the
+theme now; the old hexes were shared, so what was too dark on white was a glare
+on near-black.
+
+**Nothing on the home screen had a rhythm.** Every gap was four or eight points
+— 8 around a 54px logo, 4 between product tiles, 8 to the next card. No single
+number was wrong; a layout reads as crowded when the space INSIDE a group equals
+the space between groups. The scale is 4/8/12/16 now and each step means
+something. The long tail was the one block on the page with no horizontal
+padding at all.
+
+**`radius.full` on a small view renders as a square** — documented in
+`AppTabBar` and violated in thirty more places, found by a guard written for the
+cart's stepper. Every small round control in the app was a rounded rectangle.
+
+**The orders list answered two questions with one rectangle.** `STATUS_STYLE`
+held literal hexes, four of them blue in an app with no blue, identical in both
+themes — a pale blue-white badge punched into a near-black card — and printed
+the database column with its underscores swapped for spaces. `orderStatus.ts`
+names the vocabulary; live orders lift into `Ongoing` with a progress track,
+partitioned from rows already loaded so a finishing order cannot sit in both.
+`stepsFor` drops the delivery leg from a collection order, because a five-of-six
+bar stuck at "Ready" looks broken at the moment the order is actually done.
+
+**The basket showed letters for photographs it had just been given** — the
+placeholder for a MISSING photo, drawn for items whose picture was on screen one
+tap earlier. `CartLine` carries `image`, filled at all four builders. Its empty
+state was also a dead end: no back arrow on a tab-bar leaf, and nothing to press.
+
+Mobile tsc 0, eslint 0 errors, jest 39 suites / 481 tests · panel tsc 0, help
+20/20 · 23 mutations, 22 caught (the miss is an equivalent mutant: `stepOf`
+guards cancelled twice).

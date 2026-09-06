@@ -196,3 +196,5 @@
 - [Rider Side](shopos-rider-side.md) — rider = a USER beside the untouched tenant `riders` row; OrderStatus never changed; realtime = an honest poll
 - [Context Was Assumed](shopos-context-was-assumed.md) — STANDING: a write takes its tenant and branch from the ROW, not the request; rider tests were green for the wrong reason
 - [Commission & Push](shopos-commission-and-push.md) — platform's cut (rate is a snapshot); FCM v1 (legacy died Jul-2024); rider MODE swaps the navigator
+- [Price And The Card](shopos-price-and-card.md) — a strike-through must be TRUE; shopCover went light; radius.full renders square on 30 small views
+- [Orders, Live First](shopos-orders-live-first.md) — Ongoing/Earlier from loaded rows; one status vocabulary; pickup has no delivery leg
