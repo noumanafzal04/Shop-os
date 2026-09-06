@@ -14,17 +14,6 @@
       a permission the shopping half never uses.
     -->
     <uses-permission android:name="android.permission.CAMERA" />
-
-    <!--
-      A TICK WHEN SOMETHING GOES IN THE BASKET.
-
-      Declared because the app CALLS it: `Vibration.vibrate()` without this
-      line is a SecurityException on Android, not a silent no-op — so the
-      twelve-millisecond tick on the add button was crashing the one gesture
-      the whole app exists for. It is a normal permission, granted at install
-      with nothing to prompt about.
-    -->
-    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application

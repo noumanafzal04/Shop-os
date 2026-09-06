@@ -88,7 +88,7 @@ const TOPICS: Topic[] = [
   },
   {
     q: "Which version am I running?",
-    a: "It is at the foot of the Account page, under App. Worth reading out if you are reporting something that looks wrong \u2014 it is how we know whether the problem is already fixed in a newer build.",
+    a: "It is at the foot of the Account page, under App. Please read it out when you report something that looks wrong \u2014 it is the only way to tell which build you are on, and half of \u201cstill broken\u201d turns out to be an older one still installed. If yours does not match the newest, install again and check it changed.",
   },
   {
     q: "What does the crossed-out price mean?",

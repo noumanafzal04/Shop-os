@@ -9,7 +9,6 @@ import {
   CheckIcon,
   PlusIcon,
 } from "../../common/ui/icons";
-import { tick } from "./haptics";
 import { type ThemeColors, useColors } from "../../theme";
 
 /**
@@ -84,7 +83,6 @@ export function AddButton({ onPress, label, size = 34, style }: Props) {
      * Twelve milliseconds is a tick, not a buzz. iOS ignores a duration this
      * short and substitutes its own, which is the right feel there anyway.
      */
-    tick();
     Animated.sequence([
       Animated.timing(scale, { toValue: 0.84, duration: 80, useNativeDriver: true }),
       Animated.spring(scale, {

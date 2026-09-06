@@ -6,7 +6,6 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { tick } from "./haptics";
 
 /**
  * A THING THAT ANSWERS WHEN YOU TOUCH IT.
@@ -69,22 +68,12 @@ interface Props extends Omit<PressableProps, "style"> {
    * button wants more, because two per cent of forty points is invisible.
    */
   scaleTo?: number;
-  /**
-   * A short tick on press.
-   *
-   * Off by default and worth switching on for the handful of actions that
-   * COMMIT something — adding to a basket, accepting a job. A phone that
-   * buzzes for every tap is a phone people turn the buzzing off on, and then
-   * it is not there for the taps that mattered.
-   */
-  haptic?: boolean;
 }
 
 export function Touchable({
   children,
   style,
   scaleTo = 0.97,
-  haptic = false,
   onPressIn,
   onPressOut,
   disabled,
@@ -126,7 +115,6 @@ export function Touchable({
           press(scaleTo, 0.9, false);
           // 12ms is a tick, not a buzz. iOS ignores a duration this short and
           // gives its own default, which is what we want there anyway.
-          if (haptic) tick();
         }
         onPressIn?.(e);
       }}

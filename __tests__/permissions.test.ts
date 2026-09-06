@@ -5,23 +5,36 @@ import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
  *
  * ── The bug this exists for ──────────────────────────────────────────
  *
- * "on click add to cart getting error." `AddButton` ends with a
+ * "on click add to cart getting error." `AddButton` ended with a
  * twelve-millisecond haptic tick, and `android.permission.VIBRATE` was not in
- * the manifest — so `Vibration.vibrate()` threw a SecurityException on Android
- * and took down the single gesture the whole app exists for. A garnish broke
- * the transaction.
+ * the manifest — so `Vibration.vibrate()` threw a SecurityException and took
+ * down the single gesture the whole app exists for. A garnish broke the
+ * transaction.
  *
  * Nothing could have caught it earlier. TypeScript type-checks the call
  * perfectly, jest's mocks never reach the native module, and iOS does not need
  * the permission at all — so it worked on a simulator, worked in every test,
  * and failed on the first real Android device.
  *
- * ── Which is why the rule is a scan, not a note ──────────────────────
+ * ── And the first fix was half wrong ─────────────────────────────────
  *
- * Two halves, and the second is the one that keeps working when somebody adds
- * a native API this file has never heard of: every call is DECLARED, and every
- * call is GUARDED, so a permission that goes missing again degrades into a
- * missing tick rather than a crash.
+ * Declaring the permission was right. Wrapping the call in `try/catch` and
+ * calling it safe was NOT: the failure arrives from the vibrator service
+ * across a binder — `Parcel.createExceptionOrNull`, in the trace — and React
+ * Native rethrows it on the native side. There is no JS frame for a `catch`
+ * to sit in. "A haptic can never be the reason a press fails" was a claim the
+ * language could not deliver.
+ *
+ * So the tick is gone. The add button already scales under a finger and swaps
+ * to a tick mark, which is the feedback that was doing the work; twelve
+ * milliseconds of buzz is not worth a permission, a binder call, and a class
+ * of crash that only appears on a real device.
+ *
+ * ── What is left is the rule that generalises ────────────────────────
+ *
+ * Every native API this app calls is declared — and nothing is declared that
+ * it does not call, because a permission asked for and unused is a question
+ * on an install screen with no answer behind it.
  */
 
 const ROOT = PROJECT_ROOT;
@@ -59,48 +72,53 @@ describe("every native call the app makes is declared", () => {
     ).toBe(`${permission} called by ${callers.length} file(s), declared: true`);
   });
 
-  it("declares VIBRATE, because the add button ticks", () => {
-    // Named rather than left to the loop above: this is the one that broke,
-    // and a rule that only fires while a caller exists is a rule that
-    // disappears the moment somebody refactors the caller into a helper.
-    expect(manifest).toMatch(/android\.permission\.VIBRATE/);
+  it("asks for nothing it does not use", () => {
+    // The other direction, and the one the first fix got wrong. A permission
+    // on the install screen is a question; asking it with nothing behind it
+    // is how an app arrives looking like it wants more than it needs.
+    const asked = [...manifest.matchAll(/android\.permission\.(\w+)/g)].map((m) => m[1]);
+    expect(asked.length).toBeGreaterThan(2);
+
+    const src = files.map((f) => codeOnly(fs.readFileSync(f, "utf8"))).join("\n");
+    for (const { api, permission } of NEEDS) {
+      if (asked.includes(permission) && !api.test(src)) {
+        expect(`${permission}: asked for, called by nothing`).toBe(`${permission}: unused`);
+      }
+    }
   });
 });
 
-describe("a haptic can never be the reason a press fails", () => {
+describe("nothing buzzes", () => {
   const files = sourceFiles(path.join(ROOT, "src"));
 
-  it("has one place that vibrates, and it swallows what vibrating throws", () => {
-    const haptics = codeOnly(
-      fs.readFileSync(path.join(ROOT, "src/common/ui/haptics.ts"), "utf8"),
-    );
-    expect(haptics).toMatch(/try\s*\{[\s\S]*Vibration\.vibrate/);
-    expect(haptics).toMatch(/\}\s*catch/);
-  });
-
-  it("has no component calling the native module directly", () => {
-    // The whole point: a bare `Vibration.vibrate()` anywhere else is a press
-    // that can fail for a reason that has nothing to do with the press.
+  it("makes no call the language cannot guard", () => {
+    /**
+     * `try/catch` around `Vibration.vibrate()` catches nothing.
+     *
+     * The failure comes back from the vibrator service across a binder —
+     * `Parcel.createExceptionOrNull` sits in the middle of the trace — and
+     * React Native rethrows it natively. There is no JS frame for a `catch`
+     * to be in, which is why the first fix looked complete and crashed anyway.
+     *
+     * The add button already scales under a finger and swaps to a tick mark.
+     * That is the feedback that was doing the work.
+     */
     const offenders = files
-      .filter((f) => !f.endsWith("common/ui/haptics.ts"))
       .flatMap((f) =>
         codeOnly(fs.readFileSync(f, "utf8"))
           .split("\n")
           .map((line, i) => [i + 1, line] as const)
-          .filter(([, line]) => /\bVibration\.vibrate\s*\(/.test(line))
+          .filter(([, line]) => /\bVibration\b/.test(line))
           .map(([n]) => `  ${path.relative(ROOT, f)}:${n}`),
       );
 
     expect(offenders.join("\n")).toBe("");
   });
 
-  it("still ticks — the guard is a try, not a deletion", () => {
-    const haptics = codeOnly(
-      fs.readFileSync(path.join(ROOT, "src/common/ui/haptics.ts"), "utf8"),
-    );
-    expect(haptics).toMatch(/Vibration\.vibrate\(/);
-
-    const users = files.filter((f) => /from "\.\/haptics"/.test(fs.readFileSync(f, "utf8")));
-    expect(users.length).toBeGreaterThanOrEqual(2);
+  it("still answers a press, by moving rather than buzzing", () => {
+    // The denominator: removing the buzz must not have removed the feedback.
+    const btn = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/AddButton.tsx"), "utf8"));
+    expect(btn).toMatch(/Animated\.spring/);
+    expect(btn).toMatch(/<CheckIcon/);
   });
 });
