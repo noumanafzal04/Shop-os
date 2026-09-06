@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -29,10 +30,24 @@ export function useUniversalSearch(q: string, params: { lat?: number; lng?: numb
   });
 }
 
+/**
+ * The shop list, page by page — the same reasoning as the aisle.
+ *
+ * Twenty a page from the server, and the app used to ask for one. A city with
+ * ninety shops showed twenty and stopped, with nothing on screen to say the
+ * other seventy existed.
+ */
 export function useMarketShops(params: { city_id?: string; search?: string; lat?: number; lng?: number; business_type?: string }) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["market", "shops", params],
-    queryFn: () => marketplaceService.shops(params),
+    queryFn: ({ pageParam }) => marketplaceService.shops({ ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => {
+      const p = last.meta?.pagination;
+      if (p == null || p.current_page >= p.last_page) return undefined;
+
+      return p.current_page + 1;
+    },
     placeholderData: keepPreviousData,
   });
 }
@@ -61,10 +76,37 @@ export function useMarketProducts(slug: string | undefined, params: { search?: s
  * under the sheet, not blank it. An empty screen between two results reads as
  * "your filter matched nothing" for as long as the request takes.
  */
+/**
+ * THE AISLE, PAGE BY PAGE.
+ *
+ * ── Why this had to change ───────────────────────────────────────────
+ *
+ * It was a plain query fetching page one and stopping. The server has paged
+ * this endpoint from the beginning — twenty-four a page, capped at sixty — and
+ * the app simply never asked for page two. So a shop with four hundred items
+ * had twenty-four, and the header said "24+" because the screen itself knew it
+ * was not telling the truth.
+ *
+ * ── Why an infinite query and not a pager ────────────────────────────
+ *
+ * A phone list is a scroll. A page control at the bottom of a two-column grid
+ * means reaching the end, tapping, and losing your place — and nobody does it
+ * twice. `getNextPageParam` returns undefined at the last page, which is what
+ * stops the list asking for ever.
+ */
 export function useBrowse(filters: BrowseFilters, options: { enabled?: boolean } = {}) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["market", "browse", filters],
-    queryFn: () => marketplaceService.browse(filters),
+    queryFn: ({ pageParam }) => marketplaceService.browse({ ...filters, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => {
+      const p = last.meta?.pagination;
+      // No pagination in the envelope means the endpoint answered in full.
+      // Treating that as "there is more" would loop on the same page for ever.
+      if (p == null || p.current_page >= p.last_page) return undefined;
+
+      return p.current_page + 1;
+    },
     enabled: options.enabled ?? true,
     placeholderData: keepPreviousData,
   });

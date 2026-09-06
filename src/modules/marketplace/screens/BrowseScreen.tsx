@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { FlatList, Image, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ArrowLeft, PackageSearch, X } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -66,7 +75,10 @@ export function BrowseScreen() {
   const query = { ...base, ...filters, per_page: 24 };
   const list = useBrowse(query);
   const pull = usePullToRefresh(list.refetch);
-  const rows: AisleProduct[] = list.data?.data ?? [];
+  // Every page, flattened. `pages` is what an infinite query keeps; the screen
+  // wants one list.
+  const rows: AisleProduct[] = (list.data?.pages ?? []).flatMap((p) => p.data);
+  const total = list.data?.pages[0]?.meta?.pagination?.total ?? rows.length;
 
   const cart = useCartStore();
 
@@ -159,7 +171,12 @@ export function BrowseScreen() {
             {params.title ?? (params.q ? `“${params.q}”` : "All products")}
           </Text>
           <Text style={styles.sub}>
-            {list.isPending ? "Looking…" : `${rows.length}${rows.length === 24 ? "+" : ""} items`}
+            {/*
+              The REAL total, from the server's own count. It used to print
+              `24+` — the screen admitting it had one page and no idea what was
+              behind it.
+            */}
+            {list.isPending ? "Looking…" : `${total} item${total === 1 ? "" : "s"}`}
           </Text>
         </View>
       </View>
@@ -218,6 +235,29 @@ export function BrowseScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={c.primary} />
+          }
+          /*
+            HALF A SCREEN AHEAD. Fetching at the very bottom means the spinner
+            is what somebody sees; fetching at 0.5 means the next page is
+            usually already there by the time they arrive.
+          */
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            // `hasNextPage` alone is not enough — `onEndReached` fires more
+            // than once while a list settles, and without the in-flight check
+            // that is two identical requests for page two.
+            if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
+          }}
+          ListFooterComponent={
+            list.isFetchingNextPage ? (
+              <View style={styles.more}>
+                <ActivityIndicator color={c.primary} />
+              </View>
+            ) : !list.hasNextPage && rows.length > 0 ? (
+              // An end that says so. A list that simply stops leaves somebody
+              // pulling at it wondering whether it is loading.
+              <Text style={styles.end}>That is everything</Text>
+            ) : null
           }
           ListEmptyComponent={
             list.isPending ? (
@@ -360,7 +400,14 @@ const makeStyles = (c: ThemeColors) =>
     price: { ...typography.label, color: c.primary, fontSize: 14 },
     was: { ...typography.tiny, color: c.textMuted, textDecorationLine: "line-through" },
 
-    loading: { gap: spacing.sm, paddingTop: spacing.sm },
+    more: { paddingVertical: spacing.lg, alignItems: "center" },
+  end: {
+    ...typography.tiny,
+    color: c.textMuted,
+    textAlign: "center",
+    paddingVertical: spacing.lg,
+  },
+  loading: { gap: spacing.sm, paddingTop: spacing.sm },
     empty: { alignItems: "center", gap: 6, paddingTop: spacing.xxl, paddingHorizontal: spacing.xl },
     emptyTitle: { ...typography.h3, color: c.text, marginTop: spacing.sm },
     emptyText: { ...typography.small, color: c.textSecondary, textAlign: "center" },

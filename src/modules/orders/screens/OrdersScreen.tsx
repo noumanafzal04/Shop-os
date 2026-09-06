@@ -1,5 +1,12 @@
 import React from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Bike, ReceiptText, Store } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -34,7 +41,7 @@ export function OrdersScreen() {
   const status = useAuthStore((s) => s.status);
   const orders = useMyOrders();
   const pull = usePullToRefresh(orders.refetch);
-  const rows = orders.data?.data ?? [];
+  const rows = (orders.data?.pages ?? []).flatMap((p) => p.data);
 
   if (status !== "authenticated") {
     return (
@@ -70,6 +77,17 @@ export function OrdersScreen() {
           keyExtractor={(o) => o.id}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (orders.hasNextPage && !orders.isFetchingNextPage) orders.fetchNextPage();
+          }}
+          ListFooterComponent={
+            orders.isFetchingNextPage ? (
+              <View style={styles.more}>
+                <ActivityIndicator color={c.primary} />
+              </View>
+            ) : null
+          }
           renderItem={({ item }) => {
             const badge = STATUS_STYLE[item.status] ?? STATUS_STYLE.pending;
             // No long-press-to-cancel. It was invisible, it was on every order
@@ -141,6 +159,7 @@ const makeStyles = (c: ThemeColors) =>
   header: { padding: spacing.md },
   title: { ...typography.title, fontSize: 22, color: c.gray[900] },
   sub: { ...typography.small, color: c.gray[500], marginTop: 2 },
+  more: { paddingVertical: spacing.lg, alignItems: "center" },
   list: { padding: spacing.md, paddingTop: 0 },
   card: { backgroundColor: c.surface, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.sm },
   top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

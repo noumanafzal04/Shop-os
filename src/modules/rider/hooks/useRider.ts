@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../../../stores/authStore";
+import { pollEvery } from "../../../common/api/backoff";
 import { riderService, type ApplyInput } from "../services/riderService";
 
 /**
@@ -36,7 +37,9 @@ export function useRiderBoard(enabled = true) {
     queryKey: ["rider", "board"],
     queryFn: async () => (await riderService.board()).data,
     enabled,
-    refetchInterval: enabled ? RIDER_BOARD_POLL_MS : false,
+    // `pollEvery` returns false while the server is rate-limiting, which stops
+    // the timer rather than letting it be refused four times a minute.
+    refetchInterval: enabled ? pollEvery(RIDER_BOARD_POLL_MS) : false,
     staleTime: 5_000,
   });
 }

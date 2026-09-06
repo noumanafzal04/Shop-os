@@ -1,10 +1,12 @@
 import {
   keepPreviousData,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { apiGet, apiPost } from "../../../common/api/client";
+import { pollEvery } from "../../../common/api/backoff";
 
 export type OrderStatus =
   | "pending" | "confirmed" | "preparing" | "ready"
@@ -75,10 +77,24 @@ function makeKey(): string {
   return `mob-ord-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * Everything this person has ordered, fifteen at a time.
+ *
+ * The endpoint has paged from the beginning and the app asked for one page, so
+ * somebody with a year of orders could see fifteen of them.
+ */
 export function useMyOrders() {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["orders", "mine"],
-    queryFn: () => apiGet<CustomerOrder[]>("/customer/orders"),
+    queryFn: ({ pageParam }) =>
+      apiGet<CustomerOrder[]>("/customer/orders", { params: { page: pageParam } }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => {
+      const p = last.meta?.pagination;
+      if (p == null || p.current_page >= p.last_page) return undefined;
+
+      return p.current_page + 1;
+    },
     placeholderData: keepPreviousData,
   });
 }
@@ -104,7 +120,11 @@ export function useMyOrder(id: string | undefined) {
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (!status || ["completed", "cancelled"].includes(status)) return false;
-      return status === "out_for_delivery" ? 10_000 : 20_000;
+
+      // …and held back entirely while the server is refusing for rate. A poll
+      // that keeps its clock through a 429 is refused six times a minute for
+      // as long as the screen is open.
+      return pollEvery(status === "out_for_delivery" ? 10_000 : 20_000);
     },
   });
 }

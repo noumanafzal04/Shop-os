@@ -2,6 +2,7 @@ import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { API_BASE_URL } from "../config";
 import { useAuthStore } from "../../stores/authStore";
 import { ApiError, type ApiEnvelope } from "../types/api";
+import { noteRateLimit } from "./backoff";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -76,9 +77,29 @@ api.interceptors.response.use(
     const body = error.response?.data;
     const isNetwork = !error.response;
 
+    /**
+     * TOO MANY REQUESTS. Stop asking, for as long as the server says.
+     *
+     * React Query already refuses to retry a 4xx, so a single failed call is
+     * handled. What is not is the POLLS — a rider's board and an order screen
+     * ask by the clock, not by failure, and would keep being refused four and
+     * six times a minute until somebody closed the app.
+     *
+     * `Retry-After` is what Laravel's throttle sends; `backoff` caps it,
+     * because it is a number somebody else controls.
+     */
+    if (status === 429) {
+      const after = Number(error.response?.headers?.["retry-after"]);
+      noteRateLimit(Number.isFinite(after) ? after : undefined);
+    }
+
     throw new ApiError(
       body?.message ??
-        (isNetwork ? "No connection. Check your internet and try again." : "Request failed."),
+        (status === 429
+          ? "Too many requests just now — give it a few seconds."
+          : isNetwork
+            ? "No connection. Check your internet and try again."
+            : "Request failed."),
       status,
       body?.meta?.error_code,
       body?.errors ?? {},

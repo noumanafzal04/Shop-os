@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   RefreshControl,
@@ -12,6 +13,7 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ArrowLeft, ChevronRight, Search } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Appear } from "../../../common/ui/Appear";
 import { Touchable } from "../../../common/ui/Touchable";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
@@ -52,7 +54,7 @@ export function MarketScreen() {
     lng: lng ?? undefined,
   });
   const pull = usePullToRefresh(shops.refetch);
-  const rows = shops.data?.data ?? [];
+  const rows = (shops.data?.pages ?? []).flatMap((p) => p.data);
 
   // Deals strip scoped to this list's business type (grocery tab → grocery deals).
   const feed = useHomeFeed({ lat: lat ?? undefined, lng: lng ?? undefined });
@@ -173,7 +175,24 @@ export function MarketScreen() {
             </View>
           )
         }
-        renderItem={({ item }) => <ShopRow shop={item} onPress={() => navigation.navigate("MarketShop", { slug: item.slug })} />}
+        // Half a screen ahead, and guarded against `onEndReached` firing more
+        // than once while the list settles.
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (shops.hasNextPage && !shops.isFetchingNextPage) shops.fetchNextPage();
+        }}
+        ListFooterComponent={
+          shops.isFetchingNextPage ? (
+            <View style={styles.more}>
+              <ActivityIndicator color={c.primary} />
+            </View>
+          ) : null
+        }
+        renderItem={({ item, index }) => (
+          <Appear index={index}>
+            <ShopRow shop={item} onPress={() => navigation.navigate("MarketShop", { slug: item.slug })} />
+          </Appear>
+        )}
       />
     </SafeScreen>
   );
@@ -270,6 +289,7 @@ const makeStyles = (c: ThemeColors) =>
   dealStrike: { ...typography.tiny, color: c.gray[400], textDecorationLine: "line-through", fontSize: 10 },
   dealShop: { ...typography.tiny, color: c.gray[500], fontSize: 10 },
 
+  more: { paddingVertical: spacing.lg, alignItems: "center" },
   skeletons: { gap: spacing.sm },
   empty: { alignItems: "center", paddingVertical: spacing.xxl, gap: 4 },
   emptyTitle: { ...typography.h3, color: c.text },

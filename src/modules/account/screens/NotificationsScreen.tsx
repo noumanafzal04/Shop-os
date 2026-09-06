@@ -1,7 +1,14 @@
 import React from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, Bell } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
@@ -21,11 +28,26 @@ export function NotificationsScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
-  const list = useQuery({
+  /**
+   * Fifteen at a time, like the endpoint has always sent them.
+   *
+   * Somebody who has been ordering for a year has hundreds of these and could
+   * see fifteen. A notification list that stops silently is one where the
+   * thing you half-remember is simply not there.
+   */
+  const list = useInfiniteQuery({
     queryKey: ["notifications"],
-    queryFn: () => apiGet<AppNotification[]>("/notifications"),
+    queryFn: ({ pageParam }) =>
+      apiGet<AppNotification[]>("/notifications", { params: { page: pageParam } }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => {
+      const p = last.meta?.pagination;
+      if (p == null || p.current_page >= p.last_page) return undefined;
+
+      return p.current_page + 1;
+    },
   });
-  const rows = list.data?.data ?? [];
+  const rows = (list.data?.pages ?? []).flatMap((p) => p.data);
 
   return (
     <SafeScreen backgroundColor={c.bg}>
@@ -61,6 +83,17 @@ export function NotificationsScreen() {
           data={rows}
           keyExtractor={(n) => n.id}
           contentContainerStyle={styles.list}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
+          }}
+          ListFooterComponent={
+            list.isFetchingNextPage ? (
+              <View style={styles.more}>
+                <ActivityIndicator color={c.primary} />
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Bell size={32} color={c.gray[300]} strokeWidth={1.6} />
@@ -101,6 +134,7 @@ const makeStyles = (c: ThemeColors) =>
   },
   title: { ...typography.h3, color: c.text },
 
+  more: { paddingVertical: spacing.lg, alignItems: "center" },
   list: { padding: spacing.md, gap: spacing.xs },
   emptyWrap: { alignItems: "center", gap: spacing.sm, paddingTop: spacing.xxl },
   empty: { ...typography.small, color: c.gray[400] },
