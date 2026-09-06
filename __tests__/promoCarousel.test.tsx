@@ -4,6 +4,7 @@ import ReactTestRenderer from "react-test-renderer";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { PromoCarousel } from "../src/modules/marketplace/components/PromoCarousel";
 import { ThemeProvider } from "../src/theme";
+import { PROJECT_ROOT, fs, path } from "./support/node";
 import type { HomeBanner } from "../src/modules/marketplace/services/marketplaceService";
 
 /**
@@ -83,5 +84,52 @@ describe("when there are real banners", () => {
     expect(textOf(tree)).toContain("Eid offers");
 
     await ReactTestRenderer.act(() => tree.unmount());
+  });
+});
+
+/**
+ * A TITLE THAT WAS SAVED AND SHOWN NOWHERE.
+ *
+ * The banner's title was drawn only when the image FAILED. So an admin who
+ * typed one on an image banner saw it nowhere: the field existed, saved, and
+ * changed nothing anybody could see — which is the worst kind of control,
+ * because it looks like it worked.
+ *
+ * Found while building the admin preview, by asking what the preview would
+ * honestly have to show.
+ */
+describe("a banner's headline", () => {
+  const src = fs
+    .readFileSync(
+      path.join(PROJECT_ROOT, "src/modules/marketplace/components/PromoCarousel.tsx"),
+      "utf8",
+    )
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+
+  it("is drawn over the picture, not only when there is none", () => {
+    // The scrim sits inside the branch that HAS an image_url.
+    const withImage = src.slice(src.indexOf('if ("image_url" in item)'), src.indexOf("const { bg, fg }"));
+    expect(withImage).toMatch(/\{!!item\.title && \(/);
+    expect(withImage).toMatch(/styles\.scrim/);
+  });
+
+  it("gives the words a ground, because white on a photograph is a coin toss", () => {
+    expect(src).toMatch(/scrim: \{[\s\S]*?backgroundColor: "rgba\(12,7,5,0\.62\)"/);
+    // A BAND, not a full overlay: the picture is what the advertiser paid for.
+    expect(src).toMatch(/scrim: \{[\s\S]*?bottom: 0,/);
+    expect(src).not.toMatch(/scrim: \{[\s\S]*?top: 0,/);
+  });
+
+  it("draws nothing when there is no title", () => {
+    // Most banners carry the words inside the artwork. A permanent dark band
+    // across every one of them would be the app editing the advert.
+    expect(src).toMatch(/\{!!item\.title &&/);
+  });
+
+  it("still has an answer for artwork that never arrives", () => {
+    // The denominator: the fallback the title used to be the ONLY user of has
+    // to survive being no longer the only user.
+    expect(src).toMatch(/styles\.fallback/);
   });
 });

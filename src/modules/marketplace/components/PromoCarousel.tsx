@@ -127,11 +127,36 @@ export function PromoCarousel({
                 style={[styles.card, size, { backgroundColor: c.surfaceAlt }]}
               >
                 {item.image_url ? (
-                  // `SmartImage`, so an advert that is still downloading
-                  // shimmers rather than sitting as an empty grey card — this
-                  // is the widest picture on the home screen and the slowest
-                  // to arrive.
-                  <SmartImage uri={item.image_url} style={size} />
+                  <>
+                    {/*
+                      `SmartImage`, so an advert that is still downloading
+                      shimmers rather than sitting as an empty grey card — this
+                      is the widest picture on the home screen and the slowest
+                      to arrive.
+                    */}
+                    <SmartImage uri={item.image_url} style={size} />
+
+                    {/*
+                      ── THE TITLE, ON THE PICTURE ────────────────────
+
+                      It was drawn ONLY when the image failed. So an admin who
+                      typed a title on an image banner saw it nowhere: the
+                      field existed, saved, and changed nothing anybody could
+                      see — which is the worst kind of control, because it
+                      looks like it worked.
+
+                      A scrim rather than plain text. White words on an
+                      unknown photograph is a coin toss, and the one thing an
+                      advert cannot afford is a headline nobody can read.
+                    */}
+                    {!!item.title && (
+                      <View style={[styles.scrim, { borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg }]}>
+                        <Text style={styles.scrimText} numberOfLines={2}>
+                          {item.title}
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 ) : (
                   // A banner whose artwork failed still has to be tappable and
                   // still has to be the right SIZE, or the row reflows around
@@ -191,6 +216,34 @@ export function PromoCarousel({
 }
 
 const styles = StyleSheet.create({
+  /**
+   * A dark band under the headline, not a full overlay.
+   *
+   * The picture is what somebody paid for; dimming all of it to make room for
+   * six words is taking the advert away from the advertiser. A band across the
+   * bottom third leaves the image doing its job and gives the words a ground
+   * they are legible on whatever is behind them.
+   *
+   * A flat translucent black rather than a gradient: a gradient needs
+   * `react-native-linear-gradient`, which is a native module and a rebuild,
+   * for an effect nobody would name if it were missing.
+   */
+  scrim: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(12,7,5,0.62)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  scrimText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+
   card: { overflow: "hidden" },
   fallback: { alignItems: "flex-start", justifyContent: "center" },
   placeholder: { flexDirection: "row", alignItems: "center", gap: 14 },
