@@ -68,9 +68,26 @@ test.describe("the aisle", () => {
     const showResults = page.getByRole("button", { name: /^Show \d/ });
     if (await showResults.isVisible()) await showResults.click();
 
-    await expect(page.locator("p", { hasText: "across every shop" })).toBeVisible();
+    const counter = page.locator("p", { hasText: "across every shop" }).first();
+    await expect(counter).toBeVisible();
 
-    const said = await page.locator("p", { hasText: "across every shop" }).first().innerText();
+    /**
+     * WAIT FOR THE NUMBER TO BE THE FILTERED ONE.
+     *
+     * This read the counter as soon as it was visible — and it is visible the
+     * whole time, carrying the UNFILTERED total until the filtered request
+     * lands. Run alone the request was always back first and the test passed;
+     * run beside its neighbours it lost the race and reported "the rail
+     * offered 8 and the grid shows 315", which reads as the invariant being
+     * broken rather than as the test reading too early.
+     *
+     * A flaky guard is worse than no guard: it is the one somebody deletes.
+     */
+    await expect(counter).toHaveText(new RegExp(`^${promised.toLocaleString()}\\b`), {
+      timeout: 15_000,
+    });
+
+    const said = await counter.innerText();
     const shown = Number(said.match(/^(\d[\d,]*)/)?.[1]?.replace(/,/g, ""));
 
     expect(shown, `the rail offered ${promised} and the grid shows ${shown}`).toBe(promised);
