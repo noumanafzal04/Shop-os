@@ -64,6 +64,14 @@ const TOPICS: Topic[] = [
     a: "Once they have collected your order, their name shows on the order screen along with how far along they are. If their phone is reporting its position you will see a Live marker; if it is not, we would rather show nothing than a pin from ten minutes ago.",
   },
   {
+    q: "How do I rate a shop?",
+    a: "Open the order once it has been delivered \u2014 the button is at the foot of it. Pick a star, add words if you want to, and post. One review per shop: posting again on the same shop replaces what you said before rather than adding a second.",
+  },
+  {
+    q: "Can I change or delete a review?",
+    a: "Yes, any time. Account \u2192 My reviews lists every shop you have rated, what you said, and anything the shop wrote back. Edit changes it, Remove takes it off their page entirely.",
+  },
+  {
     q: "How do I change my password?",
     a: "Account \u2192 Security. You need the one you use now, and the new one has to be at least 8 characters and different from the old. Changing it signs out every OTHER device straight away \u2014 this phone stays signed in.",
   },

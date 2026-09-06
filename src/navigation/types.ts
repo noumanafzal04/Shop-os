@@ -24,6 +24,7 @@ export type CustomerStackParamList = {
   Addresses: undefined;
   Settings: undefined;
   Security: undefined;
+  Reviews: undefined;
   Help: undefined;
   Profile: undefined;
   Browse:

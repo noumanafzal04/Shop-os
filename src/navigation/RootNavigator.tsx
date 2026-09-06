@@ -37,6 +37,7 @@ import { RiderHomeScreen } from "../modules/rider/screens/RiderHomeScreen";
 import { RiderJobScreen } from "../modules/rider/screens/RiderJobScreen";
 import { SettingsScreen } from "../modules/account/screens/SettingsScreen";
 import { SecurityScreen } from "../modules/account/screens/SecurityScreen";
+import { ReviewsScreen } from "../modules/reviews/screens/ReviewsScreen";
 import { HelpScreen } from "../modules/account/screens/HelpScreen";
 import { ProfileScreen } from "../modules/account/screens/ProfileScreen";
 import { AddressesScreen } from "../modules/account/screens/AddressesScreen";
@@ -126,6 +127,7 @@ function CustomerArea() {
       <CustomerStack.Screen name="Addresses" component={AddressesScreen} />
       <CustomerStack.Screen name="Settings" component={SettingsScreen} />
       <CustomerStack.Screen name="Security" component={SecurityScreen} />
+      <CustomerStack.Screen name="Reviews" component={ReviewsScreen} />
       <CustomerStack.Screen name="Help" component={HelpScreen} />
       <CustomerStack.Screen name="Profile" component={ProfileScreen} />
       <CustomerStack.Screen name="Browse" component={BrowseScreen} />

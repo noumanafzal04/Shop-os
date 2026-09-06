@@ -1,13 +1,15 @@
 import React from "react";
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
-import { ArrowLeft, Bike, Check, MapPin, Phone } from "lucide-react-native";
+import { ArrowLeft, Bike, Check, MapPin, Phone, Star } from "lucide-react-native";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { AppButton } from "../../../common/ui/AppButton";
 import { RefreshPill } from "../../../common/ui/RefreshPill";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { confirm } from "../../../common/ui/confirm";
 import { toast } from "../../../common/ui/toast";
+import { RateSheet } from "../../reviews/components/RateSheet";
+import { useMyReviews } from "../../reviews/hooks/useReviews";
 import { useMarketShop } from "../../marketplace/hooks/useMarketplace";
 import { Skeleton } from "../../../common/ui/Skeleton";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -92,6 +94,21 @@ export function OrderTrackingScreen() {
 
   const steps = o ? stepsFor(o.fulfillment_type) : [];
   const cancelled = o?.status === "cancelled";
+
+  /**
+   * ── ASKING FOR THE REVIEW WHERE IT IS EARNED ────────────────────────
+   *
+   * The rating endpoints existed and the phone called none of them, so a
+   * customer had no way to rate a shop at all — on an app whose marketplace
+   * SORTS and FILTERS by rating. A finished order is the one moment the
+   * question answers itself, which is why every app of this kind asks here.
+   *
+   * The list this reads is the same one the reviews screen shows, so the
+   * button knows whether it is asking or offering to change an answer.
+   */
+  const myReviews = useMyReviews();
+  const [rating, setRating] = React.useState(false);
+  const mine = myReviews.data?.find((r) => r.shop_slug === o?.shop?.slug) ?? null;
   const currentIdx = o ? steps.indexOf(o.status) : -1;
 
   return (
@@ -300,7 +317,31 @@ export function OrderTrackingScreen() {
               you need to change it.
             </Text>
           )}
+
+          {/*
+            Only on a DELIVERED order, and only where there is a shop to rate.
+            A cancelled order is not an experience of the shop's food, and
+            asking about one is how a rating average stops meaning anything.
+          */}
+          {o.status === "completed" && !!o.shop?.slug && (
+            <AppButton
+              title={mine ? "Edit your review" : `Rate ${o.shop?.business_name ?? "this shop"}`}
+              variant={mine ? "outline" : "primary"}
+              icon={Star}
+              onPress={() => setRating(true)}
+            />
+          )}
         </ScrollView>
+      )}
+
+      {rating && !!o?.shop?.slug && (
+        <RateSheet
+          visible
+          onClose={() => setRating(false)}
+          shopSlug={o.shop.slug}
+          shopName={o.shop.business_name ?? "this shop"}
+          existing={mine ? { rating: mine.rating, comment: mine.comment } : null}
+        />
       )}
     </SafeScreen>
   );

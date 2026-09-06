@@ -16,6 +16,7 @@ import {
   Receipt,
   Settings as SettingsIcon,
   ShieldCheck,
+  Star,
   UserRound,
   type LucideIcon,
 } from "lucide-react-native";
@@ -89,6 +90,12 @@ const ME: Link[] = [
 ];
 
 const ORDERING: Link[] = [
+  {
+    icon: Star,
+    label: "My reviews",
+    hint: "What you said about the shops you buy from",
+    route: "Reviews",
+  },
   { icon: CalendarClock, label: "Reservations", hint: "Tables you have booked", route: "Reservations" },
 ];
 
