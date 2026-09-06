@@ -596,7 +596,12 @@ class OrderService
             && $order->rider_id === null) {
             $shop = $this->context->get() ?? Tenant::query()->find($order->tenant_id);
             if (($shop?->setting('delivery_provider') ?? 'self') === 'platform') {
-                app(RiderService::class)->offerToPool($order);
+                // `beginOffering`, not `offerToPool`: the first writes the
+                // opening radius, offers it to the riders inside it and
+                // queues the widening; the second is one rung of that ladder
+                // and, called alone, offered every rider in eight kilometres
+                // at once — which is the flat board the staging replaced.
+                app(RiderService::class)->beginOffering($order);
             }
         }
 

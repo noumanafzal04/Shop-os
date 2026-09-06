@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Enums\RiderDocumentType;
 use App\Enums\RiderStatus;
 use App\Exceptions\DomainException;
+use App\Jobs\TellShopNobodyTookIt;
 use App\Jobs\WidenDeliveryOffer;
 use App\Models\Order;
 use App\Models\Rider;
@@ -124,7 +125,13 @@ class RiderService
      * @var list<string>
      */
     public const JOB_RELATIONS = [
-        'tenant:id,business_name,slug,phone,latitude,longitude',
+        // `business_type` is here because `maxRadiusFor()` reads it, and a
+        // column left out of a named select comes back NULL rather than
+        // missing — so the ceiling quietly fell through to the 8km default
+        // for every shop, and a retail order handed back came onto the board
+        // at eight kilometres instead of twelve. Exactly the failure the note
+        // above describes, found by a test that asserted the number.
+        'tenant:id,business_name,business_type,slug,phone,latitude,longitude',
         'branch:id,name,address,phone,latitude,longitude',
         'items',
     ];
@@ -493,8 +500,28 @@ class RiderService
                 return false;
             }
 
+            // ── THE STAGING, ON THE BOARD ─────────────────────────────
+            //
+            // The widening used to live only in the notifications: riders
+            // further out were TOLD late and still found the job sitting on
+            // their board the whole time, so the first rider to open the app
+            // took it whatever the distance. A queue with no queue in it.
+            //
+            // A null radius means the offer is closed — taken, or handed
+            // back to the shop. The exception is an order placed before
+            // staging existed, which has no `offered_at` either; those keep
+            // the old flat radius rather than vanishing off every board on
+            // the day this deploys.
+            $limit = $o->offer_radius_km !== null
+                ? (float) $o->offer_radius_km
+                : ($o->offered_at === null ? self::POOL_RADIUS_KM : null);
+
+            if ($limit === null) {
+                return false;
+            }
+
             return Geo::distanceKm((float) $profile->latitude, (float) $profile->longitude, (float) $lat, (float) $lng)
-                <= self::POOL_RADIUS_KM;
+                <= $limit;
         });
 
         return $mine->merge($near)->values();
@@ -581,6 +608,11 @@ class RiderService
 
             $order->forceFill(['rider_accepted_at' => now()])->save();
 
+            // Off the board, immediately. Without this the job stays on every
+            // other rider's screen until they refresh — and they tap it, and
+            // are told it is gone, which is the app wasting their time.
+            $this->closeOffer($order);
+
             $this->tellCustomer($order, 'order.rider_assigned', 'Rider on the way',
                 ($profile->user?->name ?? 'Your rider')." will deliver order {$order->order_number}.");
 
@@ -615,6 +647,13 @@ class RiderService
             'rider_id' => $fromPool ? null : $order->rider_id,
             'rider_assigned_at' => $fromPool ? null : $order->rider_assigned_at,
         ])->save();
+
+        // Back on the board, at the width the clock has reached. A pool job
+        // handed back is a job nobody is carrying, and `accept()` closed the
+        // offer when this rider took it.
+        if ($fromPool) {
+            $this->reopenOffer($order);
+        }
 
         $this->tellShop($order, 'order.rider_declined', 'Rider handed an order back',
             "Order {$order->order_number} needs another rider.");
@@ -958,6 +997,12 @@ class RiderService
 
         WidenDeliveryOffer::dispatch($order->id, 1)
             ->delay(now()->addSeconds(self::OFFER_STAGES[1][0]));
+
+        // Its own timer, not the tail of the widening chain — a chain that
+        // ends early because a shop's trade has a low ceiling has not given
+        // up, it has run out of places to look. See the job.
+        TellShopNobodyTookIt::dispatch($order->id)
+            ->delay(now()->addSeconds(self::OFFER_GIVE_UP_SECONDS));
     }
 
     /**
@@ -970,6 +1015,58 @@ class RiderService
     public function closeOffer(Order $order): void
     {
         $order->forceFill(['offer_radius_km' => null])->save();
+    }
+
+    /**
+     * PUT IT BACK ON THE BOARD after a rider hands it back.
+     *
+     * The bug this exists for: `closeOffer()` nulls the radius on accept, and
+     * a null radius means "not on the board". A rider who accepted and then
+     * declined left the order unassigned, open, and invisible to every board
+     * in the city — permanently, because nothing else ever writes that column
+     * again. It would have sat there until a shop noticed.
+     *
+     * It comes back at the WIDEST it had reached, not at three kilometres. The
+     * clock has been running the whole time somebody was holding it; narrowing
+     * back to the first stage would hide the job from riders who could see it
+     * a minute ago, to re-run a countdown that has already finished.
+     */
+    public function reopenOffer(Order $order): void
+    {
+        if ($order->offered_at === null) {
+            return; // never staged — a shop's own hand-assigned job
+        }
+
+        $order->forceFill([
+            'offer_radius_km' => self::widestReached($order),
+        ])->save();
+
+        $this->offerToPool($order);
+    }
+
+    /**
+     * How wide the offer had got by now, from the clock rather than a column.
+     *
+     * Derived, because the stage is derived everywhere else: a stored stage
+     * number and a queue that ran late are two clocks, and two clocks
+     * disagree.
+     */
+    public static function widestReached(Order $order): float
+    {
+        $elapsed = $order->offered_at !== null
+            ? $order->offered_at->diffInSeconds(now())
+            : 0;
+
+        $radius = self::OFFER_STAGES[0][1];
+        foreach (self::OFFER_STAGES as [$after, $km]) {
+            if ($elapsed >= $after) {
+                $radius = $km ?? self::maxRadiusFor($order->tenant);
+            }
+        }
+
+        // A trade's ceiling wins over a stage: food never goes past five, even
+        // once the last stage has opened it "all the way".
+        return min((float) $radius, self::maxRadiusFor($order->tenant));
     }
 
     /**

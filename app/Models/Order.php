@@ -29,6 +29,13 @@ class Order extends Model
             'rider_assigned_at' => 'datetime',
             'rider_accepted_at' => 'datetime',
             'rider_self_claimed' => 'boolean',
+            // The staged offer. `offered_at` is READ as a date — `widestReached`
+            // asks it for `diffInSeconds`, and an uncast column is a string
+            // that answers by fataling. The radius is a decimal that is
+            // compared against kilometres, so it stays a float rather than the
+            // 'decimal:1' string every other money column uses.
+            'offer_radius_km' => 'float',
+            'offered_at' => 'datetime',
             'picked_up_at' => 'datetime',
             'delivered_at' => 'datetime',
         ];
