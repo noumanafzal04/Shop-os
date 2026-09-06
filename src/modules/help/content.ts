@@ -1121,6 +1121,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
       },
       { type: "h", text: "The marketplace aisle" },
       { type: "p", text: "Your products do not only appear on your own shop page. They sit in the marketplace aisle beside every other shop's, where a customer searches for a thing rather than for a shop — so what your product is CALLED is what gets it found." },
+      { type: "h", text: "Being found while they are still typing" },
+      { type: "p", text: "The phone app suggests as a shopper types. Six rows appear above the results — a mix of products, shops and categories — and one tap goes straight there. What that means for you is that the FIRST few words of a product name are doing most of the work: \u201cZinger Burger\u201d is found by somebody typing three letters, \u201cSpecial Deal (Large)\u201d is not found by anybody." },
+      {
+        type: "list",
+        items: [
+          "The six are shared out, never all of one kind — so a shop matching the same word still gets a row even when twenty products match it too.",
+          "The arrow at the end of a row puts that wording in the box instead of opening it, for a shopper narrowing \u201cburger\u201d down to \u201cburger bun\u201d.",
+          "A category row does not open a shop \u2014 it opens the aisle already narrowed to that category, which is another reason two shops using the same category name help each other.",
+        ],
+      },
+      { type: "note", text: "The aisle has its own search box now, so a shopper who arrived from a shortcut \u2014 Offers, Pharmacy \u2014 can type a word without losing the filters they already set." },
       {
         type: "list",
         items: [
