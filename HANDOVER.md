@@ -7149,3 +7149,38 @@ state was also a dead end: no back arrow on a tab-bar leaf, and nothing to press
 Mobile tsc 0, eslint 0 errors, jest 39 suites / 481 tests · panel tsc 0, help
 20/20 · 23 mutations, 22 caught (the miss is an equivalent mutant: `stepOf`
 guards cancelled twice).
+
+**The staged offer, finished.** The migration and the service constants shipped
+last week and the engine did not: `RiderService` imported and dispatched
+`WidenDeliveryOffer`, which did not exist — so the first shop to accept a
+platform delivery would have thrown. `OrderService` still called `offerToPool()`
+directly, which is one rung of the ladder and, alone, is the flat eight-kilometre
+board the staging was meant to replace.
+
+**The board is the offer.** The staging was written into the NOTIFICATIONS only:
+riders further out were told late and still found the job sitting on their board
+the whole time, so the ordering existed and changed nothing. `openOffers` reads
+`orders.offer_radius_km` now, measured from the PICKUP.
+
+**A job handed back was invisible for ever.** `accept()` nulls the radius, and a
+null radius means "not on the board". A rider who accepted and then declined left
+the order unassigned, open and unreachable by every board in the city —
+permanently, because nothing else ever wrote that column again. `reopenOffer()`
+puts it back at the width the CLOCK has reached, not at three kilometres: the
+customer has been waiting the whole time somebody was deciding.
+
+**`JOB_RELATIONS` omitted `business_type`.** A column left out of a named select
+comes back null rather than missing — the trap this file's own docblock warns
+about — so `maxRadiusFor()` fell through to the 8km default for every shop, and a
+retail order handed back came onto the board at eight kilometres instead of
+twelve. Found by a test that asserted the number rather than that a number
+existed.
+
+**Nobody came is not a failure.** `TellShopNobodyTookIt` runs on its own timer
+rather than off the tail of the widening chain, because a chain that ends early
+because a shop's trade has a low ceiling has not given up.
+
+Backend 2655 (2653 passed, 2 skipped, exit 0) · 18 offer mutations, 15 caught —
+the three misses are equivalent mutants, each state being guarded twice.
+Mobile tsc 0, eslint 0 errors, jest 40 suites / 489 tests · 7 shimmer mutations,
+7 caught.
