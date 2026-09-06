@@ -282,6 +282,114 @@ class MarketplaceTest extends TestCase
             ->assertStatus(403);
     }
 
+    public function test_the_aisle_can_be_narrowed_to_shops_that_are_actually_usable(): void
+    {
+        /**
+         * "kuch filters jo achy hon according to shop find."
+         *
+         * Every filter the aisle had narrowed by what a thing IS — category,
+         * size, price, rating. None of them answered the question somebody
+         * hungry at nine in the evening is actually asking: which of these can
+         * I buy from RIGHT NOW, and which one will not charge me to bring it.
+         */
+        $city = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
+
+        $mk = function (string $name, array $hours, float $fee, bool $delivers) use ($city) {
+            $features = BusinessTypes::defaultFeatures('mart');
+            $features['delivery'] = $delivers;
+
+            return Tenant::factory()->create([
+                'business_name' => $name, 'online_shop_enabled' => true, 'setup_completed' => true,
+                'city_id' => $city->id, 'business_type' => 'mart', 'features' => $features,
+                'business_hours' => $hours, 'delivery_fee' => $fee, 'timezone' => 'Asia/Karachi',
+            ]);
+        };
+
+        $now = now()->setTimezone('Asia/Karachi');
+        $allDay = [['day' => $now->dayOfWeek, 'open' => '00:00', 'close' => '23:59']];
+        // A schedule that has today in it and is NOT open now — which is a
+        // different thing from having no schedule at all.
+        $shut = [['day' => $now->dayOfWeek, 'open' => '03:00', 'close' => '03:01']];
+
+        $open = $mk('Open And Free', $allDay, 0, true);
+        $closed = $mk('Closed Now', $shut, 0, true);
+        $paid = $mk('Open But Charges', $allDay, 150, true);
+        // Zero fee AND pickup only. Its fee is zero because it does not
+        // deliver at all, and offering it under "free delivery" would be the
+        // app inventing a promise the shop never made.
+        $pickupOnly = $mk('Pickup Only', $allDay, 0, false);
+
+        foreach ([$open, $closed, $paid, $pickupOnly] as $t) {
+            Product::withoutTenancy()->create([
+                'tenant_id' => $t->id, 'type' => 'product', 'item_type' => 'physical_product',
+                'name' => "Rice from {$t->business_name}", 'price' => 100,
+                'is_active' => true, 'visible_in_marketplace' => true,
+            ]);
+        }
+
+        $names = fn (string $query) => collect(
+            $this->getJson("/api/v1/marketplace/products?{$query}")->assertOk()->json('data')
+        )->pluck('name')->implode(' | ');
+
+        // ── Open now ─────────────────────────────────────────────────
+        $openNow = $names('open_now=1');
+        $this->assertStringContainsString('Open And Free', $openNow);
+        $this->assertStringContainsString('Open But Charges', $openNow);
+        $this->assertStringNotContainsString('Closed Now', $openNow);
+
+        // ── Free delivery ────────────────────────────────────────────
+        $free = $names('free_delivery=1');
+        $this->assertStringContainsString('Open And Free', $free);
+        $this->assertStringNotContainsString('Open But Charges', $free);
+        $this->assertStringNotContainsString(
+            'Pickup Only',
+            $free,
+            'a shop that does not deliver has a zero fee too — that is not free delivery',
+        );
+
+        // ── Together, and the denominator ────────────────────────────
+        $both = $names('open_now=1&free_delivery=1');
+        $this->assertStringContainsString('Open And Free', $both);
+        $this->assertStringNotContainsString('Closed Now', $both);
+
+        // Unfiltered still returns everything, or the assertions above would
+        // pass on a query that had stopped returning anything at all.
+        $this->assertStringContainsString('Closed Now', $names('per_page=50'));
+    }
+
+    public function test_the_new_facets_count_what_pressing_them_would_give(): void
+    {
+        // A facet that says 12 over a list of 9 is a facet nobody believes
+        // again — and it is what happens the moment a count forgets the other
+        // filters. `$ids($axis)` drops only its own axis.
+        $city = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
+        $now = now()->setTimezone('Asia/Karachi');
+
+        $shop = Tenant::factory()->create([
+            'business_name' => 'Corner Mart', 'online_shop_enabled' => true, 'setup_completed' => true,
+            'city_id' => $city->id, 'business_type' => 'mart',
+            'features' => BusinessTypes::defaultFeatures('mart'),
+            'business_hours' => [['day' => $now->dayOfWeek, 'open' => '00:00', 'close' => '23:59']],
+            'delivery_fee' => 0, 'timezone' => 'Asia/Karachi',
+        ]);
+
+        foreach (['Rice', 'Sugar'] as $name) {
+            Product::withoutTenancy()->create([
+                'tenant_id' => $shop->id, 'type' => 'product', 'item_type' => 'physical_product',
+                'name' => $name, 'price' => 100, 'is_active' => true, 'visible_in_marketplace' => true,
+            ]);
+        }
+
+        $facets = $this->getJson('/api/v1/marketplace/products/facets')->assertOk()->json('data');
+        $this->assertSame(2, $facets['open_now_count']);
+        $this->assertSame(2, $facets['free_delivery_count']);
+
+        // Narrowed by a word, the counts follow — which is the whole point.
+        $narrowed = $this->getJson('/api/v1/marketplace/products/facets?q=Rice')->assertOk()->json('data');
+        $this->assertSame(1, $narrowed['open_now_count']);
+        $this->assertSame(1, $narrowed['free_delivery_count']);
+    }
+
     public function test_a_trade_filter_finds_shops_stored_under_the_old_name_for_it(): void
     {
         /**

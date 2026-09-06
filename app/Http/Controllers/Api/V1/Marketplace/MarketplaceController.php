@@ -345,6 +345,20 @@ class MarketplaceController extends Controller
             ],
             'on_sale_count' => (clone $ids('on_sale'))->whereNotNull('products.discount_price')
                 ->whereColumn('products.discount_price', '<', 'products.price')->count(),
+            /**
+             * COUNTED THE SAME WAY EVERY OTHER FACET IS.
+             *
+             * `$ids($axis)` drops that one axis, so a count says "what this
+             * filter would give you FROM HERE" rather than "how many there are
+             * in total" — which is the whole reason a facet is worth showing.
+             * A count that ignored the rest of the filters would promise 40 and
+             * hand back 3.
+             */
+            'open_now_count' => (clone $ids('open_now'))
+                ->whereIn('products.tenant_id', $this->openShopIds())->count(),
+            'free_delivery_count' => (clone $ids('free_delivery'))
+                ->where('tenants.delivery_fee', '<=', 0)
+                ->whereJsonContains('tenants.features->delivery', true)->count(),
         ]);
     }
 
@@ -437,6 +451,14 @@ class MarketplaceController extends Controller
             'on_sale' => ['nullable', 'boolean'],
             'in_stock' => ['nullable', 'boolean'],
             'rating_min' => ['nullable', 'numeric', 'between:0,5'],
+            // ── FINDING A SHOP, not a product ─────────────────────
+            //
+            // Every filter above narrows by what a thing IS. These two narrow
+            // by whether it can actually be bought right now, which is the
+            // question somebody hungry at nine in the evening is asking — and
+            // the aisle had no way to ask it.
+            'open_now' => ['nullable', 'boolean'],
+            'free_delivery' => ['nullable', 'boolean'],
             'sort' => ['nullable', 'string', 'in:name,price_asc,price_desc,newest,discount,rating'],
         ]) + ['sort' => $request->query('sort', 'name')];
     }
@@ -451,6 +473,29 @@ class MarketplaceController extends Controller
      * `$except` drops a single axis, which is what a facet needs to count its
      * own alternatives.
      */
+    /**
+     * The shops that are open at this moment.
+     *
+     * Cached for the request because `browseQuery` is built several times per
+     * response — once for the listing and once per facet — and each of those
+     * would otherwise repeat the same scan and the same clock arithmetic.
+     *
+     * @var list<string>|null
+     */
+    private ?array $openShopIds = null;
+
+    /** @return list<string> */
+    private function openShopIds(): array
+    {
+        return $this->openShopIds ??= Tenant::query()
+            ->marketplaceVisible()
+            ->select(['id', 'business_hours', 'timezone'])
+            ->get()
+            ->filter(fn (Tenant $t) => $t->isOpenNow())
+            ->pluck('id')
+            ->all();
+    }
+
     private function browseQuery(array $f, ?string $except = null): Builder
     {
         $on = fn (string $axis) => $except !== $axis && ($f[$axis] ?? null) !== null && ($f[$axis] ?? '') !== '';
@@ -515,6 +560,35 @@ class MarketplaceController extends Controller
                 fn ($q) => $q->whereRaw(self::SELLING_PRICE.' >= CAST(? AS DECIMAL(14,2))', [(float) $f['min_price']]))
             ->when($except !== 'price' && ($f['max_price'] ?? null) !== null,
                 fn ($q) => $q->whereRaw(self::SELLING_PRICE.' <= CAST(? AS DECIMAL(14,2))', [(float) $f['max_price']]))
+            /**
+             * FREE DELIVERY — pure SQL, because the fee is a column.
+             *
+             * Zero AND delivering. A shop that only does pickup also has a fee
+             * of zero, and offering it under "free delivery" is the app
+             * inventing a promise the shop never made — the same trap
+             * `shopFacts` names on the customer side.
+             */
+            ->when($except !== 'free_delivery' && ! empty($f['free_delivery']), fn ($q) => $q
+                ->where('tenants.delivery_fee', '<=', 0)
+                ->whereJsonContains('tenants.features->delivery', true))
+            /**
+             * OPEN NOW — resolved in PHP, and the cost is stated.
+             *
+             * `isOpenNow()` reads a JSON schedule in each shop's OWN timezone
+             * and handles a closing time past midnight. Reimplementing that in
+             * SQL, twice, for MySQL and sqlite, to save one query is a trade
+             * nobody should take: it would be the second copy of an
+             * opening-hours rule, and the two would disagree on the night one
+             * of them was wrong.
+             *
+             * So the open shops are resolved first and matched by id. That is
+             * one lightweight query over marketplace-visible tenants — hundreds
+             * in a city, not millions — and if this marketplace ever reaches a
+             * size where that is the wrong shape, the fix is a materialised
+             * `is_open_now` column, not a hand-written SQL clock.
+             */
+            ->when($except !== 'open_now' && ! empty($f['open_now']), fn ($q) => $q
+                ->whereIn('products.tenant_id', $this->openShopIds()))
             ->when($except !== 'on_sale' && ! empty($f['on_sale']), fn ($q) => $q
                 ->whereNotNull('products.discount_price')
                 ->whereColumn('products.discount_price', '<', 'products.price'))
