@@ -136,7 +136,46 @@ class MarketplaceController extends Controller
                     $q->where('business_name', 'like', "%{$search}%")
                         ->orWhere('business_category', 'like', "%{$search}%");
                 });
-            });
+            })
+            /**
+             * ── THE SAME THREE QUESTIONS, ON A LIST OF SHOPS ─────────
+             *
+             * These went to the product aisle first, which is where they were
+             * asked for — and they belong here MORE. The aisle is a list of
+             * things; this is a list of shops, and "is it open" is a question
+             * about a shop. Somebody on the Grocery tab at nine in the evening
+             * is looking at a page of names, half of which are shut, with no
+             * way to say so.
+             *
+             * Identical parameter names to the aisle's on purpose: one
+             * vocabulary, so a filter means the same thing wherever it is
+             * asked, and the app can carry a shopper's choice from one screen
+             * to the other without translating it.
+             */
+            ->when($request->boolean('open_now'), fn ($q) => $q->whereIn('id', $this->openShopIds()))
+            ->when($request->boolean('free_delivery'), fn ($q) => $q
+                ->where('delivery_fee', '<=', 0)
+                ->whereJsonContains('features->delivery', true))
+            /**
+             * A SCALAR SUBQUERY, not a HAVING — the same shape the aisle uses.
+             *
+             * `withAvg` puts the average in the SELECT, and a paginator's
+             * `count(*)` query throws the select away: "HAVING clause on a
+             * non-aggregate query", which SQLite says out loud and MySQL would
+             * quietly answer something to. `browseQuery` hit this and settled
+             * it; writing it a second way here would be the same rule with two
+             * implementations and one of them wrong.
+             *
+             * `COALESCE(..., 0)` means a shop nobody has reviewed reads zero
+             * and drops out, which is the honest answer to "four stars and
+             * up": it has not earned four stars, it has not been asked.
+             */
+            ->when($request->query('rating_min'), fn ($q, $min) => $q
+                ->whereRaw(
+                    'COALESCE((SELECT AVG(rating) FROM reviews WHERE reviews.tenant_id = tenants.id'
+                    .' AND reviews.is_published = ?), 0) >= CAST(? AS DECIMAL(4,2))',
+                    [true, (float) $min],
+                ));
 
         if ($near) {
             $expr = Geo::sqlDistanceKm($lat, $lng);
@@ -144,6 +183,10 @@ class MarketplaceController extends Controller
                 // Un-pinned shops sink to the end instead of disappearing.
                 ->orderByRaw('distance_km IS NULL, distance_km')
                 ->when($request->query('radius'), fn ($q, $r) => $q->havingRaw('distance_km IS NOT NULL AND distance_km <= ?', [min((float) $r, 100)]));
+        } elseif ($request->query('sort') === 'rating') {
+            // Nulls last, the same rule the distance sort uses: a shop nobody
+            // has reviewed sinks rather than disappearing.
+            $query->orderByRaw('rating_avg IS NULL, rating_avg DESC');
         } else {
             $query->orderBy('business_name');
         }

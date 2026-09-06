@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\City;
 use App\Models\Product;
+use App\Models\Review;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -280,6 +281,77 @@ class MarketplaceTest extends TestCase
 
         $this->actingAsUser($owner)->getJson('/api/v1/customer/favorites')
             ->assertStatus(403);
+    }
+
+    public function test_the_shops_list_can_be_narrowed_the_same_way_the_aisle_can(): void
+    {
+        /**
+         * "Grocery screen jahan sari shops list, wahan filter jo kaha tha."
+         *
+         * These went to the product aisle first, which is where they were
+         * asked for — and they belong here MORE. The aisle is a list of
+         * things; this is a list of SHOPS, and "is it open" is a question
+         * about a shop. Somebody on the Grocery tab at nine in the evening was
+         * looking at a page of names, half of them shut, with no way to say so.
+         *
+         * Same parameter names as the aisle on purpose: one vocabulary, so a
+         * filter means the same thing wherever it is asked.
+         */
+        $city = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
+        $now = now()->setTimezone('Asia/Karachi');
+        $allDay = [['day' => $now->dayOfWeek, 'open' => '00:00', 'close' => '23:59']];
+        $shut = [['day' => $now->dayOfWeek, 'open' => '03:00', 'close' => '03:01']];
+
+        $mk = function (string $name, array $hours, float $fee, bool $delivers) use ($city) {
+            $features = BusinessTypes::defaultFeatures('mart');
+            $features['delivery'] = $delivers;
+
+            return Tenant::factory()->create([
+                'business_name' => $name, 'online_shop_enabled' => true, 'setup_completed' => true,
+                'city_id' => $city->id, 'business_type' => 'mart', 'features' => $features,
+                'business_hours' => $hours, 'delivery_fee' => $fee, 'timezone' => 'Asia/Karachi',
+            ]);
+        };
+
+        $open = $mk('Open And Free', $allDay, 0, true);
+        $mk('Closed Now', $shut, 0, true);
+        $mk('Open But Charges', $allDay, 150, true);
+        $mk('Pickup Only', $allDay, 0, false);
+
+        $names = fn (string $q) => collect(
+            $this->getJson("/api/v1/marketplace/shops?{$q}")->assertOk()->json('data')
+        )->pluck('business_name');
+
+        $openNow = $names('open_now=1');
+        $this->assertTrue($openNow->contains('Open And Free'));
+        $this->assertTrue($openNow->contains('Open But Charges'));
+        $this->assertFalse($openNow->contains('Closed Now'));
+
+        $free = $names('free_delivery=1');
+        $this->assertTrue($free->contains('Open And Free'));
+        $this->assertFalse($free->contains('Open But Charges'));
+        $this->assertFalse(
+            $free->contains('Pickup Only'),
+            'a shop that does not deliver has a zero fee too — that is not free delivery',
+        );
+
+        // The denominator: unfiltered still returns all four, or every
+        // assertion above would pass on a query returning nothing.
+        $this->assertCount(4, $names('per_page=50'));
+
+        // ── Rating is an AGGREGATE, so it is a HAVING ────────────────
+        //
+        // A shop nobody has reviewed has a null average and drops out, which
+        // is the honest answer to "four stars and up": it has not earned four
+        // stars, it has not been asked.
+        Review::query()->create([
+            'tenant_id' => $open->id, 'customer_id' => User::factory()->create()->id,
+            'rating' => 5, 'comment' => 'Great', 'is_published' => true,
+        ]);
+
+        $rated = $names('rating_min=4');
+        $this->assertTrue($rated->contains('Open And Free'));
+        $this->assertFalse($rated->contains('Closed Now'));
     }
 
     public function test_the_aisle_can_be_narrowed_to_shops_that_are_actually_usable(): void
