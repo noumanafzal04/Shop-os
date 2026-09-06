@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   CheckIcon,
+  SearchIcon,
   StarIcon,
+  XIcon,
 } from "../../../common/ui/icons";
 import { BottomSheet } from "../../../common/ui/BottomSheet";
 import { PriceRange } from "../../../common/ui/PriceRange";
@@ -77,6 +79,8 @@ export function activeFilterCount(f: BrowseFilters): number {
   if (f.rating_min != null) n++;
   if (f.on_sale) n++;
   if (f.in_stock) n++;
+  if (f.open_now) n++;
+  if (f.free_delivery) n++;
   return n;
 }
 
@@ -118,8 +122,28 @@ export function FilterSheet({ visible, onClose, base = {}, value, onApply }: Pro
   const active = activeFilterCount(draft);
   const total = f?.total;
 
+  /**
+   * ── FINDING A CATEGORY IN A LIST OF SIXTY ────────────────────────
+   *
+   * "more filter by category." A grocery shop's aisle carries dozens of them,
+   * and the only way through was "+48 more" and a wall of chips — which is
+   * not a filter, it is the problem the filter was supposed to solve.
+   *
+   * The box appears only past the collapse threshold. On the ten-category
+   * shops that are most of them, a search box for ten things is one more
+   * control to read.
+   */
+  const [catQuery, setCatQuery] = useState("");
+
   const cats = f?.categories ?? [];
-  const shownCats = showAllCats ? cats : cats.slice(0, COLLAPSED);
+  const matching =
+    catQuery.trim() === ""
+      ? cats
+      : cats.filter((cat) => cat.name.toLowerCase().includes(catQuery.trim().toLowerCase()));
+
+  // While searching, show every match — collapsing a result set somebody just
+  // narrowed by hand is the app undoing their work.
+  const shownCats = showAllCats || catQuery.trim() !== "" ? matching : matching.slice(0, COLLAPSED);
 
   return (
     <BottomSheet
@@ -186,6 +210,35 @@ export function FilterSheet({ visible, onClose, base = {}, value, onApply }: Pro
 
         {cats.length > 0 && (
           <Section title="Category">
+            {cats.length > COLLAPSED && (
+              <View style={styles.catSearch}>
+                <SearchIcon size={15} color={c.textMuted} />
+                <TextInput
+                  value={catQuery}
+                  onChangeText={setCatQuery}
+                  placeholder={`Search ${cats.length} categories`}
+                  placeholderTextColor={c.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.catSearchInput}
+                />
+                {catQuery.length > 0 && (
+                  <Pressable hitSlop={8} accessibilityLabel="Clear" onPress={() => setCatQuery("")}>
+                    <XIcon size={14} color={c.textMuted} />
+                  </Pressable>
+                )}
+              </View>
+            )}
+
+            {/*
+              A word that matches nothing is a claim about the shop's own
+              categories, and worth saying out loud — an empty gap where chips
+              were reads as the sheet having broken.
+            */}
+            {catQuery.trim() !== "" && matching.length === 0 && (
+              <Text style={styles.catNone}>No category matches “{catQuery.trim()}”.</Text>
+            )}
+
             <View style={styles.chips}>
               {shownCats.map((cat) => (
                 <Chip
@@ -196,14 +249,14 @@ export function FilterSheet({ visible, onClose, base = {}, value, onApply }: Pro
                   onPress={() => toggle("category", cat.name)}
                 />
               ))}
-              {cats.length > COLLAPSED && (
+              {cats.length > COLLAPSED && catQuery.trim() === "" && (
                 <Pressable
                   style={styles.more}
                   accessibilityRole="button"
                   onPress={() => setShowAllCats((v) => !v)}
                 >
                   <Text style={styles.moreText}>
-                    {showAllCats ? "Show fewer" : `+${cats.length - COLLAPSED} more`}
+                    {showAllCats ? "Show fewer" : `+${matching.length - COLLAPSED} more`}
                   </Text>
                 </Pressable>
               )}
@@ -260,6 +313,14 @@ export function FilterSheet({ visible, onClose, base = {}, value, onApply }: Pro
           </Section>
         )}
 
+        {/*
+          ── CAN I ACTUALLY BUY THIS, RIGHT NOW ────────────────────
+
+          Everything above narrows by what a thing IS — a category, a size, a
+          price, a rating. These narrow by whether it can be bought at all
+          this evening, which is a different question and the one somebody
+          hungry at nine o'clock is asking. The aisle had no way to ask it.
+        */}
         <Section title="Availability">
           <Toggle
             label="In stock only"
@@ -272,6 +333,26 @@ export function FilterSheet({ visible, onClose, base = {}, value, onApply }: Pro
             hint={f ? `${f.on_sale_count} reduced right now` : undefined}
             on={!!draft.on_sale}
             onPress={() => set({ on_sale: draft.on_sale ? undefined : true })}
+          />
+          <Toggle
+            label="Open now"
+            hint={
+              f
+                ? `${f.open_now_count} from shops serving at the moment`
+                : "Hides shops that are shut"
+            }
+            on={!!draft.open_now}
+            onPress={() => set({ open_now: draft.open_now ? undefined : true })}
+          />
+          <Toggle
+            label="Free delivery"
+            hint={
+              f
+                ? `${f.free_delivery_count} with nothing added for the ride`
+                : "Shops that do not charge to bring it"
+            }
+            on={!!draft.free_delivery}
+            onPress={() => set({ free_delivery: draft.free_delivery ? undefined : true })}
           />
         </Section>
       </ScrollView>
@@ -364,6 +445,25 @@ const makeStyles = (c: ThemeColors) =>
     section: { marginTop: spacing.md },
     sectionTitle: { ...typography.label, color: c.text, marginBottom: spacing.sm },
 
+    /**
+     * The category search box.
+     *
+     * Inset like a field rather than floating: it belongs to the section above
+     * the chips, and a bare input in the middle of a sheet reads as a stray
+     * text field somebody forgot to label.
+     */
+    catSearch: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: c.surfaceAlt,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      height: 40,
+      marginBottom: 10,
+    },
+    catSearchInput: { flex: 1, ...typography.small, color: c.text, padding: 0 },
+    catNone: { ...typography.small, color: c.textMuted, marginBottom: 8 },
     chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     chip: {
       flexDirection: "row",

@@ -13,6 +13,7 @@ import {
   ArrowLeftIcon,
   PackageSearchIcon,
   SearchIcon,
+  SlidersIcon,
   XIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -207,6 +208,18 @@ export function BrowseScreen() {
         >
           <ArrowLeftIcon size={19} color={c.text} />
         </Touchable>
+        {/*
+          ── THE FILTER BUTTON, BESIDE THE SEARCH ──────────────────
+
+          Asked for: "make in front of filter button, search k right side."
+          They were on two rows — the box under the back arrow, the Filters
+          pill under that — which put the app's two ways of narrowing a list
+          in different places and spent a whole row on each.
+
+          Together they read as one control with two halves: name the thing,
+          or describe it. The pill keeps its badge, so how many filters are on
+          is answerable without opening anything.
+        */}
         <View style={styles.headCopy}>
           <AppTextInput
             icon={SearchIcon}
@@ -230,6 +243,20 @@ export function BrowseScreen() {
             }
           />
         </View>
+
+        <Touchable
+          style={[styles.filterBtn, active > 0 && styles.filterBtnOn]}
+          accessibilityRole="button"
+          accessibilityLabel={active > 0 ? `Filters, ${active} on` : "Filters"}
+          onPress={() => setSheetOpen(true)}
+        >
+          <SlidersIcon size={18} color={active > 0 ? c.onPrimary : c.text} />
+          {active > 0 && (
+            <View style={styles.filterCount}>
+              <Text style={styles.filterCountText}>{active}</Text>
+            </View>
+          )}
+        </Touchable>
       </View>
 
       {/*
@@ -245,20 +272,21 @@ export function BrowseScreen() {
       </Text>
 
       {/*
-        THE FOUR QUESTIONS PEOPLE ACTUALLY ASK, one tap each.
+        THE QUESTIONS PEOPLE ACTUALLY ASK, one tap each.
 
         The Filter button used to be the only control here, so "only things on
         sale" — one tap's worth of intent — cost four: open a sheet, find the
         row, tick it, press Show. This bar is not a second filter UI; pressing a
         pill writes the identical `BrowseFilters` the sheet would have written,
         and the sheet still owns everything with more than two answers.
+
+        It no longer carries a Filters pill of its own — that button is up on
+        the search row now, where the two ways of narrowing a list sit
+        together, and a second copy of it here was the same control twice on
+        one screen. The space went to the two questions about the SHOP rather
+        than the product: is it open, and does it charge to bring it.
       */}
-      <QuickFilters
-        filters={filters}
-        onChange={setFilters}
-        onOpenAll={() => setSheetOpen(true)}
-        activeCount={active}
-      />
+      <QuickFilters filters={filters} onChange={setFilters} />
 
       {chips.length > 0 && (
         <ScrollView
@@ -420,6 +448,40 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
     },
+    /**
+     * THE FILTER BUTTON, on the search row.
+     *
+     * 44 square, the same height as the box beside it, so the row reads as one
+     * control rather than a box with something bolted on. The badge is
+     * absolute so a two-digit count cannot make it wider than the box's own
+     * height and knock the row out of line.
+     */
+    filterBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: c.surfaceAlt,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    filterBtnOn: { backgroundColor: c.primary, borderColor: c.primary },
+    filterCount: {
+      position: "absolute",
+      top: -4,
+      right: -4,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: c.warm,
+      borderWidth: 2,
+      borderColor: c.bg,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 3,
+    },
+    filterCountText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 9.5 },
     back: {
       width: 38,
       height: 38,

@@ -91,6 +91,14 @@ const TOPICS: Topic[] = [
     a: "It is at the foot of the Account page, under App. Please read it out when you report something that looks wrong \u2014 it is the only way to tell which build you are on, and half of \u201cstill broken\u201d turns out to be an older one still installed. If yours does not match the newest, install again and check it changed.",
   },
   {
+    q: "How do I find a shop that is open right now?",
+    a: "Open the aisle — the Filters button beside the search box — and turn on “Open now”. It uses each shop's own hours, so a shop that has shut for the night drops out. “Free delivery” beside it shows only the shops that do not add a charge for bringing it. Both work with everything else you have set: the number beside each one is how many items you would be left with.",
+  },
+  {
+    q: "There are too many categories to scroll. Can I search them?",
+    a: "Yes — a search box appears at the top of the Category list once a shop has more than ten, so you can type “biryani” instead of reading forty chips. It searches the category names, not the items; searching for an item is what the main search box is for.",
+  },
+  {
     q: "What does the crossed-out price mean?",
     a: "The shop is running a sale. The bold price is what you pay; the one struck through beside it is what the item normally costs, and the amber tag on the picture says how much is off. If there is no struck-through price, the item is at its normal price — a shop cannot show a discount it is not giving.",
   },

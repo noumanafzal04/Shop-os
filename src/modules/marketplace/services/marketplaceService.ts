@@ -160,6 +160,16 @@ export interface BrowseFilters {
   max_price?: number | null;
   on_sale?: boolean;
   in_stock?: boolean;
+  /**
+   * ── FINDING A SHOP, not a product ─────────────────────────────────
+   *
+   * Every filter above narrows by what a thing IS. These two narrow by
+   * whether it can be bought RIGHT NOW — which is the question somebody
+   * hungry at nine in the evening is actually asking, and the aisle had no
+   * way to ask it.
+   */
+  open_now?: boolean;
+  free_delivery?: boolean;
   rating_min?: number | null;
   sort?: "name" | "price_asc" | "price_desc" | "newest" | "discount" | "rating";
   page?: number;
@@ -193,6 +203,8 @@ export interface AisleFacets {
   sizes: Array<{ name: string; products_count: number }>;
   price: { min: number; max: number };
   on_sale_count: number;
+  open_now_count: number;
+  free_delivery_count: number;
 }
 
 /** A city the marketplace actually delivers in. */
@@ -245,6 +257,8 @@ function browseParams(f: BrowseFilters): Record<string, string | number | undefi
   put("per_page", f.per_page);
   if (f.on_sale) out.on_sale = 1;
   if (f.in_stock) out.in_stock = 1;
+  if (f.open_now) out.open_now = 1;
+  if (f.free_delivery) out.free_delivery = 1;
   return out;
 }
 

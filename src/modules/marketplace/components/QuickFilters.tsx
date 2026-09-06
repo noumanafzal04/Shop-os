@@ -3,7 +3,8 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   CheckIcon,
   ChevronDownIcon,
-  SlidersIcon,
+  ClockIcon,
+  MotorcycleIcon,
   StarIcon,
   TagIcon,
 } from "../../../common/ui/icons";
@@ -51,13 +52,16 @@ const SORTS: Array<{ key: NonNullable<BrowseFilters["sort"]>; label: string }> =
 interface Props {
   filters: BrowseFilters;
   onChange: (next: BrowseFilters) => void;
-  /** Opens the full sheet — everything this bar deliberately leaves out. */
-  onOpenAll: () => void;
-  /** How many filters are on, for the badge on the All button. */
-  activeCount: number;
+  /**
+   * The way to everything this bar leaves out.
+   *
+   * Kept as a prop and no longer drawn HERE: the button moved up beside the
+   * search box, where the two ways of narrowing a list now sit together. A
+   * second copy of it on this bar was the same control twice on one screen.
+   */
 }
 
-export function QuickFilters({ filters, onChange, onOpenAll, activeCount }: Props) {
+export function QuickFilters({ filters, onChange }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const [sortOpen, setSortOpen] = React.useState(false);
@@ -72,31 +76,6 @@ export function QuickFilters({ filters, onChange, onOpenAll, activeCount }: Prop
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.bar}
       >
-        {/*
-          ALL FILTERS FIRST, and it is the widest.
-
-          It is the way to everything this bar does not cover, so it belongs
-          where a thumb lands rather than at the end of a scroll somebody has
-          to discover.
-        */}
-        <Touchable
-          style={[styles.pill, styles.allPill, activeCount > 0 && styles.pillOn]}
-          accessibilityRole="button"
-          accessibilityLabel={activeCount > 0 ? `Filters, ${activeCount} on` : "All filters"}
-          onPress={onOpenAll}
-        >
-          <SlidersIcon
-            size={14}
-            color={activeCount > 0 ? c.onPrimary : c.text}
-          />
-          <Text style={[styles.pillText, activeCount > 0 && styles.pillTextOn]}>Filters</Text>
-          {activeCount > 0 && (
-            <View style={styles.count}>
-              <Text style={styles.countText}>{activeCount}</Text>
-            </View>
-          )}
-        </Touchable>
-
         <Pill
           label={sortLabel}
           on={filters.sort != null}
@@ -109,6 +88,29 @@ export function QuickFilters({ filters, onChange, onOpenAll, activeCount }: Prop
           icon={TagIcon}
           on={!!filters.on_sale}
           onPress={() => toggle({ on_sale: filters.on_sale ? undefined : true })}
+        />
+
+        {/*
+          ── TWO QUESTIONS ABOUT THE SHOP, NOT THE PRODUCT ─────────
+
+          Every other pill here narrows by what a thing IS. These narrow by
+          whether it can be bought at all this evening — which is what
+          somebody hungry at nine o'clock is asking, and the aisle had no way
+          to ask it. Exactly one tap's worth of intent each, which is the only
+          thing this bar is for.
+        */}
+        <Pill
+          label="Open now"
+          icon={ClockIcon}
+          on={!!filters.open_now}
+          onPress={() => toggle({ open_now: filters.open_now ? undefined : true })}
+        />
+
+        <Pill
+          label="Free delivery"
+          icon={MotorcycleIcon}
+          on={!!filters.free_delivery}
+          onPress={() => toggle({ free_delivery: filters.free_delivery ? undefined : true })}
         />
 
         <Pill
@@ -217,21 +219,9 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 12,
       height: 34,
     },
-    allPill: { borderColor: c.gray[300] },
     pillOn: { backgroundColor: c.primary, borderColor: c.primary },
     pillText: { ...typography.small, color: c.text, fontWeight: "600", fontSize: 12.5 },
     pillTextOn: { color: c.onPrimary },
-
-    count: {
-      minWidth: 17,
-      height: 17,
-      borderRadius: 9,
-      backgroundColor: c.onPrimary,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 4,
-    },
-    countText: { ...typography.tiny, color: c.primary, fontWeight: "800", fontSize: 10 },
 
     sortList: { paddingBottom: spacing.md },
     sortRow: {
