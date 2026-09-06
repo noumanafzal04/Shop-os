@@ -168,6 +168,14 @@ export interface ShopQuery {
   open_now?: boolean;
   free_delivery?: boolean;
   rating_min?: number | null;
+  /**
+   * Kilometres from the caller's pin.
+   *
+   * The server only applies it when a `lat`/`lng` came with the request — it
+   * has nothing to measure from otherwise — so the sheet says so rather than
+   * offering a control that silently does nothing.
+   */
+  radius?: number;
   sort?: "rating";
   page?: number;
 }
@@ -326,6 +334,7 @@ export const marketplaceService = {
         open_now: params.open_now ? 1 : undefined,
         free_delivery: params.free_delivery ? 1 : undefined,
         rating_min: params.rating_min ?? undefined,
+        radius: params.radius ?? undefined,
         sort: params.sort || undefined,
         page: params.page ?? 1,
       },

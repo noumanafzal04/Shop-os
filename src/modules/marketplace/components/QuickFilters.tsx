@@ -74,7 +74,21 @@ export function QuickFilters({ filters, onChange }: Props) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.bar}
+        /**
+         * `flexGrow: 0`, and it is not cosmetic.
+         *
+         * A horizontal `ScrollView` in a flex COLUMN still takes its height from
+         * the column, so with nothing to stop it, it grows to fill whatever the
+         * screen has left. The pills sit at the top of that and the rest is
+         * empty — four hundred points of brand green between the filter bar and
+         * the first shop, which is exactly how it was reported: "why too much
+         * space here?"
+         *
+         * The content container's padding sizes the bar; this stops the bar
+         * sizing itself to the screen.
+         */
+        style={styles.bar}
+        contentContainerStyle={styles.barContent}
       >
         <Pill
           label={sortLabel}
@@ -200,7 +214,8 @@ function Pill({
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-    bar: {
+    bar: { flexGrow: 0 },
+    barContent: {
       flexDirection: "row",
       gap: spacing.xs,
       paddingHorizontal: spacing.md,

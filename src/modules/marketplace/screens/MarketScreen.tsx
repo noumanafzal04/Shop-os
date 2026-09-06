@@ -24,6 +24,7 @@ import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { sameTrade } from "../tradeIcon";
 import { ShopFilters } from "../components/ShopFilters";
+import { ShopFilterSheet } from "../components/ShopFilterSheet";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { ShopFactsRow } from "../components/ShopFactsRow";
 import { RatingChip } from "../components/RatingChip";
@@ -65,6 +66,7 @@ export function MarketScreen() {
    * decided, and a Reset must never clear those. Same split the aisle uses.
    */
   const [filters, setFilters] = useState<ShopQuery>({});
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const shops = useMarketShops({
     ...filters,
@@ -128,7 +130,7 @@ export function MarketScreen() {
         scrolls, which is what a filter bar is for — and a header row inside a
         virtualised list is the shape that crashed the shop page twice today.
       */}
-      <ShopFilters value={filters} onChange={setFilters} />
+      <ShopFilters value={filters} onChange={setFilters} onOpenAll={() => setSheetOpen(true)} />
 
       {/* ── Body ──────────────────────────────────────────────────── */}
       <FlatList
@@ -231,6 +233,13 @@ export function MarketScreen() {
             <ShopRow shop={item} onPress={() => navigation.navigate("MarketShop", { slug: item.slug })} />
           </Appear>
         )}
+      />
+
+      <ShopFilterSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        value={filters}
+        onApply={setFilters}
       />
     </SafeScreen>
   );

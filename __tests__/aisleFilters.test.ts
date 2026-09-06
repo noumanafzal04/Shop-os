@@ -160,7 +160,42 @@ describe("the shops list can be narrowed too", () => {
     // — and a header row inside a virtualised list is the shape that crashed
     // the shop page twice.
     const before = screen.slice(0, screen.indexOf("<FlatList"));
-    expect(before).toMatch(/<ShopFilters value=\{filters\} onChange=\{setFilters\} \/>/);
+    expect(before).toMatch(/<ShopFilters\b/);
+    expect(before).toMatch(/value=\{filters\}/);
+  });
+
+  it("puts the city and the distance in a sheet, not on the bar", () => {
+    // A pill answers a question with ONE answer — open, free delivery, four
+    // stars. A city has forty answers and a distance has a scale; neither fits
+    // on a bar somebody scrolls sideways. Same split the aisle already uses.
+    const sheet = read("src/modules/marketplace/components/ShopFilterSheet.tsx");
+    expect(sheet).toMatch(/<BottomSheet/);
+    expect(sheet).toMatch(/City/);
+    expect(sheet).toMatch(/Within \$\{km\} km/);
+
+    // The button is FIRST on the bar — the end of a sideways scroll is a place
+    // nobody discovers, and this is the way to everything the bar leaves out.
+    // By POSITION, not by a character budget between them: the first version
+    // allowed 400 characters and the button's own markup is longer than that,
+    // so the assertion was really about how much JSX fits in a window.
+    expect(bar.indexOf("styles.allPill")).toBeGreaterThan(-1);
+    expect(bar.indexOf("styles.allPill")).toBeLessThan(bar.indexOf("<Pill"));
+  });
+
+  it("badges the button with the sheet's OWN filters only", () => {
+    // Counting the pills too would badge the button for something already
+    // visible as a filled pill an inch away, and a count that disagrees with
+    // what the eye can see is a count nobody reads.
+    expect(bar).toMatch(/const inSheet = \(value\.city_id \? 1 : 0\) \+ \(value\.radius \? 1 : 0\)/);
+  });
+
+  it("applies the sheet on Show rather than on every tap", () => {
+    // Each change refetches a list nobody is looking at — and without a draft
+    // there is no way back from a filter somebody was only trying out.
+    const sheet = read("src/modules/marketplace/components/ShopFilterSheet.tsx");
+    expect(sheet).toMatch(/const \[draft, setDraft\] = React\.useState<ShopQuery>\(value\)/);
+    expect(sheet).toMatch(/if \(visible\) setDraft\(value\)/);
+    expect(sheet).toMatch(/onApply\(draft\)/);
   });
 
   it("does not offer a shop a control only a product has", () => {
@@ -175,5 +210,53 @@ describe("the shops list can be narrowed too", () => {
         `${key}: false`,
       );
     }
+  });
+});
+
+/**
+ * A SIDEWAYS BAR MUST NOT TAKE THE WHOLE SCREEN.
+ *
+ * "why too much space here?" — four hundred points of brand green between the
+ * filter pills and the first shop.
+ *
+ * A horizontal `ScrollView` in a flex COLUMN still takes its height from the
+ * column, so with nothing to stop it, it grows to fill whatever is left. The
+ * pills sit at the top of that and the rest is empty. It looks like a padding
+ * mistake and is not: the content container's padding sizes the bar correctly,
+ * and the bar was sizing itself to the screen.
+ *
+ * Both bars had it. Only one had been looked at.
+ */
+describe("a horizontal filter bar is as tall as its pills", () => {
+  it.each([
+    ["src/modules/marketplace/components/ShopFilters.tsx", "the shops list"],
+    ["src/modules/marketplace/components/QuickFilters.tsx", "the aisle"],
+  ])("%s constrains its own height", (rel) => {
+    const src = read(rel);
+
+    // On the ScrollView's OWN style, not the content container: the content
+    // container cannot stop its parent growing.
+    expect(src).toMatch(/style=\{styles\.bar\}/);
+    expect(src).toMatch(/bar: \{ flexGrow: 0 \}/);
+
+    // …and the padding that sizes the pills is still on the CONTENT, or the
+    // fix would have taken the spacing with it.
+    expect(src).toMatch(/contentContainerStyle=\{styles\.barContent\}/);
+    expect(src).toMatch(/barContent: \{[\s\S]*?paddingHorizontal: spacing\.md/);
+  });
+});
+
+describe("distance reaches the server", () => {
+  it("is sent, and only when it is set", () => {
+    // The server applies it only when a pin came with the request — so a
+    // filter that never left the phone would look like a broken control
+    // rather than a missing location.
+    const svc = read("src/modules/marketplace/services/marketplaceService.ts");
+    expect(svc).toMatch(/radius: params\.radius \?\? undefined/);
+  });
+
+  it("says out loud that it needs a location", () => {
+    const sheet = read("src/modules/marketplace/components/ShopFilterSheet.tsx");
+    expect(sheet).toMatch(/Distance needs your location/);
   });
 });

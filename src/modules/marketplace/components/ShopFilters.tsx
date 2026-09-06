@@ -1,6 +1,6 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text } from "react-native";
-import { ClockIcon, MotorcycleIcon, StarIcon } from "../../../common/ui/icons";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ClockIcon, MotorcycleIcon, SlidersIcon, StarIcon } from "../../../common/ui/icons";
 import { Touchable } from "../../../common/ui/Touchable";
 import { spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import type { ShopQuery } from "../services/marketplaceService";
@@ -32,15 +32,69 @@ import type { ShopQuery } from "../services/marketplaceService";
 interface Props {
   value: ShopQuery;
   onChange: (next: ShopQuery) => void;
+  /** Opens the sheet — the city and the distance, which do not fit on a bar. */
+  onOpenAll: () => void;
 }
 
-export function ShopFilters({ value, onChange }: Props) {
+export function ShopFilters({ value, onChange, onOpenAll }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const set = (patch: ShopQuery) => onChange({ ...value, ...patch });
 
+  /**
+   * How many of the SHEET'S filters are on.
+   *
+   * Only the two it owns. Counting the pills as well would put a badge on the
+   * button for something already visible as a filled pill an inch away, and a
+   * count that disagrees with what the eye can see is a count nobody reads.
+   */
+  const inSheet = (value.city_id ? 1 : 0) + (value.radius ? 1 : 0);
+
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bar}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      /**
+       * `flexGrow: 0`, and it is not cosmetic.
+       *
+       * A horizontal `ScrollView` in a flex COLUMN still takes its height from
+       * the column, so with nothing to stop it, it grows to fill whatever the
+       * screen has left. The pills sit at the top of that and the rest is
+       * empty — four hundred points of brand green between the filter bar and
+       * the first shop, which is exactly how it was reported: "why too much
+       * space here?"
+       *
+       * The content container's padding sizes the bar; this stops the bar
+       * sizing itself to the screen.
+       */
+      style={styles.bar}
+      contentContainerStyle={styles.barContent}
+    >
+      {/*
+        THE WAY TO EVERYTHING THIS BAR LEAVES OUT, first.
+
+        A pill answers a question with one answer — open, free delivery, four
+        stars. A CITY has forty answers and a distance has a scale; neither
+        fits on a bar somebody scrolls sideways. It goes first because it is
+        the way to the rest, and the end of a sideways scroll is a place
+        nobody discovers.
+      */}
+      <Touchable
+        style={[styles.pill, styles.allPill, inSheet > 0 && styles.pillOn]}
+        scaleTo={0.94}
+        accessibilityRole="button"
+        accessibilityLabel={inSheet > 0 ? `More filters, ${inSheet} on` : "More filters"}
+        onPress={onOpenAll}
+      >
+        <SlidersIcon size={14} color={inSheet > 0 ? c.onPrimary : c.text} />
+        <Text style={[styles.pillText, inSheet > 0 && styles.pillTextOn]}>Filters</Text>
+        {inSheet > 0 && (
+          <View style={styles.count}>
+            <Text style={styles.countText}>{inSheet}</Text>
+          </View>
+        )}
+      </Touchable>
+
       <Pill
         label="Open now"
         icon={ClockIcon}
@@ -106,7 +160,13 @@ function Pill({
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-    bar: { flexDirection: "row", gap: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+    bar: { flexGrow: 0 },
+    barContent: {
+      flexDirection: "row",
+      gap: spacing.xs,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
+    },
     pill: {
       flexDirection: "row",
       alignItems: "center",
@@ -121,6 +181,17 @@ const makeStyles = (c: ThemeColors) =>
       height: 34,
     },
     pillOn: { backgroundColor: c.primary, borderColor: c.primary },
+    allPill: { borderColor: c.gray[300] },
+    count: {
+      minWidth: 17,
+      height: 17,
+      borderRadius: 9,
+      backgroundColor: c.onPrimary,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 4,
+    },
+    countText: { ...typography.tiny, color: c.primary, fontWeight: "800", fontSize: 10 },
     pillText: { ...typography.small, color: c.text, fontWeight: "600", fontSize: 12.5 },
     pillTextOn: { color: c.onPrimary },
   });
