@@ -187,45 +187,49 @@ describe("the shop menu", () => {
     expect(screen).toMatch(/\bonScrollToIndexFailed=\{/);
   });
 
-  it("keeps the contents bar on screen WITHOUT re-parenting a virtualised row", () => {
+  it("keeps the contents bar out of the list entirely", () => {
     /**
-     * THE CRASH THIS REPLACED.
+     * TWO CRASHES, ONE ERROR, TWO CAUSES.
      *
      *     addViewAt: failed to insert view [3320] into parent [2750] at index 50
      *     index=50 count=1      SurfaceMountingManager.kt:389
      *
      * `stickyHeaderIndices` re-parents the sticky row into a wrapper of its
-     * own. Doing that to a row inside a VIRTUALISED list, whose cells mount
-     * and unmount underneath it, is two trees disagreeing about one view — and
-     * on Fabric that is a red screen, not a glitch. This row made it certain:
-     * it changed TYPE between renders, from a zero-height spacer to a bar, at
-     * the exact index the sticky machinery was holding.
+     * own, and doing that to a row inside a VIRTUALISED list is two trees
+     * disagreeing about one view. Then `Animated.event` with the native driver
+     * on a plain FlatList's `onScroll` took the JS scroll events away from
+     * `VirtualizedList`, which needs them to decide what stays rendered.
      *
-     * The bar is drawn twice now and never inside the list.
+     * Neither. One bar, outside the list, always there.
      */
     expect(screen).not.toMatch(/stickyHeaderIndices/);
-    // No row kind for it either — it is not list content any more.
+    expect(screen).not.toMatch(/onScroll=\{Animated\.event/);
     expect(screen).not.toMatch(/kind: "chips"/);
 
-    // One component, two placements, one piece of state.
-    expect((screen.match(/<CatBar\b/g) ?? []).length).toBe(2);
+    // ONE, not a clone pair.
+    expect((screen.match(/<CatBar\b/g) ?? []).length).toBe(1);
     expect(screen).toMatch(/function CatBar\(/);
-    expect(screen).toMatch(/catsPinned: \{\s*position: "absolute"/);
-    // BOTH stacking properties. Android orders siblings by `elevation` and
-    // iOS by `zIndex`, and this bar has a list scrolling underneath it on
-    // both — with one of them missing it is a bar the menu slides over.
-    expect(screen).toMatch(/zIndex: \d+/);
-    expect(screen).toMatch(/elevation: \d+/);
   });
 
-  it("slides the pinned bar with the scroll, off the JS thread", () => {
-    // A bar whose position is computed in JS on every scroll event is the
-    // jankiest thing an app of this shape can do.
-    expect(screen).toMatch(/Animated\.event\(\[\{ nativeEvent: \{ contentOffset: \{ y: scrollY \} \} \}\], \{\s*useNativeDriver: true,/);
-    // MEASURED, not assumed: everything above the bar is conditional.
-    expect(screen).toMatch(/onLayout=\{\(e\) => setChipsY\(e\.nativeEvent\.layout\.y\)\}/);
-    expect(screen).toMatch(/inputRange: \[chipsY - 1, chipsY\]/);
-    expect(screen).toMatch(/extrapolate: "clamp"/);
+  it("does not let Android detach the rows underneath it", () => {
+    // Android's default for a virtualized list is to DETACH the native views
+    // of rows that scroll out — a memory win, and on Fabric the shortest path
+    // to the native and shadow trees disagreeing about a container's children.
+    // This list is one shop's menu, not the marketplace aisle.
+    expect(screen).toMatch(/removeClippedSubviews=\{false\}/);
+  });
+
+  it("does not rebuild its header on every render", () => {
+    // `const header = (…)` is a fresh element each time, and
+    // `ListHeaderComponent` takes it at face value: the hero, the identity
+    // block, the search box and two horizontal scrollers torn down and
+    // rebuilt — repeatedly, while the menu arrives a page at a time under a
+    // native list trying to keep its children in step.
+    expect(screen).toMatch(/const header = React\.useMemo\(/);
+    // And the memo must not depend on something that changes while scrolling.
+    const deps = /\n\s*\[shop\.data[^\]]*\],/.exec(screen)?.[0] ?? "";
+    expect(deps).not.toMatch(/\bsection\b/);
+    expect(deps).not.toMatch(/\bjumps\b/);
   });
 
   it("lands a jump BELOW the pinned bar, not underneath it", () => {
@@ -242,7 +246,7 @@ describe("the shop menu", () => {
 
   it("draws no bar at all for a shop with one section", () => {
     // A contents page listing one thing is a label, not a contents page.
-    expect((screen.match(/\{jumps\.size > 1 && \(/g) ?? []).length).toBe(2);
+    expect((screen.match(/\{jumps\.size > 1 && \(/g) ?? []).length).toBe(1);
   });
 
   it("holds its viewability config still", () => {

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   Alert,
-  Animated,
   FlatList,
   Pressable,
   RefreshControl,
@@ -176,54 +175,13 @@ export function MarketShopScreen() {
   const [section, setSection] = React.useState<string | null>(null);
   const listRef = React.useRef<FlatList<MenuRow>>(null);
 
-  /**
-   * HOW A CONTENTS BAR STAYS ON SCREEN, and why it is not `stickyHeaderIndices`.
-   *
-   * It was. On the New Architecture that crashed the shop screen outright:
-   *
-   *     addViewAt: failed to insert view [3320] into parent [2750] at index 50
-   *     index=50 count=1     SurfaceMountingManager.kt:389
-   *
-   * A Fabric mount mismatch — React asking the native tree to put a child at
-   * index 50 of a parent holding one. `stickyHeaderIndices` re-parents the
-   * sticky row into a wrapper of its own, and doing that to a row inside a
-   * VIRTUALISED list, whose cells mount and unmount under it, is two trees
-   * disagreeing about the same view. This row made it certain: it changed
-   * TYPE between renders, from a zero-height spacer to a bar, at the exact
-   * index the sticky machinery was holding.
-   *
-   * So the bar is drawn twice instead, and never inside the list. The inline
-   * copy scrolls with the header like any other content; the pinned copy sits
-   * above the list and slides down as the inline one goes past. Two elements,
-   * one state, and nothing re-parented — the scroll offset is an
-   * `Animated.Value` on the native driver, so this costs nothing per frame
-   * either.
-   */
-  const scrollY = React.useRef(new Animated.Value(0)).current;
-  const [chipsY, setChipsY] = React.useState(0);
-
-  const pinned = React.useMemo(
-    () =>
-      chipsY <= 0
-        ? -CHIP_BAR
-        : (scrollY.interpolate({
-            // A one-point range, clamped: the bar is either above the fold or
-            // it is not, and there is nothing to fade — a contents bar that is
-            // half-arrived is a contents bar somebody cannot press.
-            inputRange: [chipsY - 1, chipsY],
-            outputRange: [-CHIP_BAR, 0],
-            extrapolate: "clamp",
-          }) as unknown as number),
-    [chipsY, scrollY],
-  );
-
-  const jumpTo = (name: string | null) => {
-    const index = name == null ? 0 : jumps.get(name);
+  const jumpTo = (name: string) => {
+    const index = jumps.get(name);
     if (index == null) return;
     setSection(name);
     // `viewPosition: 0` puts the heading at the top rather than centring it,
     // which is what "go to Burgers" means — and `viewOffset` keeps it clear of
-    // the bar that is pinned there.
+    // the bar that sits above the list.
     listRef.current?.scrollToIndex({
       index,
       animated: true,
@@ -246,6 +204,38 @@ export function MarketShopScreen() {
       if (head != null && head.item.kind === "heading") setSection(head.item.name);
     },
   ).current;
+
+  /**
+   * HOW THE CONTENTS BAR STAYS ON SCREEN.
+   *
+   * ── Two crashes taught this ──────────────────────────────────────
+   *
+   *     addViewAt: failed to insert view [3320] into parent [2750] at index 50
+   *     index=50 count=1        SurfaceMountingManager.kt:389
+   *
+   * A Fabric mount mismatch: React asking the native tree to put a child at
+   * index 50 of a parent holding one. Twice, on this screen, from two
+   * different attempts at making a bar stay put.
+   *
+   *   `stickyHeaderIndices`   re-parents the sticky row into a wrapper of its
+   *                           own — and doing that to a row inside a
+   *                           VIRTUALISED list, whose cells mount and unmount
+   *                           beneath it, is two trees disagreeing about one
+   *                           view. Worse here, because that row changed TYPE
+   *                           between renders.
+   *
+   *   `Animated.event` on     `VirtualizedList` needs the JS scroll events to
+   *   a plain FlatList        decide which cells to keep rendered. Attaching
+   *                           the native driver to `onScroll` takes them away,
+   *                           and the render window goes stale while the
+   *                           native tree keeps moving.
+   *
+   * So: NEITHER. The bar is one element, outside the list, always there. No
+   * re-parenting, no scroll listener, nothing to fall out of step. A contents
+   * page that is permanently reachable is also simply better than one that
+   * has to be scrolled into existence — which is what "sticky" was for.
+   */
+
   const canReserve = isCustomer && (shop.data?.features?.reservations ?? false);
   const acceptsOrders = isCustomer && (shop.data?.accepts_orders ?? false);
   const hasDelivery = shop.data?.fulfillment?.delivery ?? shop.data?.features?.delivery ?? true;
@@ -368,7 +358,19 @@ export function MarketShopScreen() {
     ]);
   };
 
-  const header = (
+  /**
+   * MEMOISED, because a fresh element remounts the whole subtree.
+   *
+   * `const header = (…)` in the component body is a new React element on
+   * every render, and `ListHeaderComponent` takes it at face value: the hero,
+   * the shop's identity, the search box and two horizontal scrollers are torn
+   * down and rebuilt each time. Ordinarily that is only waste. While the menu
+   * is arriving — a page at a time, each append a render — it is a subtree
+   * being remounted repeatedly underneath a native list that is trying to
+   * keep its own children in step.
+   */
+  const header = React.useMemo(
+    () => (
     <>
       {/* ── Hero ──────────────────────────────────────────────────── */}
       <View style={styles.hero}>
@@ -548,35 +550,35 @@ export function MarketShopScreen() {
         </View>
       </View>
 
-      {/*
-        The contents bar, inline. `onLayout` gives the pinned copy below the
-        one number it needs: where this one stops being on screen. Measured
-        rather than assumed, because everything above it — a closed-shop
-        warning, a delivery card, a shop with no rating — is conditional.
-      */}
-      {jumps.size > 1 && (
-        <View style={styles.catsBar} onLayout={(e) => setChipsY(e.nativeEvent.layout.y)}>
-          <CatBar names={[...jumps.keys()]} active={section} onPick={jumpTo} />
-        </View>
-      )}
     </>
+    ),
+    // Everything the header READS. Listed rather than left to a lint rule,
+    // because a missing entry here is a header that stops updating — a shop
+    // whose rating never appears, a toggle that will not move.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOT `section` or `jumps`. The contents bar left the header — and
+    // `section` changes on every scroll, so listing it here would rebuild the
+    // whole header while a finger is moving, which is the remount this memo
+    // exists to stop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      shop.data, shop.isLoading, styles, c, cover, favorites.data, isFavorite,
+      fulfillment, search, hasDelivery, hasPickup, closed, prep, hero, isCustomer,
+      slug, navigation, contactShop, toggleFavorite,
+    ],
   );
 
   return (
     <SafeScreen backgroundColor={c.bg}>
       <FocusedStatusBar style="dark-content" background={c.bg} />
       {/*
-        The pinned copy. Absolutely placed over the top of the list and slid
-        into view by the scroll offset — the inline one is still in the header
-        doing the scrolling, and this one takes over the moment it leaves.
+        ONE bar, outside the list, above it. Not sticky and not cloned — see
+        the note on the crash above.
       */}
       {jumps.size > 1 && (
-        <Animated.View
-          pointerEvents={chipsY > 0 ? "auto" : "none"}
-          style={[styles.catsPinned, { transform: [{ translateY: pinned }] }]}
-        >
+        <View style={styles.catsBar}>
           <CatBar names={[...jumps.keys()]} active={section} onPick={jumpTo} />
-        </Animated.View>
+        </View>
       )}
 
       <FlatList
@@ -584,16 +586,27 @@ export function MarketShopScreen() {
         data={products.isLoading ? [] : menu}
         keyExtractor={(row) => row.key}
         ListHeaderComponent={header}
+        /*
+          OFF, on purpose.
+
+          Android's default for a virtualized list is to DETACH the native
+          views of rows that scroll out of the window rather than merely stop
+          updating them. It is a memory win, and on Fabric it is also the
+          shortest path to the native tree and the shadow tree disagreeing
+          about how many children a container has — which is the crash this
+          screen has now produced twice:
+
+              addViewAt: failed to insert view … index=50 count=1
+
+          This list is bounded: one shop's menu, ordered by category. It is
+          not the marketplace aisle. Keeping the rows mounted costs a little
+          memory and removes an entire class of mount mismatch.
+        */
+        removeClippedSubviews={false}
         contentContainerStyle={[styles.list, cartCount > 0 && { paddingBottom: 96 }]}
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         onViewableItemsChanged={onViewable}
         viewabilityConfig={viewability}
-        // Native driver: the pinned bar's position is an interpolation of this
-        // value, so nothing crosses to JS while a finger is moving.
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-          useNativeDriver: true,
-        })}
-        scrollEventThrottle={16}
         /*
           A JUMP INTO A LIST NOBODY HAS SCROLLED YET.
 
