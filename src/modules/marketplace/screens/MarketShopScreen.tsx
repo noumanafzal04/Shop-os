@@ -237,8 +237,34 @@ export function MarketShopScreen() {
    * has to be scrolled into existence — which is what "sticky" was for.
    */
 
+  /**
+   * RESERVING NEEDS AN ACCOUNT. A BASKET DOES NOT.
+   *
+   * ── The bug ──────────────────────────────────────────────────────
+   *
+   * `acceptsOrders` was `isCustomer && …`, and `isCustomer` is
+   * `user?.role === "customer"` — false for a guest. So a signed-out visitor
+   * got NO add button anywhere on a shop page: not disabled, not explained,
+   * simply absent, on the screen the whole app funnels into.
+   *
+   * The aisle never had that gate, so the app disagreed with itself — you
+   * could fill a basket from Browse and not from the shop the items belong to.
+   *
+   * ── Why the basket is open and the reservation is not ────────────
+   *
+   * The basket is a list on this phone. Nothing is sent, nothing is held, and
+   * nobody's stock is touched — so there is nothing to sign in FOR until
+   * checkout, which asks properly and keeps the basket while it does.
+   *
+   * A reservation is the opposite: it hits the server the moment it is
+   * pressed and holds an item against somebody's name. That needs a name.
+   *
+   * `isCustomer` is not doing double duty here either — a business account
+   * signed into this app never reaches this screen; the navigator sends them
+   * to `BusinessAccount` first.
+   */
   const canReserve = isCustomer && (shop.data?.features?.reservations ?? false);
-  const acceptsOrders = isCustomer && (shop.data?.accepts_orders ?? false);
+  const acceptsOrders = shop.data?.accepts_orders ?? false;
   const hasDelivery = shop.data?.fulfillment?.delivery ?? shop.data?.features?.delivery ?? true;
   const hasPickup = shop.data?.fulfillment?.pickup ?? true;
   const closed = shop.data?.is_open_now === false;
