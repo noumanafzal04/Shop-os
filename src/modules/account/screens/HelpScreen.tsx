@@ -68,7 +68,7 @@ const TOPICS: Topic[] = [
   },
   {
     q: "Can I see where my rider is?",
-    a: "Once they have collected your order, their name shows on the order screen along with how far along they are. If their phone is reporting its position you will see a Live marker; if it is not, we would rather show nothing than a pin from ten minutes ago.",
+    a: "Once they have collected your order, the order screen shows their name, where they are in the trip, and roughly how far away they are \u2014 \"About 1.4 km away\". Tap See on map to open their position in your own maps app. The distance is a straight line, so a canal or a one-way street can make the journey longer than it sounds. Before they collect it, and if their phone stops reporting, we show nothing rather than a pin from ten minutes ago.",
   },
   {
     q: "How do I rate a shop?",
@@ -104,7 +104,7 @@ const TOPICS: Topic[] = [
   },
   {
     q: "Where is my order right now?",
-    a: "Open Orders. Anything still moving sits at the top under Ongoing, with a bar showing how far along it is — placed, accepted, being prepared, ready, on the way. Tap it to follow the rider on the map and to see the four digits they will ask for at the door.",
+    a: "Open Orders. Anything still moving sits at the top under Ongoing, with a bar showing how far along it is — placed, accepted, being prepared, ready, on the way. Tap it to see how far away the rider is, to open their position in your maps app, and to find the four digits they will ask for at the door.",
   },
   {
     q: "Why does my basket empty when I add something from another shop?",

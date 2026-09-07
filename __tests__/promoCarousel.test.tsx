@@ -133,3 +133,56 @@ describe("a banner's headline", () => {
     expect(src).toMatch(/styles\.fallback/);
   });
 });
+
+/**
+ * THE RATIO IS A CONTRACT, NOT A LAYOUT CHOICE.
+ *
+ * ── Why this is worth a test ─────────────────────────────────────────
+ *
+ * Two other places now depend on this number. The admin form asks for
+ * 1200×600 and `BannerRequest::checkShape()` REFUSES anything that is not
+ * 2:1 — because the card is filled with `cover`, which keeps the ratio and
+ * lets the surplus hang off the edges.
+ *
+ * So moving `RATIO` here does not change the layout, it silently invalidates
+ * every banner already uploaded and every one the form will accept
+ * afterwards. Nothing anywhere fails; the adverts just start appearing cut,
+ * which is how this was found: "banner cutting on mobile, not full banner
+ * showing" — against artwork made at 1200×480, the size the form used to ask
+ * for.
+ *
+ * The card is also 2:1 at EVERY screen width — width less 32 points, height
+ * half of that — which is the other thing the form used to get wrong. It
+ * blamed "narrow phones" for a crop the file causes.
+ */
+describe("the shape the artwork is commissioned at", () => {
+  const src = fs.readFileSync(
+    path.join(PROJECT_ROOT, "src/modules/marketplace/components/PromoCarousel.tsx"),
+    "utf8",
+  );
+
+  it("is 2:1", () => {
+    expect(src).toMatch(/^const RATIO = 2;/m);
+  });
+
+  it("is the same at every screen width", () => {
+    // Height derived from the card's own width, not from a breakpoint. A
+    // ratio that varied by device would make "keep text in the middle" the
+    // only advice anybody could give.
+    expect(src).toMatch(/const cardWidth = width - spacing\.md \* 2;/);
+    expect(src).toMatch(/const cardHeight = Math\.round\(cardWidth \/ RATIO\);/);
+  });
+
+  it("fills the card, which is what makes the ratio matter", () => {
+    // `SmartImage` defaults to `resizeMode="cover"`. If this ever became
+    // `contain`, off-ratio artwork would letterbox instead of crop — the
+    // upload rule would be refusing files it no longer needs to.
+    const smart = fs.readFileSync(
+      path.join(PROJECT_ROOT, "src/common/ui/SmartImage.tsx"),
+      "utf8",
+    );
+    expect(smart).toMatch(/resizeMode = "cover"/);
+    // And the carousel does not override it back.
+    expect(src).not.toMatch(/<SmartImage[^>]*resizeMode=/);
+  });
+});

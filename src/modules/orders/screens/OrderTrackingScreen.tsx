@@ -22,6 +22,7 @@ import { Skeleton } from "../../../common/ui/Skeleton";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useCancelMyOrder, useMyOrder, type OrderStatus } from "../hooks/useOrders";
 import { money, qtyText } from "../../../common/format";
+import { distanceLabel, mapsUrl } from "../../../common/maps";
 
 type Params = { Order: { id: string } };
 
@@ -99,8 +100,24 @@ export function OrderTrackingScreen() {
     });
   };
 
+  /**
+   * Hand the rider's pin to the phone's maps app.
+   *
+   * Same URL builder the rider's own screen uses. It returns a string rather
+   * than opening it so a phone with no maps app gets a sentence instead of a
+   * tap that does nothing.
+   */
+  const openRiderOnMap = (lat: number | null, lng: number | null) => {
+    if (lat == null || lng == null) return;
+    Linking.openURL(mapsUrl(lat, lng, "Your rider")).catch(() =>
+      toast.error("No maps app on this phone."),
+    );
+  };
+
   const steps = o ? stepsFor(o.fulfillment_type) : [];
   const cancelled = o?.status === "cancelled";
+  /** "About 1.4 km away", or null when nobody is carrying it or there is no pin. */
+  const away = distanceLabel(o?.rider?.distance_km);
 
   /**
    * ── ASKING FOR THE REVIEW WHERE IT IS EARNED ────────────────────────
@@ -229,6 +246,21 @@ export function OrderTrackingScreen() {
                           ? "Going to the shop"
                           : "Assigned to your order"}
                   </Text>
+                  {/*
+                    HOW FAR AWAY, which is the actual question.
+
+                    The pin has been on this payload since the screen existed
+                    and the screen read it only to decide whether to draw a
+                    green dot captioned "Live" — so the one number a customer
+                    is refreshing for was on the wire and answered by a colour.
+
+                    Null while nobody is carrying it, or when the order has no
+                    delivery pin (a typed address with no coordinates), which
+                    is why this is a separate line and not appended to the
+                    stage: the stage is always true and this is not always
+                    known.
+                  */}
+                  {!!away && <Text style={styles.riderAway}>{away}</Text>}
                 </View>
                 {o.rider.latitude != null && (
                   <View style={styles.livePill}>
@@ -237,6 +269,30 @@ export function OrderTrackingScreen() {
                   </View>
                 )}
               </View>
+
+              {/*
+                SEE WHERE THEY ARE.
+
+                The phone's own maps app, not a map in here: it has their saved
+                places, their traffic and a voice they already trust, and it
+                costs this app no native module, no tile bill and no key in a
+                build. See `common/maps`.
+
+                Only while there is a live fix to show. A button that opens a
+                map of nowhere is worse than no button, and a stale pin is a
+                rider parked somewhere they left ten minutes ago.
+              */}
+              {o.rider.latitude != null && o.rider.longitude != null && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="See where your rider is on a map"
+                  onPress={() => openRiderOnMap(o.rider!.latitude, o.rider!.longitude)}
+                  style={styles.mapRow}
+                >
+                  <MapPinIcon size={15} color={c.primary} />
+                  <Text style={styles.mapRowText}>See on map</Text>
+                </Pressable>
+              )}
 
               {/*
                 THE HANDOVER CODE. The rider asks for it at the door and
@@ -442,6 +498,31 @@ const makeStyles = (c: ThemeColors) =>
   riderCopy: { flex: 1, gap: 2 },
   riderName: { ...typography.label, color: c.text, fontSize: 15 },
   riderStage: { ...typography.tiny, color: c.textSecondary },
+  /**
+   * The distance is the ANSWER, so it is the coloured line.
+   *
+   * The stage above it is always present and mostly unsurprising; this line
+   * appears only while somebody is actually carrying the order and is the
+   * reason the screen gets pulled down to refresh.
+   */
+  riderAway: { ...typography.tiny, color: c.primary, fontWeight: "700", marginTop: 1 },
+
+  /**
+   * A ROW, not a button.
+   *
+   * It leaves the app, and the two real buttons on this card — the handover
+   * code and Cancel — should not be competing with a link to somewhere else.
+   */
+  mapRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+  },
+  mapRowText: { ...typography.label, color: c.primary, fontSize: 13 },
   livePill: {
     flexDirection: "row",
     alignItems: "center",

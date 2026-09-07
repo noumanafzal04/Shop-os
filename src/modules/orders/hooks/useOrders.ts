@@ -43,6 +43,16 @@ export interface CustomerOrder {
     picked_up_at: string | null;
     latitude: number | null;
     longitude: number | null;
+    /**
+     * Straight-line kilometres from the rider to the delivery pin.
+     *
+     * Computed by the server — `Geo::distanceKm` lives there, and a haversine
+     * in here would be a second copy of one rule. Null whenever the pin is
+     * null, and also when the order itself has no coordinates: plenty of
+     * orders are a typed address, and the distance from a null island is the
+     * kind of number that ends up in a screenshot.
+     */
+    distance_km: number | null;
   } | null;
 
   /**

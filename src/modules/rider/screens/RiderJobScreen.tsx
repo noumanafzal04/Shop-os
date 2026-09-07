@@ -1,5 +1,5 @@
 import React from "react";
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import {
   BanknoteIcon,
@@ -10,6 +10,7 @@ import {
   StorefrontIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { mapsUrl } from "../../../common/maps";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { AppButton } from "../../../common/ui/AppButton";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -68,20 +69,18 @@ export function RiderJobScreen() {
   /**
    * Hand the coordinates to whatever maps app the phone has.
    *
-   * `geo:` is the Android intent every navigation app registers for; iOS has
-   * no equivalent and takes an Apple Maps URL. Neither is guaranteed to
-   * resolve, so a failure says so instead of doing nothing.
+   * The URL itself is in `common/maps` — the customer's tracking screen opens
+   * the rider's pin the same way, and two copies of a platform switch is two
+   * places to fix the day one of them stops resolving.
    */
   const navigateTo = (lat?: number | null, lng?: number | null, label?: string) => {
     if (lat == null || lng == null) {
       toast.info("No map pin on this one — use the address.");
       return;
     }
-    const url =
-      Platform.OS === "ios"
-        ? `http://maps.apple.com/?daddr=${lat},${lng}`
-        : `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(label ?? "Delivery")})`;
-    Linking.openURL(url).catch(() => toast.error("No maps app on this phone."));
+    Linking.openURL(mapsUrl(lat, lng, label ?? "Delivery")).catch(() =>
+      toast.error("No maps app on this phone."),
+    );
   };
 
   const onAccept = () =>
