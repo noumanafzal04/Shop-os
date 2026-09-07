@@ -1,6 +1,7 @@
 import { useState } from "react";
 import PageMeta from "../../../components/common/PageMeta";
 import BannerPreview from "../components/BannerPreview";
+import { bannerShapeProblem, measureImage } from "../bannerShape";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
@@ -68,11 +69,24 @@ export default function AdminBannersPage() {
    */
   const MAX_BYTES = 2 * 1024 * 1024;
 
-  const [tooBig, setTooBig] = useState<string | null>(null);
+  /**
+   * ONE PLACE FOR "THIS FILE WILL NOT DO", whichever thing is wrong with it.
+   *
+   * Size and shape were going to be two independent red lines under one input,
+   * which reads as two problems when it is one file to replace.
+   */
+  const [fileProblem, setFileProblem] = useState<string | null>(null);
 
-  const pickFile = (f: File | null) => {
-    if (f != null && f.size > MAX_BYTES) {
-      setTooBig(
+  const pickFile = async (f: File | null) => {
+    if (f == null) {
+      setFileProblem(null);
+      setFile(null);
+      setPreview(null);
+      return;
+    }
+
+    if (f.size > MAX_BYTES) {
+      setFileProblem(
         `That image is ${(f.size / 1024 / 1024).toFixed(1)} MB. Banners must be under 2 MB — ` +
           "saving it as JPG rather than PNG usually does it.",
       );
@@ -80,9 +94,27 @@ export default function AdminBannersPage() {
       setPreview(null);
       return;
     }
-    setTooBig(null);
+
+    /**
+     * THE SHAPE, BEFORE THE UPLOAD.
+     *
+     * `BannerRequest::checkShape()` is the gate and refuses this anyway. Asking
+     * here as well buys the clock: the same sentence in a hundred milliseconds
+     * rather than after two megabytes have crossed a phone network to be
+     * thrown away. Same arrangement as the size check above.
+     */
+    const measured = await measureImage(f);
+    const shape = measured ? bannerShapeProblem(measured.width, measured.height) : null;
+    if (shape != null) {
+      setFileProblem(shape);
+      setFile(null);
+      setPreview(null);
+      return;
+    }
+
+    setFileProblem(null);
     setFile(f);
-    setPreview(f ? URL.createObjectURL(f) : null);
+    setPreview(URL.createObjectURL(f));
   };
 
   const openCreate = () => {
@@ -206,15 +238,25 @@ export default function AdminBannersPage() {
               2:1, because that is the ratio the phone draws.
 
               This said 1200x480 — 2.5:1 — while `PromoCarousel` lays the card
-              out at `width / 2`. Every banner uploaded to the old advice was
-              being cropped top and bottom by the app, which is where a
-              headline goes.
+              out at `width / 2`.
+
+              And it went on to blame the phone: "the app crops the edges on
+              narrow phones". The card is the screen width less 32 points and
+              half that in height, so it is 2:1 at EVERY width — the crop comes
+              from the file's ratio and never from the screen. That sentence
+              sent somebody looking for a phone-size problem that does not
+              exist.
+
+              A too-wide file is scaled to the card's HEIGHT and spills
+              sideways, so 1200x480 lost a fifth of its WIDTH — a tenth off
+              each side, which is where a logo and a price sit. This comment
+              said top and bottom.
             */}
             <p className="mt-1 text-theme-xs text-gray-400">
-              1200×600 (2:1), JPG under 2 MB. Keep text inside the middle 84% — the app crops the edges on narrow phones.
+              1200×600 (2:1), JPG under 2 MB. Anything else is refused — the app fills a 2:1 card, so a taller or wider file loses its edges. The ratio is the same on every phone.
             </p>
-            {tooBig && (
-              <p className="mt-1 text-theme-xs text-error-500">{tooBig}</p>
+            {fileProblem && (
+              <p className="mt-1 text-theme-xs text-error-500">{fileProblem}</p>
             )}
           </div>
           <Input placeholder="Title / caption (optional)" value={form.title ?? ""} onChange={(e) => set("title", e.target.value)} />

@@ -85,9 +85,42 @@ describe("the preview matches what the two surfaces really do", () => {
      */
     const page = read("../pages/AdminBannersPage.tsx");
     expect(page).toMatch(/const MAX_BYTES = 2 \* 1024 \* 1024;/);
-    expect(page).toMatch(/if \(f != null && f\.size > MAX_BYTES\)/);
+    expect(page).toMatch(/if \(f\.size > MAX_BYTES\)/);
     // And it names the size, so the message is about THIS file.
     expect(page).toMatch(/\(f\.size \/ 1024 \/ 1024\)\.toFixed\(1\)/);
+  });
+
+  it("refuses the wrong SHAPE here too, for the same reason", () => {
+    /**
+     * The file size was checked before the upload and the ratio was not, so a
+     * 1200x480 banner made it all the way to the server, into storage, into
+     * the list, onto the home screen — and appeared cropped. "Banner cutting
+     * on mobile, not full banner showing."
+     *
+     * Same bargain as the size check: the gate is
+     * `BannerRequest::checkShape()`, this is the clock.
+     */
+    const page = read("../pages/AdminBannersPage.tsx");
+    expect(page).toMatch(/measureImage\(f\)/);
+    expect(page).toMatch(/bannerShapeProblem\(measured\.width, measured\.height\)/);
+    // Refused, not warned-and-uploaded: a cropped banner is one somebody paid
+    // for.
+    expect(page).toMatch(/if \(shape != null\) \{/);
+  });
+
+  it("does not blame the phone for a crop the file causes", () => {
+    /**
+     * The hint used to read "the app crops the edges on narrow phones". The
+     * card is the screen width less 32 points and half that in height, so it
+     * is 2:1 at EVERY width — the crop comes from the file's ratio and never
+     * from the screen.
+     *
+     * A hint that names the wrong cause is worse than a missing one: it sends
+     * somebody to test on more phones.
+     */
+    const page = read("../pages/AdminBannersPage.tsx");
+    expect(page).not.toMatch(/crops the edges on narrow phones/);
+    expect(page).toMatch(/same on every phone/);
   });
 
   it("tells somebody the ratio the phone actually uses", () => {
