@@ -10,6 +10,7 @@ use App\Models\RiderProfile;
 use App\Models\Tenant;
 use App\Services\OrderService;
 use App\Support\ApiResponse;
+use App\Support\Geo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -104,7 +105,27 @@ class CustomerOrderController extends Controller
      * they have a fix, and the fix is recent. Drop any one and the map shows a
      * confident pin that is a guess.
      *
-     * @return array{lat: ?float, lng: ?float}
+     * ── AND HOW FAR THAT IS ──────────────────────────────────────────
+     *
+     * "Where is my rider" is the question the tracking screen is open for, and
+     * the pin has been on this payload since the screen existed. The app read
+     * it, drew a dot captioned "Live", and threw the coordinates away — so the
+     * one thing a customer wanted to know was on the wire, understood by
+     * nobody, and answered by a green dot.
+     *
+     * The distance is computed HERE because `Geo::distanceKm` is here. A
+     * haversine in TypeScript would be a second copy of a rule, and the two
+     * would answer differently the first time either was touched.
+     *
+     * Straight-line, and the app says "about" for that reason: a road distance
+     * needs a routing call per poll, which is a bill and a dependency for a
+     * number that only has to answer "close, or not yet".
+     *
+     * Null when there is no delivery pin. Plenty of orders are typed addresses
+     * with no coordinates, and 3,000 km — the distance from a null island — is
+     * the kind of number that ends up in a screenshot.
+     *
+     * @return array{lat: ?float, lng: ?float, km: ?float}
      */
     private function riderPin(Order $o): array
     {
@@ -117,9 +138,24 @@ class CustomerOrderController extends Controller
             && $p->last_seen_at !== null
             && $p->last_seen_at->gt(now()->subMinutes(RiderProfile::STALE_AFTER_MINUTES));
 
-        return $live
-            ? ['lat' => (float) $p->latitude, 'lng' => (float) $p->longitude]
-            : ['lat' => null, 'lng' => null];
+        if (! $live) {
+            return ['lat' => null, 'lng' => null, 'km' => null];
+        }
+
+        $km = $o->latitude !== null && $o->longitude !== null
+            ? round(Geo::distanceKm(
+                (float) $p->latitude,
+                (float) $p->longitude,
+                (float) $o->latitude,
+                (float) $o->longitude,
+            ), 1)
+            : null;
+
+        return [
+            'lat' => (float) $p->latitude,
+            'lng' => (float) $p->longitude,
+            'km' => $km,
+        ];
     }
 
     private function serialize(Order $o): array
@@ -182,6 +218,9 @@ class CustomerOrderController extends Controller
                 'picked_up_at' => $o->picked_up_at?->toIso8601String(),
                 'latitude' => $pin['lat'],
                 'longitude' => $pin['lng'],
+                // Straight-line km to the delivery pin, or null when either
+                // end is unknown. See `riderPin`.
+                'distance_km' => $pin['km'],
             ] : null,
             // THE CODE THE RIDER ASKS FOR AT THE DOOR.
             //

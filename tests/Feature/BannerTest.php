@@ -39,7 +39,7 @@ class BannerTest extends TestCase
         Storage::fake('public');
 
         $banner = $this->asAdmin()->post('/api/v1/admin/banners', [
-            'image' => UploadedFile::fake()->image('promo.jpg'),
+            'image' => UploadedFile::fake()->image('promo.jpg', 1200, 600),
             'title' => 'Eid Sale', 'target_type' => 'shop', 'tenant_id' => $this->shop->id,
             'amount' => 5000, 'paid_at' => now()->toDateString(),
         ])->assertCreated()->json('data');
@@ -53,7 +53,7 @@ class BannerTest extends TestCase
     {
         Storage::fake('public');
         $this->asAdmin()->post('/api/v1/admin/banners', [
-            'image' => UploadedFile::fake()->image('x.jpg'), 'target_type' => 'shop',
+            'image' => UploadedFile::fake()->image('x.jpg', 1200, 600), 'target_type' => 'shop',
         ])->assertStatus(422)->assertJsonStructure(['errors' => ['tenant_id']]);
     }
 
@@ -106,12 +106,12 @@ class BannerTest extends TestCase
         Storage::fake('public');
 
         $this->asAdmin()->post('/api/v1/admin/banners', [
-            'image' => UploadedFile::fake()->image('promo.jpg'),
+            'image' => UploadedFile::fake()->image('promo.jpg', 1200, 600),
             'title' => 'Eid Sale',
         ])->assertStatus(422)->assertJsonValidationErrors('tenant_id');
 
         $banner = $this->asAdmin()->post('/api/v1/admin/banners', [
-            'image' => UploadedFile::fake()->image('promo.jpg'),
+            'image' => UploadedFile::fake()->image('promo.jpg', 1200, 600),
             'title' => 'Eid Sale', 'tenant_id' => $this->shop->id,
         ])->assertCreated()->json('data');
 
@@ -192,5 +192,98 @@ class BannerTest extends TestCase
             'target_type' => 'none',
             'placement' => 'home',
         ])->assertCreated();
+    }
+
+    // ── The shape of the artwork ─────────────────────────────────────
+
+    /**
+     * "BANNER CUTTING ON MOBILE, NOT FULL BANNER SHOWING."
+     *
+     * The app draws a banner at exactly 2:1 and fills the card with
+     * `resizeMode="cover"`, which keeps the ratio and lets the surplus hang
+     * off the edges. So artwork that is not 2:1 is published cropped, on every
+     * phone, and nothing anywhere said so — `image` was checked for type and
+     * for size and never for shape.
+     *
+     * Reported against a 1200x480 file, which is the size this very form used
+     * to ask for.
+     */
+    private function upload(int $w, int $h)
+    {
+        Storage::fake('public');
+
+        return $this->asAdmin()->postJson('/api/v1/admin/banners', [
+            'image' => UploadedFile::fake()->image('promo.jpg', $w, $h),
+            'target_type' => 'none',
+            'placement' => 'home',
+        ]);
+    }
+
+    public function test_artwork_wider_than_2_to_1_is_refused_and_told_which_edges(): void
+    {
+        $res = $this->upload(1200, 480)->assertStatus(422);
+        $message = (string) $res->json('errors.image.0');
+
+        // The three things somebody can act on: what they sent, what is
+        // wanted, and which part of their own picture disappears.
+        $this->assertStringContainsString('1200x480', $message);
+        $this->assertStringContainsString('1200x600', $message);
+        $this->assertStringContainsString('left and right', $message);
+
+        // 480/600 of the width survives, so a fifth is lost. Asserted because
+        // the first version of this message said "top and bottom" — `cover`
+        // scales a too-wide image to the card's HEIGHT and spills sideways,
+        // and a warning pointing at the wrong axis sends somebody to move the
+        // text they were already right about.
+        $this->assertStringContainsString('20%', $message);
+    }
+
+    public function test_artwork_taller_than_2_to_1_is_refused_and_told_the_other_edges(): void
+    {
+        // The other half of the rule, and the half nobody reports — a square
+        // logo uploaded as a banner loses half of itself.
+        $message = (string) $this->upload(600, 600)->assertStatus(422)->json('errors.image.0');
+
+        $this->assertStringContainsString('top and bottom', $message);
+        $this->assertStringContainsString('50%', $message);
+    }
+
+    public function test_the_size_the_form_asks_for_is_accepted(): void
+    {
+        // THE DENOMINATOR. A ratio rule that refuses everything would pass
+        // both tests above, and the form would be asking for a file it
+        // rejects.
+        $this->upload(1200, 600)->assertCreated();
+    }
+
+    public function test_a_ratio_nobody_can_see_is_not_refused(): void
+    {
+        /**
+         * `dimensions:ratio=2/1` would refuse this, and a refusal has to be
+         * about something the person can see. 1200x610 crops by eight pixels
+         * off a 1200-pixel width — under one percent, on one axis.
+         *
+         * A rule strict enough to be arithmetically pure is a rule that sends
+         * designers back to a file that was fine.
+         */
+        $this->upload(1200, 610)->assertCreated();
+    }
+
+    public function test_a_file_that_is_not_an_image_is_still_refused_for_being_a_file(): void
+    {
+        // The shape check reads the pixels, so it has to stay silent about a
+        // file it cannot open — otherwise a text file renamed to .jpg gets a
+        // lecture about aspect ratios instead of being told it is not an
+        // image.
+        Storage::fake('public');
+
+        $message = (string) $this->asAdmin()->postJson('/api/v1/admin/banners', [
+            'image' => UploadedFile::fake()->create('notes.txt', 10, 'text/plain'),
+            'target_type' => 'none',
+            'placement' => 'home',
+        ])->assertStatus(422)->json('errors.image.0');
+
+        $this->assertStringContainsString('not an image', $message);
+        $this->assertStringNotContainsString('2:1', $message);
     }
 }

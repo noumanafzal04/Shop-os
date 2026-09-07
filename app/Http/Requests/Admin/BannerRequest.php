@@ -12,6 +12,20 @@ class BannerRequest extends FormRequest
 {
     use ValidatesAgainstTheStoredRecord;
 
+    /**
+     * The shape a banner is drawn at, stated once.
+     *
+     * `PromoCarousel` in the mobile app: card width is the screen less 32
+     * points, card height is half of that. So 2:1 on every phone — the ratio
+     * does not vary with the screen, which is what the form's own hint used to
+     * claim.
+     */
+    private const RATIO = 2.0;
+
+    /** Accepts anything a designer would call 2:1; at 4% the worst accepted
+     *  crop loses 2% of one edge, which nobody can see. */
+    private const RATIO_TOLERANCE = 0.04;
+
     public function authorize(): bool
     {
         return $this->user()->hasPermission(Permissions::BANNERS_MANAGE);
@@ -78,7 +92,83 @@ class BannerRequest extends FormRequest
             if ($type === 'url' && ! $has('target_url')) {
                 $v->errors()->add('target_url', 'Enter the link for a URL banner.');
             }
+
+            $this->checkShape($v);
         });
+    }
+
+    /**
+     * THE RATIO, CHECKED WHERE IT CAN STILL BE FIXED.
+     *
+     * ── The bug ──────────────────────────────────────────────────────
+     *
+     * The app draws a banner at exactly 2:1 — `PromoCarousel` sets the card to
+     * the screen width less 32 points and the height to half of that — and
+     * fills it with `resizeMode="cover"`. Cover matches the dimension that
+     * needs the most magnification and lets the other overflow, so artwork
+     * that is not 2:1 loses its edges: a 1200x480 file (2.5:1) is scaled to
+     * the card's HEIGHT and loses about a fifth of its WIDTH, a tenth off each
+     * side. Which is where a logo and a price usually sit.
+     *
+     * Nothing checked. `image` was validated for type and size and never for
+     * shape, so an off-ratio banner uploaded, saved, published and appeared
+     * cropped on every phone — and the only way to find out was to open the
+     * app and look.
+     *
+     * Reported as exactly that: "banner cutting on mobile, not full banner
+     * showing", against artwork made at 1200x480 because this form used to ask
+     * for 1200x480.
+     *
+     * ── Why a band rather than an exact ratio ────────────────────────
+     *
+     * `dimensions:ratio=2/1` refuses 1200x601, which is a file nobody can see
+     * the problem with and which crops by half a pixel. The band is wide
+     * enough to accept anything a designer would call 2:1 and narrow enough
+     * that what it accepts is invisible: at 4% the worst case loses 2% of one
+     * edge.
+     *
+     * The message carries the ACTUAL size, because "wrong ratio" sends
+     * somebody back to a file they already believe is right.
+     */
+    private function checkShape($v): void
+    {
+        $file = $this->file('image');
+        if ($file === null || ! $file->isValid()) {
+            return;
+        }
+
+        $size = @getimagesize($file->getPathname());
+        // Not an image, or one PHP cannot read: `image` and `mimes` own that
+        // refusal and have already said so in words about the file type.
+        if ($size === false || (int) $size[0] <= 0 || (int) $size[1] <= 0) {
+            return;
+        }
+
+        [$width, $height] = [(int) $size[0], (int) $size[1]];
+        $ratio = $width / $height;
+
+        if (abs($ratio - self::RATIO) > self::RATIO * self::RATIO_TOLERANCE) {
+            $lost = $ratio > self::RATIO
+                ? 'about '.self::percentLost($ratio, self::RATIO).'% off the left and right'
+                : 'about '.self::percentLost(self::RATIO, $ratio).'% off the top and bottom';
+
+            $v->errors()->add('image', sprintf(
+                'That image is %dx%d (%s:1). The app draws banners at 2:1 and fills the card, so this one would lose %s. Save it at 1200x600.',
+                $width, $height, self::trim($ratio), $lost,
+            ));
+        }
+    }
+
+    /** How much of the longer axis `cover` throws away, as a whole percent. */
+    private static function percentLost(float $bigger, float $smaller): int
+    {
+        return (int) round((1 - $smaller / $bigger) * 100);
+    }
+
+    /** "2.5", not "2.5000000001" — the number goes in front of a person. */
+    private static function trim(float $ratio): string
+    {
+        return rtrim(rtrim(number_format($ratio, 2, '.', ''), '0'), '.');
     }
 
     /**

@@ -521,6 +521,99 @@ class RiderEdgeCasesTest extends TestCase
             ->assertJsonPath('data.rider.stage', 'on_the_way');
     }
 
+    /**
+     * "WHERE IS MY RIDER" — ANSWERED WITH A NUMBER.
+     *
+     * The pin above has been on this payload since the tracking screen
+     * existed, and the screen read it to decide ONE thing: whether to draw a
+     * green dot captioned "Live". The coordinates were thrown away, so the
+     * single number the screen is pulled down to refresh for was on the wire
+     * and answered by a colour.
+     *
+     * Computed here because `Geo::distanceKm` is here. A haversine in
+     * TypeScript would be a second copy of one rule.
+     */
+    public function test_the_customer_is_told_how_far_away_the_rider_is(): void
+    {
+        $profile = $this->approvedRider($this->rider);
+        $cardId = $this->link($profile);
+        $order = $this->place();
+        $this->inHand($order, $cardId, $this->rider);
+
+        // Not collected yet, so there is no pin and nothing to measure from.
+        $this->as($this->customer)->getJson("/api/v1/customer/orders/{$order['id']}")
+            ->assertOk()->assertJsonPath('data.rider.distance_km', null);
+
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/pick-up")->assertOk();
+        $this->as($this->rider)->postJson('/api/v1/rider/ping', ['latitude' => 31.50, 'longitude' => 74.32])->assertOk();
+
+        // `place()` drops the delivery pin at 31.47, 74.27 — a little under
+        // six kilometres from where the rider just reported.
+        $km = $this->as($this->customer)->getJson("/api/v1/customer/orders/{$order['id']}")
+            ->assertOk()->json('data.rider.distance_km');
+
+        $this->assertNotNull($km, 'both ends are known, so the distance is knowable');
+        $this->assertGreaterThan(5, $km);
+        $this->assertLessThan(7, $km);
+
+        // ONE DECIMAL. A phone GPS fix is not accurate to a metre, and
+        // 5.8371829 km on a screen claims that it is.
+        $this->assertSame(round((float) $km, 1), (float) $km);
+    }
+
+    public function test_a_rider_gets_closer_and_the_number_follows(): void
+    {
+        // The denominator. A hard-coded distance, or one measured from the
+        // shop instead of the rider, would pass the test above unchanged.
+        $profile = $this->approvedRider($this->rider);
+        $cardId = $this->link($profile);
+        $order = $this->place();
+        $this->inHand($order, $cardId, $this->rider);
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/pick-up")->assertOk();
+
+        $at = function (float $lat, float $lng) use ($order) {
+            $this->as($this->rider)->postJson('/api/v1/rider/ping', ['latitude' => $lat, 'longitude' => $lng])->assertOk();
+
+            return (float) $this->as($this->customer)
+                ->getJson("/api/v1/customer/orders/{$order['id']}")
+                ->assertOk()->json('data.rider.distance_km');
+        };
+
+        $far = $at(31.50, 74.32);
+        $near = $at(31.472, 74.272);   // almost on the doorstep
+
+        $this->assertGreaterThan($near, $far);
+        $this->assertLessThan(1, $near);
+    }
+
+    public function test_an_order_with_no_delivery_pin_gets_no_distance(): void
+    {
+        /**
+         * Plenty of orders are a typed address and nothing else.
+         *
+         * Measuring from a null island puts the rider three thousand
+         * kilometres away for the whole delivery — a number that survives
+         * being obviously wrong precisely because nobody believes it enough
+         * to report it.
+         */
+        $profile = $this->approvedRider($this->rider);
+        $cardId = $this->link($profile);
+        $order = $this->place();
+        $this->inHand($order, $cardId, $this->rider);
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/pick-up")->assertOk();
+        $this->as($this->rider)->postJson('/api/v1/rider/ping', ['latitude' => 31.50, 'longitude' => 74.32])->assertOk();
+
+        Order::withoutTenancy()->where('id', $order['id'])
+            ->update(['latitude' => null, 'longitude' => null]);
+
+        $this->as($this->customer)->getJson("/api/v1/customer/orders/{$order['id']}")
+            ->assertOk()
+            ->assertJsonPath('data.rider.distance_km', null)
+            // The pin itself is still true and still sent — the map button
+            // works, only the distance is unknown.
+            ->assertJsonPath('data.rider.latitude', 31.5);
+    }
+
     // ── The money, at its edges ──────────────────────────────────────
 
     public function test_one_shop_never_settles_another_shops_cash(): void
