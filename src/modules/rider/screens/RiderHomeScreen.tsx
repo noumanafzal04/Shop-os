@@ -13,12 +13,14 @@ import {
   BoxIcon,
   ChevronRightIcon,
   MapPinIcon,
+  MenuIcon,
   MotorcycleIcon,
   ParcelIcon,
   StorefrontIcon,
   WalletIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SideMenu } from "../../../navigation/SideMenu";
@@ -27,6 +29,7 @@ import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { RefreshPill } from "../../../common/ui/RefreshPill";
 import { toast } from "../../../common/ui/toast";
 import { money } from "../../../common/format";
+import { BRAND } from "../../../common/brand";
 import { formatDistance } from "../../marketplace/shopFacts";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
@@ -160,13 +163,18 @@ export function RiderHomeScreen() {
   const today = board.data?.earnings_today;
 
   return (
-    <SafeScreen edges={["top", "bottom"]}>
-      <ScreenHeader
-        title="Rider"
-        subtitle={rider.data?.rider_code}
-        onMenu={() => setMenu(true)}
-        right={<RefreshPill at={board.data?.as_of} busy={board.isFetching} onPress={() => board.refetch()} />}
-      />
+    /**
+     * PAINTED TO THE TOP, like the shopping side.
+     *
+     * The board wore a plain `ScreenHeader` — a white bar with the word
+     * "Rider" on it — while the customer home opens on a full-width coloured
+     * hero. Two halves of one app that did not look related, and the working
+     * half was the one that looked unfinished.
+     *
+     * `edges` drops "top" because the hero paints under the status bar itself.
+     */
+    <SafeScreen backgroundColor={c.brand[600]} edges={["bottom"]}>
+      <FocusedStatusBar style="light-content" background={c.brand[600]} />
       <SideMenu visible={menu} onClose={() => setMenu(false)} />
 
       <FlatList
@@ -182,34 +190,108 @@ export function RiderHomeScreen() {
         }
         ListHeaderComponent={
           <>
-            {/* ── On duty ───────────────────────────────────────────── */}
-            <Touchable
-              style={[styles.duty, online && styles.dutyOn]}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: online }}
-              accessibilityLabel={online ? "Go offline" : "Go online"}
-              onPress={toggle}
-              disabled={setOnline.isPending}
-            >
-              <View style={styles.dutyCopy}>
-                <Text style={[styles.dutyTitle, online && styles.dutyTitleOn]}>
-                  {online ? "You are online" : "You are offline"}
-                </Text>
-                <Text style={[styles.dutyHint, online && styles.dutyHintOn]}>
-                  {setOnline.isPending
-                    ? "One moment…"
-                    : online
-                      ? "Shops near you can send you deliveries"
-                      : "Tap to start taking deliveries"}
-                </Text>
-              </View>
-              <Knob on={online} />
-            </Touchable>
+            {/* ── The hero ──────────────────────────────────────────── */}
+            <View style={styles.hero}>
+              <View style={styles.heroTop}>
+                <Touchable
+                  style={styles.burger}
+                  onPress={() => setMenu(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Menu"
+                >
+                  <MenuIcon size={21} color={c.white} />
+                </Touchable>
 
-            {/* ── Today ─────────────────────────────────────────────── */}
+                {/*
+                  THE BRANDING, which was nowhere on this half of the app.
+
+                  The shopping side opens on "Hi <name>" and never needs to say
+                  what it is — somebody who just tapped the icon knows. The
+                  rider side is entered by SWITCHING MODE from inside the same
+                  app, so the one thing it has to answer is "am I in the right
+                  place": same product, working side. Hence the lockup rather
+                  than a title.
+
+                  `BRAND.name`, never the literal — see `brand.ts`.
+                */}
+                <View style={styles.lockup}>
+                  <Text style={styles.wordmark}>{BRAND.name}</Text>
+                  <View style={styles.modeChip}>
+                    <Text style={styles.modeChipText}>RIDER</Text>
+                  </View>
+                </View>
+
+                <View style={styles.grow} />
+
+                <RefreshPill
+                  at={board.data?.as_of}
+                  busy={board.isFetching}
+                  onPress={() => board.refetch()}
+                  onDark
+                />
+              </View>
+
+              {/*
+                ── ON DUTY, as the headline ──────────────────────────
+
+                This was a bordered card below the header, the same size and
+                weight as the three stat tiles under it — so the one control
+                that decides whether the whole screen does anything looked like
+                a row in a list.
+
+                It is the hero now: the biggest words on the screen say whether
+                work can reach you, and the switch is beside them.
+              */}
+              <Touchable
+                style={styles.duty}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: online }}
+                accessibilityLabel={online ? "Go offline" : "Go online"}
+                onPress={toggle}
+                disabled={setOnline.isPending}
+              >
+                <View style={styles.dutyCopy}>
+                  <View style={styles.dutyTitleRow}>
+                    {/*
+                      A dot, not just a colour change. Colour alone is never an
+                      accessible cue, and this is the screen's whole state.
+                    */}
+                    <View style={[styles.dutyDot, online && styles.dutyDotOn]} />
+                    <Text style={styles.dutyTitle}>
+                      {online ? "You are online" : "You are offline"}
+                    </Text>
+                  </View>
+                  <Text style={styles.dutyHint} numberOfLines={2}>
+                    {setOnline.isPending
+                      ? "One moment…"
+                      : online
+                        ? "Shops near you can send you deliveries"
+                        : "Tap to start taking deliveries"}
+                  </Text>
+                </View>
+                <Knob on={online} />
+              </Touchable>
+
+              {/* The id a shop types to add you. Small, and always there —
+                  it is asked for on a phone call, which is a bad moment to go
+                  looking through a menu for it. */}
+              {!!rider.data?.rider_code && (
+                <Text style={styles.riderCode}>{rider.data.rider_code}</Text>
+              )}
+            </View>
+
+            {/*
+              ── Today ─────────────────────────────────────────────────
+
+              Lifted onto the hero's bottom edge. Three grey tiles floating in
+              the page read as filters; one card straddling the colour reads as
+              a summary of the band above it, which is what it is.
+            */}
             <View style={styles.stats}>
               <Stat icon={BoxIcon} label="Delivered" value={String(today?.deliveries ?? 0)} />
+              <View style={styles.statDivide} />
               <Stat icon={WalletIcon} label="Earned" value={money(today?.earned ?? 0)} />
+              <View style={styles.statDivide} />
               <Touchable
                 style={styles.statPress}
                 accessibilityRole="button"
@@ -228,19 +310,21 @@ export function RiderHomeScreen() {
             {/* ── Carrying now ──────────────────────────────────────── */}
             {active.length > 0 && (
               <>
-                <Text style={styles.caption}>Carrying now</Text>
-                {active.map((j) => (
-                  <JobCard
-                    key={j.id}
-                    job={j}
-                    mine
-                    onPress={() => navigation.navigate("RiderJob", { id: j.id })}
-                  />
-                ))}
+                <Text style={[styles.caption, styles.inset]}>Carrying now</Text>
+                <View style={[styles.inset, styles.stack]}>
+                  {active.map((j) => (
+                    <JobCard
+                      key={j.id}
+                      job={j}
+                      mine
+                      onPress={() => navigation.navigate("RiderJob", { id: j.id })}
+                    />
+                  ))}
+                </View>
               </>
             )}
 
-            <Text style={styles.caption}>
+            <Text style={[styles.caption, styles.inset]}>
               {offers.length > 0 ? "Available now" : online ? "Nothing right now" : "Offers"}
             </Text>
           </>
@@ -266,7 +350,9 @@ export function RiderHomeScreen() {
           />
         }
         renderItem={({ item }) => (
-          <JobCard job={item} onPress={() => navigation.navigate("RiderJob", { id: item.id })} />
+          <View style={styles.inset}>
+            <JobCard job={item} onPress={() => navigation.navigate("RiderJob", { id: item.id })} />
+          </View>
         )}
       />
     </SafeScreen>
@@ -401,50 +487,168 @@ export function JobCard({ job, onPress, mine }: { job: RiderJob; onPress: () => 
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-    list: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.xs },
+    /**
+     * NO HORIZONTAL PADDING ON THE LIST.
+     *
+     * The hero has to reach both edges of the screen, and it is inside
+     * `ListHeaderComponent` — so the inset moved onto the rows and onto the
+     * hero's own contents instead.
+     */
+    list: { paddingBottom: spacing.xxl, gap: spacing.xs },
     /** So `ListEmptyComponent` has a screen to centre in. */
     listGrow: { flexGrow: 1 },
+    /** Everything below the hero keeps the page's own margin. */
+    inset: { paddingHorizontal: spacing.md },
+    /** The gap the list's own `gap` used to give the "carrying now" group. */
+    stack: { gap: spacing.xs },
 
+    // ── The hero ───────────────────────────────────────────────────
+    /**
+     * The working side's own band.
+     *
+     * `brand[600]` rather than `500`: this palette is the ember one in rider
+     * mode, and the deeper step is what keeps white text at a comfortable
+     * contrast on orange — the same tone the account page's "Deliver with
+     * CartZe" door uses, so the two agree.
+     *
+     * Bottom corners only, and `paddingBottom` leaves room for the stats card
+     * to sit ON the edge rather than under it.
+     */
+    hero: {
+      backgroundColor: c.brand[600],
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+      paddingBottom: 44,
+      borderBottomLeftRadius: radius.xl,
+      borderBottomRightRadius: radius.xl,
+    },
+    heroTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    burger: {
+      width: 42,
+      height: 42,
+      borderRadius: radius.md,
+      backgroundColor: "rgba(255,255,255,0.16)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    lockup: { flexDirection: "row", alignItems: "center", gap: 7 },
+    wordmark: { ...typography.display, fontSize: 20, color: c.white, letterSpacing: -0.4 },
+    /**
+     * "RIDER" as a chip, not as a second word.
+     *
+     * The mode is a qualifier on the product name, and setting it in the same
+     * type would read as a two-word product. A chip says "same app, this
+     * side".
+     */
+    modeChip: {
+      backgroundColor: "rgba(255,255,255,0.2)",
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    modeChipText: {
+      ...typography.tiny,
+      color: c.white,
+      fontSize: 9.5,
+      fontWeight: "800",
+      letterSpacing: 0.8,
+    },
+
+    /**
+     * The duty row, on the colour.
+     *
+     * A translucent white rather than `c.surface`: a solid card here would
+     * punch a hole in the band and look like the old layout with a coloured
+     * strip behind it.
+     */
     duty: {
       flexDirection: "row",
       alignItems: "center",
-      gap: spacing.sm,
-      backgroundColor: c.surface,
+      gap: spacing.md,
+      backgroundColor: "rgba(255,255,255,0.14)",
       borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: c.border,
-      padding: spacing.md,
+      paddingVertical: 14,
+      paddingHorizontal: spacing.md,
+      marginTop: spacing.md,
     },
-    dutyOn: { backgroundColor: c.successBg, borderColor: c.success },
-    dutyCopy: { flex: 1, gap: 2 },
-    dutyTitle: { ...typography.h3, color: c.text, fontSize: 16 },
-    dutyTitleOn: { color: c.success },
-    dutyHint: { ...typography.tiny, color: c.textMuted },
-    dutyHintOn: { color: c.textSecondary },
+    dutyCopy: { flex: 1, gap: 3 },
+    dutyTitleRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+    /**
+     * Off is a hollow ring, on is filled.
+     *
+     * Not two colours: on a coloured ground a red dot and a green dot at 8px
+     * are the same dot to most eyes, and colour alone is never the only cue.
+     */
+    dutyDot: {
+      width: 9,
+      height: 9,
+      borderRadius: 5,
+      borderWidth: 1.5,
+      borderColor: "rgba(255,255,255,0.55)",
+    },
+    /**
+     * A LITERAL white, not `c.white`.
+     *
+     * `darkModeDebt` bans `backgroundColor: c.white` outright and is right to:
+     * the token is literal white in both themes, so it reads as theme-aware
+     * and paints a white card on a dark page. There is no exemption list, and
+     * adding one to a rule that currently holds absolutely would cost more
+     * than these two lines are worth.
+     *
+     * Both of these sit on the ember band, which is ember in either theme —
+     * so the pigment is genuinely fixed, and saying so with a literal is the
+     * honest spelling. Same reason `PromoCarousel`'s scrim text is "#ffffff".
+     */
+    dutyDotOn: { backgroundColor: "#ffffff", borderColor: "#ffffff" },
+    dutyTitle: { ...typography.h3, color: c.white, fontSize: 17 },
+    dutyHint: { ...typography.tiny, color: "rgba(255,255,255,0.82)" },
+
+    /** The code a shop types to add this rider. Quiet, and never absent. */
+    riderCode: {
+      ...typography.tiny,
+      color: "rgba(255,255,255,0.7)",
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      marginTop: spacing.sm,
+      textAlign: "center",
+    },
 
     track: {
       width: 52,
       height: 30,
       borderRadius: 15,
-      backgroundColor: c.gray[200],
+      backgroundColor: "rgba(0,0,0,0.22)",
       padding: 3,
       justifyContent: "center",
     },
-    trackOn: { backgroundColor: c.success },
-    knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: c.surface },
+    trackOn: { backgroundColor: "rgba(255,255,255,0.3)" },
+    // Literal, and on the ember band in both themes — see `dutyDotOn`.
+    knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#ffffff" },
 
-    stats: { flexDirection: "row", gap: spacing.xs, marginTop: spacing.sm },
-    statPress: { flex: 1 },
-    stat: {
-      flex: 1,
+    // ── Today ──────────────────────────────────────────────────────
+    /**
+     * ONE card straddling the hero's edge, not three tiles in the page.
+     *
+     * `marginTop` is negative by design: the overlap is what ties the numbers
+     * to the band above them. Three separate bordered tiles floating below it
+     * read as filters, which is what they looked like.
+     */
+    stats: {
+      flexDirection: "row",
+      alignItems: "stretch",
       backgroundColor: c.surface,
-      borderRadius: radius.md,
+      borderRadius: radius.lg,
       borderWidth: 1,
       borderColor: c.border,
-      paddingVertical: 11,
-      paddingHorizontal: 10,
-      gap: 3,
+      marginHorizontal: spacing.md,
+      marginTop: -32,
+      paddingVertical: 12,
     },
+    statPress: { flex: 1 },
+    /** A hairline between the columns, so three numbers read as three. */
+    statDivide: { width: 1, backgroundColor: c.border, marginVertical: 4 },
+    stat: { flex: 1, alignItems: "center", gap: 4, paddingHorizontal: 6 },
     statValue: { ...typography.label, color: c.text, fontSize: 15 },
     statValueWarn: { color: c.warning },
     statLabel: { ...typography.tiny, color: c.textMuted, fontSize: 10.5 },

@@ -65,6 +65,10 @@ describe("where a person is asked", () => {
   it("does not ask about an order that never arrived", () => {
     // A cancelled order is not an experience of the shop's food, and asking
     // about one is how a rating average stops meaning anything.
+    // A fixed window, and deliberately so: this is a NEGATIVE assertion, so a
+    // window that grows can only make it stricter. The positive ones nearby
+    // were bounded by structure because for those a wide window is a weaker
+    // test, not a louder one.
     const button = order.slice(order.indexOf('o.status === "completed" && !!o.shop?.slug'));
     expect(button.slice(0, 400)).not.toMatch(/cancelled/);
   });
@@ -111,8 +115,13 @@ describe("the sheet", () => {
   it("does not throw away what is being typed", () => {
     // Without the `visible` guard the reset runs whenever the list refetches
     // underneath, which is mid-sentence.
-    const effect = sheet.slice(sheet.indexOf("React.useEffect"));
-    expect(effect.slice(0, 260)).toMatch(/if \(!visible\) return;/);
+    // Bounded by the dependency array, which is where a `useEffect` actually
+    // ends — not by 260 characters, which is where one happened to end on the
+    // day this was written.
+    const from = sheet.indexOf("React.useEffect");
+    expect(from).toBeGreaterThan(-1);
+    const effect = sheet.slice(from, sheet.indexOf("}, [", from));
+    expect(effect).toMatch(/if \(!visible\) return;/);
   });
 });
 

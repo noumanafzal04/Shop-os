@@ -1,4 +1,4 @@
-import { PROJECT_ROOT, fs, path } from "./support/node";
+import { PROJECT_ROOT, fs, path, codeOnly } from "./support/node";
 
 /**
  * THE ACCOUNT TAB.
@@ -21,8 +21,6 @@ import { PROJECT_ROOT, fs, path } from "./support/node";
 
 const ROOT = PROJECT_ROOT;
 
-const codeOnly = (src: string) =>
-  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
 const account = codeOnly(
   fs.readFileSync(path.join(ROOT, "src/modules/account/screens/AccountScreen.tsx"), "utf8"),
@@ -63,6 +61,43 @@ describe("what the page offers", () => {
   });
 });
 
+/**
+ * ONE DECLARATION'S BODY, bounded by the next one.
+ *
+ * These checks used to take a fixed slice — `slice(0, 1200)` — which is a
+ * window that has nothing to do with where the thing being tested ends. It
+ * held while the docblocks happened to be short, and broke the moment
+ * `codeOnly` started preserving line positions and the comments became
+ * whitespace inside the window rather than vanishing from it.
+ *
+ * A count is not a boundary. This is.
+ */
+function statementAt(src: string, decl: string): string {
+  const from = src.indexOf(decl);
+  expect(from).toBeGreaterThan(-1);
+
+  // The terminating `;` — the first one that is not inside brackets, so a
+  // multi-line expression with `&&` and calls in it stays whole.
+  let depth = 0;
+  for (let i = from; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === "(" || ch === "[" || ch === "{") depth++;
+    else if (ch === ")" || ch === "]" || ch === "}") depth--;
+    else if (ch === ";" && depth === 0) return src.slice(from, i + 1);
+  }
+  throw new Error(`no statement end after ${decl}`);
+}
+
+function bodyOf(src: string, decl: string): string {
+  const from = src.indexOf(decl);
+  expect(from).toBeGreaterThan(-1);
+
+  const rest = src.slice(from + decl.length);
+  const next = rest.search(/\n(?:export )?(?:function|const|class) /);
+
+  return decl + (next === -1 ? rest : rest.slice(0, next));
+}
+
 describe("a row that opens nothing does not wear a chevron", () => {
   it("has a separate component for a fact", () => {
     // The chevron IS the promise. Payment and Version have no screen behind
@@ -71,8 +106,7 @@ describe("a row that opens nothing does not wear a chevron", () => {
   });
 
   it("and that component draws no chevron", () => {
-    const fn = account.slice(account.indexOf("function ValueRow("));
-    const body = fn.slice(0, fn.indexOf("\nfunction "));
+    const body = bodyOf(account, "function ValueRow(");
     expect(body).not.toMatch(/ChevronRight/);
     expect(body).toMatch(/styles\.rowValue/);
   });
@@ -80,8 +114,7 @@ describe("a row that opens nothing does not wear a chevron", () => {
   it("while the linking row still does", () => {
     // The denominator: if `Row` lost its chevron too, the check above would
     // pass by describing a page with no affordances at all.
-    const fn = account.slice(account.indexOf("function Row("));
-    expect(fn.slice(0, 1200)).toMatch(/ChevronRight/);
+    expect(bodyOf(account, "function Row(")).toMatch(/ChevronRight/);
   });
 });
 
@@ -108,10 +141,14 @@ describe("security screen", () => {
     // `min:8` and `different:current_password` are the server's rules, checked
     // here as WELL — sending a request certain to fail spends a connection to
     // say what the phone already knew.
-    const ready = src.slice(src.indexOf("const ready ="));
-    expect(ready.slice(0, 240)).toMatch(/next\.length >= 8/);
-    expect(ready.slice(0, 240)).toMatch(/next !== current/);
-    expect(ready.slice(0, 240)).toMatch(/next === confirmation/);
+    //
+    // Bounded by the statement's own semicolon rather than by 240 characters:
+    // a window measured in characters passes until somebody writes a longer
+    // comment, and then reports a missing rule that is right there.
+    const ready = statementAt(src, "const ready =");
+    expect(ready).toMatch(/next\.length >= 8/);
+    expect(ready).toMatch(/next !== current/);
+    expect(ready).toMatch(/next === confirmation/);
   });
 
   it("ends the local session when it ends every session", () => {
@@ -124,8 +161,9 @@ describe("security screen", () => {
       fs.readFileSync(path.join(ROOT, "src/modules/auth/hooks/useAuth.ts"), "utf8"),
     );
     // …and it ends the session the same way the ordinary sign-out does.
-    const everywhere = hooks.slice(hooks.indexOf("export function useLogoutEverywhere"));
-    expect(everywhere.slice(0, 400)).toMatch(/onSettled: endSession/);
+    expect(bodyOf(hooks, "export function useLogoutEverywhere")).toMatch(
+      /onSettled: endSession/,
+    );
   });
 });
 

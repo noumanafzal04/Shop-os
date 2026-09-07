@@ -1,4 +1,4 @@
-import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
+import { PROJECT_ROOT, fs, path, sourceFiles, codeOnly } from "./support/node";
 
 /**
  * Dark mode, and the escape hatch that used to make it impossible.
@@ -142,14 +142,19 @@ describe("dark mode", () => {
     const files = sourceFiles(path.join(ROOT, "src"));
 
     const offenders = files
-      .flatMap((f) =>
-        fs
-          .readFileSync(f, "utf8")
+      .flatMap((f) => {
+        const src = fs.readFileSync(f, "utf8");
+        // COMMENTS OUT FIRST. This guard failed on the docblock of a style
+        // that had been rewritten to obey it — see `codeOnly`, which keeps
+        // line numbers intact precisely so this scan can still report them.
+        const code = codeOnly(src).split("\n");
+
+        return src
           .split("\n")
           .map((line, i) => [i + 1, line] as const)
-          .filter(([, line]) => /\bcolor: c\.black\b|\bbackgroundColor: c\.white\b/.test(line))
-          .map(([n, line]) => `  ${path.relative(ROOT, f)}:${n}  ${line.trim()}`),
-      );
+          .filter(([n]) => /\bcolor: c\.black\b|\bbackgroundColor: c\.white\b/.test(code[n - 1] ?? ""))
+          .map(([n, line]) => `  ${path.relative(ROOT, f)}:${n}  ${line.trim()}`);
+      });
 
     expect(
       offenders.length === 0

@@ -1,4 +1,4 @@
-import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
+import { PROJECT_ROOT, fs, path, sourceFiles, codeOnly } from "./support/node";
 
 /**
  * THE APP ANSWERS WHEN YOU TOUCH IT.
@@ -20,10 +20,6 @@ import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
 
 const ROOT = PROJECT_ROOT;
 
-/** Comments stripped — prose about `Pressable` is not a `Pressable`. */
-function codeOnly(src: string): string {
-  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-}
 
 /**
  * A style name that means "a thing somebody taps to go somewhere".
