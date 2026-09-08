@@ -893,13 +893,34 @@ class MarketplaceController extends Controller
             ->limit(8)
             ->get();
 
+        /**
+         * THE LABEL COMES FROM HERE, not from the phone.
+         *
+         * The app was building its own by capitalising the CODE — so a mart
+         * showed as "Mart" and a forecourt as "Petroleum", while this codebase
+         * has called them "Mart & Grocery" and "Petroleum & Energy" since the
+         * types existed. Two names for one thing, and the wrong one on the
+         * screen everybody opens first.
+         *
+         * A label map in the app would be a second copy that drifts the first
+         * time a type is renamed and nothing fails. One line here instead.
+         */
+        $labels = collect(BusinessTypes::all())->map(fn (array $t) => $t['label']);
+
         $types = Tenant::query()->marketplaceVisible()
             ->when($data['city_id'] ?? null, fn ($q, $id) => $q->where('city_id', $id))
             ->selectRaw('business_type, COUNT(*) as shops_count')
             ->groupBy('business_type')
             ->orderByDesc('shops_count')
             ->get()
-            ->map(fn ($r) => ['type' => $r->business_type, 'shops_count' => (int) $r->shops_count]);
+            ->map(fn ($r) => [
+                'type' => $r->business_type,
+                // Falls back to the code rather than to null: a tile with no
+                // words on it is worse than a tile with a rough one, and a
+                // shop created before a type was named would give exactly that.
+                'label' => $labels[$r->business_type] ?? ucfirst((string) $r->business_type),
+                'shops_count' => (int) $r->shops_count,
+            ]);
 
         // Deals: discounted products across visible shops — the "% off" carousel.
         $visibleIds = Tenant::query()->marketplaceVisible()

@@ -127,6 +127,24 @@ class MobileApiTest extends TestCase
         $this->assertSame('Corner Store', $data['top_rated'][0]['business_name']);
         $this->assertSame('retail', $data['business_types'][0]['type']);
         $this->assertSame(2, $data['business_types'][0]['shops_count']);
+
+        /**
+         * AND THE WORDS THAT GO ON THE TILE.
+         *
+         * The app was capitalising the code, so a mart read "Mart" while this
+         * codebase has called it "Mart & Grocery" since the type existed —
+         * two names for one thing, and the rougher one on the first screen
+         * anybody opens.
+         *
+         * Asserted against `BusinessTypes::all()` rather than against the
+         * string, so renaming a type moves the test with it instead of
+         * breaking it.
+         */
+        $this->assertSame(
+            BusinessTypes::all()['retail']['label'],
+            $data['business_types'][0]['label'],
+        );
+        $this->assertNotSame('Retail', $data['business_types'][0]['label']);
         $this->assertSame('Deal Sneaker', $data['deals'][0]['name']);
         $this->assertSame(25, $data['deals'][0]['percent_off']);
         $this->assertSame('corner-store', $data['deals'][0]['shop']['slug']);
