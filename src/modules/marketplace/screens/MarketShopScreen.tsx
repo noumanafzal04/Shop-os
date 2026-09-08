@@ -9,6 +9,9 @@ import {
   Text,
   TextInput,
   View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -71,6 +74,19 @@ type Params = { MarketShop: { slug: string; productId?: string } };
  * with a list that is still growing as the rest of the menu arrives.
  */
 type MenuRow =
+  /**
+   * The contents bar, AS A ROW.
+   *
+   * It used to sit outside the list, permanently above it. Reported as: the
+   * tabs are at the very top, put them under the shop and let them stick when
+   * you scroll to them.
+   *
+   * A row is how it gets both. It scrolls with the shop's own header until it
+   * reaches the top, and a second copy — see `pinned` — takes over from there.
+   * What it is emphatically NOT is `stickyHeaderIndices`, which re-parents a
+   * virtualised row and crashed this screen twice.
+   */
+  | { kind: "cats"; key: string }
   | { kind: "heading"; key: string; name: string }
   | { kind: "product"; key: string; product: PublicProduct };
 
@@ -169,12 +185,91 @@ export function MarketShopScreen() {
       }
       out.push({ kind: "product", key: p.id, product: p });
     }
+
+    /**
+     * The bar goes in FRONT, and every jump index moves by one.
+     *
+     * Unshifting after the map is built is the bug waiting to happen here —
+     * every recorded index would be one short and every chip would land on the
+     * last product of the previous category. So the map is rebuilt, not
+     * patched.
+     *
+     * Only when there is more than one category: a shop with a single section
+     * has nothing to jump between, and a bar with one chip is furniture.
+     */
+    if (at.size > 1) {
+      out.unshift({ kind: "cats", key: "cats" });
+
+      return {
+        menu: out,
+        jumps: new Map([...at].map(([name, i]) => [name, i + 1])),
+      };
+    }
+
     return { menu: out, jumps: at };
   }, [rows]);
 
   /** Which section the top of the list is in, for the chip that lights up. */
   const [section, setSection] = React.useState<string | null>(null);
   const listRef = React.useRef<FlatList<MenuRow>>(null);
+
+  /**
+   * ── STICKY, WITHOUT THE TWO THINGS THAT CRASHED ──────────────────
+   *
+   * The bar is drawn TWICE: once as a row in the list, which scrolls away
+   * under the shop's header, and once absolutely positioned at the top, which
+   * appears at the moment the row would have left the screen.
+   *
+   * Two elements rather than one moved element, because both of the ways of
+   * moving one element broke this screen on a real device:
+   *
+   *   `stickyHeaderIndices`   re-parents the row into a wrapper of its own,
+   *                           and doing that inside a VIRTUALISED list is two
+   *                           trees disagreeing about one view.
+   *
+   *   `Animated.event` +      `VirtualizedList` needs the JS scroll events to
+   *   native driver           decide which cells to keep. The native driver
+   *                           takes them away and the render window goes
+   *                           stale while the native tree keeps moving.
+   *
+   * So the listener below is a PLAIN JS one, and it is careful about what it
+   * does with what it hears: `setState` only when the boolean actually flips.
+   * A `setState` per scroll frame is the jank this screen was reported for.
+   */
+  const [pinned, setPinned] = React.useState(false);
+  const pinnedRef = React.useRef(false);
+
+  /**
+   * THE THRESHOLD IS THE HEADER'S HEIGHT, NOT THE ROW'S POSITION.
+   *
+   * The obvious version of this measured the cats row with `onLayout` and read
+   * `layout.y`. That is always 0: `FlatList` wraps every `renderItem` result
+   * in a cell container of its own, so a row's layout is relative to that
+   * wrapper and not to the content. The pin condition would have been
+   * `offset >= 0` — or, with a guard against zero, a bar that never appeared
+   * at all and nothing to say why.
+   *
+   * `layout.height` on the header IS reliable, and the cats row sits
+   * immediately after it, so the header's height is exactly the offset at
+   * which the row reaches the top. One number, measured once, from the element
+   * that owns it.
+   */
+  const headerH = React.useRef(0);
+  const onHeaderLayout = React.useCallback((e: LayoutChangeEvent) => {
+    headerH.current = e.nativeEvent.layout.height;
+  }, []);
+
+  const onScroll = React.useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Before the header has been laid out there is no threshold to cross, and
+    // guessing one puts a bar over the shop's own name on first paint.
+    if (headerH.current <= 0) return;
+
+    const should = e.nativeEvent.contentOffset.y >= headerH.current;
+    if (should === pinnedRef.current) return;
+
+    pinnedRef.current = should;
+    setPinned(should);
+  }, []);
 
   const jumpTo = (name: string) => {
     const index = jumps.get(name);
@@ -269,6 +364,19 @@ export function MarketShopScreen() {
   const hasPickup = shop.data?.fulfillment?.pickup ?? true;
   const closed = shop.data?.is_open_now === false;
   const cartCount = cart.shopSlug === slug ? cart.count() : 0;
+
+  /**
+   * Memoised, because a fresh ARRAY is a fresh prop.
+   *
+   * `contentContainerStyle={[a, b, cond && {…}]}` builds a new array every
+   * render, and an inline object inside it a new object — so the list saw its
+   * own container style change on every section change and re-laid out.
+   */
+  const listStyle = React.useMemo(
+    () => [styles.list, styles.grow, cartCount > 0 ? styles.listWithCart : null],
+    [styles, cartCount],
+  );
+
   const coverFor = useShopCover();
   const cover = coverFor(slug);
   // NOT defaulted to 30. A shop that has never set a prep time has not made a
@@ -595,15 +703,81 @@ export function MarketShopScreen() {
     ],
   );
 
+  /**
+   * The header, wrapped in the thing that measures it.
+   *
+   * Separate from `header` so the expensive memo keeps its own dependency
+   * list: this one only rebuilds when that element does, and `onHeaderLayout`
+   * has `[]` deps so it never causes a rebuild by itself.
+   */
+  const measuredHeader = React.useMemo(
+    () => <View onLayout={onHeaderLayout}>{header}</View>,
+    [header, onHeaderLayout],
+  );
+
+  /**
+   * ── WHY THE ROWS MOVED OUT OF `renderItem` ────────────────────────
+   *
+   * "Shop detail screen py lag araha scroll krty."
+   *
+   * `renderItem` was an arrow function written inline in this component, so
+   * it was a NEW function on every render — and `section` is state that
+   * changes while a finger is moving, because the contents chip that lights up
+   * follows the topmost visible heading.
+   *
+   * So every scroll that crossed a category boundary re-rendered every product
+   * row on the screen. `removeClippedSubviews` is off here (it caused a Fabric
+   * mount crash twice — see the note above), which means NOTHING is unmounted:
+   * the whole menu was being rebuilt mid-gesture.
+   *
+   * `React.memo` on the row plus a stable `renderItem` breaks that chain: a
+   * section change now repaints the chips and nothing else.
+   */
+  const renderRow = React.useCallback(
+    ({ item: row }: { item: MenuRow }) => {
+      if (row.kind === "cats") {
+        return (
+          <View style={styles.catsFlow}>
+            <CatBar names={[...jumps.keys()]} active={section} onPick={jumpTo} />
+          </View>
+        );
+      }
+      if (row.kind === "heading") {
+        return <Text style={styles.section}>{row.name}</Text>;
+      }
+      return (
+        <ProductRow
+          item={row.product}
+          styles={styles}
+          cover={coverFor(row.product.id)}
+          acceptsOrders={acceptsOrders}
+          canReserve={canReserve}
+          reserving={reserve.isPending}
+          onAdd={onAdd}
+          onReserve={askReserve}
+          onContact={contactShop}
+        />
+      );
+    },
+    // `section` and `jumps` are here ON PURPOSE — the cats row reads them.
+    // The rows do not: `ProductRow` is memoised, so a new `renderRow` costs a
+    // shallow prop compare per row rather than a re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [styles, jumps, section, acceptsOrders, canReserve, reserve.isPending, coverFor, onAdd, askReserve, contactShop],
+  );
+
   return (
     <SafeScreen backgroundColor={c.bg}>
       <FocusedStatusBar style="dark-content" background={c.bg} />
       {/*
-        ONE bar, outside the list, above it. Not sticky and not cloned — see
-        the note on the crash above.
+        THE PINNED COPY. Absolutely positioned, and only while the row it
+        stands in for is off the top of the screen — see `pinned`.
+
+        `pointerEvents` is left alone deliberately: while it is up it IS the
+        bar, and it has to take the taps.
       */}
-      {jumps.size > 1 && (
-        <View style={styles.catsBar}>
+      {jumps.size > 1 && pinned && (
+        <View style={[styles.catsBar, styles.catsPinned]}>
           <CatBar names={[...jumps.keys()]} active={section} onPick={jumpTo} />
         </View>
       )}
@@ -612,7 +786,7 @@ export function MarketShopScreen() {
         ref={listRef}
         data={products.isLoading ? [] : menu}
         keyExtractor={(row) => row.key}
-        ListHeaderComponent={header}
+        ListHeaderComponent={measuredHeader}
         /*
           OFF, on purpose.
 
@@ -630,10 +804,31 @@ export function MarketShopScreen() {
           memory and removes an entire class of mount mismatch.
         */
         removeClippedSubviews={false}
-        contentContainerStyle={[styles.list, styles.grow, cartCount > 0 && { paddingBottom: 96 }]}
+        contentContainerStyle={listStyle}
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         onViewableItemsChanged={onViewable}
         viewabilityConfig={viewability}
+        /*
+          ── SMOOTHNESS ────────────────────────────────────────────────
+          A plain JS listener, 16ms — see `onScroll`. It must stay JS: the
+          native driver starves `VirtualizedList` of the events it needs.
+        */
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        /*
+          `removeClippedSubviews` is off, so every row that has ever been
+          rendered stays mounted. That makes the FIRST batch the thing worth
+          keeping small: the menu arrives ordered, and nobody has scrolled yet.
+        */
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        /*
+          Between batches, not during the gesture. The default 50ms lands work
+          in the middle of a flick, which on this screen is when a category
+          boundary is being crossed and the chips are repainting.
+        */
+        updateCellsBatchingPeriod={80}
         /*
           A JUMP INTO A LIST NOBODY HAS SCROLLED YET.
 
@@ -657,70 +852,7 @@ export function MarketShopScreen() {
             });
           }, 120);
         }}
-        renderItem={({ item: row }) => {
-          if (row.kind === "heading") {
-            return <Text style={styles.section}>{row.name}</Text>;
-          }
-          const item = row.product;
-          const img = item.images[0];
-          const unavailable = item.type === "product" && (!item.in_stock || !item.available_now);
-          return (
-            <View style={[styles.productCard, unavailable && styles.productOff]}>
-              <View style={styles.productThumb}>
-                <SmartImage
-                  uri={img ?? null}
-                  fallback={shopInitial(item.name)}
-                  fallbackBackground={coverFor(item.id).bg}
-                  fallbackColor={coverFor(item.id).fg}
-                  style={styles.productImg}
-                />
-              </View>
-              <View style={styles.productInfo}>
-                <View style={styles.nameRow}>
-                  <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-                  {/*
-                    Said BEFORE the tap. A refusal after a basket is built is a
-                    rule discovered at the worst moment; a badge is the same
-                    rule, stated where the decision is made.
-                  */}
-                  {item.requires_prescription && (
-                    <View style={styles.rxBadge}>
-                      <Text style={styles.rxText}>Rx</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.productMeta} numberOfLines={1}>
-                  {item.category?.name ?? ""}
-                  {item.type === "service" && item.duration_minutes ? ` · ${item.duration_minutes} min` : ""}
-                  {item.variants.length > 0 ? ` · ${item.variants.length} options` : ""}
-                  {item.modifier_groups.length > 0 ? " · customizable" : ""}
-                </Text>
-                <View style={styles.priceRow}>
-                  <Price value={item.price} was={item.original_price} size="md" />
-                  {item.sold_by === "weight" && item.unit ? (
-                    <Text style={styles.perUnit}>/{item.unit}</Text>
-                  ) : null}
-                  <OfferBadge value={item.price} was={item.original_price} />
-                </View>
-                {!item.available_now && item.in_stock && <Text style={styles.offText}>Not available right now</Text>}
-                {!item.in_stock && item.type === "product" && <Text style={styles.offText}>Out of stock</Text>}
-              </View>
-              {item.type === "product" ? (
-                acceptsOrders && !unavailable ? (
-                  <AddButton size={34} label={item.name} onPress={() => onAdd(item)} />
-                ) : canReserve && item.in_stock ? (
-                  <Pressable style={styles.reserveBtn} onPress={() => askReserve(item.id, item.name)} disabled={reserve.isPending}>
-                    <Text style={styles.reserveText}>Reserve</Text>
-                  </Pressable>
-                ) : null
-              ) : (
-                <Pressable style={styles.reserveBtn} onPress={contactShop}>
-                  <Text style={styles.reserveText}>Contact</Text>
-                </Pressable>
-              )}
-            </View>
-          );
-        }}
+        renderItem={renderRow}
         ListEmptyComponent={
           products.isLoading ? (
             <View style={styles.skeletons}>
@@ -785,9 +917,118 @@ export function MarketShopScreen() {
 }
 
 /**
+ * ONE PRODUCT, MEMOISED.
+ *
+ * ── The lag this exists for ─────────────────────────────────────────
+ *
+ * "Shop detail screen py lag araha scroll krty."
+ *
+ * This markup was inline in `renderItem`, which was an arrow function in the
+ * screen body — a new function on every render. And `section` is state that
+ * changes WHILE A FINGER IS MOVING, because the chip that lights up follows
+ * the topmost visible heading.
+ *
+ * `removeClippedSubviews` is off on this list (it caused a Fabric mount crash
+ * twice), so nothing is ever unmounted. Every category boundary crossed while
+ * scrolling was rebuilding the entire menu.
+ *
+ * ── Why props and not hooks ─────────────────────────────────────────
+ *
+ * `styles` and the two permission flags are passed IN. Calling `useColors()`
+ * here would make every row a context subscriber, and a theme change would
+ * re-render all of them individually rather than once through the parent —
+ * the same cost this component removes, spent somewhere less visible.
+ */
+const ProductRow = React.memo(function ProductRow({
+  item,
+  styles,
+  cover,
+  acceptsOrders,
+  canReserve,
+  reserving,
+  onAdd,
+  onReserve,
+  onContact,
+}: {
+  item: PublicProduct;
+  styles: ReturnType<typeof makeStyles>;
+  cover: { bg: string; fg: string };
+  acceptsOrders: boolean;
+  canReserve: boolean;
+  reserving: boolean;
+  onAdd: (p: PublicProduct) => void;
+  onReserve: (id: string, name: string) => void;
+  onContact: () => void;
+}) {
+  const img = item.images[0];
+  const unavailable = item.type === "product" && (!item.in_stock || !item.available_now);
+
+  return (
+    <View style={[styles.productCard, unavailable && styles.productOff]}>
+      <View style={styles.productThumb}>
+        <SmartImage
+          uri={img ?? null}
+          fallback={shopInitial(item.name)}
+          fallbackBackground={cover.bg}
+          fallbackColor={cover.fg}
+          style={styles.productImg}
+        />
+      </View>
+      <View style={styles.productInfo}>
+        <View style={styles.nameRow}>
+          <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+          {/*
+            Said BEFORE the tap. A refusal after a basket is built is a rule
+            discovered at the worst moment; a badge is the same rule, stated
+            where the decision is made.
+          */}
+          {item.requires_prescription && (
+            <View style={styles.rxBadge}>
+              <Text style={styles.rxText}>Rx</Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.productMeta} numberOfLines={1}>
+          {item.category?.name ?? ""}
+          {item.type === "service" && item.duration_minutes ? ` \u00b7 ${item.duration_minutes} min` : ""}
+          {item.variants.length > 0 ? ` \u00b7 ${item.variants.length} options` : ""}
+          {item.modifier_groups.length > 0 ? " \u00b7 customizable" : ""}
+        </Text>
+        <View style={styles.priceRow}>
+          <Price value={item.price} was={item.original_price} size="md" />
+          {item.sold_by === "weight" && item.unit ? (
+            <Text style={styles.perUnit}>/{item.unit}</Text>
+          ) : null}
+          <OfferBadge value={item.price} was={item.original_price} />
+        </View>
+        {!item.available_now && item.in_stock && <Text style={styles.offText}>Not available right now</Text>}
+        {!item.in_stock && item.type === "product" && <Text style={styles.offText}>Out of stock</Text>}
+      </View>
+      {item.type === "product" ? (
+        acceptsOrders && !unavailable ? (
+          <AddButton size={34} label={item.name} onPress={() => onAdd(item)} />
+        ) : canReserve && item.in_stock ? (
+          <Pressable
+            style={styles.reserveBtn}
+            onPress={() => onReserve(item.id, item.name)}
+            disabled={reserving}
+          >
+            <Text style={styles.reserveText}>Reserve</Text>
+          </Pressable>
+        ) : null
+      ) : (
+        <Pressable style={styles.reserveBtn} onPress={onContact}>
+          <Text style={styles.reserveText}>Contact</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+});
+
+/**
  * THE CONTENTS BAR. One component, rendered in two places.
  *
- * Inline in the header, and again pinned above the list — see the comment on
+ * As a ROW in the list, and again pinned above it — see the comment on
  * `pinned` for why it is drawn twice rather than made sticky. Two elements
  * with one piece of state between them: both read `active` and both call the
  * same `onPick`, so there is no second opinion about which section is open.
@@ -840,6 +1081,20 @@ const makeStyles = (c: ThemeColors) =>
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
   },
+  /**
+   * The copy that lives IN the list, scrolling with the shop's header.
+   *
+   * Same fill and rule as the pinned one so the hand-off is invisible: what
+   * gives a two-element sticky away is the two elements not matching.
+   */
+  catsFlow: {
+    backgroundColor: c.bg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border,
+  },
+  /** Room for the floating cart bar, as a named style rather than an inline
+   *  object — see `listStyle`. */
+  listWithCart: { paddingBottom: 96 },
   // A shop with one category still needs row one to exist, or the sticky index
   // lands on the first product and pins a burger to the top of the screen.
   /**

@@ -137,6 +137,9 @@ const ICONS = {
   AlertTriangle: "warning",
   PackageSearch: "magnifying-glass-plus",
   ArrowUpLeft: "arrow-up-left",
+  // The "there are more of these" tile at the end of the home grid. A grid,
+  // not a hamburger and not a plus: one means a menu and the other means add.
+  Grid: "squares-four",
 };
 
 /**

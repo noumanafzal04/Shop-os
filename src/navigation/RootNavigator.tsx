@@ -31,6 +31,7 @@ import { LocationScreen } from "../modules/marketplace/screens/LocationScreen";
 import { AccountScreen } from "../modules/account/screens/AccountScreen";
 import { NotificationsScreen } from "../modules/account/screens/NotificationsScreen";
 import { BrowseScreen } from "../modules/marketplace/screens/BrowseScreen";
+import { CategoriesScreen } from "../modules/marketplace/screens/CategoriesScreen";
 import { RiderApplyScreen } from "../modules/rider/screens/RiderApplyScreen";
 import { RiderEarningsScreen } from "../modules/rider/screens/RiderEarningsScreen";
 import { RiderHomeScreen } from "../modules/rider/screens/RiderHomeScreen";
@@ -131,6 +132,7 @@ function CustomerArea() {
       <CustomerStack.Screen name="Help" component={HelpScreen} />
       <CustomerStack.Screen name="Profile" component={ProfileScreen} />
       <CustomerStack.Screen name="Browse" component={BrowseScreen} />
+      <CustomerStack.Screen name="Categories" component={CategoriesScreen} />
 
       {/*
         The rider hat. Four screens in the SAME stack as the shopping ones,

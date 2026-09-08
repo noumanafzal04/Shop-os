@@ -67,7 +67,7 @@ function Glyph({ size = 22, color, bold = false, d }: IconProps & { d: { off: st
 }
 
 /** Every icon in the app, so a caller can pick one by name. */
-export type IconName = "Home" | "Basket" | "Cart" | "Receipt" | "Person" | "Parcel" | "Wallet" | "Bell" | "Motorcycle" | "Calendar" | "ChevronRight" | "FileText" | "Heart" | "LifeBuoy" | "SignOut" | "MapPin" | "Pencil" | "Refresh" | "Gear" | "Bag" | "Info" | "Palette" | "ShieldCheck" | "Star" | "Banknote" | "Storefront" | "Utensils" | "Pill" | "Wrench" | "Car" | "Fuel" | "Bank" | "Scissors" | "Drill" | "Box" | "Book" | "Croissant" | "Question" | "Tag" | "Sparkle" | "Coins" | "Envelope" | "Lock" | "Phone" | "BadgeCheck" | "Clock" | "Search" | "ArrowLeft" | "ArrowRight" | "Check" | "Warning" | "Plus" | "Minus" | "X" | "ChevronDown" | "ChevronUp" | "Menu" | "Sliders" | "Trash" | "Eye" | "EyeOff" | "Rotate" | "CloudOff" | "Monitor" | "Phone2" | "Tablet" | "Moon" | "Sun" | "Key" | "Navigation" | "Crosshair" | "Building" | "Truck" | "Upload" | "IdCard" | "Ticket" | "Confetti" | "Quote" | "CheckCircle" | "XCircle" | "AlertTriangle" | "PackageSearch" | "ArrowUpLeft";
+export type IconName = "Home" | "Basket" | "Cart" | "Receipt" | "Person" | "Parcel" | "Wallet" | "Bell" | "Motorcycle" | "Calendar" | "ChevronRight" | "FileText" | "Heart" | "LifeBuoy" | "SignOut" | "MapPin" | "Pencil" | "Refresh" | "Gear" | "Bag" | "Info" | "Palette" | "ShieldCheck" | "Star" | "Banknote" | "Storefront" | "Utensils" | "Pill" | "Wrench" | "Car" | "Fuel" | "Bank" | "Scissors" | "Drill" | "Box" | "Book" | "Croissant" | "Question" | "Tag" | "Sparkle" | "Coins" | "Envelope" | "Lock" | "Phone" | "BadgeCheck" | "Clock" | "Search" | "ArrowLeft" | "ArrowRight" | "Check" | "Warning" | "Plus" | "Minus" | "X" | "ChevronDown" | "ChevronUp" | "Menu" | "Sliders" | "Trash" | "Eye" | "EyeOff" | "Rotate" | "CloudOff" | "Monitor" | "Phone2" | "Tablet" | "Moon" | "Sun" | "Key" | "Navigation" | "Crosshair" | "Building" | "Truck" | "Upload" | "IdCard" | "Ticket" | "Confetti" | "Quote" | "CheckCircle" | "XCircle" | "AlertTriangle" | "PackageSearch" | "ArrowUpLeft" | "Grid";
 
 /** Phosphor `house`. */
 const HOME = {
@@ -899,6 +899,16 @@ export function ArrowUpLeftIcon(props: IconProps) {
   return <Glyph {...props} d={ARROWUPLEFT} />;
 }
 
+/** Phosphor `squares-four`. */
+const GRID = {
+  off: "M104,42H56A14,14,0,0,0,42,56v48a14,14,0,0,0,14,14h48a14,14,0,0,0,14-14V56A14,14,0,0,0,104,42Zm2,62a2,2,0,0,1-2,2H56a2,2,0,0,1-2-2V56a2,2,0,0,1,2-2h48a2,2,0,0,1,2,2Zm94-62H152a14,14,0,0,0-14,14v48a14,14,0,0,0,14,14h48a14,14,0,0,0,14-14V56A14,14,0,0,0,200,42Zm2,62a2,2,0,0,1-2,2H152a2,2,0,0,1-2-2V56a2,2,0,0,1,2-2h48a2,2,0,0,1,2,2Zm-98,34H56a14,14,0,0,0-14,14v48a14,14,0,0,0,14,14h48a14,14,0,0,0,14-14V152A14,14,0,0,0,104,138Zm2,62a2,2,0,0,1-2,2H56a2,2,0,0,1-2-2V152a2,2,0,0,1,2-2h48a2,2,0,0,1,2,2Zm94-62H152a14,14,0,0,0-14,14v48a14,14,0,0,0,14,14h48a14,14,0,0,0,14-14V152A14,14,0,0,0,200,138Zm2,62a2,2,0,0,1-2,2H152a2,2,0,0,1-2-2V152a2,2,0,0,1,2-2h48a2,2,0,0,1,2,2Z",
+  on: "M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48v48Zm-96,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Zm0,64H152V152h48v48Z",
+};
+
+export function GridIcon(props: IconProps) {
+  return <Glyph {...props} d={GRID} />;
+}
+
 /** Name → component, for menus that hold their icons as data. */
 export const ICONS: Record<IconName, Icon> = {
   Home: HomeIcon,
@@ -984,4 +994,5 @@ export const ICONS: Record<IconName, Icon> = {
   AlertTriangle: AlertTriangleIcon,
   PackageSearch: PackageSearchIcon,
   ArrowUpLeft: ArrowUpLeftIcon,
+  Grid: GridIcon,
 };

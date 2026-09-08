@@ -27,6 +27,9 @@ export const fs = require("fs") as {
 export const path = require("path") as {
   join(...parts: string[]): string;
   relative(from: string, to: string): string;
+  /** The file's own name. Typed here rather than cast at a call site — a
+   *  `as any` in a guard is how a guard stops being type-checked. */
+  basename(p: string, ext?: string): string;
 };
 
 /** Every .ts/.tsx file under `dir`, recursively. */

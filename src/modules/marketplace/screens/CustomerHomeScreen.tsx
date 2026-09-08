@@ -11,6 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import {
   BellIcon,
   ChevronDownIcon,
+  GridIcon,
   MapPinIcon,
   MenuIcon,
   SearchIcon,
@@ -39,6 +40,19 @@ import { SHORTCUTS, tradeIcon } from "../tradeIcon";
 import { OfferBadge, Price } from "../../../common/ui/Price";
 import { shopInitial, useShopCover } from "../shopCover";
 
+const HOME_TRADES = 4;
+
+/**
+ * A trade code, roughly title-cased.
+ *
+ * The LAST remaining caller is a shop card's little type chip, where the shop
+ * payload carries a raw `business_type` and no label. The tiles used to use
+ * this too and now take the server's `label`, which is the real name —
+ * "Mart & Grocery" rather than "Mart".
+ *
+ * Not worth an extra field on every shop in the feed for a chip that says
+ * "Food"; worth stating that this is a fallback and not the naming rule.
+ */
 const typeLabel = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export function CustomerHomeScreen() {
@@ -56,6 +70,22 @@ export function CustomerHomeScreen() {
   }, [status, detect]);
 
   const feed = useHomeFeed({ lat: lat ?? undefined, lng: lng ?? undefined });
+
+  /**
+   * HOW MANY TRADES THE HOME SCREEN SHOWS.
+   *
+   * Four, beside the four shortcuts, so the grid is two rows of four plus the
+   * "View all" tile — one shape, whatever the marketplace grows into. It used
+   * to render every trade the server returned and wrap, which at fourteen was
+   * the whole top half of the screen.
+   *
+   * The server orders by shops_count, so these four are the four with the most
+   * shops in them.
+   */
+  const tradeTiles = React.useMemo(
+    () => (feed.data?.business_types ?? []).slice(0, HOME_TRADES),
+    [feed.data],
+  );
   const pull = usePullToRefresh(feed.refetch);
   const firstName = user?.name?.split(" ")[0];
 
@@ -243,16 +273,28 @@ export function CustomerHomeScreen() {
               </Touchable>
             ))}
 
-            {(feed.data?.business_types ?? []).map((t) => (
+            {/*
+              ── FOUR TRADES, NOT FOURTEEN ─────────────────────────────
+
+              The grid is four shortcuts plus the trades, and it wraps — so a
+              marketplace with fourteen trades in it turned the whole top half
+              of the home screen into tiles before a single shop appeared.
+
+              Four here and the rest one tap away. The cut is by SHOPS_COUNT,
+              which the server already orders by, so the four on the home
+              screen are the four with the most shops in them rather than the
+              four that happen to sort first.
+            */}
+            {tradeTiles.map((t) => (
               <Touchable
                 key={t.type}
                 style={styles.tile}
                 accessibilityRole="button"
-                accessibilityLabel={typeLabel(t.type)}
+                accessibilityLabel={t.label}
                 onPress={() =>
                   navigation.navigate("ShopList", {
                     business_type: t.type,
-                    title: typeLabel(t.type),
+                    title: t.label,
                   })
                 }
               >
@@ -262,11 +304,42 @@ export function CustomerHomeScreen() {
                     color: c.primary
                   })}
                 </View>
+                {/*
+                  The label is the SERVER's. This used to capitalise the code,
+                  so a mart read "Mart" while every other surface in the
+                  product called it "Mart & Grocery".
+                */}
                 <Text style={styles.tileLabel} numberOfLines={1}>
-                  {typeLabel(t.type)}
+                  {t.label}
                 </Text>
               </Touchable>
             ))}
+
+            {/*
+              ── THE WAY TO THE REST ───────────────────────────────────
+
+              A tile, in the grid, on the same pitch as the others — not a
+              "See all" link floating beside the heading. It is the ninth
+              thing in a row of eight, which is where a hand already is.
+
+              Only when there is actually more to see: a marketplace with
+              three trades in it does not need a page listing three trades.
+            */}
+            {(feed.data?.business_types ?? []).length > tradeTiles.length && (
+              <Touchable
+                style={styles.tile}
+                accessibilityRole="button"
+                accessibilityLabel="View all categories"
+                onPress={() => navigation.navigate("Categories")}
+              >
+                <View style={[styles.tileIcon, styles.tileMore]}>
+                  <GridIcon size={22} color={c.textSecondary} />
+                </View>
+                <Text style={styles.tileLabel} numberOfLines={1}>
+                  View all
+                </Text>
+              </Touchable>
+            )}
 
             {feed.isLoading &&
               [0, 1, 2, 3].map((i) => (
@@ -667,6 +740,14 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "center",
   },
   tileLabel: { ...typography.tiny, color: c.textSecondary, fontWeight: "600" },
+  /**
+   * The "view all" tile is deliberately NOT brand-tinted.
+   *
+   * Eight orange tiles and a ninth orange tile is nine categories. A grey one
+   * reads as the control it is — the way out of the row rather than another
+   * thing in it.
+   */
+  tileMore: { backgroundColor: c.surfaceAlt, borderWidth: 1, borderColor: c.border },
 
   notice: {
     marginHorizontal: spacing.md,

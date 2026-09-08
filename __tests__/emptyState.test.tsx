@@ -122,10 +122,40 @@ describe("every list that can be empty says so properly", () => {
       // body — the cart, which returns early with it — the parent is already
       // a full-height flex column and `flexGrow` on the panel is enough.
       if (!/ListEmptyComponent=\{[\s\S]{0,400}?<EmptyState\b/.test(src)) return [];
-      // The list has to USE it, not merely declare it. Asserting that the file
-      // contains `flexGrow: 1` passed while the style sat unreferenced and the
-      // content container had gone back to `styles.list` alone.
-      const grow = /contentContainerStyle=\{\[[^\]]*\b(grow|listGrow)\b/.test(src);
+      /**
+       * The list has to USE it, not merely declare it. Asserting that the file
+       * contains `flexGrow: 1` passed while the style sat unreferenced and the
+       * content container had gone back to `styles.list` alone.
+       *
+       * ── One level of indirection, deliberately ────────────────────
+       *
+       * `contentContainerStyle={[a, b]}` builds a new ARRAY every render, so a
+       * list that re-renders while scrolling sees its container style change
+       * and re-lays out. The fix is to memoise the array — which means the
+       * prop is now an identifier, and a guard that only understood the inline
+       * form reported the screen that had just been made faster.
+       *
+       * So: read whatever is passed, and if it is a name, look that name up.
+       * Anything deeper than one hop is not followed, on purpose — a rule that
+       * chases arbitrary indirection is a rule nobody can predict.
+       */
+      // EVERY occurrence, not the first. A screen with a horizontal filter bar
+      // above its list has two of these props, and reading only one reported
+      // the wrong verdict about whichever came second.
+      const grow = [...src.matchAll(/contentContainerStyle=\{([\s\S]*?)\}[\s\S]{0,2}\n/g)].some(
+        (m) => {
+          const passed = m[1];
+          const named = /^\s*([A-Za-z_$][\w$]*)\s*$/.exec(passed)?.[1];
+
+          const expr = named
+            ? // The identifier's own initialiser — `const listStyle = …;`
+              new RegExp(`const ${named}\\s*=[\\s\\S]*?;`).exec(src)?.[0] ?? ""
+            : passed;
+
+          return /\b(grow|listGrow)\b/.test(expr);
+        },
+      );
+
       return grow ? [] : [`  ${path.relative(PROJECT_ROOT, f)}`];
     });
 

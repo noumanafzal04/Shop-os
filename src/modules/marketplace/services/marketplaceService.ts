@@ -77,7 +77,16 @@ export interface HomeFeed {
   nearby: PublicShop[];
   top_rated: PublicShop[];
   deals: DealProduct[];
-  business_types: Array<{ type: string; shops_count: number }>;
+  /**
+   * Every trade with a visible shop in it, most shops first.
+   *
+   * `label` comes from the SERVER — `BusinessTypes::all()`, which has called
+   * these "Mart & Grocery" and "Petroleum & Energy" since the types existed.
+   * The app used to capitalise the code instead, so the tiles read "Mart" and
+   * "Petroleum". A label map in here would be a second copy that drifts the
+   * first time a type is renamed and nothing fails.
+   */
+  business_types: Array<{ type: string; label: string; shops_count: number }>;
 }
 
 export interface SearchResult {

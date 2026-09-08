@@ -30,6 +30,14 @@ export type CustomerStackParamList = {
   Browse:
     | { q?: string; business_type?: string; title?: string; filters?: BrowseFilters }
     | undefined;
+  /**
+   * Every trade on one page.
+   *
+   * No params: it reads the same cached home feed the tiles came from, so
+   * there is nothing to pass and nothing that could disagree with what the
+   * home screen showed.
+   */
+  Categories: undefined;
 
   // The rider hat. Same stack as the shopping screens on purpose — one
   // account wears both, and a separate navigator would mean signing out of
