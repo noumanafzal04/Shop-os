@@ -249,4 +249,34 @@ jobs:
             php artisan view:cache
 
             chown -R www-data:www-data storage bootstrap/cache
+
+            # ── THE SYMLINK THAT SERVES EVERY UPLOADED IMAGE ──────────
+            #
+            # `public/storage` -> `storage/app/public`. Without it a banner,
+            # logo or product photo SAVES correctly and then 403s when the
+            # browser asks for it — which reads as a failed upload and is not
+            # one. Hit exactly that locally: the file was on disk the whole
+            # time and the link pointed at a path from an older machine.
+            #
+            # `--force` because the link may already exist and pointing at the
+            # right place twice is free, while a deploy that aborts on "the
+            # link already exists" is a deploy nobody runs.
+            php artisan storage:link --force
+
             supervisorctl restart shopos-worker
+
+            # ── AND THE POOL HAS TO RE-READ THE CONFIG CACHE ──────────
+            #
+            # `config:cache` above writes a new compiled file, and PHP-FPM
+            # workers keep serving the old one for as long as OPcache holds it.
+            # With `opcache.validate_timestamps=0` — the usual production
+            # setting — that is until the pool is reloaded, so a deploy can
+            # change a setting and the running site never notices.
+            #
+            # The version is READ from the server rather than written here: the
+            # droplet runs 8.4 today and hard-coding it makes the deploy break
+            # silently on the day PHP is upgraded. A reload is graceful; it
+            # finishes in-flight requests rather than dropping them.
+            FPM="php$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')-fpm"
+            systemctl reload "$FPM"
+            echo "reloaded $FPM"
