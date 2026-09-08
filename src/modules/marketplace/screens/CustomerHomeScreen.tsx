@@ -36,7 +36,8 @@ import { ShopFactsRow } from "../components/ShopFactsRow";
 import { RatingChip } from "../components/RatingChip";
 import { marketplaceService, type HomeBanner, type PublicShop } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
-import { SHORTCUTS, tradeIcon } from "../tradeIcon";
+import { SHORTCUTS } from "../tradeIcon";
+import { shortcutArt, tradeArt, useTileGround } from "../tileArt";
 import { OfferBadge, Price } from "../../../common/ui/Price";
 import { shopInitial, useShopCover } from "../shopCover";
 
@@ -70,6 +71,7 @@ export function CustomerHomeScreen() {
   }, [status, detect]);
 
   const feed = useHomeFeed({ lat: lat ?? undefined, lng: lng ?? undefined });
+  const ground = useTileGround();
 
   /**
    * HOW MANY TRADES THE HOME SCREEN SHOWS.
@@ -246,32 +248,52 @@ export function CustomerHomeScreen() {
             server sends.
           */}
           <View style={styles.tiles}>
-            {SHORTCUTS.map(({ key, label: shortcut, icon: Icon, tone, filters }) => (
-              <Touchable
-                key={key}
-                style={styles.tile}
-                accessibilityRole="button"
-                accessibilityLabel={shortcut}
-                onPress={() => navigation.navigate("Browse", { title: shortcut, filters })}
-              >
-                <View
-                  style={[
-                    styles.tileIcon,
-                    // Solid amber, not a pale amber glyph on a paler amber
-                    // tile — that pairing was 1.3:1 and the icon vanished.
-                    { backgroundColor: tone === "offer" ? c.warm : c.brand[100] },
-                  ]}
+            {SHORTCUTS.map(({ key, label: shortcut, icon: Icon, tone, filters }) => {
+              /**
+               * ILLUSTRATED WHERE THERE IS A DRAWING, GLYPH WHERE THERE IS NOT.
+               *
+               * `tileArt` covers all four shortcuts and every trade the server
+               * sends, so in practice the fallback never runs — but a tile with
+               * no picture on it is a blank square on the home screen, and the
+               * glyph set is right there.
+               */
+              const art = shortcutArt(key);
+
+              return (
+                <Touchable
+                  key={key}
+                  style={styles.tile}
+                  accessibilityRole="button"
+                  accessibilityLabel={shortcut}
+                  onPress={() => navigation.navigate("Browse", { title: shortcut, filters })}
                 >
-                  <Icon
-                    size={23}
-                    color={tone === "offer" ? c.onWarm : c.primary}
-                  />
-                </View>
-                <Text style={styles.tileLabel} numberOfLines={1}>
-                  {shortcut}
-                </Text>
-              </Touchable>
-            ))}
+                  <View
+                    style={[
+                      styles.tileIcon,
+                      {
+                        backgroundColor: art
+                          ? ground(art)
+                          // Solid amber, not a pale amber glyph on a paler
+                          // amber tile — that pairing was 1.3:1 and the icon
+                          // vanished.
+                          : tone === "offer"
+                            ? c.warm
+                            : c.brand[100],
+                      },
+                    ]}
+                  >
+                    {art ? (
+                      <art.Art size={30} />
+                    ) : (
+                      <Icon size={23} color={tone === "offer" ? c.onWarm : c.primary} />
+                    )}
+                  </View>
+                  <Text style={styles.tileLabel} numberOfLines={1}>
+                    {shortcut}
+                  </Text>
+                </Touchable>
+              );
+            })}
 
             {/*
               ── FOUR TRADES, NOT FOURTEEN ─────────────────────────────
@@ -298,11 +320,8 @@ export function CustomerHomeScreen() {
                   })
                 }
               >
-                <View style={styles.tileIcon}>
-                  {React.createElement(tradeIcon(t.type), {
-                    size: 23,
-                    color: c.primary
-                  })}
+                <View style={[styles.tileIcon, { backgroundColor: ground(tradeArt(t.type)) }]}>
+                  {React.createElement(tradeArt(t.type).Art, { size: 30 })}
                 </View>
                 {/*
                   The label is the SERVER's. This used to capitalise the code,

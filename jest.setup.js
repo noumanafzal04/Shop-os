@@ -31,17 +31,48 @@ jest.mock('react-native-screens', () => ({
   enableScreens: jest.fn(),
 }));
 
-// Native SVG has no JS renderer under Jest — stub the primitives.
+/**
+ * Native SVG has no JS renderer under Jest — stub the primitives.
+ *
+ * ── Why a Proxy rather than a list ───────────────────────────────────
+ *
+ * This was a hand-written list of eleven names, and `Ellipse` was not on it.
+ * Drawing a stack of coins turned it into `undefined`, and React reported:
+ *
+ *     Element type is invalid: expected a string … but got: undefined.
+ *     Check the render method of `Art`.
+ *
+ * — in a test about a signed-out visitor reaching a shop page. The message
+ * names neither the module nor the missing export, so the cost of a short list
+ * is not the missing line, it is the twenty minutes spent in the wrong file.
+ *
+ * A Proxy makes every primitive resolve, so the mock cannot fall behind what
+ * the app draws with. Element node types are still the real names, which is
+ * what lets tests assert on `<Path d="…">`.
+ *
+ * `__esModule` and `default` are answered explicitly because the interop
+ * helper reads them and must NOT get a component back.
+ */
 jest.mock('react-native-svg', () => {
   const React = require('react');
   const stub = (name) => (props) => React.createElement(name, props, props.children);
-  return {
-    __esModule: true,
-    default: stub('Svg'),
-    Svg: stub('Svg'), Path: stub('Path'), Circle: stub('Circle'), Rect: stub('Rect'),
-    G: stub('G'), Line: stub('Line'), Polyline: stub('Polyline'), Polygon: stub('Polygon'),
-    Defs: stub('Defs'), LinearGradient: stub('LinearGradient'), Stop: stub('Stop'),
-  };
+  const cache = new Map();
+
+  return new Proxy(
+    {},
+    {
+      get(_t, key) {
+        if (key === '__esModule') return true;
+        if (typeof key !== 'string') return undefined;
+        if (key === 'default') key = 'Svg';
+        if (!cache.has(key)) cache.set(key, stub(key));
+
+        return cache.get(key);
+      },
+      // Jest and the interop helper both probe with `in`.
+      has: () => true,
+    },
+  );
 });
 
 // The lucide mock is gone with the package. Every icon in this app is now

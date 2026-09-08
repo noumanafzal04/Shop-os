@@ -10,7 +10,8 @@ import { Skeleton } from "../../../common/ui/Skeleton";
 import { ChevronRightIcon, StorefrontIcon } from "../../../common/ui/icons";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useHomeFeed } from "../hooks/useMarketplace";
-import { SHORTCUTS, tradeIcon } from "../tradeIcon";
+import { SHORTCUTS } from "../tradeIcon";
+import { shortcutArt, tradeArt, useTileGround } from "../tileArt";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 
 /**
@@ -52,6 +53,7 @@ export function CategoriesScreen() {
    * while the answer sat in the cache under another key.
    */
   const { lat, lng } = useLocationStore();
+  const ground = useTileGround();
 
   const feed = useHomeFeed({ lat: lat ?? undefined, lng: lng ?? undefined });
   const types = feed.data?.business_types ?? [];
@@ -85,7 +87,10 @@ export function CategoriesScreen() {
             <>
               <Text style={styles.caption}>Ways to shop</Text>
               <View style={styles.quick}>
-                {SHORTCUTS.map(({ key, label, icon: Icon, tone, filters }) => (
+                {SHORTCUTS.map(({ key, label, icon: Icon, tone, filters }) => {
+                  const art = shortcutArt(key);
+
+                  return (
                   <Touchable
                     key={key}
                     style={styles.quickTile}
@@ -96,19 +101,30 @@ export function CategoriesScreen() {
                     <View
                       style={[
                         styles.quickIcon,
-                        // Solid amber for offers, the brand tint for the rest —
-                        // the same pairing the home tiles use, because a pale
-                        // glyph on a paler tile measured 1.3:1 and vanished.
-                        { backgroundColor: tone === "offer" ? c.warm : c.brand[100] },
+                        {
+                          backgroundColor: art
+                            ? ground(art)
+                            // Solid amber for offers, the brand tint for the
+                            // rest — a pale glyph on a paler tile measured
+                            // 1.3:1 and vanished.
+                            : tone === "offer"
+                              ? c.warm
+                              : c.brand[100],
+                        },
                       ]}
                     >
-                      <Icon size={22} color={tone === "offer" ? c.onWarm : c.primary} />
+                      {art ? (
+                        <art.Art size={28} />
+                      ) : (
+                        <Icon size={22} color={tone === "offer" ? c.onWarm : c.primary} />
+                      )}
                     </View>
                     <Text style={styles.quickLabel} numberOfLines={2}>
                       {label}
                     </Text>
                   </Touchable>
-                ))}
+                  );
+                })}
               </View>
               <Text style={styles.caption}>Shop by category</Text>
             </>
@@ -137,7 +153,7 @@ export function CategoriesScreen() {
             )
           }
           renderItem={({ item }) => {
-            const Icon = tradeIcon(item.type);
+            const art = tradeArt(item.type);
 
             return (
               <Touchable
@@ -157,8 +173,8 @@ export function CategoriesScreen() {
                   })
                 }
               >
-                <View style={styles.rowIcon}>
-                  <Icon size={22} color={c.primary} />
+                <View style={[styles.rowIcon, { backgroundColor: ground(art) }]}>
+                  <art.Art size={28} />
                 </View>
                 <View style={styles.rowCopy}>
                   <Text style={styles.rowTitle} numberOfLines={1}>
