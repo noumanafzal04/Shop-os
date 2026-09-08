@@ -200,3 +200,5 @@
 - [Orders, Live First](shopos-orders-live-first.md) — Ongoing/Earlier from loaded rows; one status vocabulary; pickup has no delivery leg
 - [Staged Delivery Offer](shopos-staged-offer.md) — nearest-first widening; the BOARD is the offer, not the notification; a declined job must be reopened
 - [Who Carries It](shopos-who-carries-it.md) — delivery_provider defaults to platform; the setting had NO control anywhere; PHP and SQL disagreed on an absent key
+- [Two Elements, Not One Moved](shopos-two-elements-not-one-moved.md) — sticky bar = 2 drawn copies; stickyHeaderIndices + Animated.event banned; lag was inline renderItem
+- [A Banner Is 2:1](shopos-banner-is-2-to-1.md) — 1200x600 enforced both sides; a too-wide file loses LEFT and RIGHT
