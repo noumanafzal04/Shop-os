@@ -202,3 +202,8 @@
 - [Who Carries It](shopos-who-carries-it.md) — delivery_provider defaults to platform; the setting had NO control anywhere; PHP and SQL disagreed on an absent key
 - [Two Elements, Not One Moved](shopos-two-elements-not-one-moved.md) — sticky bar = 2 drawn copies; stickyHeaderIndices + Animated.event banned; lag was inline renderItem
 - [A Banner Is 2:1](shopos-banner-is-2-to-1.md) — 1200x600 enforced both sides; a too-wide file loses LEFT and RIGHT
+- [A Page Nobody Could Open](shopos-page-nobody-could-open.md) — categories unreachable (4 > 4); /marketplace/categories = every trade + its categories
+- [Keys Out Of The Repo](shopos-keys-out-of-the-repo.md) — gitignored secrets.ts + guard; the APK still leaks the key
+- [Approximate Is Allow](shopos-approximate-is-allow.md) — Android 12+ COARSE grant read as denial; blank pin + rider could not go online
+- [White Page, Brand Accent](shopos-white-page-brand-accent.md) — headers are the page colour; brand = rider duty fill, wordmark, filter
+- [Serves This Pin](shopos-serves-this-pin.md) — PLANNED: city fence + per-shop delivery_radius_km on every list, one scope

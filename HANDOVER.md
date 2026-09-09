@@ -7243,3 +7243,83 @@ section and light up as you pass it.
 
 Backend 2659 (exit 0) · mobile tsc 0, eslint 0 errors, 41 suites / 517 tests ·
 11 mutations, 11 caught.
+
+## 2026-09-09 — A page nobody could open
+
+**The categories screen was unreachable on live.** Its only way in was a home
+tile drawn under `business_types.length > tradeTiles.length`; the server sends
+the trades that have shops, live has four, the grid shows four, so `4 > 4` was
+false. A registered, routed, tested screen nobody could open — on the state
+every new city is in. The tile is unconditional now, and the reachability guard
+fails if any condition is put back in front of it.
+
+**It could not name the trade anybody wanted.** Garments, footwear,
+electronics, cosmetics and toys are one `business_type` (`retail`); grocery and
+supermarket are `mart`. New `GET /marketplace/categories` returns every
+selectable trade AND the categories inside it, each with a shop count (zeros
+included, one grouped query, legacy codes folded into their primary), and
+`GET /marketplace/shops` now filters on `business_category` — exact, because
+`mobile_accessories` contains `mobile`.
+
+**`features.marketplace` was the wrong gate.** It is false for pharmacy by
+default, which would have hidden one of the three trades this product earns in.
+The gate is `products || services` — Finance is the one real exclusion — plus
+any trade that already has visible shops.
+
+**One rule for what may be pressed:** `shops_count > 0`, at both levels. A
+trade with none says "Coming soon"; a category with none has no count and no
+handler. The screen is now mounted in a test, not just grepped.
+
+**Maps keys moved out of the repo** into gitignored `secrets.ts` with a tracked
+example and a `postinstall` copy; a guard asks git whether it is ignored and
+never tracked, and scans every tracked file for Google's key shape. The key is
+still extractable from the APK — Google Cloud restrictions are the only real
+defence, and the Geoapify key in git history still needs rotating.
+
+Backend 2680 passed / 2 skipped · mobile tsc 0, eslint 0 errors, 54 suites /
+729 tests · 5 mutations, 5 caught · APK `cartze-1.0.3-b8.apk` (versionCode 4).
+
+## 2026-09-09 (later) — White pages, and a location nobody could get
+
+**Two reports, one cause, on both sides of the app.** A shopper whose pin
+stayed blank and a rider who could not go online. Only
+`ACCESS_FINE_LOCATION` was requested, and since Android 12 the dialog offers
+Precise/Approximate: tapping **Allow** with Approximate selected grants COARSE
+and DENIES fine, so the request came back `denied` after the person had
+allowed it. Both are requested now and either is enough. `locationStore` had
+its own second copy of the prompt — deleted; `position.ts` is the only one.
+
+**A timeout is not "GPS is off".** A high-accuracy fix waits for satellites,
+which indoors is a timeout — reported to riders as "check that GPS is on"
+about a phone whose GPS was on. `currentPosition` retries once without high
+accuracy and with a long `maximumAge`, and returns WHY it failed
+(`denied` / `unavailable` / `timeout`) so the screen can say the right thing.
+
+**Every coloured header is the page colour now.** Customer home, the shop
+list, Account and the rider board were brand-filled slabs that painted the
+notch area themselves. Reported as "primary color should be white as was
+first", "top notch issue" and "just show branding color". The brand is kept
+for things that mean something: the rider wordmark, the duty card (the only
+filled thing on that page, so the fill IS the state), the search filter, the
+tiles, the prices. Status-bar icons follow the phone's theme, not the brand.
+`RefreshPill`'s `onDark` variant lost its last caller and is gone.
+
+**The address was the biggest type on the home screen.** 19pt centred between
+two round buttons, for a forty-character street address. Now 14pt,
+left-aligned, one line with an ellipsis, under a small-caps label. The
+"Hi <name>" display line is gone with it.
+
+**All categories, redesigned.** Bordered card per trade with grey text chips →
+a heading per trade and a three-across grid of the same illustrated tiles the
+home screen uses. An empty category is a faded tile with no press; an empty
+trade says "Coming soon" and draws no grid.
+
+**A shop with one dish looked broken.** The item strip was a horizontal
+scroller of fixed 132pt tiles plus an 88pt See-all: one item measured 232pt in
+a 358pt card, so a third of it was empty and See-all floated in the middle.
+Under three items the tiles share the row instead (`width: undefined` is
+load-bearing) and there is no scroller at all. Mounted test, both mutations
+caught.
+
+Mobile tsc 0, eslint 0 errors, 56 suites / 744 tests · 6 mutations, 6 caught ·
+APK `cartze-1.0.4-b9.apk` (versionCode 5).
