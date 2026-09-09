@@ -127,16 +127,30 @@ function once(options: { highAccuracy: boolean; timeoutMs: number; maximumAge: n
 export async function currentPosition(options?: {
   highAccuracy?: boolean;
   timeoutMs?: number;
+  /**
+   * ONE ATTEMPT ONLY — for a caller that a person is waiting on.
+   *
+   * The retry is right when the answer is what matters and nobody is watching
+   * a spinner: the heartbeat, resolving a city at launch. It is wrong on the
+   * duty switch. A rider pressing "go online" indoors waited twelve seconds
+   * for the satellites, then eight more for the fallback, and the switch did
+   * nothing visible for twenty — reported as "on click on line it a taking
+   * time to be online why".
+   */
+  retry?: boolean;
 }): Promise<FixResult> {
   const highAccuracy = options?.highAccuracy ?? false;
 
   const first = await once({
     highAccuracy,
     timeoutMs: options?.timeoutMs ?? 12000,
+    // A CACHED fix is what makes a quick attempt quick: five minutes old is a
+    // better answer than a spinner, and for "which city am I in" or "which
+    // shops are near me" it is the same answer.
     maximumAge: highAccuracy ? 15000 : 300000,
   });
 
-  if (first.fix || first.why === "denied") return first;
+  if (first.fix || first.why === "denied" || options?.retry === false) return first;
 
   return once({ highAccuracy: false, timeoutMs: 8000, maximumAge: 600000 });
 }

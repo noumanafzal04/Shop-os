@@ -115,6 +115,21 @@ describe("the rider board's empty state", () => {
     expect(src).toMatch(/setPool\.mutate\(true\)/);
   });
 
+  it("does not wait for satellites before going on duty", () => {
+    /**
+     * Twenty seconds of a dead switch: `currentPosition({ highAccuracy: true })`
+     * awaited BEFORE the mutation, which indoors is a 12s timeout plus an 8s
+     * fallback. One quick attempt, then online with whatever came back — the
+     * heartbeat asks properly a moment later.
+     */
+    expect(src).toMatch(/currentPosition\(\{ timeoutMs: 5000, retry: false \}\)/);
+    expect(src).toMatch(/setOnline\.mutate\(\{ is_online: true, at: fix \?\? undefined \}\)/);
+    // And the switch shows its own pending state, not the mutation's — the
+    // mutation had not been sent yet during the twenty seconds.
+    expect(src).toMatch(/const busy = starting \|\| setOnline\.isPending;/);
+    expect(src).toMatch(/disabled=\{busy\}/);
+  });
+
   it("says nothing at all when nothing is wrong", () => {
     // A warning on a quiet afternoon teaches a rider to ignore all of them.
     expect(src).toMatch(/tone=\{blocked \? "warm" : "muted"\}/);

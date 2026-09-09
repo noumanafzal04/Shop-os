@@ -123,37 +123,62 @@ export function RiderHomeScreen() {
     };
   }, [online]);
 
+  /**
+   * ── GOING ON DUTY MUST NOT WAIT FOR SATELLITES ──────────────────
+   *
+   * This used to `await currentPosition({ highAccuracy: true })` BEFORE
+   * telling the server anything. High accuracy waits for GPS, which indoors —
+   * where a rider stands when they start a shift — is a twelve-second timeout
+   * followed by an eight-second fallback. Twenty seconds of a switch that
+   * looks broken, reported as "on click on line it a taking time to be online
+   * why". The `isPending` copy did not even cover it: the mutation had not
+   * been sent yet, so the row said "You are offline" the whole time.
+   *
+   * So: one QUICK attempt (a cached fix returns immediately), then go online
+   * with whatever came back. A rider who is online with no position sees the
+   * board say so in plain words, and the heartbeat — which does ask for high
+   * accuracy — corrects it within seconds. Being online a moment before the
+   * pin is exact costs nothing; a switch that appears dead costs the shift.
+   */
+  const [starting, setStarting] = React.useState(false);
+  const busy = starting || setOnline.isPending;
+
   const toggle = async () => {
-    if (!online) {
+    if (online) {
+      setOnline.mutate({ is_online: false });
+
+      return;
+    }
+
+    setStarting(true);
+    try {
       const allowed = await askForLocation("needs your location to send you deliveries near you.");
       if (!allowed) {
         toast.error("Allow location to go online.");
+
         return;
       }
-      /**
-       * WHY IT SAYS WHICH.
-       *
-       * This was one sentence — "Could not find your location. Check that GPS
-       * is on." — for three different situations, and it was shown to riders
-       * whose GPS was on. A rider standing indoors gets a timeout; a rider
-       * with location services switched off gets something else; and the fix
-       * for each is a different thing to go and do.
-       */
-      const { fix, why } = await currentPosition({ highAccuracy: true });
+
+      // Five seconds, no retry, cached fix accepted. `why` is only consulted
+      // for a refusal now — every other reason is survivable, because the
+      // heartbeat is about to try again properly.
+      const { fix, why } = await currentPosition({ timeoutMs: 5000, retry: false });
+      if (why === "denied") {
+        toast.error("Location is blocked for the app. Turn it on in Settings, then try again.");
+
+        return;
+      }
+
+      setOnline.mutate({ is_online: true, at: fix ?? undefined });
+
       if (fix == null) {
-        toast.error(
-          why === "denied"
-            ? "Location is blocked for the app. Turn it on in Settings, then try again."
-            : why === "unavailable"
-              ? "Switch on Location (GPS) on your phone, then try again."
-              : "Could not get a fix — move somewhere with a clearer view of the sky and try again.",
-        );
-        return;
+        // Honest, and not a failure: they ARE online. Until a fix lands the
+        // pool cannot measure them, and the board says exactly that.
+        toast.info("You are online — still finding your position.");
       }
-      setOnline.mutate({ is_online: true, at: fix });
-      return;
+    } finally {
+      setStarting(false);
     }
-    setOnline.mutate({ is_online: false });
   };
 
   // ── Not a rider yet, or not approved ────────────────────────────────
@@ -293,7 +318,7 @@ export function RiderHomeScreen() {
                 accessibilityState={{ checked: online }}
                 accessibilityLabel={online ? "Go offline" : "Go online"}
                 onPress={toggle}
-                disabled={setOnline.isPending}
+                disabled={busy}
               >
                 <View style={styles.dutyCopy}>
                   <View style={styles.dutyTitleRow}>
@@ -307,7 +332,7 @@ export function RiderHomeScreen() {
                     </Text>
                   </View>
                   <Text style={[styles.dutyHint, online && styles.hintOnBrand]} numberOfLines={2}>
-                    {setOnline.isPending
+                    {busy
                       ? "One moment…"
                       : online
                         ? "Shops near you can send you deliveries"

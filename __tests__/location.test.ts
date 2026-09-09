@@ -149,6 +149,29 @@ describe("taking a fix", () => {
     await expect(currentPosition()).resolves.toEqual({ fix: null, why: "timeout" });
   });
 
+  it("makes exactly one attempt when somebody is waiting on it", async () => {
+    /**
+     * The duty switch. It used to await a HIGH-ACCURACY fix before telling the
+     * server anything: twelve seconds for the satellites, then eight for the
+     * fallback, with the switch looking broken for twenty — "on click on line
+     * it a taking time to be online why".
+     *
+     * `retry: false` is what makes the tap immediate. The heartbeat keeps the
+     * retry, because nobody is watching it.
+     */
+    answers({ code: 3 }, { coords: { latitude: 24.8, longitude: 67.03 } });
+
+    const result = await currentPosition({ timeoutMs: 5000, retry: false });
+
+    expect(position).toHaveBeenCalledTimes(1);
+    expect(result.fix).toBeNull();
+    expect(result.why).toBe("timeout");
+    // Not high accuracy, and a cached fix is acceptable — that is what makes
+    // the quick attempt usually succeed instantly rather than time out.
+    expect(position.mock.calls[0][2].enableHighAccuracy).toBe(false);
+    expect(position.mock.calls[0][2].maximumAge).toBeGreaterThan(0);
+  });
+
   it("never throws", async () => {
     // A caller that has to catch as well as check is a caller that will
     // forget one.
