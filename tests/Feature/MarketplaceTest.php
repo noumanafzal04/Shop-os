@@ -789,4 +789,146 @@ class MarketplaceTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data');
     }
+    // ── The fence, through the endpoints ────────────────────────────
+
+    /**
+     * A point roughly `$km` north of `$lat`. 1° of latitude ≈ 111 km.
+     *
+     * @return array{0: float, 1: float}
+     */
+    private function north(float $lat, float $lng, float $km): array
+    {
+        return [$lat + ($km / 111.0), $lng];
+    }
+
+    /**
+     * THE SAME FENCE, ASKED THROUGH HTTP.
+     *
+     * `ServesPinTest` proves the scope. It cannot prove the WIRING — that each
+     * endpoint passes the pin it was given, in the right units, to the right
+     * argument. That is the half this codebase keeps getting wrong: a rule
+     * written correctly and applied to one of the places that needed it.
+     *
+     * @return array{pin: array{0: float, 1: float}, near: Tenant, far: Tenant}
+     */
+    private function twoShopsOneOutOfRange(): array
+    {
+        $pin = [24.8607, 67.0011];
+
+        [$nearLat, $nearLng] = $this->north($pin[0], $pin[1], 2);
+        [$farLat, $farLng] = $this->north($pin[0], $pin[1], 25);
+
+        $near = $this->onlineShop([
+            'business_name' => 'Reaches Me',
+            'business_type' => 'mart',
+            'features' => BusinessTypes::defaultFeatures('mart'),
+            'latitude' => $nearLat, 'longitude' => $nearLng,
+            'settings' => ['delivery_radius_km' => 5],
+        ]);
+        // 25 km away and says it delivers 5. Listed, tapped, basket built,
+        // refused at checkout — the whole reason for this work.
+        $far = $this->onlineShop([
+            'business_name' => 'Too Far',
+            'business_type' => 'mart',
+            'features' => BusinessTypes::defaultFeatures('mart'),
+            'latitude' => $farLat, 'longitude' => $farLng,
+            'settings' => ['delivery_radius_km' => 5],
+        ]);
+
+        return ['pin' => $pin, 'near' => $near, 'far' => $far];
+    }
+
+    public function test_the_shop_list_drops_a_shop_that_cannot_reach_you(): void
+    {
+        ['pin' => $pin] = $this->twoShopsOneOutOfRange();
+
+        $names = collect(
+            $this->getJson("/api/v1/marketplace/shops?lat={$pin[0]}&lng={$pin[1]}")
+                ->assertOk()->json('data')
+        )->pluck('business_name');
+
+        $this->assertSame(['Reaches Me'], $names->all());
+    }
+
+    public function test_the_shop_list_says_whether_it_delivers_to_you(): void
+    {
+        // The card's own words. `delivers_to_me` is the name the shop DETAIL
+        // payload has used since the radius existed — one field for one fact.
+        ['pin' => $pin] = $this->twoShopsOneOutOfRange();
+
+        $card = collect(
+            $this->getJson("/api/v1/marketplace/shops?lat={$pin[0]}&lng={$pin[1]}")
+                ->assertOk()->json('data')
+        )->firstWhere('business_name', 'Reaches Me');
+
+        $this->assertTrue($card['delivers_to_me']);
+    }
+
+    public function test_the_home_feed_drops_it_too(): void
+    {
+        /**
+         * Every section of the home screen is built from ONE query, so this is
+         * really a test that the fence went on that query rather than on the
+         * three places that read it.
+         */
+        ['pin' => $pin] = $this->twoShopsOneOutOfRange();
+
+        $data = $this->getJson("/api/v1/marketplace/home?lat={$pin[0]}&lng={$pin[1]}")
+            ->assertOk()->json('data');
+
+        $this->assertSame(['Reaches Me'], collect($data['nearby'])->pluck('business_name')->all());
+    }
+
+    public function test_the_aisle_drops_its_products(): void
+    {
+        // A product is in the aisle only if the shop behind it can get it
+        // here. The aisle had no idea where anybody was standing.
+        ['pin' => $pin, 'near' => $near, 'far' => $far] = $this->twoShopsOneOutOfRange();
+
+        foreach ([[$near, 'Near Rice'], [$far, 'Far Rice']] as [$shop, $name]) {
+            Product::withoutTenancy()->create([
+                'tenant_id' => $shop->id, 'type' => 'product', 'name' => $name,
+                'price' => 500, 'visible_in_marketplace' => true,
+            ]);
+        }
+
+        $names = collect(
+            $this->getJson("/api/v1/marketplace/products?lat={$pin[0]}&lng={$pin[1]}")
+                ->assertOk()->json('data')
+        )->pluck('name');
+
+        $this->assertSame(['Near Rice'], $names->all());
+    }
+
+    public function test_the_city_facet_still_counts_the_cities_you_could_switch_to(): void
+    {
+        /**
+         * The pin is part of the CITY axis, and both are dropped when the city
+         * facet is counted. A facet reading "Lahore (12)" exists so somebody
+         * can switch to Lahore — counting those twelve against a Karachi pin
+         * would answer "(0)" for every city but the one they are in, which is
+         * a rail that can only ever tell you to stay put.
+         */
+        $lahore = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
+        ['pin' => $pin] = $this->twoShopsOneOutOfRange();
+
+        $elsewhere = $this->onlineShop([
+            'business_name' => 'Lahore Mart',
+            'city_id' => $lahore->id,
+            'business_type' => 'mart',
+            'features' => BusinessTypes::defaultFeatures('mart'),
+            'latitude' => 31.5204, 'longitude' => 74.3587,
+        ]);
+        Product::withoutTenancy()->create([
+            'tenant_id' => $elsewhere->id, 'type' => 'product', 'name' => 'Lahore Rice',
+            'price' => 500, 'visible_in_marketplace' => true,
+        ]);
+
+        $cities = collect(
+            $this->getJson("/api/v1/marketplace/products/facets?lat={$pin[0]}&lng={$pin[1]}")
+                ->assertOk()->json('data.cities')
+        );
+
+        $this->assertSame(1, $cities->firstWhere('id', $lahore->id)['products_count'] ?? null);
+    }
 }

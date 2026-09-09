@@ -130,6 +130,29 @@ class RiderProfileController extends Controller
         );
     }
 
+    /**
+     * IN THE POOL, OR NOT.
+     *
+     * A separate endpoint from `apply`, because `apply` refuses an approved
+     * profile — so this flag, once wrong, could never be corrected by the
+     * rider it belonged to. See `RiderService::setPlatform`.
+     */
+    public function pool(Request $request, RiderService $riders): JsonResponse
+    {
+        $data = $request->validate([
+            'is_platform' => ['required', 'boolean'],
+        ]);
+
+        $profile = $riders->setPlatform($this->mine($request), (bool) $data['is_platform']);
+
+        return ApiResponse::ok(
+            $this->serialize($profile),
+            $profile->is_platform
+                ? 'You will be offered CartZe deliveries'
+                : 'You will only get jobs from shops that added you',
+        );
+    }
+
     /** A heartbeat with a position on it. Called while the app is open. */
     public function ping(Request $request, RiderService $riders): JsonResponse
     {

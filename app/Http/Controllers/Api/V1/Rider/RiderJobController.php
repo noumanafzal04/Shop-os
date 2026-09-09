@@ -42,6 +42,16 @@ class RiderJobController extends Controller
             'active' => $active->map(fn (Order $o) => RiderJobView::job($o, $profile))->values(),
             'offers' => $riders->openOffers($profile)
                 ->map(fn (Order $o) => RiderJobView::offer($o, $profile))->values(),
+            /**
+             * WHY THERE ARE NONE — null when there honestly is no reason.
+             *
+             * Six situations draw the same empty board and five of them are
+             * fixable. Reported as "rider side no order coming" against a
+             * profile that was not in the platform pool at all, with nothing
+             * on any screen saying so. See `RiderService::offerBlock`.
+             */
+            'blocked' => $riders->offerBlock($profile),
+            'in_pool' => $profile->is_platform,
             'job_limit' => RiderService::MAX_ACTIVE_JOBS,
             'earnings_today' => $riders->earnings($profile, now()->toDateString(), now()->toDateString()),
             // What the phone shows beside the refresh control. Sent by the

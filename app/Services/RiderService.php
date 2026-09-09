@@ -448,6 +448,111 @@ class RiderService
      * A rider at their job limit is offered nothing; showing work that cannot
      * be accepted is a button that always fails.
      */
+    /**
+     * WHY THE BOARD IS EMPTY — or null, when it honestly is not.
+     *
+     * ── The report this exists for ───────────────────────────────────
+     *
+     * "Rider side no order coming, koi rider assign ni ho raha." The board
+     * showed "No deliveries near you" and there was no way, from any screen,
+     * to tell which of SIX different situations it was in. Every one of them
+     * draws the same empty page, and five of them are things the rider or the
+     * platform can fix:
+     *
+     *   not approved · off duty · not in the CartZe pool · no position yet ·
+     *   position gone stale · already carrying the maximum
+     *
+     * `openOffers` returns an empty collection for all of them. That is right
+     * — it answers "what work is offered" — but a screen that only ever gets
+     * the empty answer cannot say a word about the cause. The third of those
+     * six is what actually happened: `rider_profiles.is_platform` defaults to
+     * FALSE and could only ever be set in the apply payload, so a rider whose
+     * application went through without it was invisible to the pool for ever,
+     * with nothing on any screen naming the reason and no control anywhere to
+     * change it.
+     *
+     * The three-silences rule, on a board instead of a list: an empty state
+     * that cannot say why is a fact about the platform as far as the reader is
+     * concerned, and there is no retry on a fact.
+     *
+     * @return array{code: string, message: string}|null
+     */
+    public function offerBlock(RiderProfile $profile): ?array
+    {
+        if (! $profile->status->canRide()) {
+            return [
+                'code' => 'not_approved',
+                'message' => 'Your rider account is '.strtolower($profile->status->label()).'.',
+            ];
+        }
+
+        if (! $profile->is_online) {
+            return [
+                'code' => 'offline',
+                'message' => 'You are off duty — nothing is offered to a rider who is offline.',
+            ];
+        }
+
+        if ($this->activeJobs($profile)->count() >= self::MAX_ACTIVE_JOBS) {
+            return [
+                'code' => 'at_limit',
+                'message' => 'You are carrying '.self::MAX_ACTIVE_JOBS.' orders. Finish one to be offered more.',
+            ];
+        }
+
+        if (! $profile->is_platform) {
+            return [
+                'code' => 'not_platform',
+                'message' => 'You are only taking jobs from shops that added you. Switch on CartZe deliveries to be offered work from the pool.',
+            ];
+        }
+
+        if ($profile->latitude === null || $profile->longitude === null) {
+            return [
+                'code' => 'no_position',
+                'message' => 'We do not have your position yet. Keep the app open for a moment.',
+            ];
+        }
+
+        if ($profile->last_seen_at === null
+            || $profile->last_seen_at->lte(now()->subMinutes(RiderProfile::STALE_AFTER_MINUTES))) {
+            return [
+                'code' => 'stale',
+                'message' => 'Your position is more than '.RiderProfile::STALE_AFTER_MINUTES.' minutes old. Pull down to refresh.',
+            ];
+        }
+
+        // Nothing is in the way. An empty board now means an empty board.
+        return null;
+    }
+
+    /**
+     * IN THE POOL, OR ONLY WORKING FOR SHOPS THAT ADDED YOU.
+     *
+     * `is_platform` was writable in exactly one place — the apply payload —
+     * and `apply()` refuses an approved profile with "You are already an
+     * approved rider". So a rider whose application did not carry the flag
+     * had no way back: not through the app, and not through the admin screen,
+     * which serialises the field and never sets it. A trap with no exit.
+     *
+     * Switching it OFF is allowed and does not touch work in hand: the pool
+     * decides what is OFFERED, and a job already accepted belongs to whoever
+     * accepted it.
+     */
+    public function setPlatform(RiderProfile $profile, bool $inPool): RiderProfile
+    {
+        if (! $profile->status->canRide()) {
+            throw DomainException::forbidden(
+                'Your rider account is '.strtolower($profile->status->label()).'.',
+                'RIDER_NOT_APPROVED',
+            );
+        }
+
+        $profile->forceFill(['is_platform' => $inPool])->save();
+
+        return $profile->refresh();
+    }
+
     public function openOffers(RiderProfile $profile): Collection
     {
         if (! $profile->status->canRide() || ! $profile->is_online) {

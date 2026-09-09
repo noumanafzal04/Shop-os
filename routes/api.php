@@ -1276,6 +1276,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // Duty
             Route::post('/online', [RiderProfileController::class, 'setOnline']);
             Route::post('/ping', [RiderProfileController::class, 'ping']);
+            // In the CartZe pool, or only working for shops that added you.
+            // Separate from `apply`, which refuses an approved profile — so
+            // this flag, once wrong, could never be corrected by its owner.
+            Route::put('/pool', [RiderProfileController::class, 'pool']);
 
             // Work
             Route::get('/board', [RiderJobController::class, 'board']);

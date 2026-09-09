@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TenantStatus;
 use App\Models\Concerns\Auditable;
+use App\Support\Geo;
 use App\Support\Modules;
 use App\Support\ShopSettings;
 use Database\Factories\TenantFactory;
@@ -530,6 +531,148 @@ class Tenant extends BaseModel
     public function currencySymbol(): string
     {
         return (string) $this->setting('currency_symbol', 'Rs');
+    }
+
+    /**
+     * WHAT "CITY-WIDE" MEANS WHEN NOBODY SET A NUMBER.
+     *
+     * `delivery_radius_km` is nullable and its own comment has always read
+     * "null = no distance limit (city-wide)". Nothing enforced the city half of
+     * that sentence, so a Lahore shop with no radius set was offered to a
+     * shopper in Karachi — 1,000 km away — and refused at checkout.
+     *
+     * Thirty-five kilometres is the fallback, not a guess at a delivery
+     * promise: it is about the span of the largest Pakistani city, so it means
+     * "its own city" for a shop that never said, and it stops nothing from
+     * reaching the next city along. It only ever applies when a shopper's city
+     * could NOT be resolved — with a city, `city_id` is the real fence and this
+     * is the belt beside it.
+     */
+    public const CITY_WIDE_KM = 35.0;
+
+    /**
+     * ── CAN THIS SHOP SERVE WHERE I AM STANDING? ─────────────────────
+     *
+     * Two fences, and until now no LIST applied either:
+     *
+     *   city    a hard fence. Indexed FK, so it cuts the set before any
+     *           trigonometry runs.
+     *   radius  the shop's own `delivery_radius_km` — how far IT says it
+     *           delivers.
+     *
+     * `delivery_radius_km` has existed for months and was enforced in exactly
+     * two places: at CHECKOUT (`OUT_OF_DELIVERY_AREA`) and on one shop's detail
+     * payload (`delivers_to_me`). So a shopper in Karachi was shown Lahore
+     * shops, and a shop 30 km away with a 5 km radius was listed, tapped,
+     * filled with a basket, and refused at the last possible moment.
+     *
+     * ── The rule ─────────────────────────────────────────────────────
+     *
+     * A shop is listed when it is in the shopper's city AND either:
+     *   - it delivers, and the pin is inside its own radius; or
+     *   - it does not deliver at all (pickup only) and is within
+     *     `CITY_WIDE_KM` — you can go and collect it, but not from the next
+     *     province.
+     *
+     * A shop with no coordinates is KEPT: we cannot measure it, and dropping
+     * every shop that has not dropped a pin would empty the marketplace of its
+     * newest members. The city fence still applies to it.
+     *
+     * ── Why pickup is not simply "always keep" ───────────────────────
+     *
+     * The first version of this rule kept any shop with `pickup_enabled`, which
+     * defaults to TRUE — so nearly every shop passed and the radius fence
+     * filtered nothing at all. A fence that lets everything through is worse
+     * than none: it reads as done. Pickup earns a shop the CITY, not an
+     * exemption from distance.
+     *
+     * ── One copy ─────────────────────────────────────────────────────
+     *
+     * Called by `home`, `shops` and the product aisle, exactly like
+     * `marketplaceVisible()`. The reason to insist: `RiderService` read one
+     * settings key two ways — PHP defaults on one side, raw JSON on the other —
+     * and offered every order to nobody. A key read in two places is a rule with
+     * one chance to disagree with itself.
+     *
+     * @param  string|null  $cityId  the shopper's city, when it resolved
+     */
+    public function scopeServesPin($query, ?float $lat, ?float $lng, ?string $cityId = null)
+    {
+        if ($cityId !== null) {
+            $query->where('tenants.city_id', $cityId);
+        }
+
+        if ($lat === null || $lng === null) {
+            return $query;
+        }
+
+        $distance = Geo::sqlDistanceKm($lat, $lng, 'tenants.latitude', 'tenants.longitude');
+
+        /**
+         * `json_extract` rather than Laravel's `settings->x` arrow, because
+         * this has to sit inside a comparison between two SQL expressions
+         * rather than a `where(column, value)`. It is spelled identically on
+         * MySQL 8 and on the SQLite the tests run against — the one reason the
+         * raw string is safe here.
+         *
+         * COALESCE is the whole point: an ABSENT key is the state every shop
+         * that never touched the setting is in, and SQL absent is NULL, which
+         * compares false to everything. Without the fallback the fence would
+         * drop every shop that had not set a radius.
+         */
+        $radius = "COALESCE(json_extract(tenants.settings, '$.delivery_radius_km'), ".self::CITY_WIDE_KM.')';
+        $cityWide = self::CITY_WIDE_KM;
+
+        return $query->where(function ($q) use ($distance, $radius, $cityWide): void {
+            // Nothing to measure against.
+            $q->whereNull('tenants.latitude')
+                ->orWhereNull('tenants.longitude')
+                // It delivers, and this pin is inside the distance it named.
+                ->orWhere(function ($qq) use ($distance, $radius): void {
+                    $qq->where('features->delivery', true)
+                        ->where(function ($q3): void {
+                            $q3->where('settings->delivery_enabled', true)
+                                // Absent means ON — `delivery_enabled` defaults
+                                // to true, and every shop that never opened the
+                                // setting has no key at all.
+                                ->orWhereNull('settings->delivery_enabled');
+                        })
+                        ->whereRaw("{$distance} <= {$radius}");
+                })
+                // Or it is a counter you can walk into, in this city.
+                ->orWhere(function ($qq) use ($distance, $cityWide): void {
+                    $qq->where(function ($q3): void {
+                        $q3->where('features->delivery', false)
+                            ->orWhereNull('features->delivery')
+                            ->orWhere('settings->delivery_enabled', false);
+                    })
+                        ->whereRaw("{$distance} <= {$cityWide}");
+                });
+        });
+    }
+
+    /**
+     * DOES IT DELIVER TO THIS PIN — the same question, answered in PHP.
+     *
+     * The scope decides what is LISTED; this decides what the card SAYS. One
+     * name for one fact (`delivers_to_me` is already the field on the shop
+     * detail payload), so a card cannot claim delivery the checkout will refuse.
+     */
+    public function deliversTo(?float $lat, ?float $lng): bool
+    {
+        if (! $this->deliveryEnabled()) {
+            return false;
+        }
+        if ($lat === null || $lng === null || $this->latitude === null || $this->longitude === null) {
+            // Unmeasurable, not refused: the shop delivers, we just cannot say
+            // whether it reaches here. Checkout has the last word.
+            return true;
+        }
+
+        $radius = $this->setting('delivery_radius_km');
+        $limit = $radius === null ? self::CITY_WIDE_KM : (float) $radius;
+
+        return Geo::distanceKm($lat, $lng, (float) $this->latitude, (float) $this->longitude) <= $limit;
     }
 
     /**

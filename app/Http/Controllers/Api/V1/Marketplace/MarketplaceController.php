@@ -111,10 +111,20 @@ class MarketplaceController extends Controller
 
         $query = Tenant::query()
             ->marketplaceVisible()
+            /**
+             * ── CAN IT SERVE THIS PIN ────────────────────────────────
+             *
+             * The city AND the shop's own `delivery_radius_km`, in one scope
+             * shared with the home feed and the aisle. This list used to
+             * filter by city only when the caller asked, and never by the
+             * shop's radius at all — so a shop 30 km away that delivers 5
+             * was listed, tapped, filled with a basket, and refused at
+             * checkout. See `Tenant::scopeServesPin`.
+             */
+            ->servesPin($lat, $lng, $request->query('city_id'))
             ->with('city:id,name')
             ->withAvg(['reviews as rating_avg' => fn ($q) => $q->where('is_published', true)], 'rating')
             ->withCount(['reviews as reviews_count' => fn ($q) => $q->where('is_published', true)])
-            ->when($request->query('city_id'), fn ($q, $cityId) => $q->where('city_id', $cityId))
             /**
              * EVERY CODE THAT MEANS THE SAME TRADE.
              *
@@ -215,6 +225,10 @@ class MarketplaceController extends Controller
             ->paginate(min((int) $request->query('per_page', 20), 100))
             ->through(fn (Tenant $t) => $this->publicShop($t) + [
                 'distance_km' => isset($t->distance_km) && $t->distance_km !== null ? round((float) $t->distance_km, 2) : null,
+                // The same name the shop DETAIL payload has used since the
+                // radius existed. One field for one fact, so a card cannot
+                // promise a delivery the checkout will refuse.
+                'delivers_to_me' => $t->deliversTo($lat, $lng),
             ]);
 
         return ApiResponse::paginated($shops);
@@ -504,6 +518,11 @@ class MarketplaceController extends Controller
             // asks for. One request instead of one per heart.
             'ids' => ['nullable', 'string', 'max:2000'],
             'city_id' => ['nullable', 'uuid'],
+            // THE PIN. Not a filter a shopper sets — the fence every list now
+            // applies: a product is only in the aisle if the shop behind it can
+            // actually get it here. The aisle had no idea where anybody was.
+            'lat' => ['nullable', 'numeric', 'between:-90,90'],
+            'lng' => ['nullable', 'numeric', 'between:-180,180'],
             'business_type' => ['nullable', 'string', 'max:40'],
             'shop_slug' => ['nullable', 'string', 'max:120'],
             'category' => ['nullable', 'string', 'max:100'],
@@ -569,7 +588,26 @@ class MarketplaceController extends Controller
             ->where('products.visible_in_marketplace', true)
             // The same fence every other marketplace read goes through — a demo
             // shop's catalog must never appear beside a real one's.
-            ->whereIn('products.tenant_id', Tenant::query()->marketplaceVisible()->select('id'))
+            ->whereIn('products.tenant_id', Tenant::query()->marketplaceVisible()
+                /**
+                 * ── THE PIN IS PART OF THE CITY AXIS ─────────────────
+                 *
+                 * Dropped together when the CITY facet is being counted, and
+                 * that is deliberate: a facet reading "Lahore (12)" exists so
+                 * somebody can switch to Lahore, and counting those twelve
+                 * against a Karachi pin would answer "Lahore (0)" for every
+                 * city but the one they are already in.
+                 *
+                 * Every other facet keeps the fence, or the rail says 24 over
+                 * a list of 6 — the bug this shared query was written to
+                 * prevent.
+                 */
+                ->servesPin(
+                    $except === 'city_id' || ! isset($f['lat']) ? null : (float) $f['lat'],
+                    $except === 'city_id' || ! isset($f['lng']) ? null : (float) $f['lng'],
+                    $except === 'city_id' ? null : ($f['city_id'] ?? null),
+                )
+                ->select('id'))
             ->select('products.*')
             ->selectSub(
                 fn ($q) => $q->from('reviews')
@@ -888,13 +926,24 @@ class MarketplaceController extends Controller
             ]);
 
         $base = fn () => Tenant::query()->marketplaceVisible()
-            ->when($data['city_id'] ?? null, fn ($q, $id) => $q->where('city_id', $id))
+            // Every section of the home screen — nearby, top rated, and the
+            // shops behind the deals — is built from this, so the fence is
+            // written once here rather than three times below.
+            ->servesPin(
+                isset($data['lat']) ? (float) $data['lat'] : null,
+                isset($data['lng']) ? (float) $data['lng'] : null,
+                $data['city_id'] ?? null,
+            )
             ->with('city:id,name')
             ->withAvg(['reviews as rating_avg' => fn ($r) => $r->where('is_published', true)], 'rating')
             ->withCount(['reviews as reviews_count' => fn ($r) => $r->where('is_published', true)]);
 
         $serialize = fn ($shops) => $shops->map(fn (Tenant $t) => $this->publicShop($t) + [
             'distance_km' => isset($t->distance_km) && $t->distance_km !== null ? round((float) $t->distance_km, 2) : null,
+            'delivers_to_me' => $t->deliversTo(
+                isset($data['lat']) ? (float) $data['lat'] : null,
+                isset($data['lng']) ? (float) $data['lng'] : null,
+            ),
         ])->values();
 
         $nearby = $base();

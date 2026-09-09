@@ -625,4 +625,123 @@ class RiderSideTest extends TestCase
         // always will be.
         $this->assertNull(Rider::withoutTenancy()->find($cardId)->rider_profile_id);
     }
+    // ── Why the board is empty ──────────────────────────────────────
+
+    /**
+     * "RIDER SIDE NO ORDER COMING, KOI RIDER ASSIGN NI HO RAHA."
+     *
+     * The board said "No deliveries near you" and no screen could say which of
+     * six situations it was in — five of them fixable. The one that had
+     * actually happened: `is_platform` defaults to FALSE, was writable only in
+     * the apply payload, and `apply()` refuses an approved profile. So a rider
+     * whose application went through without the flag was invisible to the pool
+     * for ever, with no control anywhere to change it.
+     */
+    public function test_the_board_says_a_rider_is_not_in_the_pool(): void
+    {
+        $profile = $this->approvedRider($this->rider, platform: false);
+        // `/advance`, and ASSERTED. My first version posted to `/status`,
+        // which does not exist, and did not check the response — so the order
+        // stayed `placed`, the board was empty for the ordinary reason, and
+        // the test failed while pointing at the wrong thing.
+        $order = $this->placeDelivery();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])
+            ->assertOk();
+
+        $board = $this->as($this->rider)->getJson('/api/v1/rider/board')->assertOk()->json('data');
+
+        $this->assertSame([], $board['offers']);
+        // Asserted non-null first: indexing a null `blocked` reports "trying
+        // to access array offset on null", which is a true failure with a
+        // message about PHP rather than about the board.
+        $this->assertNotNull($board['blocked'], 'the board gave no reason at all');
+        $this->assertSame('not_platform', $board['blocked']['code']);
+        $this->assertFalse($board['in_pool']);
+        // And it says what to do about it, because a reason nobody can act on
+        // is the same empty page with more words.
+        $this->assertStringContainsString('CartZe', $board['blocked']['message']);
+        $this->assertTrue($profile->fresh()->is_online);
+    }
+
+    public function test_a_rider_can_join_the_pool_and_the_work_arrives(): void
+    {
+        /**
+         * The whole loop, because the fix is only a fix if a job actually
+         * lands: switch the pool on, and the order the shop confirmed is on
+         * the board.
+         */
+        $this->approvedRider($this->rider, platform: false);
+        // `/advance`, and ASSERTED. My first version posted to `/status`,
+        // which does not exist, and did not check the response — so the order
+        // stayed `placed`, the board was empty for the ordinary reason, and
+        // the test failed while pointing at the wrong thing.
+        $order = $this->placeDelivery();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])
+            ->assertOk();
+
+        $this->as($this->rider)->putJson('/api/v1/rider/pool', ['is_platform' => true])->assertOk();
+
+        $board = $this->as($this->rider)->getJson('/api/v1/rider/board')->assertOk()->json('data');
+
+        $this->assertNull($board['blocked'], 'the board still reports a reason');
+        $this->assertCount(1, $board['offers']);
+    }
+
+    public function test_the_board_names_off_duty_before_anything_else(): void
+    {
+        // Order matters: a rider who is offline is offline whatever else is
+        // true, and telling them about their position first would send them
+        // hunting for a signal.
+        $this->approvedRider($this->rider, platform: true);
+        $this->as($this->rider)->postJson('/api/v1/rider/online', ['is_online' => false])->assertOk();
+
+        $board = $this->as($this->rider)->getJson('/api/v1/rider/board')->assertOk()->json('data');
+
+        $this->assertNotNull($board['blocked'], 'the board gave no reason at all');
+        $this->assertSame('offline', $board['blocked']['code']);
+    }
+
+    public function test_the_board_admits_a_stale_position(): void
+    {
+        /**
+         * Five minutes without a heartbeat and the pool stops offering — which
+         * is correct, and was completely silent. A rider whose app had been in
+         * their pocket saw the same page as a rider with nothing near them.
+         */
+        $profile = $this->approvedRider($this->rider, platform: true);
+        $profile->forceFill(['last_seen_at' => now()->subMinutes(RiderProfile::STALE_AFTER_MINUTES + 1)])->save();
+
+        $board = $this->as($this->rider)->getJson('/api/v1/rider/board')->assertOk()->json('data');
+
+        $this->assertNotNull($board['blocked'], 'the board gave no reason at all');
+        $this->assertSame('stale', $board['blocked']['code']);
+    }
+
+    public function test_an_empty_board_with_nothing_wrong_says_nothing_is_wrong(): void
+    {
+        // The other half of the rule. A reason attached to an ordinary quiet
+        // afternoon would train a rider to ignore all of them.
+        $this->approvedRider($this->rider, platform: true);
+
+        $board = $this->as($this->rider)->getJson('/api/v1/rider/board')->assertOk()->json('data');
+
+        $this->assertSame([], $board['offers']);
+        $this->assertNull($board['blocked']);
+    }
+
+    public function test_leaving_the_pool_does_not_take_a_job_off_somebody(): void
+    {
+        // The pool decides what is OFFERED. A job already accepted belongs to
+        // whoever accepted it, and a switch must not strand a customer's food.
+        $this->approvedRider($this->rider, platform: true);
+        $order = $this->placeDelivery();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])
+            ->assertOk();
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/accept")->assertOk();
+
+        $this->as($this->rider)->putJson('/api/v1/rider/pool', ['is_platform' => false])->assertOk();
+
+        $board = $this->as($this->rider)->getJson('/api/v1/rider/board')->assertOk()->json('data');
+        $this->assertCount(1, $board['active']);
+    }
 }
