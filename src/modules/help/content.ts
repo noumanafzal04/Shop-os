@@ -1912,6 +1912,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
           ["Barcodes", "What prints on a label, and scale barcodes for items sold by weight."],
         ],
       },
+      { type: "h", text: "How far you deliver, and who can see you" },
+      {
+        type: "p",
+        text: "Settings → Tax & Delivery → Delivery radius. This is not only a rule at checkout any more: customers further away than the distance you set do not see your shop in the app at all. A shop that delivers three kilometres is invisible to somebody five kilometres away — which is the point, because they cannot order from you anyway.",
+      },
+      {
+        type: "note",
+        text: "Leave it empty and it means your whole city, not the whole country. Also check your map location on the Business tab: the radius is measured from that pin, so a wrong pin hides you from the streets around you and shows you to a town you cannot reach.",
+      },
       { type: "p", text: "Branches live on their own screen, and theme colours in the Appearance panel reachable from anywhere." },
       {
         type: "note",

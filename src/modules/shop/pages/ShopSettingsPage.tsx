@@ -459,8 +459,22 @@ export default function ShopSettingsPage() {
                           />
                         </Field>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <Field label="Delivery radius (km)" hint="Orders beyond this distance are rejected.">
-                            <Input type="number" min="0.5" step={0.5} value={prefs.delivery_radius_km != null ? String(prefs.delivery_radius_km) : ""} onChange={(e) => setP("delivery_radius_km", e.target.value === "" ? null : Number(e.target.value))} placeholder="No limit" />
+                          {/*
+                            THE HINT HAD TO CHANGE WITH THE MEANING.
+
+                            It said "orders beyond this distance are rejected",
+                            which was the whole truth while the radius was
+                            checked at CHECKOUT and nowhere else. It now also
+                            decides whether this shop is LISTED to a customer
+                            at all — a shop that says three kilometres does not
+                            appear to somebody five away — and an empty box now
+                            means "my own city" rather than "no limit".
+                          */}
+                          <Field
+                            label="Delivery radius (km)"
+                            hint="How far you deliver. Customers further away do not see your shop and cannot order. Leave empty for your whole city."
+                          >
+                            <Input type="number" min="0.5" step={0.5} value={prefs.delivery_radius_km != null ? String(prefs.delivery_radius_km) : ""} onChange={(e) => setP("delivery_radius_km", e.target.value === "" ? null : Number(e.target.value))} placeholder="My whole city" />
                           </Field>
                           <Field label="Prep time (min)" hint="Estimated preparation time shown to customers.">
                             <Input type="number" min="1" max="480" value={prefs.prep_time_minutes != null ? String(prefs.prep_time_minutes) : ""} onChange={(e) => setP("prep_time_minutes", e.target.value === "" ? null : Number(e.target.value))} placeholder="e.g. 25" />
