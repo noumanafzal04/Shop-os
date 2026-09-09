@@ -7323,3 +7323,35 @@ caught.
 
 Mobile tsc 0, eslint 0 errors, 56 suites / 744 tests · 6 mutations, 6 caught ·
 APK `cartze-1.0.4-b9.apk` (versionCode 5).
+
+## 2026-09-09 (later still) — Does this shop reach me
+
+**Shipped the city + radius fence.** `Tenant::scopeServesPin` — same city, and
+for delivery inside the shop's own `delivery_radius_km` — called by `home`,
+`shops` and the aisle. `delivery_radius_km` had existed for months and was
+enforced at CHECKOUT only, so a Karachi shopper saw Lahore shops and a 30 km
+shop with a 5 km radius refused after a basket was built. `null` now means the
+shop's own city. Full write-up: `docs/decisions/shopos-serves-this-pin.md`.
+
+**One plan decision reversed:** keeping pickup-capable shops listed made the
+fence useless, because `pickup_enabled` defaults to true. Pickup earns the
+city, not an exemption from distance.
+
+**The app sends the city now.** It never had. `useServingPin` is the one place
+both halves come from, and it is in every query key.
+
+**Rider: no orders coming.** `is_platform` defaults false and was writable only
+in the apply payload, which `apply` refuses once approved — invisible to the
+pool for ever with no control anywhere. `PUT /rider/pool` plus a board that
+names which of six reasons it is empty for.
+
+**Rider: going online took twenty seconds.** It awaited a high-accuracy fix
+before sending anything. One quick attempt now, then online; the heartbeat
+corrects the pin.
+
+**Home grid is exactly eight** (4 shortcuts + 3 trades + View all), and the
+guard computes the total rather than trusting a number. Account and the shop
+list keep their brand headers — only home lost its slab.
+
+Backend 2701 / 2 skipped · panel 1522 · mobile 760 · 11 mutations, 10 caught,
+1 documented unobservable · APK `cartze-1.0.6-b11.apk` (versionCode 7).

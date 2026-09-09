@@ -206,4 +206,5 @@
 - [Keys Out Of The Repo](shopos-keys-out-of-the-repo.md) — gitignored secrets.ts + guard; the APK still leaks the key
 - [Approximate Is Allow](shopos-approximate-is-allow.md) — Android 12+ COARSE grant read as denial; blank pin + rider could not go online
 - [White Page, Brand Accent](shopos-white-page-brand-accent.md) — headers are the page colour; brand = rider duty fill, wordmark, filter
-- [Serves This Pin](shopos-serves-this-pin.md) — PLANNED: city fence + per-shop delivery_radius_km on every list, one scope
+- [Serves This Pin](shopos-serves-this-pin.md) — SHIPPED: city fence + per-shop delivery_radius_km on every list, one scope
+- [Rider Pool Had No Switch](shopos-rider-pool-had-no-switch.md) — is_platform false with no exit = no orders; board now names 1 of 6 reasons
