@@ -86,6 +86,16 @@ export function useRiderActions() {
     onSuccess: after,
   });
 
+  /**
+   * In the pool, or not. The switch that did not exist — `is_platform`
+   * defaulted to false and was writable only in the apply payload, which
+   * `apply` refuses once a rider is approved.
+   */
+  const setPool = useMutation({
+    mutationFn: (is_platform: boolean) => riderService.setPool(is_platform),
+    onSuccess: after,
+  });
+
   const accept = useMutation({ mutationFn: (id: string) => riderService.accept(id), onSuccess: after });
   const decline = useMutation({ mutationFn: (id: string) => riderService.decline(id), onSuccess: after });
   const pickUp = useMutation({ mutationFn: (id: string) => riderService.pickUp(id), onSuccess: after });
@@ -94,5 +104,5 @@ export function useRiderActions() {
     onSuccess: after,
   });
 
-  return { apply, uploadDocument, submit, setOnline, accept, decline, pickUp, deliver };
+  return { apply, uploadDocument, submit, setOnline, setPool, accept, decline, pickUp, deliver };
 }

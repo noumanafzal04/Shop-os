@@ -220,6 +220,15 @@ export interface ShopQuery {
 export interface BrowseFilters {
   q?: string;
   city_id?: string;
+  /**
+   * THE PIN — the fence, not a filter somebody sets.
+   *
+   * A product is in the aisle only if the shop behind it can get it here.
+   * `city_id` alone is not enough: a shop with a 3 km radius across town is in
+   * the same city and cannot reach you. See `useServingPin`.
+   */
+  lat?: number;
+  lng?: number;
   business_type?: string;
   /** Pins the aisle to one shop, for a filter opened from a shop's own menu. */
   shop_slug?: string;
@@ -314,6 +323,8 @@ function browseParams(f: BrowseFilters): Record<string, string | number | undefi
   };
   put("q", f.q?.trim());
   put("city_id", f.city_id);
+  put("lat", f.lat);
+  put("lng", f.lng);
   put("business_type", f.business_type);
   put("shop_slug", f.shop_slug);
   put("item_type", f.item_type);

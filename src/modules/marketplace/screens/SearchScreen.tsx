@@ -16,7 +16,7 @@ import { Skeleton } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
-import { useLocationStore } from "../../../stores/locationStore";
+import { useServingPin } from "../servingPin";
 import { useUniversalSearch } from "../hooks/useMarketplace";
 import { formatDistance } from "../shopFacts";
 import { Price } from "../../../common/ui/Price";
@@ -42,7 +42,7 @@ export function SearchScreen() {
   const coverFor = useShopCover();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
-  const { lat, lng } = useLocationStore();
+  const pin = useServingPin();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<Tab>("all");
   const [openOnly, setOpenOnly] = useState(false);
@@ -76,7 +76,7 @@ export function SearchScreen() {
     prefs.rememberSearch(debounced).catch(() => {});
   }, [debounced]);
 
-  const results = useUniversalSearch(debounced, { lat: lat ?? undefined, lng: lng ?? undefined });
+  const results = useUniversalSearch(debounced, pin);
   const d = results.data;
   const searching = debounced.trim().length >= 2;
 

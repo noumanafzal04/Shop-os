@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "../../../common/api/client";
+import { apiGet, apiPost, apiPut } from "../../../common/api/client";
 
 /**
  * The rider half of the app.
@@ -98,6 +98,18 @@ export interface RiderBoard {
   active: RiderJob[];
   offers: RiderJob[];
   job_limit: number;
+  /**
+   * WHY THERE ARE NO OFFERS — null when there honestly is no reason.
+   *
+   * Six situations draw the same empty board and five of them are fixable
+   * (not approved, off duty, not in the pool, no position, stale position, at
+   * the job limit). Reported as "rider side no order coming" against a
+   * profile that was not in the platform pool at all, with nothing on any
+   * screen saying so.
+   */
+  blocked: { code: string; message: string } | null;
+  /** In the CartZe pool, or only taking jobs from shops that added you. */
+  in_pool: boolean;
   earnings_today: RiderEarnings;
   /** The server's clock, so "updated 5s ago" is not a phone's opinion. */
   as_of: string;
@@ -132,6 +144,13 @@ export const riderService = {
 
   setOnline: (is_online: boolean, at?: { latitude: number; longitude: number }) =>
     apiPost<RiderProfile>("/rider/online", { is_online, ...at }),
+  /**
+   * Join or leave the CartZe pool.
+   *
+   * Its own endpoint because `apply` refuses an approved profile — so this
+   * flag, once wrong, could not be corrected by the rider it belonged to.
+   */
+  setPool: (is_platform: boolean) => apiPut<RiderProfile>("/rider/pool", { is_platform }),
   ping: (at: { latitude?: number; longitude?: number }) =>
     apiPost<{ is_online: boolean; last_seen_at: string | null }>("/rider/ping", at),
 

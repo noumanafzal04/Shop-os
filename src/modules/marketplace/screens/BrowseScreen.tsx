@@ -30,6 +30,7 @@ import { radius, spacing, type ThemeColors, typography, useColors } from "../../
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useCartStore } from "../../../stores/cartStore";
+import { useServingPin } from "../servingPin";
 import { useBrowse } from "../hooks/useMarketplace";
 import { FilterSheet, activeFilterCount } from "../components/FilterSheet";
 import { QuickFilters } from "../components/QuickFilters";
@@ -66,6 +67,7 @@ export function BrowseScreen() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const params = (useRoute().params ?? {}) as NonNullable<Params["Browse"]>;
+  const pin = useServingPin();
 
   /**
    * ── A PAGE YOU CAN TYPE ON ──────────────────────────────────────────
@@ -94,6 +96,14 @@ export function BrowseScreen() {
   const base: BrowseFilters = {
     q: q || undefined,
     business_type: params.business_type,
+    /**
+     * THE PIN, ON THE BASE — never on `filters`.
+     *
+     * It is the fence, not a choice: Reset must clear what the shopper picked
+     * and must NOT widen the aisle to shops that cannot deliver here. On the
+     * filters side, one Reset would have done exactly that.
+     */
+    ...pin,
   };
   // Seeded from whatever opened this screen — a home shortcut arrives with its
   // filter already set, and the sheet then shows it as on rather than as a

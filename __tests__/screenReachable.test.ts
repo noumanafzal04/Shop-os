@@ -1,4 +1,5 @@
 import { PROJECT_ROOT, codeOnly, fs, path, sourceFiles, statementAt } from "./support/node";
+import { SHORTCUTS } from "../src/modules/marketplace/tradeIcon";
 
 /**
  * EVERY SCREEN CAN BE OPENED.
@@ -168,6 +169,40 @@ describe("no screen is written and left unreachable", () => {
 
     expect(home).toMatch(/const HOME_TRADES = \d+;/);
     expect(home).toMatch(/\.slice\(0, HOME_TRADES\)/);
+  });
+
+  it("fills the grid exactly, with the way out in the last corner", () => {
+    const home = codeOnly(
+      fs.readFileSync(
+        path.join(PROJECT_ROOT, "src/modules/marketplace/screens/CustomerHomeScreen.tsx"),
+        "utf8",
+      ),
+    );
+
+    /**
+     * The grid is ONE wrapping container at a quarter-width per tile, so the
+     * only thing that decides the shape is the total:
+     *
+     *     SHORTCUTS + HOME_TRADES + 1 ("View all")
+     *
+     * It was 4 + 4 + 1 = nine — two full rows and a single orphan tile on a
+     * third, with "View all" stranded in the corner of it. Asked for as "aik
+     * remove krke View all 8th position py set kro".
+     *
+     * A multiple of four, computed rather than eyeballed: adding a fifth
+     * shortcut brings the orphan straight back, and nothing else in the suite
+     * would notice.
+     */
+    const trades = Number(/const HOME_TRADES = (\d+);/.exec(home)?.[1]);
+    expect(Number.isFinite(trades)).toBe(true);
+
+    const tiles = SHORTCUTS.length + trades + 1;
+    expect(tiles % 4).toBe(0);
+    // And the last one is the way out, not a trade — the corner a thumb
+    // reaches after reading the row.
+    expect(home.indexOf('accessibilityLabel="View all categories"')).toBeGreaterThan(
+      home.indexOf("tradeTiles.map"),
+    );
   });
 });
 

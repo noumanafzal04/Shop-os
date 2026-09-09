@@ -57,6 +57,27 @@ import { riderService, type RiderJob } from "../services/riderService";
 
 const PING_MS = 45_000;
 
+/**
+ * A HEADING PER REASON — the server sends the sentence, the app sets the tone.
+ *
+ * Split this way because the two belong to different sides: the message is a
+ * fact about the account and the platform (only the server knows the pool
+ * flag, the heartbeat, the position age), while a heading is typography and
+ * belongs where the type is. A missing code falls back to a neutral heading
+ * rather than to nothing, so a reason added on the server still reads as a
+ * reason on an app that has not been updated.
+ */
+const BLOCK_TITLES: Record<string, string> = {
+  not_approved: "Your account is not approved yet",
+  offline: "Go online to see work",
+  at_limit: "You are at your limit",
+  // `BRAND.name`, never the literal — the product has been renamed once
+  // already and `brand.test.ts` walks every shipped string for it.
+  not_platform: `You are not taking ${BRAND.name} jobs`,
+  no_position: "We cannot see where you are",
+  stale: "Your position has gone stale",
+};
+
 export function RiderHomeScreen() {
   const c = useColors();
   // Dark glyphs on the light page, light on the dark one — the phone's theme,
@@ -71,10 +92,17 @@ export function RiderHomeScreen() {
   const rider = useRiderProfile();
   const approved = rider.data?.status === "approved";
   const board = useRiderBoard(approved);
-  const { setOnline } = useRiderActions();
+  const { setOnline, setPool } = useRiderActions();
   const pull = usePullToRefresh(board.refetch);
 
   const online = board.data?.is_online ?? rider.data?.is_online ?? false;
+  /**
+   * The server's verdict on why the board is empty, and null when it is
+   * simply empty. Read straight through rather than re-derived here: the app
+   * cannot see the pool flag, the heartbeat or the position age, which is
+   * three of the six reasons.
+   */
+  const blocked = board.data?.blocked ?? null;
 
   // Heartbeat — only while online AND only while this screen is mounted.
   React.useEffect(() => {
@@ -347,22 +375,46 @@ export function RiderHomeScreen() {
           </>
         }
         ListEmptyComponent={
+          /**
+           * ── AN EMPTY BOARD THAT SAYS WHY ─────────────────────────
+           *
+           * "Rider side no order coming, koi rider assign ni ho raha." Six
+           * situations draw this same page and five are fixable, and the
+           * screen used to guess at three of them from what it happened to
+           * have locally — duty state and the job count — which is why the
+           * one that had actually happened (not in the CartZe pool at all)
+           * came out as "No deliveries near you".
+           *
+           * The SERVER says which now (`blocked`), because it is the only
+           * side that knows about the pool flag, the position and the
+           * heartbeat. `null` means nothing is in the way — an empty board on
+           * a quiet afternoon, which must not carry a warning of its own or a
+           * rider learns to ignore all of them.
+           */
           <EmptyState
             icon={ParcelIcon}
-            tone={online ? "muted" : "warm"}
+            tone={blocked ? "warm" : "muted"}
             title={
-              !online
-                ? "Go online to see work"
-                : active.length >= (board.data?.job_limit ?? 3)
-                  ? "You are at your limit"
-                  : "No deliveries near you"
+              blocked
+                ? BLOCK_TITLES[blocked.code] ?? "Nothing is being offered"
+                : "No deliveries near you"
             }
             message={
-              !online
-                ? "Nothing is offered to a rider who is off duty."
-                : active.length >= (board.data?.job_limit ?? 3)
-                  ? `Deliver one of your ${active.length} orders and the board opens again.`
-                  : "A job is offered to the riders nearest the shop first, then wider. This checks again every few seconds."
+              blocked?.message ??
+              "A job is offered to the riders nearest the shop first, then wider. This checks again every few seconds."
+            }
+            /**
+             * And the way out, where there is one. A reason nobody can act on
+             * is the same empty page with more words — this is the exact
+             * switch that did not exist anywhere in the app.
+             */
+            action={
+              blocked?.code === "not_platform"
+                ? {
+                    label: setPool.isPending ? "Switching on…" : `Take ${BRAND.name} deliveries`,
+                    onPress: () => setPool.mutate(true),
+                  }
+                : undefined
             }
           />
         }

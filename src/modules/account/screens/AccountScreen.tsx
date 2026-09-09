@@ -28,7 +28,7 @@ import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppButton } from "../../../common/ui/AppButton";
 import { confirm } from "../../../common/ui/confirm";
-import { radius, spacing, type ThemeColors, typography, useColors, useOppositeColors, useTheme } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors, useOppositeColors } from "../../../theme";
 import { useAuthStore } from "../../../stores/authStore";
 import { useModeStore } from "../../../stores/modeStore";
 import { useLogout } from "../../auth/hooks/useAuth";
@@ -157,7 +157,6 @@ const APP: Link[] = [
 
 export function AccountScreen() {
   const c = useColors();
-  const { isDark } = useTheme();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   /**
@@ -215,13 +214,8 @@ export function AccountScreen() {
 
       `edges={["top"]}` because the tab bar owns the bottom inset.
     */
-    /*
-      The page's own colour, like every other header in the app now. The brand
-      block this used to be painted the notch area as well — see
-      `CustomerHomeScreen` for the whole reasoning.
-    */
-    <SafeScreen backgroundColor={c.bg} edges={["top"]}>
-      <FocusedStatusBar style={isDark ? "light-content" : "dark-content"} background={c.bg} />
+    <SafeScreen backgroundColor={c.primary} edges={["top"]}>
+      <FocusedStatusBar style="light-content" background={c.primary} />
 
       <View style={styles.hero}>
         <View style={styles.heroTop}>
@@ -233,7 +227,7 @@ export function AccountScreen() {
             accessibilityLabel="Settings"
             onPress={() => navigation.navigate("Settings")}
           >
-            <GearIcon size={19} color={c.text} />
+            <GearIcon size={19} color={c.onPrimary} />
           </Touchable>
         </View>
 
@@ -520,10 +514,10 @@ const makeStyles = (c: ThemeColors) =>
      * here, so the hero keeps its own height whatever the sheet does.
      */
     hero: {
-      backgroundColor: c.bg,
+      backgroundColor: c.primary,
       paddingHorizontal: spacing.md,
       paddingTop: spacing.xs,
-      paddingBottom: spacing.md,
+      paddingBottom: spacing.xl,
     },
     heroTop: {
       flexDirection: "row",
@@ -531,51 +525,47 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "space-between",
       marginBottom: spacing.md,
     },
-    heroTitle: { ...typography.title, color: c.text, fontSize: 21 },
+    heroTitle: { ...typography.title, color: c.onPrimary, fontSize: 21 },
     gear: {
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: c.surfaceAlt,
+      // A wash of the same white the text is, rather than a second colour.
+      // One tint keeps the block reading as one object.
+      backgroundColor: "rgba(255,255,255,0.18)",
       alignItems: "center",
       justifyContent: "center",
     },
 
-    /**
-     * The sheet used to be a rounded page lifted 18pt onto a brand-coloured
-     * block. With the hero on the page colour there is nothing to overlap, and
-     * a rounded corner against the same colour is invisible — so it is simply
-     * the page, and one hairline separates the person from their settings.
-     */
     sheet: {
       flex: 1,
       backgroundColor: c.bg,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.border,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      marginTop: -18,
     },
     body: { padding: spacing.md, paddingBottom: spacing.xl },
 
     who: { flexDirection: "row", alignItems: "center", gap: 12 },
-    /** The one brand-filled thing on the page, and it is the person. */
     avatar: {
       width: 54,
       height: 54,
       borderRadius: 27,
-      backgroundColor: c.primarySoft,
+      backgroundColor: c.onPrimary,
       alignItems: "center",
       justifyContent: "center",
     },
     avatarText: { ...typography.title, color: c.primary, fontSize: 23 },
     whoCopy: { flex: 1, gap: 2 },
-    whoName: { ...typography.h3, color: c.text, fontSize: 18 },
-    whoSub: { ...typography.tiny, color: c.textSecondary },
+    whoName: { ...typography.h3, color: c.onPrimary, fontSize: 18 },
+    whoSub: { ...typography.tiny, color: c.brand[100] },
     editPill: {
-      backgroundColor: c.primarySoft,
+      backgroundColor: "rgba(255,255,255,0.22)",
       borderRadius: 14,
       paddingHorizontal: 12,
       paddingVertical: 6,
     },
-    editText: { ...typography.tiny, color: c.primary, fontWeight: "800" },
+    editText: { ...typography.tiny, color: c.onPrimary, fontWeight: "800" },
 
     signIn: { marginTop: spacing.md },
 

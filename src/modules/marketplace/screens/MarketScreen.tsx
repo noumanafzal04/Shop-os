@@ -31,9 +31,9 @@ import { RatingChip } from "../components/RatingChip";
 import { shopInitial, useShopCover } from "../shopCover";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
-import { radius, spacing, type ThemeColors, typography, useColors, useTheme } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
-import { useLocationStore } from "../../../stores/locationStore";
+import { useServingPin } from "../servingPin";
 import { useHomeFeed, useMarketShops } from "../hooks/useMarketplace";
 import type { PublicShop, ShopQuery } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
@@ -46,7 +46,6 @@ const typeLabel = (t: string | null) => (t ? t.charAt(0).toUpperCase() + t.slice
  */
 export function MarketScreen() {
   const c = useColors();
-  const { isDark } = useTheme();
   const coverFor = useShopCover();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
@@ -62,7 +61,7 @@ export function MarketScreen() {
   const businessCategory: string | undefined = route.params?.business_category;
   const title: string = route.params?.title ?? "Shops";
   const isTab = route.name === "GroceryTab" || route.name === "Market";
-  const { lat, lng } = useLocationStore();
+  const pin = useServingPin();
 
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search, 350);
@@ -81,14 +80,16 @@ export function MarketScreen() {
     search: debounced,
     business_type: businessType,
     business_category: businessCategory,
-    lat: lat ?? undefined,
-    lng: lng ?? undefined,
+    // The pin AND the city — see `useServingPin`. This sent the pin only, so
+    // the list was fenced by each shop's radius and by nothing else, and a
+    // shopper in Karachi was shown shops from every other city.
+    ...pin,
   });
   const pull = usePullToRefresh(shops.refetch);
   const rows = (shops.data?.pages ?? []).flatMap((p) => p.data);
 
   // Deals strip scoped to this list's business type (grocery tab → grocery deals).
-  const feed = useHomeFeed({ lat: lat ?? undefined, lng: lng ?? undefined });
+  const feed = useHomeFeed(pin);
   const deals = (feed.data?.deals ?? []).filter(
     // `sameTrade`, not `===`. The tab passes `grocery` and every shop created
     // since the primary types replaced the narrow codes is stored as `mart` —
@@ -103,22 +104,15 @@ export function MarketScreen() {
   // again opens a dead strip; pushed, nothing is below it and its last row
   // lands under the gesture bar. One component, two answers.
   return (
-    /*
-      The same header the home screen wears: the page's own colour, one
-      hairline under it, and the brand kept for the things that mean
-      something. It was a brand-red slab painting the notch area — see
-      `CustomerHomeScreen` for the whole reasoning. Half the app white and half
-      of it red is the "not looks good" this was reported as.
-    */
-    <SafeScreen backgroundColor={c.bg} edges={isTab ? ["top"] : ["top", "bottom"]}>
-      <FocusedStatusBar style={isDark ? "light-content" : "dark-content"} background={c.bg} />
+    <SafeScreen backgroundColor={c.brand[500]} edges={isTab ? ["top"] : ["top", "bottom"]}>
+      <FocusedStatusBar style="light-content" background={c.brand[500]} />
 
-      {/* ── Header ────────────────────────────────────────────────── */}
+      {/* ── Brand hero header ─────────────────────────────────────── */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           {!isTab && (
             <Touchable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-              <ArrowLeftIcon size={19} color={c.text} />
+              <ArrowLeftIcon size={19} color={c.white} />
             </Touchable>
           )}
           <View style={styles.headerText}>
@@ -127,12 +121,12 @@ export function MarketScreen() {
           </View>
         </View>
         <View style={styles.searchBar}>
-          <SearchIcon size={18} color={c.textMuted} />
+          <SearchIcon size={18} color={c.gray[400]} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search shops…"
-            placeholderTextColor={c.textMuted}
+            placeholderTextColor={c.gray[400]}
             autoCapitalize="none"
             style={styles.searchInput}
           />
@@ -295,32 +289,28 @@ function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   header: {
-    backgroundColor: c.bg,
+    backgroundColor: c.brand[500],
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: c.border,
+    paddingBottom: spacing.md,
   },
   headerTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
   back: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: c.surfaceAlt,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
   headerText: { flex: 1 },
-  title: { ...typography.title, color: c.text },
-  subtitle: { ...typography.tiny, color: c.textMuted },
+  title: { ...typography.title, color: c.white },
+  subtitle: { ...typography.tiny, color: c.brand[100] },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: c.surfaceAlt,
-    borderWidth: 1,
-    borderColor: c.border,
+    backgroundColor: c.surface,
     borderRadius: 22,
     paddingHorizontal: spacing.md,
     height: 46,

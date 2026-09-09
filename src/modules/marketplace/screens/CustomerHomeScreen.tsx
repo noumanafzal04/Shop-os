@@ -26,6 +26,7 @@ import { Skeleton, SkeletonShopCard } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { radius, spacing, type ThemeColors, typography, useColors, useTheme } from "../../../theme";
 import { useLocationStore } from "../../../stores/locationStore";
+import { useServingPin } from "../servingPin";
 import { useHomeFeed } from "../hooks/useMarketplace";
 import { formatDistance } from "../shopFacts";
 import { PromoCarousel } from "../components/PromoCarousel";
@@ -40,7 +41,19 @@ import { shortcutArt, tradeArt, useTileGround } from "../tileArt";
 import { OfferBadge, Price } from "../../../common/ui/Price";
 import { shopInitial, useShopCover } from "../shopCover";
 
-const HOME_TRADES = 4;
+/**
+ * HOW MANY TRADES SHARE THE GRID — and the arithmetic behind the number.
+ *
+ * The grid is one wrapping container at a quarter-width per tile, so it reads
+ * as rows of FOUR and the total is what matters:
+ *
+ *     4 shortcuts  +  HOME_TRADES  +  1 "View all"  =  8
+ *
+ * Three, therefore. It was four, which made nine — two full rows and a single
+ * orphan tile on a third, which is what "aik remove krke View all 8th position
+ * py set kro" was about. Change this and the last tile leaves the corner.
+ */
+const HOME_TRADES = 3;
 
 /**
  * A trade code, roughly title-cased.
@@ -65,14 +78,15 @@ export function CustomerHomeScreen() {
   const navigation = useNavigation<any>();
   const [menuOpen, setMenuOpen] = useState(false);
   const coverFor = useShopCover();
-  const { status, lat, lng, label, detect } = useLocationStore();
+  const { status, label, detect } = useLocationStore();
+  const pin = useServingPin();
 
   // First launch: resolve GPS → city automatically (foodpanda-style).
   useEffect(() => {
     if (status === "idle") detect();
   }, [status, detect]);
 
-  const feed = useHomeFeed({ lat: lat ?? undefined, lng: lng ?? undefined });
+  const feed = useHomeFeed(pin);
   const ground = useTileGround();
 
   /**

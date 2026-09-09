@@ -91,6 +91,10 @@ const TOPICS: Topic[] = [
     a: "It is at the foot of the Account page, under App. Please read it out when you report something that looks wrong \u2014 it is the only way to tell which build you are on, and half of \u201cstill broken\u201d turns out to be an older one still installed. If yours does not match the newest, install again and check it changed.",
   },
   {
+    q: "A shop I saw before has disappeared",
+    a: "The list only shows shops that can actually reach the address at the top of the screen — your city, and inside each shop's own delivery distance. So moving your pin changes the list, and a shop that delivers three kilometres will not appear once you are five away. It is still there: search for it by name, or move your pin back. This is also why a basket can no longer be checked out after you change the address.",
+  },
+  {
     q: "It cannot find my location, or the address stays blank",
     a: "Two things to check. First, when Android asks, either Precise or Approximate is fine \u2014 both work, and approximate is enough to find shops near you. Second, Location (GPS) has to be switched on in the phone's own settings; the app can ask for permission but it cannot switch the radio on for you. Indoors the first attempt can take a few seconds because it waits for satellites, then falls back to a rougher fix by itself. If it still says nothing, open the address at the top of the home screen and search for your area by name \u2014 that works with no GPS at all.",
   },
@@ -125,6 +129,10 @@ const TOPICS: Topic[] = [
   {
     q: "Why does the app turn green when I go on shift?",
     a: "So you can tell at a glance which half of the app you are in. Shopping is orange, working is green — same app, same buttons in the same places, one colour swapped. It is also the colour the Online switch turns, so the whole screen agrees with the control that matters most while you are working.",
+  },
+  {
+    q: "I am a rider — my board is empty and no orders come at all",
+    a: `The board now tells you which of these it is, in the box where the jobs would be. The usual one: you are only taking jobs from shops that added you, so nothing from the ${BRAND.name} pool reaches you — the board says so and has a button to switch it on. The others are being off duty, being at your three-order limit, having no position yet (keep the app open a moment), and a position more than five minutes old (pull down to refresh). If the box says nothing is wrong, the board really is empty and it checks again every few seconds.`,
   },
   {
     q: "I am a rider — why don't I see every job?",
