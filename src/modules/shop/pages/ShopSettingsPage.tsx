@@ -457,6 +457,33 @@ export default function ShopSettingsPage() {
                             placeholder="CartZe riders"
                             onChange={(v) => setP("delivery_provider", v)}
                           />
+                          {/*
+                            ── SAID OUT LOUD, BECAUSE A DEFAULT FLIP DOES NOT
+                               REACH A SHOP THAT HAS EVER PRESSED SAVE ───────
+
+                            The platform default became "CartZe riders", and it
+                            changed nothing for existing shops: this page READS
+                            the merged settings (defaults + overrides) and SAVES
+                            all of them back, so the old default — "self" — was
+                            frozen into every shop that had ever saved anything.
+
+                            A shop then sits on its own riders, silently, and
+                            nobody is offered its deliveries. Reported from the
+                            other end: "rider side no order coming", which was
+                            this, on a live shop, for days. So the consequence
+                            is on the screen next to the control rather than in
+                            a hint somebody reads once.
+                          */}
+                          {String(prefs.delivery_provider ?? "platform") === "self" && (
+                            <p className="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                              <span aria-hidden="true">⚠</span>
+                              <span>
+                                No CartZe rider will ever be offered your deliveries. Every order
+                                waits for a rider you have added under Riders — if you have none,
+                                nobody is coming.
+                              </span>
+                            </p>
+                          )}
                         </Field>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           {/*

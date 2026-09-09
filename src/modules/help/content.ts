@@ -1912,6 +1912,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
           ["Barcodes", "What prints on a label, and scale barcodes for items sold by weight."],
         ],
       },
+      { type: "h", text: "Who carries your deliveries" },
+      {
+        type: "p",
+        text: "Settings → Tax & Delivery → Who delivers. \"CartZe riders\" offers each order to the riders nearest you the moment you accept it; \"My own riders\" means only the people you have added under Riders, and no CartZe rider is ever offered your orders.",
+      },
+      {
+        type: "note",
+        text: "If you are set to your own riders and have not added any, nobody is coming — the order simply waits. Every shop that saved its settings before we made CartZe riders the default still has the old setting stored, so check this once even if you never changed it.",
+      },
       { type: "h", text: "How far you deliver, and who can see you" },
       {
         type: "p",
