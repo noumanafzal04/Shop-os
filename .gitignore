@@ -73,3 +73,9 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# ── API keys ──────────────────────────────────────────────────────────
+# The real values live here and must never be committed: this repository is
+# public, and a key in it is readable for ever afterwards even once rotated.
+# `secrets.example.ts` IS tracked and carries the empty shape.
+src/common/secrets.ts

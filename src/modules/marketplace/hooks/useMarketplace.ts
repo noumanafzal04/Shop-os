@@ -23,6 +23,28 @@ export function useHomeFeed(params: { lat?: number; lng?: number; city_id?: stri
   });
 }
 
+/**
+ * THE FULL LIST OF TRADES, WITH THE CATEGORIES INSIDE THEM.
+ *
+ * Its own query rather than a slice of the home feed: the home feed carries
+ * banners, twelve deals and twenty-four shop cards, and this screen needs none
+ * of it. It also answers a different question — home returns the trades that
+ * have shops, this one returns every trade the platform sells.
+ *
+ * `staleTime` is long because the answer is a registry plus a count: the
+ * registry changes when the platform grows a trade, and a count that is a
+ * quarter of an hour old has never changed anybody's mind about tapping
+ * Garments.
+ */
+export function useCategories(params: { city_id?: string } = {}) {
+  return useQuery({
+    queryKey: ["market", "categories", params],
+    queryFn: async () => (await marketplaceService.categories(params)).data,
+    staleTime: 15 * 60 * 1000,
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useUniversalSearch(q: string, params: { lat?: number; lng?: number; city_id?: string }) {
   return useQuery({
     queryKey: ["market", "search", q, params],

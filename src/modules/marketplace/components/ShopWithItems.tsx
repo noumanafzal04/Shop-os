@@ -53,6 +53,19 @@ import type { PublicShop } from "../services/marketplaceService";
  * The strip disappears and the header stands on its own, exactly as the old
  * row did. A card that collapses to nothing because a shop has not uploaded
  * photographs yet would punish the newest shops hardest.
+ *
+ * ── AND A SHOP WITH ONE OR TWO THINGS LISTED ─────────────────────────
+ *
+ * Reported as "jab kisi shop ki 1 ya 2 products hoti hain to achi nahi show ho
+ * rahi". The strip is a horizontal scroller of FIXED 132pt tiles plus an 88pt
+ * "See all", so one item measured 232pt inside a 358pt card: a third of the
+ * card was empty and the See-all tile floated in the middle of it, which reads
+ * as a layout that failed rather than as a shop with one dish.
+ *
+ * Under three items there is nothing to scroll, so the tiles stop being fixed
+ * and share the row instead — one item fills half the card beside See all, two
+ * fill a third each. Same tiles, same heights, no gap. At three or more the
+ * horizontal strip is correct again, because then there IS more than fits.
  */
 
 interface Props {
@@ -71,6 +84,12 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
   const closed = shop.is_open_now === false;
   const cover = coverFor(shop.slug);
   const items = shop.preview_products ?? [];
+  /**
+   * Three is the number the strip needs to make sense: 3 × 132 plus the gaps
+   * and the See-all tile is already wider than any phone, so it genuinely
+   * scrolls. Below that it never did — it just left a hole.
+   */
+  const scrolls = items.length >= 3;
 
   return (
     <View style={styles.card}>
@@ -129,19 +148,11 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
 
       {/* ── What ────────────────────────────────────────────────── */}
       {items.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.strip}
-          // The card's own press must not fight a sideways drag through the
-          // items — without this, a scroll that starts on a thumbnail opens
-          // the shop instead.
-          keyboardShouldPersistTaps="handled"
-        >
+        <Strip scrolls={scrolls} styles={styles}>
           {items.map((item) => (
             <Touchable
               key={item.id}
-              style={styles.item}
+              style={[styles.item, !scrolls && styles.share]}
               scaleTo={0.95}
               accessibilityRole="button"
               accessibilityLabel={item.name}
@@ -153,7 +164,7 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
                   fallback={shopInitial(item.name)}
                   fallbackBackground={coverFor(item.id).bg}
                   fallbackColor={coverFor(item.id).fg}
-                  style={styles.itemImage}
+                  style={[styles.itemImage, !scrolls && styles.itemImageShare]}
                 />
                 {/*
                   Draws itself, or nothing. It used to be a hand-rolled pill
@@ -183,7 +194,7 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
             sideways scroll somewhere to arrive.
           */}
           <Touchable
-            style={styles.more}
+            style={[styles.more, !scrolls && styles.share]}
             scaleTo={0.95}
             accessibilityRole="button"
             accessibilityLabel={`See everything at ${shop.business_name}`}
@@ -196,9 +207,43 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
               See all
             </Text>
           </Touchable>
-        </ScrollView>
+        </Strip>
       )}
     </View>
+  );
+}
+
+/**
+ * The container the tiles sit in — a scroller, or a row that shares the width.
+ *
+ * One component rather than two copies of the tile markup: the alternative was
+ * `{scrolls ? <ScrollView>…</ScrollView> : <View>…</View>}` with the whole
+ * `items.map` written twice, which is how one branch quietly stops getting the
+ * fix the other gets.
+ */
+function Strip({
+  scrolls,
+  styles,
+  children,
+}: {
+  scrolls: boolean;
+  styles: ReturnType<typeof makeStyles>;
+  children: React.ReactNode;
+}) {
+  if (!scrolls) return <View style={[styles.strip, styles.row]}>{children}</View>;
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.strip}
+      // The card's own press must not fight a sideways drag through the items
+      // — without this, a scroll that starts on a thumbnail opens the shop
+      // instead.
+      keyboardShouldPersistTaps="handled"
+    >
+      {children}
+    </ScrollView>
   );
 }
 
@@ -245,9 +290,19 @@ const makeStyles = (c: ThemeColors) =>
     name: { ...typography.h3, color: c.text, fontSize: 16.5 },
 
     strip: { gap: 12, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
+    /** Only when it is not a scroller — a `contentContainerStyle` is already a
+     *  row, and a plain View is not. */
+    row: { flexDirection: "row" },
     item: { width: 132 },
+    /**
+     * An equal share of the row instead of a fixed width. `width: undefined`
+     * is load-bearing: `item`'s 132 would otherwise win the flex-basis and
+     * leave the same gap this exists to close.
+     */
+    share: { width: undefined, flex: 1 },
     itemImageWrap: { borderRadius: radius.md, overflow: "hidden", marginBottom: 8 },
     itemImage: { width: 132, height: 104 },
+    itemImageShare: { width: "100%" },
     itemBadge: { position: "absolute", top: 6, left: 6 },
     itemName: { ...typography.small, color: c.text, fontSize: 13, fontWeight: "600" },
 

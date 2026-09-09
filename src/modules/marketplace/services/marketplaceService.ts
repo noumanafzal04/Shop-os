@@ -89,6 +89,24 @@ export interface HomeFeed {
   business_types: Array<{ type: string; label: string; shops_count: number }>;
 }
 
+/**
+ * EVERY TRADE, AND EVERY CATEGORY INSIDE IT.
+ *
+ * Not `HomeFeed.business_types`, which is the trades that HAVE shops, four of
+ * them, ordered by how many — the right list for four tiles and the wrong one
+ * for a page that has to name Garments and Electronics as things you can tap.
+ *
+ * `shops_count` is 0 for a trade or a category nobody has joined yet, and the
+ * server sends the zero on purpose: this screen draws the platform's whole
+ * breadth, and a row without a count is a coin toss.
+ */
+export interface CategoryTrade {
+  type: string;
+  label: string;
+  shops_count: number;
+  categories: Array<{ value: string; label: string; shops_count: number }>;
+}
+
 export interface SearchResult {
   query: string;
   products: Array<{
@@ -172,6 +190,16 @@ export interface ShopQuery {
   city_id?: string;
   search?: string;
   business_type?: string;
+  /**
+   * The finer trade — `garments`, `electronics`, `grocery`.
+   *
+   * A shop's `business_category`, picked at setup from its type's list. The
+   * categories page names these, so without it a Garments row had nowhere to
+   * send anybody: the nearest thing was `search=garments`, which also matches
+   * shop NAMES and missed every garment shop that had not put the word in its
+   * title.
+   */
+  business_category?: string;
   lat?: number;
   lng?: number;
   open_now?: boolean;
@@ -330,6 +358,11 @@ export const marketplaceService = {
   bannerClick: (id: string) =>
     apiPost<{ target: HomeBanner["target"] }>(`/marketplace/banners/${id}/click`),
 
+  categories: (params: { city_id?: string } = {}) =>
+    apiGet<{ business_types: CategoryTrade[] }>("/marketplace/categories", {
+      params: { city_id: params.city_id || undefined },
+    }),
+
   shops: (params: ShopQuery) =>
     apiGet<PublicShop[]>("/marketplace/shops", {
       params: {
@@ -338,6 +371,7 @@ export const marketplaceService = {
         lat: params.lat,
         lng: params.lng,
         business_type: params.business_type || undefined,
+        business_category: params.business_category || undefined,
         // Sent only when ON. A `false` on the wire is a filter the server has
         // to decide the meaning of; an absent one is unambiguous.
         open_now: params.open_now ? 1 : undefined,

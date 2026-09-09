@@ -1,4 +1,4 @@
-import { PROJECT_ROOT, codeOnly, fs, path, sourceFiles } from "./support/node";
+import { PROJECT_ROOT, codeOnly, fs, path, sourceFiles, statementAt } from "./support/node";
 
 /**
  * EVERY SCREEN CAN BE OPENED.
@@ -116,13 +116,15 @@ describe("no screen is written and left unreachable", () => {
 
   it("has a way in to All categories specifically", () => {
     /**
-     * Named on its own because it is the screen this guard was written
-     * alongside, and because its single entry point is a tile in a grid that
-     * only renders when there are more trades than the grid shows.
+     * Named on its own because this is the screen the guard was written
+     * alongside, and because it went unreachable ON LIVE for a whole release.
      *
-     * A conditional entry point is a screen that is reachable in testing and
-     * missing in a small marketplace, which is the state every new
-     * installation is in.
+     * The tile was drawn under `business_types.length > tradeTiles.length`.
+     * The server sends the trades that HAVE shops; live had exactly four and
+     * the grid shows four, so `4 > 4` was false and the only way in did not
+     * render. A registered, routed, tested screen that nobody could open.
+     *
+     * So the entry point is asserted UNCONDITIONAL, not merely present.
      */
     const home = codeOnly(
       fs.readFileSync(
@@ -132,10 +134,26 @@ describe("no screen is written and left unreachable", () => {
     );
 
     expect(home).toMatch(/navigate\("Categories"\)/);
-    // And the condition it is drawn under is about there being MORE, not about
-    // there being any — a marketplace with three trades needs no page listing
-    // three trades, but one with five must offer the way to the fourth.
-    expect(home).toMatch(/business_types \?\? \[\]\)\.length > tradeTiles\.length/);
+
+    const lines = home.split("\n");
+    const label = lines.findIndex((l) => l.includes('accessibilityLabel="View all categories"'));
+    expect(label).toBeGreaterThan(-1);
+
+    // The element the label belongs to, then the line that decides whether it
+    // is drawn at all.
+    const tag = lines.slice(0, label).map((l) => l.trim()).lastIndexOf("<Touchable");
+    expect(tag).toBeGreaterThan(-1);
+
+    const before = lines
+      .slice(0, tag)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .pop();
+
+    // `x && (`, `x ? (`, `x &&` — any of them makes the way in depend on
+    // something, and something is what was false on live.
+    expect(before).not.toMatch(/(&&|\?|\|\|)\s*\(?$/);
+    expect(home).not.toMatch(/length > tradeTiles\.length/);
   });
 
   it("caps the home grid, which is why the screen is needed", () => {
@@ -153,7 +171,7 @@ describe("no screen is written and left unreachable", () => {
   });
 });
 
-describe("the categories screen does not invent its own names or its own data", () => {
+describe("the categories screen offers the platform's whole breadth, and only what is doable", () => {
   const src = codeOnly(
     fs.readFileSync(
       path.join(PROJECT_ROOT, "src/modules/marketplace/screens/CategoriesScreen.tsx"),
@@ -161,35 +179,71 @@ describe("the categories screen does not invent its own names or its own data", 
     ),
   );
 
-  it("reads the label the server sends", () => {
+  it("reads the labels the server sends", () => {
     /**
      * The app used to build a label by capitalising the CODE, so a mart read
      * "Mart" while `BusinessTypes::all()` has called it "Mart & Grocery" since
      * the type existed. Two names for one thing, and the rougher one on the
      * screen everybody opens first.
      */
-    expect(src).toMatch(/\{item\.label\}/);
+    expect(src).toMatch(/\{trade\.label\}/);
+    expect(src).toMatch(/\{cat\.label\}/);
     expect(src).not.toMatch(/typeLabel/);
     expect(src).not.toMatch(/charAt\(0\)\.toUpperCase\(\)/);
   });
 
-  it("reuses the home feed rather than asking again", () => {
-    // Same hook, same key, same coordinates — so this screen is a cache hit
-    // and paints immediately. A dedicated endpoint would be a second list of
-    // trades to keep in step with the first.
-    expect(src).toMatch(/useHomeFeed\(\{ lat: lat \?\? undefined, lng: lng \?\? undefined \}\)/);
+  it("asks the question home cannot answer", () => {
+    /**
+     * NOT `useHomeFeed`. It returns the trades that have shops — four of them
+     * — so an "All categories" page built on it showed exactly the four rows
+     * the home screen already had, and could not name a trade nobody had
+     * joined yet or a single category inside one.
+     */
+    expect(src).toMatch(/useCategories\(/);
+    expect(src).not.toMatch(/useHomeFeed/);
   });
 
-  it("sends a tap to the same screen the home tile does", () => {
+  it("keys the counts to the city, not the pin", () => {
+    // The counts answer "how many garment shops are there", which is a
+    // question about a place. Coordinates would key the cache to every GPS
+    // reading and re-ask the same question all day.
+    expect(src).toMatch(/useCategories\(\{ city_id: city\?\.id \}\)/);
+  });
+
+  it("sends a trade tap to the same screen the home tile does", () => {
     // Two ways in, one destination. A second listing screen for the same rows
     // is how one of them ends up with a fix the other never gets.
-    expect(src).toMatch(/navigate\("ShopList", \{/);
-    expect(src).toMatch(/business_type: item\.type/);
+    expect(src).toMatch(/navigate\("ShopList", \{ business_type: t\.type, title: t\.label \}\)/);
+  });
+
+  it("sends a category tap with the trade as well as the category", () => {
+    /**
+     * Both. The trade scopes the deals strip on the shop list, so a Garments
+     * list shows garment offers rather than whatever the marketplace has
+     * discounted today.
+     */
+    const jump = statementAt(src, src.indexOf("const openCategory"));
+    expect(jump).toMatch(/business_type: t\.type/);
+    expect(jump).toMatch(/business_category: value/);
+  });
+
+  it("refuses to offer a row that leads to an empty list", () => {
+    /**
+     * The one rule on this page: `shops_count > 0` decides whether a thing can
+     * be pressed. A chip that opens an empty list is the shape this codebase
+     * keeps finding — offered, and not doable.
+     */
+    expect(src).toMatch(/const open = trade\.shops_count > 0;/);
+    expect(src).toMatch(/const has = cat\.shops_count > 0;/);
+    // Not just styled differently — actually inert, both ways round.
+    expect(src).toMatch(/onPress=\{open \? \(\) => onOpenTrade\(trade\) : undefined\}/);
+    expect(src).toMatch(/disabled=\{!open\}/);
+    expect(src).toMatch(/disabled=\{!has\}/);
   });
 
   it("says shop, not shops, when there is one of them", () => {
     // "1 shops" is the kind of detail that makes an app feel unfinished for
     // the sake of two characters.
-    expect(src).toMatch(/item\.shops_count === 1 \? "shop" : "shops"/);
+    expect(src).toMatch(/trade\.shops_count === 1 \? "shop" : "shops"/);
   });
 });

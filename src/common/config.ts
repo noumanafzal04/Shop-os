@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { GEOAPIFY_KEY, GOOGLE_MAPS_KEY } from "./secrets";
 
 /**
  * Which backend the app talks to.
@@ -69,27 +70,42 @@ if (__DEV__ && API_TARGET === "live") {
 }
 
 /**
- * Maps / geocoding provider. Geoapify for now (address autocomplete +
- * reverse geocoding); swap MAPS_PROVIDER to 'google' once a Google key
- * is added — geoService picks the provider automatically.
+ * Maps / geocoding provider — Google. `geoService` picks the implementation
+ * from this, and both providers are implemented in `services/geo.ts`.
  *
- * The key is intentionally EMPTY in source. A working one used to sit here as
- * a literal, which put it in a public repo and in git history, and meant
- * rotating it was a code change. Geocoding fails soft (geo.ts returns
- * null/[]), so an empty key degrades address autocomplete rather than
- * breaking the app.
+ * ── The keys are NOT in this file any more ───────────────────────────
  *
- * TODO before the mobile app ships: this needs a real mechanism — no env
- * library is installed here yet (no react-native-config, no .env). Until one
- * is added, set the key locally and do not commit it.
+ * They were literals here, and this file is TRACKED in a PUBLIC repository. A
+ * working Geoapify key sat here and was readable by anyone from the moment it
+ * was committed; rotating it was a code change. The TODO that used to be at
+ * this spot said "set the key locally and do not commit it", which is a rule
+ * one `git add -A` defeats — and this repo gets a lot of those.
+ *
+ * `secrets.ts` is gitignored and holds the real values. `secrets.example.ts`
+ * is tracked, carries the empty shape, and `npm install` copies it across if
+ * the real file is missing, so a fresh clone still bundles.
+ *
+ * Geocoding fails soft — `geo.ts` returns null/[] — so an empty key degrades
+ * address autocomplete rather than breaking the app.
  */
-export const MAPS_PROVIDER: "geoapify" | "google" = "geoapify";
-export const GEOAPIFY_API_KEY = "";
-export const GOOGLE_MAPS_API_KEY = "";
+export const MAPS_PROVIDER: "geoapify" | "google" = "google";
+export const GEOAPIFY_API_KEY = GEOAPIFY_KEY;
+export const GOOGLE_MAPS_API_KEY = GOOGLE_MAPS_KEY;
 
-if (__DEV__ && MAPS_PROVIDER === "geoapify" && !GEOAPIFY_API_KEY) {
-  console.warn(
-    "[maps] GEOAPIFY_API_KEY is empty — address search and reverse geocoding " +
-      "will return nothing. Set it locally in src/common/config.ts; do not commit it.",
-  );
+if (__DEV__) {
+  /**
+   * Warns about the key the provider ACTUALLY uses.
+   *
+   * The old version only ever checked Geoapify, so switching to Google with an
+   * empty Google key would have gone quiet — the one moment the warning was
+   * for.
+   */
+  const key = MAPS_PROVIDER === "google" ? GOOGLE_MAPS_API_KEY : GEOAPIFY_API_KEY;
+  if (!key) {
+    console.warn(
+      `[maps] ${MAPS_PROVIDER} key is empty — address search and reverse ` +
+        "geocoding will return nothing. Put it in src/common/secrets.ts " +
+        "(gitignored); see secrets.example.ts.",
+    );
+  }
 }

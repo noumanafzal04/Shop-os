@@ -1,9 +1,7 @@
 import { create } from "zustand";
-import { PermissionsAndroid, Platform } from "react-native";
-import Geolocation from "@react-native-community/geolocation";
 import { marketplaceService, type LocateResult } from "../modules/marketplace/services/marketplaceService";
 import { reverseGeocode } from "../services/geo";
-import { BRAND } from "../common/brand";
+import { askForLocation, currentPosition } from "../services/position";
 
 /**
  * Foodpanda model — NO city picker. On launch: GPS → /marketplace/locate →
@@ -28,15 +26,6 @@ interface LocationState {
   setPin: (lat: number, lng: number, label?: string) => Promise<void>;
 }
 
-const getPosition = () =>
-  new Promise<{ lat: number; lng: number }>((resolve, reject) => {
-    Geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      reject,
-      { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 },
-    );
-  });
-
 export const useLocationStore = create<LocationState>((set, get) => ({
   status: "idle",
   lat: null,
@@ -48,28 +37,33 @@ export const useLocationStore = create<LocationState>((set, get) => ({
     if (get().status === "locating") return;
     set({ status: "locating" });
 
-    try {
-      if (Platform.OS === "android") {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: "Find shops near you",
-            message: `${BRAND.name} uses your location to show nearby shops and delivery options.`,
-            buttonPositive: "Allow",
-          },
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          set({ status: "denied" });
-          return;
-        }
-      }
-
-      const { lat, lng } = await getPosition();
-      await get().setPin(lat, lng);
-    } catch {
-      // Timeout / services off / iOS denial all land here.
+    /**
+     * ONE COPY OF THE PERMISSION PROMPT, AND IT IS `position.ts`.
+     *
+     * This file had its own — a bare `request(ACCESS_FINE_LOCATION)` — beside
+     * the rider's. Two copies meant one bug in two places: since Android 12,
+     * a person who taps Allow with **Approximate** selected grants COARSE and
+     * denies FINE, so a request for FINE alone comes back denied after they
+     * pressed Allow. The shopper was then told to allow a location they had
+     * just allowed, and the app browsed city-less with a blank pin.
+     */
+    const allowed = await askForLocation(
+      "uses your location to show nearby shops and delivery options.",
+    );
+    if (!allowed) {
       set({ status: "denied" });
+      return;
     }
+
+    // `currentPosition` never throws and retries once without high accuracy,
+    // so a phone that cannot see satellites indoors still resolves its city.
+    const { fix } = await currentPosition();
+    if (fix == null) {
+      set({ status: "denied" });
+      return;
+    }
+
+    await get().setPin(fix.latitude, fix.longitude);
   },
 
   setPin: async (lat, lng, label) => {

@@ -31,7 +31,7 @@ import { toast } from "../../../common/ui/toast";
 import { money } from "../../../common/format";
 import { BRAND } from "../../../common/brand";
 import { formatDistance } from "../../marketplace/shopFacts";
-import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors, useTheme } from "../../../theme";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { askForLocation, currentPosition } from "../../../services/position";
 import { useRiderActions, useRiderBoard, useRiderProfile } from "../hooks/useRider";
@@ -59,6 +59,9 @@ const PING_MS = 45_000;
 
 export function RiderHomeScreen() {
   const c = useColors();
+  // Dark glyphs on the light page, light on the dark one — the phone's theme,
+  // not the brand's. The band this used to paint behind the status bar is gone.
+  const { isDark } = useTheme();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   // The board is a root tab in rider mode, so the left slot is the way into
@@ -78,7 +81,7 @@ export function RiderHomeScreen() {
     if (!online) return;
     let alive = true;
     const beat = async () => {
-      const fix = await currentPosition({ highAccuracy: true, timeoutMs: 8000 });
+      const { fix } = await currentPosition({ highAccuracy: true, timeoutMs: 8000 });
       if (!alive || fix == null) return;
       // Fire and forget: a missed heartbeat is corrected by the next one, and
       // a toast every time a rider goes under a bridge is noise.
@@ -99,9 +102,24 @@ export function RiderHomeScreen() {
         toast.error("Allow location to go online.");
         return;
       }
-      const fix = await currentPosition({ highAccuracy: true });
+      /**
+       * WHY IT SAYS WHICH.
+       *
+       * This was one sentence — "Could not find your location. Check that GPS
+       * is on." — for three different situations, and it was shown to riders
+       * whose GPS was on. A rider standing indoors gets a timeout; a rider
+       * with location services switched off gets something else; and the fix
+       * for each is a different thing to go and do.
+       */
+      const { fix, why } = await currentPosition({ highAccuracy: true });
       if (fix == null) {
-        toast.error("Could not find your location. Check that GPS is on.");
+        toast.error(
+          why === "denied"
+            ? "Location is blocked for the app. Turn it on in Settings, then try again."
+            : why === "unavailable"
+              ? "Switch on Location (GPS) on your phone, then try again."
+              : "Could not get a fix — move somewhere with a clearer view of the sky and try again.",
+        );
         return;
       }
       setOnline.mutate({ is_online: true, at: fix });
@@ -173,8 +191,8 @@ export function RiderHomeScreen() {
      *
      * `edges` drops "top" because the hero paints under the status bar itself.
      */
-    <SafeScreen backgroundColor={c.brand[600]} edges={["bottom"]}>
-      <FocusedStatusBar style="light-content" background={c.brand[600]} />
+    <SafeScreen backgroundColor={c.bg} edges={["top", "bottom"]}>
+      <FocusedStatusBar style={isDark ? "light-content" : "dark-content"} background={c.bg} />
       <SideMenu visible={menu} onClose={() => setMenu(false)} />
 
       <FlatList
@@ -194,12 +212,12 @@ export function RiderHomeScreen() {
             <View style={styles.hero}>
               <View style={styles.heroTop}>
                 <Touchable
-                  style={styles.burger}
+                  style={styles.iconBtn}
                   onPress={() => setMenu(true)}
                   accessibilityRole="button"
                   accessibilityLabel="Menu"
                 >
-                  <MenuIcon size={21} color={c.white} />
+                  <MenuIcon size={21} color={c.text} />
                 </Touchable>
 
                 {/*
@@ -227,7 +245,6 @@ export function RiderHomeScreen() {
                   at={board.data?.as_of}
                   busy={board.isFetching}
                   onPress={() => board.refetch()}
-                  onDark
                 />
               </View>
 
@@ -243,7 +260,7 @@ export function RiderHomeScreen() {
                 work can reach you, and the switch is beside them.
               */}
               <Touchable
-                style={styles.duty}
+                style={[styles.duty, online && styles.dutyOn]}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: online }}
                 accessibilityLabel={online ? "Go offline" : "Go online"}
@@ -257,11 +274,11 @@ export function RiderHomeScreen() {
                       accessible cue, and this is the screen's whole state.
                     */}
                     <View style={[styles.dutyDot, online && styles.dutyDotOn]} />
-                    <Text style={styles.dutyTitle}>
+                    <Text style={[styles.dutyTitle, online && styles.onBrand]}>
                       {online ? "You are online" : "You are offline"}
                     </Text>
                   </View>
-                  <Text style={styles.dutyHint} numberOfLines={2}>
+                  <Text style={[styles.dutyHint, online && styles.hintOnBrand]} numberOfLines={2}>
                     {setOnline.isPending
                       ? "One moment…"
                       : online
@@ -514,26 +531,41 @@ const makeStyles = (c: ThemeColors) =>
      * Bottom corners only, and `paddingBottom` leaves room for the stats card
      * to sit ON the edge rather than under it.
      */
+    /**
+     * ── A WHITE PAGE, AND THE BRAND WHERE THE STATE IS ──────────────
+     *
+     * This was a solid ember band with rounded bottom corners, painting the
+     * notch area itself. Reported as "primary color should be white as was
+     * first", "top notch issue" and "just show branding color".
+     *
+     * So the hero is the page now. The brand appears in two places and both
+     * of them mean something: the wordmark, which answers "am I on the rider
+     * side", and the duty card, which turns brand-solid the moment a rider is
+     * on duty. A rider can tell their own state from across a room without
+     * reading a word — which the translucent-white-on-ember card could not do,
+     * because it looked the same either way.
+     */
     hero: {
-      backgroundColor: c.brand[600],
+      backgroundColor: c.bg,
       paddingHorizontal: spacing.md,
-      paddingTop: spacing.sm,
-      paddingBottom: 44,
-      borderBottomLeftRadius: radius.xl,
-      borderBottomRightRadius: radius.xl,
+      paddingTop: spacing.xs,
+      paddingBottom: spacing.xs,
+      gap: spacing.md,
     },
     heroTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-    burger: {
-      width: 42,
-      height: 42,
-      borderRadius: radius.md,
-      backgroundColor: "rgba(255,255,255,0.16)",
+    /** One shape for every round control in the header. */
+    iconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: c.surfaceAlt,
       alignItems: "center",
       justifyContent: "center",
     },
 
     lockup: { flexDirection: "row", alignItems: "center", gap: 7 },
-    wordmark: { ...typography.display, fontSize: 20, color: c.white, letterSpacing: -0.4 },
+    /** THE branding, and the one place the brand colour is used as type. */
+    wordmark: { ...typography.display, fontSize: 20, color: c.primary, letterSpacing: -0.4 },
     /**
      * "RIDER" as a chip, not as a second word.
      *
@@ -542,97 +574,108 @@ const makeStyles = (c: ThemeColors) =>
      * side".
      */
     modeChip: {
-      backgroundColor: "rgba(255,255,255,0.2)",
+      backgroundColor: c.primarySoft,
       paddingHorizontal: 7,
       paddingVertical: 3,
       borderRadius: 6,
     },
     modeChipText: {
       ...typography.tiny,
-      color: c.white,
+      color: c.primary,
       fontSize: 9.5,
       fontWeight: "800",
       letterSpacing: 0.8,
     },
 
     /**
-     * The duty row, on the colour.
+     * The duty card — the biggest control on the screen, and the only one
+     * that changes colour.
      *
-     * A translucent white rather than `c.surface`: a solid card here would
-     * punch a hole in the band and look like the old layout with a coloured
-     * strip behind it.
+     * Off: a plain card, like everything else on the page. On: solid brand.
+     * Nothing else on this screen is filled with the brand colour, so the fill
+     * IS the state.
      */
     duty: {
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.md,
-      backgroundColor: "rgba(255,255,255,0.14)",
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
       borderRadius: radius.lg,
       paddingVertical: 14,
       paddingHorizontal: spacing.md,
-      marginTop: spacing.md,
     },
+    dutyOn: { backgroundColor: c.primary, borderColor: c.primary },
     dutyCopy: { flex: 1, gap: 3 },
     dutyTitleRow: { flexDirection: "row", alignItems: "center", gap: 7 },
     /**
      * Off is a hollow ring, on is filled.
      *
-     * Not two colours: on a coloured ground a red dot and a green dot at 8px
-     * are the same dot to most eyes, and colour alone is never the only cue.
+     * Not two colours: at 9px a red dot and a green dot are the same dot to
+     * most eyes, and colour alone is never the only cue.
      */
     dutyDot: {
       width: 9,
       height: 9,
       borderRadius: 5,
       borderWidth: 1.5,
-      borderColor: "rgba(255,255,255,0.55)",
+      borderColor: c.textMuted,
     },
     /**
      * A LITERAL white, not `c.white`.
      *
      * `darkModeDebt` bans `backgroundColor: c.white` outright and is right to:
      * the token is literal white in both themes, so it reads as theme-aware
-     * and paints a white card on a dark page. There is no exemption list, and
-     * adding one to a rule that currently holds absolutely would cost more
-     * than these two lines are worth.
-     *
-     * Both of these sit on the ember band, which is ember in either theme —
-     * so the pigment is genuinely fixed, and saying so with a literal is the
-     * honest spelling. Same reason `PromoCarousel`'s scrim text is "#ffffff".
+     * and paints a white card on a dark page. This dot only ever sits on the
+     * brand fill, which is brand in either theme — so the pigment is genuinely
+     * fixed, and a literal is the honest spelling. Same reason
+     * `PromoCarousel`'s scrim text is "#ffffff".
      */
     dutyDotOn: { backgroundColor: "#ffffff", borderColor: "#ffffff" },
-    dutyTitle: { ...typography.h3, color: c.white, fontSize: 17 },
-    dutyHint: { ...typography.tiny, color: "rgba(255,255,255,0.82)" },
+    dutyTitle: { ...typography.h3, color: c.text, fontSize: 17 },
+    dutyHint: { ...typography.tiny, color: c.textSecondary },
+    /** The two type colours for the on state, where the ground is the brand. */
+    onBrand: { color: c.onPrimary },
+    hintOnBrand: { color: "rgba(255,255,255,0.85)" },
 
     /** The code a shop types to add this rider. Quiet, and never absent. */
     riderCode: {
       ...typography.tiny,
-      color: "rgba(255,255,255,0.7)",
+      color: c.textMuted,
       fontWeight: "700",
       letterSpacing: 0.6,
-      marginTop: spacing.sm,
       textAlign: "center",
     },
 
+    /**
+     * The track has to hold a WHITE knob in both states now.
+     *
+     * Off, the card behind it is `c.surface` — so the track carries the
+     * contrast itself (a mid grey that is mid in both themes) rather than the
+     * old `rgba(0,0,0,0.22)`, which on a white card is a pale wash the knob
+     * disappeared into.
+     */
     track: {
       width: 52,
       height: 30,
       borderRadius: 15,
-      backgroundColor: "rgba(0,0,0,0.22)",
+      backgroundColor: c.gray[400],
       padding: 3,
       justifyContent: "center",
     },
-    trackOn: { backgroundColor: "rgba(255,255,255,0.3)" },
-    // Literal, and on the ember band in both themes — see `dutyDotOn`.
+    trackOn: { backgroundColor: "rgba(0,0,0,0.22)" },
+    // Literal white in both states — see `dutyDotOn` for why it is not
+    // `c.white`. It sits on a mid grey or on the brand fill, never on the page.
     knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#ffffff" },
 
     // ── Today ──────────────────────────────────────────────────────
     /**
-     * ONE card straddling the hero's edge, not three tiles in the page.
+     * ONE card, not three tiles in the page.
      *
-     * `marginTop` is negative by design: the overlap is what ties the numbers
-     * to the band above them. Three separate bordered tiles floating below it
-     * read as filters, which is what they looked like.
+     * The `marginTop: -32` this used to carry lifted it onto the ember band's
+     * bottom edge. There is no band to straddle now, and a negative margin
+     * with nothing above it pulls the card up under the duty switch.
      */
     stats: {
       flexDirection: "row",
@@ -642,7 +685,7 @@ const makeStyles = (c: ThemeColors) =>
       borderWidth: 1,
       borderColor: c.border,
       marginHorizontal: spacing.md,
-      marginTop: -32,
+      marginTop: spacing.xs,
       paddingVertical: 12,
     },
     statPress: { flex: 1 },

@@ -1,9 +1,14 @@
 import { GEOAPIFY_API_KEY, GOOGLE_MAPS_API_KEY, MAPS_PROVIDER } from "../common/config";
 
 /**
- * Provider-agnostic geocoding. Geoapify today, Google later — callers never
- * know which answered. Both calls degrade to null/[] on any failure so the
- * app keeps working without a geocoder (labels fall back to the city name).
+ * Provider-agnostic geocoding. GOOGLE today, Geoapify still implemented beside
+ * it — callers never know which answered. Both calls degrade to null/[] on any
+ * failure so the app keeps working without a geocoder (labels fall back to the
+ * city name).
+ *
+ * The keys come from `secrets.ts`, which is gitignored, because a working
+ * Geoapify key sat in `config.ts` as a literal and is in public git history to
+ * this day.
  */
 
 export interface AddressSuggestion {
@@ -59,7 +64,9 @@ export async function searchAddress(
   if (text.trim().length < 3) return [];
   try {
     if (MAPS_PROVIDER === "google" && GOOGLE_MAPS_API_KEY) {
-      // Google Places text search (swap-in path; not used until a key is set).
+      // Google Places text search. This branch is the LIVE one now — the
+      // provider was switched and a key configured, so the path that had
+      // never run once is the only one that runs.
       const res = await fetch(
         `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(text)}&key=${GOOGLE_MAPS_API_KEY}`,
       );

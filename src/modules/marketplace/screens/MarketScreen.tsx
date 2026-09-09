@@ -31,7 +31,7 @@ import { RatingChip } from "../components/RatingChip";
 import { shopInitial, useShopCover } from "../shopCover";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
-import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors, useTheme } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useHomeFeed, useMarketShops } from "../hooks/useMarketplace";
@@ -46,12 +46,20 @@ const typeLabel = (t: string | null) => (t ? t.charAt(0).toUpperCase() + t.slice
  */
 export function MarketScreen() {
   const c = useColors();
+  const { isDark } = useTheme();
   const coverFor = useShopCover();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
   const businessType: string | undefined = route.params?.business_type;
+  /**
+   * The finer trade, when the shopper picked one — "Garments" rather than
+   * "Retail Store". It arrives WITH `business_type`, not instead of it: the
+   * deals strip below is scoped by trade, and a category alone would have left
+   * a garments list showing pharmacy offers.
+   */
+  const businessCategory: string | undefined = route.params?.business_category;
   const title: string = route.params?.title ?? "Shops";
   const isTab = route.name === "GroceryTab" || route.name === "Market";
   const { lat, lng } = useLocationStore();
@@ -72,6 +80,7 @@ export function MarketScreen() {
     ...filters,
     search: debounced,
     business_type: businessType,
+    business_category: businessCategory,
     lat: lat ?? undefined,
     lng: lng ?? undefined,
   });
@@ -94,15 +103,22 @@ export function MarketScreen() {
   // again opens a dead strip; pushed, nothing is below it and its last row
   // lands under the gesture bar. One component, two answers.
   return (
-    <SafeScreen backgroundColor={c.brand[500]} edges={isTab ? ["top"] : ["top", "bottom"]}>
-      <FocusedStatusBar style="light-content" background={c.brand[500]} />
+    /*
+      The same header the home screen wears: the page's own colour, one
+      hairline under it, and the brand kept for the things that mean
+      something. It was a brand-red slab painting the notch area — see
+      `CustomerHomeScreen` for the whole reasoning. Half the app white and half
+      of it red is the "not looks good" this was reported as.
+    */
+    <SafeScreen backgroundColor={c.bg} edges={isTab ? ["top"] : ["top", "bottom"]}>
+      <FocusedStatusBar style={isDark ? "light-content" : "dark-content"} background={c.bg} />
 
-      {/* ── Green hero header ─────────────────────────────────────── */}
+      {/* ── Header ────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           {!isTab && (
             <Touchable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-              <ArrowLeftIcon size={19} color={c.white} />
+              <ArrowLeftIcon size={19} color={c.text} />
             </Touchable>
           )}
           <View style={styles.headerText}>
@@ -111,12 +127,12 @@ export function MarketScreen() {
           </View>
         </View>
         <View style={styles.searchBar}>
-          <SearchIcon size={18} color={c.gray[400]} />
+          <SearchIcon size={18} color={c.textMuted} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search shops…"
-            placeholderTextColor={c.gray[400]}
+            placeholderTextColor={c.textMuted}
             autoCapitalize="none"
             style={styles.searchInput}
           />
@@ -279,28 +295,32 @@ function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   header: {
-    backgroundColor: c.brand[500],
+    backgroundColor: c.bg,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border,
   },
   headerTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
   back: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    backgroundColor: c.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
   },
   headerText: { flex: 1 },
-  title: { ...typography.title, color: c.white },
-  subtitle: { ...typography.tiny, color: c.brand[100] },
+  title: { ...typography.title, color: c.text },
+  subtitle: { ...typography.tiny, color: c.textMuted },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: c.surface,
+    backgroundColor: c.surfaceAlt,
+    borderWidth: 1,
+    borderColor: c.border,
     borderRadius: 22,
     paddingHorizontal: spacing.md,
     height: 46,

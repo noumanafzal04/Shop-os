@@ -91,6 +91,14 @@ const TOPICS: Topic[] = [
     a: "It is at the foot of the Account page, under App. Please read it out when you report something that looks wrong \u2014 it is the only way to tell which build you are on, and half of \u201cstill broken\u201d turns out to be an older one still installed. If yours does not match the newest, install again and check it changed.",
   },
   {
+    q: "It cannot find my location, or the address stays blank",
+    a: "Two things to check. First, when Android asks, either Precise or Approximate is fine \u2014 both work, and approximate is enough to find shops near you. Second, Location (GPS) has to be switched on in the phone's own settings; the app can ask for permission but it cannot switch the radio on for you. Indoors the first attempt can take a few seconds because it waits for satellites, then falls back to a rougher fix by itself. If it still says nothing, open the address at the top of the home screen and search for your area by name \u2014 that works with no GPS at all.",
+  },
+  {
+    q: "How do I find garment shops, or electronics, or a chemist?",
+    a: `Tap View all on the home screen \u2014 the tile after the four trade icons. It lists every kind of shop ${BRAND.name} covers, and inside each one the finer trades: Garments & Clothing, Footwear, Electronics and Mobile & Accessories all sit under Retail Store, and Grocery Store and Supermarket under Mart & Grocery. The number beside each one is how many shops near you are in it. Anything with nothing in it yet says so instead of opening an empty list.`,
+  },
+  {
     q: "How do I find a shop that is open right now?",
     a: "Open the aisle — the Filters button beside the search box — and turn on “Open now”. It uses each shop's own hours, so a shop that has shut for the night drops out. “Free delivery” beside it shows only the shops that do not add a charge for bringing it. Both work with everything else you have set: the number beside each one is how many items you would be left with.",
   },

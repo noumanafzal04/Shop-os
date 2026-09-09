@@ -24,8 +24,7 @@ import { SideMenu } from "../../../navigation/SideMenu";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { Skeleton, SkeletonShopCard } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
-import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
-import { useAuthStore } from "../../../stores/authStore";
+import { radius, spacing, type ThemeColors, typography, useColors, useTheme } from "../../../theme";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useHomeFeed } from "../hooks/useMarketplace";
 import { formatDistance } from "../shopFacts";
@@ -58,9 +57,12 @@ const typeLabel = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export function CustomerHomeScreen() {
   const c = useColors();
+  // The status bar's icons follow the PHONE's theme, not the brand: dark
+  // glyphs on the light page, light on the dark one. Hard-coded
+  // "light-content" was invisible against a white header.
+  const { isDark } = useTheme();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
-  const user = useAuthStore((s) => s.user);
   const [menuOpen, setMenuOpen] = useState(false);
   const coverFor = useShopCover();
   const { status, lat, lng, label, detect } = useLocationStore();
@@ -89,7 +91,6 @@ export function CustomerHomeScreen() {
     [feed.data],
   );
   const pull = usePullToRefresh(feed.refetch);
-  const firstName = user?.name?.split(" ")[0];
 
   const onBanner = async (b: HomeBanner) => {
     marketplaceService.bannerClick(b.id).catch(() => {});
@@ -101,8 +102,22 @@ export function CustomerHomeScreen() {
   const openShop = (shop: PublicShop) => navigation.navigate("MarketShop", { slug: shop.slug });
 
   return (
-    <SafeScreen backgroundColor={c.brand[500]} edges={["top"]}>
-      <FocusedStatusBar style="light-content" background={c.brand[500]} />
+    /*
+      ── A WHITE PAGE WITH A BRANDED HEADER, NOT A BRANDED PAGE ──────
+
+      The header was a solid brand-red block with rounded bottom corners, and
+      `SafeScreen` painted the notch area red to match it. Reported as "primary
+      color should be white as was first", "top notch issue" and "just show
+      branding color": a full-bleed colour field behind the status bar is the
+      loudest thing on a screen whose job is to show shops, and on a notched
+      phone the red ran up behind the clock and the camera cut-out.
+
+      So the page is its own ground in both themes, the status bar carries the
+      page's colour and the phone's own icon polarity, and the brand appears
+      where it says something — the pin, the filter, the tiles, the prices.
+    */
+    <SafeScreen backgroundColor={c.bg} edges={["top"]}>
+      <FocusedStatusBar style={isDark ? "light-content" : "dark-content"} background={c.bg} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollGround}
@@ -111,24 +126,16 @@ export function CustomerHomeScreen() {
           <RefreshControl
             refreshing={pull.refreshing}
             onRefresh={pull.onRefresh}
-            tintColor={c.brand[500]}
-            // The scroll view starts UNDER the red header, so the spinner's
-            // default position is on top of the welcome line.
-            progressViewOffset={140}
+            tintColor={c.primary}
+            // The header is part of the scroll now and no longer paints over
+            // the spinner, so the old 140pt push-down left it hanging in the
+            // middle of the tiles.
+            progressViewOffset={0}
           />
         }
       >
-        {/* ── Green hero header ─────────────────────────────────── */}
+        {/* ── Header: white, and the brand where it means something ── */}
         <View style={styles.header}>
-          {/*
-            The ADDRESS leads, not a greeting.
-            
-            It was "Welcome, / Nouman" in display type with the delivery
-            location tucked underneath in small caps — which puts the app's
-            most consequential control, the one that decides which shops even
-            appear, third in the reading order behind a word that tells nobody
-            anything. A person's own name is not news to them.
-          */}
           <View style={styles.headerTop}>
             {/*
               A hamburger, not an avatar.
@@ -139,53 +146,49 @@ export function CustomerHomeScreen() {
               showing you who you were twice.
             */}
             <Touchable
-              style={styles.burger}
+              style={styles.iconBtn}
               onPress={() => setMenuOpen(true)}
               accessibilityRole="button"
               accessibilityLabel="Menu"
             >
-              <MenuIcon size={21} color={c.white} />
+              <MenuIcon size={21} color={c.text} />
             </Touchable>
 
+            {/*
+              ── THE ADDRESS LEADS, AND IT IS LEFT-ALIGNED ─────────────
+
+              It was centred between two round buttons at 19pt, which is the
+              biggest type on the screen spent on a line that is often forty
+              characters of street address — reported as "location name too
+              much big". A pin, one line, ellipsis, and the label above it in
+              small caps: the control still says what it changes, and a long
+              address no longer sets the height of the header.
+            */}
             <Touchable
               style={styles.place}
               onPress={() => navigation.navigate("Location")}
               accessibilityRole="button"
               accessibilityLabel="Change delivery location"
             >
-              <View style={styles.placeLabelRow}>
-                <Text style={styles.placeLabel}>Deliver to</Text>
-                <ChevronDownIcon size={13} color={c.brand[200]} />
-              </View>
+              <Text style={styles.placeLabel}>DELIVER TO</Text>
               <View style={styles.placeRow}>
-                <MapPinIcon size={15} color={c.white} />
+                <MapPinIcon size={14} color={c.primary} />
                 <Text style={styles.placeName} numberOfLines={1}>
                   {status === "locating" ? "Finding you…" : label ?? "Set your location"}
                 </Text>
+                <ChevronDownIcon size={13} color={c.textMuted} />
               </View>
             </Touchable>
 
             <Touchable
-              style={styles.bell}
+              style={styles.iconBtn}
               onPress={() => navigation.navigate("Notifications")}
               accessibilityRole="button"
               accessibilityLabel="Notifications"
             >
-              <BellIcon size={20} color={c.white} />
+              <BellIcon size={20} color={c.text} />
             </Touchable>
           </View>
-
-          {/*
-            One short line.
-
-            The first version — "Hi Nouman, what are you looking for?" — wrapped
-            onto two lines of 25px display type and turned the header into a
-            third of the screen before a single shop appeared. A header is a
-            place you pass through.
-          */}
-          <Text style={styles.headline} numberOfLines={1}>
-            {firstName ? `Hi ${firstName}` : "Welcome"}
-          </Text>
 
           {/*
             Search and filter in ONE control.
@@ -194,13 +197,17 @@ export function CustomerHomeScreen() {
             name, the aisle finds everything under Rs 500 — but they are the
             same gesture from the same place, and two separate round buttons
             beside a bar is three objects doing the work of one.
+
+            The greeting line that used to sit above it is gone. "Hi Nouman" in
+            23pt display type was a whole row of the header telling somebody
+            their own name.
           */}
           <Touchable
             style={styles.searchBar}
             accessibilityRole="button"
             onPress={() => navigation.navigate("Search")}
           >
-            <SearchIcon size={18} color={c.gray[400]} />
+            <SearchIcon size={18} color={c.textMuted} />
             <Text style={styles.searchHint} numberOfLines={1}>
               Search food, groceries, medicine…
             </Text>
@@ -211,7 +218,7 @@ export function CustomerHomeScreen() {
               accessibilityLabel="Browse and filter all products"
               onPress={() => navigation.navigate("Browse")}
             >
-              <SlidersIcon size={17} color={c.primary} />
+              <SlidersIcon size={17} color={c.onPrimary} />
             </Touchable>
           </Touchable>
         </View>
@@ -338,27 +345,34 @@ export function CustomerHomeScreen() {
               ── THE WAY TO THE REST ───────────────────────────────────
 
               A tile, in the grid, on the same pitch as the others — not a
-              "See all" link floating beside the heading. It is the ninth
-              thing in a row of eight, which is where a hand already is.
+              "See all" link floating beside the heading. It is the fifth
+              thing in a row of four, which is where a hand already is.
 
-              Only when there is actually more to see: a marketplace with
-              three trades in it does not need a page listing three trades.
+              ── Unconditional, and it was not ────────────────────────
+
+              This used to render only when `business_types.length` exceeded
+              the four tiles above it. The server sends the trades that HAVE
+              shops and live had exactly four of them, so `4 > 4` was false
+              and the only way to the categories page did not exist — a whole
+              screen, registered and routed, that nobody could open. The
+              question the condition was asking ("is there more to see") was
+              the wrong one twice: that page now lists every trade the
+              platform sells, not just the ones with shops, and the
+              CATEGORIES inside each of them. There is always more to see.
             */}
-            {(feed.data?.business_types ?? []).length > tradeTiles.length && (
-              <Touchable
-                style={styles.tile}
-                accessibilityRole="button"
-                accessibilityLabel="View all categories"
-                onPress={() => navigation.navigate("Categories")}
-              >
-                <View style={[styles.tileIcon, styles.tileMore]}>
-                  <GridIcon size={22} color={c.textSecondary} />
-                </View>
-                <Text style={styles.tileLabel} numberOfLines={1}>
-                  View all
-                </Text>
-              </Touchable>
-            )}
+            <Touchable
+              style={styles.tile}
+              accessibilityRole="button"
+              accessibilityLabel="View all categories"
+              onPress={() => navigation.navigate("Categories")}
+            >
+              <View style={[styles.tileIcon, styles.tileMore]}>
+                <GridIcon size={22} color={c.textSecondary} />
+              </View>
+              <Text style={styles.tileLabel} numberOfLines={1}>
+                View all
+              </Text>
+            </Touchable>
 
             {feed.isLoading &&
               [0, 1, 2, 3].map((i) => (
@@ -671,51 +685,56 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: c.brand[500] },
+  scroll: { flex: 1, backgroundColor: c.bg },
 
-  // Header
+  /**
+   * ── THE HEADER IS PART OF THE PAGE NOW ──────────────────────────
+   *
+   * It was a brand-red slab with rounded bottom corners and white type on it.
+   * One hairline under it does the same job — it separates the controls you
+   * pass through from the shops you came for — and leaves the colour for the
+   * things that mean something.
+   */
   header: {
-    backgroundColor: c.brand[500],
+    backgroundColor: c.bg,
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
-    borderBottomLeftRadius: radius.xl,
-    borderBottomRightRadius: radius.xl,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border,
   },
-  headerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  burger: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    backgroundColor: "rgba(255,255,255,0.16)",
+  headerTop: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  /** One shape for both round controls — they were `burger` and `bell`, two
+   *  declarations of the same 42pt square that had drifted to two radii. */
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: c.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
   },
-  place: { flex: 1, alignItems: "center", gap: 1, paddingHorizontal: spacing.sm },
-  placeLabelRow: { flexDirection: "row", alignItems: "center", gap: 3 },
-  placeLabel: { ...typography.tiny, color: c.brand[200], fontWeight: "600", letterSpacing: 0.3 },
-  placeRow: { flexDirection: "row", alignItems: "center", gap: 5, maxWidth: "100%" },
-  headline: {
-    ...typography.display,
-    fontSize: 23,
-    color: c.white,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
+  // Left-aligned and allowed to shrink: a forty-character street address sets
+  // the ellipsis, not the height of the header.
+  place: { flex: 1, gap: 1, paddingHorizontal: spacing.xs },
+  placeLabel: {
+    ...typography.tiny,
+    fontSize: 9,
+    color: c.textMuted,
+    fontWeight: "700",
+    letterSpacing: 0.8,
   },
+  placeRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  placeName: { ...typography.label, color: c.text, fontSize: 14, flexShrink: 1 },
   searchFilter: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: c.primarySoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  placeName: { ...typography.title, color: c.white, fontSize: 19, flexShrink: 1 },
-  bell: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    // Solid brand, because it is the one control in the header that is a
+    // destination rather than a field. `primarySoft` behind a brand glyph
+    // measured 1.4:1 and read as disabled.
+    backgroundColor: c.primary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -723,13 +742,15 @@ const makeStyles = (c: ThemeColors) =>
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: c.surface,
-    borderRadius: 22,
+    backgroundColor: c.surfaceAlt,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: 24,
     paddingLeft: spacing.md,
-    paddingRight: 8,
-    height: 52,
+    paddingRight: 7,
+    height: 48,
   },
-  searchHint: { ...typography.body, color: c.gray[400], flex: 1 },
+  searchHint: { ...typography.body, color: c.textMuted, flex: 1 },
 
   // Body
   // The page colour, behind the header's rounded bottom corners as well as

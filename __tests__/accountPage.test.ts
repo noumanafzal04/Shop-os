@@ -1,4 +1,4 @@
-import { PROJECT_ROOT, fs, path, codeOnly } from "./support/node";
+import { PROJECT_ROOT, bodyOf, codeOnly, fs, path, statementAt } from "./support/node";
 
 /**
  * THE ACCOUNT TAB.
@@ -61,42 +61,6 @@ describe("what the page offers", () => {
   });
 });
 
-/**
- * ONE DECLARATION'S BODY, bounded by the next one.
- *
- * These checks used to take a fixed slice — `slice(0, 1200)` — which is a
- * window that has nothing to do with where the thing being tested ends. It
- * held while the docblocks happened to be short, and broke the moment
- * `codeOnly` started preserving line positions and the comments became
- * whitespace inside the window rather than vanishing from it.
- *
- * A count is not a boundary. This is.
- */
-function statementAt(src: string, decl: string): string {
-  const from = src.indexOf(decl);
-  expect(from).toBeGreaterThan(-1);
-
-  // The terminating `;` — the first one that is not inside brackets, so a
-  // multi-line expression with `&&` and calls in it stays whole.
-  let depth = 0;
-  for (let i = from; i < src.length; i++) {
-    const ch = src[i];
-    if (ch === "(" || ch === "[" || ch === "{") depth++;
-    else if (ch === ")" || ch === "]" || ch === "}") depth--;
-    else if (ch === ";" && depth === 0) return src.slice(from, i + 1);
-  }
-  throw new Error(`no statement end after ${decl}`);
-}
-
-function bodyOf(src: string, decl: string): string {
-  const from = src.indexOf(decl);
-  expect(from).toBeGreaterThan(-1);
-
-  const rest = src.slice(from + decl.length);
-  const next = rest.search(/\n(?:export )?(?:function|const|class) /);
-
-  return decl + (next === -1 ? rest : rest.slice(0, next));
-}
 
 describe("a row that opens nothing does not wear a chevron", () => {
   it("has a separate component for a fact", () => {

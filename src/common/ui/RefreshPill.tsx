@@ -36,18 +36,17 @@ interface Props {
   onPress: () => void;
   /** Hide the words and keep the button — for a tight header. */
   compact?: boolean;
-  /**
-   * Sitting on a coloured header rather than on the page.
-   *
-   * The pill is a light card with a grey hairline, which on the rider board's
-   * ember band was a pale smudge with unreadable text. Same control, inverted
-   * — not a second component, because the words and the spin behaviour are the
-   * part worth having one copy of.
-   */
-  onDark?: boolean;
 }
 
-export function RefreshPill({ at, busy, onPress, compact, onDark }: Props) {
+/**
+ * There was an `onDark` variant here, for a pill sitting on the rider board's
+ * ember band. The band is gone — every header in the app is the page colour
+ * now — so the prop had no caller, and a prop with no caller is a second
+ * appearance nobody maintains. Removed rather than left "for later": the pill
+ * on a coloured ground is one style away if a coloured ground comes back.
+ */
+
+export function RefreshPill({ at, busy, onPress, compact }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const spin = React.useRef(new Animated.Value(0)).current;
@@ -83,7 +82,7 @@ export function RefreshPill({ at, busy, onPress, compact, onDark }: Props) {
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.pill, onDark && styles.pillOnDark, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel="Check for an update"
       hitSlop={8}
@@ -91,10 +90,10 @@ export function RefreshPill({ at, busy, onPress, compact, onDark }: Props) {
       disabled={busy}
     >
       <Animated.View style={{ transform: [{ rotate }] }}>
-        <RotateIcon size={14} color={onDark ? c.white : c.textSecondary} />
+        <RotateIcon size={14} color={c.textSecondary} />
       </Animated.View>
       {!compact && (
-        <Text style={[styles.text, onDark && styles.textOnDark]} numberOfLines={1}>
+        <Text style={styles.text} numberOfLines={1}>
           {busy ? "Checking…" : ago(at)}
         </Text>
       )}
@@ -142,18 +141,6 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 10,
       paddingVertical: 6,
     },
-    /**
-     * Translucent white on the colour underneath, rather than a fixed tint.
-     *
-     * The rider band is ember and the shopping side's headers are green, so a
-     * hard-coded colour here would be wrong on one of them. Borrowing the
-     * ground keeps one pill correct on both.
-     */
-    pillOnDark: {
-      backgroundColor: "rgba(255,255,255,0.18)",
-      borderColor: "rgba(255,255,255,0.28)",
-    },
     pressed: { opacity: 0.6 },
     text: { ...typography.tiny, color: c.textSecondary, fontWeight: "600", fontSize: 11 },
-    textOnDark: { color: c.white },
   });

@@ -15,7 +15,7 @@ export type CustomerStackParamList = {
   MarketShop: { slug: string; productId?: string };
   Checkout: { slug: string };
   Search: undefined;
-  ShopList: { business_type?: string; title?: string } | undefined;
+  ShopList: { business_type?: string; business_category?: string; title?: string } | undefined;
   Order: { id: string };
   Location: undefined;
   Favorites: undefined;
