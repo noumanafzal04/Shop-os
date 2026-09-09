@@ -7355,3 +7355,32 @@ list keep their brand headers — only home lost its slab.
 
 Backend 2701 / 2 skipped · panel 1522 · mobile 760 · 11 mutations, 10 caught,
 1 documented unobservable · APK `cartze-1.0.6-b11.apk` (versionCode 7).
+
+## 2026-09-09 (end of day) — Why no order reached a rider
+
+Four causes, found in this order. Only the third was the live one.
+
+1. **Android 12's Approximate** grants COARSE and denies FINE, so a rider who
+   pressed Allow could not go online at all.
+2. **`is_platform` defaulted false** and was writable only in the apply
+   payload, which `apply` refuses once approved — a rider could be permanently
+   invisible to the pool with no control anywhere and no screen saying so.
+   `PUT /rider/pool` plus a board that names one of six reasons.
+3. **The live shop was set to "My own riders".** The platform default was
+   flipped to `platform` and reached nothing: Shop Settings READS the merged
+   settings and SAVES all of them back, so the old default was frozen into
+   every shop that had ever pressed Save. The panel now warns beside the
+   control — "no CartZe rider will ever be offered your deliveries" — and the
+   Help Centre says to check it once even if you never changed it. A blanket
+   migration would override shops that genuinely chose their own riders.
+4. **The checkout defaulted to PICKUP**, and `beginOffering` only runs for a
+   delivery order. Delivery is the default now where the shop delivers, as a
+   pure rule (`preferredFulfillment`) that never offers a mode the shop cannot
+   honour and never overrides a person who has chosen.
+
+**A default flip is not a data change.** Read-only check for live:
+`SELECT business_name, JSON_EXTRACT(settings,'$.delivery_provider') FROM tenants
+WHERE JSON_EXTRACT(settings,'$.delivery_provider') = 'self';`
+
+Backend 2701 / 2 skipped · panel 1522 · mobile 765 · APK
+`cartze-1.0.7-b12.apk` (versionCode 8).

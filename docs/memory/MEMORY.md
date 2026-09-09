@@ -208,3 +208,5 @@
 - [White Page, Brand Accent](shopos-white-page-brand-accent.md) — headers are the page colour; brand = rider duty fill, wordmark, filter
 - [Serves This Pin](shopos-serves-this-pin.md) — SHIPPED: city fence + per-shop delivery_radius_km on every list, one scope
 - [Rider Pool Had No Switch](shopos-rider-pool-had-no-switch.md) — is_platform false with no exit = no orders; board now names 1 of 6 reasons
+- [Default Flip Does Not Reach](shopos-default-flip-does-not-reach.md) — STANDING: a saved shop froze the old default; flipping it changes nothing
+- [Checkout Defaulted To Pickup](shopos-checkout-defaulted-to-pickup.md) — untouched orders never reached a rider; delivery is the default now
