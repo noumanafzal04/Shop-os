@@ -49,6 +49,47 @@ const ERROR_COPY: Record<string, string> = {
   INSUFFICIENT_STOCK: "Something in your cart just sold out — adjust the quantity and retry.",
 };
 
+/**
+ * WHICH WAY AN ORDER GOES WHEN NOBODY HAS SAID.
+ *
+ * ── Why this is a function and not three lines in an effect ──────────
+ *
+ * It decides the single most consequential field on the screen. The checkout
+ * defaulted to **pickup**, and `RiderService::beginOffering` only runs for a
+ * DELIVERY order — so every order placed without touching the toggle bypassed
+ * the entire rider half of the product, correctly and silently. "Rider side no
+ * order coming" survived three other fixes before this was found.
+ *
+ * A marketplace that delivers must not ask everybody to opt in to the thing it
+ * is for. So: delivery, where the shop delivers.
+ *
+ * ── The two things it must not do ────────────────────────────────────
+ *
+ * Offer a mode the shop cannot honour, and override a person who has chosen.
+ * The shop arrives AFTER this screen mounts, so the preference has to be
+ * applied in an effect — and an effect that runs on every shop refetch would
+ * quietly undo somebody who had deliberately picked Pickup. `chosen` is what
+ * stops that: once a person touches the control, the app has no opinion.
+ */
+export function preferredFulfillment(opts: {
+  current: "pickup" | "delivery";
+  canDeliver: boolean;
+  canPickup: boolean;
+  chosen: boolean;
+}): "pickup" | "delivery" {
+  const { current, canDeliver, canPickup, chosen } = opts;
+
+  // A mode the shop does not offer is never the answer, chosen or not: the
+  // server would refuse it, and the refusal would arrive at the last step.
+  if (current === "delivery" && !canDeliver) return "pickup";
+  if (current === "pickup" && !canPickup) return "delivery";
+
+  // Their choice stands.
+  if (chosen) return current;
+
+  return canDeliver ? "delivery" : "pickup";
+}
+
 export function CheckoutScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -66,7 +107,23 @@ export function CheckoutScreen() {
     queryFn: async () => (await apiGet<SavedAddress[]>("/customer/addresses")).data,
   });
 
-  const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">("pickup");
+  /**
+   * ── DELIVERY IS THE DEFAULT, WHERE THE SHOP DELIVERS ────────────
+   *
+   * This was `useState("pickup")`, and it is why "rider side no order coming"
+   * survived three other fixes: `beginOffering` only runs for a DELIVERY
+   * order, so every test order placed without touching this toggle was a
+   * pickup order and correctly never reached a rider. Nothing was broken in
+   * the rider half at all — the orders were never for it.
+   *
+   * `chosen` is what keeps the correction honest: the shop loads after this
+   * screen mounts, so the preference has to be applied in an effect, and an
+   * effect that runs on every shop refetch would silently undo somebody who
+   * had deliberately picked Pickup. Once a person touches the control, the
+   * app stops having an opinion.
+   */
+  const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">("delivery");
+  const [chosen, setChosen] = useState(false);
   const [addressId, setAddressId] = useState<string | null>(null);
   const [address, setAddress] = useState("");
   const [coupon, setCoupon] = useState("");
@@ -85,11 +142,14 @@ export function CheckoutScreen() {
   const canPickup = shop.data?.fulfillment?.pickup ?? true;
   const closed = shop.data?.is_open_now === false;
 
-  // Snap to a mode the shop actually offers.
+  // Snap to a mode the shop actually offers, and — until somebody chooses —
+  // prefer delivery. ONE assignment from one rule: three sequential `if`s each
+  // calling setState in the same run is two of them overwriting the third, in
+  // an order that depends on the order they were written in.
   useEffect(() => {
     if (!shop.data) return;
-    if (fulfillment === "pickup" && !canPickup) setFulfillment("delivery");
-    if (fulfillment === "delivery" && !canDeliver) setFulfillment("pickup");
+    const want = preferredFulfillment({ current: fulfillment, canDeliver, canPickup, chosen });
+    if (want !== fulfillment) setFulfillment(want);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop.data]);
 
@@ -271,7 +331,10 @@ export function CheckoutScreen() {
               style={[styles.seg, fulfillment === "pickup" && styles.segOn]}
               accessibilityRole="button"
               accessibilityState={{ selected: fulfillment === "pickup" }}
-              onPress={() => setFulfillment("pickup")}
+              onPress={() => {
+                setChosen(true);
+                setFulfillment("pickup");
+              }}
             >
               <StorefrontIcon
                 size={15}
@@ -285,7 +348,10 @@ export function CheckoutScreen() {
               style={[styles.seg, fulfillment === "delivery" && styles.segOn]}
               accessibilityRole="button"
               accessibilityState={{ selected: fulfillment === "delivery" }}
-              onPress={() => setFulfillment("delivery")}
+              onPress={() => {
+                setChosen(true);
+                setFulfillment("delivery");
+              }}
             >
               <MotorcycleIcon
                 size={15}
