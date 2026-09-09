@@ -131,6 +131,26 @@ class MarketplaceController extends Controller
                 $request->query('business_type'),
                 fn ($q, $type) => $q->whereIn('business_type', BusinessTypes::codesFor($type)),
             )
+            /**
+             * THE FINER TRADE — garments, footwear, electronics, grocery.
+             *
+             * `business_type` is one of eight; what a shop actually calls
+             * itself is its `business_category`, picked from that type's list
+             * at setup. Without this filter the categories page could name
+             * Garments and then had nowhere to send anybody: the closest thing
+             * was `search=garments`, a LIKE over the same column that also
+             * matches shop NAMES, so "Garments" returned any shop with the
+             * word in its title and missed every garment shop that had not put
+             * it there.
+             *
+             * Exact, not `like`: these are values the setup form wrote from a
+             * fixed list, and `like '%toys%'` would answer the Toys row with
+             * every shop whose category merely contains it.
+             */
+            ->when(
+                $request->query('business_category'),
+                fn ($q, $category) => $q->where('business_category', $category),
+            )
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('business_name', 'like', "%{$search}%")
@@ -966,6 +986,126 @@ class MarketplaceController extends Controller
             'deals' => $deals,
             'business_types' => $types,
         ]);
+    }
+
+    /**
+     * EVERY KIND OF SHOP THE PLATFORM SELLS, ON ONE PAGE.
+     *
+     * ── Why this is not `home`'s list ────────────────────────────────
+     *
+     * `home` returns the trades that HAVE shops, ordered by how many, because
+     * four tiles on a home screen should be four tiles worth tapping. That
+     * makes it the wrong list for a categories page twice over: it is silent
+     * about a trade nobody has joined yet, and it stops at the trade — so a
+     * marketplace that supports Garments, Electronics and Grocery showed a
+     * shopper "Retail Store" and "Mart & Grocery" and no way to ask for
+     * garments.
+     *
+     * This returns all of it: every selectable trade, and inside each one the
+     * `business_category` values a shop actually picks at setup, each with the
+     * number of visible shops in it.
+     *
+     * ── A count is the whole point ───────────────────────────────────
+     *
+     * A category row without one is a coin toss — a shopper taps Footwear and
+     * gets an empty list, which is the "offered but not doable" shape this
+     * codebase keeps finding. Zero is RETURNED rather than dropped, because
+     * the caller is the only side that knows whether it is drawing a shopping
+     * list (hide the empties) or the platform's full breadth (show them, not
+     * tappable). Dropping them here would take that choice away.
+     *
+     * ── One query ────────────────────────────────────────────────────
+     *
+     * Grouped by both columns at once, so the trade totals and the category
+     * totals come from the same read and cannot disagree. Legacy codes are
+     * folded into the trade they were absorbed into (`primary`), which is why
+     * a shop still typed `grocery` counts towards Mart & Grocery instead of
+     * vanishing from a page whose whole job is to account for every shop.
+     */
+    public function categories(Request $request): JsonResponse
+    {
+        // `uuid`, and the same rule every other marketplace endpoint uses —
+        // cities are keyed by UUID, so `integer` here 422'd every real
+        // request while the tests that only ever called it without a city
+        // stayed green.
+        $data = $request->validate([
+            'city_id' => ['nullable', 'uuid'],
+        ]);
+
+        $rows = Tenant::query()
+            ->marketplaceVisible()
+            ->when($data['city_id'] ?? null, fn ($q, $id) => $q->where('city_id', $id))
+            ->selectRaw('business_type, business_category, COUNT(*) as shops_count')
+            ->groupBy('business_type', 'business_category')
+            ->get();
+
+        /** @var array<string, int> $perType */
+        $perType = [];
+        /** @var array<string, array<string, int>> $perCategory */
+        $perCategory = [];
+
+        foreach ($rows as $row) {
+            $primary = BusinessTypes::primary((string) $row->business_type);
+            $count = (int) $row->shops_count;
+            $perType[$primary] = ($perType[$primary] ?? 0) + $count;
+
+            $category = (string) ($row->business_category ?? '');
+
+            if ($category !== '') {
+                $perCategory[$primary][$category] = ($perCategory[$primary][$category] ?? 0) + $count;
+            }
+        }
+
+        $types = collect(BusinessTypes::all())
+            /**
+             * A trade belongs here if it SELLS something, or if it already has
+             * shops.
+             *
+             * NOT `features.marketplace`, which is the obvious gate and the
+             * wrong one: **Pharmacy defaults it to false** — a chemist takes
+             * phone orders and delivers while listing nothing online — and
+             * pharmacy is one of the three trades this product makes its daily
+             * money in. Gating on it would have dropped Pharmacy & Medical
+             * from the categories page in every city that had no chemist
+             * listed yet, which is the opposite of what the page is for.
+             *
+             * `products || services` excludes exactly one trade: Finance
+             * Manager, which keeps books and has no catalog, no till and
+             * nothing to browse. The `$perType` clause is the escape hatch —
+             * a proposal is not a grant, and a page that accounts for every
+             * visible shop cannot hide the row those shops are counted in.
+             */
+            ->filter(fn (array $t, string $code) => ($t['available'] ?? false)
+                && (($t['features']['products'] ?? false)
+                    || ($t['features']['services'] ?? false)
+                    || ($perType[$code] ?? 0) > 0))
+            ->map(function (array $t, string $code) use ($perType, $perCategory): array {
+                $counts = $perCategory[$code] ?? [];
+
+                return [
+                    'type' => $code,
+                    'label' => $t['label'],
+                    'shops_count' => $perType[$code] ?? 0,
+                    'categories' => collect(BusinessTypes::categoriesFor($code))
+                        ->map(fn (array $cat) => [
+                            'value' => $cat['value'],
+                            'label' => $cat['label'],
+                            'shops_count' => (int) ($counts[$cat['value']] ?? 0),
+                        ])
+                        ->values()
+                        ->all(),
+                ];
+            })
+            /**
+             * Busiest trade first, then alphabetical — never insertion order.
+             * `all()` is written in the order the types were invented, so
+             * without this a shopper's list would open on whatever happened to
+             * be added first and the trade with forty shops could sit ninth.
+             */
+            ->sortBy(fn (array $t) => [-$t['shops_count'], $t['label']])
+            ->values();
+
+        return ApiResponse::ok(['business_types' => $types]);
     }
 
     /**

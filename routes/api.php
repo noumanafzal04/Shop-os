@@ -163,6 +163,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('/search', [MarketplaceController::class, 'search']);
         // Mobile home screen in one round trip
         Route::get('/home', [MarketplaceController::class, 'home']);
+        // Every trade AND every category inside it, with shop counts. Home
+        // sends only the trades that have shops, four of them, which is the
+        // wrong list for a page whose job is the platform's whole breadth.
+        Route::get('/categories', [MarketplaceController::class, 'categories']);
         // The aisle: everything on sale anywhere, with the filter rail's own
         // counts computed from the same query the listing runs.
         Route::get('/products', [MarketplaceController::class, 'browse']);

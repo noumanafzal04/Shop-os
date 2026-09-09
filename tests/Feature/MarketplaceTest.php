@@ -587,4 +587,206 @@ class MarketplaceTest extends TestCase
 
         $this->assertSame([], $card['preview_products']);
     }
+    // ── The categories page ─────────────────────────────────────────
+
+    /**
+     * Reads one trade out of the categories response.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function trade(array $body, string $type): ?array
+    {
+        return collect($body)->firstWhere('type', $type);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function categoryCounts(array $trade): array
+    {
+        return collect($trade['categories'])->pluck('shops_count', 'value')->all();
+    }
+
+    /**
+     * WHAT A SHOPPER CAN ASK FOR, NOT WHAT HAPPENS TO BE STOCKED.
+     *
+     * The home feed answers "which trades have shops", four of them, ordered by
+     * how many — the right list for four tiles and the wrong one for a page
+     * that has to name Garments and Electronics as things you can tap.
+     */
+    public function test_categories_names_every_trade_and_the_categories_inside_it(): void
+    {
+        $this->onlineShop(['business_name' => 'Ali Garments', 'business_category' => 'garments']);
+        $this->onlineShop(['business_name' => 'Shoe Point', 'business_category' => 'footwear']);
+
+        $body = $this->getJson('/api/v1/marketplace/categories')->assertOk()->json('data.business_types');
+
+        $retail = $this->trade($body, 'retail');
+        $this->assertNotNull($retail, 'Retail Store is missing from the categories page');
+        $this->assertSame('Retail Store', $retail['label']);
+        $this->assertSame(2, $retail['shops_count']);
+
+        $counts = $this->categoryCounts($retail);
+        // The two that exist, counted.
+        $this->assertSame(1, $counts['garments'] ?? null);
+        $this->assertSame(1, $counts['footwear'] ?? null);
+        // And the ones that do not, at zero rather than absent — the caller
+        // decides whether to draw them, and cannot decide from a hole.
+        $this->assertSame(0, $counts['electronics'] ?? null);
+
+        // A trade nobody has joined is still a trade the platform sells.
+        $food = $this->trade($body, 'food');
+        $this->assertNotNull($food, 'Food & Restaurant vanished because no shop had joined it');
+        $this->assertSame(0, $food['shops_count']);
+        $this->assertContains('Bakery & Sweets', collect($food['categories'])->pluck('label')->all());
+    }
+
+    /**
+     * PHARMACY IS NOT OPTIONAL.
+     *
+     * `features.marketplace` is the obvious gate for "can this trade appear in
+     * a marketplace" and it is false for pharmacy by default — a chemist takes
+     * phone orders rather than listing online. Gating on it would have dropped
+     * one of the three trades this product earns in from the page whose whole
+     * job is to name every trade. Finance is the one real exclusion: no
+     * catalog, no till, nothing to browse.
+     */
+    public function test_categories_keeps_pharmacy_and_drops_only_the_trade_with_nothing_to_sell(): void
+    {
+        $body = $this->getJson('/api/v1/marketplace/categories')->assertOk()->json('data.business_types');
+        $types = collect($body)->pluck('type');
+
+        $this->assertTrue($types->contains('pharmacy'), 'Pharmacy & Medical was hidden from shoppers');
+        $this->assertFalse($types->contains('finance'), 'Finance Manager has no catalog and no business on a shopping page');
+    }
+
+    /**
+     * A shop that switched a trade's default around is still a visible shop,
+     * and the row it is counted in cannot be the row that is hidden.
+     */
+    public function test_a_visible_shop_forces_its_trade_onto_the_page(): void
+    {
+        $this->onlineShop([
+            'business_name' => 'Nomi Accounts',
+            'business_type' => 'finance',
+            'business_category' => 'software_house',
+            // Against the trade's default: a proposal is not a grant.
+            // `array_merge`, not `+` — the union operator KEEPS the left
+            // side's existing key, so `$defaults + ['marketplace' => true]`
+            // left marketplace false and the shop invisible.
+            'features' => array_merge(BusinessTypes::defaultFeatures('finance'), ['marketplace' => true]),
+        ]);
+
+        $body = $this->getJson('/api/v1/marketplace/categories')->assertOk()->json('data.business_types');
+        $finance = $this->trade($body, 'finance');
+
+        $this->assertNotNull($finance, 'a listed shop was counted nowhere');
+        $this->assertSame(1, $finance['shops_count']);
+    }
+
+    /**
+     * A shop still typed `grocery` — the legacy name for `mart` — is a shop
+     * in Mart & Grocery. It used to be its own row in the picker; on a page
+     * that accounts for every visible shop, an unfolded legacy code is a shop
+     * counted twice or not at all.
+     */
+    public function test_categories_folds_a_legacy_code_into_the_trade_it_became(): void
+    {
+        $this->onlineShop([
+            'business_name' => 'Old Kiryana',
+            'business_type' => 'grocery',
+            'business_category' => 'grocery',
+            'features' => BusinessTypes::defaultFeatures('grocery'),
+        ]);
+        $this->onlineShop([
+            'business_name' => 'New Mart',
+            'business_type' => 'mart',
+            'business_category' => 'supermarket',
+            'features' => BusinessTypes::defaultFeatures('mart'),
+        ]);
+
+        $body = $this->getJson('/api/v1/marketplace/categories')->assertOk()->json('data.business_types');
+        $types = collect($body)->pluck('type');
+
+        $this->assertFalse($types->contains('grocery'), 'a legacy code got its own row');
+
+        $mart = $this->trade($body, 'mart');
+        $this->assertSame(2, $mart['shops_count'], 'the grocery-typed shop was not counted under Mart & Grocery');
+
+        $counts = $this->categoryCounts($mart);
+        $this->assertSame(1, $counts['grocery'] ?? null);
+        $this->assertSame(1, $counts['supermarket'] ?? null);
+    }
+
+    /**
+     * `BusinessTypes::all()` is written in the order the trades were invented,
+     * so without an explicit sort the trade with every shop in it could sit
+     * ninth on the page.
+     */
+    public function test_categories_puts_the_busiest_trade_first(): void
+    {
+        $this->onlineShop(['business_name' => 'Burger Hut', 'business_type' => 'food', 'features' => BusinessTypes::defaultFeatures('food')]);
+        $this->onlineShop(['business_name' => 'Pizza Point', 'business_type' => 'food', 'features' => BusinessTypes::defaultFeatures('food')]);
+        $this->onlineShop(['business_name' => 'Corner Mart', 'business_type' => 'mart', 'features' => BusinessTypes::defaultFeatures('mart')]);
+
+        $body = $this->getJson('/api/v1/marketplace/categories')->assertOk()->json('data.business_types');
+
+        $this->assertSame(['food', 'mart'], collect($body)->pluck('type')->take(2)->all());
+    }
+
+    /**
+     * The counts follow the city, because a shopper in Karachi tapping
+     * Garments is asking about Karachi.
+     */
+    public function test_categories_counts_only_the_asked_city(): void
+    {
+        $lahore = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
+
+        $this->onlineShop(['business_name' => 'Karachi Garments', 'business_category' => 'garments']);
+        $this->onlineShop(['business_name' => 'Lahore Garments', 'business_category' => 'garments', 'city_id' => $lahore->id]);
+
+        $body = $this->getJson('/api/v1/marketplace/categories?city_id='.$lahore->id)
+            ->assertOk()->json('data.business_types');
+
+        $retail = $this->trade($body, 'retail');
+        $this->assertSame(1, $retail['shops_count']);
+        $this->assertSame(1, $this->categoryCounts($retail)['garments'] ?? null);
+    }
+
+    /**
+     * THE ROW HAS TO LEAD SOMEWHERE.
+     *
+     * Naming Garments and then having nowhere to send anybody is this
+     * codebase's most repeated bug shape. The nearest thing that existed was
+     * `search=garments` — a LIKE over `business_category` that also matches
+     * shop NAMES, so it answered with any shop that had the word in its title
+     * and missed every garment shop that did not.
+     */
+    public function test_shops_can_be_filtered_by_the_finer_category(): void
+    {
+        $garments = $this->onlineShop(['business_name' => 'Ali Cloth House', 'business_category' => 'garments']);
+        $this->onlineShop(['business_name' => 'Garments Wala Electronics', 'business_category' => 'electronics']);
+        $this->onlineShop(['business_name' => 'Shoe Point', 'business_category' => 'footwear']);
+
+        $names = collect(
+            $this->getJson('/api/v1/marketplace/shops?business_category=garments')
+                ->assertOk()->json('data')
+        )->pluck('business_name');
+
+        $this->assertSame([$garments->business_name], $names->all());
+    }
+
+    /**
+     * Exact, not `like`: `mobile_accessories` contains `mobile`, and a Toys row
+     * that also answered with every category merely containing the word would
+     * be a filter that lies quietly.
+     */
+    public function test_the_category_filter_is_exact(): void
+    {
+        $this->onlineShop(['business_name' => 'Accessory Hub', 'business_category' => 'mobile_accessories']);
+
+        $this->getJson('/api/v1/marketplace/shops?business_category=mobile')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
 }
