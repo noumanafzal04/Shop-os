@@ -38,6 +38,26 @@ class RiderProfileController extends Controller
         return ApiResponse::ok(['profile' => $profile === null ? null : $this->serialize($profile)]);
     }
 
+    /**
+     * PICK UP AN ID A SHOP WROTE DOWN FOR YOU.
+     *
+     * The other way in. `apply()` is for somebody nobody knows, who must send a
+     * CNIC and wait for staff; this is for somebody a shop already employs and
+     * has vouched for by adding them. They get to work immediately — for that
+     * shop, and only that shop. `RiderService::setPlatform()` is what keeps the
+     * second half of that sentence true.
+     */
+    public function claim(Request $request, RiderService $riders): JsonResponse
+    {
+        $data = $request->validate([
+            'rider_code' => ['required', 'string', 'max:16'],
+        ]);
+
+        $profile = $riders->claim($request->user(), $data['rider_code']);
+
+        return ApiResponse::ok($this->serialize($profile->fresh()), 'Rider id claimed');
+    }
+
     public function apply(Request $request, RiderService $riders): JsonResponse
     {
         $data = $request->validate([
@@ -198,7 +218,7 @@ class RiderProfileController extends Controller
     /** Allow-list. `cnic` is deliberately absent — see RiderProfile::$hidden. */
     private function serialize(RiderProfile $p): array
     {
-        $p->loadMissing('documents');
+        $p->loadMissing('documents', 'vouchedBy:id,business_name');
 
         return [
             'id' => $p->id,
@@ -213,6 +233,14 @@ class RiderProfileController extends Controller
             // right number without the number itself travelling again.
             'cnic_last4' => $p->cnic !== null ? substr($p->cnic, -4) : null,
             'is_platform' => $p->is_platform,
+            // MAY THEY EVEN ASK? A shop-vouched rider is approved to carry that
+            // shop's orders and refused the pool, so the app must not draw them
+            // a switch that answers 403 — a control that always fails is worse
+            // than no control. It names the road instead: apply, send the CNIC.
+            'can_join_pool' => $p->isPlatformApproved(),
+            // WHOSE WORD THE APPROVAL IS. Null for every rider who applied for
+            // themselves, which is what the pool needs them to have done.
+            'vouched_by' => $p->vouchedBy?->business_name,
             'city' => $p->city?->name,
             'is_online' => $p->is_online,
             'last_seen_at' => $p->last_seen_at?->toIso8601String(),

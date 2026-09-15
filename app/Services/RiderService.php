@@ -162,7 +162,14 @@ class RiderService
                     'RIDER_SUSPENDED',
                 );
             }
-            if ($existing->status === RiderStatus::Approved) {
+            // An approved rider has nothing to apply for — UNLESS the approval
+            // is a shop's rather than the platform's. That person is approved to
+            // carry the orders of the shop that added them and refused the pool
+            // by `setPlatform()`, so applying is the one road they have to it.
+            // Without this they would have been told "you are already approved"
+            // by the same system that had just told them they are not approved
+            // enough, and the fence above would be a dead end instead of a door.
+            if ($existing->status === RiderStatus::Approved && $existing->isPlatformApproved()) {
                 throw DomainException::conflict('You are already an approved rider.', 'RIDER_ALREADY_APPROVED');
             }
 
@@ -183,6 +190,81 @@ class RiderService
                 'rider_code' => $this->nextRiderCode(),
                 'status' => RiderStatus::Draft,
             ]);
+        });
+    }
+
+    /**
+     * MINT AN ID FOR A SHOP'S OWN RIDER — nobody behind it yet.
+     *
+     * The shop knows this person; what it does not have is a way to put them on
+     * the app. Before this, it had to wait for the rider to install it, sign up,
+     * apply, be approved and read `RDR-000123` off their own screen — five steps
+     * belonging to somebody who is not the shop, for an outcome only the shop
+     * wanted. The id is minted here instead and handed over on paper.
+     *
+     * APPROVED, deliberately, and `is_platform` false just as deliberately.
+     * The platform check exists to vet a stranger who will hold a customer's
+     * cash and stand at their door; a shop's own rider is not a stranger to the
+     * shop, and the shop is vouching by adding them. `vouched_by_tenant_id`
+     * records WHOSE word that is, because it is good for that shop and for
+     * nothing else — see `setPlatform()`.
+     */
+    public function mintForShop(Tenant $shop, string $name, ?string $phone): RiderProfile
+    {
+        return DB::transaction(fn (): RiderProfile => RiderProfile::query()->create([
+            'user_id' => null,
+            'rider_code' => $this->nextRiderCode(),
+            'status' => RiderStatus::Approved,
+            'is_platform' => false,
+            'vouched_by_tenant_id' => $shop->id,
+            'approved_at' => now(),
+            // Left null ON PURPOSE. `approved_by` means "a member of platform
+            // staff looked at this person", and nobody did.
+            'approved_by' => null,
+            'vehicle_type' => 'bike',
+        ]));
+    }
+
+    /**
+     * SOMEBODY PICKS UP THE ID the shop wrote down for them.
+     *
+     * Every refusal below is a different sentence because they are different
+     * situations, and "invalid code" sends a rider to the wrong person for help.
+     */
+    public function claim(User $user, string $code): RiderProfile
+    {
+        $code = strtoupper(trim($code));
+
+        return DB::transaction(function () use ($user, $code): RiderProfile {
+            $mine = RiderProfile::query()->where('user_id', $user->id)->first();
+            if ($mine !== null) {
+                throw DomainException::conflict(
+                    'This account is already a rider ('.$mine->rider_code.').',
+                    'RIDER_ALREADY_CLAIMED',
+                );
+            }
+
+            $profile = RiderProfile::query()->where('rider_code', $code)->lockForUpdate()->first();
+
+            if ($profile === null) {
+                throw DomainException::unprocessable('No rider has that id.', 'RIDER_CODE_UNKNOWN');
+            }
+            if (! $profile->isUnclaimed()) {
+                // Somebody else is already holding it. Said plainly, because the
+                // alternative reading — that the shop mistyped — sends the rider
+                // back to the shop for a code that is not the problem.
+                throw DomainException::conflict(
+                    'That rider id is already in use by another account.',
+                    'RIDER_CODE_TAKEN',
+                );
+            }
+
+            $profile->forceFill([
+                'user_id' => $user->id,
+                'claimed_at' => now(),
+            ])->save();
+
+            return $profile->refresh();
         });
     }
 
@@ -545,6 +627,26 @@ class RiderService
             throw DomainException::forbidden(
                 'Your rider account is '.strtolower($profile->status->label()).'.',
                 'RIDER_NOT_APPROVED',
+            );
+        }
+
+        // A SHOP'S WORD IS NOT THE PLATFORM'S.
+        //
+        // This asked `canRide()` and nothing else, which was right while every
+        // approved profile had been approved by a person. Once a shop can mint
+        // one, it is not: a shop could add anybody, and that person could flip
+        // themselves into the CartZe pool and start carrying strangers' goods
+        // and strangers' cash with no CNIC, no licence, and no member of staff
+        // having looked at them once.
+        //
+        // Only joining is fenced. LEAVING the pool must always work, whatever
+        // state the account is in — a rider who wants to stop being offered
+        // strangers' work is never the person to argue with.
+        if ($inPool && ! $profile->isPlatformApproved()) {
+            throw DomainException::forbidden(
+                'Your shop added you as their own rider. To take CartZe deliveries from any shop, '.
+                'apply and send your CNIC and licence first.',
+                'RIDER_NOT_PLATFORM_APPROVED',
             );
         }
 

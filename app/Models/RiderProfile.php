@@ -43,7 +43,33 @@ class RiderProfile extends Model
             'last_seen_at' => 'datetime',
             'applied_at' => 'datetime',
             'approved_at' => 'datetime',
+            'claimed_at' => 'datetime',
         ];
+    }
+
+    /** Minted by a shop and not yet picked up by anybody. */
+    public function isUnclaimed(): bool
+    {
+        return $this->user_id === null;
+    }
+
+    /**
+     * Is this approval the PLATFORM's word, or one shop's?
+     *
+     * A shop-minted rider is `approved` so they can carry that shop's orders —
+     * the shop knows them, which is what the platform check is for when nobody
+     * does. It is not transferable. Until staff have seen a CNIC and a licence,
+     * this person may not be offered a stranger's goods and a stranger's cash,
+     * and `RiderService::setPlatform()` is where that is enforced.
+     */
+    public function isPlatformApproved(): bool
+    {
+        return $this->status === RiderStatus::Approved && $this->approved_by !== null;
+    }
+
+    public function vouchedBy(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class, 'vouched_by_tenant_id');
     }
 
     /**

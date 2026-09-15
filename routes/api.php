@@ -1269,6 +1269,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // applied: "no" is what the account screen needs.
             Route::get('/me', [RiderProfileController::class, 'show']);
             Route::post('/apply', [RiderProfileController::class, 'apply']);
+            // The other way in: an id a shop minted and wrote down for them.
+            // Beside `apply` because it is the same question asked by somebody
+            // whose employer has already answered it.
+            Route::post('/claim', [RiderProfileController::class, 'claim']);
             Route::post('/documents', [RiderProfileController::class, 'uploadDocument']);
             Route::get('/documents/{id}', [RiderProfileController::class, 'document']);
             Route::post('/submit', [RiderProfileController::class, 'submit']);

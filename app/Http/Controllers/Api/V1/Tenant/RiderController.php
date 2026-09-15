@@ -15,6 +15,7 @@ use App\Support\ApiResponse;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A shop's own delivery riders (Model A). Tenant-scoped CRUD; a rider with
@@ -39,7 +40,7 @@ class RiderController extends Controller
                 'orders as cash_in_hand' => fn ($q) => $q
                     ->whereNotNull('delivered_at')->whereNull('rider_settlement_id')->where('payment_method', 'cod'),
             ], 'total')
-            ->with('riderProfile:id,rider_code,status,is_online,last_seen_at,vehicle_type')
+            ->with('riderProfile:id,rider_code,status,is_online,last_seen_at,vehicle_type,user_id')
             ->orderBy('name')
             ->get()
             ->map(fn (Rider $r) => $this->serialize($r));
@@ -91,7 +92,7 @@ class RiderController extends Controller
         ]);
 
         return ApiResponse::created(
-            $this->serialize($rider->load('riderProfile:id,rider_code,status,is_online,last_seen_at,vehicle_type')),
+            $this->serialize($rider->load('riderProfile:id,rider_code,status,is_online,last_seen_at,vehicle_type,user_id')),
             "{$rider->name} added",
         );
     }
@@ -137,7 +138,7 @@ class RiderController extends Controller
             ->get(['id', 'order_number', 'total', 'delivery_fee', 'delivered_at']);
 
         return ApiResponse::ok([
-            'rider' => $this->serialize($rider->load('riderProfile:id,rider_code,status,is_online,last_seen_at,vehicle_type')),
+            'rider' => $this->serialize($rider->load('riderProfile:id,rider_code,status,is_online,last_seen_at,vehicle_type,user_id')),
             'orders' => $orders,
             'cash_in_hand' => round((float) $orders->sum(fn (Order $o) => (float) $o->total), 2),
             'rider_earned' => round((float) $orders->sum(fn (Order $o) => (float) $o->delivery_fee), 2),
@@ -162,7 +163,19 @@ class RiderController extends Controller
             'active_deliveries' => $r->active_deliveries ?? 0,
             'unsettled_orders' => $r->unsettled_orders ?? 0,
             'cash_in_hand' => round((float) ($r->cash_in_hand ?? 0), 2),
-            'has_app' => $p !== null,
+            // IS SOMEBODY ACTUALLY HOLDING THE APP.
+            //
+            // This read `$p !== null`, which was the same question while a
+            // profile only ever existed because a rider had made one. It is not
+            // any more: every rider a shop adds now gets an id minted for them,
+            // and an id nobody has claimed is a piece of paper in a drawer. A
+            // shop whose riders never claim theirs must read exactly as it did
+            // before any of this existed — no live pin, no handover code, the
+            // panel driving the status — and it does, because every one of
+            // those is gated on something only the app can set.
+            'has_app' => $p !== null && ! $p->isUnclaimed(),
+            // The id itself is shown either way. That is the point of minting
+            // it: the shop reads it off this list and gives it to their rider.
             'rider_code' => $p?->rider_code,
             'app_status' => $p?->status->value,
             'is_online' => $p !== null && $p->isAvailable(),
@@ -170,11 +183,36 @@ class RiderController extends Controller
         ];
     }
 
-    public function store(StoreRiderRequest $request): JsonResponse
+    /**
+     * Add a rider — and hand the shop the id to give them.
+     *
+     * The id used to come from the rider: install the app, sign up, apply, be
+     * approved, read `RDR-000123` off your own screen, tell the shop. Five
+     * steps belonging to somebody who is not the shop, for something only the
+     * shop wanted, and most shops never got past the first one.
+     *
+     * It is minted here now. The shop writes it down, the rider claims it in
+     * the app (`POST /rider/claim`), and the direction of the whole flow
+     * reverses without either side learning a new idea.
+     */
+    public function store(StoreRiderRequest $request, RiderService $riders): JsonResponse
     {
-        $rider = Rider::query()->create($request->validated() + ['created_by' => auth()->id()]);
+        $shop = app(TenantContext::class)->get();
+        $data = $request->validated();
 
-        return ApiResponse::created($rider, 'Rider added');
+        $rider = DB::transaction(function () use ($data, $shop, $riders): Rider {
+            $profile = $riders->mintForShop($shop, $data['name'], $data['phone'] ?? null);
+
+            return Rider::query()->create($data + [
+                'created_by' => auth()->id(),
+                'rider_profile_id' => $profile->id,
+            ]);
+        });
+
+        return ApiResponse::created(
+            $this->serialize($rider->load('riderProfile:id,rider_code,status,is_online,last_seen_at,vehicle_type,user_id')),
+            'Rider added',
+        );
     }
 
     public function update(UpdateRiderRequest $request, string $id): JsonResponse

@@ -621,9 +621,17 @@ class RiderSideTest extends TestCase
         $this->assertDatabaseHas('orders', ['id' => $order['id'], 'status' => 'completed', 'payment_status' => 'paid']);
         $this->assertSame(19.0, (float) $this->product->fresh()->stock_quantity);
 
-        // The card has no profile behind it, which is the normal case and
-        // always will be.
-        $this->assertNull(Rider::withoutTenancy()->find($cardId)->rider_profile_id);
+        // The card has no PERSON behind it, which is the normal case.
+        //
+        // This asserted `rider_profile_id` is null, and added "and always will
+        // be". It stopped being true the day a shop started minting the id when
+        // it adds a rider — there is a profile now, and nobody holding it. The
+        // property this test exists for is untouched and is asserted in full
+        // above: no live pin, no handover code, the panel driving the status.
+        // Every one of those is gated on something only the app can set, and
+        // `user_id` is the one fact that says whether anybody can set it.
+        $card = Rider::withoutTenancy()->find($cardId);
+        $this->assertNull($card->riderProfile?->user_id);
     }
     // ── Why the board is empty ──────────────────────────────────────
 
