@@ -9,5 +9,12 @@
       what a rename has to touch.
     -->
     <color name="brand">#E94E00</color>
+    <!--
+      The launcher icon's ground. The same brand orange, named separately
+      because it is read by `mipmap-anydpi-v26/ic_launcher.xml` and a colour
+      the LAUNCHER holds is not the same fact as the colour the splash frame
+      holds — one of them can change without the other.
+    -->
+    <color name="ic_launcher_background">#E94E00</color>
     <color name="brand_dark">#C04000</color>
 </resources>

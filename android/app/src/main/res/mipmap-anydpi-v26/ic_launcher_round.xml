@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  THE ADAPTIVE ICON — Android 8 and up, which is every phone this app targets.
+
+  Two layers the launcher masks into whatever shape the device uses: a circle
+  on stock Android, a squircle on Samsung, a rounded square elsewhere. Only the
+  middle 72dp of the 108dp canvas is guaranteed to survive that mask, which is
+  why `ic_launcher_foreground` sizes the cart against the SAFE ZONE rather than
+  against the canvas — the first version had its handle clipped off by the
+  circular mask and read as a floating box.
+
+  The background is a flat colour rather than a bitmap: one hex to change, and
+  nothing to re-render at five densities when the brand moves.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>
