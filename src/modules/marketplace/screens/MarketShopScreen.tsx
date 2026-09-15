@@ -107,6 +107,16 @@ const CHIP_BAR = 54; // 10 + (7 + 18 + 7 + 2 border) + 10
  */
 const PINNED_HEAD = 40;
 
+/**
+ * How far a jump has to clear: the notch, the header row, and the chips.
+ *
+ * A function of the inset rather than a constant, because the inset is a
+ * property of the phone. Written ONCE because it is needed twice — the jump
+ * and the retry after a failed index — and the first version of this change
+ * updated only one of them.
+ */
+const PINNED_OFFSET = (insetTop: number) => insetTop + PINNED_HEAD + CHIP_BAR;
+
 export function MarketShopScreen() {
   const insets = useSafeAreaInsets();
   const c = useColors();
@@ -301,7 +311,7 @@ export function MarketShopScreen() {
        * Computed rather than a constant, because the inset is a property of
        * the phone and a number written here would be right on one of them.
        */
-      viewOffset: insets.top + PINNED_HEAD + CHIP_BAR,
+      viewOffset: PINNED_OFFSET(insets.top),
     });
   };
 
@@ -911,7 +921,12 @@ export function MarketShopScreen() {
               index: info.index,
               animated: true,
               viewPosition: 0,
-              viewOffset: CHIP_BAR,
+              // The same offset as the jump above. Two call sites, one number
+              // — this one kept `CHIP_BAR` when the bar grew a header, so a
+              // jump that had to retry landed the heading underneath it while
+              // a jump that worked first time did not. `paging.test.ts` counts
+              // both occurrences for exactly this reason, and caught it.
+              viewOffset: PINNED_OFFSET(insets.top),
             });
           }, 120);
         }}

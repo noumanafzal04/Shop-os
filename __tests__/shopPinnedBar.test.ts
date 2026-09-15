@@ -100,6 +100,11 @@ describe("the pinned category bar", () => {
    * above them, the heading landed under the shop's own name.
    */
   it("scrolls a category clear of the header as well as the chips", () => {
-    expect(src).toMatch(/viewOffset:\s*insets\.top \+ PINNED_HEAD \+ CHIP_BAR/);
+    // The sum is written ONCE, as `PINNED_OFFSET`, because two call sites need
+    // it — the jump and the retry after a failed index. The first version of
+    // this change updated one of them, and `paging.test.ts` (which counts both
+    // occurrences) is what caught the other.
+    expect(src).toMatch(/PINNED_OFFSET = \(insetTop: number\) => insetTop \+ PINNED_HEAD \+ CHIP_BAR/);
+    expect((src.match(/viewOffset: PINNED_OFFSET\(insets\.top\)/g) ?? []).length).toBe(2);
   });
 });

@@ -229,7 +229,10 @@ describe("the shop menu", () => {
     expect(screen).toMatch(/out\.unshift\(\{ kind: "cats", key: "cats" \}\)/);
 
     // And a second copy, only while pinned.
-    expect(screen).toMatch(/jumps\.size > 1 && pinned && \(/);
+    // The bar appears on `pinned` alone — it is a header now, and a header is
+    // not something a one-category shop should be denied. The CHIPS inside it
+    // are still gated; see the single-section test below.
+    expect(screen).toMatch(/\{pinned && \(/);
     expect((screen.match(/<CatBar\b/g) ?? []).length).toBe(2);
     expect(screen).toMatch(/function CatBar\(/);
   });
@@ -296,23 +299,28 @@ describe("the shop menu", () => {
     // BOTH scroll calls — the jump and the retry after a failed index. One
     // assertion passed while either one had lost its offset, because the other
     // still carried the string.
-    expect((screen.match(/viewOffset: CHIP_BAR/g) ?? []).length).toBe(2);
+    expect((screen.match(/viewOffset: PINNED_OFFSET\(insets\.top\)/g) ?? []).length).toBe(2);
     expect((screen.match(/scrollToIndex\(\{/g) ?? []).length).toBe(2);
     expect(screen).toMatch(/const CHIP_BAR = \d+;/);
   });
 
-  it("draws no bar at all for a shop with one section", () => {
+  it("draws no CHIPS for a shop with one section, but keeps the header", () => {
     /**
-     * A contents page listing one thing is a label, not a contents page.
+     * A contents page listing one thing is a label, not a contents page — so
+     * the chips are still gated on there being more than one.
      *
-     * Checked in BOTH places now, which is the half that was easy to miss: the
-     * row is only added to the menu when there is more than one category, and
-     * the pinned copy is only rendered on the same condition. Guard one and
-     * not the other and a single-section shop gets an empty bar over its
-     * first product.
+     * What is NOT gated on that any more is the bar itself. It used to be, and
+     * that was right while the bar was chips and nothing else. It carries the
+     * back button now, and the back button scrolls away with the hero on a
+     * one-category shop exactly as it does on a ten-category one — so gating
+     * the bar on the number of categories would leave that shop with no way
+     * out, for a reason that has nothing to do with categories.
      */
     expect(screen).toMatch(/if \(at\.size > 1\) \{/);
-    expect(screen).toMatch(/jumps\.size > 1 && pinned/);
+    // The chips, still conditional…
+    expect(screen).toMatch(/\{jumps\.size > 1 && \(/);
+    // …and the bar, no longer.
+    expect(screen).toMatch(/\{pinned && \(/);
   });
 
   it("holds its viewability config still", () => {
