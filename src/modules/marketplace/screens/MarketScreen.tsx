@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,19 +21,16 @@ import { Appear } from "../../../common/ui/Appear";
 import { Touchable } from "../../../common/ui/Touchable";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
-import { sameTrade } from "../tradeIcon";
 import { ShopFilters } from "../components/ShopFilters";
 import { ShopFilterSheet } from "../components/ShopFilterSheet";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { ShopFactsRow } from "../components/ShopFactsRow";
 import { RatingChip } from "../components/RatingChip";
 import { shopInitial, useShopCover } from "../shopCover";
-import { SmartImage } from "../../../common/ui/SmartImage";
-import { OfferBadge, Price } from "../../../common/ui/Price";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useServingPin } from "../servingPin";
-import { useHomeFeed, useMarketShops } from "../hooks/useMarketplace";
+import { useMarketShops } from "../hooks/useMarketplace";
 import type { PublicShop, ShopQuery } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 
@@ -46,7 +42,6 @@ const typeLabel = (t: string | null) => (t ? t.charAt(0).toUpperCase() + t.slice
  */
 export function MarketScreen() {
   const c = useColors();
-  const coverFor = useShopCover();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -88,15 +83,6 @@ export function MarketScreen() {
   const pull = usePullToRefresh(shops.refetch);
   const rows = (shops.data?.pages ?? []).flatMap((p) => p.data);
 
-  // Deals strip scoped to this list's business type (grocery tab → grocery deals).
-  const feed = useHomeFeed(pin);
-  const deals = (feed.data?.deals ?? []).filter(
-    // `sameTrade`, not `===`. The tab passes `grocery` and every shop created
-    // since the primary types replaced the narrow codes is stored as `mart` —
-    // so an exact comparison emptied the strip on a tab full of them.
-    (d) => !businessType || sameTrade(d.shop?.business_type, businessType),
-  );
-
   // The bottom inset depends on WHERE THIS SCREEN IS.
   //
   // It is the Grocery tab and it is also `ShopList`, pushed from a home
@@ -116,9 +102,15 @@ export function MarketScreen() {
             </Touchable>
           )}
           <View style={styles.headerText}>
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.subtitle}>Nearest to you first</Text>
+            <Text style={styles.title} numberOfLines={1}>{title}</Text>
+            {/*
+              The ordering, on the same line as the title rather than under it.
+              It is worth saying once — a list sorted by distance behaves
+              differently from one sorted by name — and not worth its own row on
+              a screen whose whole problem was rows.
+            */}
           </View>
+          <Text style={styles.subtitle}>Nearest first</Text>
         </View>
         <View style={styles.searchBar}>
           <SearchIcon size={18} color={c.gray[400]} />
@@ -151,52 +143,26 @@ export function MarketScreen() {
         refreshControl={
           <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={c.brand[500]} />
         }
+        /**
+          ── WHAT USED TO BE HERE, AND WHY IT IS NOT ────────────────
+
+          A horizontal strip of discounted PRODUCTS, and the heading "All
+          shops" underneath it. Between the hero, the filter bar and those two,
+          roughly 430px of a 640px phone went by before the first shop — so the
+          screen you opened to see shops showed you one, under a rail of things
+          that are not shops.
+
+          The strip was also a second copy: the home screen carries "Deals for
+          you" three taps earlier, from the same query. A list of shops answers
+          "which shop", and the answer starts at the top of it now.
+
+          The heading went with it for a simpler reason: it named the list it
+          sat on, directly under a hero already carrying that name. Only the
+          search result keeps a line, because "Results for X" says something the
+          title does not.
+        */
         ListHeaderComponent={
-          <>
-            {/* Deals strip */}
-            {deals.length > 0 && !debounced && (
-              <>
-                <Text style={styles.sectionTitle}>Deals near you</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.dealRow}
-                >
-                  {deals.map((d) => (
-                    <Touchable
-                      key={d.id}
-                      style={styles.dealCard}
-                      onPress={() => d.shop && navigation.navigate("MarketShop", { slug: d.shop.slug })}
-                    >
-                      <View style={styles.dealImgWrap}>
-                        <SmartImage
-                          uri={d.image}
-                          fallback={shopInitial(d.name)}
-                          fallbackBackground={coverFor(d.id).bg}
-                          fallbackColor={coverFor(d.id).fg}
-                          style={styles.dealImg}
-                        />
-                        <OfferBadge
-                          value={d.price}
-                          was={d.original_price}
-                          percent={d.percent_off}
-                          style={styles.offBadge}
-                        />
-                      </View>
-                      <View style={styles.dealBody}>
-                        <Text style={styles.dealName} numberOfLines={1}>{d.name}</Text>
-                        <Price value={d.price} was={d.original_price} size="md" tone="brand" />
-                        <Text style={styles.dealShop} numberOfLines={1}>{d.shop?.business_name}</Text>
-                      </View>
-                    </Touchable>
-                  ))}
-                </ScrollView>
-              </>
-            )}
-            <Text style={styles.sectionTitle}>
-              {debounced ? `Results for "${debounced}"` : "All shops"}
-            </Text>
-          </>
+          debounced ? <Text style={styles.sectionTitle}>Results for “{debounced}”</Text> : null
         }
         ListEmptyComponent={
           shops.isLoading ? (
@@ -292,9 +258,11 @@ const makeStyles = (c: ThemeColors) =>
     backgroundColor: c.brand[500],
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.md,
+    // Was `spacing.md`. Every pixel here is a pixel the first shop row is
+    // pushed down by, and the search bar below already carries its own height.
+    paddingBottom: spacing.sm,
   },
-  headerTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
+  headerTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs },
   back: {
     width: 38,
     height: 38,

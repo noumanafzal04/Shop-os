@@ -377,26 +377,53 @@ export function CustomerHomeScreen() {
             */}
             {tradeTiles.map((t) => {
               /**
-               * NOTHING HERE YET — said, not hidden.
+               * NOTHING HERE YET — said, and NOT OFFERED.
                *
-               * A trade with no shops in this city still gets its tile, because
-               * the grid's shape is a layout decision and not the data's to
-               * make. But it is drawn at half strength and its label says so,
-               * so it is not a control that looks live and opens an empty page.
+               * A trade with no shops here still gets its tile, because the
+               * grid's shape is a layout decision and not the data's to make.
                *
-               * It stays TAPPABLE on purpose: the list it opens has a real
-               * empty state that names the city and offers the way out. A dead
-               * tile answers nothing; a page that says "no chemists near you
-               * yet" answers the question the tap was asking.
+               * It was tappable, on the argument that the list it opens has an
+               * honest empty state and a page saying "no chemists near you yet"
+               * answers the question the tap asked. That argument was wrong in
+               * practice and the report said so in four words: "koi shop ni
+               * arhi". Nobody reads an empty page as an answer — they read it
+               * as an app that did not work, and three of the seven tiles were
+               * doing it.
+               *
+               * So an empty one is INFORMATION, not a control: no press, no
+               * button role, and a line under the label saying why. The
+               * difference between a muted button and a muted label is the
+               * whole of it.
                */
               const empty = t.shops_count === 0;
+
+              if (empty) {
+                return (
+                  <View
+                    key={t.type}
+                    style={[styles.tile, styles.tileEmpty]}
+                    accessible
+                    accessibilityLabel={`${t.label} — none nearby yet`}
+                  >
+                    <View style={[styles.tileIcon, { backgroundColor: ground(tradeArt(t.type)) }]}>
+                      {React.createElement(tradeArt(t.type).Art, { size: 30 })}
+                    </View>
+                    <Text style={styles.tileLabel} numberOfLines={1}>
+                      {t.label}
+                    </Text>
+                    <Text style={styles.tileNone} numberOfLines={1}>
+                      None nearby
+                    </Text>
+                  </View>
+                );
+              }
 
               return (
               <Touchable
                 key={t.type}
-                style={[styles.tile, empty && styles.tileEmpty]}
+                style={styles.tile}
                 accessibilityRole="button"
-                accessibilityLabel={empty ? `${t.label} — none nearby yet` : t.label}
+                accessibilityLabel={t.label}
                 onPress={() =>
                   navigation.navigate("ShopList", {
                     business_type: t.type,
@@ -889,6 +916,14 @@ const makeStyles = (c: ThemeColors) =>
    * label stops being legible — these are still reachable controls.
    */
   tileEmpty: { opacity: 0.45 },
+  /**
+   * The line that turns a dimmed button into a label.
+   *
+   * Without words, a faded tile is just a tile somebody will press anyway —
+   * which is exactly what happened. Two syllables under the name and the eye
+   * stops treating it as a destination.
+   */
+  tileNone: { ...typography.tiny, color: c.textMuted, fontSize: 9.5, marginTop: -3 },
   // A tinted tile, not an outlined white box. The outline made identical
   // frames and left the glyph to do all the work; the tint makes them read as
   // one set of buttons before anyone reads a label.

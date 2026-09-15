@@ -79,12 +79,32 @@ describe("the category grid is always eight", () => {
    * it opens has a real empty state, and a page that says "none near you yet"
    * answers the question the tap was asking. A dead tile answers nothing.
    */
-  it("shows an empty trade at half strength rather than hiding it", () => {
+  /**
+   * An empty trade is INFORMATION, not a control.
+   *
+   * It was a dimmed `Touchable` that opened a list with a perfectly honest
+   * empty state — and the report on that was four words: "koi shop ni arhi".
+   * Nobody reads an empty page as an answer; they read it as an app that did
+   * not work, and three of the seven tiles were doing it.
+   *
+   * A muted button and a muted label look almost the same and behave entirely
+   * differently, so this checks the BEHAVIOUR: the empty branch returns a
+   * plain `View`, with no press handler and no button role.
+   */
+  it("does not offer a trade that has nothing behind it", () => {
     expect(src).toMatch(/const empty = t\.shops_count === 0;/);
+
+    const branch = src.slice(src.indexOf("if (empty) {"), src.indexOf("return (\n              <Touchable"));
+    expect(branch.length).toBeGreaterThan(0);
+    expect(branch).not.toMatch(/onPress=/);
+    expect(branch).not.toMatch(/accessibilityRole="button"/);
+    expect(branch).not.toMatch(/<Touchable/);
+    // …and it says why, or a faded tile is one somebody presses anyway.
+    expect(branch).toMatch(/None nearby/);
+  });
+
+  it("still draws it, rather than letting the data resize the grid", () => {
     expect(src).toMatch(/tileEmpty: \{ opacity: [\d.]+ \}/);
-    // Still a button: no `disabled`, and the label says what it is.
-    const tile = src.slice(src.indexOf("const empty = t.shops_count"), src.indexOf("styles.tileIcon"));
-    expect(tile).not.toMatch(/disabled=/);
-    expect(tile).toMatch(/none nearby yet/);
+    expect(src).toMatch(/const HOME_TRADES = 7;/);
   });
 });

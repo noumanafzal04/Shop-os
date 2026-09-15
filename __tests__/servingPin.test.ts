@@ -22,7 +22,20 @@ const read = (p: string) => codeOnly(fs.readFileSync(path.join(PROJECT_ROOT, p),
 /** Screen → the query it must fence. */
 const LISTS: Array<[string, RegExp]> = [
   ["src/modules/marketplace/screens/CustomerHomeScreen.tsx", /useHomeFeed\(pin\)/],
-  ["src/modules/marketplace/screens/MarketScreen.tsx", /useHomeFeed\(pin\)/],
+  /**
+   * The SHOPS query, not the home feed.
+   *
+   * This asked for `useHomeFeed(pin)`, which this screen called only to draw a
+   * strip of discounted products above the list. That strip is gone — between
+   * it, the hero and the filter bar, roughly 430px of a 640px phone went by
+   * before the first shop, on the screen somebody opened to see shops.
+   *
+   * What the rule is actually about survived and is asserted below: the list's
+   * own query spreads the pin. A test naming the CALL rather than the
+   * requirement is a test that breaks when the call moves and says nothing
+   * when the requirement does.
+   */
+  ["src/modules/marketplace/screens/MarketScreen.tsx", /useMarketShops\(\{/],
   ["src/modules/marketplace/screens/SearchScreen.tsx", /useUniversalSearch\(debounced, pin\)/],
 ];
 
