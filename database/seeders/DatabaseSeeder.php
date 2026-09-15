@@ -35,6 +35,15 @@ class DatabaseSeeder extends Seeder
             $this->call([
                 DemoTenantSeeder::class,
                 DemoDataSeeder::class,
+                // TEN SHOPS IN ONE CITY, so the customer app has content.
+                //
+                // `DemoDataSeeder` spreads its nine shops one per city, and the
+                // marketplace fences by city AND by each shop's delivery
+                // radius — so a tester standing in Lahore saw one shop and an
+                // empty home screen. Correct behaviour on bad data; this is
+                // the data. Runs before AppDemoSeeder so its shops get hours,
+                // reviews and images like every other tenant.
+                LahoreShopsSeeder::class,
                 AppDemoSeeder::class,
             ]);
         } else {
