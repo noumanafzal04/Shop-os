@@ -100,6 +100,15 @@ export interface Tenant {
   logo_path: string | null;
   /** Resolved server-side — never assemble a storage URL in the client. */
   logo_url?: string | null;
+  /**
+   * The wide photograph at the top of the customer's shop page.
+   *
+   * Separate from `gallery`, which is a portfolio and is gated on the services
+   * module — that gate is why a restaurant could not set the biggest image in
+   * the app at all.
+   */
+  cover_path?: string | null;
+  cover_url?: string | null;
   address: string | null;
   deleted_at?: string | null;
   users?: User[];

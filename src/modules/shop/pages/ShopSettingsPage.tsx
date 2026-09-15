@@ -220,6 +220,34 @@ export default function ShopSettingsPage() {
   const set = (k: string, v: string) => { setForm((f) => ({ ...f, [k]: v })); setProfileDirty(true); };
 
   // ── The shop's mark, as printed on its invoices ──────────────────────
+  /**
+   * THE COVER PHOTO — the wide band at the top of the customer's shop page.
+   *
+   * Beside the logo's plumbing because they are the same KIND of thing, and
+   * deliberately NOT the gallery: that is a portfolio, it is a list, and it is
+   * gated on the services module — which is why a restaurant could not set the
+   * biggest image in the app at all.
+   */
+  const coverRef = useRef<HTMLInputElement>(null);
+  const uploadCover = useMutation({
+    mutationFn: (file: File) => shopService.uploadCover(file),
+    onSuccess: ({ data }) => {
+      queryClient.invalidateQueries({ queryKey: ["shop"] });
+      if (user) setUser({ ...user, tenant: data });
+      toast.success("Cover photo updated — customers see it at the top of your shop.");
+    },
+    onError: failed("Couldn't upload that photo."),
+  });
+  const removeCover = useMutation({
+    mutationFn: () => shopService.removeCover(),
+    onSuccess: ({ data }) => {
+      queryClient.invalidateQueries({ queryKey: ["shop"] });
+      if (user) setUser({ ...user, tenant: data });
+      toast.success("Cover photo removed.");
+    },
+    onError: failed("Couldn't remove that photo."),
+  });
+
   const logoRef = useRef<HTMLInputElement>(null);
   const uploadLogo = useMutation({
     mutationFn: (file: File) => shopService.uploadLogo(file),
@@ -349,9 +377,90 @@ export default function ShopSettingsPage() {
 
                   <SectionCard icon={<GlobeGlyph />} title="Online shop" description="Your customer-facing storefront." badge={<Badge size="sm" color={online ? "success" : "light"}>{online ? "Enabled" : "Off"}</Badge>}>
                     {online ? (
-                      <Field label="Delivery fee (Rs)" hint="Charged on delivery orders. Set 0 for free delivery / pickup-only." error={errorFor("delivery_fee")}>
-                        <Input type="number" min="0" value={form.delivery_fee} onChange={(e) => set("delivery_fee", e.target.value)} className="max-w-xs" />
-                      </Field>
+                      <>
+                        {/*
+                          THE FIRST THING A CUSTOMER SEES, and until now there
+                          was nowhere to set it.
+
+                          The shop page's hero read the gallery, and the gallery
+                          is gated on the services module — so for a restaurant,
+                          a mart, a chemist or a retailer it was always empty and
+                          the biggest image in the app fell back to a coloured
+                          letter. It lives here rather than beside the invoice
+                          logo because this is the customer-facing section and
+                          that one prints on paper.
+                        */}
+                        <div className="mb-5">
+                          <p className="mb-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                            Cover photo
+                          </p>
+                          <div
+                            className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03]"
+                          >
+                            {shop.data?.cover_url ? (
+                              <img
+                                src={shop.data.cover_url}
+                                alt="Your shop's cover"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <p className="px-4 text-center text-theme-xs text-gray-400">
+                                No cover photo yet — customers see your shop's initial instead.
+                              </p>
+                            )}
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={uploadCover.isPending}
+                              onClick={() => coverRef.current?.click()}
+                            >
+                              {uploadCover.isPending
+                                ? "Uploading…"
+                                : shop.data?.cover_url
+                                  ? "Replace"
+                                  : "Upload cover"}
+                            </Button>
+                            {shop.data?.cover_url && (
+                              <Button
+                                size="sm"
+                                // `danger`, and a test insisted. A Remove in
+                                // the same grey as everything beside it is how
+                                // a card of five buttons came to be reported
+                                // as "white white" — undifferentiated reads as
+                                // blank, and nothing is warned about either.
+                                variant="danger"
+                                disabled={removeCover.isPending}
+                                onClick={() => removeCover.mutate()}
+                              >
+                                {removeCover.isPending ? "Removing…" : "Remove"}
+                              </Button>
+                            )}
+                            <span className="text-theme-xs text-gray-400">
+                              Wide photo, JPG/PNG/WebP, up to 4 MB.
+                            </span>
+                          </div>
+                          <input
+                            ref={coverRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) uploadCover.mutate(file);
+                              // Cleared so choosing the SAME file again still
+                              // fires a change event — otherwise a failed
+                              // upload cannot be retried with the same photo.
+                              e.target.value = "";
+                            }}
+                          />
+                        </div>
+
+                        <Field label="Delivery fee (Rs)" hint="Charged on delivery orders. Set 0 for free delivery / pickup-only." error={errorFor("delivery_fee")}>
+                          <Input type="number" min="0" value={form.delivery_fee} onChange={(e) => set("delivery_fee", e.target.value)} className="max-w-xs" />
+                        </Field>
+                      </>
                     ) : (
                       <p className="text-sm text-gray-500 dark:text-gray-400">Your plan is Expense Manager only. Contact the platform admin to enable online selling.</p>
                     )}

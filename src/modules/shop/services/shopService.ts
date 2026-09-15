@@ -233,6 +233,22 @@ export const shopService = {
     return apiPost<Tenant>("/shop/logo", fd);
   },
 
+  /**
+   * THE WIDE PHOTOGRAPH AT THE TOP OF THE SHOP PAGE.
+   *
+   * Not `uploadGallery` below, which is a PORTFOLIO — a body of work, a list,
+   * and gated on the services module. That gate is why a restaurant could not
+   * set the biggest image in the app at all.
+   */
+  uploadCover: (file: File) => {
+    const fd = new FormData();
+    fd.append("cover", file);
+
+    return apiPost<Tenant>("/shop/cover", fd);
+  },
+
+  removeCover: () => apiDelete<Tenant>("/shop/cover"),
+
   gallery: () => apiGet<GalleryImage[]>("/shop/gallery"),
   uploadGallery: (files: File[]) => {
     const fd = new FormData();
