@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "_typecheck_note": "tsc -b, never tsc --noEmit: the root tsconfig is files:[] + references, so --noEmit compiles NOTHING and reports a clean tree however broken it is.",
+    "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

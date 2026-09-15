@@ -167,7 +167,10 @@ export interface HeldSale {
     order_type?: "takeaway" | "dine_in";
     table_no?: string;
     coupon_code?: string | null;
-    payment_method?: "cash" | "card";
+    // The parked tender. Only the simple ones: split and credit are re-chosen
+    // at checkout (credit also needs the customer confirmed again), so they
+    // park as cash. A wallet parks as itself — it is one press, like a card.
+    payment_method?: "cash" | "card" | "wallet";
   };
   created_at: string;
   register_id?: string | null;
