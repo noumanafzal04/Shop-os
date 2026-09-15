@@ -143,6 +143,113 @@ class LahoreShopsSeederTest extends TestCase
         $this->assertSame(2, $types->firstWhere('type', 'mart')['shops_count']);
     }
 
+    /**
+     * TAP A TILE, GET SHOPS — the whole journey, in the app's own order.
+     *
+     * "Grocery pe click karo → koi shop nahi aa rahi."
+     *
+     * The home screen draws its tiles from `business_types` on the home feed
+     * and navigates with the `type` it was given; the list screen passes that
+     * straight to `/marketplace/shops` with the same pin. Two endpoints, one
+     * vocabulary, and nothing in either repo checks they agree — the app's own
+     * suite mocks the API, so it agrees with whatever the app believes.
+     *
+     * Every tile is walked, not the first one. A journey that works for Mart
+     * and empties for Pharmacy is the failure that gets reported as "the app is
+     * broken" and reproduces on one tap in four.
+     */
+    public function test_every_home_tile_leads_to_the_shops_it_counted(): void
+    {
+        $this->seed(LahoreShopsSeeder::class);
+        $pin = '&lat='.self::PIN['lat'].'&lng='.self::PIN['lng'];
+
+        $types = $this->getJson('/api/v1/marketplace/home?'.ltrim($pin, '&'))
+            ->assertOk()->json('data.business_types');
+
+        foreach ($types as $tile) {
+            $shops = $this->getJson("/api/v1/marketplace/shops?business_type={$tile['type']}{$pin}")
+                ->assertOk()->json('data');
+
+            $this->assertCount(
+                $tile['shops_count'],
+                $shops,
+                "the {$tile['label']} tile counted {$tile['shops_count']} and its list returned ".count($shops),
+            );
+        }
+    }
+
+    /**
+     * A COUNT BESIDE A LINK IS A COUNT OF WHAT THE LINK OPENS.
+     *
+     * The tile counts came from every visible shop in the city; the list it
+     * opens fences by `servesPin` — the city AND each shop's own delivery
+     * radius. So a tile read "Mart & Grocery 4" and opened a list of 2, and
+     * both numbers were right about different questions.
+     *
+     * The test above cannot see it, because every seeded shop is inside every
+     * radius. This one puts a mart out of reach on purpose: without it, an
+     * unfenced count passes everything.
+     */
+    public function test_a_tile_does_not_count_shops_its_list_will_not_show(): void
+    {
+        $this->seed(LahoreShopsSeeder::class);
+        $pin = '&lat='.self::PIN['lat'].'&lng='.self::PIN['lng'];
+
+        // Same city, 20 km out, and it only delivers 3. The list will not show
+        // it to somebody standing in Gulberg — so the tile must not count it.
+        Tenant::query()->where('slug', 'gulberg-kiryana')->update([
+            'latitude' => 31.7000,
+            'longitude' => 74.3587,
+            'settings' => json_encode(['delivery_radius_km' => 3, 'delivery_provider' => 'platform']),
+        ]);
+
+        $types = collect($this->getJson('/api/v1/marketplace/home?'.ltrim($pin, '&'))
+            ->assertOk()->json('data.business_types'));
+
+        $shops = $this->getJson("/api/v1/marketplace/shops?business_type=mart{$pin}")
+            ->assertOk()->json('data');
+
+        $this->assertSame(
+            count($shops),
+            $types->firstWhere('type', 'mart')['shops_count'],
+            'the tile counted shops its own list refuses to show',
+        );
+    }
+
+    /**
+     * And the category tiles, which go the same way with a second parameter.
+     */
+    public function test_a_category_tile_leads_to_its_shops_too(): void
+    {
+        $this->seed(LahoreShopsSeeder::class);
+        $pin = '&lat='.self::PIN['lat'].'&lng='.self::PIN['lng'];
+
+        $trades = $this->getJson('/api/v1/marketplace/categories')->assertOk()->json('data.business_types');
+
+        foreach ($trades as $trade) {
+            foreach ($trade['categories'] ?? [] as $cat) {
+                if (($cat['shops_count'] ?? 0) === 0) {
+                    continue;
+                }
+
+                $code = $cat['code'] ?? $cat['category'] ?? $cat['value'] ?? null;
+                if ($code === null) {
+                    continue;
+                }
+
+                $shops = $this->getJson(
+                    "/api/v1/marketplace/shops?business_type={$trade['type']}&business_category={$code}{$pin}"
+                )->assertOk()->json('data');
+
+                $this->assertCount(
+                    $cat['shops_count'],
+                    $shops,
+                    "{$trade['label']} → {$cat['label']} counted {$cat['shops_count']}, list returned ".count($shops),
+                );
+            }
+        }
+    }
+
     /** Products have to be findable, not just present. */
     public function test_the_aisle_and_search_both_return_things(): void
     {

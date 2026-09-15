@@ -974,11 +974,24 @@ class MarketplaceController extends Controller
          * A label map in the app would be a second copy that drifts the first
          * time a type is renamed and nothing fails. One line here instead.
          */
+        /**
+         * COUNTED THROUGH THE SAME FENCE THE LIST USES.
+         *
+         * This counted every visible shop in the city and the tile it feeds
+         * navigates to `/marketplace/shops`, which fences by `servesPin` — the
+         * city AND each shop's own delivery radius. So a tile read "Mart &
+         * Grocery 4" and opened a list of 2, and the two numbers were both
+         * right about different questions.
+         *
+         * A count beside a link has to be a count of what the link opens.
+         * `$base()` is the same closure the nearby list is built from, so there
+         * is now one answer rather than two.
+         */
         $counts = [];
-        $rows = Tenant::query()->marketplaceVisible()
-            ->when($data['city_id'] ?? null, fn ($q, $id) => $q->where('city_id', $id))
-            ->selectRaw('business_type, COUNT(*) as shops_count')
-            ->groupBy('business_type')
+        $rows = $base()
+            ->reorder()
+            ->selectRaw('tenants.business_type, COUNT(*) as shops_count')
+            ->groupBy('tenants.business_type')
             ->get();
 
         foreach ($rows as $row) {
