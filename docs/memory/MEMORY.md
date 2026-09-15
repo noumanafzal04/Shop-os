@@ -210,3 +210,4 @@
 - [Rider Pool Had No Switch](shopos-rider-pool-had-no-switch.md) — is_platform false with no exit = no orders; board now names 1 of 6 reasons
 - [Default Flip Does Not Reach](shopos-default-flip-does-not-reach.md) — STANDING: a saved shop froze the old default; flipping it changes nothing
 - [Checkout Defaulted To Pickup](shopos-checkout-defaulted-to-pickup.md) — untouched orders never reached a rider; delivery is the default now
+- [Wallet Tender](shopos-wallet-tender.md) — JazzCash/Easypaisa is its own tender; offline-safe like a card; 9 copies of one list → PaymentMethod::counter()

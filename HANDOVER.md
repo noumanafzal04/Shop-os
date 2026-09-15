@@ -307,6 +307,54 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-15 — a wallet is not a card, and not a transfer
+
+`PaymentMethod` had eight cases and none of them was a mobile wallet, which in
+Pakistan is a daily tender rather than an edge. So it went somewhere: rung as
+`other`, or as `bank_transfer` — whose POS label had already drifted to **"Bank
+/ wallet"**. That drift is the actual finding. Somebody hit this, worked around
+it in a label, and filed nothing; the shop closed its day with one box covering
+two tenders that reconcile against two different apps.
+
+**A wallet is offline-safe, and for a reason rather than by permission.** It is
+recorded, never captured — CartZe has no gateway — so it has the same standing
+as `card`: confirmed at the counter, settling nowhere else, sharing nothing with
+another till. The confirmation arrives over the cashier's own data, not the
+shop's line. Refusing it during an outage would have taken a daily tender off
+the counter at the one event offline selling exists for.
+
+**The money claim, and the one the mutation points at: a wallet must leave the
+drawer where it was.** `DrawerMath` already summed only `method = 'cash'`, so
+nothing needed changing — what needed proving is that it stays that way. Get it
+wrong and every wallet sale reads as a shortage, arriving at the cashier as a
+variance they cannot explain.
+
+**`in:cash,card,bank_transfer,other` was written nine times** — seven request
+classes and two model constants. `PaymentMethod::counter()` / `counterOrCredit()`
+are now the one copy the rules read. `SyncRequest` needed nothing: it borrows
+`StoreSaleRequest` wholesale, so the offline path took the wallet the moment the
+online one did.
+
+**Two things fell out of adding a fifth button.** The labels were a ternary
+chain ending `: "Cash"` — not a label, a default, so any tender added to the row
+would have been drawn, pressed and called Cash. And the "Default" badge was
+hardcoded to cash, so a shop that chose Card was told two contradictory things
+at once. Both fixed; both now have a test.
+
+**A test that could not have caught this.** `it.each(OFFLINE_TENDERS)` reads the
+very list it is testing, so it passes whatever the list says — including a list
+that has lost a tender. It proves every listed tender is accepted; it cannot
+prove a tender is listed. Named as a literal now.
+
+**And a mutation that passed because it never applied.** The regex omitted a
+trailing comma, so the "surviving" mutation had not touched the code. A mutation
+that passes is a missing check *or* a broken mutation, and asserting the match
+count is the only way to tell.
+
+Backend 2708 passed / 2 skipped. Panel 1532. Seven mutations, all caught on the
+second attempt at one of them. Full write-up in
+`docs/decisions/shopos-a-wallet-is-not-a-card.md`.
+
 ### 2026-09-02 (night, later) — a save that fails and says nothing
 
 Twenty-five places in the panel called `.mutate()` and handled failure nowhere,
