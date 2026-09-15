@@ -123,6 +123,14 @@ const TOPICS: Topic[] = [
     a: "One order goes to one shop, so it can be prepared and brought in one delivery. The app always asks before it clears the basket, and pressing Keep my basket leaves it exactly as it was.",
   },
   {
+    q: "The app keeps changing my location",
+    a: "It does not any more. Whatever you set is kept until you change it — open the app in another part of town and your delivery address stays exactly where you put it. We only look at GPS the very first time you open the app, or when you tap “Use my current location” yourself.",
+  },
+  {
+    q: "How do I change where my order is delivered?",
+    a: "Two places. Tap the address at the top of any screen to move your pin for everything — which shops you see, the delivery fee, the lot. Or at Checkout, the address you are ordering to is shown in full with Change beside it: tap that to pick a saved address or type a different one. Always read it there before you place the order — that is the one thing nobody can fix afterwards.",
+  },
+  {
     q: "My shop gave me a rider id — what do I do with it?",
     a: "Open the menu, tap Become a rider, and type it into the box at the top — it looks like RDR-000123. That is the whole thing: no documents, no waiting. Their deliveries appear on your phone straight away and you close each one at the door with the four digits the customer reads out.",
   },

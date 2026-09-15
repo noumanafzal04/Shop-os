@@ -143,7 +143,15 @@ export function LocationScreen() {
         ListHeaderComponent={
           <>
             {/* Use current location */}
-            <Touchable style={styles.currentRow} onPress={() => { detect(); navigation.goBack(); }}>
+            {/*
+              FORCED, because a person pressed it.
+              `detect()` now refuses to run over a pin that already exists —
+              that is what stops GPS quietly moving somebody on every cold
+              start. This control is the exception it exists for, and without
+              the argument it would do nothing at all for exactly the people
+              who tapped it.
+            */}
+            <Touchable style={styles.currentRow} onPress={() => { detect(true); navigation.goBack(); }}>
               <View style={styles.currentIcon}>
                 <CrosshairIcon size={18} color={c.brand[600]} />
               </View>

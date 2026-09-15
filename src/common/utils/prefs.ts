@@ -41,6 +41,28 @@ interface Prefs {
    * so it stays where it can be cleared by clearing the app.
    */
   searches?: string[];
+  /**
+   * WHERE THE SHOPPER SAID THEY ARE.
+   *
+   * Remembered because it was not, and a pin that is not remembered is a pin
+   * that gets taken away. `status` began every launch at `idle`, so the home
+   * screen ran GPS detection every time and wrote the phone's CURRENT position
+   * over whatever the person had chosen — somebody ordering to their mother's
+   * house from the office watched the app quietly decide otherwise, on the
+   * screen where the total and the delivery fee are worked out.
+   *
+   * Once this exists, GPS is never consulted again unless somebody asks for it.
+   * That is the whole rule: automatic the first time, manual for ever after.
+   */
+  place?: {
+    lat: number;
+    lng: number;
+    label: string | null;
+    // The city exactly as `/marketplace/locate` returns it, so restoring is a
+    // copy rather than a re-fetch. Spelled out rather than imported: this file
+    // is the storage layer and must not depend on a feature module's types.
+    city: { id: string; name: string; latitude: number; longitude: number } | null;
+  };
 }
 
 /** How many are remembered. Enough to be useful, short enough to scan. */
@@ -88,6 +110,24 @@ export const prefs = {
 
   async setMode(mode: "customer" | "rider"): Promise<void> {
     await write({ ...(await read()), mode });
+  },
+
+  /** Remember where they said they are. See `Prefs.place`. */
+  async setPlace(place: NonNullable<Prefs["place"]>): Promise<void> {
+    await write({ ...(await read()), place });
+  },
+
+  /**
+   * Forget it, so the next launch detects again.
+   *
+   * The way back for somebody who moved city, or who let a friend order on
+   * their phone — and the reason "Use my current location" is a button rather
+   * than something the app does on its own.
+   */
+  async forgetPlace(): Promise<void> {
+    const current = await read();
+    delete current.place;
+    await write(current);
   },
 
   /**

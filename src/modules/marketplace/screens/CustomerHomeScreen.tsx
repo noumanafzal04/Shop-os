@@ -78,13 +78,37 @@ export function CustomerHomeScreen() {
   const navigation = useNavigation<any>();
   const [menuOpen, setMenuOpen] = useState(false);
   const coverFor = useShopCover();
-  const { status, label, detect } = useLocationStore();
+  const { status, label, detect, hydrate } = useLocationStore();
   const pin = useServingPin();
 
-  // First launch: resolve GPS → city automatically (foodpanda-style).
+  /**
+   * FIRST LAUNCH ONLY.
+   *
+   * This was `if (status === "idle") detect()`, and `status` began every launch
+   * at `idle` because nothing was stored — so GPS ran on every cold start and
+   * wrote the phone's current position over whatever the shopper had chosen.
+   * Somebody ordering to their mother's house from the office was quietly moved
+   * back to the office, on the screen that decides which shops they can even
+   * see.
+   *
+   * The remembered pin is restored first. GPS runs only when there was none.
+   */
   useEffect(() => {
-    if (status === "idle") detect();
-  }, [status, detect]);
+    if (status !== "idle") return;
+    let alive = true;
+    hydrate()
+      .then((had) => {
+        if (alive && !had) detect();
+      })
+      .catch(() => {
+        // Storage unreadable — a first launch as far as anyone can tell.
+        if (alive) detect();
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [status, detect, hydrate]);
 
   const feed = useHomeFeed(pin);
   const ground = useTileGround();
