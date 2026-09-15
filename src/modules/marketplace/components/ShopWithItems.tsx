@@ -6,7 +6,7 @@ import {
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
-import { shopInitial, useShopCover } from "../shopCover";
+import { shopInitial, shopLogo, useShopCover } from "../shopCover";
 import { ShopFactsRow } from "./ShopFactsRow";
 import { RatingChip } from "./RatingChip";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -102,7 +102,7 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
       >
         <View style={styles.logoWrap}>
           <SmartImage
-            uri={shop.logo_path}
+            uri={shopLogo(shop)}
             fallback={shopInitial(shop.business_name)}
             fallbackBackground={cover.bg}
             fallbackColor={cover.fg}

@@ -119,3 +119,35 @@ export function useShopCover(): (slug: string | null | undefined) => ShopCover {
 export function shopInitial(name: string | null | undefined): string {
   return (name ?? "?").trim().charAt(0).toUpperCase() || "?";
 }
+
+/**
+ * THE SHOP'S PICTURE, or null if it has none.
+ *
+ * ── The bug this is the fix for ──────────────────────────────────────
+ *
+ * Every screen read `shop.logo_path` and handed it to `<Image source={{ uri }}>`.
+ * That field is a STORAGE PATH — `logos/{id}/abc.png` — and React Native
+ * cannot resolve a relative path, so a shop that had uploaded a logo showed
+ * the derived letter and was indistinguishable from a shop that had not.
+ * `TenantResource` had carried the absolute URL for the panel since it was
+ * written; the marketplace payload only just gained it.
+ *
+ * ── Why a function and not a field read at each site ─────────────────
+ *
+ * Five screens read this, and an APK already in somebody's hand is still
+ * being served payloads that may carry only the path. One place decides what
+ * "the picture" means, so the fallback exists once rather than five times —
+ * and an absolute `logo_path` from some older build still works, because the
+ * test is whether it looks like a URL rather than which field it arrived in.
+ */
+export function shopLogo(shop: {
+  logo_url?: string | null;
+  logo_path?: string | null;
+}): string | null {
+  if (shop.logo_url) return shop.logo_url;
+
+  // Only if it is already absolute. A bare path is worse than nothing: it
+  // makes `SmartImage` wait for an image that can never arrive, so the letter
+  // it would have drawn immediately shimmers first.
+  return shop.logo_path?.startsWith("http") ? shop.logo_path : null;
+}

@@ -42,7 +42,7 @@ import { ProductSheet, type ConfiguredLine } from "../components/ProductSheet";
 import type { PublicProduct } from "../services/marketplaceService";
 import { productBelongsToShop } from "../linkedProduct";
 import { formatDistance } from "../shopFacts";
-import { shopInitial, useShopCover } from "../shopCover";
+import { shopInitial, shopLogo, useShopCover } from "../shopCover";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { toast } from "../../../common/ui/toast";
 import { confirm } from "../../../common/ui/confirm";
@@ -387,7 +387,15 @@ export function MarketShopScreen() {
   // The shop CARD already says nothing when it is unset; this is the same rule
   // in the other place the number is drawn.
   const prep = shop.data?.prep_time_minutes ?? null;
-  const hero = shop.data?.gallery?.[0];
+  /**
+   * THE BIGGEST PICTURE IN THE APP, and what stands in when there is none.
+   *
+   * The gallery first — a shop that has photographed its counter should lead
+   * with that. But a gallery is optional and a logo usually is not, and this
+   * took only the gallery: a shop with a perfectly good logo had a coloured
+   * letter as its hero, which is the one place a placeholder is most obvious.
+   */
+  const hero = shop.data?.gallery?.[0] ?? (shop.data ? shopLogo(shop.data) : null);
 
   /**
    * Put a line in the basket — asking first if that would empty it.

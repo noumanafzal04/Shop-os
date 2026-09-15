@@ -39,7 +39,7 @@ import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { SHORTCUTS } from "../tradeIcon";
 import { shortcutArt, tradeArt, useTileGround, useTileTint } from "../tileArt";
 import { OfferBadge, Price } from "../../../common/ui/Price";
-import { shopInitial, useShopCover } from "../shopCover";
+import { shopInitial, shopLogo, useShopCover } from "../shopCover";
 
 /**
  * HOW MANY TRADES THE GRID SHOWS — and why it is a FIXED number.
@@ -743,7 +743,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
       <Touchable style={[styles.wideCard, closed && styles.shopClosed]} onPress={onPress}>
         <View style={styles.wideLogo}>
           <SmartImage
-            uri={shop.logo_path}
+            uri={shopLogo(shop)}
             fallback={shopInitial(shop.business_name)}
             fallbackBackground={cover.bg}
             fallbackColor={cover.fg}
@@ -794,7 +794,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
       */}
       <View style={[styles.railCover, { backgroundColor: cover.bg }]}>
         <SmartImage
-          uri={shop.logo_path}
+          uri={shopLogo(shop)}
           fallback={shopInitial(shop.business_name)}
           fallbackBackground={cover.bg}
           fallbackColor={cover.fg}

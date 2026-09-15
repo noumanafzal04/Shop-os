@@ -7,7 +7,15 @@ export interface PublicShop {
   business_type: string | null;
   business_category: string | null;
   city: { id: string; name: string } | null;
+  /**
+   * A STORAGE PATH, which `<Image>` cannot load.
+   *
+   * Kept because older payloads carry only this. Read `logo_url` instead —
+   * `shopLogo()` below does, and every screen goes through it.
+   */
   logo_path: string | null;
+  /** The absolute URL. Null when the shop has not uploaded one. */
+  logo_url?: string | null;
   rating: number | null;
   reviews_count: number;
   is_open_now?: boolean;

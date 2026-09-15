@@ -9,7 +9,7 @@ import {
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { money } from "../../../common/format";
-import { shopInitial, useShopCover } from "../shopCover";
+import { shopInitial, shopLogo, useShopCover } from "../shopCover";
 import { spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import type { SearchResult } from "../services/marketplaceService";
 
@@ -84,7 +84,7 @@ export function suggestionsFrom(data: SearchResult | undefined): Suggestion[] {
     kind: "shop",
     label: s.business_name,
     detail: s.city?.name ?? null,
-    image: s.logo_path ?? null,
+    image: shopLogo(s),
     seed: s.slug,
     slug: s.slug,
   }));
