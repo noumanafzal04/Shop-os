@@ -8,6 +8,7 @@ use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class FavoriteController extends Controller
@@ -33,6 +34,11 @@ class FavoriteController extends Controller
                 'business_category' => $t->business_category,
                 'city' => $t->city?->only(['id', 'name']),
                 'logo_path' => $t->logo_path,
+                // The absolute one, for the same reason `publicShop` sends it:
+                // a storage path is not something `<Image>` can resolve.
+                'logo_url' => $t->logo_path !== null
+                    ? Storage::disk('public')->url($t->logo_path)
+                    : null,
             ]);
 
         return ApiResponse::ok($shops);

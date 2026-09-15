@@ -45,6 +45,19 @@ class DatabaseSeeder extends Seeder
                 // reviews and images like every other tenant.
                 LahoreShopsSeeder::class,
                 AppDemoSeeder::class,
+                // `JoharTownSeeder` is DELIBERATELY not here.
+                //
+                // It writes KFC, McDonald's, Pizza Hut, Cheezious and Subway —
+                // other people's trademarks — so that a demo looks like the
+                // market it is aimed at. That is a reasonable thing to do on a
+                // laptop and a decision about somebody else's brand on a public
+                // marketplace, and a decision belongs to whoever runs the
+                // platform rather than to a chain that runs on `migrate --seed`.
+                //
+                //     php artisan db:seed --class=JoharTownSeeder
+                //
+                // Every row it writes carries a `@johartown.demo` address so it
+                // can be removed again in one line. See the class docblock.
             ]);
         } else {
             $this->command?->warn(

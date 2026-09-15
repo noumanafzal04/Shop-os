@@ -18,6 +18,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * PUBLIC marketplace — no auth required. Serialization here is deliberately
@@ -1301,7 +1302,24 @@ class MarketplaceController extends Controller
             'business_type' => $tenant->business_type,
             'business_category' => $tenant->business_category,
             'city' => $tenant->city?->only(['id', 'name']),
+            /**
+             * A PATH THE APP CANNOT LOAD, and the URL it can.
+             *
+             * `logo_path` is a storage path — `logos/{id}/abc.png`. The phone
+             * hands it straight to `<Image source={{ uri }}>`, which cannot
+             * resolve a relative path, so every shop that had uploaded a logo
+             * still showed the derived letter and looked like a shop that had
+             * not. `TenantResource` has carried the absolute one for the panel
+             * since it was written; the marketplace payload never gained it.
+             *
+             * Both are sent. `logo_path` stays because it is what the panel and
+             * older builds read, and removing a field a shipped APK asks for
+             * breaks the shops it was meant to fix.
+             */
             'logo_path' => $tenant->logo_path,
+            'logo_url' => $tenant->logo_path !== null
+                ? Storage::disk('public')->url($tenant->logo_path)
+                : null,
             'rating' => $tenant->rating_avg !== null ? round((float) $tenant->rating_avg, 1) : null,
             'reviews_count' => (int) ($tenant->reviews_count ?? 0),
             // On every card, so lists can grey-out closed shops.
