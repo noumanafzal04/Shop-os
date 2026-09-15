@@ -82,14 +82,20 @@ export interface Rider {
   cash_in_hand?: number;
 
   /**
-   * Whether this row is also a PERSON with the app.
+   * Whether somebody is actually HOLDING the app.
    *
-   * Null everywhere for a shop whose riders are its cousins with a phone
-   * number, which is the normal case and always will be. Set means the rider
-   * sees this shop's deliveries on their own phone and moves them along
-   * themselves.
+   * Not "does a rider id exist" — every rider a shop adds is minted one now,
+   * and an id nobody has claimed is a piece of paper in a drawer. False means
+   * the cousin with a motorbike whose deliveries this shop assigns by hand and
+   * moves along from the panel, which is still the normal case. True means the
+   * rider sees this shop's deliveries on their own phone.
    */
   has_app?: boolean;
+  /**
+   * The id to give the rider. Present whether or not it has been claimed —
+   * this list is where a shop comes back to when they have lost the piece of
+   * paper they wrote it on.
+   */
   rider_code?: string | null;
   app_status?: string | null;
   is_online?: boolean;

@@ -28,6 +28,13 @@ export default function RidersPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
+  // THE ID THE SHOP HAS JUST BEEN GIVEN, held until they dismiss it.
+  //
+  // It is also in the list below and always will be, so this is not the only
+  // way to find it. It is here because the moment after pressing Add is the
+  // moment the shop has a pen in their hand, and a number they have to go
+  // looking for is a number they give up on.
+  const [minted, setMinted] = useState<{ name: string; code: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Which rider's cash is being counted. Null = the dialog is shut, and the
   // statement query is disabled — a shop with forty riders must not ask for
@@ -42,9 +49,17 @@ export default function RidersPage() {
   const add = () => {
     if (!name.trim()) return;
     setError(null);
+    const added = name.trim();
     create.mutate(
-      { name: name.trim(), phone: phone.trim() || undefined },
-      { onSuccess: () => { setName(""); setPhone(""); }, onError },
+      { name: added, phone: phone.trim() || undefined },
+      {
+        onSuccess: (res) => {
+          setName("");
+          setPhone("");
+          if (res.data.rider_code) setMinted({ name: added, code: res.data.rider_code });
+        },
+        onError,
+      },
     );
   };
 
@@ -115,19 +130,25 @@ export default function RidersPage() {
       {error && <div className="mb-4"><Alert variant="error" title="Blocked" message={error} /></div>}
 
       {/*
-        TWO WAYS TO ADD SOMEBODY, because there are two kinds of rider and a
-        shop has both.
+        TWO WAYS TO ADD SOMEBODY, and the first one changed direction.
 
-        A NAME is a contact card: your cousin with a motorbike, who has no app
-        and never will. You assign them an order and you move it along yourself.
-        That is how every rider in this product worked until now, and it keeps
-        working exactly as it did.
+        ADDING A NAME now MINTS the rider id as well. The shop writes it down
+        and gives it to their rider, who puts it into the app. Before this the
+        id came the other way: the rider had to install the app, sign up, apply,
+        be approved and read the code off their own screen before the shop could
+        type it in — five steps belonging to somebody who is not the shop, for
+        something only the shop wanted.
 
-        A RIDER ID belongs to somebody holding the app. They see your
-        deliveries on their phone, collect them, and close them at the door
-        with the customer's code. By code and not by name on purpose: a shop
-        able to search the platform's riders by name would be a searchable
-        directory of strangers' phone numbers.
+        A shop that gives the id to nobody has exactly the rider it had before:
+        a contact card for the cousin with a motorbike, assigned by hand and
+        moved along from this panel. Minting costs them nothing and is not a
+        decision they have to make at the counter.
+
+        THE SECOND CARD is still here because it is a different situation: a
+        person who already rides, already has an account, and wants to work for
+        this shop too. By code and not by name on purpose — a shop able to
+        search the platform's riders by name would be a searchable directory of
+        strangers' phone numbers.
       */}
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -148,12 +169,42 @@ export default function RidersPage() {
               {create.isPending ? "Adding…" : "+ Add"}
             </Button>
           </div>
+
+          {/*
+            The id, the moment it exists. Dismissed by hand rather than on a
+            timer — a shop copying a number onto a piece of paper is not on
+            anybody's schedule, and a code that vanishes mid-write is worse
+            than one that was never shown.
+          */}
+          {minted && (
+            <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
+              <p className="text-theme-xs font-medium text-brand-700 dark:text-brand-300">
+                {minted.name}'s rider id
+              </p>
+              <p className="my-1 select-all font-mono text-2xl font-bold tracking-wider text-brand-700 dark:text-brand-300">
+                {minted.code}
+              </p>
+              <p className="text-theme-xs text-brand-700/80 dark:text-brand-300/80">
+                Give this to {minted.name}. They enter it in the CartZe app to see your
+                deliveries on their phone. It stays in the list below — nothing is lost if
+                you close this.
+              </p>
+              <button
+                type="button"
+                onClick={() => setMinted(null)}
+                className="mt-2 text-theme-xs font-medium text-brand-600 underline dark:text-brand-400"
+              >
+                Done
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-          <h3 className="mb-1 text-sm font-semibold text-gray-800 dark:text-white/90">Add a rider with the app</h3>
+          <h3 className="mb-1 text-sm font-semibold text-gray-800 dark:text-white/90">Add someone who already rides</h3>
           <p className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
-            Ask them for their rider id — it is on their own Rider screen, like RDR-000123.
+            Already has a CartZe rider account? Ask for their rider id — it is on their own
+            Rider screen, like RDR-000123.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
             <div>
@@ -196,8 +247,20 @@ export default function RidersPage() {
                 <tr key={r.id} className="text-gray-700 dark:text-gray-300">
                   <td className="px-5 py-3 font-medium text-gray-800 dark:text-white/90">
                     {r.name}
-                    {r.has_app && (
-                      <span className="ml-2 text-theme-xs font-normal text-gray-400">{r.rider_code}</span>
+                    {/*
+                      Shown whether or not anybody has claimed it — this list is
+                      where a shop comes back to when they have lost the piece of
+                      paper, which is the normal reason to come back to it.
+                    */}
+                    {r.rider_code && (
+                      <span className="ml-2 select-all font-mono text-theme-xs font-normal text-gray-400">
+                        {r.rider_code}
+                      </span>
+                    )}
+                    {r.rider_code && !r.has_app && (
+                      <span className="ml-2 text-theme-xs font-normal text-gray-400">
+                        · not on the app yet
+                      </span>
                     )}
                   </td>
                   <td className="px-5 py-3">{r.phone ?? "—"}</td>
