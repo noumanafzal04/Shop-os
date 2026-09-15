@@ -307,6 +307,45 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-15 (last) — the shop hands out the rider id
+
+A shop wanting its own rider on the app had to wait for that rider to install
+it, sign up, apply, send a CNIC, be approved, find `RDR-000123` on their own
+screen and read it out — and only then could the shop type it in. Five steps
+belonging to somebody who is not the shop, for an outcome only the shop wanted.
+
+It is minted when the shop adds the rider now, shown large and selectable the
+moment it exists, and CLAIMED in the app. `user_id` nullable is the whole schema
+change; `change()` rather than a MySQL-only ALTER, because the conditional would
+have left it NOT NULL in every test and the first unclaimed id would have failed
+on a constraint no test could have seen coming.
+
+**The hole it would have opened.** A shop-minted rider is `approved` — the shop
+knows them, which is what the platform check is FOR when nobody does. But
+`setPlatform()` asked only `canRide()`: right while every approved profile had
+been approved by a person, wrong the moment a shop can mint one. Any shop could
+add anybody, and that person could put themselves in the CartZe pool carrying
+strangers' goods and strangers' cash with no CNIC and nobody having looked.
+`vouched_by_tenant_id` makes the approval say whose word it is. Only JOINING is
+fenced — leaving always works — and the fence had to be a door, because
+`apply()` refused every approved profile and would have told a vouched rider
+"you are already approved" immediately after telling them they are not approved
+enough.
+
+**And a control that always fails.** The board offered "Take CartZe deliveries"
+to a rider the server would 403. Same shape as the Purchasing job offered by
+four surfaces and bounced by every screen behind it. `can_join_pool` comes down
+from the server and the button becomes "Apply to CartZe".
+
+**Three tests broke and all three were right to be looked at.** `has_app` read
+"a profile exists", which was the same question until a profile could exist
+without a person; it means CLAIMED now. An assertion predicted the card would
+never have a profile "and always will be", and the prediction expired. And a
+mobile guard was pinned to `===` rather than to what it was guarding.
+
+Ten mutations, all caught. Backend 2723 / 2 skipped, panel 1536, mobile 772.
+Full write-up in `docs/decisions/shopos-shop-hands-out-the-rider-id.md`.
+
 ### 2026-09-15 (later) — the typecheck that checked nothing
 
 The deploy build failed on a type the repo's own typecheck had called clean.

@@ -212,3 +212,4 @@
 - [Checkout Defaulted To Pickup](shopos-checkout-defaulted-to-pickup.md) — untouched orders never reached a rider; delivery is the default now
 - [Wallet Tender](shopos-wallet-tender.md) — JazzCash/Easypaisa is its own tender; offline-safe like a card; 9 copies of one list → PaymentMethod::counter()
 - [Typecheck Checked Nothing](shopos-typecheck-checked-nothing.md) — panel `tsc --noEmit` compiles ZERO files; use `npm run typecheck` (tsc -b)
+- [Shop Mints Rider Id](shopos-shop-mints-rider-id.md) — shop hands out RDR- id, rider claims it; a shop's word never reaches the platform pool
