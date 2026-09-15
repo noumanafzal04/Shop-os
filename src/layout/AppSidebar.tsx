@@ -411,6 +411,10 @@ const adminPlatformItems: NavItem[] = [
   { icon: <BoltIcon />, name: "Configuration", path: "/admin/config" },
   { icon: <BoxCubeIcon />, name: "Banners / Ads", path: "/admin/banners" },
   { icon: <ChatIcon />, name: "Announcements", path: "/admin/announcements" },
+  // A PERSON WHO SHOPS, as against Platform Staff below — different glyph on
+  // purpose, since two rows wearing one icon is the collision this rail has
+  // already been swept for twice.
+  { icon: <UserIcon />, name: "Customers", path: "/admin/customers" },
   { icon: <UserCircleIcon />, name: "Platform Staff", path: "/admin/staff" },
   { icon: <FileIcon />, name: "Audit Log", path: "/admin/audit-logs" },
   { icon: <InfoIcon />, name: "Help Centre", path: "/admin/help" },

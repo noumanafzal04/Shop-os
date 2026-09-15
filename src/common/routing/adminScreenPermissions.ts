@@ -48,6 +48,13 @@ const ADMIN_SCREEN_PERMISSIONS: Record<string, string> = {
   "/admin/commission": "commission.manage",
   // Super-admin only on the server, and no permission grants it.
   "/admin/audit-logs": SUPER_ADMIN_ONLY(),
+  // The same, and for the same reason the route says: there is no
+  // platform-level permission about PEOPLE — `customers.manage` is a shop's own
+  // customer book and means something else entirely. Absent from this map it
+  // would have fallen through as OPEN TO ANYONE, and the rail would have
+  // offered a screen the server answers 403 to, which is the exact failure the
+  // note at the top of this file describes.
+  "/admin/customers": SUPER_ADMIN_ONLY(),
 };
 
 /**

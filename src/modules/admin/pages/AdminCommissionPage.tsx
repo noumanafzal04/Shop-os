@@ -8,9 +8,10 @@ import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
+import TextArea from "../../../components/form/input/TextArea";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
-import { ROW_ACTION } from "../../../components/ui/table/rowAction";
+import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { formatMoney } from "../../../common/format/money";
 import { toIsoDate } from "../../../components/ui/filters/dateRanges";
 
@@ -151,6 +152,37 @@ export default function AdminCommissionPage() {
     mutationFn: (v: { id: string; from: string; to: string }) =>
       apiPost<unknown>(`/admin/commission/${v.id}/invoices`, { from: v.from, to: v.to }),
     onSuccess: ({ message }) => done(message ?? "Invoice raised"),
+    onError: failed,
+  });
+
+  /**
+   * MONEY GOING THE OTHER WAY, which had no door at all.
+   *
+   * `waive` (write off one charge) and `voidInvoice` (withdraw a whole
+   * invoice) were written, tested and reachable by nothing: the only thing
+   * this screen could do to an invoice was mark it paid. So a shop disputing a
+   * charge — a refunded order, an invoice raised over the wrong window — could
+   * be collected from or ignored, and nothing else.
+   *
+   * Both REQUIRE a reason on the server, and rightly: a charge written off
+   * without one is money the books cannot explain, and an invoice withdrawn
+   * without one is a number a shop saw and can never be told the fate of. So
+   * one prompt, and the action is not sent until it has been typed.
+   */
+  const [asking, setAsking] = useState<{ kind: "waive" | "void"; id: string; what: string } | null>(null);
+  const [reason, setReason] = useState("");
+
+  const waive = useMutation({
+    mutationFn: (v: { id: string; reason: string }) =>
+      apiPost<unknown>(`/admin/commission-charges/${v.id}/waive`, { reason: v.reason }),
+    onSuccess: () => { setAsking(null); setReason(""); done("Charge written off"); },
+    onError: failed,
+  });
+
+  const voidInvoice = useMutation({
+    mutationFn: (v: { id: string; reason: string }) =>
+      apiPost<unknown>(`/admin/commission-invoices/${v.id}/void`, { reason: v.reason }),
+    onSuccess: () => { setAsking(null); setReason(""); done("Invoice withdrawn"); },
     onError: failed,
   });
 
@@ -448,6 +480,14 @@ export default function AdminCommissionPage() {
                       <span className="w-20 text-right font-medium text-gray-800 dark:text-white/90">
                         {money(ch.amount)}
                       </span>
+                      <button
+                        className={ROW_ACTION_DANGER}
+                        onClick={() =>
+                          setAsking({ kind: "waive", id: ch.id, what: ch.order_number ?? "this charge" })
+                        }
+                      >
+                        Write off
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -480,13 +520,21 @@ export default function AdminCommissionPage() {
                         {inv.status}
                       </Badge>
                       {inv.status === "unpaid" && (
-                        <button
-                          className={ROW_ACTION}
-                          disabled={markPaid.isPending}
-                          onClick={() => markPaid.mutate(inv.id)}
-                        >
-                          Mark paid
-                        </button>
+                        <>
+                          <button
+                            className={ROW_ACTION}
+                            disabled={markPaid.isPending}
+                            onClick={() => markPaid.mutate(inv.id)}
+                          >
+                            Mark paid
+                          </button>
+                          <button
+                            className={ROW_ACTION_DANGER}
+                            onClick={() => setAsking({ kind: "void", id: inv.id, what: inv.number })}
+                          >
+                            Withdraw
+                          </button>
+                        </>
                       )}
                     </div>
                   ))}
@@ -494,6 +542,62 @@ export default function AdminCommissionPage() {
               </div>
             </>
           )}
+        </ModalForm>
+      </Modal>
+
+      {/*
+        ── WHY, BEFORE THE MONEY MOVES ──────────────────────────────
+
+        The server requires a reason on both of these and the screen asks for
+        it rather than inventing one. Two different sentences, because they are
+        two different events: a charge written off is money the platform has
+        decided not to collect, and an invoice withdrawn puts its charges back
+        on the outstanding pile — the shop will see them again.
+      */}
+      <Modal isOpen={asking !== null} onClose={() => { setAsking(null); setReason(""); }} className="max-w-md">
+        <ModalForm
+          title={asking?.kind === "waive" ? "Write off this charge" : "Withdraw this invoice"}
+          description={
+            asking?.kind === "waive"
+              ? `${asking.what} — the platform will not collect this commission.`
+              : asking
+                ? `${asking.what} — its charges become outstanding again and can be billed in a later invoice.`
+                : undefined
+          }
+          footer={
+            <>
+              <Button size="sm" variant="outline" onClick={() => { setAsking(null); setReason(""); }}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={reason.trim().length === 0 || waive.isPending || voidInvoice.isPending}
+                onClick={() => {
+                  if (asking === null) return;
+                  const v = { id: asking.id, reason: reason.trim() };
+                  if (asking.kind === "waive") waive.mutate(v);
+                  else voidInvoice.mutate(v);
+                }}
+              >
+                {waive.isPending || voidInvoice.isPending ? "Saving…" : "Confirm"}
+              </Button>
+            </>
+          }
+        >
+          <div>
+            <Label>Reason</Label>
+            <TextArea
+              rows={3}
+              value={reason}
+              onChange={(v) => setReason(v)}
+              placeholder="Order was refunded in full"
+            />
+            {/* Not a nag — the button is disabled until this is typed, and a
+                disabled button with no explanation is the thing being avoided. */}
+            <p className="mt-1.5 text-theme-xs text-gray-400">
+              Recorded against this shop's commission history. Required.
+            </p>
+          </div>
         </ModalForm>
       </Modal>
     </>
