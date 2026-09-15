@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\SaleDocument;
 
+use App\Enums\PaymentMethod;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class CancelSaleDocumentRequest extends FormRequest
 {
@@ -24,7 +26,7 @@ class CancelSaleDocumentRequest extends FormRequest
             // up to what was paid. Omit both and the customer gets it all back.
             'refund_amount' => ['nullable', 'numeric', 'min:0'],
             'forfeit_amount' => ['nullable', 'numeric', 'min:0'],
-            'refund_method' => ['nullable', 'in:cash,card,bank_transfer,other'],
+            'refund_method' => ['nullable', Rule::in(PaymentMethod::counter())],
         ];
     }
 }

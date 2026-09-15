@@ -42,6 +42,7 @@
 
     $methodLabel = [
         'cash' => 'Cash', 'card' => 'Card', 'bank_transfer' => 'Bank transfer',
+        'wallet' => 'Mobile wallet',
         'credit' => 'On account (khata)', 'other' => 'Other', 'split' => 'Split',
         // A layaway collected: the customer paid this weeks ago, and the
         // receipt has to say so or it reads as if they paid twice today.

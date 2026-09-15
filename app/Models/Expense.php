@@ -11,7 +11,7 @@ class Expense extends BaseModel
     use BelongsToTenant;
 
     /** How the money left. Only `cash` touches a drawer. */
-    public const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'credit', 'other'];
+    public const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'wallet', 'credit', 'other'];
 
     protected $appends = ['attachment_url'];
 

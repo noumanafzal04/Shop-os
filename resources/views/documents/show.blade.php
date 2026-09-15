@@ -30,7 +30,8 @@
     $qty   = fn ($n) => rtrim(rtrim(number_format((float) $n, 3, '.', ''), '0'), '.') ?: '0';
 
     $methodLabel = [
-        'cash' => 'Cash', 'card' => 'Card', 'bank_transfer' => 'Bank transfer', 'other' => 'Other',
+        'cash' => 'Cash', 'card' => 'Card', 'bank_transfer' => 'Bank transfer',
+        'wallet' => 'Mobile wallet', 'other' => 'Other',
     ];
 
     $docTitle = $layaway ? 'Advance Booking' : 'Quotation';

@@ -60,7 +60,7 @@ class SaleDocument extends BaseModel
     public const STATUS_CANCELLED = 'cancelled';
 
     /** Tenders a customer can hand over as an advance. Never `credit`. */
-    public const DEPOSIT_METHODS = ['cash', 'card', 'bank_transfer', 'other'];
+    public const DEPOSIT_METHODS = ['cash', 'card', 'bank_transfer', 'wallet', 'other'];
 
     /** Numbering: QUO-000001 / LAY-000001, per tenant, gap-free. */
     public const PREFIXES = [

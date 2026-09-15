@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests\SaleDocument;
 
+use App\Enums\PaymentMethod;
 use App\Rules\OwnOpenShift;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ConvertSaleDocumentRequest extends FormRequest
 {
@@ -22,10 +24,10 @@ class ConvertSaleDocumentRequest extends FormRequest
             'payments' => ['nullable', 'array', 'max:5'],
             // 'deposit' is deliberately absent: the money already received is
             // read from the document, never asserted by the client.
-            'payments.*.method' => ['required_with:payments', 'in:cash,card,bank_transfer,other,credit'],
+            'payments.*.method' => ['required_with:payments', Rule::in(PaymentMethod::counterOrCredit())],
             'payments.*.amount' => ['required_with:payments', 'numeric', 'min:0'],
             'payments.*.reference' => ['nullable', 'string', 'max:120'],
-            'payment_method' => ['nullable', 'in:cash,card,bank_transfer,other,credit'],
+            'payment_method' => ['nullable', Rule::in(PaymentMethod::counterOrCredit())],
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
             'cash_session_id' => ['nullable', 'uuid', new OwnOpenShift($this->user())],
             'notes' => ['nullable', 'string', 'max:1000'],

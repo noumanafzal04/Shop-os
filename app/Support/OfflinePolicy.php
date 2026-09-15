@@ -36,15 +36,18 @@ class OfflinePolicy
     /**
      * Tenders a single till can settle on its own.
      *
-     * Cash and card are done at the counter and settle nowhere else — a card
-     * here is a RECORDED tender, not a gateway capture, so there is nothing to
-     * authorise. The rest all move a balance that another till could be moving
-     * at the same moment.
+     * Cash, card and a mobile wallet are done at the counter and settle
+     * nowhere else — a card here is a RECORDED tender, not a gateway capture,
+     * and a JazzCash/Easypaisa confirmation is read off the cashier's own phone
+     * over their own data, so neither needs the shop's connection to be true.
+     * The rest all move a balance that another till could be moving at the same
+     * moment.
      */
     public const TENDERS = [
         PaymentMethod::Cash->value,
         PaymentMethod::Card->value,
         PaymentMethod::BankTransfer->value,
+        PaymentMethod::Wallet->value,
         PaymentMethod::Other->value,
         PaymentMethod::Split->value,
     ];

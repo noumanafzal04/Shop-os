@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Sale;
 
+use App\Enums\PaymentMethod;
 use App\Rules\OwnOpenShift;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
@@ -37,7 +38,7 @@ class StoreSaleReturnRequest extends FormRequest
             'items.*.serials' => ['nullable', 'array'],
             'items.*.serials.*' => ['string', 'max:120', 'distinct'],
             'reason' => ['nullable', 'string', 'max:255'],
-            'refund_method' => ['sometimes', Rule::in(['cash', 'card', 'bank_transfer', 'other'])],
+            'refund_method' => ['sometimes', Rule::in(PaymentMethod::counter())],
             'notes' => ['nullable', 'string', 'max:500'],
             'cash_session_id' => [
                 'nullable', 'uuid',

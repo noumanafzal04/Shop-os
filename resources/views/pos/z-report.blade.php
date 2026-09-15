@@ -40,6 +40,7 @@
 
     $methodLabel = [
         'cash' => 'Cash', 'card' => 'Card', 'bank_transfer' => 'Bank transfer',
+        'wallet' => 'Mobile wallet',
         'credit' => 'Khata / credit', 'deposit' => 'Advance', 'other' => 'Other',
     ];
 @endphp

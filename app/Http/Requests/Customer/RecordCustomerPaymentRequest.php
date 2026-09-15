@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Customer;
 
+use App\Enums\PaymentMethod;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * A repayment against a customer's khata (credit balance).
@@ -19,7 +21,7 @@ class RecordCustomerPaymentRequest extends FormRequest
     {
         return [
             'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
-            'method' => ['required', 'in:cash,card,bank_transfer,other'],
+            'method' => ['required', Rule::in(PaymentMethod::counter())],
             'reference' => ['nullable', 'string', 'max:100'],
             'note' => ['nullable', 'string', 'max:255'],
             // Explicit opt-in to bank an overpayment as an advance (balance goes

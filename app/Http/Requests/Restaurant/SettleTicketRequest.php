@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests\Restaurant;
 
+use App\Enums\PaymentMethod;
 use App\Rules\OwnOpenShift;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class SettleTicketRequest extends FormRequest
 {
@@ -39,10 +41,10 @@ class SettleTicketRequest extends FormRequest
             'splits.*.id' => ['required_with:splits', 'uuid'],
             'splits.*.quantity' => ['required_with:splits', 'numeric', 'gt:0'],
             // Single tender OR a split of tenders (same shape as a counter sale).
-            'payment_method' => ['required_without:payments', 'in:cash,card,bank_transfer,other,credit'],
+            'payment_method' => ['required_without:payments', Rule::in(PaymentMethod::counterOrCredit())],
             'amount_paid' => ['required_without:payments', 'numeric', 'min:0'],
             'payments' => ['nullable', 'array', 'max:10'],
-            'payments.*.method' => ['required_with:payments', 'in:cash,card,bank_transfer,other,credit'],
+            'payments.*.method' => ['required_with:payments', Rule::in(PaymentMethod::counterOrCredit())],
             'payments.*.amount' => ['required_with:payments', 'numeric', 'min:0.01'],
             'payments.*.reference' => ['nullable', 'string', 'max:100'],
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Purchase;
 
+use App\Enums\PaymentMethod;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,7 +20,7 @@ class StoreSupplierPaymentRequest extends FormRequest
 
         return [
             'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
-            'method' => ['sometimes', Rule::in(['cash', 'bank_transfer', 'card', 'cheque'])],
+            'method' => ['sometimes', Rule::in(['cash', 'bank_transfer', 'card', PaymentMethod::Wallet->value, 'cheque'])],
             'reference' => ['nullable', 'string', 'max:120'],
             'paid_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:500'],

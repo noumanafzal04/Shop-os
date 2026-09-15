@@ -106,7 +106,7 @@ class ShopSettings
             'invoice_fbr_pos_id' => null,
 
             // POS
-            'pos_default_payment' => 'cash', // cash | card
+            'pos_default_payment' => 'cash', // cash | card | wallet
             'pos_auto_print' => false,
             // Try to kick the cash drawer open when a sale is tendered in cash.
             // Only possible where the drawer (or the printer it hangs off) is
@@ -300,7 +300,7 @@ class ShopSettings
             'invoice_ntn' => ['sometimes', 'nullable', 'string', 'max:30'],
             'invoice_strn' => ['sometimes', 'nullable', 'string', 'max:30'],
             'invoice_fbr_pos_id' => ['sometimes', 'nullable', 'string', 'max:30'],
-            'pos_default_payment' => ['sometimes', 'in:cash,card'],
+            'pos_default_payment' => ['sometimes', 'in:cash,card,wallet'],
             'pos_auto_print' => ['sometimes', 'boolean'],
             'pos_drawer_kick' => ['sometimes', 'boolean'],
             'pos_idle_lock_minutes' => ['sometimes', 'integer', 'min:0', 'max:240'],

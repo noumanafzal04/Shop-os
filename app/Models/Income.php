@@ -11,7 +11,7 @@ class Income extends BaseModel
     use BelongsToTenant;
 
     /** How the money arrived. Only `cash` touches a drawer. */
-    public const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'other'];
+    public const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'wallet', 'other'];
 
     protected $appends = ['attachment_url'];
 

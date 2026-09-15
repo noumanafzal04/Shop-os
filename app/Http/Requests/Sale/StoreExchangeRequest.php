@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Sale;
 
+use App\Enums\PaymentMethod;
 use App\Enums\SaleChannel;
 use App\Rules\OwnOpenShift;
 use App\Support\Permissions;
@@ -48,7 +49,7 @@ class StoreExchangeRequest extends FormRequest
 
             // The customer covers a positive difference with these tenders.
             'payments' => ['nullable', 'array', 'max:10'],
-            'payments.*.method' => ['required_with:payments', 'in:cash,card,bank_transfer,other'],
+            'payments.*.method' => ['required_with:payments', Rule::in(PaymentMethod::counter())],
             'payments.*.amount' => ['required_with:payments', 'numeric', 'min:0.01'],
             'payments.*.reference' => ['nullable', 'string', 'max:100'],
 

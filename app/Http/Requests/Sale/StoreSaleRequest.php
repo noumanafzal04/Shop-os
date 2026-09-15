@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Sale;
 
+use App\Enums\PaymentMethod;
 use App\Enums\SaleChannel;
 use App\Rules\OwnOpenShift;
 use App\Support\Permissions;
@@ -129,13 +130,13 @@ class StoreSaleRequest extends FormRequest
             // sale is split — 'split' is server-only, never a client tender).
             // 'credit' = sell-on-credit (khata) — the amount goes onto the
             // customer's balance (needs a linked customer; enforced in the action).
-            'payment_method' => ['required_without:payments', 'in:cash,card,bank_transfer,other,credit'],
+            'payment_method' => ['required_without:payments', Rule::in(PaymentMethod::counterOrCredit())],
             'amount_paid' => ['required_without:payments', 'numeric', 'min:0'],
             // Multi-tender / split payment: part cash + part card (+ part credit)
             // etc. When present it overrides the single tender above; amount_paid
             // becomes the sum of tenders.
             'payments' => ['nullable', 'array', 'max:10'],
-            'payments.*.method' => ['required_with:payments', 'in:cash,card,bank_transfer,other,credit'],
+            'payments.*.method' => ['required_with:payments', Rule::in(PaymentMethod::counterOrCredit())],
             'payments.*.amount' => ['required_with:payments', 'numeric', 'min:0.01'],
             'payments.*.reference' => ['nullable', 'string', 'max:100'],
 
