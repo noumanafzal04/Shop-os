@@ -105,8 +105,42 @@ class LahoreShopsSeederTest extends TestCase
         $home = $this->getJson('/api/v1/marketplace/home?lat='.self::PIN['lat'].'&lng='.self::PIN['lng'])
             ->assertOk()->json('data');
 
-        $this->assertGreaterThanOrEqual(4, count($home['business_types']));
+        // The grid wants seven, and the tile count is a LAYOUT decision — it
+        // must not be made by however many trades happen to have a shop here.
+        $this->assertGreaterThanOrEqual(7, count($home['business_types']));
         $this->assertGreaterThanOrEqual(8, count($home['nearby']));
+
+        // The ones with shops come first, so the seven that fit are the seven
+        // worth opening.
+        $counts = array_column($home['business_types'], 'shops_count');
+        $this->assertSame($counts, array_reverse(collect($counts)->sort()->values()->all()));
+        $this->assertGreaterThan(0, $counts[0]);
+    }
+
+    /**
+     * ONE TRADE, ONE TILE.
+     *
+     * `grocery` and `mart` are the same trade with two spellings — the second
+     * is a legacy code kept so old rows resolve. The home feed grouped on the
+     * raw column, so a city with one of each drew TWO tiles both saying a
+     * version of "Mart", with the shops split between them. The categories
+     * page has folded them since it was written.
+     */
+    public function test_a_legacy_type_code_does_not_get_a_tile_of_its_own(): void
+    {
+        $this->seed(LahoreShopsSeeder::class);
+
+        // One of the marts, re-labelled with the legacy code a real old row
+        // would carry.
+        Tenant::query()->where('slug', 'gulberg-kiryana')
+            ->update(['business_type' => 'grocery']);
+
+        $types = collect($this->getJson('/api/v1/marketplace/home?lat='.self::PIN['lat'].'&lng='.self::PIN['lng'])
+            ->assertOk()->json('data.business_types'));
+
+        $this->assertCount(0, $types->where('type', 'grocery'), 'the legacy code drew its own tile');
+        // …and its shop is still counted, under the primary code.
+        $this->assertSame(2, $types->firstWhere('type', 'mart')['shops_count']);
     }
 
     /** Products have to be findable, not just present. */

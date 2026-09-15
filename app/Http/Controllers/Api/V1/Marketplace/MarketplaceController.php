@@ -974,22 +974,61 @@ class MarketplaceController extends Controller
          * A label map in the app would be a second copy that drifts the first
          * time a type is renamed and nothing fails. One line here instead.
          */
-        $labels = collect(BusinessTypes::all())->map(fn (array $t) => $t['label']);
-
-        $types = Tenant::query()->marketplaceVisible()
+        $counts = [];
+        $rows = Tenant::query()->marketplaceVisible()
             ->when($data['city_id'] ?? null, fn ($q, $id) => $q->where('city_id', $id))
             ->selectRaw('business_type, COUNT(*) as shops_count')
             ->groupBy('business_type')
-            ->orderByDesc('shops_count')
-            ->get()
-            ->map(fn ($r) => [
-                'type' => $r->business_type,
+            ->get();
+
+        foreach ($rows as $row) {
+            /**
+             * FOLDED TO THE PRIMARY CODE, which this did not do.
+             *
+             * `grocery` and `mart` are one trade with two spellings — the
+             * second is a legacy code kept so old rows still resolve. Grouping
+             * on the raw column drew them as TWO tiles, both saying a version
+             * of "Mart", with the shops split between them. The categories
+             * page has folded them since it was written; the home screen, which
+             * is the one everybody opens first, did not.
+             */
+            $primary = BusinessTypes::primary((string) $row->business_type);
+            $counts[$primary] = ($counts[$primary] ?? 0) + (int) $row->shops_count;
+        }
+
+        /**
+         * EVERY TRADE, not only the ones that happen to have a shop here.
+         *
+         * This returned exactly the trades with shops in this city, so the home
+         * screen's tile grid was a different size in every city — eight tiles
+         * in Lahore, four in a town with two shops, and a ragged half-row in
+         * between. The count of tiles is a LAYOUT decision and it was being
+         * made by whatever the data happened to be.
+         *
+         * Same gate as `categories()` so the two agree: a trade belongs if it
+         * SELLS something, or if it already has shops. Not `features.marketplace`
+         * — pharmacy defaults that to false and is one of the three trades this
+         * product makes its daily money in.
+         *
+         * Ordered by shops_count so the ones worth opening come first; the
+         * empty ones tail off the end, carrying an honest zero the app can draw
+         * differently.
+         */
+        $types = collect(BusinessTypes::all())
+            ->filter(fn (array $t, string $code) => ($t['available'] ?? false)
+                && (($t['features']['products'] ?? false)
+                    || ($t['features']['services'] ?? false)
+                    || ($counts[$code] ?? 0) > 0))
+            ->map(fn (array $t, string $code) => [
+                'type' => $code,
                 // Falls back to the code rather than to null: a tile with no
                 // words on it is worse than a tile with a rough one, and a
                 // shop created before a type was named would give exactly that.
-                'label' => $labels[$r->business_type] ?? ucfirst((string) $r->business_type),
-                'shops_count' => (int) $r->shops_count,
-            ]);
+                'label' => $t['label'] ?? ucfirst($code),
+                'shops_count' => $counts[$code] ?? 0,
+            ])
+            ->sortBy(fn (array $t) => [-$t['shops_count'], $t['label']])
+            ->values();
 
         // Deals: discounted products across visible shops — the "% off" carousel.
         $visibleIds = Tenant::query()->marketplaceVisible()
