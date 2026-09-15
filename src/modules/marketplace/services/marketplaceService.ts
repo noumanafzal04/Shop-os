@@ -16,6 +16,14 @@ export interface PublicShop {
   logo_path: string | null;
   /** The absolute URL. Null when the shop has not uploaded one. */
   logo_url?: string | null;
+  /**
+   * The wide photograph at the top of the shop page.
+   *
+   * Separate from the gallery, which is a PORTFOLIO and is gated on the
+   * services module — that gate is why a restaurant could not set the biggest
+   * image in the app at all.
+   */
+  cover_url?: string | null;
   rating: number | null;
   reviews_count: number;
   is_open_now?: boolean;

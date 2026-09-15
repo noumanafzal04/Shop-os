@@ -424,7 +424,22 @@ export function MarketShopScreen() {
    * took only the gallery: a shop with a perfectly good logo had a coloured
    * letter as its hero, which is the one place a placeholder is most obvious.
    */
-  const hero = shop.data?.gallery?.[0] ?? (shop.data ? shopLogo(shop.data) : null);
+  /**
+   * THE BIGGEST PICTURE IN THE APP, and what stands in when there is none.
+   *
+   * Four answers, in the order a shop would expect them:
+   *
+   *   cover      the photograph chosen FOR this band, by any shop;
+   *   gallery[0] a portfolio's first image, which is all this used to read —
+   *              and the gallery is gated on the services module, so for a
+   *              restaurant it was always empty;
+   *   logo       better than a letter, and most shops have one;
+   *   letter     the derived cover, which is where every shop used to land.
+   */
+  const hero =
+    shop.data?.cover_url ??
+    shop.data?.gallery?.[0] ??
+    (shop.data ? shopLogo(shop.data) : null);
 
   /**
    * Put a line in the basket — asking first if that would empty it.
