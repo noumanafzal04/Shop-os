@@ -151,7 +151,10 @@ class JoharTownSeeder extends Seeder
             'subscription_ends_at' => now()->addYear(),
             'business_hours' => $this->hours($type),
             'settings' => [
-                'delivery_radius_km' => 10,
+                // Eighteen, matching `LahoreShopsSeeder` — a demo where half
+                // the shops are outside each other's radius teaches a tester
+                // that the app is broken. See the note there for the measurement.
+                'delivery_radius_km' => 18,
                 'delivery_enabled' => true,
                 'pickup_enabled' => true,
                 // Without this no order ever reaches the rider pool — the

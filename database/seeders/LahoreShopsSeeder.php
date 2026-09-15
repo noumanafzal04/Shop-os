@@ -168,11 +168,20 @@ class LahoreShopsSeeder extends Seeder
             'subscription_ends_at' => now()->addYear(),
             'business_hours' => $this->openAllWeek($type),
             'settings' => [
-                // Ten kilometres reaches every pin a tester will drop in this
-                // city, and is still a real number rather than "no limit" —
-                // an absent radius means CITY_WIDE_KM, which would hide the
-                // fence rather than demonstrate it.
-                'delivery_radius_km' => 10,
+                // EIGHTEEN, and the number was measured rather than picked.
+                //
+                // Ten looked generous and was not: these shops sit around the
+                // city centre and a tester standing in Johar Town is 10.2 to
+                // 12.1 km from seven of them, so seven of ten vanished and the
+                // report was "saari shops show ni ho rahi". The fence was
+                // right; the demo world was laid out wider than the radius it
+                // was given.
+                //
+                // Still a real number rather than "no limit" — an absent radius
+                // means CITY_WIDE_KM, which would hide the fence rather than
+                // demonstrate it. Lahore is roughly 20 km across, so this is
+                // what a shop that genuinely covers the city would set.
+                'delivery_radius_km' => 18,
                 'delivery_enabled' => true,
                 'pickup_enabled' => true,
                 // THE ONE THAT COST A WHOLE EVENING. Shops default to their own
