@@ -10,7 +10,8 @@ import { useOfflineStore } from "../../offline/offlineStore";
 /** Tenders a cashier may be asked to declare. Cash is counted, not declared. */
 const DECLARABLE = [
   { key: "card", label: "Card" },
-  { key: "bank_transfer", label: "Bank / wallet" },
+  { key: "bank_transfer", label: "Bank transfer" },
+  { key: "wallet", label: "Mobile wallet" },
   { key: "other", label: "Other" },
 ] as const;
 

@@ -38,6 +38,24 @@ describe("an ordinary cash sale", () => {
   it.each(OFFLINE_TENDERS)("takes %s", (method) => {
     expect(canSellOffline(cart({ paymentMethod: method }))).toBe(true);
   });
+
+  /**
+   * Named as a LITERAL, and not left to the `it.each` above.
+   *
+   * That loop reads the very list it is testing, so it passes whatever the list
+   * happens to say — including a list that has quietly lost a tender. It proves
+   * every listed tender is accepted; it cannot prove a tender is listed.
+   *
+   * The wallet is the one that matters here. JazzCash and Easypaisa are daily
+   * tenders, and the confirmation arrives on the cashier's own phone over their
+   * own data — so the shop's line being down is not a reason to refuse it. A
+   * till that did would take the second-commonest tender off the counter during
+   * the exact event this whole feature exists for.
+   */
+  it("takes a mobile wallet — the confirmation is on the cashier's phone, not the shop's line", () => {
+    expect(OFFLINE_TENDERS).toContain("wallet");
+    expect(canSellOffline(cart({ paymentMethod: "wallet" }))).toBe(true);
+  });
 });
 
 describe("what a single till cannot decide alone", () => {

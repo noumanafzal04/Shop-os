@@ -54,7 +54,7 @@ export default function CustomersPage() {
     }
   };
   const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<"cash" | "card" | "bank_transfer" | "other">("cash");
+  const [payMethod, setPayMethod] = useState<"cash" | "card" | "bank_transfer" | "wallet" | "other">("cash");
 
   const groups = useCustomerGroups();
   const groupMutations = useCustomerGroupMutations();
@@ -335,6 +335,7 @@ export default function CustomersPage() {
                     <option value="cash">Cash</option>
                     <option value="card">Card</option>
                     <option value="bank_transfer">Transfer</option>
+                    <option value="wallet">Wallet</option>
                     <option value="other">Other</option>
                   </select>
                   <Button size="sm" onClick={doRecordPayment} disabled={recordPayment.isPending || !(Number(payAmount) > 0)}>

@@ -310,6 +310,7 @@ export default function SuppliersPage() {
                   { value: "cash", label: "Cash" },
                   { value: "bank_transfer", label: "Bank transfer" },
                   { value: "card", label: "Card" },
+                  { value: "wallet", label: "Mobile wallet" },
                   { value: "cheque", label: "Cheque" },
                 ]}
               />

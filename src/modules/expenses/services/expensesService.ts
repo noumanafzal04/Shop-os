@@ -28,6 +28,7 @@ export const PAYMENT_METHODS = [
   { value: "cash", label: "Cash (from till)" },
   { value: "bank_transfer", label: "Bank transfer" },
   { value: "card", label: "Card" },
+  { value: "wallet", label: "Mobile wallet" },
   { value: "credit", label: "On credit" },
   { value: "other", label: "Other" },
 ] as const;

@@ -72,6 +72,7 @@ const SALE_PAYMENTS = [
   { value: "cash", label: "Cash" },
   { value: "card", label: "Card" },
   { value: "bank_transfer", label: "Bank transfer" },
+  { value: "wallet", label: "Mobile wallet" },
   { value: "credit", label: "On account (khata)" },
   { value: "split", label: "Split across tenders" },
   { value: "deposit", label: "Against a deposit" },

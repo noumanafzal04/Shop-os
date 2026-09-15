@@ -60,7 +60,7 @@ export interface CustomerInput {
 
 export interface CreditPaymentInput {
   amount: number;
-  method: "cash" | "card" | "bank_transfer" | "other";
+  method: "cash" | "card" | "bank_transfer" | "wallet" | "other";
   reference?: string;
   note?: string;
 }

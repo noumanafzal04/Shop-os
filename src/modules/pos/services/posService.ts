@@ -242,7 +242,7 @@ export interface DrawerTotals {
   tax: number;
   voids: number;
   refunds: number;
-  /** Keyed by tender method: cash, card, bank_transfer, credit… */
+  /** Keyed by tender method: cash, card, bank_transfer, wallet, credit… */
   tender_mix: Record<string, number>;
 }
 

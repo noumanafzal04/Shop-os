@@ -172,6 +172,11 @@ const PauseGlyph = () => (
 const SplitGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className={iconCls}><path d="M4 5h4l3.5 5H16M4 15h4l3.5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
 );
+// A mobile wallet — JazzCash, Easypaisa, Raast. A phone with a note in it,
+// because that is what the cashier is looking at when they take one.
+const WalletGlyph = () => (
+  <svg viewBox="0 0 20 20" fill="none" className={iconCls}><rect x="5.5" y="2" width="9" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" /><path d="M8 5.5h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><rect x="7.5" y="8.5" width="5" height="4" rx="1" stroke="currentColor" strokeWidth="1.4" /></svg>
+);
 const SearchGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5"><circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.6" /><path d="M17 17l-3.4-3.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
 );
@@ -194,9 +199,19 @@ const RowsGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
 );
 
-type PayMethod = "cash" | "card" | "credit" | "split";
+type PayMethod = "cash" | "card" | "wallet" | "credit" | "split";
 const MethodIcon = ({ m }: { m: PayMethod }) =>
-  m === "cash" ? <DollarLineIcon className="h-4 w-4" /> : m === "card" ? <CardGlyph /> : m === "credit" ? <CreditGlyph /> : <SplitGlyph />;
+  m === "cash" ? <DollarLineIcon className="h-4 w-4" /> : m === "card" ? <CardGlyph /> : m === "wallet" ? <WalletGlyph /> : m === "credit" ? <CreditGlyph /> : <SplitGlyph />;
+/** What each tender is called at the counter. One copy, five readers. */
+const METHOD_LABEL: Record<PayMethod, string> = {
+  cash: "Cash",
+  card: "Card",
+  // Not "JazzCash": a shop takes several, and naming one on the button is how a
+  // cashier decides the others do not belong here.
+  wallet: "Wallet",
+  credit: "Khata",
+  split: "Split",
+};
 
 /** Price for one of a pack: explicit pack price, else base price × factor. */
 const packPrice = (basePrice: number, u: ProductUnit): number =>
@@ -363,7 +378,8 @@ export default function PosPage() {
   // Settings → Point of Sale → Default payment. The setting was saved, typed
   // and validated, and then read by nobody: the till always opened on cash. A
   // shop that mostly takes card was one extra press away on every single sale.
-  const defaultTender: PayMethod = settings.data?.pos_default_payment === "card" ? "card" : "cash";
+  const chosenDefault = settings.data?.pos_default_payment;
+  const defaultTender: PayMethod = chosenDefault === "card" || chosenDefault === "wallet" ? chosenDefault : "cash";
   const money = (n: string | number) => `${cur} ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
 
   // ── Receipts & drawer ───────────────────────────────────────────
@@ -662,7 +678,7 @@ export default function PosPage() {
   const [phonePane, setPhonePane] = useState<"catalog" | "cart">("catalog");
   const [tableNo, setTableNo] = useState("");
   const [discount, setDiscount] = useState("");
-  const [method, setMethod] = useState<"cash" | "card" | "credit" | "split">("cash");
+  const [method, setMethod] = useState<PayMethod>("cash");
 
   // ── A bank funding part of its own card's transaction ──────────────
   // All three optional. A shop with no bank deals never sees the row, and a
@@ -682,7 +698,7 @@ export default function PosPage() {
   // What the SERVER quoted. Shown, never computed here — the sale works it out
   // again from the same offer, so this can only ever be a display.
   const [bankDiscount, setBankDiscount] = useState(0);
-  const [tenders, setTenders] = useState<Array<{ method: "cash" | "card" | "bank_transfer" | "credit"; amount: string }>>([{ method: "cash", amount: "" }]);
+  const [tenders, setTenders] = useState<Array<{ method: "cash" | "card" | "bank_transfer" | "wallet" | "credit"; amount: string }>>([{ method: "cash", amount: "" }]);
   const [tendered, setTendered] = useState("");
   /**
    * Goods taken in part-payment: the dead battery, the worn set of tyres.
@@ -3810,14 +3826,14 @@ export default function PosPage() {
                 including in high-contrast mode, where author backgrounds are
                 dropped and the selection used to vanish for sighted users too. */}
             <div id="tender-method-label" className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Payment method</div>
-            <div role="group" aria-labelledby="tender-method-label" className="mb-5 grid grid-cols-4 gap-2">
-              {(["cash", "card", "credit", "split"] as const).map((m) => (
+            <div role="group" aria-labelledby="tender-method-label" className="mb-5 grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {(["cash", "card", "wallet", "credit", "split"] as const).map((m) => (
                 <button key={m} type="button" onClick={() => setMethod(m)}
                   aria-pressed={method === m}
                   className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-theme-sm font-medium transition ${method === m ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
                   <MethodIcon m={m} />
-                  {m === "credit" ? "Khata" : m === "split" ? "Split" : m === "card" ? "Card" : "Cash"}
-                  {m === "cash" && <span className="text-[9px] font-bold uppercase text-gray-400">Default</span>}
+                  {METHOD_LABEL[m]}
+                  {m === defaultTender && <span className="text-[9px] font-bold uppercase text-gray-400">Default</span>}
                 </button>
               ))}
             </div>
@@ -3893,7 +3909,7 @@ export default function PosPage() {
                   <div key={i} className="flex items-center gap-2">
                     <select value={t.method} onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, method: e.target.value as typeof x.method } : x)))}
                       className="h-11 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                      <option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Transfer</option><option value="credit">Credit (khata)</option>
+                      <option value="cash">Cash</option><option value="card">Card</option><option value="wallet">Wallet</option><option value="bank_transfer">Transfer</option><option value="credit">Credit (khata)</option>
                     </select>
                     <div className="flex-1"><Input type="number" min="0" value={t.amount} onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} placeholder="Amount" /></div>
                     {tenders.length > 1 && <button onClick={() => setTenders((ts) => ts.filter((_, j) => j !== i))} className="text-gray-400 hover:text-error-500" aria-label="Remove tender"><CloseIcon className="h-4 w-4" /></button>}

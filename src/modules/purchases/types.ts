@@ -88,7 +88,7 @@ export interface SupplierPayment {
   purchase_order_id: string | null;
   purchase_order?: { id: string; po_number: string } | null;
   amount: string | number;
-  method: "cash" | "bank_transfer" | "card" | "cheque";
+  method: "cash" | "bank_transfer" | "card" | "wallet" | "cheque";
   reference: string | null;
   paid_at: string;
   notes: string | null;

@@ -659,7 +659,7 @@ export default function ShopSettingsPage() {
                     <SectionCard icon={<CartGlyph />} title="Point of sale" description="Defaults for the counter till.">
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <Field label="Default payment">
-                          <Select value={String(prefs.pos_default_payment)} options={[{ value: "cash", label: "Cash" }, { value: "card", label: "Card" }]} placeholder="Cash" onChange={(v) => setP("pos_default_payment", v)} />
+                          <Select value={String(prefs.pos_default_payment)} options={[{ value: "cash", label: "Cash" }, { value: "card", label: "Card" }, { value: "wallet", label: "Mobile wallet" }]} placeholder="Cash" onChange={(v) => setP("pos_default_payment", v)} />
                         </Field>
                         <Field label="Lock the till when idle" hint="The next sale is stamped with whoever unlocks it.">
                           <Select

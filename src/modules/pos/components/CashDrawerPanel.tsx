@@ -54,6 +54,7 @@ const TENDER_LABEL: Record<string, string> = {
   cash: "Cash",
   card: "Card",
   bank_transfer: "Bank transfer",
+  wallet: "Mobile wallet",
   credit: "Credit (khata)",
   // An advance settled at collection. Named for what the cashier needs to
   // know — this money is NOT in today's drawer; it arrived weeks ago.

@@ -40,7 +40,7 @@ export interface OfflineCart {
 }
 
 /** Tenders a single till can settle alone. Mirrors `OfflinePolicy::TENDERS`. */
-export const OFFLINE_TENDERS = ["cash", "card", "bank_transfer", "other", "split"];
+export const OFFLINE_TENDERS = ["cash", "card", "bank_transfer", "wallet", "other", "split"];
 
 export interface Refusal {
   /** What the cashier is told. A reason, never "not allowed". */

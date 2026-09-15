@@ -136,7 +136,7 @@ export interface ShopSettings {
   invoice_ntn: string | null;
   invoice_strn: string | null;
   invoice_fbr_pos_id: string | null;
-  pos_default_payment: "cash" | "card";
+  pos_default_payment: "cash" | "card" | "wallet";
   pos_auto_print: boolean;
   pos_require_shift: boolean;
   /** Count the drawer by note and coin rather than typing a total. */

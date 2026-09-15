@@ -17,6 +17,10 @@ export type PaymentMethod =
   | "cash"
   | "card"
   | "bank_transfer"
+  // JazzCash, Easypaisa, SadaPay, Raast — recorded at the counter, never
+  // captured. See the backend `PaymentMethod::Wallet` for why it is its own
+  // tender and not a flavour of `bank_transfer`.
+  | "wallet"
   | "other"
   | "split"
   | "credit"
@@ -25,7 +29,7 @@ export type PaymentMethod =
 /** A single tender in a split payment. */
 export interface TenderInput {
   // 'credit' = sell-on-credit (khata) — goes onto the customer's balance.
-  method: "cash" | "card" | "bank_transfer" | "other" | "credit";
+  method: "cash" | "card" | "bank_transfer" | "wallet" | "other" | "credit";
   amount: number;
   reference?: string;
 }

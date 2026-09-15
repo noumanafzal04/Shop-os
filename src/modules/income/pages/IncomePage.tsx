@@ -67,6 +67,7 @@ const INCOME_METHODS = [
   { value: "cash", label: "Cash (to till)" },
   { value: "bank_transfer", label: "Bank transfer" },
   { value: "card", label: "Card" },
+  { value: "wallet", label: "Mobile wallet" },
   { value: "other", label: "Other" },
 ];
 

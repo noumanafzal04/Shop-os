@@ -27,6 +27,7 @@ const METHODS = [
   { value: "cash", label: "Cash" },
   { value: "card", label: "Card" },
   { value: "bank_transfer", label: "Bank transfer" },
+  { value: "wallet", label: "Mobile wallet" },
   { value: "other", label: "Other" },
 ];
 
