@@ -307,6 +307,30 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-09-15 (later) — the typecheck that checked nothing
+
+The deploy build failed on a type the repo's own typecheck had called clean.
+`HeldSale.cart.payment_method` was `"cash" | "card"` and a parked wallet ticket
+does not fit in it. One line to widen, and the boring half.
+
+**The root `tsconfig.json` is `{"files": [], "references": [...]}`.** So
+`npx tsc --noEmit` compiles ZERO files and exits 0 however broken the source is.
+Every "typecheck passed" in this repo written with `--noEmit` was a measurement
+that could not fail.
+
+Proved rather than assumed: appended `const x: number = "not a number"` to
+`posService.ts`; `--noEmit` stayed silent while `tsc -b` named the line.
+
+`npm run typecheck` now exists and is `tsc -b` — the same thing `build` runs —
+with the reason parked beside it in the scripts block, because the fix that
+matters is not reaching for the blind command again. Only `npm run build`
+(`tsc -b && vite build`) is evidence a deploy will survive.
+
+Same family as "a measurement that lied" and "exit code, not summary": a check
+ran, said nothing, and the nothing was read as a pass.
+
+Panel `3a16263`. Build green, 1532 tests green.
+
 ### 2026-09-15 — a wallet is not a card, and not a transfer
 
 `PaymentMethod` had eight cases and none of them was a mobile wallet, which in
