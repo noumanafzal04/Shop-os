@@ -926,15 +926,36 @@ class MarketplaceController extends Controller
                 ]),
             ]);
 
-        $base = fn () => Tenant::query()->marketplaceVisible()
-            // Every section of the home screen — nearby, top rated, and the
-            // shops behind the deals — is built from this, so the fence is
-            // written once here rather than three times below.
-            ->servesPin(
-                isset($data['lat']) ? (float) $data['lat'] : null,
-                isset($data['lng']) ? (float) $data['lng'] : null,
-                $data['city_id'] ?? null,
-            )
+        /**
+         * WHICH SHOPS THIS SHOPPER MAY SEE — the fence, and nothing else.
+         *
+         * Split out from `$base()` because two different queries need the same
+         * fence and only one of them can carry a subselect. See the comment on
+         * `$base` immediately below, which is where that went wrong.
+         */
+        $visible = fn () => Tenant::query()->marketplaceVisible()->servesPin(
+            isset($data['lat']) ? (float) $data['lat'] : null,
+            isset($data['lng']) ? (float) $data['lng'] : null,
+            $data['city_id'] ?? null,
+        );
+
+        /**
+         * …and what a CARD needs on top of it.
+         *
+         * Every section of the home screen — nearby, top rated, and the shops
+         * behind the deals — is built from this.
+         *
+         * `withAvg` and `withCount` each append a SUBSELECT to the select list.
+         * That is exactly right for a list of cards and fatal for a GROUP BY:
+         * MySQL under `only_full_group_by` refuses a query that groups while
+         * selecting an unaggregated subselect, and SQLite allows it. So a
+         * grouped count built on this passed every test and answered 500 on the
+         * first real request — which is the SECOND time that has happened in
+         * this file, and the first is written up forty lines further down.
+         *
+         * Anything that GROUPS uses `$visible()`.
+         */
+        $base = fn () => $visible()
             ->with('city:id,name')
             ->withAvg(['reviews as rating_avg' => fn ($r) => $r->where('is_published', true)], 'rating')
             ->withCount(['reviews as reviews_count' => fn ($r) => $r->where('is_published', true)]);
@@ -989,9 +1010,10 @@ class MarketplaceController extends Controller
          * is now one answer rather than two.
          */
         $counts = [];
-        $rows = $base()
-            ->reorder()
-            ->selectRaw('tenants.business_type, COUNT(*) as shops_count')
+        // `$visible()`, NOT `$base()` — see the note on both. A card's rating
+        // subselect in a grouped query is a 500 on MySQL and silence on SQLite.
+        $rows = $visible()
+            ->select(DB::raw('tenants.business_type, COUNT(*) as shops_count'))
             ->groupBy('tenants.business_type')
             ->get();
 
