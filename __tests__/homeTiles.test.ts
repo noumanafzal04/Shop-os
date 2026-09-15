@@ -108,3 +108,35 @@ describe("the category grid is always eight", () => {
     expect(src).toMatch(/const HOME_TRADES = 7;/);
   });
 });
+
+describe("every rail has a way onward", () => {
+  /**
+   * HALF A RULE, which is the shape this repo keeps finding.
+   *
+   * Two of the four headings carried "See all" and two did not — so "Deals for
+   * you" and "Top rated" were rails you scrolled to the end of and then
+   * nothing. A convention applied to some of the places it belongs makes the
+   * missed ones read as broken rather than as deliberately different.
+   */
+  it("gives all four sections a See all", () => {
+    const headers = [...src.matchAll(/<SectionHeader\s+title="([^"]+)"([^/]*)\/>/g)];
+
+    expect(headers.length).toBeGreaterThanOrEqual(3);
+
+    const deadEnds = headers.filter(([, , rest]) => !rest.includes("onSeeAll")).map(([, title]) => title);
+    expect(deadEnds).toEqual([]);
+  });
+
+  /**
+   * …and it goes where the chip four inches above it goes.
+   *
+   * Written from `SHORTCUTS` rather than typed twice: a "See all" under Deals
+   * that filtered differently from the Offers chip would be two controls
+   * promising one thing and answering with two lists.
+   */
+  it("takes the destination from the shortcut that already narrows it", () => {
+    expect(src).toMatch(/SHORTCUTS\.find\(\(x\) => x\.key === key\)/);
+    expect(src).toMatch(/seeAll\("offers"/);
+    expect(src).toMatch(/seeAll\("top"/);
+  });
+});

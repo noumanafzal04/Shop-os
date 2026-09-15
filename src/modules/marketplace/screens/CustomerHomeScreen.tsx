@@ -125,6 +125,28 @@ export function CustomerHomeScreen() {
     };
   }, [status, detect, hydrate]);
 
+  /**
+   * WHERE A SECTION'S "SEE ALL" GOES.
+   *
+   * Two of the four headings had one and two did not, so "Deals for you" and
+   * "Top rated" were rails you could scroll to the end of and then nothing —
+   * the half-a-rule shape, where a convention is applied to some of the places
+   * it belongs and the missed ones read as broken rather than as different.
+   *
+   * Taken from `SHORTCUTS` rather than written here. Those entries already
+   * carry the filter that narrows the aisle to exactly this content, and a
+   * second copy would be a "See all" that drifts from the chip promising the
+   * same thing four inches above it.
+   */
+  const seeAll = React.useCallback(
+    (key: string, title: string) => () => {
+      const shortcut = SHORTCUTS.find((x) => x.key === key);
+      if (shortcut === undefined) return;
+      navigation.navigate("Browse", { title, filters: shortcut.filters });
+    },
+    [navigation],
+  );
+
   const feed = useHomeFeed(pin);
   const ground = useTileGround();
   const tint = useTileTint();
@@ -549,7 +571,7 @@ export function CustomerHomeScreen() {
           {/* Deals — % off product carousel (like "Dishes up to 35% off") */}
           {(feed.data?.deals.length ?? 0) > 0 && (
             <>
-              <SectionHeader title="Deals for you" />
+              <SectionHeader title="Deals for you" onSeeAll={seeAll("offers", "Deals for you")} />
               <FlatList
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -612,7 +634,7 @@ export function CustomerHomeScreen() {
           {/* Top rated */}
           {(feed.data?.top_rated.length ?? 0) > 0 && (
             <>
-              <SectionHeader title="Top rated" />
+              <SectionHeader title="Top rated" onSeeAll={seeAll("top", "Top rated")} />
               <View style={styles.grid}>
                 {feed.data!.top_rated.map((s) => (
                   <ShopCard key={s.slug} shop={s} wide onPress={() => openShop(s)} />
