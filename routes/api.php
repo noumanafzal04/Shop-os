@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\V1\Admin\BillingController;
 use App\Http\Controllers\Api\V1\Admin\CommissionController;
+use App\Http\Controllers\Api\V1\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\EnquiryController as AdminEnquiryController;
 use App\Http\Controllers\Api\V1\Admin\InboxController;
@@ -1115,6 +1116,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             Route::get('/audit-logs', [AuditLogController::class, 'index'])->middleware('role:super_admin');
 
+            // A shopper's account, made by staff — somebody ordering over the
+            // phone, a regular who does not use apps, a tester who needs an
+            // account before the APK is installed.
+            //
+            // `role:super_admin` and not a permission, because there is no
+            // platform-level permission about PEOPLE — `customers.manage` is a
+            // shop's own customer book and means something else entirely.
+            // Inventing one to gate a single button is a worse change than the
+            // role check `audit-logs` already uses for the same reason.
+            Route::post('/customers', [AdminCustomerController::class, 'store'])
+                ->middleware('role:super_admin');
+
             // Rider applications. A stranger who will hold a customer's cash
             // and stand at their door is approved by a person, never by a
             // form completing itself.
@@ -1125,6 +1138,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // banner ads is not handed that.
             Route::middleware('permission:riders.manage')->group(function (): void {
                 Route::get('/riders', [RiderApplicationController::class, 'index']);
+                // Staff making a rider on the spot. Under the same gate as
+                // reviewing one, because it IS the review — performed at a desk
+                // instead of over a queue, and stamped with who performed it.
+                Route::post('/riders', [RiderApplicationController::class, 'store']);
                 Route::get('/riders/{id}', [RiderApplicationController::class, 'show']);
                 Route::post('/riders/{id}/review', [RiderApplicationController::class, 'review']);
                 Route::post('/riders/{id}/documents/{documentId}/review', [RiderApplicationController::class, 'reviewDocument']);

@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -28,10 +29,11 @@ class RiderApplicationController extends Controller
         $request->validate([
             'status' => ['nullable', Rule::enum(RiderStatus::class)],
             'search' => ['nullable', 'string', 'max:100'],
+            'vouched' => ['nullable', 'boolean'],
         ]);
 
         $riders = RiderProfile::query()
-            ->with(['user:id,name,phone,email', 'city:id,name', 'documents'])
+            ->with(['user:id,name,phone,email', 'city:id,name', 'documents', 'vouchedBy:id,business_name'])
             ->when(
                 $request->filled('status'),
                 fn ($q) => $q->where('status', $request->string('status')->value()),
@@ -39,6 +41,17 @@ class RiderApplicationController extends Controller
                 // who ever applied buries the four people waiting.
                 fn ($q) => $q->where('status', RiderStatus::Pending->value),
             )
+            /**
+             * A QUEUE OF ITS OWN for riders a shop vouched for.
+             *
+             * `?vouched=1` narrows Approved to them; `?vouched=0` to the people
+             * staff actually checked. Without it "Approved" is one list holding
+             * two different facts, and the one an auditor cares about — who did
+             * WE vet — cannot be asked for.
+             */
+            ->when($request->filled('vouched'), fn ($q) => $request->boolean('vouched')
+                ? $q->whereNotNull('vouched_by_tenant_id')->whereNull('approved_by')
+                : $q->whereNull('vouched_by_tenant_id'))
             ->when($request->filled('search'), function ($q) use ($request): void {
                 $term = '%'.$request->string('search')->value().'%';
                 $q->where(fn ($w) => $w
@@ -53,10 +66,46 @@ class RiderApplicationController extends Controller
         return ApiResponse::paginated($riders);
     }
 
+    /**
+     * MAKE A RIDER, HERE, NOW.
+     *
+     * Staff sitting with somebody — at a desk, on a call, at a signup drive —
+     * and deciding on the spot. The account and the profile are both made, the
+     * verdict carries the admin's name, and the person can ride immediately.
+     *
+     * Not a way around the check. It IS the check, performed by the person it
+     * exists to be performed by, recorded with their name so it reads back like
+     * any other verdict.
+     */
+    public function store(Request $request, RiderService $riders): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            // One of the two, because `identifier` at login is "email or
+            // phone" — an account with neither can never be signed into, and
+            // nothing else would have said so until somebody tried.
+            'phone' => ['nullable', 'string', 'max:32', 'required_without:email', 'unique:users,phone'],
+            'email' => ['nullable', 'email', 'max:255', 'required_without:phone', 'unique:users,email'],
+            'password' => ['required', Password::min(8)],
+            'vehicle_type' => ['nullable', 'in:bike,cycle,car,van'],
+            'vehicle_registration' => ['nullable', 'string', 'max:32'],
+            'cnic' => ['nullable', 'string', 'max:20'],
+            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
+            'is_platform' => ['nullable', 'boolean'],
+        ]);
+
+        $profile = $riders->createByAdmin($request->user(), $data);
+
+        return ApiResponse::created(
+            $this->serialize($profile->load('user:id,name,phone,email', 'city:id,name', 'documents')),
+            "Rider created — {$profile->rider_code}",
+        );
+    }
+
     public function show(string $id): JsonResponse
     {
         $profile = RiderProfile::query()
-            ->with(['user:id,name,phone,email', 'city:id,name', 'documents'])
+            ->with(['user:id,name,phone,email', 'city:id,name', 'documents', 'vouchedBy:id,business_name'])
             ->findOrFail($id);
 
         return ApiResponse::ok($this->serialize($profile, full: true));
@@ -133,6 +182,22 @@ class RiderApplicationController extends Controller
             'vehicle_registration' => $p->vehicle_registration,
             'cnic' => $full ? $p->cnic : ($p->cnic !== null ? '•••• '.substr($p->cnic, -4) : null),
             'is_platform' => $p->is_platform,
+            /**
+             * WHOSE WORD THIS APPROVAL IS.
+             *
+             * A shop that adds a rider mints their id and the profile is
+             * `approved` — the shop knows them, which is what this queue exists
+             * to establish when nobody does. So they land in the Approved list
+             * beside people staff actually vetted, with no CNIC, no documents
+             * and, until the id is claimed, no name.
+             *
+             * Without these two fields that list stops meaning "who have we
+             * checked", which is the only thing it is for. `approved_by` is the
+             * fact underneath: a verdict with nobody's name on it was nobody's
+             * verdict.
+             */
+            'vouched_by' => $p->vouchedBy?->business_name,
+            'platform_approved' => $p->isPlatformApproved(),
             'city' => $p->city?->name,
             'is_online' => $p->is_online,
             'last_seen_at' => $p->last_seen_at?->toIso8601String(),

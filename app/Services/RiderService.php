@@ -6,6 +6,8 @@ use App\Enums\FulfillmentType;
 use App\Enums\OrderStatus;
 use App\Enums\RiderDocumentType;
 use App\Enums\RiderStatus;
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Exceptions\DomainException;
 use App\Jobs\TellShopNobodyTookIt;
 use App\Jobs\WidenDeliveryOffer;
@@ -223,6 +225,58 @@ class RiderService
             'approved_by' => null,
             'vehicle_type' => 'bike',
         ]));
+    }
+
+    /**
+     * THE PLATFORM MAKES A RIDER ITSELF.
+     *
+     * The third way in, and the shortest. `apply()` is somebody nobody knows
+     * sending a CNIC and waiting; `mintForShop()` is a shop vouching for its
+     * own; this is staff sitting with the person — at a desk, on a call, at a
+     * signup drive — and deciding on the spot.
+     *
+     * So this one IS platform-approved: `approved_by` carries the admin's name,
+     * `isPlatformApproved()` is true, and they may join the pool. That is not a
+     * shortcut around the check — it is the check, performed by the person the
+     * check exists to be performed by, and recorded with their name on it so it
+     * can be looked up afterwards like any other verdict.
+     *
+     * The ACCOUNT is made here too, unlike a shop's minted id. Staff have the
+     * name and number in front of them, and an unclaimed profile would show up
+     * in their own queue as a nameless row — which is exactly the confusion the
+     * admin screen was just changed to remove.
+     */
+    public function createByAdmin(User $admin, array $data): RiderProfile
+    {
+        return DB::transaction(function () use ($admin, $data): RiderProfile {
+            $user = User::query()->create([
+                'name' => $data['name'],
+                'phone' => $data['phone'] ?? null,
+                'email' => $data['email'] ?? null,
+                'password' => $data['password'],
+                'role' => UserRole::Customer,
+                'status' => UserStatus::Active,
+                // Staff typed these details from the person in front of them,
+                // which is a stronger check than an email round trip.
+                'email_verified_at' => now(),
+            ]);
+
+            return RiderProfile::query()->create([
+                'user_id' => $user->id,
+                'rider_code' => $this->nextRiderCode(),
+                'status' => RiderStatus::Approved,
+                'is_platform' => (bool) ($data['is_platform'] ?? true),
+                'vehicle_type' => $data['vehicle_type'] ?? 'bike',
+                'vehicle_registration' => $data['vehicle_registration'] ?? null,
+                'cnic' => $data['cnic'] ?? null,
+                'city_id' => $data['city_id'] ?? null,
+                // Both stamps, because both things happened at once.
+                'applied_at' => now(),
+                'approved_at' => now(),
+                'approved_by' => $admin->id,
+                'claimed_at' => now(),
+            ]);
+        });
     }
 
     /**

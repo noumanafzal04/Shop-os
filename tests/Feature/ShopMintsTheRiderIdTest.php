@@ -283,6 +283,60 @@ class ShopMintsTheRiderIdTest extends TestCase
         $this->assertTrue(RiderProfile::query()->where('user_id', $ahmed->id)->value('is_platform'));
     }
 
+    // ── What the platform sees ──────────────────────────────────────
+
+    /**
+     * "APPROVED" HAS TO KEEP MEANING "WE CHECKED THIS PERSON".
+     *
+     * A shop-minted rider is `approved`, so they land in the admin's Approved
+     * queue beside people staff actually vetted — with no CNIC, no documents
+     * and, until the id is claimed, no name. That list is the platform's record
+     * of who it has checked, and it quietly stopped being one.
+     *
+     * Two fields and a filter, because the fix is not to hide them: a shop's
+     * rider IS approved, for that shop. What the queue must not do is present
+     * somebody's word as its own.
+     */
+    public function test_the_admin_queue_can_tell_a_shop_s_word_from_its_own(): void
+    {
+        $this->addRider('Ahmed');
+        $admin = User::factory()->superAdmin()->create();
+
+        $row = $this->as($admin)->getJson('/api/v1/admin/riders?status=approved')
+            ->assertOk()->json('data.0');
+
+        $this->assertSame('Chacha Mart', $row['vouched_by']);
+        $this->assertFalse($row['platform_approved']);
+    }
+
+    /** …and can ask for one or the other, which is the auditor's question. */
+    public function test_the_admin_can_ask_for_only_the_riders_staff_checked(): void
+    {
+        $this->addRider('Ahmed');
+
+        // A rider who went the long way: applied, papers seen, approved by a person.
+        $bilal = User::factory()->create(['name' => 'Bilal']);
+        $this->as($bilal)->postJson('/api/v1/rider/apply', [
+            'vehicle_type' => 'bike', 'cnic' => '35202-1234567-1', 'is_platform' => true,
+        ])->assertCreated();
+        $admin = User::factory()->superAdmin()->create();
+        RiderProfile::query()->where('user_id', $bilal->id)->update([
+            'status' => 'approved', 'approved_at' => now(), 'approved_by' => $admin->id,
+        ]);
+
+        $ours = $this->as($admin)->getJson('/api/v1/admin/riders?status=approved&vouched=0')
+            ->assertOk()->json('data');
+        $theirs = $this->as($admin)->getJson('/api/v1/admin/riders?status=approved&vouched=1')
+            ->assertOk()->json('data');
+
+        $this->assertCount(1, $ours);
+        $this->assertSame('Bilal', $ours[0]['name']);
+        $this->assertTrue($ours[0]['platform_approved']);
+
+        $this->assertCount(1, $theirs);
+        $this->assertSame('Chacha Mart', $theirs[0]['vouched_by']);
+    }
+
     /** The shop's own list keeps working — the bridge row is still a Rider. */
     public function test_the_shop_can_still_assign_its_minted_rider_to_an_order(): void
     {
