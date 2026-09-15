@@ -98,6 +98,14 @@ type MenuRow =
  * hid the heading it had just been asked to go to.
  */
 const CHIP_BAR = 54; // 10 + (7 + 18 + 7 + 2 border) + 10
+/**
+ * The back-and-name row above the chips once the bar is pinned.
+ *
+ * 4 of top padding + a 36pt touch target. Stated as a constant beside
+ * `CHIP_BAR` because `jumpTo` has to clear BOTH, and a jump that cleared only
+ * the chips put the heading under the shop's own name.
+ */
+const PINNED_HEAD = 40;
 
 export function MarketShopScreen() {
   const insets = useSafeAreaInsets();
@@ -282,7 +290,18 @@ export function MarketShopScreen() {
       index,
       animated: true,
       viewPosition: 0,
-      viewOffset: CHIP_BAR,
+      /**
+       * THE WHOLE BAR, not just the chips.
+       *
+       * This was `CHIP_BAR` — correct while the pinned element was the chips
+       * alone. It is a header now: the notch inset and a back-and-name row sit
+       * above them, so a jump that cleared only the chips landed the heading
+       * underneath the shop's own name.
+       *
+       * Computed rather than a constant, because the inset is a property of
+       * the phone and a number written here would be right on one of them.
+       */
+      viewOffset: insets.top + PINNED_HEAD + CHIP_BAR,
     });
   };
 
@@ -778,15 +797,51 @@ export function MarketShopScreen() {
     <SafeScreen backgroundColor={c.bg}>
       <FocusedStatusBar style="dark-content" background={c.bg} />
       {/*
-        THE PINNED COPY. Absolutely positioned, and only while the row it
-        stands in for is off the top of the screen — see `pinned`.
+        ── THE PINNED TOP, AND WHY IT GREW A HEADER ──────────────────
+
+        Absolutely positioned, and only while the row it stands in for is off
+        the top of the screen — see `pinned`.
+
+        It used to be the chips alone, and that was the bug: the ONLY way back
+        from this screen is the round button inside the hero, and the hero is
+        the list's header. So the exact moment this bar appears is the moment
+        that button scrolls away — leaving a bare strip of category chips at
+        the top of the screen with no shop name, no header and no way out but
+        the system gesture. Reported as "categories sticky hain, header ke
+        saath issue create kar rahi, properly show ni ho rahi", which is a fair
+        description of a bar that took the header's place without being one.
+
+        So while it is pinned it IS the header: back, the shop's name, and the
+        chips under them. Nothing else moves, and the hand-off still lines up
+        because the chips sit at the same height they did in the flow.
 
         `pointerEvents` is left alone deliberately: while it is up it IS the
         bar, and it has to take the taps.
       */}
-      {jumps.size > 1 && pinned && (
-        <View style={[styles.catsBar, styles.catsPinned]}>
-          <CatBar names={[...jumps.keys()]} active={section} onPick={jumpTo} />
+      {pinned && (
+        <View style={[styles.catsBar, styles.catsPinned, { paddingTop: insets.top }]}>
+          <View style={styles.pinnedHead}>
+            <Pressable
+              style={styles.pinnedBack}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              hitSlop={8}
+            >
+              <ArrowLeftIcon size={20} color={c.text} />
+            </Pressable>
+            {/*
+              The name, so somebody who has scrolled into a long menu can still
+              see which shop they are in. One line — a shop with a long name
+              must not push the chips down and move the hand-off.
+            */}
+            <Text style={styles.pinnedName} numberOfLines={1}>
+              {shop.data?.business_name ?? ""}
+            </Text>
+          </View>
+          {jumps.size > 1 && (
+            <CatBar names={[...jumps.keys()]} active={section} onPick={jumpTo} />
+          )}
         </View>
       )}
 
@@ -1112,6 +1167,23 @@ const makeStyles = (c: ThemeColors) =>
    * elevation and on iOS by zIndex, and this has to be above a list that is
    * scrolling underneath it on both.
    */
+  /**
+   * ── THE NOTCH, AND WHY `SafeScreen` DID NOT COVER THIS ────────────
+   *
+   * "Top notch ka issue."
+   *
+   * `SafeScreen` puts `paddingTop: insets.top` on its root and this bar is an
+   * absolutely positioned child of it — and Yoga measures an absolute child's
+   * `top` from the parent's BORDER box, not its padding box. So `top: 0` is
+   * the very top of the screen, under the status bar and the notch, however
+   * much padding the parent carries. Every laid-out child sits below the
+   * padding, which is why this was the only element on the screen affected
+   * and why it looked like the bar alone was wrong.
+   *
+   * The inset is applied to the bar itself instead, as PADDING rather than as
+   * an offset: the fill and the rule then run up behind the status bar the way
+   * a header should, while the back button and the chips sit below it.
+   */
   catsPinned: {
     position: "absolute",
     top: 0,
@@ -1123,6 +1195,37 @@ const makeStyles = (c: ThemeColors) =>
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
   },
+  /**
+   * THE HEADER THE PINNED BAR BECOMES.
+   *
+   * The only way back from this screen is the round button in the hero, and
+   * the hero is the list's header — so it scrolls away at exactly the moment
+   * this bar arrives. Without these rows the top of a scrolled shop page was a
+   * strip of category chips with no name and no exit.
+   */
+  pinnedHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
+  },
+  pinnedBack: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  /**
+   * One line, and it takes the remaining width.
+   *
+   * A shop with a long name must not wrap here: the bar's height is what the
+   * chips' position depends on, and a two-line name moves them away from where
+   * their in-flow copy sits — which is the one thing that gives a two-element
+   * sticky away.
+   */
+  pinnedName: { ...typography.label, color: c.text, fontSize: 15, flex: 1 },
+
   /**
    * A section heading inside the menu.
    *
