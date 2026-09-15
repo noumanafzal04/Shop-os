@@ -123,8 +123,16 @@ const TOPICS: Topic[] = [
     a: "One order goes to one shop, so it can be prepared and brought in one delivery. The app always asks before it clears the basket, and pressing Keep my basket leaves it exactly as it was.",
   },
   {
+    q: "My shop gave me a rider id — what do I do with it?",
+    a: "Open the menu, tap Become a rider, and type it into the box at the top — it looks like RDR-000123. That is the whole thing: no documents, no waiting. Their deliveries appear on your phone straight away and you close each one at the door with the four digits the customer reads out.",
+  },
+  {
     q: "Can I deliver orders myself?",
-    a: "Yes. Open the menu and tap Become a rider — it is the same account you shop with, so there is nothing new to install. You choose your vehicle, photograph your CNIC and licence, and send it in. Somebody checks it, usually within a day. Once you are approved a Rider mode appears in the same menu: go online when you want to work, take deliveries near you, and go offline when you are done.",
+    a: `Two ways. If a shop you work for gave you a rider id, type it in and you are riding for them immediately. To take work from any shop instead, open the menu and tap Become a rider — it is the same account you shop with, so there is nothing new to install. You choose your vehicle, photograph your CNIC and licence, and send it in. Somebody checks it, usually within a day. Once you are approved a Rider mode appears in the same menu: go online when you want to work, take deliveries near you, and go offline when you are done.`,
+  },
+  {
+    q: "I ride for my shop — why can't I take other shops' deliveries?",
+    a: `Because your shop vouched for you, and that is their word rather than ${BRAND.name}'s. It is enough for their own orders — they know you. A shop you have never met is trusting a stranger with their customer's order and their customer's cash, so for that we have to have checked you ourselves. Open Become a rider, send your CNIC and licence, and once that is approved the ${BRAND.name} switch turns on for you.`,
   },
   {
     q: "Why does the app turn green when I go on shift?",
@@ -132,7 +140,7 @@ const TOPICS: Topic[] = [
   },
   {
     q: "I am a rider — my board is empty and no orders come at all",
-    a: `The board now tells you which of these it is, in the box where the jobs would be. The usual one: you are only taking jobs from shops that added you, so nothing from the ${BRAND.name} pool reaches you — the board says so and has a button to switch it on. The others are being off duty, being at your three-order limit, having no position yet (keep the app open a moment), and a position more than five minutes old (pull down to refresh). If the box says nothing is wrong, the board really is empty and it checks again every few seconds.`,
+    a: `The board now tells you which of these it is, in the box where the jobs would be. The usual one: you are only taking jobs from shops that added you, so nothing from the ${BRAND.name} pool reaches you — the board says so, with a button to switch it on if you have been approved, or to send your CNIC if your shop is the one who added you. The others are being off duty, being at your three-order limit, having no position yet (keep the app open a moment), and a position more than five minutes old (pull down to refresh). If the box says nothing is wrong, the board really is empty and it checks again every few seconds.`,
   },
   {
     q: "I am a rider — why don't I see every job?",

@@ -54,7 +54,7 @@ export function RiderApplyScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const rider = useRiderProfile();
-  const { apply, uploadDocument, submit } = useRiderActions();
+  const { apply, claim, uploadDocument, submit } = useRiderActions();
 
   const profile = rider.data ?? null;
   const [vehicle, setVehicle] = React.useState<VehicleType>("bike");
@@ -62,6 +62,9 @@ export function RiderApplyScreen() {
   const [reg, setReg] = React.useState("");
   const [platform, setPlatform] = React.useState(true);
   const [busy, setBusy] = React.useState<string | null>(null);
+  // The id a shop wrote down and handed over. Empty for everybody who got
+  // here the other way.
+  const [code, setCode] = React.useState("");
 
   // Seed from the server ONCE it has answered — and only then. Writing these
   // on every render would fight the person typing.
@@ -76,6 +79,22 @@ export function RiderApplyScreen() {
 
   const editable = profile == null || profile.status === "draft" || profile.status === "rejected";
   const locked = profile != null && !editable;
+
+  const claimCode = () => {
+    const entered = code.trim().toUpperCase();
+    if (entered === "") return;
+    claim
+      .mutateAsync(entered)
+      .then(() => {
+        setCode("");
+        toast.success("You are set up to ride");
+      })
+      // The server's sentence is the useful one here — "already in use by
+      // another account" and "no rider has that id" send the rider to two
+      // different people for help, and a swallowed error sends them to
+      // neither.
+      .catch((e: unknown) => toast.error(e instanceof Error ? e.message : "Could not use that id."));
+  };
 
   const saveDetails = () => {
     apply
@@ -164,14 +183,62 @@ export function RiderApplyScreen() {
         {/* ── Where this application stands ─────────────────────────── */}
         {profile != null && <StatusBanner profile={profile} />}
 
-        {profile == null && (
+        {/*
+          WHOSE RIDER THEY ARE. Said here so the pool refusal later arrives as
+          something they already knew, rather than as the app changing its mind
+          about them.
+        */}
+        {profile != null && profile.vouched_by != null && !profile.can_join_pool && (
           <View style={styles.pitch}>
-            <Text style={styles.pitchTitle}>Ride with {BRAND.name}</Text>
+            <Text style={styles.pitchTitle}>You ride for {profile.vouched_by}</Text>
             <Text style={styles.pitchBody}>
-              Use the same account you shop with. Once you are approved a switch appears in the
-              menu: go online, take deliveries near you, and see what you have earned.
+              They added you, so you can carry their deliveries now. To take work from any
+              shop on {BRAND.name} as well, fill this in and send your CNIC — that check is
+              what lets a shop you have never met trust you with their customer's order.
             </Text>
           </View>
+        )}
+
+        {profile == null && (
+          <>
+            {/*
+              THE SHORT ROAD, and therefore the first thing on the page.
+              Somebody whose shop has already handed them an id must not read
+              a screen about CNICs and photographs and conclude this app is
+              not for them. They type six digits and they are riding.
+            */}
+            <Text style={styles.caption}>Has your shop given you a rider id?</Text>
+            <View style={styles.card}>
+              <AppTextInput
+                label="Rider id"
+                icon={IdCardIcon}
+                value={code}
+                onChangeText={(t) => setCode(t.toUpperCase())}
+                autoCapitalize="characters"
+                placeholder="RDR-000123"
+                maxLength={16}
+              />
+              <Text style={styles.hint}>
+                Your shop sees this when they add you. Enter it and you can start carrying
+                their deliveries straight away — no documents needed.
+              </Text>
+              <AppButton
+                title="Use this id"
+                onPress={claimCode}
+                loading={claim.isPending}
+                disabled={code.trim() === ""}
+              />
+            </View>
+
+            <View style={styles.pitch}>
+              <Text style={styles.pitchTitle}>Or ride with {BRAND.name}</Text>
+              <Text style={styles.pitchBody}>
+                Take deliveries from any shop, not just one. Use the same account you shop
+                with. Once you are approved a switch appears in the menu: go online, take
+                deliveries near you, and see what you have earned.
+              </Text>
+            </View>
+          </>
         )}
 
         {/* ── Your vehicle ──────────────────────────────────────────── */}
@@ -453,5 +520,12 @@ const makeStyles = (c: ThemeColors) =>
       color: c.textMuted,
       textAlign: "center",
       marginTop: 6,
+    },
+    /** Left-aligned, unlike `sendHint` — it explains a field, not a button. */
+    hint: {
+      ...typography.tiny,
+      color: c.textMuted,
+      marginTop: -4,
+      marginBottom: 4,
     },
   });

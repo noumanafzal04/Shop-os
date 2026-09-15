@@ -434,12 +434,27 @@ export function RiderHomeScreen() {
              * switch that did not exist anywhere in the app.
              */
             action={
-              blocked?.code === "not_platform"
-                ? {
-                    label: setPool.isPending ? "Switching on…" : `Take ${BRAND.name} deliveries`,
-                    onPress: () => setPool.mutate(true),
-                  }
-                : undefined
+              /**
+               * …where there is one for THIS rider.
+               *
+               * A rider their shop vouched for cannot join the pool at all
+               * until they apply and send a CNIC, and the server refuses the
+               * call. Offering them the switch anyway would be a button that
+               * always fails, which is the one thing worse than no button —
+               * so they are sent to the application instead, which is the
+               * road that actually goes somewhere.
+               */
+              blocked?.code !== "not_platform"
+                ? undefined
+                : rider.data?.can_join_pool === false
+                  ? {
+                      label: `Apply to ${BRAND.name}`,
+                      onPress: () => navigation.navigate("RiderApply"),
+                    }
+                  : {
+                      label: setPool.isPending ? "Switching on…" : `Take ${BRAND.name} deliveries`,
+                      onPress: () => setPool.mutate(true),
+                    }
             }
           />
         }

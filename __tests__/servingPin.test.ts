@@ -111,7 +111,13 @@ describe("the rider board's empty state", () => {
     // A reason nobody can act on is the same empty page with more words.
     // `is_platform` defaulted to false and was writable only in the apply
     // payload, which `apply` refuses once a rider is approved.
-    expect(src).toMatch(/blocked\?\.code === "not_platform"/);
+    //
+    // Matched on the REASON and the ACTION rather than on the exact
+    // comparison. This read `blocked?.code === "not_platform"` and broke the
+    // day the branch grew a third arm — a rider their shop vouched for is sent
+    // to the application instead, because the pool switch would 403 for them.
+    // Nothing about what this test is for had changed; only the operator had.
+    expect(src).toMatch(/blocked\?\.code\s*[!=]==\s*"not_platform"/);
     expect(src).toMatch(/setPool\.mutate\(true\)/);
   });
 

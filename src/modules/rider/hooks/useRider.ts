@@ -72,6 +72,12 @@ export function useRiderActions() {
     onSuccess: after,
   });
 
+  /** An id a shop handed over, claimed. See `riderService.claim`. */
+  const claim = useMutation({
+    mutationFn: (rider_code: string) => riderService.claim(rider_code),
+    onSuccess: after,
+  });
+
   const uploadDocument = useMutation({
     mutationFn: (v: { type: string; file: { uri: string; name: string; type: string } }) =>
       riderService.uploadDocument(v.type, v.file),
@@ -104,5 +110,5 @@ export function useRiderActions() {
     onSuccess: after,
   });
 
-  return { apply, uploadDocument, submit, setOnline, setPool, accept, decline, pickUp, deliver };
+  return { apply, claim, uploadDocument, submit, setOnline, setPool, accept, decline, pickUp, deliver };
 }

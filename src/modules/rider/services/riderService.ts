@@ -24,7 +24,12 @@ export interface RiderDocument {
 
 export interface RiderProfile {
   id: string;
-  /** The id a human says out loud — a shop types it to add you. */
+  /**
+   * The id a human says out loud.
+   *
+   * It comes from one of two places now: you applied and were given one, or a
+   * shop minted one when they added you and wrote it down for you to claim.
+   */
   rider_code: string;
   status: RiderStatus;
   status_label: string;
@@ -34,6 +39,17 @@ export interface RiderProfile {
   vehicle_registration: string | null;
   cnic_last4: string | null;
   is_platform: boolean;
+  /**
+   * MAY YOU EVEN ASK to be in the pool.
+   *
+   * False for a rider a shop vouched for: approved to carry THAT shop's
+   * orders, and refused the pool until they apply and send a CNIC. Read it
+   * before drawing any control that calls `setPool(true)` — a button that
+   * always fails is worse than no button.
+   */
+  can_join_pool: boolean;
+  /** The shop whose word your approval is. Null if you applied yourself. */
+  vouched_by: string | null;
   city: string | null;
   is_online: boolean;
   last_seen_at: string | null;
@@ -126,6 +142,13 @@ export interface ApplyInput {
 export const riderService = {
   me: () => apiGet<{ profile: RiderProfile | null }>("/rider/me"),
   apply: (body: ApplyInput) => apiPost<RiderProfile>("/rider/apply", body),
+  /**
+   * Pick up an id a shop wrote down for you.
+   *
+   * The other way in. `apply` is for somebody nobody knows, who sends a CNIC
+   * and waits; this is for somebody whose employer has already vouched.
+   */
+  claim: (rider_code: string) => apiPost<RiderProfile>("/rider/claim", { rider_code }),
   submit: () => apiPost<RiderProfile>("/rider/submit", {}),
 
   /**
