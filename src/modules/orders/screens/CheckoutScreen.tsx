@@ -125,31 +125,24 @@ export function CheckoutScreen() {
    */
   const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">("delivery");
   const [chosen, setChosen] = useState(false);
-  const [addressId, setAddressId] = useState<string | null>(null);
   const [address, setAddress] = useState("");
   /**
-   * Whether the CHOICE is open.
+   * THE PRECISE BIT, typed for THIS delivery.
    *
-   * Shut by default, which is the change. Every saved address was listed as a
-   * radio on a screen already carrying a basket, a fee, a coupon box, a notes
-   * box and a total — so the one thing a person actually has to check before
-   * paying, "is this going to the right house", was four identical rows of
-   * small grey text to be scanned rather than a sentence to be read.
+   * A saved address is an area and a pin — "House 214, Street 7, Gulberg III".
+   * What a rider standing in that street still needs is the flat, the floor,
+   * the gate: the part that changes between one order and the next and does
+   * not belong in a profile.
    *
-   * One address, stated, with a Change beside it. The list is a step somebody
-   * asks for.
+   * It goes on the ORDER rather than on the address, because that is who needs
+   * it. `customer_addresses.address` is one free-text field with no room for a
+   * second meaning, and a schema change to store a flat number would be
+   * storing it in the wrong place anyway.
    */
-  const [picking, setPicking] = useState(false);
+  const [detail, setDetail] = useState("");
   const [coupon, setCoupon] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Preselect the default saved address once loaded.
-  useEffect(() => {
-    if (addressId === null && (addresses.data?.length ?? 0) > 0) {
-      const def = addresses.data!.find((a) => a.is_default) ?? addresses.data![0];
-      setAddressId(def.id);
-    }
-  }, [addresses.data, addressId]);
 
   const lines = cart.shopSlug === slug ? cart.lines : [];
   const canDeliver = shop.data?.fulfillment?.delivery ?? shop.data?.features?.delivery ?? false;
@@ -182,8 +175,32 @@ export function CheckoutScreen() {
   );
   const prep = shop.data?.prep_time_minutes ?? null;
 
-  const selected = addresses.data?.find((a) => a.id === addressId) ?? null;
-  const deliveryText = selected ? selected.address : address.trim();
+  /**
+   * THE DEFAULT ONE, and no picker here.
+   *
+   * Checkout used to list every saved address as a radio, then as a panel that
+   * opened one. Both put the choosing on the screen where money changes hands
+   * — and the shopper already has a screen for it, with the map, the labels and
+   * the delete button on it.
+   *
+   * So this FOLLOWS the default and "Change" walks to Addresses. Making one
+   * the default there is the choice, and coming back re-reads it because that
+   * screen invalidates the same query. No local `addressId` to drift out of
+   * step with what the account actually says.
+   */
+  const saved = addresses.data ?? [];
+  const selected = saved.find((a) => a.is_default) ?? saved[0] ?? null;
+
+  /**
+   * What the rider is handed: the flat first, then the area.
+   *
+   * That order on purpose. Somebody reading it on a phone at a gate wants the
+   * part that is different from everything around them, and "Flat 3B" after
+   * forty characters of area is the part they scroll past.
+   */
+  const deliveryText = [detail.trim(), selected ? selected.address : address.trim()]
+    .filter((part) => part !== "")
+    .join(" — ");
   const deliveryReady = fulfillment !== "delivery" || deliveryText.length > 0;
 
   const apiError = place.error instanceof ApiError ? place.error : null;
@@ -386,88 +403,81 @@ export function CheckoutScreen() {
         {fulfillment === "delivery" && (
           <View style={styles.addrBlock}>
             {/*
-              THE ONE SENTENCE THIS SCREEN HAS TO GET RIGHT.
+              THE ONE SENTENCE THIS SCREEN HAS TO GET RIGHT, and the one field
+              that finishes it.
+
               A wrong address is a rider at a stranger's gate and an order
-              nobody can hand back. It is read, not scanned — so it is drawn
-              once, in full, with the way to change it beside it rather than
-              underneath four alternatives.
+              nobody can hand back. So the saved address is stated in full at
+              the top — read, not scanned — and "Change" WALKS to the address
+              page rather than opening a picker here.
+
+              That is the change. Checkout used to list every saved address as
+              a radio, then as a panel that opened one; both put the choosing
+              on the screen where money changes hands, when the shopper already
+              has a screen for it with the map, the labels and the delete
+              button on it. Making one the default there is the choice, and
+              coming back re-reads it.
             */}
-            {!picking && (
-              <Touchable
-                style={styles.chosen}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  deliveryText === ""
-                    ? "Add a delivery address"
-                    : `Delivering to ${deliveryText}. Change`
-                }
-                onPress={() => setPicking(true)}
-              >
-                <MapPinIcon size={16} color={c.brand[600]} />
-                <View style={styles.chosenInfo}>
-                  <Text style={styles.chosenCap}>Delivering to</Text>
-                  {deliveryText === "" ? (
-                    <Text style={styles.chosenEmpty}>Add an address</Text>
-                  ) : (
-                    <>
-                      {selected != null && <Text style={styles.chosenLabel}>{selected.label}</Text>}
-                      {/* Three lines, not one. A truncated address cannot be
-                          checked, and checking it is the entire purpose. */}
-                      <Text style={styles.chosenText} numberOfLines={3}>{deliveryText}</Text>
-                    </>
-                  )}
-                </View>
-                <Text style={styles.chosenChange}>
-                  {deliveryText === "" ? "Add" : "Change"}
-                </Text>
-              </Touchable>
+            <Touchable
+              style={styles.chosen}
+              accessibilityRole="button"
+              accessibilityLabel={
+                selected === null
+                  ? "Add a delivery address"
+                  : `Delivering to ${selected.label}, ${selected.address}. Change`
+              }
+              onPress={() => navigation.navigate("Addresses")}
+            >
+              <MapPinIcon size={16} color={c.brand[600]} />
+              <View style={styles.chosenInfo}>
+                <Text style={styles.chosenCap}>Delivering to</Text>
+                {selected === null ? (
+                  <Text style={styles.chosenEmpty}>Add an address</Text>
+                ) : (
+                  <>
+                    <Text style={styles.chosenLabel}>{selected.label}</Text>
+                    {/* Three lines, not one. A truncated address cannot be
+                        checked, and checking it is the entire purpose. */}
+                    <Text style={styles.chosenText} numberOfLines={3}>{selected.address}</Text>
+                  </>
+                )}
+              </View>
+              <Text style={styles.chosenChange}>{selected === null ? "Add" : "Change"}</Text>
+            </Touchable>
+
+            {/*
+              THE PART THE SAVED ADDRESS CANNOT HOLD.
+
+              An area and a pin get a rider to the street. The flat, the floor
+              and the gate are what get them to the door, and they change
+              between one order and the next — so they are typed here and sent
+              with the ORDER rather than saved onto the profile.
+            */}
+            {selected !== null && (
+              <View style={styles.detailWrap}>
+                <AppTextInput
+                  label="House / flat / floor"
+                  value={detail}
+                  onChangeText={setDetail}
+                  placeholder="House 12, second floor, green gate"
+                />
+              </View>
             )}
 
-            {picking && (addresses.data ?? []).map((a) => {
-              const on = addressId === a.id;
-              return (
-                <Pressable
-                  key={a.id}
-                  style={[styles.addr, on && styles.addrOn]}
-                  onPress={() => {
-                    setAddressId(a.id);
-                    setPicking(false);
-                  }}
-                >
-                  <MapPinIcon size={15} color={on ? c.brand[600] : c.gray[400]} />
-                  <View style={styles.addrInfo}>
-                    <Text style={styles.addrLabel}>{a.label}{a.is_default ? " · default" : ""}</Text>
-                    <Text style={styles.addrText} numberOfLines={1}>{a.address}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-            {picking && (
-              <Pressable
-                style={[styles.addr, addressId === null && styles.addrOn]}
-                onPress={() => setAddressId(null)}
-              >
-                <MapPinIcon size={15} color={addressId === null ? c.brand[600] : c.gray[400]} />
-                <Text style={styles.addrLabel}>Type a different address</Text>
-              </Pressable>
-            )}
-            {picking && addressId === null && (
-              <AppTextInput placeholder="House, street, area…" value={address} onChangeText={setAddress} />
-            )}
             {/*
-              A way back out. Typing an address has no natural end — there is
-              no row to press — so without this the block stays open over the
-              rest of the form until the order is placed.
+              NO SAVED ADDRESS AT ALL — the one case that still types here.
+              Sending somebody to another screen before they can order at all
+              is a wall; this is the same box the address page has, so nothing
+              is lost by filling it in either place.
             */}
-            {picking && (
-              <Touchable
-                style={styles.doneRow}
-                accessibilityRole="button"
-                onPress={() => setPicking(false)}
-              >
-                <Text style={styles.doneTxt}>Done</Text>
-              </Touchable>
+            {selected === null && (
+              <AppTextInput
+                value={address}
+                onChangeText={setAddress}
+                placeholder="House, street, area…"
+              />
             )}
+
             {shop.data?.delivers_to_me === false && (
               <View style={styles.rangeWarnRow}>
                 <AlertTriangleIcon size={13} color={c.warning} />
@@ -761,8 +771,14 @@ const makeStyles = (c: ThemeColors) =>
   /** A word, not a button — the whole row is the target. */
   chosenChange: { ...typography.label, color: c.brand[600], fontSize: 13 },
 
-  doneRow: { alignSelf: "flex-end", paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
-  doneTxt: { ...typography.label, color: c.brand[600], fontSize: 13 },
+  /**
+   * Tucked under the address card, not floating beside it.
+   *
+   * The two belong together — one is where, the other is which door — so a
+   * small negative top pulls the field up against the card it completes
+   * rather than letting the block's own gap read as a separator.
+   */
+  detailWrap: { marginTop: 2 },
 
   rangeWarnRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   rangeWarn: { ...typography.tiny, color: c.warning, flex: 1 },

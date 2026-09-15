@@ -184,7 +184,7 @@ export function SearchScreen() {
                 }
               >
                 <SlidersIcon size={13} color={c.onPrimary} />
-                <Text style={styles.aisleText}>Filter products</Text>
+                <Text numberOfLines={1} style={styles.aisleText}>Filter products</Text>
               </Pressable>
             )}
           </View>
@@ -398,7 +398,11 @@ function FilterChip({ label, on, onPress }: { label: string; on: boolean; onPres
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable style={[styles.filter, on && styles.filterOn]} onPress={onPress}>
-      <Text style={[styles.filterText, on && styles.filterTextOn]}>{label}</Text>
+      {/* One line, always. A chip is a fixed height and a wrapped label
+          inside one is the shape that reads as a broken layout. */}
+      <Text numberOfLines={1} style={[styles.filterText, on && styles.filterTextOn]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -443,20 +447,54 @@ const makeStyles = (c: ThemeColors) =>
     backgroundColor: c.brand[500],
   },
 
+  /**
+   * The door to the real filters, pushed to the right.
+   *
+   * It is not a third chip — the chips narrow what is already on screen and
+   * this asks the server a different question — so it does not sit in the
+   * queue with them. `marginLeft: "auto"` puts it at the far end of whichever
+   * line it lands on, which is where a primary action belongs and also what
+   * separates it from the two beside it.
+   */
   aisle: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
+    marginLeft: "auto",
     backgroundColor: c.primary,
     borderRadius: 17,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
   aisleText: { ...typography.tiny, color: c.onPrimary, fontWeight: "800" },
-  filters: { flexDirection: "row", gap: spacing.xs, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
+  /**
+   * THE ROW UNDER THE TABS, and three things were wrong with it.
+   *
+   * It was `flexDirection: "row"` with no wrap, no scroll and no bottom
+   * padding. On the All tab it holds two chips AND the aisle pill — about
+   * 330pt of content on a 360pt phone, so it fitted on nothing smaller and
+   * was simply CLIPPED where it did not, with no scrollbar to say so. And
+   * with padding only on top, it sat directly against the first result.
+   *
+   * Wrapping rather than scrolling: there are at most three things here and
+   * they are all controls. A horizontal scroller hides controls behind a
+   * gesture nobody is told about; a second line is visible.
+   */
+  filters: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
   filter: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    // 7, matching the aisle pill beside it. It was 6, so the two controls on
+    // one row were a pixel different in height — the kind of thing nobody can
+    // name and everybody can see.
+    paddingVertical: 7,
     borderRadius: 16,
     backgroundColor: c.surface,
     borderWidth: 1,

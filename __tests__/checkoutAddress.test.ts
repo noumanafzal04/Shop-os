@@ -74,29 +74,73 @@ describe("the pin a shopper chose is the pin they keep", () => {
   });
 });
 
-describe("checkout states the address instead of listing four", () => {
+describe("checkout states the address and sends you elsewhere to change it", () => {
+  /**
+   * The address is READ here, and chosen somewhere else.
+   *
+   * It was a list of radios, then a panel that opened one. Both put the
+   * choosing on the screen where money changes hands, when the shopper
+   * already has a screen for it with the map, the labels and the delete
+   * button on it. So "Change" walks to Addresses, and checkout follows
+   * whichever one is the default there.
+   */
   it("draws the chosen one with a way to change it", () => {
     expect(checkout).toContain("Delivering to");
-    expect(checkout).toMatch(/setPicking\(true\)/);
+    expect(checkout).toMatch(/navigation\.navigate\("Addresses"\)/);
   });
 
-  it("keeps the list shut until it is asked for", () => {
-    expect(checkout).toMatch(/const \[picking, setPicking\] = useState\(false\)/);
-    expect(checkout).toMatch(/\{!picking && \(/);
+  it("keeps no picker of its own", () => {
+    // The whole state machine went. A second place to choose an address is a
+    // second place for the choice to disagree with the account.
+    expect(checkout).not.toMatch(/setPicking/);
+    expect(checkout).not.toMatch(/const \[addressId/);
+  });
+
+  /**
+   * …so it has to follow the DEFAULT rather than remembering a local pick.
+   * A remembered `addressId` would go stale the moment somebody changed the
+   * default on the other screen and came back.
+   */
+  it("follows whichever address the account says is default", () => {
+    expect(checkout).toMatch(/saved\.find\(\(a\) => a\.is_default\)/);
   });
 
   /**
    * A truncated address cannot be checked, and checking it is the entire
-   * purpose of drawing it. One line is what the ROWS did.
+   * purpose of drawing it.
    */
   it("does not truncate the address to one line", () => {
-    const block = checkout.slice(checkout.indexOf("styles.chosen"), checkout.indexOf("{picking &&"));
+    const block = checkout.slice(checkout.indexOf("styles.chosen"), checkout.indexOf("detailWrap"));
     expect(block).toMatch(/numberOfLines=\{3\}/);
     expect(block).not.toMatch(/numberOfLines=\{1\}/);
   });
 
-  /** Typing has no natural end, so there has to be a way back out. */
-  it("has a way to close the picker again", () => {
-    expect(checkout).toMatch(/setPicking\(false\)/);
+  /**
+   * THE PART A SAVED ADDRESS CANNOT HOLD.
+   *
+   * An area and a pin get a rider to the street; the flat, the floor and the
+   * gate get them to the door, and those change between one order and the
+   * next. Typed here, sent with the ORDER — `customer_addresses.address` is
+   * one free-text field and storing a flat number in a profile would be
+   * putting it where nobody needs it.
+   */
+  it("asks for the door, not just the street", () => {
+    expect(checkout).toContain("House / flat / floor");
+    expect(checkout).toMatch(/const \[detail, setDetail\]/);
+  });
+
+  /**
+   * And the flat leads, because somebody reading it at a gate wants the part
+   * that differs from everything around them — not forty characters of area
+   * first.
+   */
+  it("puts the door before the area in what the shop is told", () => {
+    expect(checkout).toMatch(/\[detail\.trim\(\),[\s\S]{0,120}?selected \? selected\.address/);
+  });
+
+  /** Somebody with no saved address can still order — a wall here is worse. */
+  it("still lets a first-time buyer type one", () => {
+    expect(checkout).toMatch(/selected === null && \(/);
+    expect(checkout).toContain("House, street, area…");
   });
 });
