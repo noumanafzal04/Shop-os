@@ -160,6 +160,57 @@ class GeoLocationTest extends TestCase
         $this->assertTrue($left[0]['is_default']);
     }
 
+    /**
+     * ONE QUESTION, ONE ANSWER — and it had three.
+     *
+     * "Does this shop reach this pin" is asked in three places, and a shop that
+     * never opened the radius setting got three different answers:
+     *
+     *   scopeServesPin   COALESCE(radius, CITY_WIDE_KM)  → capped at 35 km
+     *   deliversTo       radius ?? CITY_WIDE_KM          → capped at 35 km
+     *   OrderService     if (radius !== null) { … }      → NOT CAPPED AT ALL
+     *
+     * So the shop was not listed to somebody 200 km away, its own detail page
+     * told that person it does not deliver to them — and the order went
+     * through anyway. Which is the worst of the three to get wrong: the two
+     * that refuse cost a shop a sale it could not have served; the one that
+     * accepts costs it a sale it now has to ring back and cancel, after the
+     * customer has already decided they bought something.
+     *
+     * Most shops never open that setting. This was the default case, not an
+     * edge.
+     */
+    public function test_a_shop_that_never_set_a_radius_still_refuses_the_next_city(): void
+    {
+        // No `delivery_radius_km` at all — the shop as it comes out of setup.
+        $shop = $this->makeShop('Default Mart', $this->lahore, 31.5204, 74.3587);
+        Product::withoutTenancy()->create([
+            'tenant_id' => $shop->id, 'type' => 'product', 'name' => 'Thing', 'price' => 100, 'stock_quantity' => 10,
+        ]);
+        $product = Product::withoutTenancy()->where('tenant_id', $shop->id)->first();
+        $customer = User::factory()->create();
+
+        // Both other answers already refuse this pin — ~180 km up the motorway.
+        $far = ['lat' => 32.9700, 'lng' => 73.7200];
+        $this->assertFalse($shop->fresh()->deliversTo($far['lat'], $far['lng']));
+
+        // So must the order.
+        $this->actingAsUser($customer)->postJson('/api/v1/customer/orders', [
+            'shop_slug' => $shop->slug, 'fulfillment_type' => 'delivery',
+            'delivery_address' => 'A house in another city',
+            'latitude' => $far['lat'], 'longitude' => $far['lng'],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'OUT_OF_DELIVERY_AREA');
+
+        // …while the shop's own city is untouched. A default that refused
+        // everything would be the same bug pointing the other way.
+        $this->actingAsUser($customer)->postJson('/api/v1/customer/orders', [
+            'shop_slug' => $shop->slug, 'fulfillment_type' => 'delivery',
+            'delivery_address' => 'House 2, Gulberg', 'latitude' => 31.529, 'longitude' => 74.36,
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ])->assertCreated();
+    }
+
     public function test_addresses_are_private_per_customer(): void
     {
         $a = User::factory()->create();

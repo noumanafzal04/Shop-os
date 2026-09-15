@@ -669,10 +669,32 @@ class Tenant extends BaseModel
             return true;
         }
 
-        $radius = $this->setting('delivery_radius_km');
-        $limit = $radius === null ? self::CITY_WIDE_KM : (float) $radius;
+        return Geo::distanceKm($lat, $lng, (float) $this->latitude, (float) $this->longitude)
+            <= $this->deliveryLimitKm();
+    }
 
-        return Geo::distanceKm($lat, $lng, (float) $this->latitude, (float) $this->longitude) <= $limit;
+    /**
+     * HOW FAR THIS SHOP DELIVERS, in km. The one definition.
+     *
+     * A shop that never opened the setting has no radius, and an absent radius
+     * is not "no limit" — it is "my city", which is what `CITY_WIDE_KM` means.
+     * `scopeServesPin` says the same thing in SQL, with a COALESCE over the
+     * same constant, because a WHERE clause cannot call this.
+     *
+     * Written down because the third reader disagreed with the other two.
+     * `OrderService::place` guarded its distance check with
+     * `if ($radius !== null)`, so a shop with no radius was listed only inside
+     * 35 km, told a customer 200 km away that it does not deliver to them, and
+     * then ACCEPTED that customer's order. Most shops never open the setting,
+     * so that was the default case rather than an edge — and it is the worst of
+     * the three to get wrong: refusing costs a shop a sale it could not have
+     * served, accepting costs it a sale it must now ring back and cancel.
+     */
+    public function deliveryLimitKm(): float
+    {
+        $radius = $this->setting('delivery_radius_km');
+
+        return $radius === null ? self::CITY_WIDE_KM : (float) $radius;
     }
 
     /**

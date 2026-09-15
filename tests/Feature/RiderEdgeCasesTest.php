@@ -63,7 +63,21 @@ class RiderEdgeCasesTest extends TestCase
 
         $this->shop = $this->makeShop($city->id, 31.52, 74.35);
         // Far enough to be outside POOL_RADIUS_KM (8 km) — Sheikhupura is ~35km.
-        $this->other = $this->makeShop($city->id, 31.71, 73.98);
+        //
+        // And it has to SAY it delivers that far. A shop with no
+        // `delivery_radius_km` is capped at `Tenant::CITY_WIDE_KM` (35) on all
+        // three of the surfaces that answer "does this shop reach this pin" —
+        // it is not listed further, its card says no further, and since the
+        // checkout fence was routed through the same definition, an order
+        // further is refused too. The customer these tests order as is 38.3 km
+        // from here, so without this line the fixture builds a shop that the
+        // product would never have shown them.
+        //
+        // 50 km is what a real Sheikhupura shop willing to drive into Lahore
+        // would set. It changes nothing about the POOL, whose radius is
+        // per-trade and 8 km for a grocery — which is the thing these tests
+        // are actually about.
+        $this->other = $this->makeShop($city->id, 31.71, 73.98, 50);
 
         $this->owner = User::factory()->shopOwner($this->shop)->create();
         $this->otherOwner = User::factory()->shopOwner($this->other)->create();
@@ -77,12 +91,26 @@ class RiderEdgeCasesTest extends TestCase
 
     // ── plumbing ─────────────────────────────────────────────────────
 
-    private function makeShop(string $cityId, float $lat, float $lng): Tenant
+    /**
+     * Change ONE shop setting and keep the rest.
+     *
+     * `forceFill(['settings' => [...]])` replaces the whole JSON column, so a
+     * test that only meant to switch the delivery provider also wiped the far
+     * shop's `delivery_radius_km` — and the order it then placed was refused
+     * 38 km out by a fence it had no idea it had turned off.
+     */
+    private function shopSetting(Tenant $shop, string $key, mixed $value): void
+    {
+        $shop->forceFill(['settings' => ($shop->settings ?? []) + [$key => $value]])->save();
+    }
+
+    private function makeShop(string $cityId, float $lat, float $lng, ?float $radiusKm = null): Tenant
     {
         return Tenant::factory()->create([
             'online_shop_enabled' => true, 'setup_completed' => true, 'city_id' => $cityId,
             'business_type' => 'grocery', 'features' => BusinessTypes::defaultFeatures('grocery'),
             'delivery_fee' => 100, 'latitude' => $lat, 'longitude' => $lng,
+            'settings' => $radiusKm === null ? [] : ['delivery_radius_km' => $radiusKm],
         ]);
     }
 
@@ -344,8 +372,8 @@ class RiderEdgeCasesTest extends TestCase
 
     public function test_the_pool_does_not_reach_across_the_city(): void
     {
-        $this->other->forceFill(['settings' => ['delivery_provider' => 'platform']])->save();
-        $this->shop->forceFill(['settings' => ['delivery_provider' => 'platform']])->save();
+        $this->shopSetting($this->other, 'delivery_provider', 'platform');
+        $this->shopSetting($this->shop, 'delivery_provider', 'platform');
 
         $near = $this->place($this->shop);
         $far = $this->place($this->other);
@@ -364,7 +392,7 @@ class RiderEdgeCasesTest extends TestCase
     {
         // Distance is measured FROM the rider. Without a position the pool
         // would open onto the whole country, so it stays shut instead.
-        $this->shop->forceFill(['settings' => ['delivery_provider' => 'platform']])->save();
+        $this->shopSetting($this->shop, 'delivery_provider', 'platform');
         $order = $this->place();
         $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
 
@@ -858,7 +886,7 @@ class RiderEdgeCasesTest extends TestCase
 
     public function test_a_pool_job_reaches_the_riders_who_could_take_it(): void
     {
-        $this->shop->forceFill(['settings' => ['delivery_provider' => 'platform']])->save();
+        $this->shopSetting($this->shop, 'delivery_provider', 'platform');
 
         $near = $this->approvedRider($this->rider, platform: true);
 
@@ -892,7 +920,7 @@ class RiderEdgeCasesTest extends TestCase
         // `self` being the default and so proved nothing about the opt-out once
         // the default moved — it would have gone green while the setting was
         // ignored entirely.
-        $this->shop->forceFill(['settings' => ['delivery_provider' => 'self']])->save();
+        $this->shopSetting($this->shop, 'delivery_provider', 'self');
         $this->approvedRider($this->rider, platform: true);
 
         $order = $this->place();
@@ -923,7 +951,7 @@ class RiderEdgeCasesTest extends TestCase
     public function test_a_shop_that_never_touched_the_setting_is_in_the_pool(): void
     {
         // No `delivery_provider` key — the state every existing shop is in.
-        $this->shop->forceFill(['settings' => ['delivery_enabled' => true]])->save();
+        $this->shopSetting($this->shop, 'delivery_enabled', true);
         $this->assertArrayNotHasKey('delivery_provider', $this->shop->fresh()->settings ?? []);
 
         $this->approvedRider($this->rider, platform: true);

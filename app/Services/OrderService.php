@@ -189,20 +189,31 @@ class OrderService
             throw DomainException::unprocessable('This shop is delivery-only.', 'PICKUP_DISABLED');
         }
 
-        // Delivery radius: when the shop set one AND both sides have a pin,
-        // reject orders outside the shop's coverage (foodpanda-style).
+        // Delivery radius — the LAST word on "does this shop reach this pin",
+        // and the word `Tenant::deliversTo()` promises in its own docblock.
+        //
+        // The limit comes from `deliveryLimitKm()` and no longer from a local
+        // read of the setting. That local read was guarded by
+        // `if ($radius !== null)`, so a shop that had never opened the setting
+        // had NO fence here at all — while the listing scope and the shop card
+        // both capped it at the city-wide default. One question, three answers,
+        // and this was the one that said yes.
+        //
+        // Still only measured when there is something to measure: an order with
+        // a typed address and no pin is not refused, because nothing is known
+        // about where it is. The shop sees the address and decides.
         if ($fulfillment === FulfillmentType::Delivery->value && ! $counter) {
-            $radius = $shop->setting('delivery_radius_km');
-            if ($radius !== null
-                && isset($data['latitude'], $data['longitude'])
+            if (isset($data['latitude'], $data['longitude'])
                 && $shop->latitude !== null && $shop->longitude !== null) {
+                $limit = $shop->deliveryLimitKm();
                 $distance = Geo::distanceKm(
                     (float) $data['latitude'], (float) $data['longitude'],
                     (float) $shop->latitude, (float) $shop->longitude,
                 );
-                if ($distance > (float) $radius) {
+                if ($distance > $limit) {
                     throw DomainException::unprocessable(
-                        "This shop delivers within {$radius} km — your location is ".number_format($distance, 1).' km away.',
+                        'This shop delivers within '.rtrim(rtrim(number_format($limit, 1), '0'), '.')
+                        .' km — your location is '.number_format($distance, 1).' km away.',
                         'OUT_OF_DELIVERY_AREA',
                     );
                 }
