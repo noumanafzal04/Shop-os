@@ -42,18 +42,33 @@ import { OfferBadge, Price } from "../../../common/ui/Price";
 import { shopInitial, useShopCover } from "../shopCover";
 
 /**
- * HOW MANY TRADES SHARE THE GRID — and the arithmetic behind the number.
+ * HOW MANY TRADES THE GRID SHOWS — and why it is a FIXED number.
  *
  * The grid is one wrapping container at a quarter-width per tile, so it reads
  * as rows of FOUR and the total is what matters:
  *
- *     4 shortcuts  +  HOME_TRADES  +  1 "View all"  =  8
+ *     HOME_TRADES  +  1 "View all"  =  8
  *
- * Three, therefore. It was four, which made nine — two full rows and a single
- * orphan tile on a third, which is what "aik remove krke View all 8th position
- * py set kro" was about. Change this and the last tile leaves the corner.
+ * Seven, therefore: two full rows, "View all" last in the corner.
+ *
+ * ── Why it stopped being "however many there are" ────────────────────
+ *
+ * It used to be four shortcuts plus three trades, and the three came from
+ * whatever the server had — which was the trades that HAVE shops in this city.
+ * So the grid was eight tiles in Lahore, five in a town with two shops, and a
+ * ragged half-row in between. The size of a grid is a layout decision and it
+ * was being made by the data.
+ *
+ * The server sends every browsable trade now, shops-first, with an honest
+ * `shops_count` — so seven tiles is seven tiles everywhere, and the empty ones
+ * are drawn differently rather than missing.
+ *
+ * The four shortcuts moved OUT of the grid rather than being dropped. They
+ * narrow the aisle; these open a trade. Two different destinations that were
+ * being drawn as one row of identical squares, which is most of why the grid
+ * never looked like anything.
  */
-const HOME_TRADES = 3;
+const HOME_TRADES = 7;
 
 /**
  * A trade code, roughly title-cased.
@@ -292,29 +307,34 @@ export function CustomerHomeScreen() {
             `flexWrap` row that keeps them aligned however many trades the
             server sends.
           */}
-          <View style={styles.tiles}>
+          {/*
+            THE FOUR THAT NARROW THE AISLE, on their own line.
+
+            They were four tiles at the head of the category grid, identical in
+            size and shape to the trades below them — so "Offers" and "Pharmacy
+            & Medical" read as the same kind of thing when one is a filter and
+            the other is a place. A scrolling row of chips says what they are
+            without a word of explanation, and it hands the grid back its eight.
+          */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+          >
             {SHORTCUTS.map(({ key, label: shortcut, icon: Icon, tone, filters }) => {
-              /**
-               * ILLUSTRATED WHERE THERE IS A DRAWING, GLYPH WHERE THERE IS NOT.
-               *
-               * `tileArt` covers all four shortcuts and every trade the server
-               * sends, so in practice the fallback never runs — but a tile with
-               * no picture on it is a blank square on the home screen, and the
-               * glyph set is right there.
-               */
               const art = shortcutArt(key);
 
               return (
                 <Touchable
                   key={key}
-                  style={styles.tile}
+                  style={styles.chip}
                   accessibilityRole="button"
                   accessibilityLabel={shortcut}
                   onPress={() => navigation.navigate("Browse", { title: shortcut, filters })}
                 >
                   <View
                     style={[
-                      styles.tileIcon,
+                      styles.chipIcon,
                       {
                         backgroundColor: art
                           ? ground(art)
@@ -327,37 +347,56 @@ export function CustomerHomeScreen() {
                       },
                     ]}
                   >
-                    {art ? (
-                      <art.Art size={30} />
-                    ) : (
-                      <Icon size={23} color={tone === "offer" ? c.onWarm : c.primary} />
-                    )}
+                    {art ? <art.Art size={18} /> : <Icon size={15} color={tone === "offer" ? c.onWarm : c.primary} />}
                   </View>
-                  <Text style={styles.tileLabel} numberOfLines={1}>
+                  <Text style={styles.chipLabel} numberOfLines={1}>
                     {shortcut}
                   </Text>
                 </Touchable>
               );
             })}
+          </ScrollView>
 
+          <View style={styles.tiles}>
             {/*
-              ── FOUR TRADES, NOT FOURTEEN ─────────────────────────────
+              ── SEVEN TRADES, NOT FOURTEEN ────────────────────────────
 
-              The grid is four shortcuts plus the trades, and it wraps — so a
-              marketplace with fourteen trades in it turned the whole top half
-              of the home screen into tiles before a single shop appeared.
+              The grid wraps, so a marketplace with fourteen trades in it
+              turned the whole top half of the home screen into tiles before a
+              single shop appeared.
 
-              Four here and the rest one tap away. The cut is by SHOPS_COUNT,
-              which the server already orders by, so the four on the home
-              screen are the four with the most shops in them rather than the
-              four that happen to sort first.
+              Seven here and the rest one tap away — two rows of four with
+              "View all" in the last corner, and the same seven tiles in every
+              city. The cut is by SHOPS_COUNT, which the server orders by, so
+              the seven shown are the seven with the most shops rather than the
+              seven that happen to sort first.
+
+              A trade with NO shops here still gets its tile — the grid's shape
+              is not the data's to decide — but it is drawn quieter, so the eye
+              goes to the ones with something behind them.
             */}
-            {tradeTiles.map((t) => (
+            {tradeTiles.map((t) => {
+              /**
+               * NOTHING HERE YET — said, not hidden.
+               *
+               * A trade with no shops in this city still gets its tile, because
+               * the grid's shape is a layout decision and not the data's to
+               * make. But it is drawn at half strength and its label says so,
+               * so it is not a control that looks live and opens an empty page.
+               *
+               * It stays TAPPABLE on purpose: the list it opens has a real
+               * empty state that names the city and offers the way out. A dead
+               * tile answers nothing; a page that says "no chemists near you
+               * yet" answers the question the tap was asking.
+               */
+              const empty = t.shops_count === 0;
+
+              return (
               <Touchable
                 key={t.type}
-                style={styles.tile}
+                style={[styles.tile, empty && styles.tileEmpty]}
                 accessibilityRole="button"
-                accessibilityLabel={t.label}
+                accessibilityLabel={empty ? `${t.label} — none nearby yet` : t.label}
                 onPress={() =>
                   navigation.navigate("ShopList", {
                     business_type: t.type,
@@ -377,7 +416,8 @@ export function CustomerHomeScreen() {
                   {t.label}
                 </Text>
               </Touchable>
-            ))}
+              );
+            })}
 
             {/*
               ── THE WAY TO THE REST ───────────────────────────────────
@@ -797,6 +837,40 @@ const makeStyles = (c: ThemeColors) =>
   // red on red and the rounding could not be seen at all.
   scrollGround: { backgroundColor: c.bg },
   body: { backgroundColor: c.bg, minHeight: 600 },
+  /**
+   * THE FOUR THAT NARROW THE AISLE — a scrolling row, not four more squares.
+   *
+   * They used to be the first four tiles of the grid below, identical in size
+   * and shape to the trades. "Offers" and "Pharmacy & Medical" are not the same
+   * kind of thing — one is a filter, the other is a place — and drawing them
+   * identically is most of why that grid never read as anything. A chip is a
+   * different shape, so the difference needs no words.
+   */
+  chipRow: { paddingHorizontal: spacing.md, gap: 8, paddingTop: spacing.md },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingLeft: 6,
+    paddingRight: spacing.sm + 2,
+    paddingVertical: 6,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+    // Not `radius.full` — 9999 renders SQUARE on small views under Fabric, and
+    // this is one of the small views that proved it.
+    borderRadius: 20,
+  },
+  chipIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  chipLabel: { ...typography.label, color: c.text, fontSize: 12.5 },
+
   tiles: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -806,6 +880,15 @@ const makeStyles = (c: ThemeColors) =>
   // A quarter of the row, so a fifth tile starts a second row directly under
   // the first — the reason both kinds of shortcut share one container.
   tile: { width: "25%", alignItems: "center", gap: 6, marginBottom: spacing.md },
+  /**
+   * A trade nobody sells here yet.
+   *
+   * Opacity, not a grey palette: the tile keeps its own colour and simply
+   * recedes, so the row still reads as one set of seven rather than as two
+   * kinds of tile. Half is enough to be noticed and not so little that the
+   * label stops being legible — these are still reachable controls.
+   */
+  tileEmpty: { opacity: 0.45 },
   // A tinted tile, not an outlined white box. The outline made identical
   // frames and left the glyph to do all the work; the tint makes them read as
   // one set of buttons before anyone reads a label.
