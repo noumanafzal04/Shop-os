@@ -1342,6 +1342,16 @@ class MarketplaceController extends Controller
             'logo_url' => $tenant->logo_path !== null
                 ? Storage::disk('public')->url($tenant->logo_path)
                 : null,
+            /**
+             * THE WIDE ONE, for the top of the shop page.
+             *
+             * On the CARD as well as the detail, because the card is where a
+             * shopper decides — and a list where one shop has a photograph and
+             * the rest have letters is a list that says which shop cared.
+             */
+            'cover_url' => $tenant->cover_path !== null
+                ? Storage::disk('public')->url($tenant->cover_path)
+                : null,
             'rating' => $tenant->rating_avg !== null ? round((float) $tenant->rating_avg, 1) : null,
             'reviews_count' => (int) ($tenant->reviews_count ?? 0),
             // On every card, so lists can grey-out closed shops.

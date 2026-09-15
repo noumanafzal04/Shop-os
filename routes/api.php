@@ -237,6 +237,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::delete('/shop/gallery/{image}', [GalleryController::class, 'destroy']);
             });
             Route::post('/shop/logo', [ShopController::class, 'uploadLogo'])->middleware('permission:settings.manage');
+            // The cover photo — NOT under `feature:services` like the gallery
+            // above it. That gate is why a restaurant could not set the biggest
+            // image in the app; see the `cover_path` migration.
+            Route::post('/shop/cover', [ShopController::class, 'uploadCover'])->middleware('permission:settings.manage');
+            Route::delete('/shop/cover', [ShopController::class, 'removeCover'])->middleware('permission:settings.manage');
 
             // Branches — physical locations under the tenant (multi-branch).
             // Every tenant has a default Main branch; adding more is gated by

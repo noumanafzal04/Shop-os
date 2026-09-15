@@ -97,6 +97,8 @@ class TenantResource extends JsonResource
             // a storage URL itself is a client that gets it wrong on the first
             // deployment with a CDN in front.
             'logo_url' => $this->logo_path ? Storage::disk('public')->url($this->logo_path) : null,
+            'cover_path' => $this->cover_path,
+            'cover_url' => $this->cover_path ? Storage::disk('public')->url($this->cover_path) : null,
             'address' => $this->address,
             'latitude' => $this->latitude !== null ? (float) $this->latitude : null,
             'longitude' => $this->longitude !== null ? (float) $this->longitude : null,

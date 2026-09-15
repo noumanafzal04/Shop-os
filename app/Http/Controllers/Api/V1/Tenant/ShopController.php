@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Shop\CompleteSetupRequest;
 use App\Http\Requests\Shop\UpdateShopRequest;
 use App\Http\Requests\Shop\UpdateShopSettingsRequest;
+use App\Http\Requests\Shop\UploadCoverRequest;
 use App\Http\Requests\Shop\UploadLogoRequest;
 use App\Http\Resources\TenantResource;
 use App\Support\ApiResponse;
@@ -131,5 +132,53 @@ class ShopController extends Controller
         $tenant->forceFill(['logo_path' => $path])->save();
 
         return ApiResponse::ok(new TenantResource($tenant->load('city', 'plan')), 'Logo updated');
+    }
+
+    /**
+     * THE BIG PICTURE AT THE TOP OF THE SHOP PAGE.
+     *
+     * Not the gallery, which is a PORTFOLIO — a body of work, and a list — and
+     * is gated on `feature:services`, so a restaurant could not set the biggest
+     * image in the app at all. See the `cover_path` migration for the
+     * measurement.
+     *
+     * Beside the logo, and for the same reason: a shopkeeper changing how their
+     * shop looks should find both in one place.
+     */
+    public function uploadCover(UploadCoverRequest $request): JsonResponse
+    {
+        $tenant = $this->context->get();
+
+        // The old file goes with it. Without this every re-upload leaves its
+        // predecessor on disk for ever — invisible, because the shop looks
+        // correct, and unbounded.
+        if ($tenant->cover_path) {
+            Storage::disk('public')->delete($tenant->cover_path);
+        }
+
+        $path = $request->file('cover')->store("covers/{$tenant->id}", 'public');
+
+        $tenant->forceFill(['cover_path' => $path])->save();
+
+        return ApiResponse::ok(new TenantResource($tenant->load('city', 'plan')), 'Cover photo updated');
+    }
+
+    /**
+     * Take it down again.
+     *
+     * A shop that uploaded the wrong photograph could otherwise only replace
+     * it, never remove it — "replace it with nothing" is not a file a browser
+     * can send. Falls back to the logo, then to the derived letter.
+     */
+    public function removeCover(): JsonResponse
+    {
+        $tenant = $this->context->get();
+
+        if ($tenant->cover_path) {
+            Storage::disk('public')->delete($tenant->cover_path);
+            $tenant->forceFill(['cover_path' => null])->save();
+        }
+
+        return ApiResponse::ok(new TenantResource($tenant->load('city', 'plan')), 'Cover photo removed');
     }
 }

@@ -168,7 +168,14 @@ class JoharTownSeeder extends Seeder
 
         // The logo, which is the whole reason this seeder exists — a home
         // screen of coloured letters is a home screen that failed to load.
-        $tenant->forceFill(['logo_path' => $this->makeLogo($tenant->id, $name, $rgb)])->save();
+        // The logo AND the cover — the small square on a card and the wide one
+        // at the top of the shop page. Two different pictures because they are
+        // two different jobs, and a demo that sets only one shows only half of
+        // what a shop can look like.
+        $tenant->forceFill([
+            'logo_path' => $this->makeLogo($tenant->id, $name, $rgb),
+            'cover_path' => $this->makeCover($tenant->id, $name, $rgb),
+        ])->save();
 
         User::query()->updateOrCreate(['email' => "johar{$n}@app.com"], [
             'tenant_id' => $tenant->id,

@@ -46,6 +46,26 @@ trait MakesPlaceholderArt
         return $path;
     }
 
+    /**
+     * The wide photograph at the top of a shop page.
+     *
+     * Same drawing as a product's, at the shop-page aspect — 16:9 rather than
+     * 4:3, because this one is cropped to a band and a square-ish source loses
+     * its own text to the crop.
+     */
+    protected function makeCover(string $id, string $name, array $rgb): string
+    {
+        $path = "covers/demo/{$id}.png";
+
+        if (Storage::disk('public')->exists($path)) {
+            return $path;
+        }
+
+        Storage::disk('public')->put($path, $this->wide(1200, 675, $rgb, $name));
+
+        return $path;
+    }
+
     /** A wide product picture. Returns the storage path. */
     protected function makeProductImage(string $id, string $label, array $rgb): string
     {
