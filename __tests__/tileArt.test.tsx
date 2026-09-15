@@ -5,19 +5,31 @@ import { SHORTCUTS } from "../src/modules/marketplace/tradeIcon";
 import { PROJECT_ROOT, codeOnly, fs, path } from "./support/node";
 
 /**
- * ILLUSTRATED CATEGORY TILES.
+ * CATEGORY TILES.
  *
  * ── What is being checked, and what cannot be ────────────────────────
  *
- * Whether a drawing LOOKS like a burger is not testable and is not claimed
- * here. What is testable is every way one of these can be silently absent or
- * silently blank, which is the whole failure mode of a tile: a home screen
- * with a hole in it looks like a slow network, so nobody reports it.
+ * Whether a tile LOOKS right is not testable and is not claimed here. What is
+ * testable is every way one can be silently absent or silently blank, which is
+ * the whole failure mode of a tile: a home screen with a hole in it looks like
+ * a slow network, so nobody reports it.
  *
  * The trigger for the file: `Ellipse` was missing from the Jest SVG mock, so a
  * stack of coins rendered as `undefined` and React reported "Element type is
- * invalid … check the render method of Art" from a test about signed-out
- * browsing. Nothing pointed at the drawing or at the mock.
+ * invalid" from a test about signed-out browsing. Nothing pointed at the
+ * drawing or at the mock.
+ *
+ * ── The drawings became glyphs ───────────────────────────────────────
+ *
+ * These were twelve hand-authored flat illustrations. The report on them was
+ * "fake sy icon lg rhy, emoji", and it was right — a multi-coloured cartoon
+ * burger beside a multi-coloured cartoon car reads as a sticker sheet rather
+ * than as a set of controls. They are Phosphor glyphs now, from the family the
+ * tab bar and every menu already use, on a soft per-trade plate.
+ *
+ * So a tile is ONE `Path` rather than a composition, and the count below says
+ * so. Everything else this file guards is unchanged: a trade with no entry, a
+ * shortcut with no entry, a plate missing its dark half.
  */
 
 const render = (el: React.JSX.Element) => {
@@ -72,12 +84,12 @@ describe("every trade has a drawing", () => {
   });
 
   it.each(TRADES)("draws something for %s", (trade) => {
-    const { Art } = tradeArt(trade);
-    const tree = render(<Art size={30} />);
+    const { Icon, tint } = tradeArt(trade);
+    const tree = render(<Icon size={30} color={tint[0]} />);
 
-    // Not "renders without throwing" — an empty <Svg/> does that. A drawing
-    // has shapes in it.
-    expect(shapeCount(tree)).toBeGreaterThan(1);
+    // Not "renders without throwing" — an empty <Svg/> does that. A glyph is
+    // one filled Path, so one shape is the floor and zero is the failure.
+    expect(shapeCount(tree)).toBeGreaterThan(0);
 
     ReactTestRenderer.act(() => tree.unmount());
   });
@@ -86,19 +98,24 @@ describe("every trade has a drawing", () => {
     // A trade this build has not heard of is still a shop, and a tile with no
     // picture is a blank square on the home screen.
     for (const unknown of ["florist", "", "  ", "PHARMACY_v2"]) {
-      const { Art, ground } = tradeArt(unknown);
+      const { Icon, ground, tint } = tradeArt(unknown);
       expect(ground).toHaveLength(2);
+      expect(tint).toHaveLength(2);
 
-      const tree = render(<Art size={30} />);
-      expect(shapeCount(tree)).toBeGreaterThan(1);
+      const tree = render(<Icon size={30} color={tint[0]} />);
+      expect(shapeCount(tree)).toBeGreaterThan(0);
       ReactTestRenderer.act(() => tree.unmount());
     }
   });
 
   it("matches case-insensitively, because a code is data", () => {
     // Business types arrive from the database. One row typed in capitals would
-    // otherwise be the only shopfront in a row of drawings.
-    expect(tradeArt("PHARMACY")).toBe(tradeArt("pharmacy"));
+    // otherwise be the only shopfront in a row of glyphs.
+    //
+    // `toEqual`, not `toBe`: the entry is composed per call now rather than
+    // held as a singleton, so identity is the wrong question — two tiles that
+    // draw the same thing in the same colours ARE the same tile.
+    expect(tradeArt("PHARMACY")).toEqual(tradeArt("pharmacy"));
   });
 });
 
@@ -106,9 +123,9 @@ describe("every shortcut has a drawing", () => {
   it("covers all four, by the keys SHORTCUTS actually uses", () => {
     /**
      * Read from `SHORTCUTS` rather than typed out here. A fifth shortcut added
-     * there with no drawing falls back to its glyph on a coloured plate — one
-     * odd tile in a row of illustrations, which is worse than either choice
-     * made consistently.
+     * there with no hue returns null, and the caller draws it on a plain brand
+     * plate — one odd tile in a row of tinted ones, which is worse than either
+     * choice made consistently.
      */
     expect(SHORTCUTS.length).toBeGreaterThan(3);
 
@@ -120,11 +137,11 @@ describe("every shortcut has a drawing", () => {
     const art = shortcutArt(key);
     expect(art).not.toBeNull();
 
-    // Destructured rather than `art!.Art` in the JSX — a non-null assertion is
-    // not valid inside a JSX element name.
-    const { Art } = art!;
-    const tree = render(<Art size={28} />);
-    expect(shapeCount(tree)).toBeGreaterThan(1);
+    // Destructured rather than `art!.Icon` in the JSX — a non-null assertion
+    // is not valid inside a JSX element name.
+    const { Icon, tint } = art!;
+    const tree = render(<Icon size={28} color={tint[0]} />);
+    expect(shapeCount(tree)).toBeGreaterThan(0);
     ReactTestRenderer.act(() => tree.unmount());
   });
 
@@ -180,10 +197,29 @@ describe("no asset pipeline was added for this", () => {
       "utf8",
     );
 
-    expect(art).toMatch(/from "react-native-svg"/);
-    // No <Image>, no require of an asset, no remote URI.
+    /**
+     * The REQUIREMENT, not the import.
+     *
+     * This asserted `from "react-native-svg"` in this file. That was true while
+     * the tiles were drawn here shape by shape; they are Phosphor glyphs now,
+     * and the SVG import moved one level down into `common/ui/icons`. Nothing
+     * about "app py load na pry" changed — the file simply stopped being the
+     * place the vectors are written.
+     *
+     * A test pinned to an import is pinned to where code lives rather than to
+     * what it must not do, and it goes red on a refactor that broke nothing.
+     */
+    // No <Image>, no require of an asset, no remote URI — the three ways a
+    // tile could start costing a download.
     expect(codeOnly(art)).not.toMatch(/<Image\b/);
-    expect(codeOnly(art)).not.toMatch(/require\(".*\.(png|jpg|webp)"\)/);
+    expect(codeOnly(art)).not.toMatch(/require\(".*\.(png|jpg|webp|svg)"\)/);
     expect(codeOnly(art)).not.toMatch(/https?:\/\//);
+
+    // …and the glyphs it delegates to are vectors, drawn in the app.
+    const icons = fs.readFileSync(
+      path.join(PROJECT_ROOT, "src/common/ui/icons/index.tsx"),
+      "utf8",
+    );
+    expect(icons).toMatch(/from "react-native-svg"/);
   });
 });

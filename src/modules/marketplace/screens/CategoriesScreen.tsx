@@ -12,7 +12,7 @@ import { useLocationStore } from "../../../stores/locationStore";
 import { useCategories } from "../hooks/useMarketplace";
 import type { CategoryTrade } from "../services/marketplaceService";
 import { SHORTCUTS } from "../tradeIcon";
-import { shortcutArt, tradeArt, useTileGround } from "../tileArt";
+import { shortcutArt, tradeArt, useTileGround, useTileTint } from "../tileArt";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 
 /**
@@ -51,6 +51,7 @@ export function CategoriesScreen() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const ground = useTileGround();
+  const tint = useTileTint();
 
   /**
    * The city, not the pin.
@@ -149,7 +150,7 @@ export function CategoriesScreen() {
                       ]}
                     >
                       {art ? (
-                        <art.Art size={28} />
+                        <art.Icon size={22} color={tint(art)} />
                       ) : (
                         <Icon size={22} color={tone === "offer" ? c.onWarm : c.primary} />
                       )}
@@ -207,6 +208,7 @@ export function CategoriesScreen() {
             styles={styles}
             c={c}
             ground={ground}
+            tint={tint}
             onOpenTrade={openTrade}
             onOpenCategory={openCategory}
           />
@@ -242,6 +244,7 @@ const TradeSection = React.memo(function TradeSectionBody({
   styles,
   c,
   ground,
+  tint,
   onOpenTrade,
   onOpenCategory,
 }: {
@@ -249,6 +252,7 @@ const TradeSection = React.memo(function TradeSectionBody({
   styles: ReturnType<typeof makeStyles>;
   c: ThemeColors;
   ground: (art: ReturnType<typeof tradeArt>) => string;
+  tint: (art: ReturnType<typeof tradeArt>) => string;
   onOpenTrade: (t: CategoryTrade) => void;
   onOpenCategory: (t: CategoryTrade, value: string, label: string) => void;
 }) {
@@ -271,7 +275,7 @@ const TradeSection = React.memo(function TradeSectionBody({
         disabled={!open}
       >
         <View style={[styles.headIcon, { backgroundColor: ground(art) }]}>
-          <art.Art size={22} />
+          <art.Icon size={19} color={tint(art)} />
         </View>
         <View style={styles.headCopy}>
           <Text style={[styles.headTitle, !open && styles.dim]} numberOfLines={1}>
@@ -321,7 +325,7 @@ const TradeSection = React.memo(function TradeSectionBody({
                   illustrations for a page that is read once.
                 */}
                 <View style={[styles.cellArt, { backgroundColor: ground(art) }, !has && styles.faded]}>
-                  <art.Art size={26} />
+                  <art.Icon size={22} color={tint(art)} />
                 </View>
                 <Text style={[styles.cellLabel, !has && styles.dim]} numberOfLines={2}>
                   {cat.label}

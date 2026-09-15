@@ -37,7 +37,7 @@ import { RatingChip } from "../components/RatingChip";
 import { marketplaceService, type HomeBanner, type PublicShop } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { SHORTCUTS } from "../tradeIcon";
-import { shortcutArt, tradeArt, useTileGround } from "../tileArt";
+import { shortcutArt, tradeArt, useTileGround, useTileTint } from "../tileArt";
 import { OfferBadge, Price } from "../../../common/ui/Price";
 import { shopInitial, useShopCover } from "../shopCover";
 
@@ -127,6 +127,7 @@ export function CustomerHomeScreen() {
 
   const feed = useHomeFeed(pin);
   const ground = useTileGround();
+  const tint = useTileTint();
 
   /**
    * HOW MANY TRADES THE HOME SCREEN SHOWS.
@@ -347,7 +348,11 @@ export function CustomerHomeScreen() {
                       },
                     ]}
                   >
-                    {art ? <art.Art size={18} /> : <Icon size={15} color={tone === "offer" ? c.onWarm : c.primary} />}
+                    {art ? (
+                      <art.Icon size={15} color={tint(art)} />
+                    ) : (
+                      <Icon size={15} color={tone === "offer" ? c.onWarm : c.primary} />
+                    )}
                   </View>
                   <Text style={styles.chipLabel} numberOfLines={1}>
                     {shortcut}
@@ -406,7 +411,10 @@ export function CustomerHomeScreen() {
                     accessibilityLabel={`${t.label} — none nearby yet`}
                   >
                     <View style={[styles.tileIcon, { backgroundColor: ground(tradeArt(t.type)) }]}>
-                      {React.createElement(tradeArt(t.type).Art, { size: 30 })}
+                      {React.createElement(tradeArt(t.type).Icon, {
+                        size: 24,
+                        color: tint(tradeArt(t.type)),
+                      })}
                     </View>
                     <Text style={styles.tileLabel} numberOfLines={1}>
                       {t.label}
@@ -432,7 +440,10 @@ export function CustomerHomeScreen() {
                 }
               >
                 <View style={[styles.tileIcon, { backgroundColor: ground(tradeArt(t.type)) }]}>
-                  {React.createElement(tradeArt(t.type).Art, { size: 30 })}
+                  {React.createElement(tradeArt(t.type).Icon, {
+                    size: 24,
+                    color: tint(tradeArt(t.type)),
+                  })}
                 </View>
                 {/*
                   The label is the SERVER's. This used to capitalise the code,
