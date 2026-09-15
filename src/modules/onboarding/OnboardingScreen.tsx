@@ -21,7 +21,7 @@ import {
 import { SafeScreen } from "../../common/ui/SafeScreen";
 import { BRAND } from "../../common/brand";
 import { tradeIcon } from "../marketplace/tradeIcon";
-import { radius, spacing, type ThemeColors, typography, useColors } from "../../theme";
+import { spacing, type ThemeColors, typography, useColors } from "../../theme";
 
 /**
  * The three things worth knowing before the first order.
@@ -39,13 +39,25 @@ import { radius, spacing, type ThemeColors, typography, useColors } from "../../
  *
  * The third simply says what the app is for. Nothing here explains a button.
  *
- * ── Why the artwork is drawn and not photographed ────────────────────
+ * ── "Achi modern, images import krlo" — and why there are none ────────
  *
- * There are no photographs to use — the shops in this marketplace have not
- * uploaded any. A stock photo of somebody else's shop would be the one place
- * in the app showing a business that does not exist, on the screen that
- * introduces it. So each slide is a composition of the app's own icons, in the
- * app's own palette, at the app's own angles.
+ * Asked for photographs. There are none to use, and the reason is not effort:
+ *
+ *   · the shops in this marketplace have not uploaded any, so a stock photo
+ *     would be the one place in the app showing a business that does not
+ *     exist — on the screen that introduces the app;
+ *   · a licensed pack is megabytes in the APK for three screens seen once;
+ *   · and photographs of food make a promise about the food, which belongs to
+ *     the shop selling it rather than to us.
+ *
+ * So the slides got the OTHER thing that reads as modern, and does not depend
+ * on owning a picture: a full-bleed coloured panel, one large mark, and type
+ * with room around it. Each slide takes its own hue from the tile palette, so
+ * the three are a set rather than three copies.
+ *
+ * If real photographs ever arrive — a shop's own, with permission — the panel
+ * is one `<SmartImage>` away from carrying them, and the composition below is
+ * already the right shape for it.
  */
 
 interface Slide {
@@ -54,7 +66,22 @@ interface Slide {
   behind: [Icon, Icon];
   title: string;
   body: string;
+  /** The panel behind the mark: [ground, the mark's own tone]. */
+  hue: readonly [string, string];
 }
+
+/**
+ * Three grounds, deep enough to carry white type.
+ *
+ * Not the tile palette's washes — those are backgrounds for a 26px glyph and
+ * would be a pale smear across half a phone. These are the same hues at the
+ * weight a full-bleed panel needs.
+ */
+const PANEL = {
+  orange: ["#e94e00", "#ffd9c4"],
+  green: ["#3f6f14", "#d8ecb8"],
+  blue: ["#14477e", "#c2dcf7"],
+} as const;
 
 const SLIDES: Slide[] = [
   {
@@ -62,18 +89,21 @@ const SLIDES: Slide[] = [
     behind: [tradeIcon("food"), tradeIcon("mart")],
     title: "Your street, in your pocket",
     body: "Food, groceries and medicine from the shops closest to you — with what they actually have in stock today.",
+    hue: PANEL.orange,
   },
   {
     icon: MotorcycleIcon,
     behind: [tradeIcon("pharmacy"), StorefrontIcon],
     title: "One shop, one delivery",
     body: "A basket belongs to a single shop, so your order is prepared and delivered together. Adding from another shop starts a fresh basket — we always ask first.",
+    hue: PANEL.green,
   },
   {
     icon: BanknoteIcon,
     behind: [MotorcycleIcon, StorefrontIcon],
     title: "Pay when it arrives",
     body: "Cash on delivery, every time. Nothing is charged up front, and you can follow your order from the moment the shop accepts it.",
+    hue: PANEL.blue,
   },
 ];
 
@@ -123,8 +153,10 @@ export function OnboardingScreen({ onDone }: Props) {
         {SLIDES.map((s) => (
           <View key={s.title} style={[styles.slide, { width }]}>
             <Art slide={s} />
-            <Text style={styles.title}>{s.title}</Text>
-            <Text style={styles.body}>{s.body}</Text>
+            <View style={styles.copy}>
+              <Text style={styles.title}>{s.title}</Text>
+              <Text style={styles.body}>{s.body}</Text>
+            </View>
           </View>
         ))}
       </ScrollView>
@@ -163,25 +195,43 @@ export function OnboardingScreen({ onDone }: Props) {
 }
 
 /**
- * Three tiles at three angles — the composition the reference gets from
- * overlapping photographs, built from icons instead.
+ * A PANEL, not a pile of tiles.
+ *
+ * It was three small rounded squares at three angles, which is the shape a
+ * composition of PHOTOGRAPHS makes and a poor shape for three glyphs: at that
+ * size the angles read as a mistake rather than as an arrangement, and the
+ * whole thing sat in the middle of a white page looking like a placeholder.
+ *
+ * One coloured field, one mark at the size a mark deserves, and the two
+ * supporting glyphs reduced to quiet marks on the ground — there to give the
+ * field some life, not to be read. The panel is the artwork; the icons are
+ * texture in it.
  */
 function Art({ slide }: { slide: Slide }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const Lead = slide.icon;
   const [A, B] = slide.behind;
+  const [ground, soft] = slide.hue;
+
   return (
-    <View style={styles.art}>
-      <View style={[styles.tile, styles.tileA]}>
-        <A size={34} color={c.primary} />
+    <View style={[styles.panel, { backgroundColor: ground }]}>
+      {/*
+        Two circles bleeding off the edges. Cheap, and they do the job a
+        photograph's background does — stop a flat field reading as an area
+        that failed to load.
+      */}
+      <View style={styles.blobTop} />
+      <View style={styles.blobBottom} />
+
+      <View style={[styles.ghost, styles.ghostLeft]}>
+        <A size={30} color={soft} />
       </View>
-      <View style={[styles.tile, styles.tileB]}>
-        <B size={30} color={c.warm} />
+      <View style={[styles.ghost, styles.ghostRight]}>
+        <B size={26} color={soft} />
       </View>
-      <View style={[styles.tile, styles.tileLead]}>
-        <Lead size={58} color={c.onPrimary} />
-      </View>
+
+      <Lead size={104} color="#ffffff" />
     </View>
   );
 }
@@ -197,62 +247,75 @@ const makeStyles = (c: ThemeColors) =>
     },
 
     pager: { flex: 1 },
-    slide: { alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl },
+    /**
+     * Top-aligned, not centred.
+     *
+     * The panel is a fixed height and the body copy is three lines on one
+     * slide and five on another. Centring the pair makes the panel sit at a
+     * different height on each slide, so paging between them slides the
+     * artwork up and down — which reads as the layout settling rather than as
+     * a deliberate change of subject.
+     */
+    slide: { alignItems: "center", paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
 
-    art: {
-      width: 220,
-      height: 220,
+    /**
+     * THE ARTWORK IS A FIELD, not a pile of tiles.
+     *
+     * Three small rounded squares at three angles is the shape a composition
+     * of PHOTOGRAPHS makes, and a poor shape for three glyphs: at that size
+     * the angles read as a mistake, and the whole thing sat in the middle of a
+     * white page looking like something that had not loaded.
+     *
+     * `overflow: hidden` is what lets the blobs below bleed off the edges
+     * instead of squaring themselves against it.
+     */
+    panel: {
+      width: "100%",
+      height: 300,
+      borderRadius: 28,
       alignItems: "center",
       justifyContent: "center",
+      overflow: "hidden",
       marginBottom: spacing.xl,
     },
-    tile: {
-      position: "absolute",
-      borderRadius: radius.xl,
-      alignItems: "center",
-      justifyContent: "center",
+    // Two circles, half off the edge. A flat field with nothing in it reads as
+    // an area that failed to load; this is the cheapest thing that fixes it.
+    // Lit from the top, shaded at the bottom — the two tints are fixed, so
+    // they live here rather than inline. Translucent white and black, so one
+    // pair works on all three grounds without a colour per slide.
+    blobTop: {
+      position: "absolute", width: 260, height: 260, borderRadius: 130,
+      top: -120, right: -90, backgroundColor: "rgba(255,255,255,0.10)",
     },
-    // The icons sit in the EXPOSED corner of each tile, not its centre.
-    //
-    // Centred, they land underneath the lead tile: half a fork and half a
-    // trolley poking out from behind a red square, which reads as clipping
-    // rather than as a composition. Each one moves to the side of its tile the
-    // lead tile does not cover.
-    tileA: {
-      width: 112,
-      height: 136,
-      left: -6,
-      top: 8,
-      paddingLeft: 14,
-      alignItems: "flex-start",
-      backgroundColor: c.primarySoft,
-      transform: [{ rotate: "-8deg" }],
+    blobBottom: {
+      position: "absolute", width: 220, height: 220, borderRadius: 110,
+      bottom: -110, left: -70, backgroundColor: "rgba(0,0,0,0.10)",
     },
-    tileB: {
-      width: 104,
-      height: 124,
-      right: -6,
-      bottom: 2,
-      padding: 14,
-      alignItems: "flex-end",
-      justifyContent: "flex-end",
-      backgroundColor: c.warmSoft,
-      transform: [{ rotate: "10deg" }],
-    },
-    tileLead: {
-      width: 132,
-      height: 156,
-      backgroundColor: c.primary,
-      transform: [{ rotate: "4deg" }],
-    },
+    // The supporting glyphs — texture on the ground, not things to be read.
+    ghost: { position: "absolute", opacity: 0.55 },
+    ghostLeft: { left: 30, top: 44 },
+    ghostRight: { right: 34, bottom: 46 },
 
-    title: { ...typography.display, fontSize: 26, color: c.text, textAlign: "center" },
+    copy: { paddingHorizontal: spacing.sm },
+
+    title: {
+      ...typography.display,
+      fontSize: 27,
+      lineHeight: 33,
+      color: c.text,
+      textAlign: "center",
+      letterSpacing: -0.4,
+    },
     body: {
       ...typography.body,
       color: c.textSecondary,
       textAlign: "center",
       marginTop: spacing.sm,
-      lineHeight: 22,
+      lineHeight: 23,
+      // Near 42 characters a line on a phone. Full-width body copy on a 400pt
+      // screen is a paragraph nobody finishes.
+      maxWidth: 340,
+      alignSelf: "center",
     },
 
     dots: { flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: spacing.md },
