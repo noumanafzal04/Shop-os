@@ -30,35 +30,71 @@ partner/
     │
     └── modules/
         ├── auth/           sign in — any tenant user
-        ├── today/          the landing tab: what needs doing now
-        ├── orders/         THE module. List, detail, accept, stages
+        ├── dashboard/      the landing tab: today, charts, pipeline
+        ├── orders/         the queue. List, detail, accept, stages
         ├── menu/           products, sold-out, one photo, categories
+        ├── money/          earnings, sales, commission, expenses
         ├── shop/           open/closed, delivery, hours, logo + banner
-        ├── insights/       read-only numbers
         ├── account/        profile, password, notifications, help
         └── printing/       receipt + kitchen slip (see DECISIONS #2)
 ```
 
-## Why these seven modules
+## Why these eight modules
 
-The API already answers all of it — 67 tenant endpoints exist, and this
-app is a new client rather than a new system. The split below is by what a
-shopkeeper DOES, not by what the server offers.
+The API already answers all of it — 67 tenant endpoints, and this app is a
+new client rather than a new system. The split is by what a shopkeeper
+DOES, not by what the server offers.
 
 | Module | Writes | Reads only |
 |---|---|---|
 | auth | — | who am I, what may I do, which shop |
-| today | — | new orders, today's takings, what is waiting |
+| dashboard | shop open / closed | today's money, 7-day chart, pipeline, highlights |
 | orders | accept / reject / advance / assign a rider / cancel | the queue and its per-stage counts |
 | menu | product add + edit, price, **sold-out**, one photo, categories, collections | stock |
-| shop | open/closed, delivery on/off, fee, radius, prep time, hours, logo, banner | plan, which modules are on |
-| insights | — | today / 7 days / 30 days, best sellers |
+| money | record an expense | earnings per period, sales, commission, margins |
+| shop | open/closed, delivery, fee, radius, prep time, hours, logo, banner | plan, which modules are on |
 | account | name, password, notification settings | help, version |
 
-**Mostly read-only was the instruction, and this is what it means in
-practice**: four modules write nothing at all, and the two that do write
-are the two a shopkeeper actually touches during a shift — an order's
-stage, and whether an item is on today.
+Three modules write, and each writes exactly one kind of thing a
+shopkeeper does from a phone: move an order along, turn an item off,
+write down what was spent. Everything else is read.
+
+## The correction that produced this list
+
+The first version of this file had an `insights` module described as
+"deliberately thin — a phone is where somebody glances between
+customers". That was written for a shop whose real books live in the
+panel, and it is wrong for the shop this app is FOR.
+
+An online-only business has no counter and no panel habit. This app is the
+business: what came in today, what is still owed, what the platform took,
+what is left. So the numbers are a TAB, not a footnote — and they cost
+almost nothing to build, because the server already answers all of it:
+
+| already returns | powers |
+|---|---|
+| `GET /dashboard` → `today` + `deltas` | the tiles, with yesterday's comparison |
+| `GET /dashboard` → `sales_series` | the 7-day line — zero-filled by the server |
+| `GET /dashboard` → `expense_breakdown` | the donut |
+| `GET /dashboard` → `order_pipeline`, `highlights`, `money_owed` | the rest of the landing tab |
+| `GET /reports/summary?period=…` | earnings over day / week / month / year / **PK tax year** / custom |
+| `GET /sales`, `/sales/{id}` | every sale, and its invoice |
+| `GET /commission` | the platform's cut, per order, at the rate it was billed |
+| `GET /reports/margins` | what actually makes money |
+| `POST /expenses` | the one write, and the reason `profit` is true |
+
+Nothing on this list needs a new endpoint.
+
+## Why expenses can be written from a phone
+
+The dashboard publishes `profit`, and profit is revenue minus cost minus
+expenses. A shop that runs entirely from this app with no way to record a
+delivery bag, a gas cylinder or a rider's fuel is shown a profit that is
+simply too high — every day, with nothing on screen to say so.
+
+It is the smallest possible form: amount, category, note, date, a photo of
+the bill. Budgets, recurring templates and supplier linkage stay in the
+panel.
 
 ## Permissions, not roles
 

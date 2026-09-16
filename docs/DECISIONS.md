@@ -62,7 +62,22 @@ change at any time.
 
 ---
 
-## 4 · Does Partner get its own colour?
+## 4 · Charts — no library
+
+Decided rather than left open, because it shapes Phase 1.
+
+The two charts the Dashboard needs are a seven-point line and a ring.
+`react-native-svg` is already a dependency (it draws every icon), and a
+charting package would be a second native dependency, a second upgrade
+path across two apps, and megabytes for two shapes.
+
+One rule that is not negotiable: **a chart must never interpolate across a
+zero.** The server zero-fills `sales_series` deliberately; a smooth curve
+through a closed day draws revenue the shop did not take.
+
+---
+
+## 5 · Does Partner get its own colour?
 
 The app already has two palettes, and `ThemeProvider` decides which side
 wears which in one line: shopping is **leaf green**, working is **ember

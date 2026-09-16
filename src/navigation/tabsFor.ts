@@ -15,10 +15,17 @@
  * One map, read by the tab bar and by the navigator, or the two disagree.
  *
  * Roughly:
- *   Today      always
+ *   Dashboard  always
  *   Orders     orders.manage
  *   Menu       products.manage
+ *   Money      reports.read      (earnings, sales, commission, expenses)
  *   Shop       settings.manage
- *   Insights   reports.read   (folded into Today when absent)
  *   Account    always
+ *
+ * ── Five tabs, and Shop is not one of them ───────────────────────────
+ *
+ * Six tabs on a phone is a row of icons nobody reads. Shop settings are
+ * reached from Account, and the ONE setting that is urgent during a shift
+ * — open / closed — sits on the Dashboard where it is one tap from
+ * anywhere.
  */
