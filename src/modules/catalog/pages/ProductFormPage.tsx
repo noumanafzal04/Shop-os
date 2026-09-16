@@ -1,6 +1,6 @@
 import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
 import TextArea from "../../../components/form/input/TextArea";
@@ -129,6 +129,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const { create, update } = useProductMutations();
   const images = useProductImages(id);
   const mutation = isEdit ? update : create;
+
 
   // Which item types THIS shop may create (physical/food/medicine/service).
   //
@@ -295,6 +296,37 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   // On create there's no product id yet, so photos are staged in-memory and
   // uploaded right after the item is created.
   const [pendingImages, setPendingImages] = useState<File[]>([]);
+  /**
+   * THE ONE PICTURE, wherever it currently lives.
+   *
+   * On an existing item that is the saved row; on a new one it is the file
+   * staged in the browser, which has no URL until `createObjectURL` gives it
+   * one. Two sources, one answer, so the markup below does not fork — a form
+   * that draws a different control depending on whether the item exists yet is
+   * how the create and edit paths drift.
+   */
+  const stagedPhoto = pendingImages[0] ?? null;
+  const stagedPhotoUrl = useMemo(
+    () => (stagedPhoto ? URL.createObjectURL(stagedPhoto) : null),
+    [stagedPhoto],
+  );
+  // Revoked when it changes or the form closes. A blob URL that is never
+  // released keeps the whole file in memory for the life of the tab.
+  useEffect(() => () => {
+    if (stagedPhotoUrl) URL.revokeObjectURL(stagedPhotoUrl);
+  }, [stagedPhotoUrl]);
+
+  /**
+   * THE ITEM'S PICTURE — the saved one, or the one waiting to be saved.
+   *
+   * Resolved once rather than read three times in the markup, because the
+   * button's label, the "needs a photo" warning and the preview all have to
+   * agree about whether there IS one. Three separate reads is how a form ends
+   * up saying "Add photo" above a photo.
+   */
+  const savedPhoto = existing.data?.images?.[0] ?? null;
+  const hasPhoto = isEdit ? savedPhoto !== null : stagedPhoto !== null;
+  const photoUrl = isEdit ? (savedPhoto?.url ?? null) : stagedPhotoUrl;
   const [uploadingNew, setUploadingNew] = useState(false);
 
   // Hydrate the form when editing.
@@ -1162,24 +1194,39 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             <div className={activeTab === "media" ? "space-y-5" : "hidden"}>
         {/* Photos — when the shop uses product images (module on, or sells online) */}
         {imagesEnabled && (
-        <Section title="Photos">
+        <Section title="Photo">
+          {/*
+            ONE PICTURE, AND THE BUTTON SAYS WHICH WAY IT GOES.
+
+            This was "+ Add photos" with a `multiple` input, and it appended —
+            so somebody replacing a bad photo got a second one, and the bad one
+            stayed first, which is the one every surface actually draws. The
+            server replaces now; the label has to agree with it, or the button
+            still promises to add.
+          */}
           <div className="mb-3 flex items-center justify-end">
             <label className="cursor-pointer rounded-lg border border-brand-500 px-3 py-1.5 text-theme-xs font-medium text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10">
-              {images.upload.isPending ? "Uploading…" : "+ Add photos"}
+              {images.upload.isPending
+                ? "Uploading…"
+                : hasPhoto
+                  ? "Replace photo"
+                  : "+ Add photo"}
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
-                multiple
                 className="hidden"
                 disabled={images.upload.isPending}
                 onChange={(e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  if (files.length) {
+                  const file = e.target.files?.[0];
+                  if (file) {
                     if (isEdit) {
-                      images.upload.mutate(files);
+                      images.upload.mutate([file]);
                     } else {
-                      // Stage locally; cap at 8 to match the backend.
-                      setPendingImages((prev) => [...prev, ...files].slice(0, 8));
+                      // Staged until the item exists. ONE, replacing whatever
+                      // was staged before — the same rule as the server's, or
+                      // the form and the endpoint disagree about what a second
+                      // pick means.
+                      setPendingImages([file]);
                     }
                   }
                   e.target.value = ""; // allow re-selecting the same file
@@ -1194,54 +1241,57 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             </p>
           )}
 
-          {onlineRequired && (!isEdit || !existing.data?.images?.length) && (
+          {onlineRequired && !hasPhoto && (
             <p className="mb-2 text-theme-xs text-warning-500">
-              Add at least one photo — items shown online need a picture{!isEdit ? " (you can add it right after saving)" : ""}.
+              Add a photo — items shown online need a picture{!isEdit ? " (you can add it right after saving)" : ""}.
             </p>
           )}
 
-          {isEdit ? (
-            existing.data?.images?.length ? (
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-                {(existing.data.images ?? []).map((img) => (
-                  <div key={img.id} className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
-                    <img src={img.url ?? ""} alt="" className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => images.remove.mutate(img.id, failed(toast, "That picture is still on the item."))}
-                      disabled={images.remove.isPending}
-                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
-                      aria-label="Remove photo"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+          {/*
+            A REMOVE BUTTON YOU CAN SEE.
+
+            It was `opacity-0 … group-hover:opacity-100`, which is invisible
+            until a mouse is over the tile — so on a tablet, or to anybody who
+            did not happen to hover, the picture simply could not be removed.
+            Reported as "unable to delete previous image", and the control was
+            there the whole time.
+
+            A labelled button under the picture instead of a ✕ floating on it:
+            it is legible over any photograph, reachable by keyboard, and says
+            what it does.
+          */}
+          {photoUrl ? (
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+                <img src={photoUrl} alt="" className="h-full w-full object-cover" />
               </div>
-            ) : (
-              <p className="text-theme-xs text-gray-400">
-                No photos yet. Add up to 8 — the first one is used as the cover in your shop.
-              </p>
-            )
-          ) : pendingImages.length ? (
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-              {pendingImages.map((file, i) => (
-                <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
-                  <img src={URL.createObjectURL(file)} alt="" className="h-full w-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => setPendingImages((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
-                    aria-label="Remove photo"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+              <div className="min-w-0">
+                <p className="text-theme-xs text-gray-400">
+                  This is what customers see on the card, in search and in the basket.
+                </p>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  className="mt-2"
+                  disabled={images.remove.isPending}
+                  onClick={() => {
+                    if (isEdit) {
+                      const current = existing.data?.images?.[0];
+                      if (current) {
+                        images.remove.mutate(current.id, failed(toast, "That picture is still on the item."));
+                      }
+                    } else {
+                      setPendingImages([]);
+                    }
+                  }}
+                >
+                  {images.remove.isPending ? "Removing…" : "Remove photo"}
+                </Button>
+              </div>
             </div>
           ) : (
             <p className="text-theme-xs text-gray-400">
-              Add up to 8 photos — they'll be attached when you create the item. The first one is the cover.
+              No photo yet. One picture per item{!isEdit ? " — it is attached when you save" : ""}.
             </p>
           )}
         </Section>

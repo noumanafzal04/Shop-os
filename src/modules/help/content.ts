@@ -163,9 +163,20 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "list",
         items: [
-          "Tab 2 — Media & online: photos, and which collections it belongs to.",
+          "Tab 2 — Media & online: the item's photo, and which collections it belongs to.",
           "Tab 3 — Sizes & options: the same product in sizes or colours (each with its own price and stock), or add-ons like 'extra cheese' that change the price. Name what varies — Size, Colour — list the values, and every combination is made for you, priced in one go.",
           "Tab 4 — Codes & packs: extra barcodes for the same product, and pack sizes — sell as a piece, a dozen or a carton while stock is held in the base unit. 'Still selling this' is at the bottom of it.",
+        ],
+      },
+      { type: "h", text: "The item's photo" },
+      { type: "p", text: "ONE picture per item, and uploading again REPLACES it \u2014 it does not add a second. That is the change: the button used to say \u201cAdd photos\u201d and append, so correcting a bad photo left the bad one showing, because the first is the only one anything draws. It is now \u201cReplace photo\u201d once there is one, and \u201cRemove photo\u201d takes it off." },
+      {
+        type: "list",
+        items: [
+          "The picture is what customers see on your item's card, in search and in the basket \u2014 and what your till shows in its grid.",
+          "JPG, PNG or WebP, up to 4 MB. A small square is made automatically so the till's grid loads quickly.",
+          "Items you sell online need one. An item with no photo can still be sold at the counter.",
+          "Remove is a button under the picture now. It used to be a cross that only appeared when a mouse hovered the tile, so on a tablet there was no way to delete a photo at all.",
         ],
       },
       { type: "h", text: "Stopping an item without losing its history" },
