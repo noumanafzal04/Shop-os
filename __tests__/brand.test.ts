@@ -30,20 +30,20 @@ const ALLOWED = new Map<string, string>([
     "the Keychain service holding saved settings — same reason as the session store",
   ],
   /**
-   * The seams left behind by the extraction into `@cartze/core`.
+   * The seam left behind by the extraction into `@cartze/core`.
    *
    * The rule this list guards is about the name appearing in anything a
    * PERSON reads — a title, a toast, a store listing. A package specifier is
    * not that: it is resolved by three config files and never rendered.
    *
-   * Named one by one rather than pattern-matched on the specifier, because
-   * the check above forces an allow-listed file to still use its exemption —
-   * so when the last caller is repointed and the seam is deleted, this entry
-   * fails until it is removed with it. The list cannot quietly outlive the
-   * thing it excuses.
+   * Named rather than pattern-matched on the specifier, because the check
+   * above forces an allow-listed file to still USE its exemption — so when
+   * the last caller is repointed and the seam is deleted, this entry fails
+   * until it is removed with it. The list cannot quietly outlive the thing it
+   * excuses, and it already has not: `tokens.ts` and `themes.ts` were here one
+   * slice ago and both entries went with the files.
    */
-  ["src/theme/tokens.ts", "re-export seam: the @cartze/core specifier"],
-  ["src/theme/themes.ts", "re-export seam: the @cartze/core specifier"],
+  ["src/theme/index.ts", "re-export seam: the @cartze/core specifier"],
 ]);
 
 /**

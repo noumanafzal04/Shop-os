@@ -2,7 +2,7 @@ import React from "react";
 import ReactTestRenderer from "react-test-renderer";
 import { PROJECT_ROOT, fs, path } from "./support/node";
 import { ThemeProvider, useColors } from "../src/theme";
-import { lightColors, darkColors, riderLightColors, riderDarkColors } from "../src/theme/themes";
+import { lightColors, darkColors, riderLightColors, riderDarkColors } from "@cartze/core/theme/themes";
 import { useModeStore } from "../src/stores/modeStore";
 import { useModePalettes } from "../src/modules/mode/palettes";
 

@@ -14,11 +14,15 @@
       // "Cannot find module 'react-native'" while the bundler is perfectly
       // happy, which is the two-out-of-three failure the comment in
       // metro.config.js warns about, caught here on the first slice.
-      // Only `react-native`, NOT `react`. Mapping react here points tsc at
-      // the package's own JS entry and takes `@types/react` out of the
-      // picture — every `import React` in the app then implicitly becomes
-      // `any` and JSX loses its prop checking. react-native ships its own
-      // types, so it does not have that problem.
+      // `react` is mapped at its TYPES first and the package second, and the
+      // order is the whole trick. Pointing it straight at `./node_modules/react`
+      // resolves to a JS entry with no declarations, TypeScript does not then
+      // fall back to `@types/react`, and every `import React` in the app
+      // silently becomes `any` with JSX losing its prop checking. Measured on
+      // the first slice; the guard asserts the pair rather than the absence
+      // it used to assert.
+      "react": ["./node_modules/@types/react", "./node_modules/react"],
+      // react-native ships its own types, so one entry is enough.
       "react-native": ["./node_modules/react-native"]
     }
   },

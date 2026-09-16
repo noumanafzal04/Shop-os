@@ -38,10 +38,23 @@ import { PROJECT_ROOT, codeOnly, fs, path, sourceFiles } from "./support/node";
  */
 const OWNED_BY_THE_APP = ["src/modules", "src/stores", "src/navigation", "src/services"];
 
-/** Every file that is supposed to be liftable. */
+/** It has moved into the package; the rules it proves have not. */
+const PROVIDER = path.join(PROJECT_ROOT, "../core/src/theme/ThemeProvider.tsx");
+
+/**
+ * Every file that is supposed to be liftable — the ones still here, and the
+ * ones already lifted.
+ *
+ * `../core` is scanned too, and not as a formality: a file that has moved is
+ * the one most likely to grow a reach back into the app, because whoever adds
+ * the import is looking at a folder that no longer sits beside `stores/` and
+ * has to type a package name to break the rule. Making it harder is not the
+ * same as making it impossible.
+ */
 const shared = [
   ...sourceFiles(path.join(PROJECT_ROOT, "src/common")),
   ...sourceFiles(path.join(PROJECT_ROOT, "src/theme")),
+  ...sourceFiles(path.join(PROJECT_ROOT, "../core/src")),
 ].map((abs) => path.relative(PROJECT_ROOT, abs));
 
 /** Where a relative import actually lands, as a repo path. */
@@ -76,7 +89,7 @@ describe("common/ and theme/ can be lifted out as they are", () => {
     // `codeOnly` strips them, and every one of the three violations this test
     // was written for is now DESCRIBED in a comment in the file it was fixed
     // in. Without stripping, the guard would fail on its own documentation.
-    const provider = fs.readFileSync(path.join(PROJECT_ROOT, "src/theme/ThemeProvider.tsx"), "utf8");
+    const provider = fs.readFileSync(PROVIDER, "utf8");
     expect(provider).toContain("modeStore");
     expect(codeOnly(provider)).not.toContain("modeStore");
   });
@@ -84,9 +97,7 @@ describe("common/ and theme/ can be lifted out as they are", () => {
 
 describe("the two inversions are real, not renamed", () => {
   it("lets the app choose the palette", () => {
-    const provider = codeOnly(
-      fs.readFileSync(path.join(PROJECT_ROOT, "src/theme/ThemeProvider.tsx"), "utf8"),
-    );
+    const provider = codeOnly(fs.readFileSync(PROVIDER, "utf8"));
     expect(provider).toMatch(/paletteFor\?: PaletteFor;/);
     // …and the hook that answers "the other side" no longer reaches for a
     // store of its own; the provider has already worked it out.

@@ -1,5 +1,5 @@
 import React from "react";
-import { emberThemes, leafThemes, type ThemeColors, type ThemeName } from "../../theme/themes";
+import { emberThemes, leafThemes, type ThemeColors, type ThemeName } from "../../theme";
 import { useModeStore } from "../../stores/modeStore";
 
 /**

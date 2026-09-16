@@ -1,5 +1,5 @@
 import { PROJECT_ROOT, codeOnly, fs, path } from "./support/node";
-import { emberThemes, leafThemes } from "../src/theme/themes";
+import { emberThemes, leafThemes } from "@cartze/core/theme/themes";
 
 /**
  * THE FIRST TWO SCREENS ANYBODY SEES.

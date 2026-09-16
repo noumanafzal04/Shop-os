@@ -107,12 +107,24 @@ describe("a file in core finds THIS app's react-native", () => {
     expect(jestConfig).toMatch(/<rootDir>\/node_modules/);
   });
 
-  it("the compiler maps react-native — and deliberately NOT react", () => {
-    // Mapping `react` points tsc at the package's JS entry and takes
-    // `@types/react` out of the picture: every `import React` becomes `any`
-    // and JSX loses prop checking. Measured on the first slice, not guessed.
+  it("maps react at its TYPES first, and the order is the point", () => {
+    /**
+     * Pointing `react` straight at `./node_modules/react` resolves to a JS
+     * entry with no declarations. TypeScript does NOT then fall back to
+     * `@types/react` — so every `import React` in the app becomes `any` and
+     * JSX loses prop checking, silently. The types package has to come first.
+     *
+     * Both measured rather than reasoned about: the wrong order was tried,
+     * the whole suite went red on implicit-any, and the order is why it is
+     * green.
+     *
+     * react-native ships its own types, so one entry is enough there.
+     */
+    expect(paths.react).toEqual([
+      "./node_modules/@types/react",
+      "./node_modules/react",
+    ]);
     expect(paths["react-native"]).toEqual(["./node_modules/react-native"]);
-    expect(paths.react).toBeUndefined();
   });
 });
 
