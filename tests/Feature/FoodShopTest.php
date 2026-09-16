@@ -130,30 +130,90 @@ class FoodShopTest extends TestCase
 
     // ── Product images ──────────────────────────────────────────────
 
-    public function test_owner_uploads_and_deletes_product_images(): void
+    public function test_a_product_has_one_picture_and_uploading_again_replaces_it(): void
     {
         Storage::fake('public');
 
-        $res = $this->actingAsUser($this->owner)->postJson(
+        $first = $this->actingAsUser($this->owner)->postJson(
+            "/api/v1/products/{$this->pizza->id}/images",
+            ['images' => [UploadedFile::fake()->image('pizza1.jpg')]],
+        )->assertOk()->json('data.images');
+
+        $this->assertCount(1, $first);
+        Storage::disk('public')->assertExists($first[0]['path']);
+
+        // Again — and this is the whole report: "currently zeyda add ho rahi".
+        $second = $this->actingAsUser($this->owner)->postJson(
+            "/api/v1/products/{$this->pizza->id}/images",
+            ['images' => [UploadedFile::fake()->image('pizza2.jpg')]],
+        )->assertOk()->json('data.images');
+
+        $this->assertCount(1, $second, 'a second upload added a picture instead of replacing one');
+        $this->assertNotSame($first[0]['id'], $second[0]['id'], 'the new file was stored and the old row kept');
+        $this->assertSame(1, $this->pizza->images()->count());
+
+        // The old FILE goes too, or every correction leaves a copy on the disk
+        // that nothing will ever point at again.
+        Storage::disk('public')->assertMissing($first[0]['path']);
+        Storage::disk('public')->assertExists($second[0]['path']);
+    }
+
+    public function test_it_refuses_two_files_rather_than_silently_keeping_one(): void
+    {
+        Storage::fake('public');
+
+        $this->actingAsUser($this->owner)->postJson(
             "/api/v1/products/{$this->pizza->id}/images",
             ['images' => [
-                UploadedFile::fake()->image('pizza1.jpg'),
-                UploadedFile::fake()->image('pizza2.jpg'),
+                UploadedFile::fake()->image('a.jpg'),
+                UploadedFile::fake()->image('b.jpg'),
             ]],
+        )->assertStatus(422)->assertJsonStructure(['errors' => ['images']]);
+
+        $this->assertSame(0, $this->pizza->images()->count());
+    }
+
+    public function test_it_cleans_up_a_product_that_already_had_several(): void
+    {
+        Storage::fake('public');
+
+        // The state the old rule left behind: three pictures, one of them shown.
+        $paths = [];
+        foreach (range(1, 3) as $i) {
+            $paths[] = $path = UploadedFile::fake()->image("old{$i}.jpg")
+                ->store("products/{$this->shop->id}/{$this->pizza->id}", 'public');
+            $this->pizza->images()->create([
+                'tenant_id' => $this->shop->id, 'path' => $path, 'sort_order' => $i - 1,
+            ]);
+        }
+        $this->assertSame(3, $this->pizza->images()->count());
+
+        $this->actingAsUser($this->owner)->postJson(
+            "/api/v1/products/{$this->pizza->id}/images",
+            ['images' => [UploadedFile::fake()->image('new.jpg')]],
         )->assertOk();
 
-        $images = $res->json('data.images');
-        $this->assertCount(2, $images);
-        $this->assertArrayHasKey('url', $images[0]);
-        Storage::disk('public')->assertExists($images[0]['path']);
+        $this->assertSame(1, $this->pizza->images()->count(), 'the older extras survived a replace');
+        foreach ($paths as $gone) {
+            Storage::disk('public')->assertMissing($gone);
+        }
+    }
 
-        // Delete one.
+    public function test_the_picture_can_be_taken_off_entirely(): void
+    {
+        Storage::fake('public');
+
+        $image = $this->actingAsUser($this->owner)->postJson(
+            "/api/v1/products/{$this->pizza->id}/images",
+            ['images' => [UploadedFile::fake()->image('pizza.jpg')]],
+        )->assertOk()->json('data.images.0');
+
         $this->actingAsUser($this->owner)
-            ->deleteJson("/api/v1/products/{$this->pizza->id}/images/{$images[0]['id']}")
+            ->deleteJson("/api/v1/products/{$this->pizza->id}/images/{$image['id']}")
             ->assertOk();
 
-        Storage::disk('public')->assertMissing($images[0]['path']);
-        $this->assertSame(1, $this->pizza->images()->count());
+        Storage::disk('public')->assertMissing($image['path']);
+        $this->assertSame(0, $this->pizza->images()->count());
     }
 
     public function test_image_upload_rejects_non_images(): void
