@@ -1126,14 +1126,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "h", text: "Getting listed" },
       { type: "p", text: "Your shop appears to customers once your setup is complete, your city is set and the online module is on. Products need a photo — an online customer must be able to see what they are buying." },
-      { type: "h", text: "Your cover photo" },
-      { type: "p", text: "Settings \u2192 Online shop \u2192 Cover photo. One wide picture, up to 4 MB, and it is the first thing a shopper sees: it fills the band across the top of your shop page AND the card your shop appears as on the home screen. Without one the app draws a coloured tile with your initial on it \u2014 which looks like a page that failed to load rather than a shop that did not upload." },
+      { type: "h", text: "Your logo and your online banner" },
+      { type: "p", text: "Two different pictures, named separately because they do two different jobs. SHOP LOGO is in Settings \u2192 Business profile: the small square beside your name, in the app, in search and on your invoices. SHOP ONLINE BANNER is in Settings \u2192 Online shop: one wide picture, up to 4 MB, across the top of your shop page and on your card on the home screen. Without either, the app draws a coloured tile with your initial on it \u2014 which looks like a page that failed to load rather than a shop that did not upload." },
       {
         type: "list",
         items: [
-          "Wide, not square. It is cropped to a band, so a photograph with the important part in the middle survives; a poster with words along the edge does not.",
-          "This is separate from your invoice logo. The logo is the small square beside your name; the cover is the big picture behind it.",
-          "Every kind of shop can set one. It used to be locked behind the Services module, which meant a restaurant, a mart, a pharmacy and a retail shop could not set a cover at all.",
+          "The banner is wide, not square. It is cropped to a band, so a photograph with the important part in the middle survives; a poster with words along the edge does not.",
+          "The logo is fitted rather than cropped wherever it appears, so a wide wordmark keeps both ends.",
+          "The logo used to sit inside Invoice / receipt, behind the \u201cShow logo\u201d switch \u2014 so a shop that does not print a logo on its paperwork could not upload one at all, and the app had nothing to draw beside its name. It is in Business profile now, where it is reachable whatever you print.",
+          "Every kind of shop can set a banner. It used to be locked behind the Services module, which meant a restaurant, a mart, a pharmacy and a retail shop could not set one at all.",
         ],
       },
       { type: "h", text: "Portfolio and reviews" },

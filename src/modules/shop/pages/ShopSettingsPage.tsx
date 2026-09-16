@@ -234,7 +234,7 @@ export default function ShopSettingsPage() {
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ["shop"] });
       if (user) setUser({ ...user, tenant: data });
-      toast.success("Cover photo updated — customers see it at the top of your shop.");
+      toast.success("Banner updated — customers see it at the top of your shop.");
     },
     onError: failed("Couldn't upload that photo."),
   });
@@ -243,7 +243,7 @@ export default function ShopSettingsPage() {
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ["shop"] });
       if (user) setUser({ ...user, tenant: data });
-      toast.success("Cover photo removed.");
+      toast.success("Banner removed.");
     },
     onError: failed("Couldn't remove that photo."),
   });
@@ -254,7 +254,7 @@ export default function ShopSettingsPage() {
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ["shop"] });
       if (user) setUser({ ...user, tenant: data });
-      toast.success("Logo updated — it prints on your next invoice.");
+      toast.success("Logo updated — customers see it beside your shop name.");
     },
     onError: failed("Couldn't upload that logo."),
   });
@@ -373,6 +373,87 @@ export default function ShopSettingsPage() {
                         <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="03xx-xxxxxxx" />
                       </Field>
                     </div>
+
+                    {/*
+                      THE LOGO, AND IT HAD NOWHERE TO LIVE.
+
+                      This sat inside the Invoice / receipt card, behind
+                      `{!!prefs.invoice_show_logo && …}` — so a shop that does
+                      not print a logo on its paperwork could not upload one at
+                      all. `uploadLogo` has exactly one caller in the panel, so
+                      that condition was the only door.
+
+                      And the logo is not an invoice thing. It is what the
+                      mobile app draws on a shop's row in the aisle, in search
+                      suggestions and in the basket — none of which has anything
+                      to do with a printer. A print toggle was switching off a
+                      marketplace feature.
+
+                      It lives in Business profile rather than beside the cover
+                      photo on purpose: the Online shop card is gated on the
+                      plan, and an Expense-Manager shop still prints invoices.
+                      Moving it there would have swapped one unreachable door
+                      for another. This section's own description already says
+                      what the logo is for — "shown on invoices and your
+                      storefront".
+                    */}
+                    <div className="mt-5">
+                      <p className="mb-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                        Shop logo
+                      </p>
+                      <p className="mb-2 text-theme-xs text-gray-400">
+                        The small square beside your name — in the app, in search, and on your
+                        invoices.
+                      </p>
+                    <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                      <input
+                        ref={logoRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadLogo.mutate(file);
+                          // Cleared so the SAME file can be chosen again after
+                          // a failed upload.
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                      {shop.data?.logo_url ? (
+                        <img
+                          src={shop.data.logo_url}
+                          alt="Shop logo"
+                          className="h-14 w-14 rounded-lg border border-gray-200 object-contain dark:border-gray-700"
+                        />
+                      ) : (
+                        <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-gray-300 text-theme-xs text-gray-400 dark:border-gray-700">
+                          None
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                          {shop.data?.logo_url ? "Logo uploaded" : "No logo uploaded yet"}
+                        </p>
+                        <p className="text-theme-xs text-gray-400">
+                          Square works best. PNG, JPG or WebP. It prints at the top of your
+                          invoices only while “Show logo” is on, under Invoice / receipt.
+                        </p>
+                        {uploadLogo.isError && (
+                          <p className="mt-1 text-theme-xs text-error-500">
+                            {uploadLogo.error instanceof ApiError ? uploadLogo.error.message : "Upload failed"}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={uploadLogo.isPending}
+                        onClick={() => logoRef.current?.click()}
+                      >
+                        {uploadLogo.isPending ? "Uploading…" : shop.data?.logo_url ? "Replace" : "Upload logo"}
+                      </Button>
+                    </div>
+                    </div>
                   </SectionCard>
 
                   <SectionCard icon={<GlobeGlyph />} title="Online shop" description="Your customer-facing storefront." badge={<Badge size="sm" color={online ? "success" : "light"}>{online ? "Enabled" : "Off"}</Badge>}>
@@ -392,7 +473,11 @@ export default function ShopSettingsPage() {
                         */}
                         <div className="mb-5">
                           <p className="mb-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                            Cover photo
+                            Shop online banner
+                          </p>
+                          <p className="mb-2 text-theme-xs text-gray-400">
+                            The wide picture across the top of your shop page, and on your card in
+                            the app. Different from the logo above.
                           </p>
                           <div
                             className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03]"
@@ -661,58 +746,6 @@ export default function ShopSettingsPage() {
                       <ToggleRow checked={!!prefs.receipt_show_cashier} onChange={(v) => setP("receipt_show_cashier", v)} label="Show who served" hint="Names the cashier who rang the sale." />
                     </div>
 
-                    {/* The logo itself. "Show logo" was a live toggle with
-                        nothing behind it — switch it on, print nothing, and no
-                        screen anywhere to say why. */}
-                    {!!prefs.invoice_show_logo && (
-                      <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                        <input
-                          ref={logoRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) uploadLogo.mutate(file);
-                            e.currentTarget.value = "";
-                          }}
-                        />
-                        {shop.data?.logo_url ? (
-                          <img
-                            src={shop.data.logo_url}
-                            alt="Shop logo"
-                            className="h-14 w-14 rounded-lg border border-gray-200 object-contain dark:border-gray-700"
-                          />
-                        ) : (
-                          <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-gray-300 text-theme-xs text-gray-400 dark:border-gray-700">
-                            None
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                            {shop.data?.logo_url ? "Your invoice logo" : "No logo uploaded yet"}
-                          </p>
-                          <p className="text-theme-xs text-gray-400">
-                            {shop.data?.logo_url
-                              ? "PNG, JPG or WebP. It prints at the top of every invoice."
-                              : "Nothing will print at the top of your invoices until you add one."}
-                          </p>
-                          {uploadLogo.isError && (
-                            <p className="mt-1 text-theme-xs text-error-500">
-                              {uploadLogo.error instanceof ApiError ? uploadLogo.error.message : "Upload failed"}
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={uploadLogo.isPending}
-                          onClick={() => logoRef.current?.click()}
-                        >
-                          {uploadLogo.isPending ? "Uploading…" : shop.data?.logo_url ? "Replace" : "Upload logo"}
-                        </Button>
-                      </div>
-                    )}
                   </SectionCard>
 
                   <SectionCard icon={<PercentGlyph />} title="Tax identifiers" description="Printed on the receipt when you're registered. Leave blank if you're not — nothing prints.">
