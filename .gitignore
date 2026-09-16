@@ -1,5 +1,6 @@
 # The `main` branch is an overview only — each app lives on its own branch
-# (backend, admin-panel, mobile). Keep the app folders out of main.
+# (backend, admin-panel, mobile, tenant-partner-app). Keep the app folders out
+# of main.
 # The app folders. Each is its own clone on its own branch; the parent holds
 # docs only. BOTH sets of names, because a machine may clone them under either
 # and a name this file has not heard of is not ignored — which is how a
@@ -14,6 +15,7 @@
 /backend/
 /panel/
 /mobile/
+/partner/
 
 # A stray npm install at the repo root leaves this behind; main carries docs only.
 node_modules/
