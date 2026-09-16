@@ -7,6 +7,8 @@ import { ChevronRightIcon, PinIcon, StarIcon, StoreIcon, TruckIcon } from "../co
 import { tradeLabel } from "../components/format";
 import { useAisle, useAisleFacets, useBanners, useMarketShops } from "../hooks/useMarketplace";
 import { marketplaceService, type PublicBanner } from "../services/marketplaceService";
+import { usePin } from "../usePin";
+import { useAuthStore } from "../../../stores/authStore";
 
 /**
  * THE MARKET'S FRONT PAGE.
@@ -29,12 +31,25 @@ export default function MarketPage() {
   const navigate = useNavigate();
   const cityId = params.get("city_id") ?? "";
 
+  /**
+   * THE PIN, SPREAD ACROSS EVERY LIST ON THE PAGE.
+   *
+   * Every one of these four calls went out without it, so the front page of
+   * cartze.shop listed deals, new arrivals and shops from businesses that
+   * cannot deliver to the person reading it. The phone has fenced all three
+   * since the radius existed. See `usePin` for where the coordinates come
+   * from and why the browser is never asked unprompted.
+   */
+  const signedIn = useAuthStore((s) => s.isAuthenticated);
+  const pin = usePin(signedIn);
+  const near = pin.lat !== null && pin.lng !== null ? { lat: pin.lat, lng: pin.lng } : {};
+
   const cities = useCities();
   const banners = useBanners();
-  const facets = useAisleFacets({ city_id: cityId || undefined });
-  const deals = useAisle({ city_id: cityId || undefined, on_sale: true, in_stock: true, sort: "discount", per_page: 8 });
-  const fresh = useAisle({ city_id: cityId || undefined, in_stock: true, sort: "newest", per_page: 12 });
-  const shops = useMarketShops({ city_id: cityId });
+  const facets = useAisleFacets({ city_id: cityId || undefined, ...near });
+  const deals = useAisle({ city_id: cityId || undefined, ...near, on_sale: true, in_stock: true, sort: "discount", per_page: 8 });
+  const fresh = useAisle({ city_id: cityId || undefined, ...near, in_stock: true, sort: "newest", per_page: 12 });
+  const shops = useMarketShops({ city_id: cityId, ...near });
 
   const cityName = cities.data?.find((c) => c.id === cityId)?.name;
 
@@ -245,8 +260,30 @@ export default function MarketPage() {
                   to={`/shop/${shop.slug}`}
                   className="group flex items-center gap-4 rounded-3xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-lg hover:shadow-brand-500/5 dark:border-white/10 dark:bg-gray-900 dark:hover:border-brand-500/40"
                 >
-                  <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-50 text-xl font-bold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-                    {shop.business_name.charAt(0)}
+                  {/*
+                    THE SHOP'S OWN PICTURE, which this card has never shown.
+
+                    It drew the first letter of the name, every time, for every
+                    shop — so a page of shops was a page of identical coloured
+                    squares. Not a design choice: `logo_url` and `cover_url`
+                    have been on the wire for months and the web's own type
+                    declared neither, so nothing here could reach them.
+
+                    The letter stays as the fallback, and it is still what most
+                    shops will show — which is the point. A shop that uploaded
+                    a photograph should not look like one that did not.
+                  */}
+                  <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-brand-50 text-xl font-bold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+                    {shop.logo_url || shop.cover_url ? (
+                      <img
+                        src={shop.logo_url ?? shop.cover_url ?? ""}
+                        alt=""
+                        loading="lazy"
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      shop.business_name.charAt(0)
+                    )}
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-semibold text-gray-900 transition group-hover:text-brand-600 dark:text-white">
@@ -266,6 +303,17 @@ export default function MarketPage() {
                           <span className="tabular-nums">{shop.rating}</span>
                           <span className="text-gray-400">({shop.reviews_count})</span>
                         </span>
+                      )}
+                      {/*
+                        HOW FAR, and whether it reaches you — both null until
+                        the request carries a pin, which is why neither has
+                        ever appeared on this page. See `usePin`.
+                      */}
+                      {shop.distance_km != null && (
+                        <span className="tabular-nums">{shop.distance_km.toFixed(1)} km</span>
+                      )}
+                      {shop.delivers_to_me === false && (
+                        <span className="text-gray-400">Pickup only from here</span>
                       )}
                     </span>
                   </span>

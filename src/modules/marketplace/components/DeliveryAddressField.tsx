@@ -21,10 +21,24 @@ import { useAddresses, useDeleteAddress, useSaveAddress } from "../hooks/useMark
  *
  * ── What it does NOT do ────────────────────────────────────────────────
  *
- * No map, no pin, no autocomplete. A Pakistani address is a sentence — "House
- * 42, Street 7, Phase 4, DHA, near the Total pump" — and a form with fields for
+ * No map, no autocomplete. A Pakistani address is a sentence — "House 42,
+ * Street 7, Phase 4, DHA, near the Total pump" — and a form with fields for
  * house/street/area would refuse half of them. One box, saved and reused, does
  * the whole job.
+ *
+ * ── It does now carry a PIN, and that was not cosmetic ─────────────────
+ *
+ * The sentence is what a rider reads. The coordinates are what the SYSTEM
+ * reads, and without them a web order was never fenced by the shop's delivery
+ * radius at all — `OrderService::place` measures the distance only when a pin
+ * is present. So a shop that delivers five kilometres accepted a web order
+ * from the next city, and found out when the rider refused it. The phone has
+ * sent a pin since the radius existed; this was the half that did not.
+ *
+ * The pin is OPTIONAL and stays that way. "Use my current location" is a
+ * button, never a prompt on load — a permission dialog nobody asked for is a
+ * permission people deny, and a denial is remembered for ever. An address with
+ * no pin behaves exactly as it did before.
  *
  * ── Falling back is not an error state ─────────────────────────────────
  *
@@ -35,7 +49,14 @@ import { useAddresses, useDeleteAddress, useSaveAddress } from "../hooks/useMark
 
 interface Props {
   value: string;
-  onChange: (address: string) => void;
+  /**
+   * The sentence, and the pin behind it when there is one.
+   *
+   * Both in one callback rather than two, because they are one answer: an
+   * address whose pin belongs to a DIFFERENT address is worse than no pin,
+   * and two setters is how those drift apart.
+   */
+  onChange: (address: string, lat: number | null, lng: number | null) => void;
   /** Saved addresses belong to a signed-in customer; nobody else has any. */
   enabled: boolean;
 }
@@ -54,13 +75,42 @@ export function DeliveryAddressField({ value, onChange, enabled }: Props) {
   const [entering, setEntering] = useState(false);
   const [saveIt, setSaveIt] = useState(true);
   const [prefilled, setPrefilled] = useState(false);
+  /** The pin for the address being TYPED. A picked one carries its own. */
+  const [typedPin, setTypedPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  const locate = () => {
+    if (!navigator.geolocation) {
+      toast.error("This browser cannot share a location.");
+
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setTypedPin({ lat: position.coords.latitude, lng: position.coords.longitude });
+        onChange(value, position.coords.latitude, position.coords.longitude);
+        setLocating(false);
+        toast.success("Location attached — the shop can check it delivers here");
+      },
+      () => {
+        setLocating(false);
+        // Not an error the order depends on: the address alone still works,
+        // which is exactly how it worked before the pin existed.
+        toast.error("Couldn't get your location. You can still order with the address.");
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 300_000 },
+    );
+  };
 
   // Fill in the default ONCE, and only into an empty box. Re-running it would
   // overwrite an address somebody was halfway through typing every time the
   // list refetched — the exact bug a saved-address feature is supposed to fix.
   useEffect(() => {
     if (prefilled || value !== "" || saved.length === 0) return;
-    onChange((saved.find((a) => a.is_default) ?? saved[0]).address);
+    const first = saved.find((a) => a.is_default) ?? saved[0];
+    onChange(first.address, first.latitude, first.longitude);
     setPrefilled(true);
   }, [saved, value, prefilled, onChange]);
 
@@ -85,7 +135,7 @@ export function DeliveryAddressField({ value, onChange, enabled }: Props) {
               <button
                 key={a.id}
                 type="button"
-                onClick={() => onChange(a.address)}
+                onClick={() => onChange(a.address, a.latitude, a.longitude)}
                 aria-pressed={chosen}
                 className={`flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm ${
                   chosen
@@ -101,6 +151,12 @@ export function DeliveryAddressField({ value, onChange, enabled }: Props) {
                     </span>
                   )}
                   <span className="block truncate text-gray-600 dark:text-gray-300">{a.address}</span>
+                  {a.latitude == null && (
+                    // Said out loud, because an address with no pin cannot be
+                    // checked against the shop's delivery radius before the
+                    // order is placed — it is refused later instead.
+                    <span className="block text-theme-xs text-gray-400">No map pin saved</span>
+                  )}
                 </span>
                 <span
                   role="button"
@@ -129,7 +185,8 @@ export function DeliveryAddressField({ value, onChange, enabled }: Props) {
             type="button"
             onClick={() => {
               setEntering(true);
-              onChange("");
+              setTypedPin(null);
+              onChange("", null, null);
             }}
             className="text-theme-xs text-brand-500 hover:underline"
           >
@@ -141,8 +198,17 @@ export function DeliveryAddressField({ value, onChange, enabled }: Props) {
           <Input
             placeholder="Delivery address"
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => onChange(e.target.value, typedPin?.lat ?? null, typedPin?.lng ?? null)}
           />
+
+          <button
+            type="button"
+            onClick={locate}
+            disabled={locating}
+            className="text-theme-xs text-brand-500 hover:underline disabled:opacity-50"
+          >
+            {locating ? "Finding you…" : typedPin ? "Location attached · update it" : "Use my current location"}
+          </button>
 
           {enabled && (
             <label className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
@@ -162,7 +228,12 @@ export function DeliveryAddressField({ value, onChange, enabled }: Props) {
               disabled={save.isPending}
               onClick={() =>
                 save.mutate(
-                  { address: value.trim(), is_default: saved.length === 0 },
+                  {
+                    address: value.trim(),
+                    latitude: typedPin?.lat ?? null,
+                    longitude: typedPin?.lng ?? null,
+                    is_default: saved.length === 0,
+                  },
                   {
                     onSuccess: () => {
                       setEntering(false);

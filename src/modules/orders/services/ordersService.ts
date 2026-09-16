@@ -38,6 +38,20 @@ export interface PlaceOrderPayload {
   shop_slug: string;
   fulfillment_type: "delivery" | "pickup";
   delivery_address?: string;
+  /**
+   * WHERE IT IS GOING, as coordinates — and the web sent neither.
+   *
+   * The endpoint has accepted these since the delivery radius existed, and
+   * the phone sends them from the chosen address. This type declared only the
+   * sentence, so a web order carried no pin, and two things followed:
+   *
+   *   · `OrderService::place` only measures the radius when a pin is present,
+   *     so a web order was never fenced — a shop that delivers 5 km accepted
+   *     an order from the next city and found out when the rider refused;
+   *   · the rider was handed a destination with nothing to put on a map.
+   */
+  latitude?: number;
+  longitude?: number;
   payment_method?: "cod" | "paid";
   items?: Array<{ product_id: string; variant_id?: string | null; quantity: number; modifier_option_ids?: string[] }>;
   notes?: string;

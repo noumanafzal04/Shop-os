@@ -1126,6 +1126,16 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "h", text: "Getting listed" },
       { type: "p", text: "Your shop appears to customers once your setup is complete, your city is set and the online module is on. Products need a photo — an online customer must be able to see what they are buying." },
+      { type: "h", text: "Your cover photo" },
+      { type: "p", text: "Settings \u2192 Online shop \u2192 Cover photo. One wide picture, up to 4 MB, and it is the first thing a shopper sees: it fills the band across the top of your shop page AND the card your shop appears as on the home screen. Without one the app draws a coloured tile with your initial on it \u2014 which looks like a page that failed to load rather than a shop that did not upload." },
+      {
+        type: "list",
+        items: [
+          "Wide, not square. It is cropped to a band, so a photograph with the important part in the middle survives; a poster with words along the edge does not.",
+          "This is separate from your invoice logo. The logo is the small square beside your name; the cover is the big picture behind it.",
+          "Every kind of shop can set one. It used to be locked behind the Services module, which meant a restaurant, a mart, a pharmacy and a retail shop could not set a cover at all.",
+        ],
+      },
       { type: "h", text: "Portfolio and reviews" },
       {
         type: "list",
@@ -1176,6 +1186,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
           "In stock — a shopper can ask to see only what can be sent today. Anything you have marked sold out for the night drops out of that list and comes back when you turn it on again.",
           "Sizes — a product with sizes is listed once, and the shopper picks the size on the card. A size that has run out is shown crossed through rather than hidden, so they can see you normally have it.",
           "Options — items with choices or add-ons cannot be added straight from a card. They send the shopper to the product's own page, where the questions are asked.",
+        ],
+      },
+      { type: "h", text: "The website knows where the shopper is too" },
+      { type: "p", text: "Until now only the phone app did. The website listed every shop in the chosen city, so somebody could fill a basket at a shop that does not deliver to them and only find out when the order was refused. The site now asks for a location \u2014 from their saved delivery address, or from a \u201cUse my current location\u201d button they press \u2014 and uses it the same way the app does." },
+      {
+        type: "list",
+        items: [
+          "Your delivery radius is applied on the website as well. A shopper outside it no longer sees you in the list, which means fewer orders you have to refuse.",
+          "Cards show how far away you are, and say \u201cpickup only from here\u201d when the shopper is beyond your radius but can still collect.",
+          "Nothing is demanded. A visitor who does not share a location browses exactly as before \u2014 by city.",
+          "A web order now carries the map pin as well as the written address, so your rider gets a destination they can open in maps.",
         ],
       },
       { type: "h", text: "One basket, or several — it depends where they are shopping" },

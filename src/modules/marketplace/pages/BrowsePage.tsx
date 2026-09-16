@@ -10,6 +10,8 @@ import { CloseIcon, FilterIcon, SearchIcon } from "../components/MarketIcons";
 import { tradeLabel } from "../components/format";
 import { useAisle, useAisleFacets } from "../hooks/useMarketplace";
 import type { AisleFilters } from "../services/marketplaceService";
+import { usePin } from "../usePin";
+import { useAuthStore } from "../../../stores/authStore";
 
 const SORTS: Array<{ value: NonNullable<AisleFilters["sort"]>; label: string }> = [
   { value: "name", label: "Alphabetical" },
@@ -45,6 +47,10 @@ const readFilters = (params: URLSearchParams): AisleFilters => {
     max_price: num("max_price"),
     on_sale: params.get("on_sale") === "1" || undefined,
     in_stock: params.get("in_stock") === "1" || undefined,
+    // The two the rail could not offer because this file did not read them.
+    // Same names as the phone's, so a filter means one thing everywhere.
+    open_now: params.get("open_now") === "1" || undefined,
+    free_delivery: params.get("free_delivery") === "1" || undefined,
     rating_min: num("rating_min"),
     sort: (params.get("sort") as AisleFilters["sort"]) || "name",
     page: num("page") ?? 1,
@@ -55,7 +61,21 @@ export default function BrowsePage() {
   const [params, setParams] = useSearchParams();
   const [railOpen, setRailOpen] = useState(false);
 
-  const filters = useMemo(() => readFilters(params), [params]);
+  /**
+   * THE PIN IS NOT A FILTER, so it is not in the URL.
+   *
+   * Everything `readFilters` reads is a choice somebody made and should be
+   * able to share in a link. Where they are standing is neither: a URL
+   * carrying somebody else's coordinates would show the recipient a list
+   * fenced to a city they are not in. So it is merged in here, after.
+   */
+  const signedIn = useAuthStore((s) => s.isAuthenticated);
+  const pin = usePin(signedIn);
+  const urlFilters = useMemo(() => readFilters(params), [params]);
+  const filters = useMemo<AisleFilters>(
+    () => (pin.lat !== null && pin.lng !== null ? { ...urlFilters, lat: pin.lat, lng: pin.lng } : urlFilters),
+    [urlFilters, pin.lat, pin.lng],
+  );
 
   const aisle = useAisle(filters);
   const facets = useAisleFacets(filters);

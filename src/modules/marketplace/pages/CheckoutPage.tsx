@@ -17,6 +17,15 @@ type Fulfillment = "delivery" | "pickup";
 interface ShopChoices {
   fulfillment: Fulfillment;
   address: string;
+  /**
+   * The pin behind the sentence, when the address has one.
+   *
+   * Per shop rather than per page, because the fulfillment choice is per shop
+   * too: a basket can be a delivery from one and a pickup from another, and a
+   * pin belongs to the leg that is actually being delivered.
+   */
+  lat: number | null;
+  lng: number | null;
   coupon: string;
   notes: string;
 }
@@ -62,7 +71,7 @@ export default function CheckoutPage() {
   const [placing, setPlacing] = useState(false);
 
   const choicesFor = (slug: string): ShopChoices =>
-    choices[slug] ?? { fulfillment: "delivery", address: "", coupon: "", notes: "" };
+    choices[slug] ?? { fulfillment: "delivery", address: "", lat: null, lng: null, coupon: "", notes: "" };
 
   const setFor = (slug: string, patch: Partial<ShopChoices>) =>
     setChoices((was) => ({ ...was, [slug]: { ...choicesFor(slug), ...patch } }));
@@ -86,6 +95,11 @@ export default function CheckoutPage() {
           shop_slug: group.shop_slug,
           fulfillment_type: mine.fulfillment,
           delivery_address: mine.fulfillment === "delivery" ? mine.address.trim() : undefined,
+          // The pin that goes with the address, when there is one. Only on a
+          // DELIVERY — a pickup has no destination, and sending one would put
+          // the customer's home on an order they are collecting themselves.
+          latitude: mine.fulfillment === "delivery" ? (mine.lat ?? undefined) : undefined,
+          longitude: mine.fulfillment === "delivery" ? (mine.lng ?? undefined) : undefined,
           coupon_code: mine.coupon.trim() || undefined,
           notes: mine.notes.trim() || undefined,
           items: group.lines.map((l) => ({
@@ -247,7 +261,7 @@ export default function CheckoutPage() {
                     {mine.fulfillment === "delivery" && (
                       <DeliveryAddressField
                         value={mine.address}
-                        onChange={(address) => setFor(group.shop_slug, { address })}
+                        onChange={(address, lat, lng) => setFor(group.shop_slug, { address, lat, lng })}
                         enabled
                       />
                     )}

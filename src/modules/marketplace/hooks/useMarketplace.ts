@@ -11,6 +11,7 @@ import {
   type AddressPayload,
   type AisleFilters,
   type RegisterPayload,
+  type ShopListParams,
 } from "../services/marketplaceService";
 
 export function useBanners() {
@@ -21,7 +22,7 @@ export function useBanners() {
   });
 }
 
-export function useMarketShops(params: { city_id?: string; search?: string; page?: number }) {
+export function useMarketShops(params: ShopListParams) {
   return useQuery({
     queryKey: ["market", "shops", params],
     queryFn: () => marketplaceService.shops(params),

@@ -157,6 +157,8 @@ export function FilterRail({
     [value.city_id, value.business_type, value.category, value.size, value.shop_slug].filter(Boolean).length +
     (value.on_sale ? 1 : 0) +
     (value.in_stock ? 1 : 0) +
+    (value.open_now ? 1 : 0) +
+    (value.free_delivery ? 1 : 0) +
     (value.rating_min ? 1 : 0) +
     (value.min_price !== undefined || value.max_price !== undefined ? 1 : 0);
 
@@ -188,6 +190,27 @@ export function FilterRail({
             count={facets?.on_sale_count}
             chosen={value.on_sale === true}
             onClick={() => toggle("on_sale", true)}
+          />
+          {/*
+            THE TWO THE PHONE HAD AND THIS RAIL DID NOT.
+
+            "Is it open" and "is delivery free" are the two questions somebody
+            hungry at nine in the evening actually asks, and the server has
+            answered both — under these names, with these counts — since the
+            aisle's filters were written. The web simply never asked: neither
+            the filter type, nor the URL reader, nor this rail mentioned them.
+          */}
+          <Chip
+            label="Open now"
+            count={facets?.open_now_count}
+            chosen={value.open_now === true}
+            onClick={() => toggle("open_now", true)}
+          />
+          <Chip
+            label="Free delivery"
+            count={facets?.free_delivery_count}
+            chosen={value.free_delivery === true}
+            onClick={() => toggle("free_delivery", true)}
           />
         </div>
       </Section>

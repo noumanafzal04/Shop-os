@@ -7,7 +7,21 @@ export interface PublicShop {
   business_type: string | null;
   business_category: string | null;
   city: { id: string; name: string } | null;
+  /**
+   * A PATH THE BROWSER CANNOT LOAD, and the URLs it can.
+   *
+   * `logo_path` is a storage path — `logos/{id}/abc.png` — and this file
+   * declared only that one, so nothing on the web could draw a shop's picture
+   * even if a page had tried. Nothing did: a grep for `logo` across every
+   * marketplace page returns this line and nothing else, which is why the web
+   * storefront is a wall of text while the phone shows photographs.
+   *
+   * The server has sent `logo_url` since the phone needed it and `cover_url`
+   * since covers shipped. Both absolute.
+   */
   logo_path: string | null;
+  logo_url?: string | null;
+  cover_url?: string | null;
   rating: number | null;
   reviews_count: number;
   address?: string | null;
@@ -17,6 +31,20 @@ export interface PublicShop {
   categories?: Array<{ id: string; name: string }>;
   features?: { delivery: boolean; reservations: boolean; services: boolean };
   delivery_fee?: number;
+  /**
+   * WHAT A CARD NEEDS TO BE DECIDABLE — on the wire all along, undeclared here.
+   *
+   * `delivers` is not the same fact as a fee of zero: one is a shop that
+   * delivers free and the other is a counter you have to walk to.
+   * `distance_km` and `delivers_to_me` are null unless the request carried a
+   * pin, which is the other half of the same gap — see `ShopListParams`.
+   */
+  delivers?: boolean;
+  distance_km?: number | null;
+  delivers_to_me?: boolean;
+  prep_time_minutes?: number | null;
+  free_delivery_threshold?: number | null;
+  min_order_amount?: number | null;
   accepts_orders?: boolean;
   service_area?: string | null;
   gallery?: string[];
@@ -163,6 +191,27 @@ export interface AisleFacets {
   sizes: Array<{ name: string; products_count: number }>;
   price: { min: number; max: number };
   on_sale_count: number;
+  // Sent by the server since the filters existed; nothing here declared them,
+  // so the rail could not have offered the toggles even if it had wanted to.
+  open_now_count: number;
+  free_delivery_count: number;
+}
+
+/** Everything a page of SHOPS can be narrowed by. Every field is optional. */
+export interface ShopListParams {
+  city_id?: string;
+  search?: string;
+  lat?: number;
+  lng?: number;
+  business_type?: string;
+  business_category?: string;
+  open_now?: boolean;
+  free_delivery?: boolean;
+  rating_min?: number;
+  /** Kilometres. Needs `lat`/`lng` — a radius with no pin means nothing. */
+  radius?: number;
+  sort?: "name" | "rating";
+  page?: number;
 }
 
 /** Everything the aisle can be narrowed by. Every field is optional. */
@@ -177,6 +226,15 @@ export interface AisleFilters {
    */
   ids?: string;
   city_id?: string;
+  /**
+   * WHERE THE SHOPPER IS — the fence, not a filter they set.
+   *
+   * The server has applied this to the aisle since the radius existed and the
+   * web never sent it, so the web aisle listed goods from shops that cannot
+   * reach the person reading it. See `usePin`.
+   */
+  lat?: number;
+  lng?: number;
   business_type?: string;
   shop_slug?: string;
   category?: string;
@@ -187,6 +245,15 @@ export interface AisleFilters {
   on_sale?: boolean;
   in_stock?: boolean;
   rating_min?: number;
+  /**
+   * The two the phone has and the web did not.
+   *
+   * "Is it open" and "is delivery free" are the questions somebody hungry at
+   * nine in the evening is asking, and the rail had no way to ask either —
+   * while the server has answered both, under these exact names, all along.
+   */
+  open_now?: boolean;
+  free_delivery?: boolean;
   sort?: "name" | "price_asc" | "price_desc" | "newest" | "discount" | "rating";
   page?: number;
   per_page?: number;
@@ -216,11 +283,35 @@ export const aisleParams = (f: AisleFilters): Record<string, string | number | u
 };
 
 export const marketplaceService = {
-  shops: (params: { city_id?: string; search?: string; page?: number }) =>
+  /**
+   * THE SHOP LIST — and it asked for three things out of ten.
+   *
+   * It sent `city_id`, `search` and `page`. The endpoint has always accepted
+   * the pin, the trade, the finer category, open-now, free-delivery, a rating
+   * floor, a radius and a sort — the phone sends all of them. So the web had
+   * a city dropdown where the app has a location, no way to narrow a page of
+   * shops to the trade the tile just promised, and no distance on any card.
+   *
+   * Every value is passed through as `undefined` when absent rather than as
+   * an empty string: `?business_type=` reaches the server as a present, empty
+   * trade, which is a different cache key for the same list.
+   */
+  shops: (params: ShopListParams) =>
     apiGet<PublicShop[]>("/marketplace/shops", {
       params: {
         city_id: params.city_id || undefined,
         search: params.search || undefined,
+        lat: params.lat,
+        lng: params.lng,
+        business_type: params.business_type || undefined,
+        business_category: params.business_category || undefined,
+        // Sent only when ON. A `false` on the wire is a filter the server has
+        // to decide the meaning of; an absent one is unambiguous.
+        open_now: params.open_now ? 1 : undefined,
+        free_delivery: params.free_delivery ? 1 : undefined,
+        rating_min: params.rating_min ?? undefined,
+        radius: params.radius ?? undefined,
+        sort: params.sort || undefined,
         page: params.page ?? 1,
       },
     }),
@@ -303,6 +394,27 @@ export interface SavedAddress {
   label: string | null;
   address: string;
   city?: { id: string; name: string } | null;
+  /**
+   * THE PIN, and the web had none.
+   *
+   * `customer_addresses` has carried these columns since the marketplace
+   * shipped and the phone has always sent them; this file declared neither,
+   * so a web address was a sentence with no coordinates behind it. Three
+   * things follow from that, and all three were live:
+   *
+   *   · the delivery-radius fence is only measured when a pin is present, so
+   *     a web order was never fenced at all — a shop that delivers 5 km
+   *     accepted an order from the next city;
+   *   · the rider got a destination they could not put on a map;
+   *   · and nothing on the web could be sorted or filtered by distance,
+   *     because the browser never knew where the shopper was.
+   *
+   * Nullable, because the address box is still a sentence — see
+   * `DeliveryAddressField`. The pin is something a shopper may add, not
+   * something they must satisfy before they can order.
+   */
+  latitude: number | null;
+  longitude: number | null;
   /** Exactly one of these is true at a time; the server keeps it that way. */
   is_default: boolean;
 }
@@ -310,6 +422,8 @@ export interface SavedAddress {
 export interface AddressPayload {
   label?: string;
   address: string;
+  latitude?: number | null;
+  longitude?: number | null;
   is_default?: boolean;
 }
 
