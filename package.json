@@ -1,0 +1,18 @@
+{
+  "name": "@cartze/core",
+  "version": "0.0.0",
+  "private": true,
+  "_note": [
+    "The layer both apps stand on: design tokens, UI primitives, the HTTP",
+    "client, keychain prefs. Consumed by Metro/jest/tsc ALIAS rather than by",
+    "npm install — see mobile/metro.config.js. There is no build step and no",
+    "node_modules of its own: react and react-native resolve from whichever",
+    "app is doing the importing, because two copies of React in one bundle",
+    "breaks hooks."
+  ],
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  }
+}
