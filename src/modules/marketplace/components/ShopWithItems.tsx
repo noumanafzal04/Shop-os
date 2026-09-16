@@ -100,9 +100,29 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
         accessibilityLabel={shop.business_name}
         onPress={onOpen}
       >
-        <View style={styles.logoWrap}>
+        {/*
+          THE LOGO, FITTED — and both halves of that were decided here.
+
+          WHICH picture: this slot is 58×58. The logo is the small square mark
+          a shop draws beside its name; the banner is the wide one across the
+          top of its page. A 16:9 banner squeezed into a square box is a slice
+          out of its middle — three letters of a name on the seeded shops, and
+          whatever happened to be centre-frame on a real one. So the square
+          slot asks for the logo and the wide band asks for the banner, and
+          `shopAvatar`/`shopBanner` are those two rules written once.
+
+          HOW it sits: `contain`, not the default `cover`. A logo is rarely
+          square — a wordmark is wide — and cropping one to fill a square box
+          cuts the ends off the name. Fitted, the whole mark is there and the
+          bands around it are the shop's own derived tint, so the box still
+          reads as a filled tile rather than a hole. It is also what the panel
+          shows in its own preview (`object-contain`), so what a shopkeeper
+          approves is what a customer gets.
+        */}
+        <View style={[styles.logoWrap, { backgroundColor: cover.bg }]}>
           <SmartImage
             uri={shopAvatar(shop)}
+            resizeMode="contain"
             fallback={shopInitial(shop.business_name)}
             fallbackBackground={cover.bg}
             fallbackColor={cover.fg}
