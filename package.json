@@ -1,0 +1,34 @@
+{
+  "_note": [
+    "INTENT ONLY. Nothing is installed and this does not run.",
+    "Versions are pinned to whatever mobile/package.json holds at the time",
+    "Phase 1 starts, so the two apps share one React Native and one set of",
+    "native modules. Two RN versions in one product is two upgrade paths.",
+    "",
+    "NOT LISTED, deliberately: @react-native-firebase/* — see DECISIONS #1.",
+    "It is added when google-services.json exists, and not before: a Firebase",
+    "package with no config file fails at build rather than at runtime."
+  ],
+  "name": "cartze-partner",
+  "private": true,
+  "version": "0.0.0",
+  "_dependencies_planned": {
+    "@react-navigation/native": "same as mobile",
+    "@react-navigation/bottom-tabs": "same as mobile",
+    "@react-navigation/native-stack": "same as mobile",
+    "@tanstack/react-query": "same as mobile",
+    "axios": "same as mobile",
+    "react": "same as mobile",
+    "react-native": "same as mobile",
+    "react-native-image-picker": "product photos",
+    "react-native-keychain": "tokens — never plain storage",
+    "react-native-safe-area-context": "same as mobile",
+    "react-native-screens": "same as mobile",
+    "react-native-svg": "icons",
+    "zustand": "same as mobile"
+  },
+  "_not_used": {
+    "@react-native-community/geolocation": "a shop does not move",
+    "reanimated / gesture-handler / async-storage": "the customer app ships without them and so does this"
+  }
+}
