@@ -23,7 +23,28 @@
       // it used to assert.
       "react": ["./node_modules/@types/react", "./node_modules/react"],
       // react-native ships its own types, so one entry is enough.
-      "react-native": ["./node_modules/react-native"]
+      "react-native": ["./node_modules/react-native"],
+       // EVERYTHING ELSE, and this is the entry that scales.
+       //
+       // A file under ../core importing `react-native-svg`, `react-navigation`
+       // or `react-native-safe-area-context` resolves upward from its OWN
+       // folder and reaches none of them. Adding a `paths` line per package
+       // would mean this file needs editing every time core touches a new
+       // dependency — a rule that has to be remembered is a rule that gets
+       // forgotten.
+       //
+       // The wildcard is LAST, so the explicit entries above still win. For
+       // files inside this app it changes nothing: `./node_modules/*` is where
+       // node would have looked anyway.
+       //
+       // `@types` comes FIRST inside it, and that ordering is the same lesson
+       // as the `react` entry above, learned twice: put the package first and
+       // a library whose types live in a separate @types package resolves to
+       // a JS entry with no declarations. TypeScript does not fall back — it
+       // reports implicit-any, and `react-test-renderer` took the whole test
+       // tree down that way. A package that ships its OWN types has no @types
+       // directory, so it falls through to the second entry untouched.
+      "*": ["./node_modules/@types/*", "./node_modules/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],

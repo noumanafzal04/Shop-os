@@ -9,7 +9,7 @@ import {
   PersonIcon,
   ReceiptIcon,
   WalletIcon,
-} from "../src/common/ui/icons";
+} from "../../core/src/ui/icons";
 
 /**
  * THE BAR HAS TO SAY WHICH TAB YOU ARE ON.
@@ -156,7 +156,7 @@ describe("each glyph draws, both ways", () => {
     // The drawings are imported and the code is not, so there is no dependency
     // to point at — the attribution has to live somewhere a person will find.
     const icons = fs.readFileSync(
-      path.join(PROJECT_ROOT, "src/common/ui/icons/index.tsx"), "utf8",
+      path.join(PROJECT_ROOT, "../core/src/ui/icons/index.tsx"), "utf8",
     );
     expect(icons).toMatch(/MIT licensed, copied from/);
     expect(fs.readFileSync(path.join(PROJECT_ROOT, "LICENSE-icons.md"), "utf8"))

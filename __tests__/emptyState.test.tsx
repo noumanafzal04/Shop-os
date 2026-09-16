@@ -3,7 +3,7 @@ import ReactTestRenderer from "react-test-renderer";
 import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
 import { ThemeProvider } from "../src/theme";
 import { EmptyState } from "../src/common/ui/EmptyState";
-import { BagIcon } from "../src/common/ui/icons";
+import { BagIcon } from "../../core/src/ui/icons";
 
 /**
  * A SCREEN WITH NOTHING ON IT STILL HAS TO LOOK MADE.

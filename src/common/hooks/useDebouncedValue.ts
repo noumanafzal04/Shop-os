@@ -1,15 +1,9 @@
-import { useEffect, useState } from "react";
-
 /**
- * Debounce a fast-changing value (search inputs → API filters).
+ * MOVED to `@cartze/core`. This line is the seam.
+ *
+ * Every import of this path in the app keeps working while the code itself
+ * lives where CartZe Partner can reach it. Repointing 5 call sites in the
+ * commit that moves the file would be one change with nothing green in
+ * between, and this app has a released APK.
  */
-export function useDebouncedValue<T>(value: T, delayMs = 300): T {
-  const [debounced, setDebounced] = useState(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
-
-  return debounced;
-}
+export * from "@cartze/core/hooks/useDebouncedValue";

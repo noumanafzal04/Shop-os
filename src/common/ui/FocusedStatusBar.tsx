@@ -1,20 +1,9 @@
-import React from "react";
-import { StatusBar, type StatusBarStyle } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
-
 /**
- * Per-screen status bar that only applies while its screen is focused —
- * tab screens stay mounted, so a plain <StatusBar> would leak its style
- * to sibling tabs. Colored headers use light icons; light screens dark.
+ * MOVED to `@cartze/core`. This line is the seam.
+ *
+ * Every import of this path in the app keeps working while the code itself
+ * lives where CartZe Partner can reach it. Repointing 5 call sites in the
+ * commit that moves the file would be one change with nothing green in
+ * between, and this app has a released APK.
  */
-export function FocusedStatusBar({
-  style,
-  background,
-}: {
-  style: StatusBarStyle;
-  background?: string;
-}) {
-  const focused = useIsFocused();
-  if (!focused) return null;
-  return <StatusBar barStyle={style} backgroundColor={background} animated />;
-}
+export * from "@cartze/core/ui/FocusedStatusBar";

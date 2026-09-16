@@ -51,10 +51,15 @@ const jestConfig = codeOnly(read("jest.config.js"));
  *
  *   · its own comments describe the mapping, so a raw text scan reads its
  *     documentation instead of its config — the same trap as above;
- *   · `codeOnly` strips `/* … *\/` blocks, and the path `"@cartze/core/*"`
- *     CONTAINS `/*`. Run over this file it opens a comment that never
- *     closes and swallows the rest of it, so every assertion failed against
- *     a truncated string. That is what happened on the first run.
+ *   · `codeOnly` strips block comments, and the path `"@cartze/core/*"`
+ *     CONTAINS the opening sequence. Run over this file it opened a comment
+ *     that never closed and swallowed the rest, so every assertion ran
+ *     against a truncated string.
+ *
+ * Which is also why `tsconfig.json` is written with `//` comments only: a
+ * one-line stripper is the whole JSONC support this needs, and the clever
+ * version is the one that broke. Block comments there took the SUITE down —
+ * reported, as ever, with the missing tests simply not counted.
  *
  * Parsing answers the actual question — what will the compiler resolve —
  * rather than what the file happens to say.

@@ -29,21 +29,6 @@ const ALLOWED = new Map<string, string>([
     "src/common/utils/prefs.ts",
     "the Keychain service holding saved settings — same reason as the session store",
   ],
-  /**
-   * The seam left behind by the extraction into `@cartze/core`.
-   *
-   * The rule this list guards is about the name appearing in anything a
-   * PERSON reads — a title, a toast, a store listing. A package specifier is
-   * not that: it is resolved by three config files and never rendered.
-   *
-   * Named rather than pattern-matched on the specifier, because the check
-   * above forces an allow-listed file to still USE its exemption — so when
-   * the last caller is repointed and the seam is deleted, this entry fails
-   * until it is removed with it. The list cannot quietly outlive the thing it
-   * excuses, and it already has not: `tokens.ts` and `themes.ts` were here one
-   * slice ago and both entries went with the files.
-   */
-  ["src/theme/index.ts", "re-export seam: the @cartze/core specifier"],
 ]);
 
 /**
@@ -52,6 +37,25 @@ const ALLOWED = new Map<string, string>([
  * exists to surface, and neither carries the capitals.
  */
 const NAMES = [BRAND.name, "ShopOS"].map((n) => n.toLowerCase());
+
+/**
+ * A RE-EXPORT SEAM IS NOT A BRAND MENTION.
+ *
+ * The extraction into `@cartze/core` leaves behind one-line files that do
+ * nothing but forward, and the package's name contains the product's. Naming
+ * each of them in ALLOWED would be seventeen entries today and more with
+ * every slice — a list nobody reads, on a rule that exists to be read.
+ *
+ * So it is a rule rather than a list: a line that is EXACTLY a re-export of
+ * this package does not count. The shape is narrow on purpose. It is not
+ * "any line mentioning the package" — a toast that said "Welcome to CartZe"
+ * would still be caught, and so would an import used to build a string.
+ *
+ * What the original rule protects is the name appearing in anything a PERSON
+ * reads: a title, a toast, a store listing. A module specifier is resolved by
+ * three config files and never rendered.
+ */
+const SEAM = /^\s*export \* from "@cartze\/core[^"]*";\s*$/;
 
 const ROOT = PROJECT_ROOT;
 
@@ -188,6 +192,7 @@ describe("the product's name lives in exactly one place", () => {
       const offences = stripComments(fs.readFileSync(full, "utf8"))
         .split("\n")
         .map((line, i) => [i + 1, line] as const)
+        .filter(([, line]) => !SEAM.test(line))
         .filter(([, line]) => NAMES.some((n) => line.toLowerCase().includes(n)))
         .map(([n, line]) => `  ${rel}:${n}  ${line.trim()}`);
 

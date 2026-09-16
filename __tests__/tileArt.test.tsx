@@ -217,7 +217,7 @@ describe("no asset pipeline was added for this", () => {
 
     // …and the glyphs it delegates to are vectors, drawn in the app.
     const icons = fs.readFileSync(
-      path.join(PROJECT_ROOT, "src/common/ui/icons/index.tsx"),
+      path.join(PROJECT_ROOT, "../core/src/ui/icons/index.tsx"),
       "utf8",
     );
     expect(icons).toMatch(/from "react-native-svg"/);
