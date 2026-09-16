@@ -11,6 +11,7 @@ use Database\Seeders\LahoreShopsSeeder;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -40,6 +41,22 @@ class LahoreShopsSeederTest extends TestCase
     {
         parent::setUp();
         $this->withoutMiddleware(ThrottleRequests::class);
+
+        /**
+         * A DISK THAT SERVES A REAL ORIGIN.
+         *
+         * `Storage::fake` rebuilds the disk from its own config, so the `url`
+         * has to be set AFTER it and the resolved instance forgotten — set
+         * before, it is discarded and `Storage::url()` answers `/storage/…`,
+         * which React Native cannot fetch any more than it can a bare path.
+         * A test that accepted that would be blind to the failure it exists
+         * for. Same trick, and the same reason, as `JoharTownSeederTest`.
+         */
+        config(['app.url' => 'https://cartze.test']);
+        Storage::fake('public');
+        config(['filesystems.disks.public.url' => 'https://cartze.test/storage']);
+        Storage::forgetDisk('public');
+
         $this->seed(CitySeeder::class);
         $this->seed(PlanSeeder::class);
     }
@@ -51,6 +68,56 @@ class LahoreShopsSeederTest extends TestCase
         $this->assertSame(10, Tenant::query()->whereNotNull('city_id')->count());
         // Every one of them has an owner who can sign in.
         $this->assertSame(10, User::query()->where('email', 'like', 'lahore%@app.com')->count());
+    }
+
+    /**
+     * EVERY SHOP HAS A PICTURE, and every picture reaches the phone.
+     *
+     * The seeder set neither `logo_path` nor `cover_path`, so ten shops in a
+     * rail were ten coloured letters — the app's fallback, drawn correctly,
+     * because there was nothing to draw. Asserted through the marketplace
+     * payload rather than off the column, because the column being set is not
+     * the thing that failed: a path that never becomes an absolute URL is the
+     * same blank card.
+     */
+    public function test_every_shop_carries_a_cover_the_app_can_actually_load(): void
+    {
+        $this->seed(LahoreShopsSeeder::class);
+
+        $shops = $this->getJson('/api/v1/marketplace/shops?'.http_build_query(self::PIN))
+            ->assertOk()
+            ->json('data');
+
+        $this->assertCount(10, $shops);
+
+        foreach ($shops as $shop) {
+            $this->assertNotNull($shop['cover_url'], "{$shop['business_name']} has no cover");
+            $this->assertNotNull($shop['logo_url'], "{$shop['business_name']} has no logo");
+            // Absolute, or the phone cannot fetch it — see the note in setUp.
+            $this->assertStringStartsWith('https://', $shop['cover_url']);
+            $this->assertStringStartsWith('https://', $shop['logo_url']);
+        }
+
+        // …and two shops do not share one picture, which is what a single
+        // hard-coded placeholder would have looked like from here.
+        $this->assertCount(10, array_unique(array_column($shops, 'cover_url')));
+    }
+
+    /**
+     * And the GOODS have pictures too.
+     *
+     * The aisle, search and the basket all draw the product rather than the
+     * shop, so covers alone leave two thirds of the app grey.
+     */
+    public function test_every_product_carries_a_picture(): void
+    {
+        $this->seed(LahoreShopsSeeder::class);
+
+        $total = Product::withoutTenancy()->count();
+        $withArt = Product::withoutTenancy()->has('images')->count();
+
+        $this->assertGreaterThan(0, $total);
+        $this->assertSame($total, $withArt, 'some products went out with no image');
     }
 
     /** Every shop carries a catalog. An empty shop is the bug being prevented. */

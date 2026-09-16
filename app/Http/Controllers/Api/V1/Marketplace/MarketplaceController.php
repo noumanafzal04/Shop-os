@@ -213,7 +213,51 @@ class MarketplaceController extends Controller
             $query->selectRaw("tenants.*, CASE WHEN latitude IS NULL OR longitude IS NULL THEN NULL ELSE {$expr} END as distance_km")
                 // Un-pinned shops sink to the end instead of disappearing.
                 ->orderByRaw('distance_km IS NULL, distance_km')
-                ->when($request->query('radius'), fn ($q, $r) => $q->havingRaw('distance_km IS NOT NULL AND distance_km <= ?', [min((float) $r, 100)]));
+                /**
+                 * THE EXPRESSION, NOT THE ALIAS — and this was a 500.
+                 *
+                 * It was `havingRaw('distance_km <= ?')`. `distance_km` is an
+                 * alias invented by the `selectRaw` two lines up, and a
+                 * paginator runs `select count(*)` FIRST, with the select list
+                 * thrown away. So the HAVING referred to a column that no
+                 * longer existed in that query and the endpoint answered
+                 * "HAVING clause on a non-aggregate query" — SQLite says it
+                 * out loud, MySQL says `Unknown column 'distance_km'`.
+                 *
+                 * The trap is written up forty lines above this, on
+                 * `rating_min`, which hit it first and was settled with a
+                 * scalar expression. This filter was added afterwards and used
+                 * the shape that had already been ruled out. Nothing sent
+                 * `radius` yet, which is the only reason it had not been seen.
+                 *
+                 * The whole expression goes in the WHERE, where it survives
+                 * the count query, and the NULL check is explicit because a
+                 * shop with no pin has no distance — and `NULL <= 5` is not
+                 * false, it is unknown, which a WHERE drops anyway but a
+                 * reader should not have to work out.
+                 *
+                 * ── AND THE CAST, which is the second bug in one line ──
+                 *
+                 * Without it this filter is applied and does NOTHING. Laravel
+                 * binds a PHP float as `PDO::PARAM_STR`, so the parameter
+                 * arrives as TEXT; the left side is an expression, which has
+                 * no column affinity for SQLite to convert it by. Comparing a
+                 * REAL to a TEXT then falls back to storage-class ordering,
+                 * where every number sorts BEFORE every string — so
+                 * `2.96 <= '2'` is TRUE and every shop passes every radius.
+                 *
+                 * Silent, and it survived the rewrite above: the clause was in
+                 * the SQL, the binding was in the list, and a six-value sweep
+                 * from 0.5 km to 50 km returned the same three shops.
+                 *
+                 * `min_price` and `max_price` forty lines down already cast
+                 * for exactly this reason. That is now three separate filters
+                 * in this file that have hit the same trap.
+                 */
+                ->when($request->query('radius'), fn ($q, $r) => $q
+                    ->whereNotNull('tenants.latitude')
+                    ->whereNotNull('tenants.longitude')
+                    ->whereRaw("{$expr} <= CAST(? AS DECIMAL(8,3))", [min((float) $r, 100)]));
         } elseif ($request->query('sort') === 'rating') {
             // Nulls last, the same rule the distance sort uses: a shop nobody
             // has reviewed sinks rather than disappearing.

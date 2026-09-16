@@ -14,6 +14,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
 use App\Support\ItemTypes;
+use Database\Seeders\Concerns\MakesPlaceholderArt;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -60,6 +61,32 @@ use Illuminate\Support\Str;
  */
 class LahoreShopsSeeder extends Seeder
 {
+    use MakesPlaceholderArt;
+
+    /**
+     * A GROUND PER TRADE, so ten shops are ten shops.
+     *
+     * These went out with no `logo_path` and no `cover_path` at all, which is
+     * why the home screen's rails were ten identical letter tiles: the app was
+     * drawing its fallback correctly, ten times, because there was nothing to
+     * draw. Keyed by trade rather than by shop so a new row in `SHOPS` gets a
+     * colour without anybody remembering to give it one.
+     */
+    private const GROUND = [
+        'food' => [198, 52, 30],
+        'mart' => [30, 110, 160],
+        'pharmacy' => [22, 132, 108],
+        'retail' => [96, 62, 150],
+        'bakery' => [176, 116, 34],
+        'automotive' => [62, 78, 96],
+        'services' => [130, 46, 96],
+    ];
+
+    private function ground(string $type): array
+    {
+        return self::GROUND[$type] ?? [85, 127, 29];
+    }
+
     /** Lahore, and how far the shops are scattered around it. */
     private const CENTRE = [31.5204, 74.3587];
 
@@ -167,6 +194,12 @@ class LahoreShopsSeeder extends Seeder
             'subscription_starts_at' => now()->subMonths(3),
             'subscription_ends_at' => now()->addYear(),
             'business_hours' => $this->openAllWeek($type),
+            // A PICTURE, because the card is shaped for one. `shopBanner` in
+            // the app reaches for the cover first and falls back to the logo;
+            // with neither set, every rail on the home screen was a row of
+            // coloured letters and the report was that covers "show ni ho rhi".
+            'logo_path' => $this->makeLogo($slug, $name, $this->ground($type)),
+            'cover_path' => $this->makeCover($slug, $name, $this->ground($type)),
             'settings' => [
                 // EIGHTEEN, and the number was measured rather than picked.
                 //
@@ -269,7 +302,7 @@ class LahoreShopsSeeder extends Seeder
             // stops meaning anything — see the price-and-the-card rule.
             $discount = $i % 4 === 0 ? round($price * 0.85, 2) : null;
 
-            Product::withoutTenancy()->create([
+            $product = Product::withoutTenancy()->create([
                 'tenant_id' => $tenant->id,
                 'category_id' => $category?->id,
                 'type' => 'product',
@@ -288,6 +321,15 @@ class LahoreShopsSeeder extends Seeder
                 'low_stock_threshold' => $type === 'food' ? null : 10,
                 'is_active' => true,
                 'visible_in_marketplace' => true,
+            ]);
+
+            // One picture each. A marketplace where the shops have covers and
+            // the goods do not is half a demo — the aisle, search and the
+            // basket all draw the product, not the shop.
+            $product->images()->create([
+                'tenant_id' => $tenant->id,
+                'path' => $this->makeProductImage($product->id, $item, $this->ground($type)),
+                'sort_order' => 0,
             ]);
             $n++;
         }
