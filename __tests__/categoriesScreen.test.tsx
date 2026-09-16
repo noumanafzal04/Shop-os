@@ -51,6 +51,7 @@ jest.mock("../src/common/api/client", () => ({
   // the SUITE fail to run rather than a test fail — and jest reports that as
   // "N passed, N total" with the missing tests simply not counted.
   configureAuth: jest.fn(),
+  configureApi: jest.fn(),
   apiGet: jest.fn((url: string) => {
     if (/\/marketplace\/categories/.test(url)) {
       return Promise.resolve({ data: { business_types: mockTrades } });

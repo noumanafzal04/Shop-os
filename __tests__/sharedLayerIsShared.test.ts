@@ -106,10 +106,14 @@ describe("the two inversions are real, not renamed", () => {
 
   it("lets the app supply the tokens", () => {
     const client = codeOnly(
-      fs.readFileSync(path.join(PROJECT_ROOT, "src/common/api/client.ts"), "utf8"),
+      fs.readFileSync(path.join(PROJECT_ROOT, "../core/src/api/client.ts"), "utf8"),
     );
     expect(client).toMatch(/export function configureAuth/);
     expect(client).toMatch(/accessToken: \(\) => string \| null;/);
+    // …and which SERVER, for the same reason. That was the last import tying
+    // the HTTP layer to one app's config.
+    expect(client).toMatch(/export function configureApi/);
+    expect(client).not.toMatch(/API_BASE_URL/);
   });
 
   it("hands the client its tokens as FUNCTIONS, not as values", () => {
@@ -129,12 +133,21 @@ describe("the two inversions are real, not renamed", () => {
     expect(store).not.toMatch(/accessToken: useAuthStore\.getState\(\)\.accessToken/);
   });
 
-  it("wires it before the first render, not in an effect", () => {
-    // An effect runs AFTER the first render, and the first render is where a
-    // query fires. A request that went out in between would go out
-    // unauthenticated — this product has already had a sweep that asked as
-    // nobody and reported ninety-six bugs that were not there.
+  it("wires BOTH before the first render, not in an effect", () => {
+    /**
+     * An effect runs AFTER the first render, and the first render is where a
+     * query fires. A request that went out in between would go out
+     * unauthenticated — this product has already had a sweep that asked as
+     * nobody and reported ninety-six bugs that were not there.
+     *
+     * Both calls, and the second was missing from this guard: deleting
+     * `configureApi` left the axios instance with an empty baseURL, so every
+     * request in the app would resolve against a relative path. Nothing
+     * failed — not tsc, not eslint, not eight hundred tests. Found by
+     * mutation, which is the only reason it is here.
+     */
     const app = codeOnly(fs.readFileSync(path.join(PROJECT_ROOT, "App.tsx"), "utf8"));
+    expect(app).toMatch(/^configureApi\(\{ baseUrl: API_BASE_URL \}\);$/m);
     expect(app).toMatch(/^wireAuthToApi\(\);$/m);
   });
 });

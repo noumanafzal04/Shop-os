@@ -46,6 +46,7 @@ jest.mock("../src/common/api/client", () => ({
   // the SUITE fail to run rather than a test fail — and jest reports that as
   // "N passed, N total" with the missing tests simply not counted.
   configureAuth: jest.fn(),
+  configureApi: jest.fn(),
   apiGet: jest.fn(() => new Promise(() => {})), // pending for ever: never resolves, never retries
   apiPost: jest.fn(() => new Promise(() => {})),
   apiPut: jest.fn(() => new Promise(() => {})),

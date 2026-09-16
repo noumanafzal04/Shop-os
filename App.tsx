@@ -28,6 +28,8 @@ import { RootNavigator } from "./src/navigation/RootNavigator";
 import { ThemeProvider, useTheme } from "./src/theme";
 import { useModePalettes } from "./src/modules/mode/palettes";
 import { wireAuthToApi } from "./src/stores/authStore";
+import { configureApi } from "./src/common/api/client";
+import { API_BASE_URL } from "./src/common/config";
 import { ToastHost } from "./src/common/ui/toast";
 import { ConfirmHost } from "./src/common/ui/confirm";
 import { ModeSwitchCover } from "./src/modules/mode/ModeSwitchCover";
@@ -61,6 +63,7 @@ function ThemedChrome() {
  * this product has already had, from a sweep that asked as nobody and faked
  * ninety-six bugs.
  */
+configureApi({ baseUrl: API_BASE_URL });
 wireAuthToApi();
 
 function App() {
