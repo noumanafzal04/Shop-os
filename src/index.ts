@@ -5,5 +5,4 @@
  * barrel that also holds code is a file every consumer imports for one
  * symbol and gets all of it.
  */
-export * from "./theme/tokens";
-export * from "./theme/themes";
+export * from "./theme";
