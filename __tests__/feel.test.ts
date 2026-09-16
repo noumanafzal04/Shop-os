@@ -186,7 +186,7 @@ describe("every overlay behaves like the others", () => {
       "src/common/ui/BottomSheet.tsx",
       "src/navigation/SideMenu.tsx",
       "src/common/ui/toast/ToastHost.tsx",
-      "src/common/ui/ModeSwitchCover.tsx",
+      "src/modules/mode/ModeSwitchCover.tsx",
     ]) {
       const src = codeOnly(fs.readFileSync(path.join(ROOT, rel), "utf8"));
       expect(`${rel}: ${/useNativeDriver: true/.test(src)}`).toBe(`${rel}: true`);

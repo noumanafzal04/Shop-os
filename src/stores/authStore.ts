@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { configureAuth } from "../common/api/client";
 import { secureStorage } from "../common/utils/secureStorage";
 import type { User } from "../modules/auth/types";
 
@@ -74,3 +75,28 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     return user.permissions.includes(permission);
   },
 }));
+
+/**
+ * HANDS THE HTTP LAYER ITS TOKENS, once, at boot.
+ *
+ * `common/api/client.ts` used to import this store. It worked, and it was one
+ * of three imports keeping the shared layer tied to this app — a store about
+ * a CUSTOMER's session, inside a file that otherwise knows only HTTP.
+ *
+ * Inverted rather than moved: the client states what it needs (four
+ * functions) and this store supplies them. The second app supplies its own,
+ * from its own store, and neither app learns anything about the other.
+ *
+ * Functions rather than values, deliberately — an interceptor runs long after
+ * this was called and must read the tokens AS THEY ARE THEN. Handing over
+ * values would freeze the session at boot and every request after the first
+ * refresh would carry a dead token.
+ */
+export function wireAuthToApi(): void {
+  configureAuth({
+    accessToken: () => useAuthStore.getState().accessToken,
+    refreshToken: () => useAuthStore.getState().refreshToken,
+    setTokens: (access, refresh) => useAuthStore.getState().setTokens(access, refresh),
+    clear: () => useAuthStore.getState().clear(),
+  });
+}

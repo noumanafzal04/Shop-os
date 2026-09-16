@@ -48,6 +48,12 @@ export function git(args: string[]): string {
 export const path = require("path") as {
   join(...parts: string[]): string;
   relative(from: string, to: string): string;
+  /** A file's directory, and a path with `..` collapsed. Typed here for the
+   *  same reason as the rest: a guard that resolves an import by hand needs
+   *  both, and an `as any` at the call site is how a guard stops being
+   *  type-checked. */
+  dirname(p: string): string;
+  normalize(p: string): string;
   /** The file's own name. Typed here rather than cast at a call site — a
    *  `as any` in a guard is how a guard stops being type-checked. */
   basename(p: string, ext?: string): string;

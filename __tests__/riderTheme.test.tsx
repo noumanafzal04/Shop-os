@@ -4,6 +4,7 @@ import { PROJECT_ROOT, fs, path } from "./support/node";
 import { ThemeProvider, useColors } from "../src/theme";
 import { lightColors, darkColors, riderLightColors, riderDarkColors } from "../src/theme/themes";
 import { useModeStore } from "../src/stores/modeStore";
+import { useModePalettes } from "../src/modules/mode/palettes";
 
 jest.mock("../src/common/utils/prefs", () => ({
   prefs: {
@@ -90,21 +91,45 @@ describe("the two palettes are actually different", () => {
   });
 });
 
-describe("the provider follows the mode", () => {
+/**
+ * THE APP DECIDES THE PALETTE, NOT THE PROVIDER.
+ *
+ * These cases used to mount a bare `<ThemeProvider>` and expect it to read
+ * `modeStore` itself. It did — and that single import was the one thing
+ * keeping the whole theme layer tied to THIS app: a mode is a shopper who is
+ * sometimes a rider, and no other app has one.
+ *
+ * The provider now takes `paletteFor`; `useModePalettes` is the only file in
+ * the product that knows the mapping, and `App.tsx` wires the two together.
+ * So the test mounts what the app mounts. The rule being checked has not
+ * changed by a word — the shopping side is green and the working side is
+ * orange — only where the answer comes from.
+ */
+describe("the app paints the side you are on", () => {
   function Probe({ onColor }: { onColor: (hex: string) => void }) {
     const c = useColors();
     onColor(c.primary);
     return null;
   }
 
+  /** What `App.tsx` mounts, in miniature. */
+  function Themed({ onColor }: { onColor: (hex: string) => void }) {
+    const palettes = useModePalettes();
+
+    return (
+      <ThemeProvider
+        paletteFor={palettes.paletteFor}
+        oppositePaletteFor={palettes.oppositePaletteFor}
+      >
+        <Probe onColor={onColor} />
+      </ThemeProvider>
+    );
+  }
+
   const paint = async () => {
     let hex = "";
     await ReactTestRenderer.act(() => {
-      ReactTestRenderer.create(
-        <ThemeProvider>
-          <Probe onColor={(h) => (hex = h)} />
-        </ThemeProvider>,
-      );
+      ReactTestRenderer.create(<Themed onColor={(h) => (hex = h)} />);
     });
     return hex;
   };

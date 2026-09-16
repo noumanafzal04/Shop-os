@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Appearance } from "react-native";
-import { emberThemes, leafThemes, type ThemeColors, type ThemeName } from "./themes";
-import { useModeStore } from "../stores/modeStore";
+import { leafThemes, type ThemeColors, type ThemeName } from "./themes";
 import { radius, shadow, spacing, typography } from "./tokens";
 
 /**
@@ -28,6 +27,8 @@ export interface Theme {
 interface ThemeContextValue extends Theme {
   preference: ThemePreference;
   setPreference: (p: ThemePreference) => void;
+  /** The other side's colours, for the two doors that lead there. */
+  opposite: ThemeColors;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -43,16 +44,51 @@ const normalise = (scheme: unknown): SystemScheme => (scheme === "dark" ? "dark"
 const resolve = (pref: ThemePreference, system: SystemScheme): ThemeName =>
   pref === "system" ? (system === "dark" ? "dark" : "light") : pref;
 
+/**
+ * WHICH SET OF COLOURS, ASKED OF THE APP RATHER THAN OF A STORE.
+ *
+ * This file used to import `modeStore` and read the mode itself. That was
+ * fine while there was one app, and it is the single thing that stopped this
+ * provider being shared: `modeStore` is the CUSTOMER app's idea — a shopper
+ * who is sometimes a rider — and a shopkeeper has one hat. A second app
+ * importing this would have dragged a store it has no use for, and a mode it
+ * can never be in, along with it.
+ *
+ * So the dependency is inverted. The provider owns light/dark, the OS
+ * listener, the preference and the tokens — everything that is true of any
+ * app. WHICH palette is a question only the app around it can answer, so the
+ * app answers it.
+ *
+ * Default `leafThemes`, because an app that does not fork is the shopping
+ * side's own colour and because a required prop here would be a breaking
+ * change to a provider that is mounted in one place and tested in ten.
+ */
+export type PaletteFor = (name: ThemeName) => ThemeColors;
+
 export function ThemeProvider({
   children,
   initialPreference = "system",
   onPreferenceChange,
+  paletteFor,
+  oppositePaletteFor,
 }: {
   children: ReactNode;
   /** Restored from storage at boot, so the app doesn't flash the wrong theme. */
   initialPreference?: ThemePreference;
   /** Persist the choice. Kept as a callback so this file owns no storage. */
   onPreferenceChange?: (p: ThemePreference) => void;
+  /**
+   * The palette this app wears, per theme name. Omit for the shopping side's
+   * leaf green — see the note above.
+   */
+  paletteFor?: PaletteFor;
+  /**
+   * The OTHER side's, for the two controls whose whole job is to lead there.
+   * Omit in an app that has no other side; `useOppositeColors` then answers
+   * the same palette, which is the honest answer to "where does this lead"
+   * when it leads nowhere.
+   */
+  oppositePaletteFor?: PaletteFor;
 }) {
   const [preference, setPref] = useState<ThemePreference>(initialPreference);
   const [system, setSystem] = useState<SystemScheme>(normalise(Appearance.getColorScheme()));
@@ -64,33 +100,20 @@ export function ThemeProvider({
     return () => sub.remove();
   }, []);
 
-  /**
-   * WHICH HALF OF THE APP IS ON SCREEN.
-   *
-   * The mode swaps the whole navigator, and it swaps the palette with it.
-   *
-   * SHOPPING IS GREEN and working is the brand's red-orange — the way round
-   * they were chosen after seeing both on a phone. The palettes are named for
-   * their colours rather than their side precisely so this line can be turned
-   * over without every name becoming wrong.
-   *
-   * Read here rather than threaded through every screen, because a colour that
-   * some screens knew about and others did not would be worse than one colour.
-   *
-   * Subscribed to the STORE, not to a prop — `ModeSwitchCover` holds a cover
-   * over the swap for a few hundred milliseconds, so the repaint happens while
-   * nothing is visible.
-   */
-  const mode = useModeStore((s) => s.mode);
-
   const value = useMemo<ThemeContextValue>(() => {
     const name = resolve(preference, system);
-    const palette = mode === "rider" ? emberThemes : leafThemes;
+    const colors = paletteFor ? paletteFor(name) : leafThemes[name];
 
     return {
       name,
       isDark: name === "dark",
-      colors: palette[name],
+      colors,
+      // Resolved here, in the provider, rather than by the hook reaching for a
+      // store of its own — which is what it used to do, and what kept this
+      // file tied to the customer app. An app with no other side gets its own
+      // colours back, which is the honest answer to "where does this lead"
+      // when it leads nowhere.
+      opposite: oppositePaletteFor ? oppositePaletteFor(name) : colors,
       spacing,
       radius,
       typography,
@@ -101,7 +124,7 @@ export function ThemeProvider({
         onPreferenceChange?.(p);
       },
     };
-  }, [preference, system, mode, onPreferenceChange]);
+  }, [preference, system, paletteFor, oppositePaletteFor, onPreferenceChange]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
@@ -118,12 +141,13 @@ export function ThemeProvider({
  * Deliberately narrow. This is not a way for any screen to reach for a second
  * palette; two colours on a page is a page with no accent. Two controls use
  * it, and both of them are doors.
+ *
+ * It read `modeStore` directly until Phase 0. Now the provider has already
+ * worked the answer out — see `oppositePaletteFor` — so this hook knows
+ * nothing about modes, and neither does the file it lives in.
  */
 export function useOppositeColors(): ThemeColors {
-  const { name } = useTheme();
-  const mode = useModeStore((s) => s.mode);
-
-  return (mode === "rider" ? leafThemes : emberThemes)[name];
+  return useTheme().opposite;
 }
 
 /**

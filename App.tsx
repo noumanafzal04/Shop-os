@@ -26,9 +26,11 @@ import { queryClient } from "./src/common/api/queryClient";
 import { OfflineBanner } from "./src/common/ui/OfflineBanner";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { ThemeProvider, useTheme } from "./src/theme";
+import { useModePalettes } from "./src/modules/mode/palettes";
+import { wireAuthToApi } from "./src/stores/authStore";
 import { ToastHost } from "./src/common/ui/toast";
 import { ConfirmHost } from "./src/common/ui/confirm";
-import { ModeSwitchCover } from "./src/common/ui/ModeSwitchCover";
+import { ModeSwitchCover } from "./src/modules/mode/ModeSwitchCover";
 import { prefs } from "./src/common/utils/prefs";
 import { useAuthStore } from "./src/stores/authStore";
 import { OnboardingScreen } from "./src/modules/onboarding/OnboardingScreen";
@@ -49,6 +51,17 @@ function ThemedChrome() {
     />
   );
 }
+
+/**
+ * THE HTTP LAYER GETS ITS TOKENS BEFORE ANYTHING ASKS FOR THEM.
+ *
+ * At module scope, not in an effect: an effect runs AFTER the first render,
+ * and the first render is where a query fires. A request that went out
+ * between mount and effect would go out unauthenticated — which is a failure
+ * this product has already had, from a sweep that asked as nobody and faked
+ * ninety-six bugs.
+ */
+wireAuthToApi();
 
 function App() {
   /**
@@ -105,6 +118,12 @@ function App() {
 function Rooted({ saved }: { saved: { theme: ThemePreference; onboarded: boolean } }) {
   const [onboarding, setOnboarding] = useState(!saved.onboarded);
 
+  // Read HERE and not in `App`, which returns null until the saved settings
+  // land — a hook above that early return runs for a frame that paints
+  // nothing, and the whole tree that needs the answer is below this line.
+  // `ModeSwitchCover` at the bottom holds a cover over the repaint.
+  const palettes = useModePalettes();
+
   return (
     <SafeAreaProvider>
       {/*
@@ -118,8 +137,17 @@ function Rooted({ saved }: { saved: { theme: ThemePreference; onboarded: boolean
         The choice now survives a relaunch: see `src/common/utils/prefs.ts` for
         where it is kept and why there.
       */}
+      {/*
+        WHICH PALETTE, DECIDED HERE rather than inside the provider.
+
+        The provider owns light/dark, the OS listener and the tokens — every
+        app has those. Which of the two brand scales is on screen is a fact
+        about THIS app, so this app supplies it. See `modules/mode/palettes`.
+      */}
       <ThemeProvider
         initialPreference={saved.theme}
+        paletteFor={palettes.paletteFor}
+        oppositePaletteFor={palettes.oppositePaletteFor}
         onPreferenceChange={(p) => {
           prefs.setTheme(p).catch(() => {});
         }}

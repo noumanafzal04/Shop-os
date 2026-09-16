@@ -23,6 +23,18 @@ import { useModeStore } from "../../stores/modeStore";
  * no time. It is a statement that something deliberate is happening, and it is
  * the difference between "I switched" and "something broke".
  *
+ * ── Why it lives in `modules/mode/` and not in `common/ui/` ──────────
+ *
+ * It sat beside SafeScreen and SmartImage, which are shared primitives. This
+ * is not one: a MODE is this app's own idea — a shopper who is sometimes a
+ * rider — and the shopkeeper's app has one hat and no cover to hold over a
+ * swap that never happens.
+ *
+ * It was also the third and last thing stopping `common/` being lifted out
+ * whole. The other two were inverted (`ThemeProvider` takes a palette, the
+ * api client takes an auth adapter); this one simply belonged somewhere else,
+ * beside the store it reads.
+ *
  * ── Why a Modal ──────────────────────────────────────────────────────
  *
  * It has to sit above the navigator it is covering, and the navigator is the
