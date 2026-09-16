@@ -77,9 +77,23 @@ interface Slide {
  * would be a pale smear across half a phone. These are the same hues at the
  * weight a full-bleed panel needs.
  */
+/**
+ * THREE GROUNDS, AND NOT ONE OF THEM IS THE RIDER'S.
+ *
+ * The first slide was `#e94e00`. That is the EMBER scale — the colour
+ * `ThemeProvider` gives the WORKING side — so the very first screen a shopper
+ * ever saw was painted in the rider app's brand, three taps before arriving in
+ * a green one. Same mistake as the splash, in a different file: a raw hex
+ * copied from the tokens without asking which half of the app owns it.
+ *
+ * Leaf first, because that is the shopping side's own colour; then a teal and
+ * a blue, which are neighbours of it rather than of the orange. The three
+ * still read as a set — that was always the point — and now the set belongs to
+ * the app the slides are introducing.
+ */
 const PANEL = {
-  orange: ["#e94e00", "#ffd9c4"],
-  green: ["#3f6f14", "#d8ecb8"],
+  leaf: ["#3f6f14", "#d8ecb8"],
+  teal: ["#11544c", "#bfe6df"],
   blue: ["#14477e", "#c2dcf7"],
 } as const;
 
@@ -89,14 +103,14 @@ const SLIDES: Slide[] = [
     behind: [tradeIcon("food"), tradeIcon("mart")],
     title: "Your street, in your pocket",
     body: "Food, groceries and medicine from the shops closest to you — with what they actually have in stock today.",
-    hue: PANEL.orange,
+    hue: PANEL.leaf,
   },
   {
     icon: MotorcycleIcon,
     behind: [tradeIcon("pharmacy"), StorefrontIcon],
     title: "One shop, one delivery",
     body: "A basket belongs to a single shop, so your order is prepared and delivered together. Adding from another shop starts a fresh basket — we always ask first.",
-    hue: PANEL.green,
+    hue: PANEL.teal,
   },
   {
     icon: BanknoteIcon,

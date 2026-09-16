@@ -1,14 +1,13 @@
 import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeftIcon,
   MapPinIcon,
   PlusIcon,
   TrashIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { HeaderButton, ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppButton } from "../../../common/ui/AppButton";
@@ -35,7 +34,6 @@ interface CustomerAddress {
 export function AddressesScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const navigation = useNavigation<any>();
   const qc = useQueryClient();
   const { lat, lng, label: cityLabel } = useLocationStore();
 
@@ -74,15 +72,14 @@ export function AddressesScreen() {
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <View style={styles.header}>
-        <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeftIcon size={20} color={c.text} />
-        </Pressable>
-        <Text style={styles.title}>My addresses</Text>
-        <Pressable style={styles.back} onPress={() => setAdding((v) => !v)} hitSlop={8}>
-          <PlusIcon size={20} color={c.brand[600]} />
-        </Pressable>
-      </View>
+      <ScreenHeader
+        title="My addresses"
+        right={
+          <HeaderButton label={adding ? "Close the form" : "Add an address"} onPress={() => setAdding((v) => !v)}>
+            <PlusIcon size={19} color={c.brand[600]} />
+          </HeaderButton>
+        }
+      />
 
       {adding && (
         <View style={styles.form}>
@@ -154,24 +151,6 @@ export function AddressesScreen() {
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  back: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { ...typography.h3, color: c.text },
 
   form: {
     margin: spacing.md,

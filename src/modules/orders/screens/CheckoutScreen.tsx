@@ -4,7 +4,6 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangleIcon,
-  ArrowLeftIcon,
   BagIcon,
   BanknoteIcon,
   ChevronRightIcon,
@@ -16,6 +15,7 @@ import {
   TicketIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { Touchable } from "../../../common/ui/Touchable";
 import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -269,25 +269,7 @@ export function CheckoutScreen() {
         reaching it meant scrolling past everything you had just filled in.
         On Android the hardware key worked and nothing on screen said so.
       */}
-      <View style={styles.head}>
-        <Pressable
-          style={styles.back}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Back to cart"
-          onPress={() => navigation.goBack()}
-        >
-          <ArrowLeftIcon size={19} color={c.text} />
-        </Pressable>
-        <View style={styles.headCopy}>
-          <Text style={styles.title}>Checkout</Text>
-          {!!shop.data && (
-            <Text style={styles.sub} numberOfLines={1}>
-              {shop.data.business_name}
-            </Text>
-          )}
-        </View>
-      </View>
+      <ScreenHeader title="Checkout" subtitle={shop.data?.business_name} />
 
       {/*
         The longest form in the app — address, phone, notes — with Place Order
@@ -584,23 +566,6 @@ const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.lg },
 
-  head: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  back: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: c.surfaceAlt,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headCopy: { flex: 1 },
-
   /** The pinned action bar — see `KeyboardScreen`'s `footer`. */
   bar: {
     backgroundColor: c.surface,
@@ -696,8 +661,6 @@ const makeStyles = (c: ThemeColors) =>
     padding: spacing.md,
   },
   payText: { ...typography.label, color: c.text, flex: 1, fontSize: 14 },
-  title: { ...typography.title, color: c.text },
-  sub: { ...typography.tiny, color: c.textSecondary, marginTop: 1 },
 
   warnBox: { backgroundColor: c.warningBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   warnText: { ...typography.small, color: c.warning },

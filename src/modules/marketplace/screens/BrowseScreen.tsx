@@ -17,6 +17,7 @@ import {
   XIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { HeaderButton } from "../../../common/ui/ScreenHeader";
 import { EmptyState } from "../../../common/ui/EmptyState";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -209,15 +210,15 @@ export function BrowseScreen() {
   return (
     <SafeScreen backgroundColor={c.bg}>
       <View style={styles.head}>
-        <Touchable
-          style={styles.back}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => navigation.goBack()}
-        >
+        {/*
+          The app's one back button. This row is a search bar rather than a
+          title, so it cannot be `ScreenHeader` — but the control is the same
+          control, and a fourth hand-built copy is how the shapes drifted in
+          the first place.
+        */}
+        <HeaderButton label="Back" onPress={() => navigation.goBack()}>
           <ArrowLeftIcon size={19} color={c.text} />
-        </Touchable>
+        </HeaderButton>
         {/*
           ── THE FILTER BUTTON, BESIDE THE SEARCH ──────────────────
 
@@ -492,14 +493,6 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 3,
     },
     filterCountText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 9.5 },
-    back: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor: c.surfaceAlt,
-      alignItems: "center",
-      justifyContent: "center",
-    },
     headCopy: { flex: 1 },
     sub: {
       ...typography.tiny,

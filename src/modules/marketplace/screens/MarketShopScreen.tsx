@@ -101,11 +101,12 @@ const CHIP_BAR = 54; // 10 + (7 + 18 + 7 + 2 border) + 10
 /**
  * The back-and-name row above the chips once the bar is pinned.
  *
- * 4 of top padding + a 36pt touch target. Stated as a constant beside
- * `CHIP_BAR` because `jumpTo` has to clear BOTH, and a jump that cleared only
- * the chips put the heading under the shop's own name.
+ * 4 of top padding + a 38pt touch target — 38 because that is the size every
+ * other header in the app uses, and this bar is a header. Stated as a constant
+ * beside `CHIP_BAR` because `jumpTo` has to clear BOTH, and a jump that
+ * cleared only the chips put the heading under the shop's own name.
  */
-const PINNED_HEAD = 40;
+const PINNED_HEAD = 42;
 
 /**
  * How far a jump has to clear: the notch, the header row, and the chips.
@@ -846,6 +847,16 @@ export function MarketShopScreen() {
       {pinned && (
         <View style={[styles.catsBar, styles.catsPinned, { paddingTop: insets.top }]}>
           <View style={styles.pinnedHead}>
+            {/*
+              THE APP'S OWN BACK BUTTON, not a third one.
+
+              This was 36×36 with no ground and a 20pt arrow — a shape that
+              existed on this screen and nowhere else. It was right for the
+              HERO overlay, which sits on a photograph and must not put a
+              grey disc on it; it was never right for the pinned bar, which
+              is a header on a plain surface exactly like every other pushed
+              screen's. `HeaderButton` is that one shape.
+            */}
             <Pressable
               style={styles.pinnedBack}
               onPress={() => navigation.goBack()}
@@ -853,7 +864,7 @@ export function MarketShopScreen() {
               accessibilityLabel="Back"
               hitSlop={8}
             >
-              <ArrowLeftIcon size={20} color={c.text} />
+              <ArrowLeftIcon size={19} color={c.text} />
             </Pressable>
             {/*
               The name, so somebody who has scrolled into a long menu can still
@@ -1241,8 +1252,12 @@ const makeStyles = (c: ThemeColors) =>
     paddingTop: spacing.xs,
   },
   pinnedBack: {
-    width: 36,
-    height: 36,
+    // 38 and a ground, the same as `ScreenHeader`'s. `PINNED_HEAD` counts
+    // this, so the two move together or a jump lands two points off.
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: c.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
   },

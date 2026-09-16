@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeftIcon,
   BuildingIcon,
   CrosshairIcon,
   MapPinIcon,
   SearchIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
@@ -92,19 +92,7 @@ export function LocationScreen() {
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <View style={styles.header}>
-        <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeftIcon size={20} color={c.text} />
-        </Pressable>
-        <Text style={styles.title}>Delivery location</Text>
-        {/*
-          A SPACER, so the title sits centred between two equal margins — and
-          it must NOT reuse `styles.back`, which carries a surface fill and a
-          border. Reused, the balancing gap renders as an empty white circle
-          floating in the top right. Same bug, third screen.
-        */}
-        <View style={styles.headSpacer} />
-      </View>
+      <ScreenHeader title="Delivery location" />
 
       <View style={styles.searchWrap}>
         <AppTextInput
@@ -240,14 +228,6 @@ export function LocationScreen() {
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  headSpacer: { width: 40 },
   cityBlock: { marginTop: spacing.sm },
   blockTitle: {
     ...typography.tiny,
@@ -261,16 +241,6 @@ const makeStyles = (c: ThemeColors) =>
     height: 30,
     borderRadius: radius.sm,
     backgroundColor: c.primarySoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  back: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },

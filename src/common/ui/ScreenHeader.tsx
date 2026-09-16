@@ -26,6 +26,27 @@ import { spacing, type ThemeColors, typography, useColors } from "../../theme";
  *
  * The title here is left-aligned beside the button, so there is no gap to
  * balance and nothing for a spacer to get wrong.
+ *
+ * ── And then nine screens wrote their own anyway ─────────────────────
+ *
+ * Measured across every pushed screen, the app had THREE back buttons and TWO
+ * title sizes:
+ *
+ *   38×38 · surfaceAlt · no border · icon 19   ← this component
+ *   40×40 · surface    · 1px border · icon 20  ← Addresses, Notifications,
+ *                                                Location, Order, Search
+ *   36×36 · no ground  · icon 20               ← the shop page's hero overlay
+ *
+ *   typography.title (22pt)  ← Checkout, Settings, Help, Profile, Browse
+ *   typography.h3    (17pt)  ← Addresses, Notifications, Location, Order
+ *
+ * So somebody moving between Profile and My addresses — two rows of the same
+ * menu — met a different header on each, and neither of them was wrong on its
+ * own. That is what "consistency ni hai app screens main" was.
+ *
+ * `HeaderButton` below exists because half of those screens carry an action on
+ * the right, and a right-hand control built at the call site is how the second
+ * shape appears again next month.
  */
 
 interface Props {
@@ -50,6 +71,39 @@ interface Props {
    * you can enter and not leave is a trap, not a mode.
    */
   onMenu?: () => void;
+}
+
+/**
+ * A control in the header's right slot, wearing the back button's own shape.
+ *
+ * Exported rather than left to each screen because that is exactly how the
+ * 40×40 family started: a screen needed a "+" beside its title, built one, and
+ * the next screen copied it. One shape, one definition.
+ */
+export function HeaderButton({
+  onPress,
+  label,
+  children,
+}: {
+  onPress: () => void;
+  /** What a screen reader announces. Required — an icon alone says nothing. */
+  label: string;
+  children: React.ReactNode;
+}) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+    >
+      {children}
+    </Pressable>
+  );
 }
 
 export function ScreenHeader({ title, subtitle, right, showBack = true, onBack, onMenu }: Props) {

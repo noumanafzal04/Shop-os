@@ -10,6 +10,7 @@ import {
   StorefrontIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { HeaderButton } from "../../../common/ui/ScreenHeader";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { Skeleton } from "../../../common/ui/Skeleton";
@@ -121,9 +122,22 @@ export function SearchScreen() {
     <SafeScreen backgroundColor={c.bg}>
       {/* SearchIcon bar */}
       <View style={styles.searchRow}>
-        <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeftIcon size={20} color={c.text} />
-        </Pressable>
+        {/*
+          THE SAME BACK BUTTON THE REST OF THE APP HAS.
+
+          This was 40×40 on `surface` with a 1px border and a 20pt arrow,
+          while `ScreenHeader` — which every other pushed screen wears — is
+          38×38 on `surfaceAlt` with no border and a 19pt arrow. Two shapes,
+          neither wrong on its own, and the difference visible the moment
+          somebody goes from Profile to Search.
+
+          Not `ScreenHeader` itself, because this row holds a live search
+          field rather than a title; it wears the button's shape instead. See
+          `HeaderButton`, which exists for exactly this.
+        */}
+        <HeaderButton label="Back" onPress={() => navigation.goBack()}>
+          <ArrowLeftIcon size={19} color={c.text} />
+        </HeaderButton>
         <View style={styles.searchInput}>
           <AppTextInput
             icon={SearchIcon}
@@ -416,16 +430,7 @@ const makeStyles = (c: ThemeColors) =>
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  back: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+
   searchInput: { flex: 1 },
 
   tabs: {

@@ -2,7 +2,6 @@ import React from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -12,11 +11,11 @@ import { useInfiniteQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import {
-  ArrowLeftIcon,
   BellIcon,
   ChevronRightIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { notificationKind, timeAgo, type NotificationTone } from "../notificationKinds";
@@ -104,19 +103,7 @@ export function NotificationsScreen() {
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <View style={styles.header}>
-        <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeftIcon size={20} color={c.text} />
-        </Pressable>
-        <Text style={styles.title}>Notifications</Text>
-        {/*
-          A SPACER, so the title sits centred between two equal margins — and
-          it must NOT reuse `styles.back`, which carries a surface fill and a
-          border. Reused, the balancing gap renders as an empty white circle
-          floating in the top right. Same bug, third screen.
-        */}
-        <View style={styles.headSpacer} />
-      </View>
+      <ScreenHeader title="Notifications" />
 
       {list.isLoading ? (
         <View style={styles.list}>
@@ -241,25 +228,6 @@ function toneInk(tone: NotificationTone, c: ThemeColors): string {
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  headSpacer: { width: 40 },
-  back: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { ...typography.h3, color: c.text },
 
   more: { paddingVertical: spacing.lg, alignItems: "center" },
   list: { padding: spacing.md, gap: spacing.xs },

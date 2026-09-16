@@ -151,3 +151,54 @@ export function shopLogo(shop: {
   // it would have drawn immediately shimmers first.
   return shop.logo_path?.startsWith("http") ? shop.logo_path : null;
 }
+
+/**
+ * THE WIDE PICTURE, for a slot shaped like a band.
+ *
+ * ── "home py shop ki cover image show ni ho rhi" ─────────────────────
+ *
+ * It never did. The home rail's card is 264 wide with a 120pt band across the
+ * top of it — the slot every marketplace puts a photograph in — and what it
+ * drew there was `shopLogo(shop)`. So the one screen that has room for a
+ * shop's own picture showed its LOGO, and a shop that had uploaded a cover and
+ * no logo showed a letter. The field was in the payload; nothing read it.
+ *
+ * `cover_url` is reached for first because that is the image a shop uploads
+ * FOR this shape — see `ShopController::uploadCover` — and a logo is the
+ * fallback rather than the other way round.
+ *
+ * ── Why the kind comes back with the URL ─────────────────────────────
+ *
+ * `SmartImage` crops to fill by default, which is right for a photograph and
+ * wrong for a logo: a square mark cropped into a 120×264 band is a slice out
+ * of its middle, usually the part with no words in it. The caller needs to
+ * know which one it got, and deciding that at the call site by re-reading the
+ * fields is how the two halves drift apart.
+ */
+export type ShopBanner = { uri: string | null; kind: "cover" | "logo" | null };
+
+export function shopBanner(shop: {
+  cover_url?: string | null;
+  logo_url?: string | null;
+  logo_path?: string | null;
+}): ShopBanner {
+  if (shop.cover_url) return { uri: shop.cover_url, kind: "cover" };
+
+  const logo = shopLogo(shop);
+  return logo ? { uri: logo, kind: "logo" } : { uri: null, kind: null };
+}
+
+/**
+ * THE SMALL SQUARE ONE — a row's avatar, a basket's line, a suggestion.
+ *
+ * The other way round from `shopBanner`, and for the same reason: a logo is
+ * drawn to be read at 44 points and a cover is not. A cover is still better
+ * than a letter, so it is the fallback rather than nothing.
+ */
+export function shopAvatar(shop: {
+  cover_url?: string | null;
+  logo_url?: string | null;
+  logo_path?: string | null;
+}): string | null {
+  return shopLogo(shop) ?? shop.cover_url ?? null;
+}

@@ -7,14 +7,24 @@
       The colour has to be duplicated here because a native resource cannot
       read `src/theme/tokens.ts` — see `src/common/brand.ts` for the rest of
       what a rename has to touch.
+
+      LEAF GREEN, NOT EMBER ORANGE, and that was a real bug rather than a
+      preference. This app has two palettes and `ThemeProvider` decides which
+      side wears which: shopping is leaf, working is ember. Android cannot ask
+      — this frame is painted before the process exists, let alone the store —
+      so it has to be painted for the answer that is true for almost everybody
+      and is what the store says from its first frame: customer.
+
+      It was #E94E00. A shopper tapped an orange icon, waited behind an orange
+      sheet and arrived in a green app.
     -->
-    <color name="brand">#E94E00</color>
+    <color name="brand">#557F1D</color>
     <!--
       The launcher icon's ground. The same brand orange, named separately
       because it is read by `mipmap-anydpi-v26/ic_launcher.xml` and a colour
       the LAUNCHER holds is not the same fact as the colour the splash frame
       holds — one of them can change without the other.
     -->
-    <color name="ic_launcher_background">#E94E00</color>
-    <color name="brand_dark">#C04000</color>
+    <color name="ic_launcher_background">#557F1D</color>
+    <color name="brand_dark">#456B14</color>
 </resources>

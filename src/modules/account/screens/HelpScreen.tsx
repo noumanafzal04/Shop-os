@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import {
-  ArrowLeftIcon,
   ChevronDownIcon,
   ChevronUpIcon,
 } from "../../../common/ui/icons";
@@ -10,6 +8,7 @@ import {
   EnvelopeIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { Touchable } from "../../../common/ui/Touchable";
 import { BRAND } from "../../../common/brand";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -91,6 +90,10 @@ const TOPICS: Topic[] = [
     a: "It is at the foot of the Account page, under App. Please read it out when you report something that looks wrong \u2014 it is the only way to tell which build you are on, and half of \u201cstill broken\u201d turns out to be an older one still installed. If yours does not match the newest, install again and check it changed.",
   },
   {
+    q: "Why do some shops show a photo and others a coloured letter?",
+    a: "The photo is the shop's own cover picture, and a shop that has not uploaded one gets a tile with its initial instead \u2014 the colour comes from the shop's name, so the same shop always looks the same wherever you see it. Nothing is missing or still loading when you see a letter. If you run a shop yourself, the cover is in Settings \u2192 Online shop on the web panel, and it shows both on your shop page and on the card people see on the home screen.",
+  },
+  {
     q: "A shop I saw before has disappeared",
     a: "The list only shows shops that can actually reach the address at the top of the screen — your city, and inside each shop's own delivery distance. So moving your pin changes the list, and a shop that delivers three kilometres will not appear once you are five away. It is still there: search for it by name, or move your pin back. This is also why a basket can no longer be checked out after you change the address.",
   },
@@ -163,23 +166,11 @@ const TOPICS: Topic[] = [
 export function HelpScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const navigation = useNavigation<any>();
   const [open, setOpen] = useState<number | null>(0);
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <View style={styles.head}>
-        <Pressable
-          style={styles.back}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => navigation.goBack()}
-        >
-          <ArrowLeftIcon size={19} color={c.text} />
-        </Pressable>
-        <Text style={styles.title}>Help centre</Text>
-      </View>
+      <ScreenHeader title="Help centre" />
 
       <ScrollView contentContainerStyle={styles.body}>
         {TOPICS.map((t, i) => {
@@ -222,22 +213,6 @@ export function HelpScreen() {
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-    head: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.sm,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-    },
-    back: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor: c.surfaceAlt,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    title: { ...typography.title, color: c.text },
 
     body: { padding: spacing.md, paddingBottom: spacing.xl, gap: spacing.sm },
     item: {

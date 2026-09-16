@@ -1,9 +1,8 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useMutation } from "@tanstack/react-query";
 import {
-  ArrowLeftIcon,
 } from "../../../common/ui/icons";
 import {
   BadgeCheckIcon,
@@ -12,6 +11,7 @@ import {
   PhoneIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { AppButton } from "../../../common/ui/AppButton";
@@ -87,18 +87,7 @@ export function ProfileScreen() {
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <View style={styles.head}>
-        <Pressable
-          style={styles.back}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => navigation.goBack()}
-        >
-          <ArrowLeftIcon size={19} color={c.text} />
-        </Pressable>
-        <Text style={styles.title}>Profile</Text>
-      </View>
+      <ScreenHeader title="Profile" />
 
       <KeyboardScreen
         contentStyle={styles.content}
@@ -216,22 +205,6 @@ function Mark({
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-    head: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.sm,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-    },
-    back: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor: c.surfaceAlt,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    title: { ...typography.title, color: c.text },
 
     content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.xs },
 

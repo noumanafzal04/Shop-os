@@ -1,8 +1,7 @@
 import React from "react";
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import { useRoute, type RouteProp } from "@react-navigation/native";
 import {
-  ArrowLeftIcon,
   CheckIcon,
   MapPinIcon,
   MotorcycleIcon,
@@ -10,6 +9,7 @@ import {
   StarIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { AppButton } from "../../../common/ui/AppButton";
 import { RefreshPill } from "../../../common/ui/RefreshPill";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
@@ -64,7 +64,6 @@ const stepsFor = (fulfillment: "delivery" | "pickup"): OrderStatus[] =>
 export function OrderTrackingScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const navigation = useNavigation<any>();
   const { id } = useRoute<RouteProp<Params, "Order">>().params;
   const order = useMyOrder(id);
   const cancel = useCancelMyOrder();
@@ -137,26 +136,20 @@ export function OrderTrackingScreen() {
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <View style={styles.header}>
-        <Pressable style={styles.back} onPress={() => navigation.goBack()} hitSlop={8}>
-          <ArrowLeftIcon size={20} color={c.text} />
-        </Pressable>
-        <Text style={styles.title}>Order</Text>
-        {/*
-          The right-hand slot is no longer a spacer.
-
-          It held an empty View to balance the back button — and before that,
-          the BUTTON's own style, which rendered the balancing gap as a white
-          circle floating in the top right with nothing in it. Now it holds
-          the thing this screen was missing: how old what you are reading is,
-          and a way to ask again without leaving and coming back.
-        */}
-        <RefreshPill
-          at={order.dataUpdatedAt ? new Date(order.dataUpdatedAt).toISOString() : null}
-          busy={order.isFetching}
-          onPress={() => order.refetch()}
-        />
-      </View>
+      {/*
+        The right-hand slot carries how old what you are reading is, and a way
+        to ask again without leaving and coming back.
+      */}
+      <ScreenHeader
+        title="Order"
+        right={
+          <RefreshPill
+            at={order.dataUpdatedAt ? new Date(order.dataUpdatedAt).toISOString() : null}
+            busy={order.isFetching}
+            onPress={() => order.refetch()}
+          />
+        }
+      />
 
       {order.isLoading || !o ? (
         <View style={styles.content}>
@@ -412,23 +405,6 @@ export function OrderTrackingScreen() {
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  back: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   headline: { ...typography.title, fontSize: 20, color: c.text, marginTop: spacing.sm },
   itemsMore: { ...typography.tiny, color: c.textMuted, paddingVertical: 4 },
   call: {
@@ -444,7 +420,6 @@ const makeStyles = (c: ThemeColors) =>
   },
   callText: { ...typography.label, color: c.primary, fontSize: 14 },
   acceptedNote: { ...typography.small, color: c.textSecondary, textAlign: "center" },
-  title: { ...typography.h3, color: c.text },
   content: { padding: spacing.md, gap: spacing.sm },
 
   card: {

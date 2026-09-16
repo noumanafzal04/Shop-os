@@ -22,14 +22,33 @@ import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { money } from "../../../common/format";
 
 
-const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
-  pending: { bg: "#fffaeb", fg: "#b54708" },
-  accepted: { bg: "#eff8ff", fg: "#175cd3" },
-  completed: { bg: "#ecfdf3", fg: "#027a48" },
-  rejected: { bg: "#fef3f2", fg: "#b42318" },
-  cancelled: { bg: "#f2f4f7", fg: "#475467" },
-  expired: { bg: "#f2f4f7", fg: "#475467" },
-};
+/**
+ * WHAT A STATUS LOOKS LIKE — from the theme, not from ten fixed hexes.
+ *
+ * This was a literal map: `#fffaeb` on `#b54708` for pending, and so on. Ten
+ * hard-coded colours, all of them taken from the LIGHT palette, on a screen
+ * that renders in both. In dark mode the app puts a near-white pastel pill on
+ * a near-black card — which is exactly what `darkColors` says it exists to
+ * prevent: "Hues held, tints rebuilt: a light pastel background would glow on
+ * dark."
+ *
+ * It is also the only screen in the app that decided its own semantic colours.
+ * `success`, `error`, `warning` and `info` already mean these five things, in
+ * both themes, and they are what every other screen draws a state with.
+ *
+ * A function of the palette rather than a constant, because a constant cannot
+ * follow the theme — which is the whole bug.
+ */
+const statusStyle = (c: ThemeColors): Record<string, { bg: string; fg: string }> => ({
+  pending: { bg: c.warningBg, fg: c.warning },
+  accepted: { bg: c.infoBg, fg: c.info },
+  completed: { bg: c.successBg, fg: c.success },
+  rejected: { bg: c.errorBg, fg: c.error },
+  // Neither good nor bad, and deliberately the quietest of the five: a
+  // reservation somebody cancelled is a row they have finished with.
+  cancelled: { bg: c.surfaceAlt, fg: c.textSecondary },
+  expired: { bg: c.surfaceAlt, fg: c.textSecondary },
+});
 
 /**
  * Customer's reservations — pending/accepted ones can be cancelled.
@@ -38,6 +57,7 @@ export function ReservationsScreen() {
   const navigation = useNavigation<any>();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const badges = React.useMemo(() => statusStyle(c), [c]);
   const reservations = useCustomerReservations(true);
   const pull = usePullToRefresh(reservations.refetch);
   const cancel = useCancelReservation();
@@ -81,7 +101,7 @@ export function ReservationsScreen() {
             />
           }
           renderItem={({ item }) => {
-            const badge = STATUS_STYLE[item.status] ?? STATUS_STYLE.cancelled;
+            const badge = badges[item.status] ?? badges.cancelled;
             return (
               <Touchable style={styles.card} onLongPress={() => askCancel(item)}>
                 <View style={styles.rowTop}>

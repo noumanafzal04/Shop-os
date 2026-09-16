@@ -39,7 +39,7 @@ import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { SHORTCUTS } from "../tradeIcon";
 import { shortcutArt, tradeArt, useTileGround, useTileTint } from "../tileArt";
 import { OfferBadge, Price } from "../../../common/ui/Price";
-import { shopInitial, shopLogo, useShopCover } from "../shopCover";
+import { shopAvatar, shopBanner, shopInitial, useShopCover } from "../shopCover";
 
 /**
  * HOW MANY TRADES THE GRID SHOWS — and why it is a FIXED number.
@@ -723,6 +723,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
   const coverFor = useShopCover();
   const closed = shop.is_open_now === false;
   const cover = coverFor(shop.slug);
+  const banner = shopBanner(shop);
 
   /**
    * TWO SHAPES, AND THE DIFFERENCE IS THE RAIL.
@@ -743,7 +744,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
       <Touchable style={[styles.wideCard, closed && styles.shopClosed]} onPress={onPress}>
         <View style={styles.wideLogo}>
           <SmartImage
-            uri={shopLogo(shop)}
+            uri={shopAvatar(shop)}
             fallback={shopInitial(shop.business_name)}
             fallbackBackground={cover.bg}
             fallbackColor={cover.fg}
@@ -793,8 +794,18 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
         well: see `shopCover.ts`, and the six grounds it no longer uses.
       */}
       <View style={[styles.railCover, { backgroundColor: cover.bg }]}>
+        {/*
+          THE SHOP'S OWN PICTURE, which this band never showed.
+
+          It drew `shopLogo`, so the one slot in the app shaped like a
+          photograph carried a logo — and a shop with a cover and no logo drew
+          a letter. `shopBanner` prefers the cover and says which it gave back,
+          because a logo must be fitted rather than cropped: a square mark
+          filled into a 120×264 band is a slice of its middle.
+        */}
         <SmartImage
-          uri={shopLogo(shop)}
+          uri={banner.uri}
+          resizeMode={banner.kind === "logo" ? "contain" : "cover"}
           fallback={shopInitial(shop.business_name)}
           fallbackBackground={cover.bg}
           fallbackColor={cover.fg}

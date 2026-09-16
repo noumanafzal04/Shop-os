@@ -1,7 +1,6 @@
 import React from "react";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { BRAND } from "../brand";
-import { brand as BRAND_SCALE } from "../../theme/tokens";
 import { CartIcon } from "./icons";
 import { useTheme } from "../../theme";
 
@@ -13,25 +12,30 @@ import { useTheme } from "../../theme";
  * It was one: a bare `ActivityIndicator` on a white page, which is the same
  * thing every half-finished app shows and says nothing about which app you
  * opened. The window behind it was white too, so tapping the icon gave a white
- * flash, then a white page, then — abruptly — a red app.
+ * flash, then a white page, then — abruptly — a coloured app.
  *
- * Now the launcher's own frame is brand red (`styles.xml`), this continues it,
+ * Now the launcher's own frame is the brand (`styles.xml`), this continues it,
  * and the first screen arrives in the same colour. Nothing flashes because
  * nothing changes colour.
  *
- * ── THE COLOUR IS FIXED, and that is the whole bug it had ─────────────
+ * ── THE COLOUR IS THE MODE'S, and getting that wrong was the bug ──────
  *
- * This painted `c.primary`, which is the THEME's primary — and the theme has
- * two: the shopping side is the brand's red-orange and the rider side is
- * green. So the launcher's orange frame gave way to a green page and then to
- * an orange app, and the report was "splash py 2 colors arhy".
+ * This painted `brand[500]` — the RAW TOKEN — and the raw token is the ember
+ * scale, which is what the WORKING side wears. The shopping side wears leaf
+ * green (`ThemeProvider` decides, in one line). So a shopper tapped a green
+ * icon, got an orange splash, and arrived in a green app: "splash py 2 colors
+ * arhy".
  *
- * The mistake is not the hex, it is asking at all. This screen is what the app
- * shows WHILE IT WORKS OUT WHO YOU ARE — `modeKnown` is false for its whole
- * life — so a colour that depends on the answer cannot be right here. It is
- * the product's own, taken from the token rather than the theme, and it is the
- * same value `styles.xml` gives the window. Nothing changes colour because
- * nothing is deciding.
+ * The first fix went the wrong way — it reached PAST the theme to the token,
+ * on the reasoning that a screen shown before the mode is known cannot ask
+ * about the mode. That reasoning is wrong twice over. The store has a mode at
+ * every instant: it DEFAULTS to `customer`, which is the right answer for
+ * almost everybody and the only answer a launcher icon can be painted for.
+ * And once `hydrateMode` lands, a returning rider's last frame here is already
+ * their own orange, which hands over to an orange app rather than tearing.
+ *
+ * So the ground is `c.primary`: green for a shopper, orange for a rider, and
+ * the same value `styles.xml` gives the window for the default case.
  *
  * ── The animation ─────────────────────────────────────────────────────
  *
@@ -42,15 +46,16 @@ import { useTheme } from "../../theme";
  * re-animating reads as a stuck loop rather than as progress.
  */
 export function Splash() {
-  const { typography, spacing } = useTheme();
+  const { typography, spacing, colors: c } = useTheme();
 
   /**
-   * The brand, not the theme. See the note above — `useTheme()` is still read
-   * for type scale and spacing, which do not fork by mode.
+   * The mode's own colour. See the note above: `c.primary` is leaf green on
+   * the shopping side and ember orange on the working side, and the store
+   * answers `customer` from the first frame rather than waiting.
    */
-  const GROUND = BRAND_SCALE[500];
-  const ON_GROUND = "#ffffff";
-  const SOFT = BRAND_SCALE[200];
+  const GROUND = c.primary;
+  const ON_GROUND = c.onPrimary;
+  const SOFT = c.brand[200];
 
   const enter = React.useRef(new Animated.Value(0)).current;
   const pulse = React.useRef(new Animated.Value(0)).current;

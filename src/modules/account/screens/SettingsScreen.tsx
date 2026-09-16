@@ -1,14 +1,13 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import {
-  ArrowLeftIcon,
   MonitorIcon,
   MoonIcon,
   SunIcon,
   type Icon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { Touchable } from "../../../common/ui/Touchable";
 import { BRAND } from "../../../common/brand";
 import {
@@ -44,23 +43,11 @@ const THEMES: Array<{ value: ThemePreference; label: string; hint: string; icon:
 export function SettingsScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const navigation = useNavigation<any>();
   const { preference, setPreference } = useTheme();
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <View style={styles.head}>
-        <Pressable
-          style={styles.back}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => navigation.goBack()}
-        >
-          <ArrowLeftIcon size={19} color={c.text} />
-        </Pressable>
-        <Text style={styles.title}>Settings</Text>
-      </View>
+      <ScreenHeader title="Settings" />
 
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.section}>Appearance</Text>
@@ -114,22 +101,6 @@ export function SettingsScreen() {
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-    head: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.sm,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-    },
-    back: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor: c.surfaceAlt,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    title: { ...typography.title, color: c.text },
 
     body: { padding: spacing.md, paddingBottom: spacing.xl },
     section: {

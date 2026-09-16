@@ -6,7 +6,7 @@ import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { AppButton } from "../../../common/ui/AppButton";
 import { ApiError } from "../../../common/types/api";
-import { spacing, type ThemeColors, typography, useColors } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useRegisterCustomer } from "../../marketplace/hooks/useMarketplace";
 
 /**
@@ -127,15 +127,24 @@ const makeStyles = (c: ThemeColors) =>
     marginTop: spacing.xs,
     marginBottom: spacing.lg,
   },
+  /**
+   * THE SAME ERROR BOX SIGN-IN HAS.
+   *
+   * This one was `#fef3f2` — the light theme's `errorBg`, written out — with a
+   * 1px border and `borderRadius: 12`, while the screen one tap away uses
+   * `c.errorBg`, no border and `radius.md`. Two boxes saying the same thing,
+   * two different shapes, and the hard-coded one glows on a dark page.
+   */
   errorBox: {
-    backgroundColor: "#fef3f2",
-    borderWidth: 1,
-    borderColor: c.error,
-    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: c.errorBg,
+    borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  errorText: { color: c.error, fontSize: 13 },
+  errorText: { color: c.error, fontSize: 13, flex: 1 },
   footerLink: { marginTop: spacing.lg, alignItems: "center" },
   footerText: { ...typography.body, color: c.gray[500] },
   footerAccent: { color: c.brand[500], fontWeight: "600" },
