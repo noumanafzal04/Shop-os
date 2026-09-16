@@ -1,7 +1,7 @@
 import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
-import { queryClient } from "../src/common/api/queryClient";
+import { queryClient } from "../../core/src/api/queryClient";
 import { useToastStore } from "../src/common/ui/toast";
-import { ApiError } from "../src/common/types/api";
+import { ApiError } from "../../core/src/types/api";
 
 /**
  * A tap that does nothing is the worst answer an app can give.

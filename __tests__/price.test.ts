@@ -1,5 +1,5 @@
 import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
-import { hasCut, percentOff } from "../src/common/ui/Price";
+import { hasCut, percentOff } from "../../core/src/ui/Price";
 import { shopCover } from "../src/modules/marketplace/shopCover";
 
 /**

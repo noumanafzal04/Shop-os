@@ -166,7 +166,7 @@ describe("the refresh control", () => {
      * accumulates styles that were correct for a design it no longer has.
      */
     const pill = codeOnly(
-      fs.readFileSync(path.join(PROJECT_ROOT, "src/common/ui/RefreshPill.tsx"), "utf8"),
+      fs.readFileSync(path.join(PROJECT_ROOT, "../core/src/ui/RefreshPill.tsx"), "utf8"),
     );
     expect(pill).not.toMatch(/onDark\?: boolean/);
     expect(pill).not.toMatch(/pillOnDark:/);
@@ -176,7 +176,7 @@ describe("the refresh control", () => {
   it("is one component wherever it is drawn", () => {
     // The words and the spin behaviour are the part worth having one copy of.
     const pill = codeOnly(
-      fs.readFileSync(path.join(PROJECT_ROOT, "src/common/ui/RefreshPill.tsx"), "utf8"),
+      fs.readFileSync(path.join(PROJECT_ROOT, "../core/src/ui/RefreshPill.tsx"), "utf8"),
     );
     expect(pill).toMatch(/export function RefreshPill/);
     expect(pill).toMatch(/export function ago/);

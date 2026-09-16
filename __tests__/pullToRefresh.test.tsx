@@ -1,7 +1,7 @@
 import React from "react";
 import ReactTestRenderer from "react-test-renderer";
 import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
-import { usePullToRefresh } from "../src/common/hooks/usePullToRefresh";
+import { usePullToRefresh } from "../../core/src/hooks/usePullToRefresh";
 
 /**
  * The spinner is feedback for a gesture, and only for a gesture.

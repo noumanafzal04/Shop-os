@@ -1,7 +1,7 @@
 import React from "react";
 import ReactTestRenderer from "react-test-renderer";
 import { ThemeProvider } from "../src/theme";
-import { OfferBadge, Price } from "../src/common/ui/Price";
+import { OfferBadge, Price } from "../../core/src/ui/Price";
 
 /**
  * THE PRICE, AS IT ACTUALLY DRAWS.

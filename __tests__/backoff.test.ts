@@ -1,4 +1,4 @@
-import { isRateLimited, noteRateLimit, pollEvery, resetRateLimit } from "../src/common/api/backoff";
+import { isRateLimited, noteRateLimit, pollEvery, resetRateLimit } from "../../core/src/api/backoff";
 
 /**
  * WHEN THE SERVER SAYS SLOW DOWN.

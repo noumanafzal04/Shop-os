@@ -117,7 +117,7 @@ describe("nothing buzzes", () => {
 
   it("still answers a press, by moving rather than buzzing", () => {
     // The denominator: removing the buzz must not have removed the feedback.
-    const btn = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/AddButton.tsx"), "utf8"));
+    const btn = codeOnly(fs.readFileSync(path.join(ROOT, "../core/src/ui/AddButton.tsx"), "utf8"));
     expect(btn).toMatch(/Animated\.spring/);
     expect(btn).toMatch(/<CheckIcon/);
   });

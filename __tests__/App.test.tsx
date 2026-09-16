@@ -55,7 +55,7 @@ jest.mock("../src/common/api/client", () => ({
 }));
 
 import App from "../App";
-import { queryClient } from "../src/common/api/queryClient";
+import { queryClient } from "../../core/src/api/queryClient";
 import { useAuthStore } from "../src/stores/authStore";
 import { BusinessAccountScreen } from "../src/modules/auth/screens/BusinessAccountScreen";
 import { SignInScreen } from "../src/modules/auth/screens/SignInScreen";

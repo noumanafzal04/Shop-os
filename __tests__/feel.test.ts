@@ -82,7 +82,7 @@ describe("a card or a row reacts to being pressed", () => {
      * replacement for `Pressable` that moves it one level down is not a
      * drop-in replacement.
      */
-    const src = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/Touchable.tsx"), "utf8"));
+    const src = codeOnly(fs.readFileSync(path.join(ROOT, "../core/src/ui/Touchable.tsx"), "utf8"));
 
     // The style and the animation land on the SAME element.
     expect(src).toMatch(/<AnimatedPressable[\s\S]*?style=\{\[style,\s*\{\s*opacity: dim/);
@@ -94,7 +94,7 @@ describe("a card or a row reacts to being pressed", () => {
     // `createAnimatedComponent` inside the body returns a new component TYPE
     // each render, and React unmounts and remounts the whole subtree — on a
     // list, that is every card, every frame.
-    const src = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/Touchable.tsx"), "utf8"));
+    const src = codeOnly(fs.readFileSync(path.join(ROOT, "../core/src/ui/Touchable.tsx"), "utf8"));
     const at = src.indexOf("createAnimatedComponent");
     const fn = src.indexOf("export function Touchable");
 
@@ -115,7 +115,7 @@ describe("a card or a row reacts to being pressed", () => {
 });
 
 describe("an entrance plays once", () => {
-  const appear = fs.readFileSync(path.join(ROOT, "src/common/ui/Appear.tsx"), "utf8");
+  const appear = fs.readFileSync(path.join(ROOT, "../core/src/ui/Appear.tsx"), "utf8");
 
   it("guards against a recycled row replaying it", () => {
     // `FlatList` reuses rows. Without this, scrolling back up replays the
@@ -183,9 +183,9 @@ describe("every overlay behaves like the others", () => {
     // A backdrop that stutters while a list is still rendering behind it is
     // the single most noticeable jank in an app of this shape.
     for (const rel of [
-      "src/common/ui/BottomSheet.tsx",
+      "../core/src/ui/BottomSheet.tsx",
       "src/navigation/SideMenu.tsx",
-      "src/common/ui/toast/ToastHost.tsx",
+      "../core/src/ui/toast/ToastHost.tsx",
       "src/modules/mode/ModeSwitchCover.tsx",
     ]) {
       const src = codeOnly(fs.readFileSync(path.join(ROOT, rel), "utf8"));
@@ -197,14 +197,14 @@ describe("every overlay behaves like the others", () => {
   it("keeps a sheet mounted long enough to animate out", () => {
     // Unmounting on the visible prop is why a sheet VANISHES instead of
     // closing — the most common way a good exit animation is never seen.
-    const src = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/BottomSheet.tsx"), "utf8"));
+    const src = codeOnly(fs.readFileSync(path.join(ROOT, "../core/src/ui/BottomSheet.tsx"), "utf8"));
     expect(src).toMatch(/const \[mounted, setMounted\] = useState\(visible\)/);
     expect(src).toMatch(/animateOut/);
   });
 
   it("lets a sheet be dragged shut, not only pressed shut", () => {
     // The gesture anybody who has used one sheet will try on the next.
-    const src = codeOnly(fs.readFileSync(path.join(ROOT, "src/common/ui/BottomSheet.tsx"), "utf8"));
+    const src = codeOnly(fs.readFileSync(path.join(ROOT, "../core/src/ui/BottomSheet.tsx"), "utf8"));
     expect(src).toMatch(/PanResponder\.create/);
     expect(src).toMatch(/Animated\.spring/);
   });
@@ -212,7 +212,7 @@ describe("every overlay behaves like the others", () => {
 
 describe("a picture arrives without a bang", () => {
   const img = codeOnly(
-    fs.readFileSync(path.join(ROOT, "src/common/ui/SmartImage.tsx"), "utf8"),
+    fs.readFileSync(path.join(ROOT, "../core/src/ui/SmartImage.tsx"), "utf8"),
   );
 
   it("fades in rather than popping", () => {

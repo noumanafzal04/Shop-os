@@ -178,7 +178,7 @@ describe("the shape the artwork is commissioned at", () => {
     // `contain`, off-ratio artwork would letterbox instead of crop — the
     // upload rule would be refusing files it no longer needs to.
     const smart = fs.readFileSync(
-      path.join(PROJECT_ROOT, "src/common/ui/SmartImage.tsx"),
+      path.join(PROJECT_ROOT, "../core/src/ui/SmartImage.tsx"),
       "utf8",
     );
     expect(smart).toMatch(/resizeMode = "cover"/);

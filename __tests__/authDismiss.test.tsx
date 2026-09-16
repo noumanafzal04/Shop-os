@@ -1,7 +1,7 @@
 import React from "react";
 import ReactTestRenderer from "react-test-renderer";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AppButton } from "../src/common/ui/AppButton";
+import { AppButton } from "../../core/src/ui/AppButton";
 
 /**
  * Signing in has to CLOSE the screen you signed in on.

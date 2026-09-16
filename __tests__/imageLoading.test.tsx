@@ -2,7 +2,7 @@ import React from "react";
 import ReactTestRenderer from "react-test-renderer";
 import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
 import { ThemeProvider } from "../src/theme";
-import { SmartImage } from "../src/common/ui/SmartImage";
+import { SmartImage } from "../../core/src/ui/SmartImage";
 
 /**
  * WHILE THE PICTURE IS STILL COMING.
@@ -126,7 +126,7 @@ describe("one animation, shared", () => {
     // either alone — a product tile shows a skeleton and then a SmartImage in
     // the same second.
     const src = codeOnly(
-      fs.readFileSync(path.join(PROJECT_ROOT, "src/common/ui/SmartImage.tsx"), "utf8"),
+      fs.readFileSync(path.join(PROJECT_ROOT, "../core/src/ui/SmartImage.tsx"), "utf8"),
     );
     expect(src).toMatch(/import \{ useShimmer \} from "\.\/Skeleton"/);
     expect(src).toMatch(/const \{ progress, still \} = useShimmer\(\)/);
@@ -174,7 +174,7 @@ describe("one animation, shared", () => {
 
   it("animates only what the native driver can carry", () => {
     const src = codeOnly(
-      fs.readFileSync(path.join(PROJECT_ROOT, "src/common/ui/SmartImage.tsx"), "utf8"),
+      fs.readFileSync(path.join(PROJECT_ROOT, "../core/src/ui/SmartImage.tsx"), "utf8"),
     );
     // `opacity` and `transform` are the two this app can drive off the JS
     // thread. A sweep that stutters while a list scrolls is worse than none.

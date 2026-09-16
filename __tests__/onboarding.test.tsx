@@ -40,7 +40,7 @@ jest.mock("../src/common/utils/prefs", () => ({
 }));
 
 import App from "../App";
-import { queryClient } from "../src/common/api/queryClient";
+import { queryClient } from "../../core/src/api/queryClient";
 import { OnboardingScreen } from "../src/modules/onboarding/OnboardingScreen";
 import { RootNavigator } from "../src/navigation/RootNavigator";
 

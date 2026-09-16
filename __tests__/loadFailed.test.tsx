@@ -2,9 +2,9 @@ import React from "react";
 import { Text } from "react-native";
 import ReactTestRenderer from "react-test-renderer";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { LoadFailed } from "../src/common/ui/LoadFailed";
+import { LoadFailed } from "../../core/src/ui/LoadFailed";
 import { ThemeProvider } from "../src/theme";
-import { ApiError } from "../src/common/types/api";
+import { ApiError } from "../../core/src/types/api";
 
 /**
  * Three silences that used to look identical on screen.

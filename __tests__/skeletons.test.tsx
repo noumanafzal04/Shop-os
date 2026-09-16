@@ -8,7 +8,7 @@ import {
   SkeletonListRow,
   SkeletonMenuRow,
   SkeletonStatusCard,
-} from "../src/common/ui/Skeleton";
+} from "../../core/src/ui/Skeleton";
 
 /**
  * Loading placeholders, and the rule that makes them worth having.
@@ -38,7 +38,7 @@ async function render(node: React.ReactElement) {
 
 describe("every skeleton is one somebody waits behind", () => {
   it("has a real screen using it", () => {
-    const source = fs.readFileSync(path.join(ROOT, "src/common/ui/Skeleton.tsx"), "utf8");
+    const source = fs.readFileSync(path.join(ROOT, "../core/src/ui/Skeleton.tsx"), "utf8");
     const exported = [...source.matchAll(/^export function (\w+)/gm)].map((m) => m[1]);
 
     // COMPONENTS, not every export. `useShimmer` is exported from this file so
@@ -53,7 +53,22 @@ describe("every skeleton is one somebody waits behind", () => {
     // A count of findings is not evidence without a count of attempts.
     expect(components.length).toBeGreaterThan(2);
 
-    const screens = sourceFiles(path.join(ROOT, "src"))
+    /**
+     * BOTH TREES, because the code moved and the population must follow it.
+     *
+     * This scanned `src` alone. `useShimmer` is exported here so `SmartImage`
+     * can wait for a photograph on the same curve a skeleton waits for a row
+     * — and `SmartImage` now lives in `@cartze/core`, beside this file. The
+     * guard reported the hook as an orphan on the commit that moved it, which
+     * is the scan being narrower than the thing it scans for.
+     *
+     * A shared component using another shared component is not a violation;
+     * it is the package doing its job.
+     */
+    const screens = [
+      ...sourceFiles(path.join(ROOT, "src")),
+      ...sourceFiles(path.join(ROOT, "../core/src")),
+    ]
       .filter((f) => !f.endsWith("Skeleton.tsx"))
       .map((f) => fs.readFileSync(f, "utf8"))
       .join("\n");

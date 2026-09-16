@@ -2,7 +2,7 @@ import React from "react";
 import ReactTestRenderer from "react-test-renderer";
 import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
 import { ThemeProvider } from "../src/theme";
-import { EmptyState } from "../src/common/ui/EmptyState";
+import { EmptyState } from "../../core/src/ui/EmptyState";
 import { BagIcon } from "../../core/src/ui/icons";
 
 /**

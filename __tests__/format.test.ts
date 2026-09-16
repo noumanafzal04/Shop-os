@@ -1,5 +1,5 @@
 import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
-import { money, qtyText } from "../src/common/format";
+import { money, qtyText } from "../../core/src/format";
 import { shopCover, shopInitial } from "../src/modules/marketplace/shopCover";
 
 /**

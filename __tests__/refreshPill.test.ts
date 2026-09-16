@@ -1,5 +1,5 @@
 import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
-import { ago } from "../src/common/ui/RefreshPill";
+import { ago } from "../../core/src/ui/RefreshPill";
 
 /**
  * A POLLING SCREEN HAS TO SAY HOW OLD IT IS.
