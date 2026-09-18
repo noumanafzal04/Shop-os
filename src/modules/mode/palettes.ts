@@ -1,5 +1,5 @@
 import React from "react";
-import { emberThemes, leafThemes, type ThemeColors, type ThemeName } from "../../theme";
+import { carmineThemes, emeraldThemes, type ThemeColors, type ThemeName } from "../../theme";
 import { useModeStore } from "../../stores/modeStore";
 
 /**
@@ -15,14 +15,18 @@ import { useModeStore } from "../../stores/modeStore";
  * So the provider now asks, and this is the answer — the only file in the
  * product that knows the mapping.
  *
- * ── The mapping, and it has been turned over once already ────────────
+ * ── The mapping, and it has been turned over twice now ───────────────
  *
- * SHOPPING IS LEAF GREEN and working is EMBER ORANGE, decided after seeing
- * both on a phone. The palettes are named for their COLOURS rather than for
- * their side precisely so this can be reversed again without every name in
- * the codebase becoming a lie — which is exactly what happened the first
- * time, and is why the splash screen shipped painting the rider's orange on
- * a green app.
+ * SHOPPING IS EMERALD (#10b981) and working is CARMINE (#ef4444), given
+ * 2026-09-17 with the ride-app reference screens. Before that it was leaf
+ * olive and ember orange, and before THAT the two were the other way round.
+ *
+ * The palettes are named for their COLOURS rather than for their side
+ * precisely so this keeps being reversible without every name in the codebase
+ * becoming a lie — which is exactly what happened the first time, and is why
+ * the splash screen once shipped painting the rider's orange on a green app.
+ * Renaming the scales when the hue family moves is part of that bargain, not
+ * an extra: `ember` describing a red would have been the same lie again.
  */
 export interface ModePalettes {
   /** The colours this app is wearing now. */
@@ -36,8 +40,8 @@ export function useModePalettes(): ModePalettes {
 
   return React.useMemo(
     () => ({
-      paletteFor: (name: ThemeName) => (mode === "rider" ? emberThemes : leafThemes)[name],
-      oppositePaletteFor: (name: ThemeName) => (mode === "rider" ? leafThemes : emberThemes)[name],
+      paletteFor: (name: ThemeName) => (mode === "rider" ? carmineThemes : emeraldThemes)[name],
+      oppositePaletteFor: (name: ThemeName) => (mode === "rider" ? emeraldThemes : carmineThemes)[name],
     }),
     [mode],
   );

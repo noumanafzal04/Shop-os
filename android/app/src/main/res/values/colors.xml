@@ -8,23 +8,25 @@
       read `src/theme/tokens.ts` — see `src/common/brand.ts` for the rest of
       what a rename has to touch.
 
-      LEAF GREEN, NOT EMBER ORANGE, and that was a real bug rather than a
-      preference. This app has two palettes and `ThemeProvider` decides which
-      side wears which: shopping is leaf, working is ember. Android cannot ask
-      — this frame is painted before the process exists, let alone the store —
-      so it has to be painted for the answer that is true for almost everybody
-      and is what the store says from its first frame: customer.
+      THE SHOPPING SIDE'S GREEN, and getting this wrong was a real bug rather
+      than a preference. This app has two palettes and `ThemeProvider` decides
+      which side wears which: shopping is EMERALD, working is CARMINE. Android
+      cannot ask — this frame is painted before the process exists, let alone
+      the store — so it is painted for the answer true of almost everybody and
+      stated by the store listing from its first frame: customer.
 
-      It was #E94E00. A shopper tapped an orange icon, waited behind an orange
-      sheet and arrived in a green app.
+      It was once #E94E00, and a shopper tapped an orange icon, waited behind
+      an orange sheet and arrived in a green app. `splashAndIntro.test.ts`
+      asserts this hex against `emeraldThemes.light.primary` so the two cannot
+      drift again.
     -->
-    <color name="brand">#557F1D</color>
+    <color name="brand">#10B981</color>
     <!--
-      The launcher icon's ground. The same brand orange, named separately
+      The launcher icon's ground. The same brand green, named separately
       because it is read by `mipmap-anydpi-v26/ic_launcher.xml` and a colour
       the LAUNCHER holds is not the same fact as the colour the splash frame
       holds — one of them can change without the other.
     -->
-    <color name="ic_launcher_background">#557F1D</color>
-    <color name="brand_dark">#456B14</color>
+    <color name="ic_launcher_background">#10B981</color>
+    <color name="brand_dark">#059669</color>
 </resources>

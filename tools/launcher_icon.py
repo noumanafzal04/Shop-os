@@ -10,7 +10,7 @@ Geometry is in fractions of the canvas so every density is the same drawing.
 """
 from PIL import Image, ImageDraw
 
-BRAND = (85, 127, 29, 255)     # #557F1D — the same hex as values/colors.xml
+BRAND = (16, 185, 129, 255)    # #10B981 — the same hex as values/colors.xml
 WHITE = (255, 255, 255, 255)
 SS = 8                          # supersample; anti-aliasing comes from the resize
 

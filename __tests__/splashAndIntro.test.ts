@@ -1,5 +1,5 @@
 import { PROJECT_ROOT, codeOnly, fs, path } from "./support/node";
-import { emberThemes, leafThemes } from "@cartze/core/theme/themes";
+import { carmineThemes, emeraldThemes } from "@cartze/core/theme/themes";
 
 /**
  * THE FIRST TWO SCREENS ANYBODY SEES.
@@ -42,7 +42,7 @@ describe("the splash wears the mode's colour", () => {
    * primary — that it should reach past the theme to `brand[500]`. That was
    * written to fix "splash py 2 colors arhy" and it fixed nothing, because
    * `brand[500]` IS the ember scale: the colour the WORKING side wears.
-   * `ThemeProvider` hands the shopping side `leafThemes`. So the token was
+   * `ThemeProvider` hands the shopping side `emeraldThemes`. So the token was
    * never the customer's colour, and the guard held the bug in place.
    *
    * The store answers `customer` from its first frame — that is its initial
@@ -68,7 +68,7 @@ describe("the splash wears the mode's colour", () => {
     // The VALUE, not a regex over the file: the shopping side's primary is
     // decided by one line in `ThemeProvider`, and reading the palette itself
     // is the only way this survives that line being turned over again.
-    expect(native!.toLowerCase()).toBe(leafThemes.light.primary.toLowerCase());
+    expect(native!.toLowerCase()).toBe(emeraldThemes.light.primary.toLowerCase());
     // And the window actually uses it, rather than defaulting to white.
     expect(styles).toMatch(/windowBackground">@color\/brand/);
   });
@@ -77,13 +77,13 @@ describe("the splash wears the mode's colour", () => {
     // A green icon opening an orange app was the whole complaint. The icon's
     // ground, the window and the splash are one fact in three files.
     const ground = colors.match(/<color name="ic_launcher_background">(#[0-9a-fA-F]{6})<\/color>/)?.[1];
-    expect(ground?.toLowerCase()).toBe(leafThemes.light.primary.toLowerCase());
+    expect(ground?.toLowerCase()).toBe(emeraldThemes.light.primary.toLowerCase());
   });
 
   it("does not paint the working side's colour on the shopping side", () => {
     // Stated as its own case because this is the regression, by hex.
     const native = colors.match(/<color name="brand">(#[0-9a-fA-F]{6})<\/color>/)?.[1];
-    expect(native!.toLowerCase()).not.toBe(emberThemes.light.primary.toLowerCase());
+    expect(native!.toLowerCase()).not.toBe(carmineThemes.light.primary.toLowerCase());
   });
 
   /** The mark the launcher carries, so tapping the icon leads somewhere that

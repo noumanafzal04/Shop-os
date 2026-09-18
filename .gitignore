@@ -79,3 +79,10 @@ yarn-error.log
 # public, and a key in it is readable for ever afterwards even once rotated.
 # `secrets.example.ts` IS tracked and carries the empty shape.
 src/common/secrets.ts
+
+# Firebase's Android config. Not a password — it ships inside every APK and
+# Google documents it as non-secret — but this repository is PUBLIC, and the
+# `api_key` inside it is billable the moment it is left unrestricted in Google
+# Cloud. Ignored for the same reason `secrets.ts` is: a public repo should not
+# be the place anybody finds it first.
+android/app/google-services.json
