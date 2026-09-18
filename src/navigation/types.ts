@@ -18,6 +18,12 @@ export type OrdersStackParamList = {
   OrderDetail: { id: string };
 };
 
+/** The menu list, and one item behind it. Same shape and reason as Orders. */
+export type MenuStackParamList = {
+  MenuList: undefined;
+  ProductDetail: { id: string };
+};
+
 export type RootStackParamList = {
   SignIn: undefined;
   Tabs: undefined;

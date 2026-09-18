@@ -15,9 +15,15 @@
 declare function require(id: string): unknown;
 declare const __dirname: string;
 
+interface DirEntry {
+  name: string;
+  isDirectory(): boolean;
+}
+
 export const fs = require("fs") as {
   readFileSync(p: string, encoding: "utf8"): string;
   existsSync(p: string): boolean;
+  readdirSync(p: string, o: { withFileTypes: true }): DirEntry[];
 };
 
 export const path = require("path") as {
@@ -27,6 +33,23 @@ export const path = require("path") as {
 
 /** This project's root — one directory above `__tests__`. */
 export const PROJECT_ROOT = path.join(__dirname, "..", "..");
+
+/**
+ * Every `.ts`/`.tsx` under `dir`, recursively.
+ *
+ * Guards that take a hand-written LIST of files are guards that go quiet the
+ * first time somebody adds one. The endpoint guard shipped with three services
+ * named in an array and a fourth written the same hour — it passed, having
+ * read none of it. A guard must find its own subject.
+ */
+export function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) sourceFiles(full, out);
+    else if (/\.tsx?$/.test(entry.name)) out.push(full);
+  }
+  return out;
+}
 
 /**
  * SOURCE WITH THE PROSE TAKEN OUT.

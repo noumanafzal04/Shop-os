@@ -1,11 +1,20 @@
-import { fs, path, PROJECT_ROOT, codeOnly } from "./support/node";
+import { fs, path, PROJECT_ROOT, codeOnly, sourceFiles } from "./support/node";
 import { serverRoutes, hasRoute } from "./support/routes";
 
-const SERVICES = [
-  "src/modules/auth/services/authService.ts",
-  "src/modules/dashboard/services/dashboardService.ts",
-  "src/modules/orders/services/ordersService.ts",
-];
+/**
+ * FOUND, NOT LISTED.
+ *
+ * This was an array of three service paths. A fourth service was written the
+ * same hour and the guard passed having never opened it — a guard with a
+ * hand-written list of its own subject is a guard that goes quiet exactly when
+ * the codebase grows.
+ *
+ * Every file under `src` that calls the shared client is in scope now, so a
+ * new module is covered by existing.
+ */
+const CALLERS = sourceFiles(path.join(PROJECT_ROOT, "src")).filter((f) =>
+  /api(?:Get|Post|Put|Patch|Delete)</.test(codeOnly(fs.readFileSync(f, "utf8"))),
+);
 
 /**
  * EVERY URL THIS APP CALLS IS A ROUTE THE SERVER HAS.
@@ -47,11 +56,17 @@ describe("every endpoint the app calls exists on the server", () => {
     expect(hasRoute(routes, "/order-queue")).toBe(false);
   });
 
-  for (const file of SERVICES) {
+  it("found the files that call the API", () => {
+    // Zero callers would make every case below vacuous — the failure this
+    // whole file is about, in its newest disguise.
+    expect(CALLERS.length).toBeGreaterThan(2);
+  });
+
+  for (const file of CALLERS) {
     const name = file.split("/").slice(-1)[0]!;
 
     it(`${name} calls nothing the server does not have`, () => {
-      const src = codeOnly(fs.readFileSync(path.join(PROJECT_ROOT, file), "utf8"));
+      const src = codeOnly(fs.readFileSync(file, "utf8"));
 
       const urls = [
         ...src.matchAll(/api(?:Get|Post|Put|Patch|Delete)<[^>]*>\(\s*["`](\/[^"`]+)["`]/g),

@@ -16,7 +16,7 @@ import { useAuthStore } from "../stores/authStore";
 import { tabsFor, type PartnerTab } from "./tabsFor";
 import { DashboardScreen } from "../modules/dashboard/screens/DashboardScreen";
 import { OrdersStack } from "./OrdersStack";
-import { MenuScreen } from "../modules/menu/screens/MenuScreen";
+import { MenuStack } from "./MenuStack";
 import { MoneyScreen } from "../modules/money/screens/MoneyScreen";
 import { AccountScreen } from "../modules/account/screens/AccountScreen";
 import type { PartnerTabParamList } from "./types";
@@ -37,7 +37,7 @@ const TABS: Record<
 > = {
   Dashboard: { label: "Today", icon: GridIcon, screen: DashboardScreen },
   Orders: { label: "Orders", icon: ReceiptIcon, screen: OrdersStack },
-  Menu: { label: "Menu", icon: UtensilsIcon, screen: MenuScreen },
+  Menu: { label: "Menu", icon: UtensilsIcon, screen: MenuStack },
   Money: { label: "Money", icon: BanknoteIcon, screen: MoneyScreen },
   Account: { label: "Account", icon: PersonIcon, screen: AccountScreen },
 };
