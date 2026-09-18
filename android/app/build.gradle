@@ -7,6 +7,31 @@ apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
 
 /**
+ * THE SHARED PACKAGE IS AN INPUT TO THE BUNDLE.
+ *
+ * `@cartze/core` lives OUTSIDE this project, so Gradle does not watch it. A
+ * fix made in core and an `assembleRelease` immediately after produced an APK
+ * with the OLD bundle inside it — the task was "up to date" because nothing it
+ * knew about had changed, and the build reported SUCCESS in five seconds.
+ *
+ * That is the worst shape a build failure can take: green, fast, and shipping
+ * code that was already replaced. It was caught by comparing the APK's
+ * timestamp against the source file's, which is not a thing anybody remembers
+ * to do twice.
+ *
+ * Declaring the folder as an input makes Gradle re-bundle when core changes.
+ * Matched by task NAME rather than by the plugin's internal class, so a React
+ * Native upgrade that moves the class does not silently stop watching.
+ */
+tasks.configureEach { task ->
+    if (task.name.startsWith("createBundle") && task.name.endsWith("JsAndAssets")) {
+        task.inputs.dir(file("$rootDir/../../core/src"))
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .withPropertyName("cartzeCore")
+    }
+}
+
+/**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
