@@ -1,34 +1,53 @@
 {
-  "_note": [
-    "INTENT ONLY. Nothing is installed and this does not run.",
-    "Versions are pinned to whatever mobile/package.json holds at the time",
-    "Phase 1 starts, so the two apps share one React Native and one set of",
-    "native modules. Two RN versions in one product is two upgrade paths.",
-    "",
-    "NOT LISTED, deliberately: @react-native-firebase/* — see DECISIONS #1.",
-    "It is added when google-services.json exists, and not before: a Firebase",
-    "package with no config file fails at build rather than at runtime."
-  ],
   "name": "cartze-partner",
+  "version": "0.1.0",
   "private": true,
-  "version": "0.0.0",
-  "_dependencies_planned": {
-    "@react-navigation/native": "same as mobile",
-    "@react-navigation/bottom-tabs": "same as mobile",
-    "@react-navigation/native-stack": "same as mobile",
-    "@tanstack/react-query": "same as mobile",
-    "axios": "same as mobile",
-    "react": "same as mobile",
-    "react-native": "same as mobile",
-    "react-native-image-picker": "product photos",
-    "react-native-keychain": "tokens — never plain storage",
-    "react-native-safe-area-context": "same as mobile",
-    "react-native-screens": "same as mobile",
-    "react-native-svg": "icons",
-    "zustand": "same as mobile"
+  "scripts": {
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "start": "react-native start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --forceExit"
   },
-  "_not_used": {
-    "@react-native-community/geolocation": "a shop does not move",
-    "reanimated / gesture-handler / async-storage": "the customer app ships without them and so does this"
+  "dependencies": {
+    "@react-native-community/netinfo": "^12.0.1",
+    "@react-navigation/bottom-tabs": "^7.18.8",
+    "@react-navigation/native": "^7.3.8",
+    "@react-navigation/native-stack": "^7.17.10",
+    "@tanstack/react-query": "^5.101.2",
+    "axios": "^1.18.1",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-image-picker": "^8.2.1",
+    "react-native-keychain": "^10.0.0",
+    "react-native-safe-area-context": "^5.8.0",
+    "react-native-screens": "^4.26.0",
+    "react-native-svg": "^15.15.5",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "20.1.0",
+    "@react-native-community/cli-platform-android": "20.1.0",
+    "@react-native-community/cli-platform-ios": "20.1.0",
+    "@react-native/babel-preset": "0.86.0",
+    "@react-native/eslint-config": "0.86.0",
+    "@react-native/jest-preset": "^0.86.0",
+    "@react-native/metro-config": "0.86.0",
+    "@react-native/typescript-config": "0.86.0",
+    "@types/jest": "^29.5.13",
+    "@types/react": "^19.2.0",
+    "@types/react-test-renderer": "^19.1.0",
+    "eslint": "^8.19.0",
+    "jest": "^29.6.3",
+    "prettier": "2.8.8",
+    "react-test-renderer": "19.2.3",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

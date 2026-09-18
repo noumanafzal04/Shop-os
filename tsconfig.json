@@ -1,0 +1,44 @@
+{
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "types": ["jest"],
+    // The third of the three declarations — see metro.config.js. `baseUrl` is
+    // required for `paths` to mean anything.
+    "baseUrl": ".",
+    "paths": {
+      "@cartze/core": ["../core/src/index.ts"],
+      "@cartze/core/*": ["../core/src/*"],
+      // The compiler's half of Metro's node_modules proxy. A file under
+      // ../core that imports `react-native` resolves upward from its OWN
+      // folder and never reaches this app's copy — tsc reports it as
+      // "Cannot find module 'react-native'" while the bundler is perfectly
+      // happy.
+      // `react` is mapped at its TYPES first and the package second, and the
+      // order is the whole trick. Pointing it straight at `./node_modules/react`
+      // resolves to a JS entry with no declarations, TypeScript does not then
+      // fall back to `@types/react`, and every `import React` in the app
+      // silently becomes `any` with JSX losing its prop checking.
+      "react": ["./node_modules/@types/react", "./node_modules/react"],
+      // react-native ships its own types, so one entry is enough.
+      "react-native": ["./node_modules/react-native"],
+      // EVERYTHING ELSE, and this is the entry that scales.
+      //
+      // A file under ../core importing `react-native-svg`, `react-navigation`
+      // or `react-native-safe-area-context` resolves upward from its OWN
+      // folder and reaches none of them. A `paths` line per package would mean
+      // editing this file every time core touches a new dependency — a rule
+      // that has to be remembered is a rule that gets forgotten.
+      //
+      // The wildcard is LAST, so the explicit entries above still win.
+      //
+      // `@types` comes FIRST inside it, the same lesson as `react` above,
+      // learned twice: put the package first and a library whose types live in
+      // a separate @types package resolves to a JS entry with no declarations.
+      // TypeScript does not fall back — it reports implicit-any, and
+      // `react-test-renderer` took a whole test tree down that way.
+      "*": ["./node_modules/@types/*", "./node_modules/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["**/node_modules", "**/Pods"]
+}
