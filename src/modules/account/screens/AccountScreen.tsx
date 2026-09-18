@@ -15,6 +15,7 @@ import {
 import { useTheme, spacing, typography, useColors, type ThemeColors, type ThemePreference } from "@cartze/core/theme";
 import { BRAND } from "../../../common/brand";
 import { useAuthStore } from "../../../stores/authStore";
+import { stopPush } from "../../../services/push";
 
 /**
  * WHO YOU ARE, WHICH SHOP, AND THE WAY OUT.
@@ -45,7 +46,18 @@ export function AccountScreen() {
       tone: "danger",
     });
 
-    if (yes) await clear();
+    if (!yes) return;
+
+    /**
+     * UNREGISTER BEFORE CLEARING THE SESSION, not after.
+     *
+     * The call needs the token it is about to throw away. Done in the other
+     * order it goes out unauthenticated and the server keeps pushing this
+     * shop's orders — naming a customer each time — to a phone somebody else
+     * is now holding.
+     */
+    await stopPush();
+    await clear();
   }
 
   return (

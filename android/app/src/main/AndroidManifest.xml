@@ -1,6 +1,16 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Android 13 and later will not show a notification until the person has
+      been asked. Declared here and REQUESTED at runtime — see
+      `src/services/push.ts`. Without the runtime ask this permission is simply
+      denied, and a shop would sit waiting for an order bell that can never
+      ring, with nothing anywhere saying why.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
       android:name=".MainApplication"
@@ -11,6 +21,29 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+
+      <!--
+        THE CHANNEL A PUSH ARRIVES ON.
+
+        Android 8 and later DROP a notification whose channel it does not
+        recognise — silently, with no error and nothing in logcat that names
+        the cause. The server sends `default` (config/services.php →
+        `FCM_CHANNEL`), so this must agree with it, and `push.ts` creates the
+        channel itself on first run because a declared default still has to
+        exist.
+      -->
+      <!--
+        `tools:replace` because the messaging library declares this same
+        meta-data with an EMPTY value, and the merger refuses two. Left to the
+        library's blank the channel id would be "" — which Android does not
+        recognise, so every notification would be dropped in silence. The
+        build failing here was the good outcome; the bad one is a green build
+        and a bell that never rings.
+      -->
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_channel_id"
+        android:value="default"
+        tools:replace="android:value" />
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

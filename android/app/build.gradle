@@ -1,6 +1,10 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+// Must come AFTER the android plugin: it reads the applicationId to pick the
+// matching client out of google-services.json. This project's file holds two —
+// com.cartze.partner and the customer app's — and the plugin chooses by id.
+apply plugin: "com.google.gms.google-services"
 
 /**
  * This is the configuration block to customize your React Native Android app.
