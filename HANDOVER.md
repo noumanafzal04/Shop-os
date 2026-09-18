@@ -7495,3 +7495,67 @@ WHERE JSON_EXTRACT(settings,'$.delivery_provider') = 'self';`
 
 Backend 2701 / 2 skipped · panel 1522 · mobile 765 · APK
 `cartze-1.0.7-b12.apk` (versionCode 8).
+
+## 2026-09-17/18 — Rides on paper, a palette measured, Partner scaffolded
+
+Three things, none of them a feature yet.
+
+**City rides are designed, not built.** `docs/decisions/shopos-a-ride-is-not-an-order.md`
+carries the whole thing: money, state machine, seven tables, the screens, and
+an eleven-point break-nothing list. The money model is the user's and it is
+the right one — a prepaid driver wallet, commission CHECKED when a driver bids
+and CHARGED the moment the passenger accepts, nothing returned on a cancel.
+Cash never touches the platform, so there is nothing to collect afterwards.
+
+Two things in it are worth knowing without opening it:
+
+*"Can this rider be given work" is answered in THREE places* —
+`RiderProfile::isAvailable()`, `RiderService::offerBlock()` and the SQL in
+`availableNear()`. Rides add a fourth condition and it must land in all three.
+Miss the SQL and a rider carrying a passenger is offered a biryani; miss
+`offerBlock` and the board is empty with no reason, which is the exact bug that
+method was written to kill. `activeJobs()` counts orders only, so
+`MAX_ACTIVE_JOBS` cannot see a ride at all.
+
+*There is no map in this app, on purpose.* `src/common/maps.ts` hands
+coordinates to the phone's own maps app, and for delivery that is better. Rides
+split the decision: the passenger needs an in-app map (dropping a pin, watching
+the car approach), the driver does not — turn-by-turn stays with Google Maps.
+So the reversal is narrow: one map, customer side, ride flow only.
+
+**The palette moved to #10B981 / #EF4444** (`carmineThemes` / `emeraldThemes` —
+the old `ember`/`leaf` names described hues that no longer existed). Three
+problems only measurement found:
+
+- white on #10B981 is **2.54:1**, under even the 3:1 floor for a UI component.
+  `onPrimary` is ink on the green palette now — 6.91:1.
+- the brand and `error` sat **4° apart in hue**. The palette's own older
+  comment said "at hue 4 against the brand's 20 they are told apart at a
+  glance" — true when the brand was orange, false after, and edited by nobody.
+- a brand mark on the pale green tint measured 2.41:1, so the emerald palette's
+  `primaryPressed` is 700 rather than 600 and IS the text-safe shade.
+
+The first version of that guard measured a contrast RATIO for "are these told
+apart", which rates pink against red at 1.04:1. It would have rejected the fix
+and accepted the bug. It asks hue **or** lightness now, and fails when mutated.
+
+**CartZe Partner is scaffolded and deliberately stopped there.** Branch
+`tenant-partner-app`, package `com.cartze.partner`, RN 0.86 at versions
+identical to `mobile/`, `@cartze/core` wired in all three places and PROVEN —
+partner's own `tsc` resolves a core import. All 46 source files are still
+comment-only. The user's instruction is to wait: the screens are wanted good,
+not fast.
+
+**Firebase push works end to end.** One project `cartze-38808` holding both
+Android apps. The service account pasted in chat was rotated and the old key
+deleted, then `FcmSender::accessToken()` was called for real and Google
+returned a token — file → config → JWT → OAuth exchange, exercised rather than
+assumed.
+
+Still the user's: release keystore (release is signed with the *debug*
+keystore, whose SHA-1 is shared by every RN project, so a Maps key restricted
+to it is restricted to nobody), Maps key + billing, an SMS gateway (OTP has
+never reached a phone — `SMS_*` is read by `services.php` and absent from
+`.env.example`), and the Geoapify key.
+
+mobile 68 suites / 841 tests · tsc clean · eslint 0 errors.

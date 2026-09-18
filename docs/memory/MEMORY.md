@@ -213,3 +213,5 @@
 - [Wallet Tender](shopos-wallet-tender.md) — JazzCash/Easypaisa is its own tender; offline-safe like a card; 9 copies of one list → PaymentMethod::counter()
 - [Typecheck Checked Nothing](shopos-typecheck-checked-nothing.md) — panel `tsc --noEmit` compiles ZERO files; use `npm run typecheck` (tsc -b)
 - [Shop Mints Rider Id](shopos-shop-mints-rider-id.md) — shop hands out RDR- id, rider claims it; a shop's word never reaches the platform pool
+- [Ride Palette](shopos-ride-palette.md) — 2026-09-17 direction: customer #10B981, rider #EF4444; NOT built; #EF4444 collides with danger
+- [Partner App](shopos-partner-app.md) — tenant app scaffold done, screens NOT started; wait to be told
