@@ -32,3 +32,9 @@ Thumbs.db
 # Any python helper in scripts/ leaves one of these. A path-specific ignore
 # only covers the folder somebody thought of.
 __pycache__/
+
+# The FCM service account. This one IS a secret: it carries a PRIVATE KEY that
+# can send push as this project for ever. Never committed, never pasted
+# anywhere, and it lives on the private disk because nothing serves that
+# directory.
+/storage/app/private/fcm.json
