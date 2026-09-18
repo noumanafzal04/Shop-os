@@ -3,6 +3,30 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 /**
+ * THE SHARED PACKAGE IS AN INPUT TO THE BUNDLE.
+ *
+ * `@cartze/core` lives OUTSIDE this project, so Gradle does not watch it. A
+ * fix made in core and an `assembleRelease` immediately after produces an APK
+ * with the OLD bundle inside it: the task is "up to date" because nothing it
+ * knows about changed, and the build reports SUCCESS in five seconds.
+ *
+ * Green, fast, and shipping code that was already replaced — the worst shape a
+ * build failure can take. Found on the Partner app by comparing the APK's
+ * timestamp against the source file's, which is not something anybody
+ * remembers to do twice, and true here for exactly the same reason.
+ *
+ * Matched by task NAME rather than by the plugin's internal class, so a React
+ * Native upgrade that moves the class does not silently stop watching.
+ */
+tasks.configureEach { task ->
+    if (task.name.startsWith("createBundle") && task.name.endsWith("JsAndAssets")) {
+        task.inputs.dir(file("$rootDir/../../core/src"))
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .withPropertyName("cartzeCore")
+    }
+}
+
+/**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */

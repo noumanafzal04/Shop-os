@@ -207,6 +207,51 @@ describe("the two palettes are actually different", () => {
  * changed by a word — the shopping side is green and the working side is
  * red — only where the answer comes from.
  */
+/**
+ * THE PALETTE IS ONLY HALF THE CONTRACT.
+ *
+ * The cases above prove a palette's `onPrimary` is readable on its `primary`.
+ * They say nothing about whether anything USES it — and for a while nothing
+ * did: `AppButton` drew `c.white` on every solid button, which was true of
+ * every palette this product had until #10b981 arrived at 2.54:1 against
+ * white. Eight hundred and forty tests passed. It took running the app to see
+ * a sign-in button whose label nobody could read.
+ *
+ * "Promise in another file" is the name this codebase already has for it: a
+ * rule stated in one place and implemented in none.
+ */
+describe("the components actually read the palette", () => {
+  const source = (file: string) =>
+    fs.readFileSync(path.join(__dirname, "..", "..", "core", "src", "ui", file), "utf8");
+
+  it("draws a solid button's label with onPrimary, never a hardcoded white", () => {
+    const button = codeOnly(source("AppButton.tsx"));
+
+    expect(button).toContain("c.onPrimary");
+    // `c.white` on a solid ground is the exact bug. It may still appear for
+    // `danger`, whose red is dark enough on both themes and is not a hue a
+    // palette re-points — so the assertion is about the PRIMARY branch.
+    expect(button).not.toMatch(/variant === "primary"[\s\S]{0,40}c\.white/);
+    expect(button).not.toMatch(/solid \?\s*c\.white/);
+  });
+
+  it("fills a primary button from `primary`, not from a scale index", () => {
+    // `brand[500]` and `primary` agree today. An index is a fact about a
+    // scale; `primary` is a fact about the design, and only one of them
+    // survives the next repalette.
+    expect(codeOnly(source("AppButton.tsx"))).toMatch(/primary:\s*\{\s*backgroundColor:\s*c\.primary/);
+  });
+
+  it("does not disable a button by halving its contrast", () => {
+    /**
+     * `opacity: 0.5` faded the fill AND the label together. On a button whose
+     * label was already at 2.54:1 the result was unreadable, and on any
+     * palette it makes "not ready yet" look like "broken".
+     */
+    expect(codeOnly(source("AppButton.tsx"))).not.toMatch(/disabled:\s*\{\s*opacity:\s*0\.5\s*\}/);
+  });
+});
+
 describe("the app paints the side you are on", () => {
   function Probe({ onColor }: { onColor: (hex: string) => void }) {
     const c = useColors();
