@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeScreen } from "@cartze/core/ui/SafeScreen";
 import { EmptyState } from "@cartze/core/ui/EmptyState";
-import { ReceiptIcon } from "@cartze/core/ui/icons";
+import { BanknoteIcon } from "@cartze/core/ui/icons";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 
 /**
@@ -14,18 +14,18 @@ import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/t
  * a shop with no orders, which for a shop that HAS orders is a bug report
  * nobody can act on.
  */
-export function OrdersScreen() {
+export function MoneyScreen() {
   const s = styles(useColors());
 
   return (
     <SafeScreen edges={["top"]}>
       <View style={s.root}>
-        <Text style={s.title}>Orders</Text>
+        <Text style={s.title}>Money</Text>
         <EmptyState
-          icon={ReceiptIcon}
+          icon={BanknoteIcon}
           tone="muted"
           title="Coming in the next release"
-          message="The queue, order details, and moving an order through its stages. Until then, use the CartZe web panel."
+          message="Earnings by period, sales, what CartZe took in commission, and recording an expense. Until then, use the CartZe web panel."
         />
       </View>
     </SafeScreen>

@@ -1,21 +1,39 @@
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { SafeScreen } from "@cartze/core/ui/SafeScreen";
+import { EmptyState } from "@cartze/core/ui/EmptyState";
+import { UtensilsIcon } from "@cartze/core/ui/icons";
+import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
+
 /**
- * STUB — structure only.
+ * NOT BUILT YET, AND IT SAYS SO.
  *
- * The catalogue as a shopkeeper uses it during a shift: find the item,
- * turn it off, fix its price.
- *
- *   GET /products?q=…&category_id=…
- *
- * ── Sold-out is the reason this tab exists ───────────────────────────
- *
- * Not "edit a product" — that is a form somebody fills in once. What
- * happens every single day is a thing running out, and the whole job is
- * one switch on a row:
- *
- *   POST   /products/{id}/sold-out
- *   DELETE /products/{id}/sold-out
- *   …and the per-size pair, because a large can run out while a small has not
- *
- * The rule is shared across all three selling paths (till, online, phone
- * order) on the server. This screen sets it; it does not interpret it.
+ * The tab is reachable because `tabsFor` grants it and a tab that exists in
+ * the bar and leads nowhere is worse than one that is absent. What it must not
+ * do is imply it is working — an empty list with a pull-to-refresh looks like
+ * a shop with no orders, which for a shop that HAS orders is a bug report
+ * nobody can act on.
  */
+export function MenuScreen() {
+  const s = styles(useColors());
+
+  return (
+    <SafeScreen edges={["top"]}>
+      <View style={s.root}>
+        <Text style={s.title}>Menu</Text>
+        <EmptyState
+          icon={UtensilsIcon}
+          tone="muted"
+          title="Coming in the next release"
+          message="Your products, categories, one photo each, and turning an item off when it runs out. Until then, use the CartZe web panel."
+        />
+      </View>
+    </SafeScreen>
+  );
+}
+
+const styles = (c: ThemeColors) =>
+  StyleSheet.create({
+    root: { flex: 1, padding: spacing.md },
+    title: { ...typography.title, color: c.text },
+  });
