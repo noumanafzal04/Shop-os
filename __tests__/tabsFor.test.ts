@@ -1,4 +1,4 @@
-import { fs, path, PROJECT_ROOT } from "./support/node";
+import { fs, path, PROJECT_ROOT, codeOnly, sourceFiles } from "./support/node";
 import { tabsFor, landingTab } from "../src/navigation/tabsFor";
 import type { SessionUser } from "../src/types/session";
 
@@ -162,20 +162,35 @@ describe("the permissions it names exist on the server", () => {
     expect(fs.existsSync(permissionsFile)).toBe(true);
   });
 
-  it("names only permissions the server defines", () => {
+  it("names only permissions the server defines — ANYWHERE in the app", () => {
+    /**
+     * Widened from `tabsFor.ts` to the whole of `src`, because a permission
+     * name can be invented anywhere. The Account screen gates a Shop settings
+     * row on `settings.manage`; a typo there hides the row for ever with no
+     * error, exactly as `reports.read` would have hidden the Money tab.
+     *
+     * Two spellings are collected: `permission: "x.y"` in a rules table, and
+     * `can("x.y")` at a call site. Comments are stripped first — a guard that
+     * greps for the thing it forbids finds its own explanation of it.
+     */
     const php = fs.readFileSync(permissionsFile, "utf8");
-    const source = fs.readFileSync(
-      path.join(PROJECT_ROOT, "src", "navigation", "tabsFor.ts"),
-      "utf8",
-    );
 
-    // `permission: "x.y"` in the rules table — comments are not matched
-    // because the key is required.
-    const used = [...source.matchAll(/permission:\s*"([a-z_]+\.[a-z_]+)"/g)].map((m) => m[1]);
-    expect(used.length).toBeGreaterThan(0);
+    const used = new Set<string>();
+    for (const file of sourceFiles(path.join(PROJECT_ROOT, "src"))) {
+      const code = codeOnly(fs.readFileSync(file, "utf8"));
+      for (const m of code.matchAll(/permission:\s*"([a-z_]+\.[a-z_]+)"/g)) used.add(m[1]!);
+      for (const m of code.matchAll(/\bcan\(\s*"([a-z_]+\.[a-z_]+)"\s*\)/g)) used.add(m[1]!);
+    }
+
+    // Zero found means the patterns stopped matching, not that the app has
+    // stopped using permissions.
+    expect(used.size).toBeGreaterThan(2);
 
     for (const permission of used) {
-      expect(php).toContain(`'${permission}'`);
+      expect({ permission, onServer: php.includes(`'${permission}'`) }).toEqual({
+        permission,
+        onServer: true,
+      });
     }
   });
 });

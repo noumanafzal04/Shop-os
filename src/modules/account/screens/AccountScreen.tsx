@@ -1,10 +1,14 @@
 import React from "react";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeScreen } from "@cartze/core/ui/SafeScreen";
 import { Touchable } from "@cartze/core/ui/Touchable";
 import { confirm } from "@cartze/core/ui/confirm";
 import {
   BadgeCheckIcon,
+  ChevronRightIcon,
+  GearIcon,
   MoonIcon,
   PersonIcon,
   SignOutIcon,
@@ -16,6 +20,7 @@ import { useTheme, spacing, typography, useColors, type ThemeColors, type ThemeP
 import { BRAND } from "../../../common/brand";
 import { useAuthStore } from "../../../stores/authStore";
 import { stopPush } from "../../../services/push";
+import type { AccountStackParamList } from "../../../navigation/types";
 
 /**
  * WHO YOU ARE, WHICH SHOP, AND THE WAY OUT.
@@ -29,9 +34,11 @@ import { stopPush } from "../../../services/push";
 export function AccountScreen() {
   const c = useColors();
   const s = styles(c);
+  const nav = useNavigation<NativeStackNavigationProp<AccountStackParamList>>();
   const { preference, setPreference } = useTheme();
   const user = useAuthStore((st) => st.user);
   const clear = useAuthStore((st) => st.clear);
+  const can = useAuthStore((st) => st.can);
 
   async function signOut() {
     const yes = await confirm.ask({
@@ -89,7 +96,25 @@ export function AccountScreen() {
             value={user?.tenant?.city?.name ?? undefined}
           />
           {user?.tenant?.plan ? (
-            <Row icon={BadgeCheckIcon} label="Plan" value={user.tenant.plan.name} last />
+            <Row icon={BadgeCheckIcon} label="Plan" value={user.tenant.plan.name} />
+          ) : null}
+          {/**
+            * SETTINGS ARE OFFERED ONLY TO SOMEBODY WHO MAY CHANGE THEM.
+            *
+            * `settings.manage` gates the route; showing the row to a cashier
+            * would be a door that opens onto a refusal, which this codebase
+            * has paid for before under the name "offered must be reachable".
+            */}
+          {can("settings.manage") ? (
+            <Touchable
+              onPress={() => nav.navigate("Shop")}
+              accessibilityRole="button"
+              style={s.row}
+            >
+              <GearIcon size={20} color={c.textSecondary} />
+              <Text style={s.rowLabel}>Shop settings</Text>
+              <ChevronRightIcon size={18} color={c.textMuted} />
+            </Touchable>
           ) : null}
         </View>
 

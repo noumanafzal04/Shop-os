@@ -18,7 +18,7 @@ import { DashboardScreen } from "../modules/dashboard/screens/DashboardScreen";
 import { OrdersStack } from "./OrdersStack";
 import { MenuStack } from "./MenuStack";
 import { MoneyStack } from "./MoneyStack";
-import { AccountScreen } from "../modules/account/screens/AccountScreen";
+import { AccountStack } from "./AccountStack";
 import type { PartnerTabParamList } from "./types";
 
 const Tabs = createBottomTabNavigator<PartnerTabParamList>();
@@ -39,7 +39,7 @@ const TABS: Record<
   Orders: { label: "Orders", icon: ReceiptIcon, screen: OrdersStack },
   Menu: { label: "Menu", icon: UtensilsIcon, screen: MenuStack },
   Money: { label: "Money", icon: BanknoteIcon, screen: MoneyStack },
-  Account: { label: "Account", icon: PersonIcon, screen: AccountScreen },
+  Account: { label: "Account", icon: PersonIcon, screen: AccountStack },
 };
 
 /**

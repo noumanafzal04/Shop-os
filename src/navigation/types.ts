@@ -31,6 +31,19 @@ export type MoneyStackParamList = {
   ExpenseEntry: undefined;
 };
 
+/**
+ * Shop settings live behind Account, not in a sixth tab.
+ *
+ * Six tabs on a phone is a row of icons nobody reads, and settings are opened
+ * once a month. The one setting that IS urgent during a shift — whether the
+ * shop is open — is not a setting at all: it comes from the opening hours.
+ */
+export type AccountStackParamList = {
+  AccountHome: undefined;
+  Shop: undefined;
+  Hours: undefined;
+};
+
 export type RootStackParamList = {
   SignIn: undefined;
   Tabs: undefined;
