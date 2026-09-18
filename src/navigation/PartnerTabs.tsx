@@ -17,7 +17,7 @@ import { tabsFor, type PartnerTab } from "./tabsFor";
 import { DashboardScreen } from "../modules/dashboard/screens/DashboardScreen";
 import { OrdersStack } from "./OrdersStack";
 import { MenuStack } from "./MenuStack";
-import { MoneyScreen } from "../modules/money/screens/MoneyScreen";
+import { MoneyStack } from "./MoneyStack";
 import { AccountScreen } from "../modules/account/screens/AccountScreen";
 import type { PartnerTabParamList } from "./types";
 
@@ -38,7 +38,7 @@ const TABS: Record<
   Dashboard: { label: "Today", icon: GridIcon, screen: DashboardScreen },
   Orders: { label: "Orders", icon: ReceiptIcon, screen: OrdersStack },
   Menu: { label: "Menu", icon: UtensilsIcon, screen: MenuStack },
-  Money: { label: "Money", icon: BanknoteIcon, screen: MoneyScreen },
+  Money: { label: "Money", icon: BanknoteIcon, screen: MoneyStack },
   Account: { label: "Account", icon: PersonIcon, screen: AccountScreen },
 };
 

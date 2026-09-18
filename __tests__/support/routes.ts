@@ -56,14 +56,37 @@ export function serverRoutes(): string[] {
     const prefix = line.match(/Route::prefix\(\s*['"]([^'"]+)['"]\s*\)/);
     const opensGroup = /->group\(/.test(line);
 
+    const base = stack.map((s) => s.prefix).join("/");
+    const at = (tail: string) => "/" + [base, tail.replace(/^\//, "")].filter(Boolean).join("/");
+
     // A route on this line, at the CURRENT prefix.
     const route = line.match(
       /Route::(get|post|put|patch|delete)\(\s*['"]([^'"]*)['"]/,
     );
-    if (route) {
-      const tail = route[2].replace(/^\//, "");
-      const base = stack.map((s) => s.prefix).join("/");
-      found.push("/" + [base, tail].filter(Boolean).join("/"));
+    if (route) found.push(at(route[2]!));
+
+    /**
+     * A RESOURCE HAS NO ROUTE LINE.
+     *
+     * `Route::apiResource('expenses', ...)` declares five paths and names none
+     * of them. The first version of this parser matched only the verb helpers,
+     * so `/expenses` and `/expense-categories` came back as "the server does
+     * not have this" — the guard reporting a real endpoint as invented, which
+     * is the failure that teaches people to ignore guards.
+     *
+     * This codebase already carries the lesson under another name: a nested
+     * resource has no route line, and a grep for one finds nothing.
+     *
+     * `->except([...])` and `->only([...])` are not parsed. They narrow which
+     * of the five exist, and this guard's question is "does the server have
+     * this path at all" — a verb it refuses answers 405, which is a different
+     * bug from a URL that does not exist.
+     */
+    const resource = line.match(/Route::(?:api)?[Rr]esource\(\s*['"]([^'"]+)['"]/);
+    if (resource) {
+      const name = resource[1]!;
+      found.push(at(name));
+      found.push(at(`${name}/{id}`));
     }
 
     const opened = (line.match(/\{/g) ?? []).length;

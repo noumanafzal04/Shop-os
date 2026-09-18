@@ -24,6 +24,13 @@ export type MenuStackParamList = {
   ProductDetail: { id: string };
 };
 
+/** The figures, with commission and expense entry behind them. */
+export type MoneyStackParamList = {
+  MoneyHome: undefined;
+  Commission: undefined;
+  ExpenseEntry: undefined;
+};
+
 export type RootStackParamList = {
   SignIn: undefined;
   Tabs: undefined;
