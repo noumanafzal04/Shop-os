@@ -15,7 +15,7 @@ import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/t
 import { useAuthStore } from "../stores/authStore";
 import { tabsFor, type PartnerTab } from "./tabsFor";
 import { DashboardScreen } from "../modules/dashboard/screens/DashboardScreen";
-import { OrdersScreen } from "../modules/orders/screens/OrdersScreen";
+import { OrdersStack } from "./OrdersStack";
 import { MenuScreen } from "../modules/menu/screens/MenuScreen";
 import { MoneyScreen } from "../modules/money/screens/MoneyScreen";
 import { AccountScreen } from "../modules/account/screens/AccountScreen";
@@ -36,7 +36,7 @@ const TABS: Record<
   { label: string; icon: (p: IconProps) => React.JSX.Element; screen: React.ComponentType }
 > = {
   Dashboard: { label: "Today", icon: GridIcon, screen: DashboardScreen },
-  Orders: { label: "Orders", icon: ReceiptIcon, screen: OrdersScreen },
+  Orders: { label: "Orders", icon: ReceiptIcon, screen: OrdersStack },
   Menu: { label: "Menu", icon: UtensilsIcon, screen: MenuScreen },
   Money: { label: "Money", icon: BanknoteIcon, screen: MoneyScreen },
   Account: { label: "Account", icon: PersonIcon, screen: AccountScreen },

@@ -43,16 +43,40 @@ describe("which tabs a person gets", () => {
    * with the gate open AND shut, because this file is the only thing standing
    * between a staff member and a screen that will refuse them.
    */
-  it("opens Orders on orders.manage — and only for a shop that sells online", () => {
-    const withPerm = { permissions: ["orders.manage"] };
-    expect(tabsFor(user(withPerm))).toContain("Orders");
-    expect(tabsFor(user())).not.toContain("Orders");
+  it("opens Orders on orders.manage AND the products module", () => {
+    const perm = { permissions: ["orders.manage"] };
+    // Permission alone is not enough — the route is gated on the module too.
+    expect(tabsFor(user(perm))).not.toContain("Orders");
 
-    const offline = user({
-      ...withPerm,
-      tenant: { ...user().tenant!, online_shop_enabled: false },
+    const both = user({
+      ...perm,
+      tenant: { ...user().tenant!, features: { products: true } },
     });
-    expect(tabsFor(offline)).not.toContain("Orders");
+    expect(tabsFor(both)).toContain("Orders");
+  });
+
+  /**
+   * THE GATE THIS TAB DOES **NOT** HAVE.
+   *
+   * A pharmacy that takes orders by phone and delivers them sells nothing
+   * online: `online_shop_enabled` is false and `marketplace` is off. It still
+   * has orders, and `POST /orders` exists for exactly that shop.
+   *
+   * The first version of this rule asked `online_shop_enabled` and would have
+   * hidden the tab from it — the same mistake the server had already made and
+   * fixed, with the reason written on the route. Asserted so it cannot come
+   * back.
+   */
+  it("still shows Orders to a shop that sells nothing online", () => {
+    const phoneOnly = user({
+      permissions: ["orders.manage"],
+      tenant: {
+        ...user().tenant!,
+        online_shop_enabled: false,
+        features: { products: true },
+      },
+    });
+    expect(tabsFor(phoneOnly)).toContain("Orders");
   });
 
   it("opens Menu on products.manage AND the products module", () => {

@@ -44,10 +44,27 @@ const RULES: TabRule[] = [
   {
     tab: "Orders",
     permission: "orders.manage",
-    // A walk-in-only shop has no online orders to show. The tab would open on
-    // an empty list that can never fill, which reads as a broken screen rather
-    // than as a module that is off.
-    shop: (u) => u.tenant?.online_shop_enabled === true,
+    /**
+     * `products`, NOT `marketplace` — and this gate was written the wrong way
+     * round first, which is worth leaving here.
+     *
+     * The obvious rule is "a shop that does not sell online has no orders", so
+     * the first version asked `online_shop_enabled`. The server already knows
+     * better and says so on the route itself: *"Gated on `products`, not
+     * `marketplace`: a pharmacy that delivers but sells nothing online has
+     * marketplace off, and gating here meant it could manage riders and never
+     * see an order to give one."*
+     *
+     * A shop takes orders by phone and over WhatsApp too — `POST /orders`
+     * exists for exactly that. Asking `online_shop_enabled` would have hidden
+     * this tab from the shops that need it most, and an absent tab looks like
+     * a decision rather than a mistake.
+     *
+     * The gate matching the ROUTE is the point. A tab offered where the API
+     * refuses, or withheld where it would answer, are the same bug in
+     * different directions.
+     */
+    module: "products",
   },
   { tab: "Menu", permission: "products.manage", module: "products" },
   { tab: "Money", permission: "reports.view" },

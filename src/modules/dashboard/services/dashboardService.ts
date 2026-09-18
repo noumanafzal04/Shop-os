@@ -94,7 +94,7 @@ export const dashboardService = {
    */
   get: (branchId?: string | null): Promise<ApiEnvelope<Dashboard>> =>
     apiGet<Dashboard>(
-      "/shop/dashboard",
+      "/dashboard",
       branchId ? { headers: { "X-Branch-Id": branchId } } : undefined,
     ),
 };
