@@ -39,16 +39,16 @@ import { Platform, type ViewStyle } from "react-native";
 export type ColorScale = Record<50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900, string>;
 
 export const brand = {
-  50: "#fff4ed",
-  100: "#ffe4d3",
-  200: "#ffc3a2",
-  300: "#ff9a68",
-  400: "#fb7331", // the accent — and the brand's face in dark mode
-  500: "#e94e00", // the primary
-  600: "#c04000",
-  700: "#983405",
-  800: "#762a09",
-  900: "#5c2108",
+  50: "#fef2f2",
+  100: "#fee2e2",
+  200: "#fecaca",
+  300: "#fca5a5",
+  400: "#f87171", // the accent — and the brand's face in dark mode
+  500: "#ef4444", // the primary
+  600: "#dc2626",
+  700: "#b91c1c",
+  800: "#991b1b",
+  900: "#7f1d1d",
 } as const;
 
 /**

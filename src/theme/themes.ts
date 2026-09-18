@@ -124,21 +124,21 @@ const darkBrand: ColorScale = {
   // 50–300: the brand barely present — a tinted ground for a selected chip or
   // an inline notice. On a dark page "barely present" is DARK, which is why
   // these are not the light theme's pale tints with the numbers kept.
-  50: "#2b0f04",
-  100: "#3f1607",
-  200: "#5a210b",
-  300: "#7f3213",
-  400: "#c25423",
+  50: "#2c0b0b",
+  100: "#3f1010",
+  200: "#5a1717",
+  300: "#7f2020",
+  400: "#c23b3b",
   // 500: the brand at full strength, the index the screens ask for.
-  500: "#fb7331",
+  500: "#f87171",
   // 600–900: LOUDER than full strength. In light that means darker; on a dark
   // ground the only direction left is brighter, so a pressed button lifts
   // instead of sinking. Same semantics, opposite pigments — which is the whole
   // reason this scale is written out rather than reused.
-  600: "#ff8a4f",
-  700: "#ffa470",
-  800: "#ffc4a0",
-  900: "#ffe5d5",
+  600: "#fc8f8f",
+  700: "#fcabab",
+  800: "#fecaca",
+  900: "#fee2e2",
 };
 
 export const lightColors: ThemeColors = {
@@ -169,10 +169,24 @@ export const lightColors: ThemeColors = {
   inkMuted: "#9a8b84",
   cream,
 
-  // A truer red than the brand's orange-red, so a refusal never reads as a
-  // button. At hue 4 against the brand's 20 they are told apart at a glance.
-  error: "#d92d20",
-  errorBg: "#fdf3f2",
+  /**
+   * THE BRAND IS RED NOW, SO THIS CANNOT BE.
+   *
+   * This was #d92d20, chosen when the brand was an orange-red: "at hue 4
+   * against the brand's 20 they are told apart at a glance". That sentence
+   * stopped being true the moment the brand moved to #ef4444 — the two
+   * measure **1.28:1** against each other, which is not a distinction, it is
+   * the same colour twice.
+   *
+   * Moved deeper and toward magenta so a refusal still reads as a refusal
+   * beside a brand-red control. It is a compromise and worth naming as one:
+   * the strongest version of this palette would keep destructive red and move
+   * the BRAND off it. Mitigated rather than solved, and the mitigation holds
+   * because `error` here is almost entirely TEXT — this app draws no filled
+   * danger button today.
+   */
+  error: "#9f1239",
+  errorBg: "#fff1f2",
   success: green[600],
   successBg: green[100],
   // The DARKER step: warning copy is text, and warm[500] is a fill.
@@ -222,8 +236,17 @@ export const darkColors: ThemeColors = {
   cream: "#251a12",
 
   // Hues held, tints rebuilt: a light pastel background would glow on dark.
-  error: "#f97066",
-  errorBg: "#2e1512",
+  /**
+   * The dark half of the same compromise — see `error` in `lightColors`.
+   *
+   * Told apart from the brand by LIGHTNESS rather than hue here: on a dark
+   * ground an error has to be pale to be read at all, and #f87171 is already
+   * pale. Staying in the red family is deliberate — a pink or fuchsia would
+   * separate further and stop reading as danger, which is the only job this
+   * colour has.
+   */
+  error: "#fecdd3",
+  errorBg: "#2c0d17",
   success: "#9ccc4f",
   successBg: "#1c2a10",
   warning: "#e8c45a",
@@ -257,57 +280,103 @@ export const darkColors: ThemeColors = {
  * spacing are shared, because this is one app wearing a different badge — not
  * a second design that will drift.
  */
-const riderBrand: ColorScale = {
-  50: "#f2f8e8",
-  100: "#e3f0cd",
-  200: "#c9e29f",
-  300: "#a8ce6a",
-  400: "#8bba42",
+const emeraldBrand: ColorScale = {
+  50: "#ecfdf5",
+  100: "#d1fae5",
+  200: "#a7f3d0",
+  300: "#6ee7b7",
+  400: "#34d399",
   /**
-   * 500: the working side's full strength.
+   * 500: the shopping side's full strength — #10B981, given directly.
    *
-   * #557F1D, not the palette's own green[500] #5C8A20 — which measures 4.11:1
-   * against white and would have been the second colour in this app whose
-   * button labels do not clear AA. This one is 4.73:1.
+   * It measures **2.54:1 against white**, which clears neither AA text (4.5)
+   * nor the 3:1 floor for a UI component. That is not a reason to refuse the
+   * colour; it is a reason to stop putting white on it. Against this app's ink
+   * it measures 6.91:1, and the reference screens this came from never used
+   * the green as a button — it was a pin, a dot, an active state, with the
+   * buttons in a dark navy.
    *
-   * Worth the two shades because of WHERE it is read: a rider is looking at
-   * this outdoors, on a bike, in Lahore sun. The customer side's 3.1:1 is a
-   * stated cost paid for the brand's own hue; there is no brand reason to pay
-   * it twice.
+   * So `onPrimary` is INK on this palette, not white. See `wearing` below,
+   * which is the only place that difference is written.
    */
-  500: "#557f1d",
-  600: "#456b14",
-  700: "#3a5a11",
-  800: "#2e470d",
-  900: "#24380a",
+  500: "#10b981",
+  600: "#059669",
+  700: "#047857",
+  800: "#065f46",
+  900: "#064e3b",
 };
 
-const riderDarkBrand: ColorScale = {
-  50: "#152003",
-  100: "#1d2c06",
-  200: "#2b400b",
-  300: "#3f5c12",
-  400: "#6d9b2c",
+const emeraldDarkBrand: ColorScale = {
+  50: "#022c22",
+  100: "#04372b",
+  200: "#065f46",
+  300: "#047857",
+  400: "#059669",
   // Brighter than full strength on a dark ground, so a pressed control lifts
-  // rather than sinks — the same rule as `darkBrand` above.
-  500: "#8ec63f",
-  600: "#a3d65c",
-  700: "#b9e37f",
-  800: "#d2eeab",
-  900: "#e8f7d6",
+  // rather than sinks — the same rule as `darkBrand` above. Brighter also
+  // buys back the contrast the light theme had to spend: white on #34d399 is
+  // not the question on a dark page, ink on it is.
+  500: "#34d399",
+  600: "#6ee7b7",
+  700: "#a7f3d0",
+  800: "#d1fae5",
+  900: "#ecfdf5",
 };
 
-/** One theme, re-keyed to a different brand scale. */
-const wearing = (base: ThemeColors, scale: ColorScale): ThemeColors => ({
+/**
+ * One theme, re-keyed to a different brand scale.
+ *
+ * `over` exists because a brand is not only a hue — it also decides what can
+ * legibly sit ON it, and what the rest of the palette must move out of its
+ * way. Two corrections are passed today and both are measured, not felt:
+ *
+ *   onPrimary  white on #10b981 is 2.54:1, under even the 3:1 floor for a UI
+ *              component. Ink on it is 6.91:1.
+ *   error      when the brand itself is red, a refusal drawn in a second red
+ *              is not a refusal. #ef4444 against #d92d20 measures 1.28:1 —
+ *              the two are the same colour to a reader.
+ */
+const wearing = (
+  base: ThemeColors,
+  scale: ColorScale,
+  over: Partial<ThemeColors> = {},
+): ThemeColors => ({
   ...base,
   brand: scale,
   primary: scale[500],
   primaryPressed: scale[600],
   primarySoft: scale[50],
+  ...over,
 });
 
-export const riderLightColors: ThemeColors = wearing(lightColors, riderBrand);
-export const riderDarkColors: ThemeColors = wearing(darkColors, riderDarkBrand);
+/**
+ * The shopping side. Ink on the green, and a TRUE red for refusals — which is
+ * free here precisely because the brand is not red.
+ */
+export const emeraldLightColors: ThemeColors = wearing(lightColors, emeraldBrand, {
+  onPrimary: ink.base,
+  /**
+   * 700, not the usual 600.
+   *
+   * `primaryPressed` is the pressed state AND, on this palette, the only
+   * brand shade that can be READ. #10b981 on the pale tint measures 2.41:1 —
+   * the app already hit this once with a different green and left the note
+   * in `CustomerHomeScreen`: "primarySoft behind a brand glyph measured
+   * 1.4:1 and read as disabled". 700 on that tint is 5.21:1.
+   *
+   * So on the green side a brand-coloured mark — a chip label, a glyph on a
+   * tinted ground — takes `primaryPressed`, and `primary` is for FILLS.
+   * `riderTheme.test.tsx` asserts it.
+   */
+  primaryPressed: emeraldBrand[700],
+  error: "#d92d20",
+  errorBg: "#fdf3f2",
+});
+export const emeraldDarkColors: ThemeColors = wearing(darkColors, emeraldDarkBrand, {
+  onPrimary: "#04231a",
+  error: "#f97066",
+  errorBg: "#2e1512",
+});
 
 export type ThemeName = "light" | "dark";
 
@@ -320,14 +389,14 @@ export type ThemeName = "light" | "dark";
  * of the app wears which is a decision that lives in one line of
  * `ThemeProvider`, and can move again without renaming anything.
  */
-export const emberThemes: Record<ThemeName, ThemeColors> = {
+export const carmineThemes: Record<ThemeName, ThemeColors> = {
   light: lightColors,
   dark: darkColors,
 };
 
-export const leafThemes: Record<ThemeName, ThemeColors> = {
-  light: riderLightColors,
-  dark: riderDarkColors,
+export const emeraldThemes: Record<ThemeName, ThemeColors> = {
+  light: emeraldLightColors,
+  dark: emeraldDarkColors,
 };
 
 export const themes: Record<ThemeName, ThemeColors> = {

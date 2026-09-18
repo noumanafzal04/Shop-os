@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Appearance } from "react-native";
-import { leafThemes, type ThemeColors, type ThemeName } from "./themes";
+import { emeraldThemes, type ThemeColors, type ThemeName } from "./themes";
 import { radius, shadow, spacing, typography } from "./tokens";
 
 /**
@@ -59,7 +59,7 @@ const resolve = (pref: ThemePreference, system: SystemScheme): ThemeName =>
  * app. WHICH palette is a question only the app around it can answer, so the
  * app answers it.
  *
- * Default `leafThemes`, because an app that does not fork is the shopping
+ * Default `emeraldThemes`, because an app that does not fork is the shopping
  * side's own colour and because a required prop here would be a breaking
  * change to a provider that is mounted in one place and tested in ten.
  */
@@ -102,7 +102,7 @@ export function ThemeProvider({
 
   const value = useMemo<ThemeContextValue>(() => {
     const name = resolve(preference, system);
-    const colors = paletteFor ? paletteFor(name) : leafThemes[name];
+    const colors = paletteFor ? paletteFor(name) : emeraldThemes[name];
 
     return {
       name,
