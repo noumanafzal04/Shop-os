@@ -42,6 +42,7 @@ export type AccountStackParamList = {
   AccountHome: undefined;
   Shop: undefined;
   Hours: undefined;
+  Help: undefined;
 };
 
 export type RootStackParamList = {

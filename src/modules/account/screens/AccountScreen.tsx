@@ -9,6 +9,7 @@ import {
   BadgeCheckIcon,
   ChevronRightIcon,
   GearIcon,
+  LifeBuoyIcon,
   MoonIcon,
   PersonIcon,
   SignOutIcon,
@@ -116,6 +117,19 @@ export function AccountScreen() {
               <ChevronRightIcon size={18} color={c.textMuted} />
             </Touchable>
           ) : null}
+        </View>
+
+        <Text style={s.sectionTitle}>Help</Text>
+        <View style={s.card}>
+          <Touchable
+            onPress={() => nav.navigate("Help")}
+            accessibilityRole="button"
+            style={s.row}
+          >
+            <LifeBuoyIcon size={20} color={c.textSecondary} />
+            <Text style={s.rowLabel}>How this app works</Text>
+            <ChevronRightIcon size={18} color={c.textMuted} />
+          </Touchable>
         </View>
 
         <Text style={s.sectionTitle}>Appearance</Text>
