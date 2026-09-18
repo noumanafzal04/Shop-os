@@ -10,9 +10,13 @@ import { confirm } from "@cartze/core/ui/confirm";
 import { toast } from "@cartze/core/ui/toast";
 import { ApiError } from "@cartze/core/types/api";
 import { money, qtyText } from "@cartze/core/format";
-import { MapPinIcon, PhoneIcon } from "@cartze/core/ui/icons";
+import { MapPinIcon, PhoneIcon, UploadIcon, UtensilsIcon } from "@cartze/core/ui/icons";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { useAdvanceOrder, useCancelOrder, useOrder } from "../hooks/useOrders";
+import { useShopSettings } from "../../shop/hooks/useShop";
+import { useAuthStore } from "../../../stores/authStore";
+import { renderSlip, type ReceiptWidth } from "../../printing/slip";
+import { shareSlip } from "../../printing/transports";
 import { ACTION_LABEL, STATUS_LABEL, nextStates, type OrderStatus } from "../services/orderStages";
 import type { Order } from "../services/ordersService";
 import type { OrdersStackParamList } from "../../../navigation/types";
@@ -37,6 +41,24 @@ export function OrderDetailScreen() {
   const { data: order, isLoading, isError, refetch } = useOrder(params.id);
   const advance = useAdvanceOrder();
   const cancel = useCancelOrder();
+  const { data: settings } = useShopSettings();
+  const shopName = useAuthStore((st) => st.user?.tenant?.business_name) ?? "Shop";
+
+  /**
+   * The slip goes out at the SHOP's paper width, the same one the till uses.
+   * Undefined until the settings load, which `columnsFor` treats as 48 — a
+   * readable default rather than a blank slip.
+   */
+  const width = settings?.receipt_width as ReceiptWidth | undefined;
+
+  async function send(kitchen: boolean) {
+    if (!order) return;
+    const slip = renderSlip(order, { shopName, width, kitchen });
+    const sent = await shareSlip(slip, `${order.order_number}${kitchen ? " — kitchen" : ""}`);
+    // Only on success. Somebody who changed their mind in the share sheet did
+    // not fail at anything and should not be told they did.
+    if (sent) toast.success(kitchen ? "Kitchen slip sent" : "Order sent");
+  }
 
   const busy = advance.isPending || cancel.isPending;
 
@@ -100,7 +122,13 @@ export function OrderDetailScreen() {
           <ScrollView contentContainerStyle={s.body}>
             <Detail order={order} />
           </ScrollView>
-          <Actions order={order} busy={busy} onMove={moveTo} onReject={reject} />
+          <Actions
+            order={order}
+            busy={busy}
+            onMove={moveTo}
+            onReject={reject}
+            onSend={send}
+          />
         </>
       ) : null}
     </SafeScreen>
@@ -204,23 +232,57 @@ function Actions({
   busy,
   onMove,
   onReject,
+  onSend,
 }: {
   order: Order;
   busy: boolean;
   onMove: (s: OrderStatus) => void;
   onReject: () => void;
+  onSend: (kitchen: boolean) => void;
 }) {
   const s = styles(useColors());
   const next = nextStates(order.status, order.fulfillment_type);
   const forward = next.find((n) => n !== "cancelled");
   const canCancel = next.includes("cancelled");
 
-  // A finished order has nothing to do — and an empty bar is better than a
-  // disabled button, which invites a press that can never work.
-  if (!forward && !canCancel) return null;
+  /**
+   * NO EARLY RETURN ANY MORE.
+   *
+   * This used to hide the whole bar on a finished order, which was right when
+   * the bar held only stage buttons. It is wrong now: the slip controls live
+   * here too, and a completed order is exactly when somebody asks for the bill
+   * again or the kitchen loses its docket.
+   *
+   * A finished order simply has no forward step and nothing to cancel, and
+   * both of those are already conditional below.
+   */
 
   return (
     <View style={s.actions}>
+      {/**
+       * SENDING THE SLIP IS ALWAYS AVAILABLE, including on a finished order.
+       *
+       * A kitchen docket is reprinted, a customer asks for their bill again,
+       * a rider needs the address on WhatsApp. None of those stop being true
+       * because the order moved on.
+       */}
+      <View style={s.send}>
+        <AppButton
+          title="Kitchen slip"
+          variant="outline"
+          icon={UtensilsIcon}
+          onPress={() => onSend(true)}
+          style={s.sendHalf}
+        />
+        <AppButton
+          title="Send order"
+          variant="outline"
+          icon={UploadIcon}
+          onPress={() => onSend(false)}
+          style={s.sendHalf}
+        />
+      </View>
+
       {forward ? (
         <AppButton
           title={ACTION_LABEL[forward]}
@@ -278,4 +340,6 @@ const styles = (c: ThemeColors) =>
       backgroundColor: c.surface,
     },
     reject: { ...typography.label, color: c.error, textAlign: "center", paddingVertical: spacing.sm },
+    send: { flexDirection: "row", gap: spacing.sm },
+    sendHalf: { flex: 1 },
   });
