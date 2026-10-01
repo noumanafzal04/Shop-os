@@ -65,6 +65,7 @@ class SeedLoadTestShops extends Command
             'lines' => $lines,
             'sizes' => 0,
             'batches' => false,
+            'dining' => false,
         ]);
 
         $this->shop('clothing', 'Zahra Couture', 'retail', $city, [
@@ -74,6 +75,18 @@ class SeedLoadTestShops extends Command
             'lines' => (int) round($lines * 0.4),
             'sizes' => 4,
             'batches' => false,
+            'dining' => false,
+        ]);
+
+        $this->shop('restaurant', 'Karahi House', 'food', $city, [
+            'branches' => ['Main — MM Alam Road', 'Bahria Town'],
+            // A MENU IS NOT A CATALOGUE. Six thousand dishes is not a
+            // restaurant, it is a warehouse — the volume that matters here is
+            // tables, tickets and modifier combinations, not lines.
+            'lines' => 420,
+            'sizes' => 0,
+            'batches' => false,
+            'dining' => true,
         ]);
 
         $this->shop('pharmacy', 'Shifa Pharmacy', 'pharmacy', $city, [
@@ -81,6 +94,7 @@ class SeedLoadTestShops extends Command
             'lines' => (int) round($lines * 0.8),
             'sizes' => 0,
             'batches' => true,
+            'dining' => false,
         ]);
 
         $this->newLine();
@@ -119,6 +133,9 @@ class SeedLoadTestShops extends Command
         $this->staff($tenant, $branches);
         $categories = $this->categories($tenant, $type);
         $productIds = $this->catalogue($tenant, $type, $categories, $spec, $branches);
+        if (! empty($spec['dining'])) {
+            $this->diningRoom($tenant, $branches, $productIds);
+        }
         $this->sales($tenant, $owner, $branches, $productIds);
 
         app(TenantContext::class)->clear();
@@ -236,6 +253,7 @@ class SeedLoadTestShops extends Command
     private function catalogue(Tenant $tenant, string $type, array $categories, array $spec, array $branches): array
     {
         $words = match ($type) {
+            'food' => [['Chicken Karahi', 'Mutton Karahi', 'Seekh Kebab', 'Chicken Tikka', 'Daal Makhani', 'Biryani', 'Nihari', 'Haleem', 'Malai Boti', 'Chapli Kebab'], ['Half', 'Full', 'Platter', 'Family', 'Special', 'Boneless', 'Degi', 'Peshawari', 'Lahori', 'Handi']],
             'pharmacy' => [['Amoxil', 'Panadol', 'Brufen', 'Augmentin', 'Risek', 'Calpol', 'Flagyl', 'Zantac', 'Ventolin', 'Glucophage'], ['125mg', '250mg', '500mg', '650mg', '1g', 'Syrup', 'Drops', 'Inj', 'Cap', 'Tab']],
             'retail' => [['Gul', 'Noor', 'Zara', 'Meher', 'Aiza', 'Rida', 'Sana', 'Hina', 'Komal', 'Areeba'], ['Printed', 'Embroidered', 'Digital', 'Hand Block', 'Sequin', 'Jacquard', 'Plain', 'Dyed', 'Lace', 'Schiffli']],
             default => [['Sunridge', 'Dalda', 'Tapal', 'Olpers', 'National', 'Shan', 'Nurpur', 'Lipton', 'Rafhan', 'Kolson'], ['1kg', '500g', '250g', '5kg', '1L', '2L', 'Pack', 'Box', 'Jar', 'Pouch']],
@@ -265,7 +283,16 @@ class SeedLoadTestShops extends Command
                 'tenant_id' => $tenant->id,
                 'category_id' => $categories[$i % count($categories)],
                 'type' => 'product',
-                'item_type' => $type === 'pharmacy' ? 'medicine' : 'physical_product',
+                'item_type' => match ($type) {
+                    'pharmacy' => 'medicine',
+                    // A DISH IS MADE TO ORDER. It is not a thing on a shelf,
+                    // so it carries no stock of its own — what depletes is the
+                    // INGREDIENTS, through the recipe. Seeding the menu as
+                    // tracked stock made a kitchen refuse to settle a tab for
+                    // food the customer had already eaten.
+                    'food' => 'food_item',
+                    default => 'physical_product',
+                },
                 'name' => "{$brand} {$spec2} #".($i + 1),
                 'sku' => strtoupper(substr($type, 0, 3)).'-'.str_pad((string) ($i + 1), 6, '0', STR_PAD_LEFT),
                 // A real barcode, because a grocery's whole day is a scanner.
@@ -278,7 +305,7 @@ class SeedLoadTestShops extends Command
                 'sold_by' => $byWeight ? 'weight' : 'unit',
                 'stock_quantity' => 0,
                 'low_stock_threshold' => $i % 5 === 0 ? 40 : 10,
-                'track_inventory' => true,
+                'track_inventory' => $type !== 'food',
                 'is_active' => true,
                 'visible_in_marketplace' => true,
                 'created_at' => now(),
@@ -320,7 +347,7 @@ class SeedLoadTestShops extends Command
                         ];
                     }
                 }
-            } else {
+            } elseif ($type !== 'food') {
                 foreach ($branches as $b) {
                     $stockRows[] = [
                         'id' => (string) Str::uuid7(),
@@ -367,7 +394,7 @@ class SeedLoadTestShops extends Command
                 }
             }
 
-            if ($spec['sizes'] === 0 && $i % 10 !== 0) {
+            if ($spec['sizes'] === 0 && ($type === 'food' || $i % 10 !== 0)) {
                 $sellable[] = ['product_id' => $id, 'variant_id' => null];
             }
             $made++;
@@ -394,6 +421,88 @@ class SeedLoadTestShops extends Command
         }
 
         return $sellable;
+    }
+
+    /**
+     * THE ROOM, AND WHAT CAN BE ASKED FOR IN IT.
+     *
+     * A restaurant's volume is not its menu. It is tables, open tickets and
+     * the combinations a modifier group allows — "no onions, extra cheese,
+     * medium spicy" is three choices on one line, and the ticket has to carry
+     * all three to the kitchen and back onto the bill.
+     *
+     * @param  Branch[]  $branches
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $dishes
+     */
+    private function diningRoom(Tenant $tenant, array $branches, array $dishes): void
+    {
+        $tables = [];
+        foreach ($branches as $b) {
+            foreach (['Hall', 'Terrace', 'Family'] as $area) {
+                foreach (range(1, 10) as $n) {
+                    $tables[] = [
+                        'id' => (string) Str::uuid7(),
+                        'tenant_id' => $tenant->id,
+                        'branch_id' => $b->id,
+                        'name' => substr($area, 0, 1).$n,
+                        'area' => $area,
+                        'seats' => $area === 'Family' ? 6 : 4,
+                        'sort_order' => $n,
+                        'is_active' => true,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+            }
+        }
+        DB::table('dining_tables')->insert($tables);
+
+        // Modifiers on roughly one dish in four — the ones a kitchen actually
+        // asks about. A menu where everything is configurable is a menu nobody
+        // can take an order from.
+        $groups = [];
+        $options = [];
+        foreach (array_slice($dishes, 0, max(1, intdiv(count($dishes), 4))) as $i => $dish) {
+            $gid = (string) Str::uuid7();
+            $groups[] = [
+                'id' => $gid,
+                'tenant_id' => $tenant->id,
+                'product_id' => $dish['product_id'],
+                'name' => $i % 2 === 0 ? 'Spice level' : 'Add-ons',
+                'type' => $i % 2 === 0 ? 'single' : 'multiple',
+                'min_select' => $i % 2 === 0 ? 1 : 0,
+                'max_select' => $i % 2 === 0 ? 1 : 3,
+                'sort_order' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+            $choices = $i % 2 === 0
+                ? [['Mild', 0], ['Medium', 0], ['Hot', 0]]
+                : [['Extra cheese', 150], ['No onions', 0], ['Raita', 80]];
+            foreach ($choices as $n => [$label, $delta]) {
+                $options[] = [
+                    'id' => (string) Str::uuid7(),
+                    'tenant_id' => $tenant->id,
+                    'modifier_group_id' => $gid,
+                    'name' => $label,
+                    'price_delta' => $delta,
+                    'is_default' => $n === 0,
+                    'is_active' => true,
+                    'sort_order' => $n,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+        }
+        foreach (array_chunk($groups, 500) as $c) {
+            DB::table('modifier_groups')->insert($c);
+        }
+        foreach (array_chunk($options, 500) as $c) {
+            DB::table('modifier_options')->insert($c);
+        }
+
+        $this->line('  tables     '.count($tables).' across '.count($branches).' branches');
+        $this->line('  modifiers  '.count($groups).' groups · '.count($options).' options');
     }
 
     private function flush(array &$products, array &$variants, array &$stock, array &$batches): void
