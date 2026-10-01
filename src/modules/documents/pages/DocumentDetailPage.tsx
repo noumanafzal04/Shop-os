@@ -255,6 +255,7 @@ export default function DocumentDetailPage() {
         balance={balance}
         layaway={layaway}
         pending={mut.convert.isPending}
+        odometerIn={doc.odometer_in ?? null}
         onSubmit={(payload) =>
           mut.convert.mutate(payload, {
             onSuccess: (res) => {
@@ -381,6 +382,7 @@ function CollectModal({
   balance,
   layaway,
   pending,
+  odometerIn,
   onSubmit,
 }: {
   isOpen: boolean;
@@ -388,15 +390,44 @@ function CollectModal({
   balance: number;
   layaway: boolean;
   pending: boolean;
-  onSubmit: (p: { payment_method?: string; amount_paid?: number; idempotency_key: string }) => void;
+  /**
+   * The reading taken when the vehicle came IN, or null when this document is
+   * not a job card. Its presence is what makes the handover box appear.
+   */
+  odometerIn: number | null;
+  onSubmit: (p: {
+    payment_method?: string;
+    amount_paid?: number;
+    odometer?: number;
+    idempotency_key: string;
+  }) => void;
 }) {
   const [tendered, setTendered] = useState("");
   const [method, setMethod] = useState<string>("cash");
+  /**
+   * THE READING ON THE WAY OUT.
+   *
+   * A service interval is counted from the INVOICE, not from the job card, and
+   * a car that sat on the ramp for a week with a road test in the middle
+   * leaves on a different number than it arrived on. This box was never here,
+   * so the arrival figure was billed every time and every car was called back
+   * late.
+   *
+   * Pre-filled with the arrival reading: for the shop that takes one figure
+   * and no more, billing stays a single press.
+   */
+  const [odometer, setOdometer] = useState("");
   const money = useMoney();
 
   const due = Math.max(0, balance);
   const paid = Number(tendered) || 0;
   const short = due > 0 && paid < due;
+
+  const typedOdo = odometer.trim() === "" ? null : Number(odometer);
+  const odoOut = typedOdo !== null && Number.isFinite(typedOdo) ? typedOdo : null;
+  // An odometer only counts up. The server refuses this too; catching it here
+  // means the shop is told before the customer has been charged.
+  const odoBackwards = odoOut !== null && odometerIn !== null && odoOut < odometerIn;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
@@ -407,13 +438,13 @@ function CollectModal({
             <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
             <Button
               size="sm"
-              disabled={pending || (due > 0 && paid < due)}
+              disabled={pending || (due > 0 && paid < due) || odoBackwards}
               onClick={() =>
-                onSubmit(
-                  due > 0
-                    ? { payment_method: method, amount_paid: paid, idempotency_key: uuid() }
-                    : { idempotency_key: uuid() },
-                )
+                onSubmit({
+                  ...(due > 0 ? { payment_method: method, amount_paid: paid } : {}),
+                  ...(odoOut !== null ? { odometer: odoOut } : {}),
+                  idempotency_key: uuid(),
+                })
               }
             >
               Bill it
@@ -428,6 +459,27 @@ function CollectModal({
               ? "This booking is paid in full — nothing to collect."
               : "Nothing has been paid yet, so take the full amount."}
         </p>
+        {odometerIn !== null && (
+          <div className="mb-4">
+            <Label>Odometer on handover</Label>
+            <Input
+              type="number"
+              min="0"
+              value={odometer}
+              onChange={(e) => setOdometer(e.target.value)}
+              placeholder={String(odometerIn)}
+            />
+            {odoBackwards ? (
+              <p className="mt-1 text-theme-sm text-error-600 dark:text-error-400">
+                Below the {odometerIn.toLocaleString()} km taken when it came in — an odometer only counts up.
+              </p>
+            ) : (
+              <p className="mt-1 text-theme-xs text-gray-400">
+                Came in at {odometerIn.toLocaleString()} km. Leave it blank to bill on that reading.
+              </p>
+            )}
+          </div>
+        )}
         {due > 0 && (
           <div className="space-y-4">
             <div>

@@ -184,6 +184,15 @@ export const documentService = {
       payments?: Array<{ method: string; amount: number; reference?: string }>;
       payment_method?: string;
       amount_paid?: number;
+      /**
+       * The reading when a vehicle GOES OUT, for a job card.
+       *
+       * Absent means "bill on the arrival reading", which is what the server
+       * falls back to. It was absent from this type for the whole life of the
+       * feature, so the server's override could never be reached and every
+       * service interval was counted from a figure that was always low.
+       */
+      odometer?: number;
       cash_session_id?: string | null;
       idempotency_key?: string;
     },
