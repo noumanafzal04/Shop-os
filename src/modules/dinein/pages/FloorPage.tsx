@@ -152,7 +152,7 @@ export default function FloorPage() {
 
   return (
     <div className={`${FULL_SCREEN_PAGE_MIN} bg-gray-50 dark:bg-gray-950`}>
-      <PageMeta title="Dine-in | CartZe" description="Restaurant floor" />
+      <PageMeta title="Dine-in | True Serve" description="Restaurant floor" />
 
       {/* THE FLOOR IS WORKED FROM A PHONE IN AN APRON POCKET.
           One nowrap flex row of four controls does not fit 390px: the header

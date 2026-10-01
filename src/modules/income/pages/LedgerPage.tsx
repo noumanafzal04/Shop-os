@@ -97,7 +97,7 @@ export default function LedgerPage() {
 
   return (
     <>
-      <PageMeta title="Ledger | CartZe" description="Every movement of money, with a running balance" />
+      <PageMeta title="Ledger | True Serve" description="Every movement of money, with a running balance" />
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>

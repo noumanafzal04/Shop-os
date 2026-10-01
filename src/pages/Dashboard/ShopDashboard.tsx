@@ -80,7 +80,7 @@ export default function ShopDashboard() {
 
   return (
     <>
-      <PageMeta title="Dashboard | CartZe" description="Your business at a glance" />
+      <PageMeta title="Dashboard | True Serve" description="Your business at a glance" />
 
       <DashboardHero
         eyebrow={greeting(now.getHours())}

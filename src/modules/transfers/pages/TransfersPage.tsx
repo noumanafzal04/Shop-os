@@ -87,7 +87,7 @@ export default function TransfersPage() {
 
   return (
     <>
-      <PageMeta title="Stock Transfers | CartZe" description="Move stock between branches" />
+      <PageMeta title="Stock Transfers | True Serve" description="Move stock between branches" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

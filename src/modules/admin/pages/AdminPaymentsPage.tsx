@@ -110,7 +110,7 @@ export default function AdminPaymentsPage() {
 
   return (
     <>
-      <PageMeta title="Billing | CartZe Admin" description="Subscription payments" />
+      <PageMeta title="Billing | True Serve Admin" description="Subscription payments" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Billing &amp; Payments</h2>

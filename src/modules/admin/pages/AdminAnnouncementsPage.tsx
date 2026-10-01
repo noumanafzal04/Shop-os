@@ -116,7 +116,7 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <>
-      <PageMeta title="Announcements | CartZe Admin" description="Broadcast push notifications" />
+      <PageMeta title="Announcements | True Serve Admin" description="Broadcast push notifications" />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Announcements</h2>

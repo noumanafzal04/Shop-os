@@ -6,7 +6,7 @@ export default function SignIn() {
   return (
     <>
       <PageMeta
-        title="Sign in | CartZe"
+        title="Sign in | True Serve"
         description="Sign in to CartZe"
       />
       <AuthLayout>

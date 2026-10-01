@@ -9,7 +9,7 @@ export default function Home() {
   return (
     <>
       <PageMeta
-        title="Dashboard | CartZe"
+        title="Dashboard | True Serve"
         description="CartZe business dashboard"
       />
       <div className="grid grid-cols-12 gap-4 md:gap-6">

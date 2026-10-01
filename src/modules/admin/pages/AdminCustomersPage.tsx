@@ -64,7 +64,7 @@ export default function AdminCustomersPage() {
 
   return (
     <>
-      <PageMeta title="Customers | CartZe" description="Create a customer account" />
+      <PageMeta title="Customers | True Serve" description="Create a customer account" />
 
       <div className="mb-5">
         <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Customers</h1>

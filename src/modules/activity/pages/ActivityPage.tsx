@@ -232,7 +232,7 @@ export default function ActivityPage() {
 
   return (
     <>
-      <PageMeta title="Activity | CartZe" description="Who changed what in your shop" />
+      <PageMeta title="Activity | True Serve" description="Who changed what in your shop" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Activity</h2>

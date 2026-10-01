@@ -161,7 +161,7 @@ export default function CustomersPage() {
 
   return (
     <>
-      <PageMeta title="Customers | CartZe" description="Your customer directory" />
+      <PageMeta title="Customers | True Serve" description="Your customer directory" />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Customers</h2>

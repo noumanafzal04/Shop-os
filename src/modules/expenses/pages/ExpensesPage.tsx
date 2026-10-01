@@ -97,7 +97,7 @@ export default function ExpensesPage() {
 
   return (
     <>
-      <PageMeta title="Expenses | CartZe" description="Business expenses" />
+      <PageMeta title="Expenses | True Serve" description="Business expenses" />
 
       <div className="mb-4">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Expense Manager</h2>

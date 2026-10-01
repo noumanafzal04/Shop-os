@@ -41,16 +41,16 @@ export default defineConfig({
       includeAssets: ["favicon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"],
 
       manifest: {
-        name: "CartZe",
-        short_name: "CartZe",
+        name: "True Serve",
+        short_name: "True Serve",
         description: "Point of sale and shop management",
         // The till fills the screen and is used in one orientation on a stand.
         display: "standalone",
         orientation: "any",
         start_url: "/tenant/pos",
         scope: "/",
-        background_color: "#101828",
-        theme_color: "#101828",
+        background_color: "#1b232e",
+        theme_color: "#1b232e",
         // ── Real files at the sizes they claim ──────────────────────────
         //
         // All three entries used to point at `favicon.png`, which is 48x48.

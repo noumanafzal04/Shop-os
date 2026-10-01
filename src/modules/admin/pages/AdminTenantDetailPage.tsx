@@ -583,7 +583,7 @@ export default function AdminTenantDetailPage() {
 
   return (
     <>
-      <PageMeta title={`${t.business_name} | CartZe Admin`} description="Tenant detail" />
+      <PageMeta title={`${t.business_name} | True Serve Admin`} description="Tenant detail" />
 
       <div className="mb-6">
         <Link to="/admin/tenants" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">← Back to tenants</Link>

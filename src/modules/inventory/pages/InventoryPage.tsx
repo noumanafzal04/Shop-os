@@ -224,7 +224,7 @@ export default function InventoryPage() {
 
   return (
     <>
-      <PageMeta title="Inventory | CartZe" description="Stock levels and movements" />
+      <PageMeta title="Inventory | True Serve" description="Stock levels and movements" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Inventory</h2>

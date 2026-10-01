@@ -182,7 +182,7 @@ export default function TakeOrderPage() {
 
   return (
     <>
-      <PageMeta title="Take an order | CartZe" description="An order taken by phone, WhatsApp or at the counter" />
+      <PageMeta title="Take an order | True Serve" description="An order taken by phone, WhatsApp or at the counter" />
 
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>

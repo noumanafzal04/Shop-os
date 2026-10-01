@@ -40,7 +40,7 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <PageMeta title="Admin | CartZe" description="Platform overview" />
+      <PageMeta title="Admin | True Serve" description="Platform overview" />
 
       {/* Counted from the payload's own tenant block, never from the rows on
           screen — a summary that disagrees with its own table is worse than no

@@ -227,7 +227,7 @@ export default function AdminRidersPage() {
 
   return (
     <>
-      <PageMeta title="Riders | CartZe" description="Rider applications waiting for review" />
+      <PageMeta title="Riders | True Serve" description="Rider applications waiting for review" />
 
       <div className="mb-5">
         <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Riders</h1>

@@ -216,7 +216,7 @@ export default function AdminCommissionPage() {
 
   return (
     <>
-      <PageMeta title="Commission | CartZe" description="What the marketplace earns, and who owes it" />
+      <PageMeta title="Commission | True Serve" description="What the marketplace earns, and who owes it" />
 
       <div className="mb-5">
         <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Commission</h1>

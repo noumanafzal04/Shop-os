@@ -125,7 +125,7 @@ export default function VehiclesPage() {
 
   return (
     <>
-      <PageMeta title="Vehicles | CartZe" description="Vehicles this shop works on" />
+      <PageMeta title="Vehicles | True Serve" description="Vehicles this shop works on" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

@@ -340,7 +340,7 @@ export default function ShopSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Settings | CartZe" description="Shop settings" />
+      <PageMeta title="Settings | True Serve" description="Shop settings" />
       <div className="mb-4">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Settings</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">Manage your shop profile, location and how the app works for you.</p>

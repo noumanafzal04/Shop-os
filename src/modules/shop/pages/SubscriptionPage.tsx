@@ -91,7 +91,7 @@ export default function SubscriptionPage() {
 
   return (
     <>
-      <PageMeta title="Subscription | CartZe" description="Your plan and usage" />
+      <PageMeta title="Subscription | True Serve" description="Your plan and usage" />
 
       <div className="mb-5">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Subscription</h2>

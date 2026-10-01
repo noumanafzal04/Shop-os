@@ -88,7 +88,7 @@ export default function StocktakePage() {
 
   return (
     <>
-      <PageMeta title="Stocktake | CartZe" description="Count the shelves against what the system believes" />
+      <PageMeta title="Stocktake | True Serve" description="Count the shelves against what the system believes" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

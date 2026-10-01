@@ -81,7 +81,7 @@ export default function FuelDeliveriesPage() {
 
   return (
     <>
-      <PageMeta title="Deliveries & Rates | CartZe" description="Tanker deliveries and fuel rate changes" />
+      <PageMeta title="Deliveries & Rates | True Serve" description="Tanker deliveries and fuel rate changes" />
 
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>

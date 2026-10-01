@@ -6,7 +6,7 @@ export default function SignUp() {
   return (
     <>
       <PageMeta
-        title="Create account | CartZe"
+        title="Create account | True Serve"
         description="Create your CartZe account"
       />
       <AuthLayout>
