@@ -8,6 +8,7 @@ use App\Models\City;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\BranchContext;
 use App\Support\Modules;
 use App\Support\StaffPresets;
 use App\Support\TenantContext;
@@ -97,6 +98,24 @@ class SeedLoadTestShops extends Command
             'dining' => false,
         ]);
 
+        $this->shop('services', 'Gulberg Service Centre', 'services', $city, [
+            'branches' => ['Main — Gulberg', 'Township'],
+            // A service list is short. What a service business carries volume
+            // in is JOBS and QUOTES, not lines on a price list.
+            'lines' => 120,
+            'sizes' => 0,
+            'batches' => false,
+            'dining' => false,
+        ]);
+
+        $this->shop('wholesale', 'Akbari Mandi Traders', 'wholesale', $city, [
+            'branches' => ['Main — Akbari Mandi', 'Sabzi Mandi'],
+            'lines' => (int) round($lines * 0.5),
+            'sizes' => 0,
+            'batches' => false,
+            'dining' => false,
+        ]);
+
         $this->newLine();
         $this->info(sprintf('Done in %.1fs', microtime(true) - $started));
         $this->line('Owners sign in with  <slug>@loadtest.test  /  password');
@@ -136,7 +155,7 @@ class SeedLoadTestShops extends Command
         if (! empty($spec['dining'])) {
             $this->diningRoom($tenant, $branches, $productIds);
         }
-        $this->sales($tenant, $owner, $branches, $productIds);
+        $this->sales($tenant, $type, $owner, $branches, $productIds);
 
         app(TenantContext::class)->clear();
     }
@@ -222,6 +241,8 @@ class SeedLoadTestShops extends Command
     {
         $names = match ($type) {
             'pharmacy' => ['Antibiotics', 'Painkillers', 'Cardiac', 'Diabetes', 'Vitamins', 'Syrups', 'Injections', 'Baby Care', 'Skin', 'Surgical'],
+            'services' => ['Appliance', 'Laundry', 'Tailoring', 'Repairs', 'Cleaning', 'Printing', 'Automotive', 'Electronics', 'Home', 'Callout'],
+            'wholesale' => ['Grains', 'Pulses', 'Oils', 'Spices', 'Sugar & Salt', 'Tea', 'Flour', 'Packaging', 'Dry Fruit', 'Misc'],
             'retail' => ['Lawn', 'Chiffon', 'Linen', 'Kurti', 'Shalwar Kameez', 'Abaya', 'Scarves', 'Formals', 'Casuals', 'Bridal'],
             default => ['Rice & Pulses', 'Flour', 'Oil & Ghee', 'Tea & Coffee', 'Spices', 'Dairy', 'Bakery', 'Snacks', 'Beverages', 'Frozen', 'Cleaning', 'Personal Care', 'Paper Goods', 'Baby', 'Pet'],
         };
@@ -253,6 +274,8 @@ class SeedLoadTestShops extends Command
     private function catalogue(Tenant $tenant, string $type, array $categories, array $spec, array $branches): array
     {
         $words = match ($type) {
+            'services' => [['AC Service', 'Laundry Wash', 'Suit Stitching', 'Shoe Repair', 'Photo Printing', 'Car Wash', 'Mobile Repair', 'Water Filter Service', 'Generator Tune-up', 'Carpet Cleaning'], ['Standard', 'Deep', 'Express', 'On-site', 'Annual', 'Half-day', 'Premium', 'Basic', 'Callout', 'Contract']],
+            'wholesale' => [['Sugar', 'Basmati Rice', 'Wheat Flour', 'Cooking Oil', 'Red Chilli', 'Turmeric', 'Lentils', 'Tea Leaves', 'Gram Flour', 'Salt'], ['50kg Bag', '25kg Bag', '10kg Bag', 'Carton', 'Drum', 'Sack', 'Bale', 'Crate', 'Tin', 'Bundle']],
             'food' => [['Chicken Karahi', 'Mutton Karahi', 'Seekh Kebab', 'Chicken Tikka', 'Daal Makhani', 'Biryani', 'Nihari', 'Haleem', 'Malai Boti', 'Chapli Kebab'], ['Half', 'Full', 'Platter', 'Family', 'Special', 'Boneless', 'Degi', 'Peshawari', 'Lahori', 'Handi']],
             'pharmacy' => [['Amoxil', 'Panadol', 'Brufen', 'Augmentin', 'Risek', 'Calpol', 'Flagyl', 'Zantac', 'Ventolin', 'Glucophage'], ['125mg', '250mg', '500mg', '650mg', '1g', 'Syrup', 'Drops', 'Inj', 'Cap', 'Tab']],
             'retail' => [['Gul', 'Noor', 'Zara', 'Meher', 'Aiza', 'Rida', 'Sana', 'Hina', 'Komal', 'Areeba'], ['Printed', 'Embroidered', 'Digital', 'Hand Block', 'Sequin', 'Jacquard', 'Plain', 'Dyed', 'Lace', 'Schiffli']],
@@ -282,7 +305,7 @@ class SeedLoadTestShops extends Command
                 'id' => $id,
                 'tenant_id' => $tenant->id,
                 'category_id' => $categories[$i % count($categories)],
-                'type' => 'product',
+                'type' => $type === 'services' ? 'service' : 'product',
                 'item_type' => match ($type) {
                     'pharmacy' => 'medicine',
                     // A DISH IS MADE TO ORDER. It is not a thing on a shelf,
@@ -291,6 +314,7 @@ class SeedLoadTestShops extends Command
                     // tracked stock made a kitchen refuse to settle a tab for
                     // food the customer had already eaten.
                     'food' => 'food_item',
+                    'services' => 'service',
                     default => 'physical_product',
                 },
                 'name' => "{$brand} {$spec2} #".($i + 1),
@@ -305,7 +329,34 @@ class SeedLoadTestShops extends Command
                 'sold_by' => $byWeight ? 'weight' : 'unit',
                 'stock_quantity' => 0,
                 'low_stock_threshold' => $i % 5 === 0 ? 40 : 10,
-                'track_inventory' => $type !== 'food',
+                'track_inventory' => ! in_array($type, ['food', 'services'], true),
+                // How long it takes. A service business books its day in
+                // minutes, not in units on a shelf.
+                'duration_minutes' => $type === 'services' ? [30, 45, 60, 90, 120][$i % 5] : null,
+                /**
+                 * WHOLESALE SELLS BY THE BREAK. Twenty bags are cheaper per
+                 * bag than one, and the price list IS the business — a mandi
+                 * trader with a single price is not a wholesaler.
+                 */
+                'price_tiers' => $type === 'wholesale'
+                    ? json_encode([
+                        ['min_qty' => 10, 'price' => round($price * 0.95, 2)],
+                        ['min_qty' => 50, 'price' => round($price * 0.90, 2)],
+                        ['min_qty' => 200, 'price' => round($price * 0.84, 2)],
+                    ])
+                    : null,
+                /**
+                 * And some of it will not be sold singly. ONE LINE IN THREE,
+                 * not all of them — a mandi trader breaks bulk on plenty of
+                 * things, and a price list where nothing can be bought by the
+                 * piece is not a wholesaler, it is a locked door.
+                 *
+                 * Worth knowing: this is enforced at the COUNTER as well as
+                 * online. `CreateSaleAction` does it deliberately and says why;
+                 * the column's own comment in the catalog migration still says
+                 * "enforced on online orders", which is now the smaller claim.
+                 */
+                'min_order_qty' => $type === 'wholesale' && $i % 3 === 0 ? 5 : null,
                 'is_active' => true,
                 'visible_in_marketplace' => true,
                 'created_at' => now(),
@@ -347,7 +398,7 @@ class SeedLoadTestShops extends Command
                         ];
                     }
                 }
-            } elseif ($type !== 'food') {
+            } elseif (! in_array($type, ['food', 'services'], true)) {
                 foreach ($branches as $b) {
                     $stockRows[] = [
                         'id' => (string) Str::uuid7(),
@@ -394,7 +445,7 @@ class SeedLoadTestShops extends Command
                 }
             }
 
-            if ($spec['sizes'] === 0 && ($type === 'food' || $i % 10 !== 0)) {
+            if ($spec['sizes'] === 0 && (in_array($type, ['food', 'services'], true) || $i % 10 !== 0)) {
                 $sellable[] = ['product_id' => $id, 'variant_id' => null];
             }
             $made++;
@@ -530,7 +581,7 @@ class SeedLoadTestShops extends Command
      * @param  Branch[]  $branches
      * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
      */
-    private function sales(Tenant $tenant, User $owner, array $branches, array $productIds): void
+    private function sales(Tenant $tenant, string $type, User $owner, array $branches, array $productIds): void
     {
         $want = max(0, (int) $this->option('sales'));
         if ($want === 0 || $productIds === []) {
@@ -546,13 +597,29 @@ class SeedLoadTestShops extends Command
 
         for ($i = 0; $i < $want; $i++) {
             $branch = $branches[$i % count($branches)];
+
+            /**
+             * THE BRANCH COMES FROM CONTEXT, NOT FROM THE PAYLOAD.
+             *
+             * `CreateSaleAction` reads `BranchContext` — set by the
+             * ResolveBranch middleware on a real request — and ignores any
+             * `branch_id` in the data. That is right for HTTP and silent for a
+             * console caller: every sale this command made landed with
+             * `branch_id` NULL, so the figures were correct in total and
+             * invisible to every per-branch report. A three-branch shop that
+             * could not be asked what branch two took.
+             */
+            app(BranchContext::class)->set($branch);
             $items = [];
             foreach (range(1, random_int(1, 5)) as $_) {
                 $pick = $productIds[array_rand($productIds)];
                 $items[] = array_filter([
                     'product_id' => $pick['product_id'],
                     'variant_id' => $pick['variant_id'],
-                    'quantity' => random_int(1, 3),
+                    // A wholesale basket is not a shopper's basket. Buying in
+                    // ones here would also trip every line that carries a
+                    // minimum order quantity.
+                    'quantity' => $type === 'wholesale' ? random_int(5, 60) : random_int(1, 3),
                 ], fn ($v) => $v !== null);
             }
 
@@ -582,6 +649,8 @@ class SeedLoadTestShops extends Command
             }
             $bar->advance();
         }
+
+        app(BranchContext::class)->set(null);
 
         $bar->finish();
         $this->newLine();
