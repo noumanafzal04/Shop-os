@@ -122,6 +122,21 @@ export function ModulePicker({
                 // two things, and the note afterwards would then say something
                 // the note before it did not.
                 const needs = applyModuleChange(catalog, value, m.key, true).alsoOn;
+                /**
+                 * AND WHAT GOES WITH IT.
+                 *
+                 * This file's own docblock says both directions say what else
+                 * moved. Only one did. The hint below was rendered for a
+                 * module that is OFF — "switching this on also switches on X"
+                 * — and nothing at all for one that is ON, which is the
+                 * DESTRUCTIVE direction: taking Inventory away drops
+                 * Purchasing, Stocktake, Disposals and Barcode Labels with it,
+                 * and switching Inventory back on does NOT bring them back.
+                 *
+                 * One press, four modules gone, and the way back is to
+                 * remember which four.
+                 */
+                const loses = applyModuleChange(catalog, value, m.key, false).alsoOff;
                 const differs = defaults !== undefined && isOn !== (defaults[m.key] ?? false);
                 const said = ripple?.key === m.key ? ripple : null;
 
@@ -150,6 +165,14 @@ export function ModulePicker({
                         {!isOn && needs.length > 0 && (
                           <p className="mt-1 text-theme-xs text-gray-400">
                             Switching this on also switches on {needs.join(" and ")}.
+                          </p>
+                        )}
+                        {/* Warning-coloured, unlike the one above: this press
+                            takes things away, and switching back on will not
+                            return them. */}
+                        {isOn && loses.length > 0 && (
+                          <p className="mt-1 text-theme-xs text-warning-600 dark:text-warning-400">
+                            Switching this off also switches off {loses.join(" and ")} — turning it back on will not restore them.
                           </p>
                         )}
                       </div>
