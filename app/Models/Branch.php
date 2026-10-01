@@ -25,6 +25,49 @@ class Branch extends BaseModel
         ];
     }
 
+    /**
+     * EXACTLY ONE DEFAULT, AND THE MODEL OWNS IT.
+     *
+     * The class docblock above has always stated this rule and nothing
+     * enforced it. A second row flagged default was accepted in silence — by
+     * the API, by a seeder, by anything — and the cost is not untidy data.
+     *
+     * Two places resolve "the default" the same way:
+     *
+     *   Branch::writeTargetId()      ->where('is_default', true)->value('id')
+     *   InventoryService::adjust()   ->where('is_default', true)->value('id')
+     *
+     * `value()` takes whichever row the database hands back first. With two
+     * defaults, stock is WRITTEN to one branch and READ from the other: the
+     * shelf is full, the till says zero, every sale is refused, and nothing
+     * anywhere names a branch. Found by building a three-branch shop and
+     * watching three hundred sales out of three hundred refuse.
+     *
+     * It is enforced here rather than in a controller because the callers that
+     * broke it were not controllers, and the next one has not been written
+     * yet. `saved` rather than `saving`: the new default must already exist
+     * before its siblings are stood down, or a failure between the two leaves
+     * a shop with none at all.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (self $branch): void {
+            if (! $branch->is_default) {
+                return;
+            }
+
+            static::query()
+                ->withoutGlobalScopes()
+                // Fenced to the tenant. Without this, opening a branch in one
+                // shop would unseat another shop's Main — a worse bug than the
+                // one being fixed.
+                ->where('tenant_id', $branch->tenant_id)
+                ->whereKeyNot($branch->getKey())
+                ->where('is_default', true)
+                ->update(['is_default' => false]);
+        });
+    }
+
     public function city(): BelongsTo
     {
         return $this->belongsTo(City::class);

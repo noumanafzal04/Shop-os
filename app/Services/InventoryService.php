@@ -95,7 +95,11 @@ class InventoryService
                 // comment; the path a shopkeeper actually presses did not.
                 if ($variant === null && $product->variants()->exists()) {
                     throw DomainException::unprocessable(
-                        'This item is sold in sizes, so its stock lives on the sizes. Choose which size to adjust.',
+                        // "Choose which size to ADJUST" is the stock screen's
+                        // wording, and this service is also the path every
+                        // SALE takes. A cashier who reached it was told to go
+                        // and adjust something. Name the rule, not one caller.
+                        'This item is sold in sizes, so its stock lives on the sizes. Say which size this is for.',
                         'VARIANT_REQUIRED',
                     );
                 }

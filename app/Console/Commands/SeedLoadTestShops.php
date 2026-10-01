@@ -336,9 +336,19 @@ class SeedLoadTestShops extends Command
             }
 
             if ($spec['batches']) {
-                // Two lots per medicine, one of them near expiry — which is the
-                // whole reason a pharmacy needs batches at all.
-                foreach ([random_int(120, 400), random_int(10, 60)] as $n => $days) {
+                /**
+                 * Two lots per medicine, and only about one in twelve carries
+                 * a near-expiry one.
+                 *
+                 * The first version gave EVERY medicine a lot expiring inside
+                 * sixty days, which put half the catalogue inside the ninety-day
+                 * window and made the expiring list look like a defect: four
+                 * thousand rows. That was the data's shape, not the product's. A
+                 * pharmacy with half its shelf about to expire is not a pharmacy
+                 * anybody is testing against — it is a fire.
+                 */
+                $soon = $i % 12 === 0;
+                foreach ([random_int(200, 600), $soon ? random_int(10, 80) : random_int(150, 500)] as $n => $days) {
                     $batchRows[] = [
                         'id' => (string) Str::uuid7(),
                         'tenant_id' => $tenant->id,

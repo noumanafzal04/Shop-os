@@ -55,9 +55,23 @@ class TheAisleTest extends TestCase
             'features' => BusinessTypes::defaultFeatures('retail'),
         ], $overrides));
 
-        Branch::withoutTenancy()->create([
-            'tenant_id' => $tenant->id, 'name' => 'Main', 'code' => 'BR01', 'is_default' => true, 'is_active' => true,
-        ]);
+        /**
+         * REUSE the Main that provisioning already made.
+         *
+         * This used to CREATE a second branch flagged `is_default`, leaving
+         * the shop with two — a state the product now refuses, because with
+         * two defaults stock is written to one branch and read from the other.
+         *
+         * The test then took its branch id with no `is_default` filter, so it
+         * picked the provisioned row and wrote the sold-out flag there, while
+         * the aisle resolved the default and looked at the other one. It
+         * passed only because both rows claimed to be the default. The fixture
+         * was manufacturing a shop that cannot exist.
+         */
+        Branch::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('is_default', true)
+            ->update(['code' => 'BR01']);
 
         return $tenant;
     }
@@ -188,7 +202,8 @@ class TheAisleTest extends TestCase
     public function test_available_means_both_in_stock_and_not_turned_off_tonight(): void
     {
         $shop = $this->shop();
-        $branchId = Branch::withoutTenancy()->where('tenant_id', $shop->id)->value('id');
+        $branchId = Branch::withoutTenancy()
+            ->where('tenant_id', $shop->id)->where('is_default', true)->value('id');
 
         $this->item($shop, 'On The Shelf');
         $this->item($shop, 'Ran Out', ['stock_quantity' => 0]);
