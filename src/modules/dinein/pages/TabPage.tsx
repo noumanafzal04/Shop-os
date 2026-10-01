@@ -101,6 +101,14 @@ export default function TabPage() {
   const settleModal = useModal();
   const [settleQty, setSettleQty] = useState<Record<string, number>>({});
   const [method, setMethod] = useState("cash");
+  /**
+   * A SECOND TENDER. "Two thousand cash and the rest on card" is the commonest
+   * thing a table of six says, and the settle screen could only take one
+   * method — while the endpoint has accepted a `payments[]` array all along.
+   * Empty means a single tender, which is most bills and stays one press.
+   */
+  const [splitMethod, setSplitMethod] = useState("");
+  const [splitAmount, setSplitAmount] = useState("");
   // Money the customer adds on top of the bill. Never part of the total — the
   // server keeps it in its own column so it can never read as revenue.
   const [tip, setTip] = useState("");
@@ -266,6 +274,8 @@ export default function TabPage() {
     setSettleQty(Object.fromEntries(unsettled.map((i) => [i.id, Number(i.quantity)])));
     setMethod("cash");
     setTip("");
+    setSplitMethod("");
+    setSplitAmount("");
     settle.reset();
     settleModal.openModal();
   };
@@ -288,6 +298,12 @@ export default function TabPage() {
   // What the customer hands over: the bill plus whatever they added.
   const settleDue = Math.round((settleBill + tipAmount) * 100) / 100;
   const settleCount = unsettled.filter((i) => (settleQty[i.id] ?? 0) > 0).length;
+
+  /** The second tender's amount, never more than what is owed. */
+  const splitPaid = splitMethod === ""
+    ? 0
+    : Math.min(settleDue, Math.max(0, Math.round((Number(splitAmount) || 0) * 100) / 100));
+  const firstPaid = Math.round((settleDue - splitPaid) * 100) / 100;
   const settlingWhole = unsettled.length > 0 && unsettled.every((i) => (settleQty[i.id] ?? 0) >= Number(i.quantity));
 
   const confirmSettle = () => {
@@ -301,8 +317,17 @@ export default function TabPage() {
         id,
         payload: {
           splits,
-          payment_method: method,
-          amount_paid: settleDue,
+          // One tender stays one field; two go as the array the endpoint has
+          // always taken, so a half-cash-half-card bill is one settle and not
+          // two.
+          ...(splitPaid > 0
+            ? {
+                payments: [
+                  { method, amount: firstPaid },
+                  { method: splitMethod, amount: splitPaid },
+                ],
+              }
+            : { payment_method: method, amount_paid: settleDue }),
           tip_amount: tipAmount || undefined,
         },
       },
@@ -316,7 +341,13 @@ export default function TabPage() {
             toast.success("Part of the tab settled");
           }
         },
-        onError: () => toast.error("Couldn't settle the tab."),
+        /**
+         * SAY WHY. This threw the server's reason away and showed one fixed
+         * sentence — on the single screen where a refusal is most likely to be
+         * about money or stock, and most expensive to guess at. `move` and the
+         * waiter handover in this same file already surfaced it.
+         */
+        onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't settle the tab."),
       },
     );
   };
@@ -740,6 +771,54 @@ export default function TabPage() {
             value={method}
             onChange={setMethod}
           />
+
+          {/* SPLIT THE TENDER, not the bill. Splitting the BILL is the item
+              counter above; this is one bill paid with two things. Hidden
+              until asked for, because most tables pay with one. */}
+          {splitMethod === "" ? (
+            <button
+              type="button"
+              onClick={() => setSplitMethod(method === "cash" ? "card" : "cash")}
+              className="mt-2 text-theme-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+            >
+              + Pay with two methods
+            </button>
+          ) : (
+            <div className="mt-2 space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <Label className="mb-0">And the rest by</Label>
+                <button
+                  type="button"
+                  onClick={() => { setSplitMethod(""); setSplitAmount(""); }}
+                  className="text-theme-xs font-medium text-error-500 hover:text-error-600"
+                >
+                  Remove
+                </button>
+              </div>
+              <Select
+                options={[
+                  { value: "cash", label: "Cash" },
+                  { value: "card", label: "Card" },
+                  { value: "bank_transfer", label: "Bank transfer" },
+                  { value: "wallet", label: "Mobile wallet" },
+                ]}
+                value={splitMethod}
+                onChange={setSplitMethod}
+              />
+              <Input
+                type="number"
+                min="0"
+                value={splitAmount}
+                onChange={(e) => setSplitAmount(e.target.value)}
+                placeholder="Amount on this method"
+              />
+              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+                {splitPaid > 0
+                  ? <>{money(firstPaid)} on {method}, {money(splitPaid)} on {splitMethod}.</>
+                  : <>Type what goes on {splitMethod}; the rest stays on {method}.</>}
+              </p>
+            </div>
+          )}
         </div>
         <div className="mb-4 space-y-1 rounded-lg bg-gray-50 px-4 py-3 dark:bg-gray-800/50">
           <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
