@@ -80,9 +80,27 @@ class OpenForecourtShiftAction
                 ->with(['pump', 'tank.product'])
                 ->get();
 
+            /**
+             * NAME WHAT IS MISSING.
+             *
+             * "Set up at least one tank and one nozzle" was true and useless:
+             * it is the same sentence whether the station has carded nothing
+             * at all, or has three tanks and simply never hung a hose on a
+             * pump. Those are different jobs, on different halves of a
+             * different screen, and the operator was left to guess which.
+             *
+             * The second case is the one that actually happens, because a
+             * nozzle is the LAST thing in the chain — product, tank, pump,
+             * then the hose that joins the last two — and it is the step
+             * somebody stops at, believing a pump with no hose is a pump.
+             */
             if ($tanks->isEmpty() || $nozzles->isEmpty()) {
+                $missing = $tanks->isEmpty()
+                    ? 'No tank is set up at this branch.'
+                    : 'There are tanks here, but no nozzle is drawing from any of them — a pump needs at least one hose carded against a tank.';
+
                 throw DomainException::unprocessable(
-                    'Set up at least one tank and one nozzle before running a forecourt shift.',
+                    $missing.' Open Tanks & pumps and finish the forecourt before running a shift.',
                     'NO_FORECOURT_CONFIGURED',
                 );
             }
