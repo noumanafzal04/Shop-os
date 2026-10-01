@@ -10,7 +10,9 @@ import { DipChartModal } from "../components/DipChartModal";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useToast } from "../../../components/ui/toast";
 import { useProducts } from "../../catalog/hooks/useCatalog";
-import { useFuelMutations, useFuelPumps, useFuelTanks } from "../hooks/useFuel";
+import { useCurrentShift, useFuelMutations, useFuelPumps, useFuelTanks } from "../hooks/useFuel";
+import { Link } from "react-router";
+import Alert from "../../../components/ui/alert/Alert";
 import type { FuelTank } from "../services/fuelService";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
@@ -28,6 +30,18 @@ export default function FuelSetupPage() {
   const pumps = useFuelPumps();
   const products = useProducts({});
   const m = useFuelMutations();
+
+  /**
+   * THE PLANT IS FROZEN WHILE A SHIFT IS RUNNING.
+   *
+   * The server refuses every change here mid-shift — adding included, since a
+   * tank or hose that appears after the shift opened is invisible to the close
+   * and turns into a phantom leak plus a negative unbilled figure. The screen
+   * used to offer all six buttons anyway and answer with a red toast, which
+   * reads as a broken page rather than a rule.
+   */
+  const shift = useCurrentShift();
+  const frozen = !!shift.data;
 
   const tankModal = useModal();
   /** Which tank's calibration chart is open. Null = none. */
@@ -108,12 +122,28 @@ export default function FuelSetupPage() {
         </p>
       </div>
 
+      {frozen && (
+        <div className="mb-5">
+          <Alert
+            variant="info"
+            title={`${shift.data?.number ?? "A shift"} is running — the forecourt is frozen`}
+            message="Tanks, pumps and nozzles hold this shift's opening readings, so nothing here can be added, changed or removed until it is closed."
+          />
+          <Link
+            to="/tenant/fuel"
+            className="mt-2 inline-block text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+          >
+            Go to the forecourt to close it
+          </Link>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         {/* ── Tanks ────────────────────────────────────────────────── */}
         <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <header className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-800">
             <h3 className="text-sm font-medium text-gray-800 dark:text-white/90">Tanks</h3>
-            <Button size="sm" variant="outline" onClick={tankModal.openModal}>Add tank</Button>
+            <Button size="sm" variant="outline" disabled={frozen} onClick={tankModal.openModal}>Add tank</Button>
           </header>
 
           <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
@@ -179,7 +209,7 @@ export default function FuelSetupPage() {
         <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <header className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-800">
             <h3 className="text-sm font-medium text-gray-800 dark:text-white/90">Pumps & nozzles</h3>
-            <Button size="sm" variant="outline" onClick={pumpModal.openModal}>Add pump</Button>
+            <Button size="sm" variant="outline" disabled={frozen} onClick={pumpModal.openModal}>Add pump</Button>
           </header>
 
           <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
@@ -193,6 +223,7 @@ export default function FuelSetupPage() {
                     <div className="flex items-center gap-3">
                       <button
                         className={ROW_ACTION}
+                        disabled={frozen}
                         onClick={() => { setNozzleFor(p.id); setNozzleForm({ name: "", fuel_tank_id: "", current_reading: "" }); }}
                       >
                         Add nozzle

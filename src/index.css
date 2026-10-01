@@ -88,18 +88,26 @@ layer(base);
      in the first place. This is that blend, computed and frozen. */
   --color-pos-plate-active: #2f3b6d;
 
-  --color-brand-25: #f2f7ff;
-  --color-brand-50: #ecf3ff;
-  --color-brand-100: #dde9ff;
-  --color-brand-200: #c2d6ff;
-  --color-brand-300: #9cb9ff;
-  --color-brand-400: #7592ff;
-  --color-brand-500: #465fff;
-  --color-brand-600: #3641f5;
-  --color-brand-700: #2a31d8;
-  --color-brand-800: #252dae;
-  --color-brand-900: #262e89;
-  --color-brand-950: #161950;
+  /* ── THE BRAND: Tkxcel blue ──────────────────────────────────────
+     500 is the logo's own #0755e9. The ladder keeps the original blue
+     ramp's lightness steps, so nothing re-lays out.
+
+     Unlike the orange this replaces, this blue is DARK enough to carry
+     white text: white on #0755e9 is 6.03:1, so the primary button keeps a
+     white label and `text-brand-500` is fine on a light ground. The orange
+     needed a near-black label and a lifted text tier; both are reverted. */
+  --color-brand-25: #f5f8fc;
+  --color-brand-50: #ecf1fb;
+  --color-brand-100: #d8e4fb;
+  --color-brand-200: #b2cbfb;
+  --color-brand-300: #7ea9fb;
+  --color-brand-400: #4885f9;
+  --color-brand-500: #0755e9;
+  --color-brand-600: #0648c6;
+  --color-brand-700: #063ca2;
+  --color-brand-800: #073282;
+  --color-brand-900: #092968;
+  --color-brand-950: #061b41;
 
   --color-blue-light-25: #f5fbff;
   --color-blue-light-50: #f0f9ff;
@@ -123,10 +131,11 @@ layer(base);
   --color-gray-500: #667085;
   --color-gray-600: #475467;
   --color-gray-700: #344054;
-  --color-gray-800: #1d2939;
+  /* Tkxcel's own neutral, #1B232E — the dark the logo is drawn in. */
+  --color-gray-800: #1b232e;
   --color-gray-900: #101828;
   --color-gray-950: #0c111d;
-  --color-gray-dark: #1a2231;
+  --color-gray-dark: #1b232e;
 
   --color-orange-25: #fffaf5;
   --color-orange-50: #fff6ed;
