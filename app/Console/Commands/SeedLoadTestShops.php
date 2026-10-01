@@ -136,6 +136,12 @@ class SeedLoadTestShops extends Command
             'business_type' => $type,
             'city_id' => $city->id,
             'setup_completed' => true,
+            // A shop with the marketplace module is OPEN online. The module
+            // says it may list; this flag says it does, and without it the
+            // storefront, the order path and the delivery leg are all
+            // unreachable — a whole half of the product that no amount of
+            // catalogue volume would exercise.
+            'online_shop_enabled' => true,
             'timezone' => 'Asia/Karachi',
             'features' => Modules::defaultsFor($type),
         ]);

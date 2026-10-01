@@ -35,7 +35,26 @@ class OrderController extends Controller
     {
         /** @param string|null $except the axis being counted, left out */
         $scoped = fn (?string $except = null) => Order::query()
-            ->when($except !== 'status' && $request->query('status'), fn ($q, $s) => $q->where('status', $s))
+            /**
+             * THE VALUE, NOT THE VERDICT.
+             *
+             * This read `$except !== 'status' && $request->query('status')`,
+             * and `when()` hands its CONDITION to the callback as the second
+             * argument. PHP's `&&` returns a BOOLEAN, not the right-hand
+             * operand — so `$s` was `true`, the query became
+             * `where('status', true)`, the database compared a varchar column
+             * against 1, and the answer was nothing. Every status, every shop,
+             * every time.
+             *
+             * The screen it emptied is the one a shop lives in all day: the
+             * Orders list, whose tabs ARE statuses. Found with 79 pending
+             * orders in the table and "Pending" showing none of them.
+             *
+             * None of the filters below has this shape; they pass the value
+             * straight. This one grew a second clause for the per-status
+             * counts, and the clause quietly changed what `when()` handed over.
+             */
+            ->when($except === 'status' ? null : $request->query('status'), fn ($q, $s) => $q->where('status', $s))
             // Which door it came through. A shop wants to know whether the
             // online storefront is earning its keep, and that question cannot
             // be asked of a list that treats a phone call and a web checkout
