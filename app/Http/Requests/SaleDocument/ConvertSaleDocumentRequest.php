@@ -36,6 +36,21 @@ class ConvertSaleDocumentRequest extends FormRequest
             'serials' => ['sometimes', 'array'],
             'serials.*' => ['array', 'max:1000'],
             'serials.*.*' => ['string', 'max:120'],
+            /**
+             * THE READING WHEN THE CAR GOES OUT.
+             *
+             * `ConvertSaleDocumentAction` has always written
+             * `$data['odometer'] ?? $doc->odometer_in` — and nothing could
+             * ever reach it, because this list did not name `odometer` and
+             * `validated()` drops what it does not name. So the invoice, and
+             * through it the vehicle's own last-known reading, always carried
+             * the ARRIVAL figure.
+             *
+             * A service interval is counted from the invoice, so every car at
+             * a workshop running this software was called back late — quietly,
+             * and for ever. A rule written in one file and kept in none.
+             */
+            'odometer' => ['nullable', 'integer', 'min:0', 'max:9999999'],
             'idempotency_key' => ['nullable', 'string', 'max:100'],
         ];
     }

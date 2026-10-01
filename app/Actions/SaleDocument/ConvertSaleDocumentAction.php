@@ -78,6 +78,33 @@ class ConvertSaleDocumentAction
                 throw DomainException::unprocessable('This document has no items.', 'DOCUMENT_EMPTY');
             }
 
+            /**
+             * AN ODOMETER ONLY COUNTS UP.
+             *
+             * The handover reading is optional — plenty of shops take one
+             * figure and no more — and when it is absent the arrival reading
+             * stands, which is the honest fallback rather than a null.
+             *
+             * When it IS given it cannot be below the one taken on the way in.
+             * That is a typo, and the cost of accepting it is not a wrong
+             * number on one invoice: `CustomerVehicle::recordOdometer` writes
+             * the car's own last-known reading from here, and a service
+             * history nobody will ever question again is built on it. The fuel
+             * nozzle's totaliser already refuses the same mistake.
+             */
+            $handoverReading = $data['odometer'] ?? $doc->odometer_in;
+
+            if (
+                isset($data['odometer'])
+                && $doc->odometer_in !== null
+                && (int) $data['odometer'] < (int) $doc->odometer_in
+            ) {
+                throw DomainException::unprocessable(
+                    "The handover reading ({$data['odometer']}) is below the {$doc->odometer_in} taken when the vehicle came in. An odometer only counts up.",
+                    'ODOMETER_WENT_BACKWARDS',
+                );
+            }
+
             // ── Tenders ─────────────────────────────────────────────
             // Money already received rides in as its own method so today's
             // drawer never sees it; the balance is whatever the cashier takes
@@ -157,7 +184,7 @@ class ConvertSaleDocumentAction
                 // interval is counted from, and a week on the ramp with a road
                 // test in the middle makes it a different number.
                 'vehicle_id' => $doc->vehicle_id,
-                'odometer' => $data['odometer'] ?? $doc->odometer_in,
+                'odometer' => $handoverReading,
                 'cash_session_id' => $data['cash_session_id'] ?? null,
                 'notes' => $data['notes'] ?? "From {$doc->number}",
                 'idempotency_key' => $data['idempotency_key'] ?? null,

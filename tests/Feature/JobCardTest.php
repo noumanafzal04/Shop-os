@@ -432,4 +432,81 @@ class JobCardTest extends TestCase
 
         $this->assertNotEmpty($history['visits'], 'the job must reach the vehicle history');
     }
+
+    // ── The reading on the invoice ──────────────────────────────────
+
+    /**
+     * THE CAR LEAVES WITH THE READING IT ARRIVED ON.
+     *
+     * `odometer_in` is documented, in the migration that added it, as NOT the
+     * sale's odometer: "the reading when it came IN… not the same as the
+     * sale's odometer, which is taken when it goes out — a car in the bay for
+     * a week with a road test in the middle has two different numbers, and a
+     * service interval is counted from the one on the invoice."
+     *
+     * The convert action honours that — `$data['odometer'] ?? $doc->odometer_in`
+     * — and nothing could ever reach it, because `odometer` was not in the
+     * convert request's rules and `validated()` drops what it does not name.
+     * The panel does not send it either.
+     *
+     * So the invoice, and through it the VEHICLE's own last-known reading,
+     * always recorded the arrival figure. Every service interval at a workshop
+     * using this software is counted from a number that is always low, so
+     * every car is called back late — quietly, and for ever.
+     *
+     * A rule written in one file and kept in none. This repo has a name for
+     * that shape and has paid for it four times.
+     */
+    public function test_the_handover_reading_reaches_the_invoice(): void
+    {
+        $id = $this->open()->assertCreated()->json('data.id');
+
+        $this->actingAsUser($this->cashier)
+            ->postJson("/api/v1/sale-documents/{$id}/convert", [
+                'payments' => [['method' => 'cash', 'amount' => 4500]],
+                // Road-tested: eighty kilometres since it was booked in.
+                'odometer' => 84080,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.sale.odometer', 84080);
+
+        $this->assertSame(84080, $this->car->fresh()->odometer);
+    }
+
+    public function test_without_a_handover_reading_the_arrival_one_still_stands(): void
+    {
+        // THE DENOMINATOR. The field is optional — a shop that does not take a
+        // second reading must still be able to bill, and the arrival figure is
+        // the honest fallback. Without this case the one above would pass
+        // against an implementation that simply made odometer required.
+        $id = $this->open()->assertCreated()->json('data.id');
+
+        $this->actingAsUser($this->cashier)
+            ->postJson("/api/v1/sale-documents/{$id}/convert", [
+                'payments' => [['method' => 'cash', 'amount' => 4500]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.sale.odometer', 84000);
+    }
+
+    public function test_a_handover_reading_below_the_arrival_one_is_refused(): void
+    {
+        // An odometer only counts up. A figure below the one taken on the way
+        // in is a typo, and accepting it writes a false service history that
+        // nobody will ever question again. Same rule the fuel nozzle already
+        // enforces on its totaliser.
+        $id = $this->open()->assertCreated()->json('data.id');
+
+        $this->actingAsUser($this->cashier)
+            ->postJson("/api/v1/sale-documents/{$id}/convert", [
+                'payments' => [['method' => 'cash', 'amount' => 4500]],
+                'odometer' => 83000,
+            ])
+            ->assertStatus(422)
+            // NAMED, not merely 422. The first draft of this case passed
+            // against a payment that was short of the total — a different rule
+            // throwing the same status, which is "green for the wrong reason"
+            // and the thing this suite exists to catch.
+            ->assertJsonPath('meta.error_code', 'ODOMETER_WENT_BACKWARDS');
+    }
 }
