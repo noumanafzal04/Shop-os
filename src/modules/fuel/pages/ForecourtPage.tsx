@@ -240,6 +240,54 @@ function CloseShiftForm({
     return out;
   }, [closing, tests, readings]);
 
+  /**
+   * THE HANDOVER FIGURE, WHILE IT IS STILL BEING TYPED.
+   *
+   * Naming who is on which hose is the only question the start-shift screen
+   * asks, and the whole reason it asks is so a shortfall can be handed to a
+   * person the same evening. That name was then invisible for the entire
+   * shift — the server only produced attendant totals once the shift was
+   * CLOSED, which is one keystroke too late to check a figure against the
+   * cash in somebody's hand.
+   *
+   * Computed from what is on screen, so it moves as the meters are read.
+   */
+  const byAttendant = useMemo(() => {
+    const out = new Map<string, { name: string; litres: number; value: number; nozzles: number }>();
+    for (const r of readings) {
+      const sold = perNozzle[r.fuel_nozzle_id];
+      if (sold === undefined) continue;
+      const key = r.attendant_id ?? "";
+      const row = out.get(key) ?? {
+        name: r.attendant?.name ?? "Nobody named",
+        litres: 0,
+        value: 0,
+        nozzles: 0,
+      };
+      row.litres += sold;
+      row.value += sold * Number(r.unit_price);
+      row.nozzles += 1;
+      out.set(key, row);
+    }
+    return [...out.values()].sort((a, b) => b.litres - a.litres);
+  }, [readings, perNozzle]);
+
+  /**
+   * Litres a tanker discharged into each tank DURING this shift.
+   *
+   * The close does `book = opening + delivered − meter`, so a tank that took
+   * a delivery reads far above its opening dip and nothing on screen said
+   * why. An operator cannot tell a correct variance from a wrong one without
+   * this number in front of them.
+   */
+  const deliveredByTank = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const d of shift.deliveries ?? []) {
+      out[d.fuel_tank_id] = (out[d.fuel_tank_id] ?? 0) + Number(d.received_litres);
+    }
+    return out;
+  }, [shift.deliveries]);
+
   const totalLitres = Object.values(perNozzle).reduce((a, b) => a + b, 0);
   const totalValue = readings.reduce(
     (sum, r) => sum + (perNozzle[r.fuel_nozzle_id] ?? 0) * Number(r.unit_price),
@@ -320,6 +368,11 @@ function CloseShiftForm({
                       <div className="text-theme-xs text-gray-400">
                         {r.product_name} @ {money(r.unit_price)}
                       </div>
+                      {/* WHOSE HOSE. Assigned when the shift opened and then
+                          never shown again until after it closed. */}
+                      <div className="text-theme-xs text-gray-500 dark:text-gray-400">
+                        {r.attendant?.name ?? <span className="text-gray-400">Nobody named</span>}
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
                       {Number(r.opening_reading).toLocaleString()}
@@ -379,6 +432,13 @@ function CloseShiftForm({
                   <td className="px-4 py-2.5 text-gray-800 dark:text-white/90">{d.tank_name}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
                     {litres(Number(d.opening_dip))}
+                    {/* A tanker that came in since. Without it the closing dip
+                        reads far above the opening one and nothing says why. */}
+                    {deliveredByTank[d.fuel_tank_id] ? (
+                      <div className="text-theme-xs font-medium text-success-600 dark:text-success-400">
+                        + {litres(deliveredByTank[d.fuel_tank_id])} received
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1.5">
@@ -414,6 +474,38 @@ function CloseShiftForm({
           </table>
         </div>
       </section>
+
+      {/* ── Who hands over what ─────────────────────────────────────
+          Shown only once a meter has been read, because before that every
+          row is zero and a table of zeroes reads as a bug. Deliberately
+          carries no share of the unbilled litres: a till sale does not
+          record which nozzle it came from, so dividing that gap between
+          people would be inventing an accusation. */}
+      {byAttendant.length > 0 && (
+        <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+          <header className="flex items-baseline justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+            <h3 className="text-sm font-medium text-gray-800 dark:text-white/90">Handover</h3>
+            <span className="text-theme-xs text-gray-400">
+              Metered litres per person — not the till, and not the tank.
+            </span>
+          </header>
+          <ul className="divide-y divide-gray-50 dark:divide-gray-800/60">
+            {byAttendant.map((a) => (
+              <li key={a.name} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <span className="min-w-0 truncate text-sm text-gray-800 dark:text-white/90">
+                  {a.name}
+                  <span className="ml-2 text-theme-xs text-gray-400">
+                    {a.nozzles} nozzle{a.nozzles === 1 ? "" : "s"}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right text-sm tabular-nums text-gray-700 dark:text-gray-200">
+                  {litres(a.litres)} · <span className="font-medium">{money(a.value.toFixed(2))}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {anyNegative && (
         <Alert

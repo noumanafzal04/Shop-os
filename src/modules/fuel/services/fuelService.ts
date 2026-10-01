@@ -131,6 +131,12 @@ export interface ForecourtShift {
   notes: string | null;
   readings?: ForecourtReading[];
   dips?: ForecourtDip[];
+  /**
+   * Tankers that discharged DURING this shift. They change the dip
+   * arithmetic — book = opening + delivered − meter — so an operator
+   * reconciling a tank has to be able to see them.
+   */
+  deliveries?: FuelDelivery[];
   /** Present on a single shift read back, not in the list. */
   attendant_totals?: AttendantTotal[];
 }
