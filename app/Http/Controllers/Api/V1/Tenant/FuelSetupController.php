@@ -154,7 +154,18 @@ class FuelSetupController extends Controller
         // to the shift, which resolves a missing branch to Main. The two halves
         // answered the same question in opposite directions, so a station that
         // set its forecourt up through the panel could never open a shift.
-        $tank = FuelTank::query()->create($this->atABranch($request->validated()));
+        $data = $this->atABranch($request->validated());
+
+        // A shift SNAPSHOTS the plant when it opens — one dip row per tank,
+        // one reading per nozzle — and the close walks that snapshot. A tank
+        // added now is invisible to it, so its litres never reach
+        // `meter_litres` while the fuel is gone from the ground: the close
+        // reports a leak that is really a fitter with a spanner. Editing and
+        // removing plant have been refused mid-shift since the beginning; this
+        // is the same rule, through the door nobody guarded.
+        $this->assertNoOpenShift($data['branch_id'] ?? null, 'tank', 'adding');
+
+        $tank = FuelTank::query()->create($data);
 
         return ApiResponse::created($this->presentTank($tank->load(['product:id,name,price,unit', 'branch:id,name'])), 'Tank added');
     }
@@ -204,7 +215,13 @@ class FuelSetupController extends Controller
     public function storePump(StoreFuelPumpRequest $request): JsonResponse
     {
         // Same reason as the tank above: physical plant belongs to a site.
-        $pump = FuelPump::query()->create($this->atABranch($request->validated()));
+        $data = $this->atABranch($request->validated());
+
+        // See storeTank: a pump arriving mid-shift brings hoses the running
+        // shift never recorded an opening reading for.
+        $this->assertNoOpenShift($data['branch_id'] ?? null, 'pump', 'adding');
+
+        $pump = FuelPump::query()->create($data);
 
         return ApiResponse::created($pump->load('branch:id,name'), 'Pump added');
     }
@@ -235,6 +252,14 @@ class FuelSetupController extends Controller
     {
         /** @var FuelPump $pump */
         $pump = FuelPump::query()->findOrFail($pumpId);
+
+        // THE WORST OF THE THREE. A hose added to a live pump sells fuel the
+        // shift has no opening reading for, so at close the tank variance goes
+        // UP (a leak that is not there) and unbilled litres go NEGATIVE (the
+        // till rang sales no meter moved). Those two figures exist precisely so
+        // a hole in the ground can be told apart from a hand in the drawer, and
+        // this made both of them lie on the same night.
+        $this->assertNoOpenShift($pump->branch_id, 'nozzle', 'adding');
 
         $nozzle = FuelNozzle::query()->create($request->validated() + ['fuel_pump_id' => $pump->id]);
 
@@ -286,11 +311,16 @@ class FuelSetupController extends Controller
             ->exists();
     }
 
-    private function assertNoOpenShift(?string $branchId, string $what): void
+    /**
+     * @param  string  $verb  what is being attempted — the refusal has to name
+     *                        it, because "before removing a tank" printed over
+     *                        an ADD button is a message that reads as a bug.
+     */
+    private function assertNoOpenShift(?string $branchId, string $what, string $verb = 'removing'): void
     {
         if ($this->hasOpenShift($branchId)) {
             throw DomainException::conflict(
-                "Close the open forecourt shift before removing a {$what} — it holds this shift's opening readings.",
+                "Close the open forecourt shift before {$verb} a {$what} — it holds this shift's opening readings.",
                 'FORECOURT_SHIFT_OPEN',
             );
         }
