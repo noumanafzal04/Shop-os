@@ -116,6 +116,18 @@ class SeedLoadTestShops extends Command
             'dining' => false,
         ]);
 
+        $this->shop('finance', 'Rehman Books & Accounts', 'finance', $city, [
+            // THE SHOP WITH NO SHOP. No till, no catalogue, no stock — the
+            // expense book IS the product. It is the shape most likely to be
+            // broken by a change made for everybody else, and the only one
+            // where the cashbook has no sales to lean on.
+            'branches' => ['Main — Office'],
+            'lines' => 0,
+            'sizes' => 0,
+            'batches' => false,
+            'dining' => false,
+        ]);
+
         $this->newLine();
         $this->info(sprintf('Done in %.1fs', microtime(true) - $started));
         $this->line('Owners sign in with  <slug>@loadtest.test  /  password');
@@ -162,6 +174,7 @@ class SeedLoadTestShops extends Command
             $this->diningRoom($tenant, $branches, $productIds);
         }
         $this->sales($tenant, $type, $owner, $branches, $productIds);
+        $this->books($tenant, $owner, $branches);
 
         app(TenantContext::class)->clear();
     }
@@ -240,6 +253,31 @@ class SeedLoadTestShops extends Command
         }
 
         $this->line("  staff      {$made} (each on a different permission set)");
+
+        /**
+         * RIDERS, for a shop that delivers.
+         *
+         * A tenant's own rider — the shop's boy on a bike — as opposed to a
+         * platform rider, who is a USER who applied. Without one the delivery
+         * leg of an online order cannot be walked at all: the order reaches
+         * `ready` and there is nobody to hand it to.
+         */
+        if (($tenant->features['delivery'] ?? false) === true) {
+            $riders = [];
+            foreach (['Imran', 'Shahid', 'Waqar', 'Naveed'] as $n => $name) {
+                $riders[] = [
+                    'id' => (string) Str::uuid7(),
+                    'tenant_id' => $tenant->id,
+                    'name' => $name,
+                    'phone' => '+9230012345'.str_pad((string) $n, 2, '0', STR_PAD_LEFT),
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+            DB::table('riders')->insert($riders);
+            $this->line('  riders     '.count($riders));
+        }
     }
 
     /** @return string[] category ids */
@@ -560,6 +598,62 @@ class SeedLoadTestShops extends Command
 
         $this->line('  tables     '.count($tables).' across '.count($branches).' branches');
         $this->line('  modifiers  '.count($groups).' groups · '.count($options).' options');
+    }
+
+    /**
+     * MONEY THAT IS NOT A SALE.
+     *
+     * Rent, wages, electricity, a delivery bike's petrol — and the other side,
+     * a rebate or a scrap sale. Every shop has these and none of them come
+     * through the till, so a cashbook tested only against sales is a cashbook
+     * tested on half its sources.
+     *
+     * @param  Branch[]  $branches
+     */
+    private function books(Tenant $tenant, User $owner, array $branches): void
+    {
+        if (($tenant->features['expenses'] ?? false) !== true) {
+            return;
+        }
+
+        $outs = ['Shop rent', 'Electricity bill', 'Staff wages', 'Delivery petrol', 'Packaging', 'Internet', 'Repairs', 'Municipal fee'];
+        $ins = ['Scrap sale', 'Supplier rebate', 'Sublet rent'];
+
+        $rows = [];
+        foreach (range(0, 59) as $i) {
+            $rows[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'branch_id' => $branches[$i % count($branches)]->id,
+                'description' => $outs[$i % count($outs)],
+                'amount' => random_int(1500, 95000),
+                'expense_date' => now()->subDays(random_int(0, 89))->toDateString(),
+                'payment_method' => ['cash', 'bank_transfer'][$i % 2],
+                'created_by' => $owner->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        DB::table('expenses')->insert($rows);
+
+        $inRows = [];
+        foreach (range(0, 11) as $i) {
+            $inRows[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'branch_id' => $branches[$i % count($branches)]->id,
+                'description' => $ins[$i % count($ins)],
+                'amount' => random_int(2000, 40000),
+                'income_date' => now()->subDays(random_int(0, 89))->toDateString(),
+                'payment_method' => 'cash',
+                'created_by' => $owner->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        DB::table('incomes')->insert($inRows);
+
+        $this->line('  books      '.count($rows).' expenses · '.count($inRows).' other income');
     }
 
     private function flush(array &$products, array &$variants, array &$stock, array &$batches): void
