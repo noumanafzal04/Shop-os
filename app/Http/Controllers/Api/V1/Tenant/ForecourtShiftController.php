@@ -43,14 +43,35 @@ class ForecourtShiftController extends Controller
      */
     public function current(Request $request): JsonResponse
     {
+        /**
+         * THE RUNNING SHIFT WAS POORER THAN THE CLOSED ONE.
+         *
+         * This loaded `readings` and `dips` and nothing else, so the screen an
+         * operator actually works on — the one where they read every meter at
+         * the end of a shift — could not show two things it is built around:
+         *
+         *  ATTENDANTS  naming who is on which hose is the ONLY question the
+         *              start-shift screen asks, and the whole reason it asks
+         *              is to turn "forty litres unbilled" into "forty litres
+         *              on Ali's nozzles". That name was then invisible for the
+         *              entire shift and only appeared after closing.
+         *  DELIVERIES  a tanker that discharged mid-shift changes the dip
+         *              arithmetic — `book = opening + delivered − meter`. An
+         *              operator who cannot see the delivery cannot tell a
+         *              correct variance from a wrong one.
+         *
+         * `show()` has loaded both since the beginning. The two endpoints
+         * answered the same question at different depths, and the shallower
+         * one was the one people use.
+         */
         $shift = ForecourtShift::query()
             ->where('status', ForecourtShift::STATUS_OPEN)
             ->when($request->filled('branch_id'), fn ($q) => $q->where('branch_id', $request->string('branch_id')))
-            ->with(['readings', 'dips', 'openedBy:id,name'])
+            ->with(['readings.attendant:id,name', 'dips', 'deliveries', 'openedBy:id,name'])
             ->orderByDesc('opened_at')
             ->first();
 
-        return ApiResponse::ok($shift);
+        return ApiResponse::ok($shift === null ? null : $this->present($shift));
     }
 
     public function store(OpenForecourtShiftRequest $request, OpenForecourtShiftAction $action): JsonResponse
