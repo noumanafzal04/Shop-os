@@ -101,6 +101,19 @@ const DisposalsPage = lazy(() => import("./modules/inventory/pages/DisposalsPage
 const SalesPage = lazy(() => import("./modules/sales/pages/SalesPage"));
 const NewSalePage = lazy(() => import("./modules/sales/pages/NewSalePage"));
 const ExpensesPage = lazy(() => import("./modules/expenses/pages/ExpensesPage"));
+// ── Basic HR ──────────────────────────────────────────────────────────
+// Placeholders. They render their own "not built yet" notice and talk to
+// nothing; they exist so the module's shape can be reviewed on a real screen
+// before any of it is built.
+const HrmDashboardPage = lazy(() => import("./modules/hrm/pages/HrmDashboardPage"));
+const AttendancePage = lazy(() => import("./modules/hrm/pages/AttendancePage"));
+const LeavesPage = lazy(() => import("./modules/hrm/pages/LeavesPage"));
+const ShiftsPage = lazy(() => import("./modules/hrm/pages/ShiftsPage"));
+const AdvancesPage = lazy(() => import("./modules/hrm/pages/AdvancesPage"));
+const CommissionPage = lazy(() => import("./modules/hrm/pages/CommissionPage"));
+const PayrollPage = lazy(() => import("./modules/hrm/pages/PayrollPage"));
+const HrmReportsPage = lazy(() => import("./modules/hrm/pages/HrmReportsPage"));
+const HrmSettingsPage = lazy(() => import("./modules/hrm/pages/HrmSettingsPage"));
 const IncomePage = lazy(() => import("./modules/income/pages/IncomePage"));
 const CashbookPage = lazy(() => import("./modules/income/pages/CashbookPage"));
 const LedgerPage = lazy(() => import("./modules/income/pages/LedgerPage"));
@@ -425,6 +438,22 @@ export default function App() {
                   </Route>
                   <Route element={<RequireTenantScreen />}>
                     <Route path="reports" element={<ReportsPage />} />
+                  </Route>
+                  {/* Basic HR. No RequireFeature yet — there is no `hrm`
+                      module key on the server, and gating on a flag that does
+                      not exist would hide the whole thing. The screen
+                      permission (staff.manage) is what keeps a cashier out of
+                      payroll in the meantime. */}
+                  <Route element={<RequireTenantScreen />}>
+                    <Route path="hrm" element={<HrmDashboardPage />} />
+                    <Route path="hrm/attendance" element={<AttendancePage />} />
+                    <Route path="hrm/leaves" element={<LeavesPage />} />
+                    <Route path="hrm/shifts" element={<ShiftsPage />} />
+                    <Route path="hrm/advances" element={<AdvancesPage />} />
+                    <Route path="hrm/commission" element={<CommissionPage />} />
+                    <Route path="hrm/payroll" element={<PayrollPage />} />
+                    <Route path="hrm/reports" element={<HrmReportsPage />} />
+                    <Route path="hrm/settings" element={<HrmSettingsPage />} />
                   </Route>
                   {/* Orders follow PRODUCTS, matching the API. They used to
                       follow marketplace, which locked out the exact shop the

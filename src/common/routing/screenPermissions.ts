@@ -61,6 +61,18 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   "/tenant/fuel/deliveries": "purchases.manage",
   "/tenant/fuel/setup": "settings.manage",
 
+  // Basic HR rides staff.manage until it has permissions of its own. Payroll
+  // and advances are the shop's wage bill — a cashier holding sales.manage
+  // has no business in either, and an unlisted route is open to everyone.
+  "/tenant/hrm": "staff.manage",
+  "/tenant/hrm/attendance": "staff.manage",
+  "/tenant/hrm/leaves": "staff.manage",
+  "/tenant/hrm/shifts": "staff.manage",
+  "/tenant/hrm/advances": "staff.manage",
+  "/tenant/hrm/commission": "staff.manage",
+  "/tenant/hrm/payroll": "staff.manage",
+  "/tenant/hrm/reports": "staff.manage",
+  "/tenant/hrm/settings": "staff.manage",
   "/tenant/cashbook": "expenses.manage",
   "/tenant/income": "expenses.manage",
   "/tenant/expenses": "expenses.manage",

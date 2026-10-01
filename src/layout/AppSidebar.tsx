@@ -24,6 +24,7 @@ import {
   ShootingStarIcon,
   TableIcon,
   TaskIcon,
+  TimeIcon,
   UserCircleIcon,
   UserIcon,
 } from "../icons";
@@ -310,6 +311,35 @@ export function shopNav(
           ],
         }]
       : []),
+    /**
+     * BASIC HR — shown, not yet built.
+     *
+     * Every screen behind these links renders a "not built yet" notice and
+     * talks to nothing. It is here so the module's shape can be reviewed on a
+     * real sidebar before any of it exists.
+     *
+     * Full view only: this is back-office work, and Simple mode is the daily
+     * board. Ungated by module because there is no `hrm` key on the server
+     * yet — `staff.manage` is what keeps a cashier out of the wage bill, and
+     * filterByPermission below applies it.
+     */
+    {
+      icon: <TimeIcon />,
+      name: "HRM",
+      subItems: [
+        { name: "Dashboard", path: "/tenant/hrm" },
+        { name: "Attendance", path: "/tenant/hrm/attendance" },
+        { name: "Leaves", path: "/tenant/hrm/leaves" },
+        { name: "Shifts & roster", path: "/tenant/hrm/shifts" },
+        { name: "Advances", path: "/tenant/hrm/advances" },
+        { name: "Commission", path: "/tenant/hrm/commission" },
+        { name: "Payroll", path: "/tenant/hrm/payroll" },
+        { name: "Reports", path: "/tenant/hrm/reports" },
+        // Last, the way the module's own settings should sit — inside it,
+        // not buried among the shop's.
+        { name: "HR settings", path: "/tenant/hrm/settings" },
+      ],
+    },
     {
       // The back office, plus the counter LOOKUPS a trade reaches for when a
       // customer is standing there — not its daily board, which is above.

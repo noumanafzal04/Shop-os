@@ -54,6 +54,154 @@ export interface HelpArticle {
 }
 
 export const HELP_ARTICLES: HelpArticle[] = [
+  // ── Basic HR ──────────────────────────────────────────────────────
+  //
+  // These screens are PLACEHOLDERS and each says so on its face. The articles
+  // are written now rather than later because this repo's rule is that a
+  // screen and its help arrive together — and because what Basic HR will and
+  // will NOT do is the thing people need to read before it exists.
+  {
+    id: "hrm",
+    title: "Basic HR",
+    summary: "Attendance, leave, shifts, advances, commission and a monthly payroll.",
+    group: "People & setup",
+    permission: "staff.manage",
+    screen: "/tenant/hrm",
+    keywords: ["hr", "hrm", "staff", "attendance", "payroll", "salary", "leave", "commission", "advance"],
+    body: [
+      { type: "p", text: "Basic HR is for a shop owner with five to fifty people, not for an HR department. It answers six questions: who came in, who was off, what hours they were meant to work, what they have taken in advance, what their sales earned them, and what they are owed at the end of the month." },
+      { type: "note", text: "No biometric machine is needed. Attendance can be marked with the staff PIN already used at the till, or entered by hand. A machine, if one is ever added, simply becomes another way of feeding the same records." },
+      { type: "keys", items: [
+        ["Attendance", "Check in and out, late, overtime, absent."],
+        ["Leaves", "Types the shop defines, requests and approvals, balances."],
+        ["Shifts & roster", "Expected hours — not the till's cash shift."],
+        ["Advances", "Money taken early, repaid in instalments."],
+        ["Commission", "What a sale earns whoever made it."],
+        ["Payroll", "One monthly run, built from all of the above."],
+      ] },
+      { type: "warn", text: "Every screen in this section is still being built. They are in the menu so the module can be reviewed; none of them saves or reads anything yet." },
+    ],
+  },
+  {
+    id: "hrm-attendance",
+    title: "Attendance",
+    summary: "Who came, when, and how long they worked.",
+    group: "People & setup",
+    permission: "staff.manage",
+    screen: "/tenant/hrm/attendance",
+    parent: "hrm",
+    keywords: ["attendance", "check in", "check out", "punch", "late", "absent", "overtime", "biometric"],
+    body: [
+      { type: "p", text: "Check in and out by staff PIN at the till, or entered by hand on a day grid here. Late, early and overtime minutes are worked out against the person's roster." },
+      { type: "note", text: "A biometric machine is NOT required. A shop with none uses the PIN it already has, or marks the day by hand — and when a machine is added later it becomes one more source feeding the same records, so nothing already entered changes." },
+      { type: "warn", text: "This screen is still being built. It is in the menu so the shape of Basic HR can be reviewed; nothing on it is saved or read yet." },
+    ],
+  },
+  {
+    id: "hrm-leaves",
+    title: "Leaves",
+    summary: "Requests, approvals, and what each person has left.",
+    group: "People & setup",
+    permission: "staff.manage",
+    screen: "/tenant/hrm/leaves",
+    parent: "hrm",
+    keywords: ["leave", "holiday", "casual", "sick", "annual", "unpaid", "short leave", "half day"],
+    body: [
+      { type: "p", text: "A shop defines its own leave types and marks each one paid or unpaid. Payroll only ever deducts for UNPAID leave." },
+      { type: "note", text: "The balance moves when leave is APPROVED, not when it is asked for. An approved leave also writes that day's attendance, so leave is never recorded in two places that can disagree." },
+      { type: "warn", text: "This screen is still being built. It is in the menu so the shape of Basic HR can be reviewed; nothing on it is saved or read yet." },
+    ],
+  },
+  {
+    id: "hrm-shifts",
+    title: "Shifts & roster",
+    summary: "The hours each person is expected to work.",
+    group: "People & setup",
+    permission: "staff.manage",
+    screen: "/tenant/hrm/shifts",
+    parent: "hrm",
+    keywords: ["shift", "roster", "timing", "grace", "overnight", "night shift", "working days"],
+    body: [
+      { type: "p", text: "Start and end, break, and the grace period before late means late. Overnight shifts are handled — 8pm to 4am finishes the next day." },
+      { type: "note", text: "This is NOT the till's cash shift. That one counts the drawer; this one counts hours. They are deliberately separate and are never added together." },
+      { type: "warn", text: "This screen is still being built. It is in the menu so the shape of Basic HR can be reviewed; nothing on it is saved or read yet." },
+    ],
+  },
+  {
+    id: "hrm-advances",
+    title: "Advances",
+    summary: "Money taken before payday, and how it comes back.",
+    group: "People & setup",
+    permission: "staff.manage",
+    screen: "/tenant/hrm/advances",
+    parent: "hrm",
+    keywords: ["advance", "loan", "udhaar", "peshgi", "instalment", "deduction"],
+    body: [
+      { type: "p", text: "Record an advance against a staff member and it carries a running balance, the same way the customer khata already does. Repayment can be split over months — 20,000 as 5,000 over four." },
+      { type: "note", text: "Payroll deducts the instalment itself, so an advance can never be forgotten at the end of the month." },
+      { type: "warn", text: "This screen is still being built. It is in the menu so the shape of Basic HR can be reviewed; nothing on it is saved or read yet." },
+    ],
+  },
+  {
+    id: "hrm-commission",
+    title: "Commission",
+    summary: "What a sale earns the person who made it.",
+    group: "People & setup",
+    permission: "staff.manage",
+    screen: "/tenant/hrm/commission",
+    parent: "hrm",
+    keywords: ["commission", "incentive", "target", "salesman", "waiter"],
+    body: [
+      { type: "p", text: "Percentage or fixed, across everything or only certain categories or products. It is earned by whoever the sale NAMES as the seller." },
+      { type: "note", text: "For a shop where one cashier rings what several people sold, switch on Settings → POS → “Ask who served the customer” first. Without it every sale is unattributed and no commission can be worked out. Commission is reversed when a sale is returned or voided." },
+      { type: "warn", text: "This screen is still being built. It is in the menu so the shape of Basic HR can be reviewed; nothing on it is saved or read yet." },
+    ],
+  },
+  {
+    id: "hrm-payroll",
+    title: "Payroll",
+    summary: "One run a month, built from everything else.",
+    group: "People & setup",
+    permission: "staff.manage",
+    screen: "/tenant/hrm/payroll",
+    parent: "hrm",
+    keywords: ["payroll", "salary", "wages", "tankhwah", "net pay", "deduction"],
+    body: [
+      { type: "p", text: "Basic, plus overtime, commission and any bonus, less unpaid leave, advances and other deductions. Draft, calculate, review, approve, pay." },
+      { type: "note", text: "An approved run is locked. Paying it posts the money to the expense book, so the cashbook and the wage bill agree without anybody typing it twice." },
+      { type: "warn", text: "This screen is still being built. It is in the menu so the shape of Basic HR can be reviewed; nothing on it is saved or read yet." },
+    ],
+  },
+  {
+    id: "hrm-reports",
+    title: "HR reports",
+    summary: "Attendance, money and people — per branch.",
+    group: "People & setup",
+    permission: "staff.manage",
+    screen: "/tenant/hrm/reports",
+    parent: "hrm",
+    keywords: ["hr report", "attendance report", "late report", "payroll report", "salary report"],
+    body: [
+      { type: "p", text: "Daily and monthly attendance, late and absent lists, overtime, payroll, salary, commission and advances. Employee-wise sales sit beside employee-wise commission." },
+      { type: "note", text: "Everything is scoped to the branch the reader is allowed to see — a branch manager reads their own branch, an owner reads all of them." },
+      { type: "warn", text: "This screen is still being built. It is in the menu so the shape of Basic HR can be reviewed; nothing on it is saved or read yet." },
+    ],
+  },
+  {
+    id: "hrm-settings",
+    title: "HR settings",
+    summary: "The policies every HR figure is worked out from.",
+    group: "People & setup",
+    permission: "staff.manage",
+    screen: "/tenant/hrm/settings",
+    parent: "hrm",
+    keywords: ["hr settings", "grace period", "overtime rate", "daily rate", "working days"],
+    body: [
+      { type: "p", text: "Attendance rules, overtime and its multiplier, leave policy, and advance limits. They live inside HRM rather than among the shop's other settings, because nothing outside HRM reads them." },
+      { type: "note", text: "One of these matters more than it looks: how a monthly salary becomes a DAILY rate — divided by 26 working days, by 30 calendar days, or by the roster. Every unpaid-leave deduction is computed from it, so it is a setting and never a fixed number." },
+      { type: "warn", text: "This screen is still being built. It is in the menu so the shape of Basic HR can be reviewed; nothing on it is saved or read yet." },
+    ],
+  },
   // ── Start here ────────────────────────────────────────────────────
   {
     id: "how-it-fits",

@@ -66,6 +66,28 @@ function walked(): Set<string> {
  */
 const NOT_WALKED: Record<string, string> = {
   "/tenant/setup": "completes a shop's setup — a walk must not change what it walks",
+
+  /**
+   * ⚠️ BASIC HR — placeholders, and only while they stay placeholders.
+   *
+   * Each renders a fixed "not built yet" notice and calls nothing. A browser
+   * walk measures what a real screen does with real data; there is no data
+   * here and no behaviour to catch, so a walk would be nine green checks that
+   * prove a static paragraph still renders.
+   *
+   * These lines come out the moment a screen reads or writes anything — which
+   * is the same moment it owes a module key. Both debts are written down, in
+   * shopNav.test.ts and here, so neither can be paid by forgetting.
+   */
+  "/tenant/hrm": "PLACEHOLDER — nothing to walk until it does something",
+  "/tenant/hrm/attendance": "PLACEHOLDER — nothing to walk until it does something",
+  "/tenant/hrm/leaves": "PLACEHOLDER — nothing to walk until it does something",
+  "/tenant/hrm/shifts": "PLACEHOLDER — nothing to walk until it does something",
+  "/tenant/hrm/advances": "PLACEHOLDER — nothing to walk until it does something",
+  "/tenant/hrm/commission": "PLACEHOLDER — nothing to walk until it does something",
+  "/tenant/hrm/payroll": "PLACEHOLDER — nothing to walk until it does something",
+  "/tenant/hrm/reports": "PLACEHOLDER — nothing to walk until it does something",
+  "/tenant/hrm/settings": "PLACEHOLDER — nothing to walk until it does something",
 };
 
 describe("every shop-side screen is walked by a browser", () => {
