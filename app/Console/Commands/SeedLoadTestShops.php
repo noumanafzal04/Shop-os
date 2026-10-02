@@ -354,6 +354,34 @@ class SeedLoadTestShops extends Command
         app(TenantContext::class)->clear();
     }
 
+    /**
+     * EVERY COMBINATION OF TWO AXES, in the order a person would read them.
+     *
+     * The same shape the panel's `variantMatrix` produces, kept here rather
+     * than approximated: a fixture that generated the combinations in a
+     * different order, or that dropped the single-axis case, would be
+     * testing a grid the product does not make.
+     *
+     * A null first axis means "this line has only one axis" and yields the
+     * second axis alone — a shop sells scarves in four sizes and nothing
+     * else, and that is not a degenerate case, it is most of the catalogue.
+     *
+     * @param  array<int, string|null>  $first
+     * @param  string[]  $second
+     * @return array<int, array{0: string|null, 1: string}>
+     */
+    private function grid(array $first, array $second): array
+    {
+        $out = [];
+        foreach ($first as $a) {
+            foreach ($second as $b) {
+                $out[] = [$a, $b];
+            }
+        }
+
+        return $out;
+    }
+
     /** @param string[] $names @return Branch[] */
     private function branches(Tenant $tenant, City $city, array $names): array
     {
@@ -608,7 +636,53 @@ class SeedLoadTestShops extends Command
             ];
 
             if ($spec['sizes'] > 0) {
-                foreach (['S', 'M', 'L', 'XL'] as $size) {
+                /**
+                 * TWO AXES, NOT ONE — because a garment shop has two.
+                 *
+                 * The panel has built a colour × size GRID since the variant
+                 * matrix shipped, and this fixture had only ever produced
+                 * `S, M, L, XL`: one axis, four rows, the easy half. A shirt
+                 * in three colours and four sizes is TWELVE things on the
+                 * shelf, each with its own stock and its own barcode, and
+                 * every screen that groups, searches, prices or counts
+                 * variants behaves differently once the name has two
+                 * segments in it.
+                 *
+                 * `/` is the separator the whole platform composes on, and
+                 * it is the reason this matters: a two-axis row renders as
+                 * `Kurti / Red / M` — three segments, with nothing in the
+                 * string to say which slash is the product boundary.
+                 *
+                 * Not every line gets colours. A shop sells scarves in four
+                 * sizes and plain cotton in one, and a catalogue where every
+                 * single item is a twelve-way grid is not a shop.
+                 */
+                $colours = $i % 3 === 0
+                    ? ['Red', 'Black', 'Ivory']
+                    : ($i % 3 === 1 ? ['Navy', 'Maroon'] : [null]);
+
+                /**
+                 * THE AXES, KEPT BESIDE THE PRODUCT.
+                 *
+                 * `attributes.variant_axes` is what lets the form rebuild
+                 * the GRID when somebody opens the item again. Without it
+                 * the panel falls back to `axesFromRows`, which refuses to
+                 * guess — so an edit screen would show twelve unexplained
+                 * rows instead of "Colour × Size", and adding a fourth
+                 * colour would mean typing four more by hand.
+                 *
+                 * A fixture that made the variants and not the axes would
+                 * have been testing the half of the feature that is easy.
+                 */
+                $axes = [['name' => 'Size', 'values' => ['S', 'M', 'L', 'XL']]];
+                if ($colours !== [null]) {
+                    array_unshift($axes, ['name' => 'Colour', 'values' => $colours]);
+                }
+                $productRows[count($productRows) - 1]['attributes'] = json_encode(['variant_axes' => $axes]);
+
+                foreach ($this->grid($colours, ['S', 'M', 'L', 'XL']) as [$colour, $size]) {
+                    $label = $colour === null ? $size : "{$colour} / {$size}";
+                    $slug = $colour === null ? $size : strtoupper(substr($colour, 0, 2))."-{$size}";
                     $vid = (string) Str::uuid7();
                     // A sized product holds NO stock of its own — the sizes do.
                     // Selling one without naming a size is refused, correctly,
@@ -620,8 +694,8 @@ class SeedLoadTestShops extends Command
                         'id' => $vid,
                         'tenant_id' => $tenant->id,
                         'product_id' => $id,
-                        'name' => $size,
-                        'sku' => strtoupper(substr($type, 0, 3)).'-'.str_pad((string) ($i + 1), 6, '0', STR_PAD_LEFT)."-{$size}",
+                        'name' => $label,
+                        'sku' => strtoupper(substr($type, 0, 3)).'-'.str_pad((string) ($i + 1), 6, '0', STR_PAD_LEFT)."-{$slug}",
                         'price' => $price,
                         'cost' => round($price * 0.78, 2),
                         'stock_quantity' => 0,
@@ -704,7 +778,23 @@ class SeedLoadTestShops extends Command
         // The product-level figure is the sum of its branches, which is what
         // every stock screen compares against.
         DB::statement(
-            'UPDATE products p SET stock_quantity = COALESCE((SELECT SUM(bs.quantity) FROM branch_stock bs WHERE bs.product_id = p.id), 0) WHERE p.tenant_id = ?',
+            /**
+             * THE PARENT'S FIGURE IS ITS OWN ROWS, NOT ITS SIZES'.
+             *
+             * `InventoryService::adjust()` writes the roll-up to whichever
+             * row the movement NAMED: a variant's stock lands on the variant,
+             * and the parent of a sized product is left where it was — at
+             * zero, because nothing is ever adjusted on it directly.
+             *
+             * This summed every branch_stock row for the product, variants
+             * included, so 72 sized parents in the clothing shop carried a
+             * figure the real application never writes. Low stock, valuation
+             * and the marketplace all read that column, and a fixture that
+             * inflates it is a fixture where those screens behave differently
+             * from the shop they are meant to imitate. `LowStock` exists
+             * BECAUSE the real figure is nought for anything sold in sizes.
+             */
+            'UPDATE products p SET stock_quantity = COALESCE((SELECT SUM(bs.quantity) FROM branch_stock bs WHERE bs.product_id = p.id AND bs.variant_id IS NULL), 0) WHERE p.tenant_id = ?',
             [$tenant->id]
         );
 

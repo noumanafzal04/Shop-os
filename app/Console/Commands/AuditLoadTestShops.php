@@ -87,6 +87,7 @@ class AuditLoadTestShops extends Command
             $this->anExchangeIsNotARefund($shop);
             $this->theCutWasTakenFairly($shop);
             $this->theRatingIsReal($shop);
+            $this->theGridIsWhole($shop);
 
             app(TenantContext::class)->clear();
         }
@@ -1187,6 +1188,89 @@ class AuditLoadTestShops extends Command
         // nobody learns anything from.
         $unhappy = $reviews->filter(fn ($r) => (int) $r->rating <= 3)->count();
         $this->holds('somebody was not happy', $unhappy > 0, "{$unhappy} of {$reviews->count()} at three or below");
+    }
+
+    /**
+     * A COLOUR AND A SIZE ARE TWO AXES, AND THE GRID HAS TO BE WHOLE.
+     *
+     * A garment shop sells one kurti in three colours and four sizes: twelve
+     * things on the shelf, each with its own stock and its own code. The
+     * panel generates that grid; what must hold afterwards is that nothing
+     * fell out of it.
+     *
+     *   every combination exists     — a missing one is an item a shop can
+     *                                  never sell and will never notice
+     *   the axes are kept            — without them the edit screen shows
+     *                                  twelve unexplained rows and cannot
+     *                                  add a fourth colour
+     *   the parent holds no stock    — the sizes do; a parent with stock is
+     *                                  stock nobody can sell
+     *   each row has its own code    — a drinks shop's 500ml and 1L carry
+     *                                  different barcodes, which is the
+     *                                  whole reason those codes exist
+     */
+    private function theGridIsWhole(Tenant $shop): void
+    {
+        $withAxes = DB::table('products')
+            ->where('tenant_id', $shop->id)
+            ->whereNull('deleted_at')
+            ->whereNotNull('attributes')
+            ->get(['id', 'name', 'attributes', 'stock_quantity']);
+
+        if ($withAxes->isEmpty()) {
+            return;
+        }
+
+        $variants = DB::table('product_variants')
+            ->where('tenant_id', $shop->id)
+            ->whereNull('deleted_at')
+            ->get(['id', 'product_id', 'name', 'sku'])
+            ->groupBy('product_id');
+
+        $short = 0;
+        $expected = 0;
+        foreach ($withAxes as $p) {
+            $axes = json_decode((string) $p->attributes, true)['variant_axes'] ?? null;
+            if (! is_array($axes) || $axes === []) {
+                continue;
+            }
+
+            $combinations = array_product(array_map(fn ($a) => count($a['values'] ?? []), $axes));
+            $expected += $combinations;
+
+            if (($variants[$p->id] ?? collect())->count() !== $combinations) {
+                $short++;
+            }
+        }
+
+        $this->holds(
+            'every combination of colour and size exists',
+            $short === 0,
+            $short > 0 ? "{$short} grids incomplete" : $withAxes->count().' grids, '.$expected.' combinations',
+        );
+
+        // A SIZED PRODUCT HOLDS NO STOCK OF ITS OWN. Stock on the parent is
+        // stock no size can sell and no count will ever reconcile.
+        $parentStock = $withAxes->filter(fn ($p) => (float) $p->stock_quantity > 0 && isset($variants[$p->id]))->count();
+        $this->holds('a sized product keeps its stock on the sizes', $parentStock === 0,
+            $parentStock > 0 ? "{$parentStock} parents holding stock" : '');
+
+        // One code per row, and no two rows wearing the same one.
+        $all = $variants->flatten(1);
+        $noSku = $all->filter(fn ($v) => $v->sku === null || trim((string) $v->sku) === '')->count();
+        $this->holds('every size carries its own code', $noSku === 0,
+            $noSku > 0 ? "{$noSku} with no SKU" : $all->count().' sizes');
+
+        $clashing = $all->filter(fn ($v) => $v->sku !== null)
+            ->groupBy('sku')->filter(fn ($g) => $g->count() > 1)->count();
+        $this->holds('no two sizes share a code', $clashing === 0,
+            $clashing > 0 ? "{$clashing} codes used twice" : '');
+
+        // And the fixture has to contain the TWO-axis case, or this whole
+        // section is checking the easy half.
+        $twoAxis = $all->filter(fn ($v) => str_contains((string) $v->name, ' / '))->count();
+        $this->holds('some rows have two axes, not one', $twoAxis > 0,
+            "{$twoAxis} of {$all->count()} are colour and size");
     }
 
     private function whatIsStillEmpty(): void
