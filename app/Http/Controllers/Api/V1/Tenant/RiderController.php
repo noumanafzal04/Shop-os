@@ -223,9 +223,43 @@ class RiderController extends Controller
         return ApiResponse::ok($rider, 'Rider updated');
     }
 
+    /**
+     * Remove a rider — unless they are still carrying the shop's money.
+     *
+     * This was a plain soft delete. The row left the list, and the cash on it
+     * left with it: `index` reads live riders, the statement reads a live
+     * rider, and settle posts to a live rider, so every door to that money
+     * shuts at once. Nothing is lost in the database — the orders keep their
+     * rider_id — but there is no way back to it from the panel, and no warning
+     * on the way out.
+     *
+     * The press that does it is rarely a mistake about the rider. It is a
+     * mistake about the SCREEN: the riders list had no way to correct a name
+     * or a number, so "fix the spelling" meant remove and re-add. See
+     * TheRiderIsHoldingTheCashTest.
+     */
     public function destroy(string $id): JsonResponse
     {
+        /** @var Rider $rider */
         $rider = Rider::query()->findOrFail($id);
+
+        // The same question the screen asks, asked the same way — delivered,
+        // paid in cash, not yet settled. Not a stored running total, so it
+        // cannot drift away from the figure the shop is looking at.
+        $held = (float) $rider->orders()
+            ->whereNotNull('delivered_at')
+            ->whereNull('rider_settlement_id')
+            ->where('payment_method', 'cod')
+            ->sum('total');
+
+        if ($held > 0) {
+            throw DomainException::unprocessable(
+                $rider->name.' is still holding '.number_format($held, 2)
+                    .' in cash. Settle it first — removing them now would take it off this screen.',
+                'RIDER_HOLDS_CASH',
+            );
+        }
+
         $rider->delete(); // soft delete — past orders keep their rider snapshot via the nullable FK
 
         return ApiResponse::noContent('Rider removed');

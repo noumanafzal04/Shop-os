@@ -772,6 +772,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // a takeaway counter.
                 Route::middleware('feature:disposals')->group(function (): void {
                     Route::get('/disposals', [StockDisposalController::class, 'index']);
+                    Route::post('/disposals', [StockDisposalController::class, 'store']);
                     Route::post('/disposals/{id}/credit', [StockDisposalController::class, 'credit']);
                 });
 

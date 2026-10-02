@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Actions\Inventory\WriteOffStockAction;
 use App\Http\Controllers\Controller;
 use App\Models\StockDisposal;
 use App\Support\ApiResponse;
@@ -53,6 +54,43 @@ class StockDisposalController extends Controller
             ->paginate(30);
 
         return ApiResponse::paginated($rows);
+    }
+
+    /**
+     * WRITE SOMETHING OFF THAT WAS NEVER IN A LOT.
+     *
+     * This screen existed for every trade and could only be FILLED by one. The
+     * only writer of a disposal was deleting a batch, so a mart, a clothing
+     * shop or a hardware store — none of which batch their stock — looked at a
+     * register of their losses that was permanently empty, while the path they
+     * really use (Inventory → Adjust → out, "Damaged") records a quantity and
+     * no money at all: `stock_movements` has no cost column.
+     *
+     * See WriteOffStockAction for why a lot-tracked item is refused here.
+     */
+    public function store(Request $request, BranchContext $branch, WriteOffStockAction $action): JsonResponse
+    {
+        abort_unless($request->user()->hasPermission(Permissions::INVENTORY_MANAGE), 403);
+
+        $data = $request->validate([
+            'product_id' => ['required', 'uuid'],
+            'variant_id' => ['nullable', 'uuid'],
+            'quantity' => ['required', 'numeric', 'min:0.001'],
+            'disposition' => ['required', Rule::in(StockDisposal::DISPOSITIONS)],
+            'reason' => ['required', Rule::in(StockDisposal::REASONS)],
+            'notes' => ['nullable', 'string', 'max:500'],
+            // Only meaningful on a return; the action drops them otherwise
+            // rather than storing a claim nobody can make.
+            'supplier_id' => ['nullable', 'uuid'],
+            'credit_expected' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+        ]);
+
+        // id(), not scopeId(): this is a WRITE, and stock belongs to one
+        // branch. An owner looking at every branch at once still writes the
+        // loss somewhere specific — the branch they are operating.
+        $disposal = $action->execute($request->user(), $data + ['branch_id' => $branch->id()]);
+
+        return ApiResponse::created($disposal, "Written off — {$disposal->number}");
     }
 
     /**

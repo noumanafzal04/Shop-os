@@ -2,13 +2,24 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Inventory\ApplyStockCountAction;
+use App\Actions\Inventory\RecordStockCountAction;
+use App\Actions\Inventory\StartStockCountAction;
+use App\Actions\Inventory\TransferStockAction;
+use App\Actions\Inventory\WriteOffStockAction;
 use App\Actions\Purchase\CreatePurchaseOrderAction;
 use App\Actions\Purchase\ReceivePurchaseOrderAction;
 use App\Actions\Purchase\RecordSupplierPaymentAction;
 use App\Actions\Sale\CreateSaleAction;
+use App\Actions\Sale\ProcessSaleReturnAction;
+use App\Exceptions\DomainException;
 use App\Models\Branch;
 use App\Models\City;
+use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Sale;
+use App\Models\StockCountItem;
+use App\Models\StockDisposal;
 use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
@@ -195,7 +206,13 @@ class SeedLoadTestShops extends Command
             $this->diningRoom($tenant, $branches, $productIds);
         }
         $this->supplyChain($tenant, $type, $owner, $branches);
-        $this->sales($tenant, $type, $owner, $branches, $productIds);
+        // Offers BEFORE sales, or there is nothing for a basket to pick up.
+        $this->offers($tenant, $owner, $categories);
+        $customers = $this->theCounter($tenant);
+        $this->sales($tenant, $type, $owner, $branches, $productIds, $customers);
+        $this->khata($tenant, $owner);
+        $this->afterTheSale($tenant, $owner, $branches);
+        $this->theShelf($tenant, $owner, $branches, $productIds);
         $this->books($tenant, $owner, $branches);
 
         app(TenantContext::class)->clear();
@@ -856,15 +873,402 @@ class SeedLoadTestShops extends Command
      * @param  Branch[]  $branches
      * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
      */
-    private function sales(Tenant $tenant, string $type, User $owner, array $branches, array $productIds): void
+    /**
+     * THE OTHER SIDE OF THE MONEY LEDGER.
+     *
+     * The payables bug — a shop shown Rs 45.6M of debt for goods still in a
+     * van — was found because suppliers had volume to be wrong about.
+     * Customers had none: a load-test shop had three hundred sales and not one
+     * named customer, so the khata, the credit limit, the ledger and every
+     * "who owes us" figure were measured against nothing at all.
+     *
+     * Khata is how most of these shops actually trade. It is also the half of
+     * the ledger where the shop LOSES money rather than overpays — the same
+     * shape of fault, pointed the other way.
+     *
+     * @return Customer[]
+     */
+    private function theCounter(Tenant $tenant): array
+    {
+        if (($tenant->features['customers'] ?? false) !== true) {
+            return [];
+        }
+
+        $first = ['Ahmed', 'Fatima', 'Bilal', 'Ayesha', 'Usman', 'Sana', 'Hamza', 'Zainab', 'Imran', 'Nida'];
+        $last = ['Khan', 'Malik', 'Butt', 'Sheikh', 'Raza', 'Chaudhry', 'Qureshi', 'Awan'];
+
+        $rows = [];
+        foreach (range(0, 239) as $i) {
+            $rows[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'name' => $first[$i % count($first)].' '.$last[intdiv($i, count($first)) % count($last)],
+                // A KHATA NEEDS A PHONE. The till finds a customer by phone
+                // and by nothing else, so a customer seeded without one is a
+                // row no cashier could ever reach — see the Khata Needs A
+                // Phone note. Unique per shop, hence the index in the number.
+                'phone' => '03'.str_pad((string) (100000000 + $i), 9, '0', STR_PAD_LEFT),
+                // Not everybody gets a book. A shop that extends credit to all
+                // two hundred and forty of its walk-ins is not a shop.
+                'credit_limit' => $i % 3 === 0 ? random_int(5, 60) * 1000 : 0,
+                'credit_balance' => 0,
+                'loyalty_points' => 0,
+                'created_at' => now()->subDays(random_int(0, 180)),
+                'updated_at' => now(),
+            ];
+        }
+        DB::table('customers')->insert($rows);
+
+        $onTheBook = Customer::withoutTenancy()
+            ->where('tenant_id', $tenant->id)->where('credit_limit', '>', 0)->get()->all();
+
+        $this->line('  customers  '.count($rows).' ('.count($onTheBook).' with a khata)');
+
+        return $onTheBook;
+    }
+
+    /**
+     * PAYING THE BOOK DOWN.
+     *
+     * A khata that only ever grows is not a khata, and a balance nothing
+     * reduces cannot catch the arithmetic fault that matters here: a payment
+     * that lands in the ledger and not on the balance, or the other way round.
+     * Roughly two in three of the shops' debtors pay something back, in one or
+     * two instalments, never more than they owe.
+     */
+    private function khata(Tenant $tenant, User $owner): void
+    {
+        $owing = Customer::withoutTenancy()
+            ->where('tenant_id', $tenant->id)->where('credit_balance', '>', 0)->get();
+
+        if ($owing->isEmpty()) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $paid = 0;
+        $total = 0.0;
+
+        foreach ($owing as $i => $customer) {
+            if ($i % 3 === 0) {
+                continue; // somebody always has not come in yet
+            }
+
+            foreach (range(1, random_int(1, 2)) as $_) {
+                $owed = (float) $customer->fresh()->credit_balance;
+                if ($owed <= 0) {
+                    break;
+                }
+
+                // NEVER more than the balance. Overpaying is a real and
+                // deliberate act in this product (KHATA_OVERPAYMENT, with an
+                // allow_advance flag) and seeding it by accident would make
+                // every advance figure look like noise.
+                $amount = round(min($owed, $owed * (random_int(20, 100) / 100)), 2);
+                if ($amount <= 0) {
+                    break;
+                }
+
+                $customer->recordCreditPayment($amount, ['cash', 'bank_transfer', 'wallet'][$i % 3]);
+                $total += $amount;
+                $paid++;
+            }
+        }
+
+        $this->line(sprintf('  khata      %d payments · %s collected', $paid, number_format($total, 2)));
+    }
+
+    /**
+     * WHAT CAME BACK.
+     *
+     * Returns are where refund arithmetic, stock restoration and the khata all
+     * meet, and not one load-test shop had a single one. The action is the
+     * real one, so each return re-runs the cumulative-allocation rule that
+     * stops three partial returns of an 800 line summing to 800.01.
+     *
+     * @param  Branch[]  $branches
+     */
+    private function afterTheSale(Tenant $tenant, User $owner, array $branches): void
+    {
+        $sales = Sale::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('status', 'completed')
+            ->with('items')
+            ->get();
+
+        if ($sales->isEmpty()) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $action = app(ProcessSaleReturnAction::class);
+        $done = 0;
+        $refunded = 0.0;
+        /** @var array<string, int> $reasons */
+        $reasons = [];
+
+        // Roughly one sale in twelve comes back, in whole or in part. A shop
+        // where everything is returned is as unrealistic as one where nothing
+        // is, and both hide different faults.
+        foreach ($sales as $i => $sale) {
+            if ($i % 12 !== 0 || $sale->items->isEmpty()) {
+                continue;
+            }
+
+            app(BranchContext::class)->set(
+                collect($branches)->firstWhere('id', $sale->branch_id) ?? $branches[0],
+            );
+
+            $line = $sale->items->random();
+            $qty = (float) $line->quantity;
+            // Half the returns are PARTIAL — the case the refund rounding rule
+            // exists for, and the one a "return the whole sale" fixture never
+            // reaches.
+            $back = $i % 24 === 0 || $qty <= 1 ? $qty : max(1, floor($qty / 2));
+
+            try {
+                $return = $action->execute($sale, [
+                    'items' => [['sale_item_id' => $line->id, 'quantity' => $back]],
+                    'reason' => ['Damaged', 'Wrong item', 'Changed mind', 'Expired'][$i % 4],
+                ]);
+                $refunded += (float) $return->refund_total;
+                $done++;
+            } catch (\Throwable $e) {
+                $reasons[$e->getMessage()] = ($reasons[$e->getMessage()] ?? 0) + 1;
+            }
+        }
+
+        app(BranchContext::class)->set(null);
+
+        $this->line(sprintf('  returns    %d · %s refunded', $done, number_format($refunded, 2)));
+        arsort($reasons);
+        foreach (array_slice($reasons, 0, 2, true) as $why => $n) {
+            $this->line('             × '.$n.'  '.Str::limit($why, 90));
+        }
+    }
+
+    /**
+     * EVERYTHING THAT MOVES STOCK WITHOUT SELLING IT.
+     *
+     * A count, a transfer between branches, and stock written off. All three
+     * modules shipped with screens, and on a load-test shop all three tables
+     * held zero rows — so nothing had ever asked whether a count of six
+     * thousand lines can be drawn, paged and applied, or whether a transfer
+     * leaves the two branches' stock summing to what it was before.
+     *
+     * @param  Branch[]  $branches
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     */
+    private function theShelf(Tenant $tenant, User $owner, array $branches, array $productIds): void
+    {
+        if ($productIds === []) {
+            return;
+        }
+
+        auth()->setUser($owner);
+
+        // ── A COUNT, on the main branch ──────────────────────────────
+        if (($tenant->features['stocktake'] ?? false) === true) {
+            try {
+                $count = app(StartStockCountAction::class)->execute($owner, $tenant->id, [
+                    'branch_id' => $branches[0]->id, 'scope' => 'all', 'blind' => true,
+                ]);
+
+                // Count a slice of the sheet, and get a realistic share of it
+                // WRONG — a count where every line agrees proves only that the
+                // expectation was copied into the answer.
+                $lines = StockCountItem::withoutTenancy()
+                    ->where('stock_count_id', $count->id)->limit(400)->get();
+
+                $entered = [];
+                foreach ($lines as $n => $line) {
+                    $expected = (float) $line->expected_quantity;
+                    $entered[] = [
+                        'item_id' => $line->id,
+                        'counted_quantity' => $n % 7 === 0
+                            ? max(0, $expected - random_int(1, 3))   // shrinkage
+                            : ($n % 23 === 0 ? $expected + 1 : $expected),
+                    ];
+                }
+
+                app(RecordStockCountAction::class)->execute($owner, $count, $entered);
+                app(ApplyStockCountAction::class)->execute($owner, $count, 'Quarterly count');
+                $this->line('  stocktake  '.count($entered).' lines counted and applied');
+            } catch (\Throwable $e) {
+                $this->line('  stocktake  refused — '.Str::limit($e->getMessage(), 80));
+            }
+        }
+
+        // ── TRANSFERS between branches ───────────────────────────────
+        if (count($branches) > 1) {
+            $moved = 0;
+            foreach (range(1, 6) as $n) {
+                $items = [];
+                foreach (array_rand($productIds, min(4, count($productIds))) as $k) {
+                    $pick = $productIds[$k];
+                    $items[] = array_filter([
+                        'product_id' => $pick['product_id'],
+                        'variant_id' => $pick['variant_id'],
+                        'quantity' => random_int(1, 5),
+                    ], fn ($v) => $v !== null);
+                }
+
+                try {
+                    app(TransferStockAction::class)->execute($tenant, [
+                        'from_branch_id' => $branches[0]->id,
+                        'to_branch_id' => $branches[$n % count($branches) ?: 1]->id,
+                        'items' => $items,
+                        'notes' => 'Topping up the shelf',
+                    ]);
+                    $moved++;
+                } catch (\Throwable $e) {
+                    // Counted, not swallowed — a transfer refused for lack of
+                    // stock at the source is a legitimate outcome and a
+                    // transfer refused for every reason is a bug.
+                    $this->line('             transfer refused — '.Str::limit($e->getMessage(), 70));
+                }
+            }
+            $this->line("  transfers  {$moved}");
+        }
+
+        // ── WRITTEN OFF ──────────────────────────────────────────────
+        if (($tenant->features['disposals'] ?? false) === true) {
+            $written = 0;
+            $lost = 0.0;
+            app(BranchContext::class)->set($branches[0]);
+
+            foreach (range(1, 30) as $n) {
+                $pick = $productIds[array_rand($productIds)];
+                try {
+                    $row = app(WriteOffStockAction::class)->execute($owner, [
+                        'product_id' => $pick['product_id'],
+                        'variant_id' => $pick['variant_id'],
+                        'branch_id' => $branches[0]->id,
+                        'quantity' => random_int(1, 4),
+                        'disposition' => $n % 4 === 0
+                            ? StockDisposal::RETURNED
+                            : StockDisposal::WRITTEN_OFF,
+                        'reason' => ['damaged', 'expired', 'other'][$n % 3],
+                    ]);
+                    $lost += (float) ($row->total_cost ?? 0);
+                    $written++;
+                } catch (\Throwable $e) {
+                    // A lot-tracked item is refused here BY DESIGN and sent to
+                    // its batch — so a pharmacy writing nothing off this way is
+                    // the rule working, not a failure.
+                }
+            }
+
+            app(BranchContext::class)->set(null);
+            $this->line(sprintf('  write-offs %d · %s of stock', $written, number_format($lost, 2)));
+        }
+    }
+
+    /**
+     * COUPONS, PROMOTIONS AND POINTS — rules a basket picks up on its way past.
+     *
+     * Every one of these discounts the bill, and a discount applied twice, or
+     * applied and then not reflected in the refund, is money. None of the
+     * three had a single row in any load-test shop, so the whole discount
+     * ladder in CreateSaleAction — cart, coupon, promotion, group price,
+     * points — had never been exercised at volume against real reports.
+     *
+     * @param  array<string, string>  $categories
+     */
+    private function offers(Tenant $tenant, User $owner, array $categories): void
+    {
+        if (($tenant->features['promotions'] ?? false) !== true) {
+            return;
+        }
+
+        $codes = [
+            ['SAVE10', 'percent', 10, 1000, 500],
+            ['FLAT200', 'fixed', 200, 1500, null],
+            ['EID25', 'percent', 25, 3000, 1500],
+            ['WELCOME', 'fixed', 100, 500, null],
+            // Expired and exhausted ones, because "is this coupon still good"
+            // is a rule with three answers and seeding only the live one tests
+            // a third of it.
+            ['LASTEID', 'percent', 15, 1000, 800],
+            ['GONE', 'fixed', 300, 1000, null],
+        ];
+
+        $rows = [];
+        foreach ($codes as $i => [$code, $type, $value, $minSpend, $maxDiscount]) {
+            $dead = $code === 'LASTEID';
+            $spent = $code === 'GONE';
+            $rows[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'code' => $code,
+                'type' => $type,
+                'value' => $value,
+                'min_spend' => $minSpend,
+                'max_discount' => $maxDiscount,
+                'usage_limit' => $spent ? 5 : 500,
+                'used_count' => $spent ? 5 : 0,
+                'starts_at' => now()->subDays(60),
+                'expires_at' => $dead ? now()->subDays(10) : now()->addDays(60),
+                'is_active' => true,
+                'created_by' => $owner->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        DB::table('coupons')->insert($rows);
+
+        $promos = [];
+        $categoryIds = array_values($categories);
+        foreach (range(0, 2) as $i) {
+            $promos[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'name' => ['Weekend 5% off', 'Rs 150 off a big basket', 'Category clearance'][$i],
+                'type' => $i === 1 ? 'fixed' : 'percent',
+                'value' => [5, 150, 12][$i],
+                'scope' => $i === 2 && $categoryIds !== [] ? 'category' : 'order',
+                'category_id' => $i === 2 ? ($categoryIds[0] ?? null) : null,
+                'min_spend' => [2000, 5000, 0][$i],
+                'priority' => $i,
+                'starts_on' => now()->subDays(30)->toDateString(),
+                'ends_on' => now()->addDays(30)->toDateString(),
+                'is_active' => true,
+                'created_by' => $owner->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        DB::table('promotions')->insert($promos);
+
+        // POINTS. Off by default and switched on here, because a shop with
+        // loyalty off never runs the earn/redeem arithmetic at all.
+        $tenant->forceFill([
+            'settings' => ($tenant->settings ?? []) + [
+                'loyalty_enabled' => true,
+                'loyalty_earn_per_amount' => 100,  // a point per hundred rupees
+                'loyalty_redeem_value' => 1,
+                'loyalty_min_redeem' => 50,
+            ],
+        ])->save();
+
+        $this->line('  offers     '.count($rows).' coupons · '.count($promos).' promotions · points on');
+    }
+
+    /** @param Customer[] $customers */
+    private function sales(Tenant $tenant, string $type, User $owner, array $branches, array $productIds, array $customers = []): void
     {
         $want = max(0, (int) $this->option('sales'));
         if ($want === 0 || $productIds === []) {
             return;
         }
 
+        auth()->setUser($owner);
         $action = app(CreateSaleAction::class);
         $done = 0;
+        $onCredit = 0;
+        $withACoupon = 0;
+        /** @var array<string, int> $couponRefusals */
+        $couponRefusals = [];
         $skipped = 0;
         /** @var array<string, int> $reasons */
         $reasons = [];
@@ -898,16 +1302,51 @@ class SeedLoadTestShops extends Command
                 ], fn ($v) => $v !== null);
             }
 
+            /**
+             * ONE SALE IN SIX IS ON THE BOOK.
+             *
+             * `payment_method: credit` against a named customer is how most of
+             * these shops actually trade, and it is the only path that moves
+             * `customers.credit_balance`. Until this existed the khata, the
+             * credit limit and every "who owes us" figure were measured
+             * against a table of zeroes.
+             *
+             * `amount_paid` is what the customer actually handed over, so some
+             * of these are part-paid — the shape that catches a balance
+             * charged for the whole bill instead of the unpaid remainder.
+             */
+            $debtor = $customers !== [] && $i % 6 === 0
+                ? $customers[$i % count($customers)]
+                : null;
+
+            // Every fifth basket arrives with a code. SAVE10 and FLAT200 have
+            // a minimum spend, so plenty of these are legitimately refused —
+            // which is the half of a coupon rule nothing was testing.
+            $coupon = $i % 5 === 0 ? ['SAVE10', 'FLAT200', 'WELCOME'][$i % 3] : null;
+
             try {
-                $sale = $action->execute([
+                $sale = $action->execute(array_filter([
                     'branch_id' => $branch->id,
                     'channel' => 'walk_in',
-                    'customer_name' => ['Ahmed', 'Fatima', 'Bilal', 'Ayesha', 'Usman'][$i % 5],
+                    'customer_name' => $debtor?->name ?? ['Ahmed', 'Fatima', 'Bilal', 'Ayesha', 'Usman'][$i % 5],
+                    'customer_phone' => $debtor?->phone,
+                    'coupon_code' => $coupon,
                     'items' => $items,
-                    'payment_method' => ['cash', 'card', 'wallet', 'bank_transfer'][$i % 4],
-                    'amount_paid' => 1_000_000,
+                    'payment_method' => $debtor !== null
+                        ? 'credit'
+                        : ['cash', 'card', 'wallet', 'bank_transfer'][$i % 4],
+                    // On credit the shop takes a part payment or nothing; a
+                    // cash sale is settled in full.
+                    'amount_paid' => $debtor !== null ? ($i % 12 === 0 ? 0 : 200) : 1_000_000,
                     'created_by' => $owner->id,
-                ]);
+                ], fn ($v) => $v !== null));
+
+                if ($debtor !== null) {
+                    $onCredit++;
+                }
+                if ($coupon !== null && (float) $sale->discount > 0) {
+                    $withACoupon++;
+                }
 
                 // Ninety days of trade, so every report has a shape to draw.
                 $sale->forceFill([
@@ -915,6 +1354,55 @@ class SeedLoadTestShops extends Command
                 ])->save();
                 $done++;
             } catch (\Throwable $e) {
+                /**
+                 * A REFUSED COUPON IS NOT A LOST SALE.
+                 *
+                 * `CouponService::apply` THROWS when the basket is under the
+                 * minimum spend, or the code has expired, or its uses are
+                 * gone — so attaching a code to one basket in five refused one
+                 * basket in five outright, and the shop lost those sales
+                 * instead of ringing them. At the counter the cashier simply
+                 * takes the code off and takes the money.
+                 *
+                 * Retried without it, which is also the only way the refusal
+                 * itself gets exercised at volume: every one of these is a
+                 * real coupon rule firing on a real basket.
+                 */
+                $refusedCoupon = $coupon !== null && str_starts_with(
+                    (string) ($e instanceof DomainException ? $e->errorCode : ''),
+                    'COUPON_',
+                );
+
+                if ($refusedCoupon) {
+                    $couponRefusals[$e->getMessage()] = ($couponRefusals[$e->getMessage()] ?? 0) + 1;
+
+                    try {
+                        $sale = $action->execute(array_filter([
+                            'branch_id' => $branch->id,
+                            'channel' => 'walk_in',
+                            'customer_name' => $debtor?->name ?? 'Walk-in',
+                            'customer_phone' => $debtor?->phone,
+                            'items' => $items,
+                            'payment_method' => $debtor !== null ? 'credit' : 'cash',
+                            'amount_paid' => $debtor !== null ? 200 : 1_000_000,
+                            'created_by' => $owner->id,
+                        ], fn ($v) => $v !== null));
+
+                        $sale->forceFill([
+                            'sold_at' => now()->subDays(random_int(0, 89))->subHours(random_int(0, 13)),
+                        ])->save();
+                        $done++;
+                        if ($debtor !== null) {
+                            $onCredit++;
+                        }
+                        $bar->advance();
+
+                        continue;
+                    } catch (\Throwable $second) {
+                        $e = $second;
+                    }
+                }
+
                 // WHY, not just how many. A silent skip counter hid the fact
                 // that every shop stopped at exactly the same number — which
                 // is never what running out of stock looks like.
@@ -929,7 +1417,12 @@ class SeedLoadTestShops extends Command
 
         $bar->finish();
         $this->newLine();
-        $this->line("  sales      {$done}".($skipped > 0 ? " ({$skipped} refused)" : ''));
+        $this->line("  sales      {$done}".($skipped > 0 ? " ({$skipped} refused)" : '')
+            ." · {$onCredit} on the book · {$withACoupon} took a coupon");
+        arsort($couponRefusals);
+        foreach (array_slice($couponRefusals, 0, 3, true) as $why => $n) {
+            $this->line('             coupon refused ×'.$n.'  '.Str::limit($why, 70));
+        }
         arsort($reasons);
         foreach (array_slice($reasons, 0, 3, true) as $why => $n) {
             $this->line('             × '.$n.'  '.Str::limit($why, 90));
