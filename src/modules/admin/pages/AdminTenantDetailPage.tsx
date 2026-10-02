@@ -299,8 +299,19 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
       ) : (
         <div className="space-y-4">
           {usage.map((u) => {
-            const pct = u.limit && u.limit > 0 ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
-            const bar = pct >= 100 ? "bg-error-500" : pct >= 80 ? "bg-warning-500" : "bg-brand-500";
+            /* WHERE "NEARLY" STARTS IS THE SERVER'S DECISION, not this
+               screen's. The shop's own Subscription page draws the same
+               figure, and two copies of 80 would drift the first time
+               somebody tuned one of them. The bar is still clamped at 100%
+               because a bar cannot be 110% long — but the WORD below it
+               says 110, which is the number that matters. */
+            const pct = u.percent ?? 0;
+            const band = u.band;
+            const bar =
+              band === "reached" ? "bg-error-500"
+              : band === "critical" ? "bg-warning-500"
+              : band === "nearing" ? "bg-warning-400"
+              : "bg-brand-500";
             const extended = assigned[u.key] != null;
             const extra = u.extra ?? 0;
             return (
@@ -332,8 +343,31 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
                 </div>
                 {!u.unlimited && (
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                    <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+                    <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.min(100, pct)}%` }} />
                   </div>
+                )}
+                {/* A COLOUR IS NOT A SENTENCE. Three of these limits are
+                    reported and deliberately not enforced — a hard stop in
+                    the middle of a queue is the failure the offline module
+                    exists to avoid — and until now the only thing beside
+                    them was a bar that went red. An admin ringing a shop
+                    about its plan needs the words. */}
+                {band !== null && band !== "ok" && (
+                  <p
+                    className={`mt-1 text-theme-xs ${
+                      band === "reached"
+                        ? "text-error-600 dark:text-error-400"
+                        : "text-warning-600 dark:text-warning-400"
+                    }`}
+                  >
+                    {band === "reached"
+                      ? u.enforced
+                        ? `At the ceiling (${pct}%) — nothing more can be added until it is raised.`
+                        : `Past the ceiling (${pct}%). Nothing is blocked; the plan no longer covers it.`
+                      : band === "critical"
+                        ? `${pct}% of the plan used — worth a call before the month ends.`
+                        : `${pct}% of the plan used.`}
+                  </p>
                 )}
                 {extended && (
                   <div className="mt-1 flex items-center gap-2 text-theme-xs text-gray-400">

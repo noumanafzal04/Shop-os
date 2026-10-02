@@ -1503,6 +1503,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "Where your shop stands is the first thing on the screen, in plain words: up to date, overdue, or run out \u2014 and how long you have, counted in days rather than left as a date to work out." },
       { type: "p", text: "Underneath: the plan and what it costs, everything your shop runs, and how close you are to any ceiling on it. A bar that has filled up says so in words too, because a bar at 96% and a bar at 100% look alike and only one of them means the next product will be refused." },
+      { type: "note", text: "A warning appears at four fifths of a ceiling and again at nine tenths, so there is time to ring us before the month ends rather than finding out on the day." },
+      { type: "warn", text: "Not every ceiling stops something. Products and branches are enforced \u2014 pass the limit and the next one is refused. The monthly transaction count is NOT: your till keeps selling past it and the screen simply says the plan no longer covers it. Stopping a counter in the middle of a queue is never the right answer, and you will never find a sale refused for a billing reason." },
+      { type: "note", text: "Sales you cancelled do not count toward the month. A mis-keyed bill you voided is a mistake you corrected, not a transaction. A REFUNDED sale does count \u2014 it happened, the goods went out and came back." },
       { type: "note", text: "\u201cWhat your shop runs\u201d is separate from the plan on purpose. Those parts are set for your business by us, and changing plan never takes one away." },
       { type: "h", text: "If the date passes" },
       {

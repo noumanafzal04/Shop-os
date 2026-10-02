@@ -26,6 +26,19 @@ export interface LimitUsage {
   remaining: number | null;
   unlimited: boolean;
   enforced: boolean;
+  /**
+   * How close, as a percentage of the ceiling. Null when unlimited — NOT 0,
+   * which would sort an unlimited shop to the wrong end of every list.
+   */
+  percent: number | null;
+  /**
+   * The same question as a word, decided by the SERVER so the admin console
+   * and the shop's own subscription page cannot disagree about where
+   * "nearly" starts. Null on an unlimited resource and on a policy, which is
+   * not a quota: a tablet three days out against a three-day window is late,
+   * not spent.
+   */
+  band: "ok" | "nearing" | "critical" | "reached" | null;
 }
 
 /**

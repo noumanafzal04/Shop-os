@@ -181,9 +181,14 @@ export default function SubscriptionPage() {
           ) : (
             <div className="space-y-4">
               {metered.map((u) => {
-                const pct = u.limit && u.limit > 0 ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
-                const full = pct >= 100;
-                const close = pct >= 80;
+                /* THE SAME RULE AS THE ADMIN CONSOLE, NOT A SECOND COPY.
+                   Both screens draw this figure, and two local copies of
+                   "80" would part company the first time one was tuned —
+                   the shop reading "nearly full" while the platform's own
+                   screen still said fine. The server decides the band. */
+                const pct = u.percent ?? 0;
+                const full = u.band === "reached";
+                const close = u.band === "nearing" || u.band === "critical";
 
                 return (
                   <div key={u.key}>
@@ -207,7 +212,7 @@ export default function SubscriptionPage() {
                             // A width is a number, not a class name — an
                             // interpolated Tailwind class does not exist at
                             // build time and renders as nothing at all.
-                            style={{ width: `${pct}%` }}
+                            style={{ width: `${Math.min(100, pct)}%` }}
                           />
                         </div>
                         {/* Said in words as well as in a bar. A bar at 100%
@@ -215,11 +220,21 @@ export default function SubscriptionPage() {
                             means the next product will be refused. */}
                         {full ? (
                           <p className="mt-1 text-theme-xs font-medium text-error-600 dark:text-error-400">
-                            Full — ask support to extend this before adding more.
+                            {/* NOT EVERY CEILING STOPS SOMETHING. A product
+                                limit refuses the next product; the monthly
+                                transaction count does not refuse a sale —
+                                stopping a till mid-queue is the failure the
+                                whole offline module exists to avoid. Saying
+                                "ask support before adding more" to a shop
+                                that can carry on selling is a lie that
+                                frightens them off their own counter. */}
+                            {u.enforced
+                              ? "Full — ask support to extend this before adding more."
+                              : `Past what your plan includes (${pct}%). Nothing is blocked — ask support about the next plan up.`}
                           </p>
                         ) : close ? (
                           <p className="mt-1 text-theme-xs text-warning-600 dark:text-warning-400">
-                            {u.remaining?.toLocaleString()} left.
+                            {u.remaining?.toLocaleString()} left{u.band === "critical" ? " — nearly there." : "."}
                           </p>
                         ) : null}
                       </>
