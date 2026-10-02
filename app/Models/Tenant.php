@@ -149,6 +149,21 @@ class Tenant extends BaseModel
         return $this->belongsTo(Plan::class);
     }
 
+    /**
+     * Capacity bought or granted on top of the plan.
+     *
+     * Every row, including expired ones — the history is the point. A
+     * "+3 users until December" that has lapsed is the answer to why the
+     * shop had thirteen in November, and deleting it would make that
+     * month's invoice unexplainable.
+     *
+     * @return HasMany<TenantEntitlement, $this>
+     */
+    public function entitlements(): HasMany
+    {
+        return $this->hasMany(TenantEntitlement::class);
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

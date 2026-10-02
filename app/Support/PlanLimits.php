@@ -11,6 +11,8 @@ use App\Models\Product;
 use App\Models\Register;
 use App\Models\Sale;
 use App\Models\Tenant;
+use App\Models\TenantEntitlement;
+use Carbon\CarbonInterface;
 
 /**
  * The limit engine — one place that resolves the effective ceiling for a
@@ -177,11 +179,46 @@ class PlanLimits
         }
 
         $own = $tenant->limits[$key] ?? null;
-        if ($own !== null && $own !== '') {
-            return (int) $own;
+        $base = ($own !== null && $own !== '') ? (int) $own : self::baseline($tenant, $key);
+
+        /**
+         * UNLIMITED PLUS ANYTHING IS STILL UNLIMITED.
+         *
+         * A null baseline means no ceiling. Adding bought capacity to it
+         * would turn "unlimited" into a finite number — the one direction a
+         * grant must never move a shop.
+         */
+        if ($base === null) {
+            return null;
         }
 
-        return self::baseline($tenant, $key);
+        return $base + self::granted($tenant, $key);
+    }
+
+    /**
+     * EXTRA CAPACITY BOUGHT OR GIVEN, in force today.
+     *
+     * Added on top of the assigned limit rather than replacing it, which is
+     * what lets a screen say "assigned 10, plus 3 bought" instead of one
+     * number that means both and explains neither.
+     *
+     * Eager-loaded through the relation when it is there, so a usage
+     * snapshot over eleven meters makes one query and not eleven.
+     */
+    public static function granted(Tenant $tenant, string $key): int
+    {
+        if ($tenant->relationLoaded('entitlements')) {
+            return (int) $tenant->entitlements
+                ->where('limit_key', $key)
+                ->filter(fn (TenantEntitlement $e) => ! $e->hasExpired() && ! $e->isPending())
+                ->sum('quantity');
+        }
+
+        return (int) TenantEntitlement::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('limit_key', $key)
+            ->live()
+            ->sum('quantity');
     }
 
     /**
@@ -208,6 +245,71 @@ class PlanLimits
     }
 
     /**
+     * WHEN THE SHOP'S MONTH STARTS — not when the calendar's does.
+     *
+     * A shop that subscribed on the 12th is billed on the 12th, and its
+     * included transactions have to run with its bill. Counting from the 1st
+     * put the meter and the invoice eleven days out of step: a shop could
+     * exhaust its allowance, be billed for a fresh month on the 12th, and
+     * still read "full" for nineteen days — or burn two half-months of
+     * allowance inside one invoice and never see it.
+     *
+     * It is the ANNIVERSARY of `subscription_starts_at`, walked forward in
+     * whole billing periods, so a quarterly plan counts quarterly and not in
+     * thirds of a quarter.
+     *
+     * Falls back to the calendar month, and that is the right fallback: a
+     * tenant with no subscription start has no billing period to anchor to,
+     * and the 1st is what everybody means by "this month" in its absence.
+     */
+    public static function periodStart(Tenant $tenant): CarbonInterface
+    {
+        $from = $tenant->subscription_starts_at;
+
+        if ($from === null) {
+            return now()->startOfMonth();
+        }
+
+        $tenant->loadMissing('plan');
+        $months = max(1, (int) ($tenant->plan?->billing_period_months ?? 1));
+
+        $start = $from->copy()->startOfDay();
+        $now = now();
+
+        if ($start->isAfter($now)) {
+            // Subscribed with a future start date. Nothing has been billed
+            // yet, so the current window is the one it begins in.
+            return $start;
+        }
+
+        /**
+         * WALKED, AND WITHOUT OVERFLOW.
+         *
+         * Two mistakes are available here and I made the second one first.
+         *
+         * Dividing elapsed time by thirty days drifts a day every other
+         * month until the meter resets in the middle of a billing period.
+         *
+         * And plain `addMonths` OVERFLOWS: a shop that started on the 31st
+         * of January lands on the 3rd of March, because the 31st of
+         * February does not exist and Carbon rolls forward into the next
+         * month. The anniversary would then creep — 31 Jan, 3 Mar, 3 Apr —
+         * and a shop billed on the last day of the month would have its
+         * allowance reset on a different date every quarter.
+         *
+         * `addMonthsNoOverflow` clamps to the last day of the short month,
+         * which is what a bank does and what the person who typed the date
+         * meant. Walking is a handful of iterations on a plan that has run
+         * for years.
+         */
+        while ($start->copy()->addMonthsNoOverflow($months)->lessThanOrEqualTo($now)) {
+            $start = $start->addMonthsNoOverflow($months);
+        }
+
+        return $start;
+    }
+
+    /**
      * Live usage count for a resource — the actual rows on hand right now.
      */
     public static function usage(Tenant $tenant, string $key): int
@@ -231,7 +333,7 @@ class PlanLimits
              */
             'orders_month' => Sale::withoutTenancy()->where('tenant_id', $tenant->id)
                 ->whereNot('status', SaleStatus::Cancelled)
-                ->where('created_at', '>=', now()->startOfMonth())->count(),
+                ->where('created_at', '>=', self::periodStart($tenant))->count(),
             'branches' => Branch::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
             'registers' => Register::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
             // Not a count of anything owned — the WORST device currently out of
@@ -347,6 +449,12 @@ class PlanLimits
                 'extra' => ($limit === null || $baseline === null) ? null : $limit - $baseline,
                 // Set on this shop specifically rather than inherited.
                 'assigned' => array_key_exists($key, $own) && $own[$key] !== null,
+                /**
+                 * Of the effective ceiling, how much was BOUGHT OR GIVEN
+                 * rather than assigned. Reported separately from `extra`,
+                 * which is the arithmetic difference and cannot say why.
+                 */
+                'granted' => self::granted($tenant, $key),
                 'used' => $used,
                 'remaining' => $limit === null ? null : max(0, $limit - $used),
                 'unlimited' => $limit === null,

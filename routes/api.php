@@ -1212,6 +1212,20 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::put('/{tenant}', [TenantController::class, 'update'])->middleware('permission:tenants.update');
                 Route::put('/{tenant}/modules', [TenantController::class, 'updateModules'])->middleware('permission:tenants.update');
                 Route::put('/{tenant}/limits', [TenantController::class, 'extendLimits'])->middleware('permission:tenants.update');
+
+                /**
+                 * CAPACITY SOLD OR GIVEN, as rows beside the assigned
+                 * ceiling. `limits` says how big this organisation IS;
+                 * these say what was bought on top of it, at what price,
+                 * and until when — the part that can be invoiced.
+                 *
+                 * Same permission as changing a limit, because the effect
+                 * on the shop is the same: one more staff account either
+                 * way. What differs is only whether anybody can bill it.
+                 */
+                Route::get('/{tenant}/entitlements', [TenantController::class, 'entitlements'])->middleware('permission:tenants.update');
+                Route::post('/{tenant}/entitlements', [TenantController::class, 'storeEntitlement'])->middleware('permission:tenants.update');
+                Route::delete('/{tenant}/entitlements/{entitlement}', [TenantController::class, 'endEntitlement'])->middleware('permission:tenants.update');
                 Route::delete('/{tenant}', [TenantController::class, 'destroy'])->middleware('permission:tenants.delete');
                 Route::post('/{tenant}/suspend', [TenantController::class, 'suspend'])->middleware('permission:tenants.suspend');
                 Route::post('/{tenant}/activate', [TenantController::class, 'activate'])->middleware('permission:tenants.suspend');

@@ -13,6 +13,7 @@ use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ExtendTenantLimitsRequest;
 use App\Http\Requests\Admin\ResetTenantOwnerPasswordRequest;
+use App\Http\Requests\Admin\StoreEntitlementRequest;
 use App\Http\Requests\Admin\UpdateTenantModulesRequest;
 use App\Http\Requests\Tenant\AssignPlanRequest;
 use App\Http\Requests\Tenant\StoreTenantRequest;
@@ -21,6 +22,7 @@ use App\Http\Resources\TenantResource;
 use App\Http\Resources\UserResource;
 use App\Models\Plan;
 use App\Models\Tenant;
+use App\Models\TenantEntitlement;
 use App\Support\ApiResponse;
 use App\Support\Modules;
 use App\Support\PlanLimits;
@@ -333,6 +335,95 @@ class TenantController extends Controller
             'Limits updated',
             ['applied' => $applied],
         );
+    }
+
+    /**
+     * CAPACITY BOUGHT OR GIVEN — the add-on and the temporary grant.
+     *
+     * Beside `extendLimits` and not inside it, because the two answer
+     * different questions and only one of them can be invoiced.
+     * `extendLimits` ASSIGNS the size of the organisation: this shop is a
+     * three-branch business. This records that three more staff accounts
+     * were sold at Rs 400, or given until the end of Ramzan — and that is a
+     * line somebody can bill, expire and explain six months later.
+     */
+    public function storeEntitlement(StoreEntitlementRequest $request, string $id): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = Tenant::query()->findOrFail($id);
+
+        $data = $request->validated();
+
+        $entitlement = TenantEntitlement::withoutTenancy()->create([
+            'tenant_id' => $tenant->id,
+            'limit_key' => $data['limit_key'],
+            'quantity' => $data['quantity'],
+            'unit_price' => $data['unit_price'] ?? null,
+            'starts_on' => $data['starts_on'] ?? now()->toDateString(),
+            'ends_on' => $data['ends_on'] ?? null,
+            'note' => $data['note'] ?? null,
+            'created_by' => $request->user()?->id,
+        ]);
+
+        $label = PlanLimits::REGISTRY[$data['limit_key']]['label'] ?? $data['limit_key'];
+
+        return ApiResponse::created(
+            $entitlement,
+            "+{$entitlement->quantity} {$label} granted to {$tenant->business_name}.",
+        );
+    }
+
+    /**
+     * Every grant this shop has ever had, newest first.
+     *
+     * Expired ones included, and that is the point: a lapsed "+3 users
+     * until December" is the answer to why the shop had thirteen in
+     * November, and hiding it makes that month's invoice unexplainable.
+     */
+    public function entitlements(string $id): JsonResponse
+    {
+        $tenant = Tenant::query()->findOrFail($id);
+
+        return ApiResponse::ok(
+            TenantEntitlement::withoutTenancy()
+                ->where('tenant_id', $tenant->id)
+                ->orderByDesc('starts_on')
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn (TenantEntitlement $e) => $e->toArray() + [
+                    'label' => PlanLimits::REGISTRY[$e->limit_key]['label'] ?? $e->limit_key,
+                    'period_value' => $e->periodValue(),
+                    // Said by the server, so the screen and an invoice run
+                    // cannot disagree about whether a grant is live today.
+                    'state' => $e->hasExpired() ? 'expired' : ($e->isPending() ? 'pending' : 'live'),
+                ]),
+        );
+    }
+
+    /**
+     * END a grant. Not a delete — ending one tomorrow and erasing one that
+     * has already been billed are different acts, and only the first is
+     * ever what somebody means.
+     */
+    public function endEntitlement(string $id, string $entitlementId): JsonResponse
+    {
+        $tenant = Tenant::query()->findOrFail($id);
+
+        /** @var TenantEntitlement $entitlement */
+        $entitlement = TenantEntitlement::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->findOrFail($entitlementId);
+
+        if ($entitlement->hasExpired()) {
+            throw DomainException::conflict('That grant has already ended.', 'ENTITLEMENT_ENDED');
+        }
+
+        // Ends TODAY, inclusive — the shop keeps the capacity for the rest
+        // of the day it is withdrawn, which is the difference between
+        // tidying a record and taking three staff accounts away mid-shift.
+        $entitlement->forceFill(['ends_on' => now()->toDateString()])->save();
+
+        return ApiResponse::ok($entitlement->fresh(), 'Grant ends today.');
     }
 
     public function suspend(string $id, SuspendTenantAction $action): JsonResponse
