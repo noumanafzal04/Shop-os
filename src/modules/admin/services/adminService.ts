@@ -326,6 +326,21 @@ export const adminService = {
   extendLimits: (id: string, limits: Record<string, number | null>, mode: "add" | "set" = "set") =>
     apiPut<Tenant>(`/admin/tenants/${id}/limits`, { limits, mode }),
 
+  /**
+   * CAPACITY SOLD OR GIVEN, as rows beside the assigned ceiling.
+   *
+   * `extendLimits` ASSIGNS the size of the organisation — this shop is a
+   * three-branch business. These say what was bought on top of it, at what
+   * price, and until when: the part that can be invoiced, expired, and
+   * explained six months later.
+   */
+  entitlements: (id: string) => apiGet<Entitlement[]>(`/admin/tenants/${id}/entitlements`),
+  grantCapacity: (id: string, body: GrantInput) =>
+    apiPost<Entitlement>(`/admin/tenants/${id}/entitlements`, body),
+  /** Ends it TODAY, inclusive. Never deletes — a billed grant is history. */
+  endGrant: (id: string, entitlementId: string) =>
+    apiDelete<Entitlement>(`/admin/tenants/${id}/entitlements/${entitlementId}`),
+
   plans: () => apiGet<Plan[]>("/admin/plans"),
   createPlan: (payload: PlanInput) => apiPost<Plan>("/admin/plans", payload),
   updatePlan: (id: string, payload: Partial<PlanInput>) => apiPut<Plan>(`/admin/plans/${id}`, payload),
@@ -350,3 +365,31 @@ export const adminService = {
    *  keys mean "you may not read that queue" — never zero. */
   inbox: () => apiGet<{ shop_requests?: number; enquiries?: number }>("/admin/inbox"),
 };
+
+/** Extra capacity on one shop: an add-on, a temporary grant, or a concession. */
+export interface Entitlement {
+  id: string;
+  limit_key: string;
+  /** The human noun for that meter, resolved by the server. */
+  label: string;
+  quantity: number;
+  /** Per billing period. Null = no price was set; 0 = agreed free. Different. */
+  unit_price: string | number | null;
+  /** unit_price x quantity, or null when unpriced. */
+  period_value: number | null;
+  starts_on: string;
+  /** Null = for ever, which is what an ordinary paid add-on is. */
+  ends_on: string | null;
+  note: string | null;
+  /** Decided by the server so the screen and an invoice run cannot disagree. */
+  state: "live" | "pending" | "expired";
+}
+
+export interface GrantInput {
+  limit_key: string;
+  quantity: number;
+  unit_price?: number | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  note?: string | null;
+}

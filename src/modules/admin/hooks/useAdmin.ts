@@ -7,6 +7,7 @@ import {
 import {
   adminService,
   type BillingPeriodInput,
+  type GrantInput,
   type PaymentFilters,
   type PlanInput,
   type SubscriptionPaymentInput,
@@ -130,6 +131,48 @@ export function useExtendLimits() {
     onSuccess: (_res, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "tenant", id] });
       queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] });
+    },
+  });
+}
+
+/**
+ * Every grant this shop has had, expired ones included.
+ *
+ * The history is the point: a lapsed "+3 users until December" is the
+ * answer to why the shop had thirteen in November, and hiding it makes that
+ * month's invoice unexplainable.
+ */
+export function useEntitlements(tenantId: string | undefined) {
+  return useQuery({
+    queryKey: ["admin", "tenant", tenantId, "entitlements"],
+    queryFn: async () => (await adminService.entitlements(tenantId!)).data,
+    enabled: !!tenantId,
+  });
+}
+
+export function useGrantCapacity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: GrantInput }) => adminService.grantCapacity(id, body),
+    onSuccess: (_res, { id }) => {
+      // The TENANT read too, not just the list: the grant changes the
+      // effective ceiling on the usage bars above it, and a screen that
+      // refreshed only the rows would show a new add-on beside a limit that
+      // had not moved.
+      queryClient.invalidateQueries({ queryKey: ["admin", "tenant", id] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "tenant", id, "entitlements"] });
+    },
+  });
+}
+
+export function useEndGrant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, entitlementId }: { id: string; entitlementId: string }) =>
+      adminService.endGrant(id, entitlementId),
+    onSuccess: (_res, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "tenant", id] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "tenant", id, "entitlements"] });
     },
   });
 }

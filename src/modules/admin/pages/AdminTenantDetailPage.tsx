@@ -13,8 +13,8 @@ import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
-import { useAdminCities, useAdminTenant, useExtendLimits, useModuleCatalog, usePayments, usePlans, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
-import type { Plan } from "../services/adminService";
+import { useAdminCities, useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, usePayments, usePlans, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import type { Entitlement, Plan } from "../services/adminService";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
 import type { Tenant } from "../../auth/types";
@@ -481,6 +481,236 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
 }
 
 /** Admin-only editor for a tenant's business type + category (owners can't). */
+/**
+ * CAPACITY SOLD OR GIVEN — the add-on, the temporary grant, the concession.
+ *
+ * Its own card beside Usage & limits, because the two answer different
+ * questions and conflating them is how the information was lost in the first
+ * place. "Extend limits" ASSIGNS the size of the organisation: this shop is a
+ * three-branch business. These rows say what was bought on top of it, at what
+ * price, and until when.
+ *
+ * Writing 13 into the staff limit gives a shop thirteen and loses everything
+ * else: why, who is paying for the three, and when it ends. Three extra users
+ * at Rs 400 is Rs 1,200 a month that nobody can bill, because there was no
+ * line to bill.
+ */
+function CapacityCard({ tenant }: { tenant: Tenant }) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const modal = useModal();
+  const rows = useEntitlements(tenant.id);
+  const grant = useGrantCapacity();
+  const end = useEndGrant();
+
+  const meters = (tenant.limits_usage ?? []).filter((u) => u.key !== "offline_selling" && u.key !== "offline_days");
+
+  const [form, setForm] = useState({
+    limit_key: "staff",
+    quantity: "",
+    unit_price: "",
+    ends_on: "",
+    note: "",
+  });
+
+  const open = () => {
+    setForm({ limit_key: meters[0]?.key ?? "staff", quantity: "", unit_price: "", ends_on: "", note: "" });
+    grant.reset();
+    modal.openModal();
+  };
+
+  const save = async () => {
+    const qty = Number(form.quantity);
+    if (!Number.isFinite(qty) || qty < 1) {
+      toast.error("How much extra capacity? Enter a whole number.");
+      return;
+    }
+
+    try {
+      const res = await grant.mutateAsync({
+        id: tenant.id,
+        body: {
+          limit_key: form.limit_key,
+          quantity: qty,
+          // EMPTY IS NOT ZERO. A blank price means nobody set one; a typed 0
+          // means it was agreed free, and an invoice run has to tell them
+          // apart. Sending 0 for a blank box would silently decide.
+          unit_price: form.unit_price.trim() === "" ? null : Number(form.unit_price),
+          ends_on: form.ends_on || null,
+          note: form.note.trim() || null,
+        },
+      });
+      toast.success(res.message ?? "Capacity granted.");
+      modal.closeModal();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not grant that.");
+    }
+  };
+
+  const money = (v: number | null) =>
+    v === null ? "—" : `Rs ${v.toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
+
+  const list = rows.data ?? [];
+  const billable = list
+    .filter((r: Entitlement) => r.state === "live" && r.period_value !== null)
+    .reduce((sum: number, r: Entitlement) => sum + (r.period_value ?? 0), 0);
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-gray-800 dark:text-white/90">Bought &amp; granted</h3>
+          <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+            Capacity on top of the plan — what it costs, and when it ends.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={open}>Grant capacity</Button>
+      </div>
+
+      {rows.isPending ? (
+        <div className="h-20 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+      ) : list.length === 0 ? (
+        <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+          Nothing bought or granted. The shop has exactly what its plan and its assigned limits give it.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {list.map((r: Entitlement) => (
+            <li key={r.id} className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-3 last:border-0 last:pb-0 dark:border-gray-800">
+              <div>
+                <p className="text-sm text-gray-800 dark:text-white/90">
+                  +{r.quantity.toLocaleString()} {r.label}
+                  {/* A lapsed grant is kept and SAID to be lapsed. It is the
+                      answer to why the shop had thirteen staff in November. */}
+                  <span className="ml-2 inline-flex align-middle">
+                    <Badge size="sm" color={r.state === "live" ? "success" : r.state === "pending" ? "info" : "light"}>
+                      {r.state === "live" ? "in force" : r.state === "pending" ? "from " + r.starts_on : "ended " + r.ends_on}
+                    </Badge>
+                  </span>
+                </p>
+                <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                  {money(r.period_value)} per period
+                  {r.unit_price === null && " · no price set"}
+                  {r.ends_on && r.state !== "expired" && ` · until ${r.ends_on}`}
+                  {r.note && ` · ${r.note}`}
+                </p>
+              </div>
+              {r.state !== "expired" && (
+                <button
+                  type="button"
+                  className="text-theme-xs text-error-600 hover:underline dark:text-error-400"
+                  disabled={end.isPending}
+                  onClick={async () => {
+                    const yes = await confirm({
+                      title: `End +${r.quantity} ${r.label}?`,
+                      message:
+                        "It ends TODAY and the shop keeps the capacity for the rest of the day. The row stays — "
+                        + "a grant that has already been billed cannot be made never to have existed.",
+                      confirmLabel: "End it today",
+                      tone: "danger",
+                    });
+                    if (!yes) return;
+
+                    try {
+                      await end.mutateAsync({ id: tenant.id, entitlementId: r.id });
+                      toast.success("Grant ends today.");
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Could not end it.");
+                    }
+                  }}
+                >
+                  End
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {billable > 0 && (
+        <p className="mt-4 border-t border-gray-100 pt-3 text-theme-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
+          <span className="text-gray-500 dark:text-gray-400">Billable per period:</span>{" "}
+          <span className="font-medium tabular-nums">{money(billable)}</span>
+        </p>
+      )}
+
+      <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-lg p-6">
+        <h4 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Grant capacity</h4>
+        <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
+          Added on top of what this shop already has — the assigned limit stays readable underneath.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="grant-key">What</Label>
+            <Select
+              value={form.limit_key}
+              onChange={(v) => setForm((f) => ({ ...f, limit_key: v }))}
+              options={meters.map((m) => ({ value: m.key, label: m.label }))}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="grant-qty">How many more</Label>
+              <Input
+                id="grant-qty"
+                type="number"
+                min="1"
+                value={form.quantity}
+                onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
+                placeholder="3"
+              />
+            </div>
+            <div>
+              <Label htmlFor="grant-price">Price each, per period</Label>
+              <Input
+                id="grant-price"
+                type="number"
+                min="0"
+                value={form.unit_price}
+                onChange={(e) => setForm((f) => ({ ...f, unit_price: e.target.value }))}
+                placeholder="Leave blank if free"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="grant-ends">Until (optional)</Label>
+            <Input
+              id="grant-ends"
+              type="date"
+              value={form.ends_on}
+              onChange={(e) => setForm((f) => ({ ...f, ends_on: e.target.value }))}
+            />
+            <p className="mt-1 text-theme-xs text-gray-400">
+              Blank means for ever, which is what an ordinary paid add-on is. A date here is in force
+              through that day.
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="grant-note">Why</Label>
+            <Input
+              id="grant-note"
+              value={form.note}
+              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+              placeholder="Sold with the Gulberg branch"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
+          <Button size="sm" onClick={save} disabled={grant.isPending}>
+            {grant.isPending ? "Granting…" : "Grant"}
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 function BusinessTypeCard({ tenantId, current, currentCategory }: { tenantId: string; current: string | null; currentCategory: string | null }) {
   const businessTypes = useBusinessTypes();
   const { update } = useTenantMutations();
@@ -743,6 +973,7 @@ export default function AdminTenantDetailPage() {
 
           {/* Plan usage & per-tenant limit extension */}
           <UsageLimitsCard tenant={t} plan={currentPlan} />
+          <CapacityCard tenant={t} />
 
           {/* The one policy switch — a grant, not a ceiling, so it is not in
               the limits modal. It had no screen at all until now. */}
