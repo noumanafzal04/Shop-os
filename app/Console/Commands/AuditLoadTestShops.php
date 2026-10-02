@@ -6,7 +6,9 @@ use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Services\DashboardService;
 use App\Support\Payable;
+use App\Support\PlanLimits;
 use App\Support\TenantContext;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -88,6 +90,8 @@ class AuditLoadTestShops extends Command
             $this->theCutWasTakenFairly($shop);
             $this->theRatingIsReal($shop);
             $this->theGridIsWhole($shop);
+            $this->theBankPaidItsShare($shop);
+            $this->theTillsAreAccountedFor($shop);
 
             app(TenantContext::class)->clear();
         }
@@ -1273,6 +1277,143 @@ class AuditLoadTestShops extends Command
             "{$twoAxis} of {$all->count()} are colour and size");
     }
 
+    /**
+     * WHAT THE BANK PAID, AND WHAT IT CANNOT EXCEED.
+     *
+     * A card offer funds part of a bill to put a bank's card in somebody's
+     * hand. Three things must hold, and the third is the one that costs real
+     * money when it is wrong:
+     *
+     *   the offer belongs to this shop and this bank
+     *   it was live on the day — an expired campaign funds nothing
+     *   the help never exceeds the offer's own CAP, nor the card slice
+     *
+     * A percentage with no ceiling on a Rs 400,000 bridal order is the
+     * difference between a promotion and a loss, and the cap is the only
+     * thing between them.
+     */
+    private function theBankPaidItsShare(Tenant $shop): void
+    {
+        if (! Schema::hasTable('bank_card_offers')) {
+            return;
+        }
+
+        $offers = DB::table('bank_card_offers')->where('tenant_id', $shop->id)->get()->keyBy('id');
+
+        if ($offers->isEmpty()) {
+            return;
+        }
+
+        $banks = DB::table('banks')->where('tenant_id', $shop->id)->pluck('id')->flip();
+        $strays = $offers->filter(fn ($o) => ! isset($banks[$o->bank_id]))->count();
+        $this->holds('every offer belongs to a bank this shop knows', $strays === 0,
+            $strays > 0 ? "{$strays} point elsewhere" : $offers->count().' offers');
+
+        // A PERCENTAGE OFFER WITHOUT A CEILING IS AN OPEN CHEQUE on the
+        // biggest bill of the year. Fixed-amount offers need no cap — the
+        // amount IS the cap.
+        $uncapped = $offers->filter(
+            fn ($o) => $o->type === 'percent' && ($o->max_discount === null || (float) $o->max_discount <= 0),
+        )->count();
+        $this->holds('every percentage offer has a ceiling', $uncapped === 0,
+            $uncapped > 0 ? "{$uncapped} uncapped" : '');
+
+        $sales = DB::table('sales')
+            ->where('tenant_id', $shop->id)
+            ->whereNotNull('bank_card_offer_id')
+            ->whereNull('deleted_at')
+            ->get(['id', 'invoice_number', 'bank_card_offer_id', 'subtotal', 'discount', 'total', 'sold_at']);
+
+        if ($sales->isEmpty()) {
+            return;
+        }
+
+        $ghost = $sales->filter(fn ($s) => ! isset($offers[$s->bank_card_offer_id]))->count();
+        $this->holds('every bill names an offer that exists', $ghost === 0,
+            $ghost > 0 ? "{$ghost} point at nothing" : $sales->count().' bills helped');
+
+        // NOT ONE RUPEE PAST THE CAP.
+        $overCap = $sales->filter(function ($s) use ($offers) {
+            $o = $offers[$s->bank_card_offer_id] ?? null;
+            if ($o === null || $o->max_discount === null) {
+                return false;
+            }
+
+            $helped = round((float) $s->subtotal - (float) $s->discount - (float) $s->total, 2);
+
+            return $helped > (float) $o->max_discount + 0.01;
+        })->count();
+
+        $this->holds('no bank paid more than its own ceiling', $overCap === 0,
+            $overCap > 0 ? "{$overCap} bills over the cap" : '');
+
+        // AN ENDED CAMPAIGN FUNDS NOTHING. The expired offer is in the
+        // fixture on purpose; if a bill took it, the window is not being
+        // read at all.
+        $expired = $sales->filter(function ($s) use ($offers) {
+            $o = $offers[$s->bank_card_offer_id] ?? null;
+
+            return $o !== null && $o->ends_on !== null && $o->ends_on < substr((string) $s->sold_at, 0, 10);
+        })->count();
+
+        $this->holds('nothing was funded by a campaign that had ended', $expired === 0,
+            $expired > 0 ? "{$expired} bills took a dead offer" : '');
+    }
+
+    /**
+     * A REVOKED TABLET IS NOT A MISSING ONE.
+     *
+     * `offline_days` reports the WORST device currently out of contact, and
+     * the whole value of that figure is that an admin can act on it: "you
+     * allow three days and one of their tablets is at five". A revoked
+     * device — one stopped on purpose — would sit at forty days for ever and
+     * make the figure permanently red about a tablet nobody is looking for.
+     */
+    private function theTillsAreAccountedFor(Tenant $shop): void
+    {
+        if (! Schema::hasTable('pos_devices')) {
+            return;
+        }
+
+        $devices = DB::table('pos_devices')->where('tenant_id', $shop->id)->get();
+
+        if ($devices->isEmpty()) {
+            return;
+        }
+
+        $live = $devices->filter(fn ($d) => $d->revoked_at === null);
+        $worst = (int) $live->map(
+            fn ($d) => $d->last_seen_at === null ? 0 : now()->diffInDays(Carbon::parse($d->last_seen_at), true),
+        )->max();
+
+        $reported = PlanLimits::usage($shop, 'offline_days');
+
+        $this->same('the offline figure is the worst LIVE device', (float) $reported, (float) $worst, 1.0);
+
+        // Every device belongs to a lane that belongs to this shop — a
+        // device on another shop's register could sell against it.
+        $lanes = DB::table('registers')->where('tenant_id', $shop->id)->pluck('id')->flip();
+        $strays = $devices->filter(fn ($d) => $d->register_id !== null && ! isset($lanes[$d->register_id]))->count();
+        $this->holds('every till belongs to one of this shop’s lanes', $strays === 0,
+            $strays > 0 ? "{$strays} elsewhere" : $devices->count().' devices');
+
+        // No two tills share the slip segment they stamp onto offline sale
+        // numbers — two that did would mint the same slip number twice.
+        $clashing = $devices->filter(fn ($d) => $d->code !== null)
+            ->groupBy('code')->filter(fn ($g) => $g->count() > 1)->count();
+        $this->holds('no two tills stamp the same slip code', $clashing === 0,
+            $clashing > 0 ? "{$clashing} codes shared" : '');
+
+        // The shadow counters add up. A till cannot have matched more carts
+        // than it checked.
+        $impossible = $devices->filter(
+            fn ($d) => (int) $d->shadow_matched + (int) $d->shadow_skipped + (int) $d->shadow_differed
+                > (int) $d->shadow_checked,
+        )->count();
+        $this->holds('no till matched more carts than it priced', $impossible === 0,
+            $impossible > 0 ? "{$impossible} adrift" : '');
+    }
+
     private function whatIsStillEmpty(): void
     {
         $ids = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->pluck('id');
@@ -1282,12 +1423,12 @@ class AuditLoadTestShops extends Command
             'customers', 'customer_ledger_entries', 'customer_groups',
             'sale_returns', 'sale_return_items',
             'stock_counts', 'stock_count_items', 'stock_transfers', 'stock_disposals',
-            'coupons', 'promotions', 'loyalty_entries',
+            'coupons', 'promotions', 'loyalty_entries', 'banks', 'bank_card_offers',
             'product_units', 'product_barcodes', 'tax_groups',
             'suppliers', 'purchase_orders', 'supplier_payments',
             'fuel_tanks', 'fuel_pumps', 'fuel_nozzles', 'forecourt_shifts', 'fuel_deliveries', 'fuel_price_changes',
             'orders', 'order_items', 'riders', 'rider_settlements',
-            'customer_addresses', 'reviews', 'commission_charges',
+            'customer_addresses', 'reviews', 'commission_charges', 'pos_devices',
             'sale_documents', 'customer_vehicles', 'warranty_claims',
             'product_serials', 'sale_item_serials',
             'expenses', 'incomes', 'expense_categories', 'income_categories',

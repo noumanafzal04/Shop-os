@@ -174,6 +174,7 @@ class SeedLoadTestShops extends Command
             'batches' => false,
             'dining' => false,
             'online' => true,
+            'bank_offers' => true,
         ]);
 
         $this->shop('clothing', 'Zahra Couture', 'retail', $city, [
@@ -185,6 +186,7 @@ class SeedLoadTestShops extends Command
             'batches' => false,
             'dining' => false,
             'online' => true,
+            'bank_offers' => true,
         ]);
 
         $this->shop('restaurant', 'Karahi House', 'food', $city, [
@@ -269,7 +271,7 @@ class SeedLoadTestShops extends Command
         return self::SUCCESS;
     }
 
-    /** @param array{branches: string[], lines: int, sizes: int, batches: bool, dining?: bool, online?: bool} $spec */
+    /** @param array{branches: string[], lines: int, sizes: int, batches: bool, dining?: bool, online?: bool, bank_offers?: bool} $spec */
     private function shop(string $key, string $name, string $type, City $city, array $spec): void
     {
         $this->newLine();
@@ -311,6 +313,20 @@ class SeedLoadTestShops extends Command
             $tenant->refresh();
         }
 
+        /**
+         * A CARD PROMOTION IS NOT FOR EVERY TRADE.
+         *
+         * A clothing shop runs them constantly — it is how a bank puts its
+         * card in a customer's hand on a Friday. A filling station's margin
+         * does not survive one, and a mandi trader is paid in cash and on
+         * account. So the module goes on where it is true to life, which is
+         * also the only way `bank_card_offers` stops being empty.
+         */
+        if (! empty($spec['bank_offers'])) {
+            $tenant->applyModules(['bank_offers' => true]);
+            $tenant->refresh();
+        }
+
         app(TenantContext::class)->set($tenant);
 
         $owner = User::factory()->shopOwner($tenant)->create([
@@ -343,11 +359,13 @@ class SeedLoadTestShops extends Command
         $this->theTill($tenant, $type, $owner, $branches, $productIds);
         // Paperwork AFTER the till, because a job card converts into a sale
         // and the conversion has to land in a world where selling already works.
+        $this->theBanksOffer($tenant, $owner, $branches, $productIds);
         $this->theReward($tenant, $type, $owner, $branches, $productIds);
         $this->theDiningRoom($tenant, $owner, $branches, $productIds);
         $this->theOnlineDoor($tenant, $owner, $branches, $productIds);
         $this->theShoppers($tenant, $owner, $productIds, $city);
         $this->thePaperwork($tenant, $type, $owner, $branches, $productIds, $customers);
+        $this->theTills($tenant, $owner, $branches);
         $this->books($tenant, $owner, $branches);
         $this->theStandingOrders($tenant, $owner, $branches);
 
@@ -2880,6 +2898,235 @@ class SeedLoadTestShops extends Command
         $this->line(
             "  shoppers   40 accounts · {$addresses} addresses · {$placed} online orders"
             ." ({$completed} completed, {$charged} commissioned) · {$reviewed} reviews ({$replied} answered)"
+        );
+        foreach ($why as $message => $n) {
+            $this->line("    refused ×{$n}  ".Str::limit($message, 92));
+        }
+    }
+
+    /**
+     * THE BANK PAYS PART OF ITS OWN CARD'S BILL.
+     *
+     * A clothing shop runs "15% off on HBL credit cards, Fridays and
+     * Saturdays, up to Rs 3,000". The bank funds it to put its card in the
+     * customer's hand; the shop takes the full price less the bank's share.
+     *
+     * No fixture shop had the module, so `bank_card_offers` was empty, the
+     * admin screen had never been opened on a row, and — more to the point —
+     * no SALE had ever carried one. The whole question the feature answers
+     * (which offer applies, to how much of the bill, capped at what) had
+     * never been asked of a real basket.
+     *
+     * Only for the shops where it is true to life. A filling station's
+     * margins do not survive a card promotion, and a mandi trader is paid in
+     * cash and on account.
+     *
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     * @param  Branch[]  $branches
+     */
+    /**
+     * THE TABLETS ON THE COUNTER.
+     *
+     * `pos_devices` is the registry of machines allowed to sell — the thing
+     * the offline window is measured against, the thing a lost tablet is
+     * revoked from, and the thing `offline_days` reports on. It was empty on
+     * every shop, so the usage figure that answers "you allow 3 days and one
+     * of their tablets is at 5" has only ever had nought to report.
+     *
+     * Four states, because they are four different rows on that screen:
+     *
+     *   IN TOUCH   seen within the hour; the ordinary tablet
+     *   A DAY OUT  inside the window, flagged and selling
+     *   PAST IT    beyond the shop's offline_days — the one the figure is for
+     *   REVOKED    stopped on purpose; NOT an outstanding device, and
+     *              counting it as one would put a permanent red figure on a
+     *              screen about tablets nobody is looking for
+     *
+     * The shadow counters carry real numbers too. A shop earns offline
+     * selling by having its till price carts identically to the server for
+     * long enough, and a registry of zeroes can never be read as "earned it"
+     * or as "not yet".
+     *
+     * @param  Branch[]  $branches
+     */
+    private function theTills(Tenant $tenant, User $owner, array $branches): void
+    {
+        if (($tenant->features['pos'] ?? false) !== true) {
+            return;
+        }
+
+        $registers = DB::table('registers')
+            ->where('tenant_id', $tenant->id)
+            ->get(['id', 'branch_id']);
+
+        if ($registers->isEmpty()) {
+            return;
+        }
+
+        $window = (int) ($tenant->limits['offline_days'] ?? 3);
+        $made = 0;
+        $outstanding = 0;
+
+        foreach ($registers as $i => $register) {
+            foreach ([0, 1] as $k) {
+                $state = ($i * 2 + $k) % 4;
+
+                $lastSeen = match ($state) {
+                    0 => now()->subMinutes(random_int(2, 50)),
+                    1 => now()->subDays(1)->subHours(random_int(1, 10)),
+                    2 => now()->subDays($window + random_int(1, 3)),
+                    default => now()->subDays(random_int(10, 40)),
+                };
+
+                $revoked = $state === 3;
+                if ($state === 2) {
+                    $outstanding++;
+                }
+
+                // A till that has priced thousands of carts and matched the
+                // server every time is a till that has earned the window. One
+                // that differed on a handful has not, and the difference has
+                // to be visible as numbers rather than as a flag.
+                $checked = $state === 3 ? 0 : random_int(400, 4000);
+                $differed = $state === 2 ? random_int(1, 6) : 0;
+                $skipped = (int) round($checked * 0.02);
+
+                DB::table('pos_devices')->insert([
+                    'id' => (string) Str::uuid7(),
+                    'tenant_id' => $tenant->id,
+                    'branch_id' => $register->branch_id,
+                    'register_id' => $register->id,
+                    'name' => ['Counter tablet', 'Back-up tablet'][$k],
+                    // The device segment a slip number is built from. Server
+                    // ALLOCATED, never four characters of a random uuid.
+                    'code' => strtoupper(Str::random(4)),
+                    'user_agent' => 'Mozilla/5.0 (Linux; Android 13) Chrome/120',
+                    'platform' => 'android',
+                    'last_seen_at' => $lastSeen,
+                    'revoked_at' => $revoked ? now()->subDays(random_int(1, 9)) : null,
+                    'revoked_by' => $revoked ? $owner->id : null,
+                    'shadow_checked' => $checked,
+                    'shadow_matched' => max(0, $checked - $differed - $skipped),
+                    'shadow_skipped' => $skipped,
+                    'shadow_differed' => $differed,
+                    'shadow_since' => $checked > 0 ? now()->subDays(random_int(20, 90)) : null,
+                    'created_at' => now()->subDays(random_int(30, 120)),
+                    'updated_at' => now(),
+                ]);
+                $made++;
+            }
+        }
+
+        $this->line("  tills      {$made} devices registered · {$outstanding} past the {$window}-day window");
+    }
+
+    private function theBanksOffer(Tenant $tenant, User $owner, array $branches, array $productIds): void
+    {
+        if (($tenant->features['bank_offers'] ?? false) !== true || $productIds === []) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $branch = $branches[0];
+        app(BranchContext::class)->set($branch);
+
+        $banks = [];
+        foreach ([['Habib Bank', 'HBL'], ['Meezan Bank', 'MEZN'], ['UBL', 'UBL']] as [$name, $code]) {
+            $id = (string) Str::uuid7();
+            DB::table('banks')->insert([
+                'id' => $id, 'tenant_id' => $tenant->id, 'name' => $name,
+                'short_code' => $code, 'is_active' => true,
+                'created_by' => $owner->id, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $banks[$code] = $id;
+        }
+
+        /**
+         * FOUR SHAPES, BECAUSE THE SERVICE HAS TO CHOOSE BETWEEN THEM.
+         *
+         * A shop with one offer never exercises `best()`. These overlap on
+         * purpose — two HBL offers live at once — so the server has to pick,
+         * and the one it picks has to be the one that helps the customer
+         * most inside its own cap.
+         */
+        $offers = [
+            ['HBL', 'HBL credit — 15% off, weekends', 'percent', 15, 3000, 3000, ['credit'], [5, 6]],
+            ['HBL', 'HBL — flat Rs 500 over Rs 5,000', 'fixed', 500, 5000, null, ['credit', 'debit'], null],
+            ['MEZN', 'Meezan — 10% off, any card', 'percent', 10, 2000, 1500, ['credit', 'debit'], null],
+            // EXPIRED, and kept. A list that holds only live offers has never
+            // shown the screen what a finished campaign looks like, and the
+            // service has never had to leave one out.
+            ['UBL', 'UBL Eid offer (ended)', 'percent', 20, 0, 5000, ['credit'], null],
+        ];
+
+        $made = 0;
+        foreach ($offers as $i => [$bank, $label, $type, $value, $minSpend, $maxDiscount, $cards, $days]) {
+            $ended = str_contains($label, 'ended');
+
+            DB::table('bank_card_offers')->insert([
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'bank_id' => $banks[$bank],
+                'label' => $label,
+                'type' => $type,
+                'value' => $value,
+                'min_spend' => $minSpend,
+                'max_discount' => $maxDiscount,
+                'card_types' => json_encode($cards),
+                'starts_on' => now()->subDays(60)->toDateString(),
+                'ends_on' => $ended ? now()->subDays(20)->toDateString() : now()->addDays(90)->toDateString(),
+                'days_of_week' => $days === null ? null : json_encode($days),
+                'priority' => $i,
+                'is_active' => true,
+                'created_by' => $owner->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $made++;
+        }
+
+        // ── And some bills that actually took one ───────────────────
+        $sale = app(CreateSaleAction::class);
+        [$mustChoose] = $this->modifierRules($tenant);
+        $taken = 0;
+        $helped = 0.0;
+        /** @var array<string, int> $why */
+        $why = [];
+
+        foreach (range(1, 30) as $n) {
+            $line = [
+                'branch_id' => $branch->id,
+                'channel' => 'walk_in',
+                'items' => $this->basket('retail', $productIds, $mustChoose, random_int(1, 3)),
+                'bank_id' => $banks[['HBL', 'MEZN', 'UBL'][$n % 3]],
+                'card_type' => $n % 4 === 0 ? 'debit' : 'credit',
+                // PCI: the last four and nothing else, ever.
+                'card_last4' => (string) random_int(1000, 9999),
+                'created_by' => $owner->id,
+            ];
+
+            try {
+                $due = $this->priceIt($sale, $line);
+                if ($due === null) {
+                    throw new \RuntimeException('could not price the basket');
+                }
+
+                $s = $sale->execute($line + ['payment_method' => 'card', 'amount_paid' => $due]);
+
+                if ($s->bank_card_offer_id !== null) {
+                    $taken++;
+                    $helped += round((float) $due - (float) $s->total, 2);
+                }
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+            }
+        }
+
+        app(BranchContext::class)->clear();
+
+        $this->line(
+            "  bank cards {$made} offers across 3 banks · {$taken} of 30 bills took one"
+            .($helped > 0 ? ' · '.number_format($helped, 2).' funded by the banks' : '')
         );
         foreach ($why as $message => $n) {
             $this->line("    refused ×{$n}  ".Str::limit($message, 92));
