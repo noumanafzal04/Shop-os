@@ -50,6 +50,14 @@ export interface SubscriptionInfo {
     billing_period_months: number;
     grace_period_days: number;
     is_custom: boolean;
+    /**
+     * How far back this shop can look, in months. Null = everything.
+     *
+     * Shown because the promise used to live entirely in whatever a
+     * salesperson said on the phone, and a shop is entitled to know its
+     * window before it ever meets one.
+     */
+    retention_months: number | null;
   } | null;
   state: "active" | "grace" | "read_only";
   subscription_ends_at: string | null;

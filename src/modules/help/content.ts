@@ -1503,6 +1503,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "Where your shop stands is the first thing on the screen, in plain words: up to date, overdue, or run out \u2014 and how long you have, counted in days rather than left as a date to work out." },
       { type: "p", text: "Underneath: the plan and what it costs, everything your shop runs, and how close you are to any ceiling on it. A bar that has filled up says so in words too, because a bar at 96% and a bar at 100% look alike and only one of them means the next product will be refused." },
+      { type: "note", text: "Your plan says how long your history stays online \u2014 and whatever that number is, nothing is ever deleted. Older records are kept; if a window is ever applied to a screen you will be told which screen and how far back, not left to discover it." },
       { type: "note", text: "Your month runs from the day you subscribed, not from the 1st. A shop that started on the 12th is billed on the 12th and its included transactions reset on the 12th \u2014 the allowance and the bill move together." },
       { type: "p", text: "Capacity bought on top of your plan is listed separately from the plan itself: three extra staff accounts stay visible AS three extra, with what they cost and when they end, rather than disappearing into one larger number." },
       { type: "note", text: "A warning appears at four fifths of a ceiling and again at nine tenths, so there is time to ring us before the month ends rather than finding out on the day." },

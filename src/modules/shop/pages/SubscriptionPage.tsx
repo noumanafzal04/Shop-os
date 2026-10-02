@@ -121,6 +121,20 @@ export default function SubscriptionPage() {
               {data.plan.description && (
                 <p className="mt-3 text-theme-sm text-gray-600 dark:text-gray-300">{data.plan.description}</p>
               )}
+              {/* HOW FAR BACK YOU CAN LOOK. Said plainly, in years where
+                  the number divides, because "sixty months" is not how
+                  anybody holds this. Nothing is hidden by it today. */}
+              {data.plan.retention_months != null && (
+                <p className="mt-3 text-theme-sm text-gray-600 dark:text-gray-300">
+                  History kept online:{" "}
+                  <span className="font-medium text-gray-800 dark:text-white/90">
+                    {data.plan.retention_months % 12 === 0
+                      ? `${data.plan.retention_months / 12} year${data.plan.retention_months === 12 ? "" : "s"}`
+                      : `${data.plan.retention_months} months`}
+                  </span>
+                  . Older records are never deleted.
+                </p>
+              )}
               {data.plan.is_custom && (
                 <p className="mt-3 inline-flex rounded-lg bg-brand-50 px-2.5 py-1 text-theme-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
                   Arranged for your business

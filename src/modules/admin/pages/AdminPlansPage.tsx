@@ -31,6 +31,7 @@ const blank = {
   products: "",
   storage_mb: "",
   orders_month: "",
+  retention_months: "",
   is_active: true,
   is_custom: false,
 };
@@ -88,6 +89,7 @@ export default function AdminPlansPage() {
       products: str(lim?.products),
       storage_mb: str(lim?.storage_mb),
       orders_month: str(lim?.orders_month),
+      retention_months: str(lim?.retention_months),
       is_active: plan.is_active ?? true,
       is_custom: plan.is_custom ?? false,
     });
@@ -109,6 +111,7 @@ export default function AdminPlansPage() {
       max_products: num(form.products),
       max_storage_mb: num(form.storage_mb),
       max_orders_month: num(form.orders_month),
+      retention_months: num(form.retention_months),
       is_active: form.is_active,
       is_custom: form.is_custom,
     };
@@ -190,6 +193,16 @@ export default function AdminPlansPage() {
           <div className="flex justify-between">
             <dt>Orders / month</dt>
             <dd className="font-medium tabular-nums text-gray-700 dark:text-gray-300">{fmtLimit(plan.limits.orders_month)}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt>History online</dt>
+            <dd className="font-medium tabular-nums text-gray-700 dark:text-gray-300">
+              {plan.limits.retention_months == null
+                ? "Everything"
+                : plan.limits.retention_months % 12 === 0
+                  ? `${plan.limits.retention_months / 12} year${plan.limits.retention_months === 12 ? "" : "s"}`
+                  : `${plan.limits.retention_months} months`}
+            </dd>
           </div>
         </dl>
       )}
@@ -304,6 +317,17 @@ export default function AdminPlansPage() {
               <div>
                 <Label>Orders / month</Label>
                 <Input type="number" min="1" value={form.orders_month} onChange={(e) => set("orders_month", e.target.value)} placeholder="Unlimited" />
+              </div>
+              <div>
+                <Label>History online (months)</Label>
+                <Input type="number" min="1" value={form.retention_months} onChange={(e) => set("retention_months", e.target.value)} placeholder="Everything" />
+                {/* MONTHS, so eighteen is sayable. And a word about what it
+                    does NOT do, because an admin typing 24 here would
+                    otherwise reasonably assume older records disappear. */}
+                <p className="mt-1 text-theme-xs text-gray-400">
+                  What the plan promises. Nothing is hidden or deleted by it today — older records stay
+                  readable, and archiving is a separate decision.
+                </p>
               </div>
             </div>
           </div>

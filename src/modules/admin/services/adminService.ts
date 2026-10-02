@@ -46,6 +46,14 @@ export interface PlanLimits {
   products: number | null;
   storage_mb: number | null;
   orders_month: number | null;
+  /**
+   * How far back a shop on this plan can look, in months. Null = no limit.
+   *
+   * Months and not years because "eighteen months" is a real offer. The
+   * policy is RECORDED and shown; nothing is hidden by it — see the
+   * migration for why enforcement is a separate decision.
+   */
+  retention_months: number | null;
 }
 
 /** A payment plan: what a business pays and how much it may hold. Nothing else. */
@@ -77,6 +85,7 @@ export interface PlanInput {
   max_products?: number | null;
   max_storage_mb?: number | null;
   max_orders_month?: number | null;
+  retention_months?: number | null;
   is_active?: boolean;
   is_custom?: boolean;
 }
