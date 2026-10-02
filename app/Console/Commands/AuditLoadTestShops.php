@@ -79,6 +79,9 @@ class AuditLoadTestShops extends Command
             $this->theForecourtAddsUp($shop);
             $this->theCashOnTheBike($shop);
             $this->theBayBoard($shop);
+            $this->theDiningRoomAddsUp($shop);
+            $this->thePointsBalance($shop);
+            $this->theStandingOrdersRolled($shop);
 
             app(TenantContext::class)->clear();
         }
@@ -677,6 +680,197 @@ class AuditLoadTestShops extends Command
         );
     }
 
+    /**
+     * A TAB IS NOT A SALE UNTIL IT IS SETTLED, AND THEN IT IS EXACTLY ONE.
+     *
+     * The dining room's arithmetic lives in the joins, not in a column:
+     *
+     *   a settled line carries the sale it was billed on
+     *   an open ticket has no sale and no closed_at
+     *   a line that was fired carries the kitchen docket it went out on
+     *   a split leaves the REST of the tab open, and that is correct
+     *
+     * The check worth having is the one that catches a tab billed twice: a
+     * line pointing at a sale that does not exist, or a closed ticket with
+     * lines nobody charged for.
+     */
+    private function theDiningRoomAddsUp(Tenant $shop): void
+    {
+        if (! Schema::hasTable('restaurant_tickets')) {
+            return;
+        }
+
+        $tickets = DB::table('restaurant_tickets')->where('tenant_id', $shop->id)->get();
+
+        if ($tickets->isEmpty()) {
+            return;
+        }
+
+        $items = DB::table('restaurant_ticket_items')->where('tenant_id', $shop->id)->get();
+        $saleIds = DB::table('sales')->where('tenant_id', $shop->id)->pluck('id')->flip();
+
+        $ghost = $items->filter(fn ($i) => $i->sale_id !== null && ! isset($saleIds[$i->sale_id]))->count();
+        $this->holds(
+            'every billed line points at a sale that exists',
+            $ghost === 0,
+            $ghost > 0 ? "{$ghost} point at nothing" : $items->count().' lines',
+        );
+
+        // A CLOSED TAB HAS NOTHING LEFT ON IT. The opposite — a closed
+        // ticket with unbilled lines — is food that left the kitchen and was
+        // never charged for, and nothing else in the system would say so.
+        $byTicket = $items->groupBy('ticket_id');
+        $leftBehind = 0;
+        foreach ($tickets->where('status', 'closed') as $t) {
+            $open = ($byTicket[$t->id] ?? collect())
+                ->filter(fn ($i) => $i->sale_id === null && $i->voided_at === null)
+                ->count();
+            $leftBehind += $open > 0 ? 1 : 0;
+        }
+
+        $this->holds(
+            'no closed tab left food unbilled',
+            $leftBehind === 0,
+            $leftBehind > 0 ? "{$leftBehind} closed tabs with unbilled lines" : '',
+        );
+
+        // ONE TAB PER TABLE. Two open tabs on one table is two bills for one
+        // group of people, and whichever is settled first takes the other's
+        // food with it.
+        $doubled = $tickets
+            ->filter(fn ($t) => $t->status === 'open' && $t->dining_table_id !== null)
+            ->groupBy('dining_table_id')
+            ->filter(fn ($g) => $g->count() > 1)
+            ->count();
+
+        $this->holds('no table has two open tabs', $doubled === 0,
+            $doubled > 0 ? "{$doubled} tables doubled" : '');
+
+        // The fixture has to have left the floor MID-SERVICE. A dining room
+        // where every tab is closed is a dining room at midnight, and the
+        // screen a restaurant actually looks at is the one at eight.
+        $live = $tickets->where('status', 'open')->count();
+        $this->holds('somebody is still eating', $live > 0, "{$live} tabs open");
+
+        if (Schema::hasTable('kitchen_tickets')) {
+            $dockets = (int) DB::table('kitchen_tickets')->where('tenant_id', $shop->id)->count();
+            $this->holds('the kitchen was told', $dockets > 0, "{$dockets} dockets");
+        }
+    }
+
+    /**
+     * POINTS ARE A LEDGER, AND A LEDGER BALANCES.
+     *
+     * `customers.loyalty_points` is a cached balance; `loyalty_entries` is
+     * the truth. Earn adds, redeem subtracts, and a return reverses whichever
+     * of the two it is undoing. If the two ever part company the shop is
+     * giving away discounts it has not accounted for — in whichever
+     * direction, and silently.
+     */
+    private function thePointsBalance(Tenant $shop): void
+    {
+        if (! Schema::hasTable('loyalty_entries')) {
+            return;
+        }
+
+        $entries = DB::table('loyalty_entries')->where('tenant_id', $shop->id)->get();
+
+        if ($entries->isEmpty()) {
+            return;
+        }
+
+        /**
+         * THE SIGN IS IN THE TYPE, NOT IN THE NUMBER.
+         *
+         * `points` is always positive; what it does to a balance is decided
+         * by `type`. Summing the column would make a redemption look like an
+         * earn and every balance would agree with a ledger that said the
+         * opposite — the exact shape of check that passes while blind.
+         */
+        $direction = ['earn' => 1, 'reverse_redeem' => 1, 'redeem' => -1, 'reverse_earn' => -1];
+
+        $byCustomer = $entries->groupBy('customer_id')->map(
+            fn ($rows) => (int) $rows->sum(
+                fn ($r) => ($direction[$r->type] ?? 0) * (int) $r->points,
+            ),
+        );
+
+        $held = DB::table('customers')->where('tenant_id', $shop->id)
+            ->whereNull('deleted_at')->pluck('loyalty_points', 'id');
+
+        $adrift = 0;
+        foreach ($byCustomer as $customerId => $balance) {
+            if ((int) ($held[$customerId] ?? 0) !== $balance) {
+                $adrift++;
+            }
+        }
+
+        $this->holds(
+            'every points balance is the sum of its own ledger',
+            $adrift === 0,
+            $adrift > 0 ? "{$adrift} of {$byCustomer->count()} customers adrift" : $byCustomer->count().' customers',
+        );
+
+        // SPENT, NOT JUST EARNED. Every row in this ledger used to be an
+        // earn, which means the half that moves money had never run.
+        $spent = $entries->where('type', 'redeem')->count();
+        $this->holds('points were actually spent', $spent > 0, "{$spent} redemptions");
+
+        // Nobody may hold less than nothing.
+        $negative = $byCustomer->filter(fn (int $b) => $b < 0)->count();
+        $this->holds('no balance is below zero', $negative === 0,
+            $negative > 0 ? "{$negative} negative" : '');
+    }
+
+    /**
+     * A TEMPLATE THAT POSTED ITSELF MOVED ITS OWN DATE ON.
+     *
+     * The whole value of a recurring bill is that nobody has to remember it.
+     * The failure mode is the opposite of obvious: a template that posts and
+     * does NOT roll forward posts again tomorrow, and the shop's rent is in
+     * the books four times by Friday.
+     */
+    private function theStandingOrdersRolled(Tenant $shop): void
+    {
+        foreach ([
+            ['recurring_expenses', 'expenses', 'expense_date'],
+            ['recurring_incomes', 'incomes', 'income_date'],
+        ] as [$table, $ledger, $dateColumn]) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+
+            $templates = DB::table($table)->where('tenant_id', $shop->id)->get();
+
+            if ($templates->isEmpty()) {
+                continue;
+            }
+
+            $posted = $templates->filter(fn ($t) => $t->last_posted_on !== null);
+
+            $stuck = $posted->filter(
+                fn ($t) => $t->next_due_on !== null && $t->next_due_on <= $t->last_posted_on,
+            )->count();
+
+            $this->holds(
+                "a posted {$table} rolled its own date forward",
+                $stuck === 0,
+                $stuck > 0 ? "{$stuck} would post again tomorrow" : $posted->count().' posted',
+            );
+
+            // And the fixture has to contain the state the screen exists for.
+            $due = $templates->filter(
+                fn ($t) => $t->is_active && $t->next_due_on !== null && $t->next_due_on <= now()->toDateString(),
+            )->count();
+
+            $this->holds(
+                "something in {$table} is waiting to be posted",
+                $due > 0 || $posted->count() > 0,
+                "{$due} due now, {$posted->count()} already posted",
+            );
+        }
+    }
+
     private function whatIsStillEmpty(): void
     {
         $ids = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->pluck('id');
@@ -692,7 +886,11 @@ class AuditLoadTestShops extends Command
             'fuel_tanks', 'fuel_pumps', 'fuel_nozzles', 'forecourt_shifts', 'fuel_deliveries', 'fuel_price_changes',
             'orders', 'order_items', 'riders', 'rider_settlements',
             'sale_documents', 'customer_vehicles', 'warranty_claims', 'sale_item_serials',
-            'expenses', 'incomes', 'stock_movements', 'product_batches',
+            'expenses', 'incomes', 'expense_categories', 'income_categories',
+            'recurring_expenses', 'recurring_incomes',
+            'restaurant_tickets', 'restaurant_ticket_items', 'kitchen_tickets', 'dining_tables',
+            'modifier_groups', 'modifier_options',
+            'stock_movements', 'product_batches',
         ];
 
         $empty = [];

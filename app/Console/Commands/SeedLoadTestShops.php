@@ -2,10 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Expense\PostRecurringExpenseAction;
 use App\Actions\Fuel\ChangeFuelPriceAction;
 use App\Actions\Fuel\CloseForecourtShiftAction;
 use App\Actions\Fuel\OpenForecourtShiftAction;
 use App\Actions\Fuel\RecordFuelDeliveryAction;
+use App\Actions\Income\PostRecurringIncomeAction;
 use App\Actions\Inventory\ApplyStockCountAction;
 use App\Actions\Inventory\RecordStockCountAction;
 use App\Actions\Inventory\StartStockCountAction;
@@ -18,6 +20,10 @@ use App\Actions\Pos\RecordCashMovementAction;
 use App\Actions\Purchase\CreatePurchaseOrderAction;
 use App\Actions\Purchase\ReceivePurchaseOrderAction;
 use App\Actions\Purchase\RecordSupplierPaymentAction;
+use App\Actions\Restaurant\AddTicketItemsAction;
+use App\Actions\Restaurant\FireKitchenTicketAction;
+use App\Actions\Restaurant\OpenTicketAction;
+use App\Actions\Restaurant\SettleTicketAction;
 use App\Actions\Sale\CreateSaleAction;
 use App\Actions\Sale\ProcessSaleReturnAction;
 use App\Actions\SaleDocument\ConvertSaleDocumentAction;
@@ -33,6 +39,8 @@ use App\Models\FuelNozzle;
 use App\Models\FuelPump;
 use App\Models\FuelTank;
 use App\Models\Product;
+use App\Models\RecurringExpense;
+use App\Models\RecurringIncome;
 use App\Models\Register;
 use App\Models\Rider;
 use App\Models\Sale;
@@ -313,9 +321,12 @@ class SeedLoadTestShops extends Command
         $this->theTill($tenant, $type, $owner, $branches, $productIds);
         // Paperwork AFTER the till, because a job card converts into a sale
         // and the conversion has to land in a world where selling already works.
+        $this->theReward($tenant, $type, $owner, $branches, $productIds);
+        $this->theDiningRoom($tenant, $owner, $branches, $productIds);
         $this->theOnlineDoor($tenant, $owner, $branches, $productIds);
         $this->thePaperwork($tenant, $type, $owner, $branches, $productIds, $customers);
         $this->books($tenant, $owner, $branches);
+        $this->theStandingOrders($tenant, $owner, $branches);
 
         app(TenantContext::class)->clear();
     }
@@ -768,6 +779,36 @@ class SeedLoadTestShops extends Command
         $outs = ['Shop rent', 'Electricity bill', 'Staff wages', 'Delivery petrol', 'Packaging', 'Internet', 'Repairs', 'Municipal fee'];
         $ins = ['Scrap sale', 'Supplier rebate', 'Sublet rent'];
 
+        /**
+         * A BOOK WITH NO HEADINGS IS A LIST.
+         *
+         * Both category tables were empty on every shop, so sixty expenses
+         * sat under nothing and every "by category" figure on the money
+         * screens was one unnamed bucket. The categories are also REQUIRED
+         * by the recurring tables, which is how the absence finally spoke.
+         */
+        $outCats = [];
+        foreach ($outs as $i => $name) {
+            $id = (string) Str::uuid7();
+            $outCats[$name] = $id;
+            DB::table('expense_categories')->insert([
+                'id' => $id, 'tenant_id' => $tenant->id, 'name' => $name,
+                'is_default' => $i === 0, 'is_active' => true,
+                'created_by' => $owner->id, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+
+        $inCats = [];
+        foreach ($ins as $i => $name) {
+            $id = (string) Str::uuid7();
+            $inCats[$name] = $id;
+            DB::table('income_categories')->insert([
+                'id' => $id, 'tenant_id' => $tenant->id, 'name' => $name,
+                'is_default' => $i === 0, 'is_active' => true,
+                'created_by' => $owner->id, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+
         $rows = [];
         foreach (range(0, 59) as $i) {
             $rows[] = [
@@ -775,6 +816,7 @@ class SeedLoadTestShops extends Command
                 'tenant_id' => $tenant->id,
                 'branch_id' => $branches[$i % count($branches)]->id,
                 'description' => $outs[$i % count($outs)],
+                'expense_category_id' => $outCats[$outs[$i % count($outs)]],
                 'amount' => random_int(1500, 95000),
                 'expense_date' => now()->subDays(random_int(0, 89))->toDateString(),
                 'payment_method' => ['cash', 'bank_transfer'][$i % 2],
@@ -792,6 +834,7 @@ class SeedLoadTestShops extends Command
                 'tenant_id' => $tenant->id,
                 'branch_id' => $branches[$i % count($branches)]->id,
                 'description' => $ins[$i % count($ins)],
+                'income_category_id' => $inCats[$ins[$i % count($ins)]],
                 'amount' => random_int(2000, 40000),
                 'income_date' => now()->subDays(random_int(0, 89))->toDateString(),
                 'payment_method' => 'cash',
@@ -2064,6 +2107,442 @@ class SeedLoadTestShops extends Command
             ." · {$settled} riders settled, {$heldBack} still holding"
             .($emptyHanded > 0 ? ", {$emptyHanded} carried nothing" : '')
         );
+        foreach ($why as $message => $n) {
+            $this->line("    refused ×{$n}  ".Str::limit($message, 92));
+        }
+    }
+
+    /**
+     * THE DINING ROOM, WITH PEOPLE IN IT.
+     *
+     * Sixty tables had been seeded since this fixture was written and not one
+     * of them had ever been sat at: `restaurant_tickets` was empty on every
+     * run, and so was the kitchen pass. A floor plan with no tabs on it is a
+     * screen, not a service.
+     *
+     * A tab is not a sale until it is settled, and almost everything that can
+     * go wrong lives in between:
+     *
+     *   the ORDER goes on in rounds, not all at once
+     *   the KITCHEN is fired per round, and each docket belongs to a station
+     *   the TABLE is occupied the whole time, and a second tab on it is wrong
+     *   the BILL may be split, and a partial settlement leaves the rest open
+     *
+     * So this phase leaves tabs in every one of those states, including open
+     * ones: a floor where every table has been settled and cleared is a floor
+     * at closing time, and the screen a restaurant actually looks at is the
+     * one at eight in the evening.
+     *
+     * @param  Branch[]  $branches
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $dishes
+     */
+    /**
+     * HOW A TABLE PAYS, WITHOUT KNOWING WHAT THE TABLE OWES.
+     *
+     * A `restaurant_tickets` row carries no running total — the bill is
+     * derived from its unsettled lines at the moment of settling, which is
+     * correct and is why the first version of this phase tendered 0.00 on
+     * every card and had every settlement refused.
+     *
+     * So the fixture tenders the way a counter does rather than the way an
+     * integration does: notes, with change coming back. A card line is
+     * carried as part of a SPLIT, where its amount is a figure somebody
+     * actually names ("put five hundred on the card, rest in cash") and the
+     * cash line absorbs whatever the bill turns out to be — which is also
+     * the only honest way to get a card tender onto a bill of unknown size.
+     *
+     * @return array<string, mixed>
+     */
+    private function tender(int $n): array
+    {
+        if ($n % 3 !== 0) {
+            return ['payment_method' => 'cash', 'amount_paid' => 1_000_000];
+        }
+
+        return ['payments' => [
+            ['method' => 'card', 'amount' => 500],
+            ['method' => 'cash', 'amount' => 1_000_000],
+        ]];
+    }
+
+    private function theDiningRoom(Tenant $tenant, User $owner, array $branches, array $dishes): void
+    {
+        if (($tenant->features['dine_in'] ?? false) !== true || $dishes === []) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $open = app(OpenTicketAction::class);
+        $add = app(AddTicketItemsAction::class);
+        $fire = app(FireKitchenTicketAction::class);
+        $settle = app(SettleTicketAction::class);
+        [$mustChoose] = $this->modifierRules($tenant);
+
+        $opened = 0;
+        $rounds = 0;
+        $fired = 0;
+        $settled = 0;
+        $split = 0;
+        $stillOut = 0;
+        /** @var array<string, int> $why */
+        $why = [];
+
+        foreach ($branches as $branch) {
+            app(BranchContext::class)->set($branch);
+
+            $tables = DB::table('dining_tables')
+                ->where('tenant_id', $tenant->id)
+                ->where('branch_id', $branch->id)
+                ->pluck('id')
+                ->all();
+
+            if ($tables === []) {
+                continue;
+            }
+
+            foreach ($tables as $i => $tableId) {
+                /**
+                 * ONE TAB PER TABLE AT A TIME — the server says so, and it is
+                 * right. So a table is used, settled, and only then used
+                 * again; the last few are left OCCUPIED on purpose.
+                 */
+                $sittings = $i % 5 === 0 ? 1 : 2;
+
+                for ($s = 0; $s < $sittings; $s++) {
+                    $leaveOpen = $s === $sittings - 1 && $i % 4 === 0;
+
+                    try {
+                        $ticket = $open->execute([
+                            'order_type' => 'dine_in',
+                            'dining_table_id' => $tableId,
+                            'guest_count' => random_int(2, 6),
+                            'customer_name' => $i % 3 === 0 ? 'Walk-in' : null,
+                        ]);
+                        $opened++;
+                    } catch (\Throwable $e) {
+                        $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+
+                        continue;
+                    }
+
+                    // ── The rounds ──────────────────────────────────
+                    // Starters, then mains, then somebody asks for one more
+                    // naan. A tab built in a single call has never tested the
+                    // thing a tab is FOR.
+                    foreach (range(1, random_int(2, 3)) as $round) {
+                        $items = $this->basket('food', $dishes, $mustChoose, random_int(1, 3));
+
+                        try {
+                            $add->execute($ticket->fresh(), ['items' => $items]);
+                            $rounds++;
+                        } catch (\Throwable $e) {
+                            $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+
+                            continue;
+                        }
+
+                        // THE KITCHEN IS TOLD PER ROUND. Firing the whole tab
+                        // at the end is how a cold starter reaches a table.
+                        try {
+                            $fire->execute($ticket->fresh());
+                            $fired++;
+                        } catch (\Throwable $e) {
+                            $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                        }
+                    }
+
+                    if ($leaveOpen) {
+                        $stillOut++;
+
+                        break;
+                    }
+
+                    // ── The bill ────────────────────────────────────
+                    $live = $ticket->fresh();
+                    // A line is BILLED when it carries a sale_id, and VOID
+                    // when it carries a voided_at. There is no `settled_at`
+                    // and no `is_void` — the ticket keeps both facts as the
+                    // things that caused them.
+                    $lines = DB::table('restaurant_ticket_items')
+                        ->where('ticket_id', $live->id)
+                        ->whereNull('sale_id')
+                        ->whereNull('voided_at')
+                        ->pluck('id')
+                        ->all();
+
+                    if ($lines === []) {
+                        continue;
+                    }
+
+                    try {
+                        // ONE TABLE IN SIX SPLITS THE BILL, and a split
+                        // settlement leaves the rest of the tab open — which
+                        // is a state nothing in this fixture had ever
+                        // produced and the one most likely to be wrong.
+                        if ($i % 6 === 0 && count($lines) > 1) {
+                            $half = array_slice($lines, 0, (int) ceil(count($lines) / 2));
+                            $settle->execute($live, $this->tender($i) + [
+                                'item_ids' => $half,
+                                'tip_amount' => $i % 12 === 0 ? 200 : 0,
+                            ]);
+                            $split++;
+
+                            $rest = DB::table('restaurant_ticket_items')
+                                ->where('ticket_id', $live->id)
+                                ->whereNull('sale_id')->whereNull('voided_at')
+                                ->pluck('id')->all();
+
+                            if ($rest !== []) {
+                                $settle->execute($ticket->fresh(), $this->tender($i + 1) + [
+                                    'item_ids' => $rest,
+                                ]);
+                            }
+                        } else {
+                            $settle->execute($live, $this->tender($i) + [
+                                'tip_amount' => $i % 7 === 0 ? 150 : 0,
+                            ]);
+                        }
+                        $settled++;
+                    } catch (\Throwable $e) {
+                        $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+
+        app(BranchContext::class)->clear();
+
+        $this->line(
+            "  dining     {$opened} tabs · {$rounds} rounds · {$fired} kitchen fires"
+            ." · {$settled} settled ({$split} split) · {$stillOut} still occupied"
+        );
+        foreach ($why as $message => $n) {
+            $this->line("    refused ×{$n}  ".Str::limit($message, 92));
+        }
+    }
+
+    /**
+     * POINTS SPENT, NOT JUST EARNED.
+     *
+     * `loyalty_entries` had been filling up for weeks and every single row
+     * was an `earn`. Nothing in this fixture had ever REDEEMED, which means
+     * the half of the ledger that moves money — points become a discount,
+     * the discount reduces the taxable base, and a later return has to give
+     * the points BACK rather than the rupees — had never run on a shop with
+     * real baskets in it.
+     *
+     * Earning is a side effect of selling. Spending is a decision at the
+     * counter, and it is the one with the arithmetic in it.
+     *
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     * @param  Branch[]  $branches
+     */
+    private function theReward(Tenant $tenant, string $type, User $owner, array $branches, array $productIds): void
+    {
+        if ((bool) $tenant->setting('loyalty_enabled', false) !== true || $productIds === []) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $sale = app(CreateSaleAction::class);
+        $branch = $branches[0];
+        app(BranchContext::class)->set($branch);
+
+        $minimum = (int) $tenant->setting('loyalty_min_redeem', 0);
+        [$mustChoose] = $this->modifierRules($tenant);
+
+        // Only customers who actually earned enough by shopping. Topping a
+        // balance up by hand would make the redeem arithmetic agree with a
+        // number the fixture invented rather than with the sales behind it.
+        $rich = Customer::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('loyalty_points', '>=', max(1, $minimum))
+            ->orderByDesc('loyalty_points')
+            ->limit(40)
+            ->get();
+
+        $spent = 0;
+        $points = 0;
+        /** @var array<string, int> $why */
+        $why = [];
+
+        foreach ($rich as $i => $customer) {
+            $held = (int) $customer->loyalty_points;
+
+            // A SPREAD, not a single shape. Some spend the lot, most spend a
+            // little, and one in five spends exactly the minimum — which is
+            // the boundary the refusal is written against.
+            $ask = match ($i % 5) {
+                0 => $held,
+                1 => max($minimum, (int) floor($held / 2)),
+                default => $minimum,
+            };
+
+            if ($ask <= 0 || $ask > $held) {
+                continue;
+            }
+
+            $line = [
+                'branch_id' => $branch->id,
+                'channel' => 'walk_in',
+                'items' => $this->basket($type, $productIds, $mustChoose, random_int(1, 3)),
+                'customer_phone' => $customer->phone,
+                'customer_name' => $customer->name,
+                'redeem_points' => $ask,
+                'created_by' => $owner->id,
+            ];
+
+            try {
+                $sale->execute($line + ['payment_method' => 'cash', 'amount_paid' => 500_000]);
+                $spent++;
+                $points += $ask;
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+            }
+        }
+
+        app(BranchContext::class)->clear();
+
+        if ($spent > 0 || $why !== []) {
+            $this->line("  rewards    {$spent} bills paid partly in points · {$points} points spent");
+        }
+        foreach ($why as $message => $n) {
+            $this->line("    refused ×{$n}  ".Str::limit($message, 92));
+        }
+    }
+
+    /**
+     * THE BILLS THAT COME EVERY MONTH WHETHER ANYBODY TYPES THEM OR NOT.
+     *
+     * Rent, wages, the electricity bill, the shop's internet. A template
+     * falls DUE and posts itself — which is a different thing from an
+     * expense somebody keyed, and the audit had been reporting both
+     * recurring tables empty since they were built.
+     *
+     * Three states on purpose, because they are three different screens:
+     *
+     *   DUE LATER   the ordinary one — a template waiting for its date
+     *   OVERDUE     a date that has passed and nobody posted; the shop's
+     *               books are understated by exactly that much and the
+     *               only thing that says so is this row
+     *   POSTED      run through `PostRecurringExpenseAction`, so the
+     *               expense exists AND the template has rolled forward
+     *
+     * Posting through the action rather than writing both rows is the whole
+     * point: the roll-forward arithmetic — this month's due date becomes
+     * next month's — is the part that can be wrong.
+     *
+     * @param  Branch[]  $branches
+     */
+    private function theStandingOrders(Tenant $tenant, User $owner, array $branches): void
+    {
+        if (($tenant->features['expenses'] ?? false) !== true) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $branch = $branches[0];
+        app(BranchContext::class)->set($branch);
+
+        $outs = [
+            ['Shop rent', 180000, 'monthly'],
+            ['Electricity bill', 46000, 'monthly'],
+            ['Staff wages', 320000, 'monthly'],
+            ['Internet', 6500, 'monthly'],
+            ['Security guard', 28000, 'monthly'],
+            ['Municipal fee', 15000, 'quarterly'],
+            ['Shop insurance', 90000, 'yearly'],
+            ['Water tanker', 4500, 'weekly'],
+        ];
+        $ins = [
+            ['Sublet rent — first floor', 35000, 'monthly'],
+            ['Signboard rental', 12000, 'monthly'],
+            ['Scrap contract', 9000, 'quarterly'],
+        ];
+
+        $made = 0;
+        $overdue = 0;
+        $posted = 0;
+        /** @var array<string, int> $why */
+        $why = [];
+
+        $catColumn = [
+            'recurring_expenses' => ['expense_category_id', 'expense_categories'],
+            'recurring_incomes' => ['income_category_id', 'income_categories'],
+        ];
+
+        foreach ([['recurring_expenses', $outs], ['recurring_incomes', $ins]] as [$table, $list]) {
+            [$column, $catTable] = $catColumn[$table];
+
+            // The heading this bill files itself under, every month, without
+            // anybody choosing again. A recurring row REQUIRES one — which is
+            // how the fixture discovered that no shop here had any.
+            $categories = DB::table($catTable)->where('tenant_id', $tenant->id)->pluck('id')->all();
+
+            if ($categories === []) {
+                continue;
+            }
+
+            foreach ($list as $i => [$what, $amount, $frequency]) {
+                // One in three is already past its date and unposted. That is
+                // not an error state, it is Tuesday — and it is the only
+                // reading the shop has that its books are short.
+                $late = $i % 3 === 0;
+
+                DB::table($table)->insert([
+                    'id' => (string) Str::uuid7(),
+                    'tenant_id' => $tenant->id,
+                    'branch_id' => $branch->id,
+                    'description' => $what,
+                    $column => $categories[$i % count($categories)],
+                    'amount' => $amount,
+                    'payment_method' => $i % 2 === 0 ? 'bank_transfer' : 'cash',
+                    'frequency' => $frequency,
+                    'next_due_on' => $late
+                        ? now()->subDays(random_int(2, 20))->toDateString()
+                        : now()->addDays(random_int(3, 25))->toDateString(),
+                    'is_active' => $i !== count($list) - 1,
+                    'created_by' => $owner->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $made++;
+                $late && $overdue++;
+            }
+        }
+
+        // ── And some of them actually posted ────────────────────────
+        $post = app(PostRecurringExpenseAction::class);
+        foreach (RecurringExpense::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->whereDate('next_due_on', '<=', now())
+            ->get() as $template) {
+            try {
+                $post->execute($owner, $template);
+                $posted++;
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+            }
+        }
+
+        $postIn = app(PostRecurringIncomeAction::class);
+        foreach (RecurringIncome::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->whereDate('next_due_on', '<=', now())
+            ->get() as $template) {
+            try {
+                $postIn->execute($owner, $template);
+                $posted++;
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+            }
+        }
+
+        app(BranchContext::class)->clear();
+
+        $this->line("  standing   {$made} templates ({$overdue} were overdue) · {$posted} posted themselves");
         foreach ($why as $message => $n) {
             $this->line("    refused ×{$n}  ".Str::limit($message, 92));
         }
