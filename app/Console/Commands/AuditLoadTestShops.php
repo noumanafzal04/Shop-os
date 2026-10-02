@@ -76,6 +76,9 @@ class AuditLoadTestShops extends Command
             $this->aPackIsManyOfSomething($shop);
             $this->theDrawerAddsUp($shop);
             $this->theDayIsTheSumOfItsShifts($shop);
+            $this->theForecourtAddsUp($shop);
+            $this->theCashOnTheBike($shop);
+            $this->theBayBoard($shop);
 
             app(TenantContext::class)->clear();
         }
@@ -408,6 +411,272 @@ class AuditLoadTestShops extends Command
      * zero across seven shops, and every screen built on them had been green
      * for months against nothing at all.
      */
+    /**
+     * THE FORECOURT'S THREE ANSWERS, AND THE GAPS BETWEEN THEM.
+     *
+     * A filling station is never reconciled by one figure. The meters say
+     * what left the nozzles, the till says what was charged for, and the dip
+     * says what is still in the ground — and the module exists because those
+     * three disagree. What must hold is the ARITHMETIC between them, not
+     * their equality:
+     *
+     *   every reading's litres_sold = (closing − opening) − test
+     *   every shift's litres        = the sum of its readings
+     *   every shift's value         = litres × the rate the shift opened on
+     *
+     * And the one rule the whole report rests on: the two variances are
+     * NEVER summed. One says talk to somebody, the other says call an
+     * engineer, and a combined figure hides which you are looking at.
+     */
+    private function theForecourtAddsUp(Tenant $shop): void
+    {
+        if (! Schema::hasTable('forecourt_shifts')) {
+            return;
+        }
+
+        $shifts = DB::table('forecourt_shifts')->where('tenant_id', $shop->id)->get();
+
+        if ($shifts->isEmpty()) {
+            return;
+        }
+
+        $readings = DB::table('forecourt_readings')
+            ->join('forecourt_shifts as s', 's.id', '=', 'forecourt_readings.forecourt_shift_id')
+            ->where('s.tenant_id', $shop->id)
+            ->whereNotNull('forecourt_readings.closing_reading')
+            ->select('forecourt_readings.*', 's.id as shift_id')
+            ->get();
+
+        // ── Each meter, on its own ──────────────────────────────────
+        $meterWrong = 0;
+        $valueWrong = 0;
+        foreach ($readings as $r) {
+            $expected = round(
+                (float) $r->closing_reading - (float) $r->opening_reading - (float) ($r->test_litres ?? 0),
+                3,
+            );
+            if (abs($expected - (float) $r->litres_sold) > 0.01) {
+                $meterWrong++;
+            }
+
+            $money = round((float) $r->litres_sold * (float) $r->unit_price, 2);
+            if (abs($money - (float) $r->value) > 0.02) {
+                $valueWrong++;
+            }
+        }
+
+        $this->holds(
+            'every nozzle sold what its meter moved, less the test',
+            $meterWrong === 0,
+            $meterWrong > 0 ? "{$meterWrong} of {$readings->count()} readings adrift" : $readings->count().' readings',
+        );
+        $this->holds(
+            'every nozzle was valued at the rate its shift opened on',
+            $valueWrong === 0,
+            $valueWrong > 0 ? "{$valueWrong} adrift" : '',
+        );
+
+        // ── Each shift is the sum of its meters ─────────────────────
+        $byShift = $readings->groupBy('shift_id');
+        $litresApp = 0.0;
+        $litresRaw = 0.0;
+        $shiftWrong = 0;
+
+        foreach ($shifts->where('status', 'closed') as $shift) {
+            $rows = $byShift[$shift->id] ?? collect();
+            $sum = round((float) $rows->sum(fn ($r) => (float) $r->litres_sold), 3);
+            $litresApp += (float) $shift->litres_sold;
+            $litresRaw += $sum;
+
+            if (abs($sum - (float) $shift->litres_sold) > 0.05) {
+                $shiftWrong++;
+            }
+        }
+
+        $this->same('the forecourt sold what its nozzles sold', round($litresApp, 2), round($litresRaw, 2), 0.1);
+        $this->holds(
+            'no shift disagrees with its own nozzles',
+            $shiftWrong === 0,
+            $shiftWrong > 0 ? "{$shiftWrong} shifts adrift" : $shifts->where('status', 'closed')->count().' closed shifts',
+        );
+
+        /**
+         * THE TWO VARIANCES ARE DIFFERENT QUESTIONS.
+         *
+         * Not an arithmetic check — a check that the fixture produced both
+         * kinds of gap. A forecourt where metered always equals rung, and
+         * book stock always equals the dip, proves the module runs and
+         * nothing about whether it can SEE anything.
+         */
+        $closed = $shifts->where('status', 'closed');
+        $atThePump = $closed->filter(fn ($s) => abs((float) ($s->unbilled_litres ?? 0)) > 0.001)->count();
+        $inTheGround = $closed->filter(fn ($s) => abs((float) ($s->tank_variance_litres ?? 0)) > 0.001)->count();
+
+        $this->holds(
+            'the fixture produced both kinds of loss, separately',
+            $atThePump > 0 && $inTheGround > 0,
+            "{$atThePump} shifts short at the pump, {$inTheGround} short in the ground",
+        );
+
+        // Test litres moved a meter and were never sold. A forecourt that
+        // has never tested a hose has not exercised the one subtraction
+        // that stops a morning reading as theft.
+        $tested = $readings->filter(fn ($r) => (float) ($r->test_litres ?? 0) > 0)->count();
+        $this->holds('some litres were tested back into the tank', $tested > 0, "{$tested} readings");
+    }
+
+    /**
+     * THE CASH THAT WENT OUT ON A BIKE.
+     *
+     * A delivered cash-on-delivery order is money in somebody's pocket until
+     * a settlement is written, and the riders screen is the only place that
+     * says whose and how much. Two things must hold, and the second is the
+     * one that was broken:
+     *
+     *   a settlement's cash = the totals of the orders it settled
+     *   a delivered COD order either sits on a rider or has been settled
+     *
+     * `delivered_at` used to be written by exactly one line — the rider APP.
+     * A shop with phone-call riders therefore completed every delivery, left
+     * the column null, and the screen said Rs 0 for ever.
+     */
+    private function theCashOnTheBike(Tenant $shop): void
+    {
+        if (! Schema::hasTable('orders') || ! Schema::hasTable('rider_settlements')) {
+            return;
+        }
+
+        $orders = DB::table('orders')->where('tenant_id', $shop->id)->get();
+
+        if ($orders->isEmpty()) {
+            return;
+        }
+
+        $settlements = DB::table('rider_settlements')->where('tenant_id', $shop->id)->get();
+
+        $wrong = 0;
+        foreach ($settlements as $s) {
+            $settled = $orders->where('rider_settlement_id', $s->id);
+            $cash = round((float) $settled->sum(fn ($o) => (float) $o->total), 2);
+
+            if (abs($cash - (float) $s->cash_collected) > 0.01 || $settled->count() !== (int) $s->orders_count) {
+                $wrong++;
+            }
+        }
+
+        $this->holds(
+            'every settlement is the orders it settled',
+            $wrong === 0,
+            $wrong > 0 ? "{$wrong} of {$settlements->count()} adrift" : $settlements->count().' settlements',
+        );
+
+        // The fixture has to have produced the state the screen exists for:
+        // a rider still holding money. "Nothing outstanding" is the only
+        // state this was ever seeded in, and it is the one that proves least.
+        $holding = $orders
+            ->where('payment_method', 'cod')
+            ->filter(fn ($o) => $o->delivered_at !== null && $o->rider_settlement_id === null && $o->rider_id !== null);
+
+        $this->holds(
+            'somebody is still holding the shop’s cash',
+            $holding->count() > 0,
+            number_format((float) $holding->sum(fn ($o) => (float) $o->total), 2).' across '.$holding->count().' orders',
+        );
+
+        // A DELIVERY THAT WAS COMPLETED IS A DELIVERY THAT HAPPENED. The
+        // defect, stated as an invariant: nothing completed may still be
+        // waiting to be called delivered.
+        $blind = $orders->filter(
+            fn ($o) => $o->status === 'completed'
+                && $o->fulfillment_type === 'delivery'
+                && $o->delivered_at === null,
+        )->count();
+
+        $this->holds(
+            'no completed delivery is still waiting to be called delivered',
+            $blind === 0,
+            $blind > 0 ? "{$blind} orders invisible to the settlement screen" : '',
+        );
+
+        // A pickup is nobody's delivery. Stamping one would put a collection
+        // on a rider's statement.
+        $stamped = $orders->filter(
+            fn ($o) => $o->fulfillment_type === 'pickup' && $o->delivered_at !== null,
+        )->count();
+
+        $this->holds('no collection was recorded as a delivery', $stamped === 0,
+            $stamped > 0 ? "{$stamped} pickups stamped" : '');
+    }
+
+    /**
+     * A JOB CARD IS TWO STATUSES, AND THEY ARE INDEPENDENT.
+     *
+     * `status` says whether the document is still live; `work_status` says
+     * where the car is. A card that is `ready` is still `open` until somebody
+     * pays, and that is the whole reason the bay board exists as a separate
+     * question. The check is that the fixture holds both axes occupied and
+     * that a converted document actually produced the sale it claims.
+     */
+    private function theBayBoard(Tenant $shop): void
+    {
+        if (! Schema::hasTable('sale_documents')) {
+            return;
+        }
+
+        $docs = DB::table('sale_documents')->where('tenant_id', $shop->id)->get();
+
+        if ($docs->isEmpty()) {
+            return;
+        }
+
+        $converted = $docs->where('status', 'converted');
+        $saleIds = DB::table('sales')->where('tenant_id', $shop->id)->pluck('id')->flip();
+        $missing = $converted->filter(fn ($d) => $d->sale_id === null || ! isset($saleIds[$d->sale_id]))->count();
+
+        $this->holds(
+            'every converted document became a real sale',
+            $missing === 0,
+            $missing > 0 ? "{$missing} of {$converted->count()} point at nothing" : $converted->count().' converted',
+        );
+
+        // A document's own arithmetic: subtotal − discount + tax = total.
+        $adrift = $docs->filter(function ($d) {
+            $expected = round((float) $d->subtotal - (float) $d->discount + (float) $d->tax, 2);
+
+            return abs($expected - (float) $d->total) > 0.02;
+        })->count();
+
+        $this->holds('every quote adds up', $adrift === 0, $adrift > 0 ? "{$adrift} adrift" : $docs->count().' documents');
+
+        // Nothing may be paid more than it is worth — an advance beyond the
+        // goods is money the shop owes back and does not know it.
+        $over = $docs->filter(fn ($d) => (float) $d->deposit_paid > (float) $d->total + 0.01)->count();
+        $this->holds('no advance is bigger than the goods', $over === 0, $over > 0 ? "{$over} over-paid" : '');
+
+        $jobs = $docs->where('kind', 'job_card');
+        if ($jobs->isEmpty()) {
+            return;
+        }
+
+        $board = $jobs->groupBy('work_status')->map->count();
+        $this->holds(
+            'the bay board has a car in every column',
+            $board->count() >= 3,
+            $board->map(fn ($n, $k) => "{$k}:{$n}")->implode(' '),
+        );
+
+        $noCar = $jobs->filter(fn ($d) => $d->vehicle_id === null)->count();
+        $this->holds('every job card names the car it is about', $noCar === 0,
+            $noCar > 0 ? "{$noCar} with no vehicle" : $jobs->count().' cards');
+
+        $noComplaint = $jobs->filter(fn ($d) => $d->complaint === null || trim((string) $d->complaint) === '')->count();
+        $this->holds(
+            'every job card says what the customer reported',
+            $noComplaint === 0,
+            $noComplaint > 0 ? "{$noComplaint} with no complaint" : '',
+        );
+    }
+
     private function whatIsStillEmpty(): void
     {
         $ids = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->pluck('id');
@@ -420,6 +689,9 @@ class AuditLoadTestShops extends Command
             'coupons', 'promotions', 'loyalty_entries',
             'product_units', 'product_barcodes', 'tax_groups',
             'suppliers', 'purchase_orders', 'supplier_payments',
+            'fuel_tanks', 'fuel_pumps', 'fuel_nozzles', 'forecourt_shifts', 'fuel_deliveries', 'fuel_price_changes',
+            'orders', 'order_items', 'riders', 'rider_settlements',
+            'sale_documents', 'customer_vehicles', 'warranty_claims', 'sale_item_serials',
             'expenses', 'incomes', 'stock_movements', 'product_batches',
         ];
 

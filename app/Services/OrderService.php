@@ -733,6 +733,33 @@ class OrderService
                 'status' => OrderStatus::Completed,
                 'payment_status' => 'paid',
                 'sale_id' => $sale->id,
+                /**
+                 * THE GOODS REACHED THE CUSTOMER, WHOEVER PRESSED THE BUTTON.
+                 *
+                 * Exactly one line used to write `delivered_at`, and it was
+                 * inside `RiderService::deliver()` — the rider-APP endpoint.
+                 * But the documented design on `assignRider()` is Model A:
+                 * "no rider app — the shop drives the status", a name and a
+                 * phone number on the riders screen and the boy on the bike.
+                 *
+                 * Those shops completed every delivery here, left the column
+                 * null, and the two readers of it — `cash_in_hand` on the
+                 * riders screen and `settle()` — therefore said the rider was
+                 * holding nothing. Settle refused, for ever, on exactly the
+                 * riders the screen was built for, while the day's takings
+                 * sat in somebody's pocket with no way to book them in.
+                 *
+                 * A PICKUP is not stamped. Nobody carried it; the customer
+                 * walked in and took it off the counter, and marking it
+                 * delivered would put a collection on a rider's statement.
+                 *
+                 * Never overwritten: the rider app stamps its own moment
+                 * immediately after calling this, and that one is the truer
+                 * of the two — it is when the door was actually knocked on.
+                 */
+                'delivered_at' => $order->fulfillment_type === FulfillmentType::Delivery
+                    ? ($order->delivered_at ?? now())
+                    : $order->delivered_at,
             ])->save();
 
             /**

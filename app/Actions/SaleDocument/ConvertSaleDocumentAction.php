@@ -160,6 +160,19 @@ class ConvertSaleDocumentAction
                     'unit_price' => (float) $item->unit_price,
                     'line_discount' => (float) $item->line_discount,
                     'line_total' => (float) $item->line_total,
+                    /**
+                     * THE RATE THIS LINE WAS QUOTED AT, carried forward.
+                     *
+                     * Without it the sale blends the document's single tax
+                     * figure across every line as one average rate — and a
+                     * wholesale quote of tea at 18% beside flour at 0% became
+                     * an invoice saying 7.08% on both. The customer then
+                     * returns the flour and is refunded tax on a zero-rated
+                     * staple, the tea line refunds less than was charged, and
+                     * the tax report shows a band the shop is not registered
+                     * for. The document knew; the invoice forgot.
+                     */
+                    'tax_rate' => $item->tax_rate === null ? null : (float) $item->tax_rate,
                     // Serials are captured HERE, not on the document: you
                     // record the IMEI of the handset you actually hand over,
                     // not one you promised six weeks ago.

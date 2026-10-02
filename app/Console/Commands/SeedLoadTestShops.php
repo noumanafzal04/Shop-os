@@ -2,6 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Fuel\ChangeFuelPriceAction;
+use App\Actions\Fuel\CloseForecourtShiftAction;
+use App\Actions\Fuel\OpenForecourtShiftAction;
+use App\Actions\Fuel\RecordFuelDeliveryAction;
 use App\Actions\Inventory\ApplyStockCountAction;
 use App\Actions\Inventory\RecordStockCountAction;
 use App\Actions\Inventory\StartStockCountAction;
@@ -16,18 +20,30 @@ use App\Actions\Purchase\ReceivePurchaseOrderAction;
 use App\Actions\Purchase\RecordSupplierPaymentAction;
 use App\Actions\Sale\CreateSaleAction;
 use App\Actions\Sale\ProcessSaleReturnAction;
+use App\Actions\SaleDocument\ConvertSaleDocumentAction;
+use App\Actions\SaleDocument\CreateSaleDocumentAction;
+use App\Actions\SaleDocument\RecordDepositAction;
+use App\Enums\OrderStatus;
 use App\Exceptions\DomainException;
 use App\Models\Branch;
 use App\Models\City;
 use App\Models\Customer;
+use App\Models\CustomerVehicle;
+use App\Models\FuelNozzle;
+use App\Models\FuelPump;
+use App\Models\FuelTank;
 use App\Models\Product;
 use App\Models\Register;
+use App\Models\Rider;
 use App\Models\Sale;
+use App\Models\SaleDocument;
 use App\Models\StockCountItem;
 use App\Models\StockDisposal;
 use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\OrderService;
+use App\Services\RiderService;
 use App\Support\BranchContext;
 use App\Support\DrawerMath;
 use App\Support\Modules;
@@ -127,6 +143,7 @@ class SeedLoadTestShops extends Command
             'sizes' => 0,
             'batches' => false,
             'dining' => false,
+            'online' => true,
         ]);
 
         $this->shop('clothing', 'Zahra Couture', 'retail', $city, [
@@ -137,6 +154,7 @@ class SeedLoadTestShops extends Command
             'sizes' => 4,
             'batches' => false,
             'dining' => false,
+            'online' => true,
         ]);
 
         $this->shop('restaurant', 'Karahi House', 'food', $city, [
@@ -148,6 +166,7 @@ class SeedLoadTestShops extends Command
             'sizes' => 0,
             'batches' => false,
             'dining' => true,
+            'online' => true,
         ]);
 
         $this->shop('pharmacy', 'Shifa Pharmacy', 'pharmacy', $city, [
@@ -156,6 +175,7 @@ class SeedLoadTestShops extends Command
             'sizes' => 0,
             'batches' => true,
             'dining' => false,
+            'online' => true,
         ]);
 
         $this->shop('services', 'Gulberg Service Centre', 'services', $city, [
@@ -171,6 +191,30 @@ class SeedLoadTestShops extends Command
         $this->shop('wholesale', 'Akbari Mandi Traders', 'wholesale', $city, [
             'branches' => ['Main — Akbari Mandi', 'Sabzi Mandi'],
             'lines' => (int) round($lines * 0.5),
+            'sizes' => 0,
+            'batches' => false,
+            'dining' => false,
+        ]);
+
+        $this->shop('petrol', 'Khokhar Filling Station', 'petroleum', $city, [
+            // TWO SITES ON PURPOSE. A forecourt's equipment hangs off a
+            // branch, and the one fault this shape has already had was a
+            // tank stored with a null branch while the shift looked for
+            // Main. One site could never have shown it.
+            'branches' => ['Main — Multan Road', 'Raiwind Road'],
+            // The shop behind the forecourt is small; the volume here is
+            // SHIFTS, meters and dips, not lines on a shelf.
+            'lines' => 140,
+            'sizes' => 0,
+            'batches' => false,
+            'dining' => false,
+        ]);
+
+        $this->shop('workshop', 'Rahat Auto Workshop', 'automotive', $city, [
+            'branches' => ['Main — Band Road'],
+            // Parts on a shelf AND labour on the same invoice. What carries
+            // the volume is cars through the bay, not part numbers.
+            'lines' => 260,
             'sizes' => 0,
             'batches' => false,
             'dining' => false,
@@ -195,7 +239,7 @@ class SeedLoadTestShops extends Command
         return self::SUCCESS;
     }
 
-    /** @param array{branches: string[], lines: int, sizes: int, batches: bool} $spec */
+    /** @param array{branches: string[], lines: int, sizes: int, batches: bool, dining?: bool, online?: bool} $spec */
     private function shop(string $key, string $name, string $type, City $city, array $spec): void
     {
         $this->newLine();
@@ -215,8 +259,27 @@ class SeedLoadTestShops extends Command
             // catalogue volume would exercise.
             'online_shop_enabled' => true,
             'timezone' => 'Asia/Karachi',
+            /**
+             * THE FLAG IS HALF THE DOOR.
+             *
+             * `Tenant::sellsOnline()` wants the flag AND the marketplace
+             * module, and its own docblock names this as the trap: "the
+             * module went on and the shop stayed invisible". The defaults for
+             * every one of these trades leave `marketplace` off, so seven
+             * shops carried the flag, answered false, and the audit reported
+             * `orders` empty on all of them.
+             *
+             * Only where a shop would really take orders. A filling station
+             * does not deliver petrol to a house, and an accountant's office
+             * has no catalogue to list.
+             */
             'features' => Modules::defaultsFor($type),
         ]);
+
+        if (! empty($spec['online'])) {
+            $tenant->applyModules(['marketplace' => true, 'delivery' => true]);
+            $tenant->refresh();
+        }
 
         app(TenantContext::class)->set($tenant);
 
@@ -244,7 +307,14 @@ class SeedLoadTestShops extends Command
         $this->khata($tenant, $owner);
         $this->afterTheSale($tenant, $owner, $branches);
         $this->theShelf($tenant, $owner, $branches, $productIds);
+        // The forecourt owns the week BEFORE the till's, because one person
+        // cannot hold two open shifts and the server is right to refuse it.
+        $this->theForecourt($tenant, $owner, $branches);
         $this->theTill($tenant, $type, $owner, $branches, $productIds);
+        // Paperwork AFTER the till, because a job card converts into a sale
+        // and the conversion has to land in a world where selling already works.
+        $this->theOnlineDoor($tenant, $owner, $branches, $productIds);
+        $this->thePaperwork($tenant, $type, $owner, $branches, $productIds, $customers);
         $this->books($tenant, $owner, $branches);
 
         app(TenantContext::class)->clear();
@@ -359,6 +429,12 @@ class SeedLoadTestShops extends Command
             'services' => ['Appliance', 'Laundry', 'Tailoring', 'Repairs', 'Cleaning', 'Printing', 'Automotive', 'Electronics', 'Home', 'Callout'],
             'wholesale' => ['Grains', 'Pulses', 'Oils', 'Spices', 'Sugar & Salt', 'Tea', 'Flour', 'Packaging', 'Dry Fruit', 'Misc'],
             'retail' => ['Lawn', 'Chiffon', 'Linen', 'Kurti', 'Shalwar Kameez', 'Abaya', 'Scarves', 'Formals', 'Casuals', 'Bridal'],
+            // A filling station sells more than fuel, and the shop behind the
+            // forecourt is an ordinary mart. The fuels themselves are NOT
+            // here: they are made in theForecourt(), because a product only
+            // counts as fuel once a tank holds it.
+            'petroleum' => ['Engine Oil', 'Gear Oil', 'Coolant', 'Brake Fluid', 'Filters', 'Batteries', 'Wipers', 'Car Care', 'Tuck Shop', 'Lubricants'],
+            'automotive' => ['Engine', 'Brakes', 'Suspension', 'Electrical', 'Filters', 'Tyres', 'Batteries', 'Body', 'Fluids', 'Labour'],
             default => ['Rice & Pulses', 'Flour', 'Oil & Ghee', 'Tea & Coffee', 'Spices', 'Dairy', 'Bakery', 'Snacks', 'Beverages', 'Frozen', 'Cleaning', 'Personal Care', 'Paper Goods', 'Baby', 'Pet'],
         };
 
@@ -394,6 +470,8 @@ class SeedLoadTestShops extends Command
             'food' => [['Chicken Karahi', 'Mutton Karahi', 'Seekh Kebab', 'Chicken Tikka', 'Daal Makhani', 'Biryani', 'Nihari', 'Haleem', 'Malai Boti', 'Chapli Kebab'], ['Half', 'Full', 'Platter', 'Family', 'Special', 'Boneless', 'Degi', 'Peshawari', 'Lahori', 'Handi']],
             'pharmacy' => [['Amoxil', 'Panadol', 'Brufen', 'Augmentin', 'Risek', 'Calpol', 'Flagyl', 'Zantac', 'Ventolin', 'Glucophage'], ['125mg', '250mg', '500mg', '650mg', '1g', 'Syrup', 'Drops', 'Inj', 'Cap', 'Tab']],
             'retail' => [['Gul', 'Noor', 'Zara', 'Meher', 'Aiza', 'Rida', 'Sana', 'Hina', 'Komal', 'Areeba'], ['Printed', 'Embroidered', 'Digital', 'Hand Block', 'Sequin', 'Jacquard', 'Plain', 'Dyed', 'Lace', 'Schiffli']],
+            'petroleum' => [['Shell Helix', 'Caltex Havoline', 'ZIC', 'Total Quartz', 'PSO Carient', 'Castrol GTX', 'Coolant', 'Brake Fluid', 'Oil Filter', 'Wiper Blade'], ['1L', '3L', '4L', '5L', 'Carton', '20W-50', '15W-40', '5W-30', 'Pair', 'Piece']],
+            'automotive' => [['Brake Pad', 'Oil Filter', 'Air Filter', 'Spark Plug', 'Shock Absorber', 'Timing Belt', 'Clutch Plate', 'Radiator Hose', 'Wheel Bearing', 'Headlamp'], ['Suzuki Mehran', 'Toyota Corolla', 'Honda City', 'Suzuki Cultus', 'Suzuki Alto', 'Toyota Vitz', 'Honda Civic', 'Daihatsu Mira', 'KIA Picanto', 'Changan Alsvin']],
             default => [['Sunridge', 'Dalda', 'Tapal', 'Olpers', 'National', 'Shan', 'Nurpur', 'Lipton', 'Rafhan', 'Kolson'], ['1kg', '500g', '250g', '5kg', '1L', '2L', 'Pack', 'Box', 'Jar', 'Pouch']],
         };
 
@@ -1005,6 +1083,992 @@ class SeedLoadTestShops extends Command
      * @param  Branch[]  $branches
      * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
      */
+    /**
+     * THE FORECOURT — meters, dips, and the gap between them.
+     *
+     * Every other shop in this file is reconciled by ONE question: does the
+     * drawer hold what the till says it took. A filling station is reconciled
+     * by three, and the whole point of the module is that they disagree:
+     *
+     *   the METERS say how many litres left the nozzles
+     *   the TILL   says how many litres were charged for
+     *   the DIPS   say how many litres are still in the ground
+     *
+     * Metered minus rung is fuel that left a hose without being billed — a
+     * question about people. Book stock minus the dip is fuel that never
+     * crossed a meter at all — a question about the ground. The two are never
+     * summed, and a fixture that made them equal would prove nothing.
+     *
+     * So this phase deliberately produces BOTH kinds of gap, small and
+     * plausible, on top of a week of otherwise honest shifts: a few litres
+     * tested back into the tank, an attendant's nozzle a hair ahead of the
+     * till, and one tank quietly a few litres light.
+     *
+     * It runs over days 14 → 8 so it never collides with `theTill()`, which
+     * owns days 7 → 0. One person cannot hold two open shifts, and the server
+     * is right to say so.
+     *
+     * @param  Branch[]  $branches
+     */
+    private function theForecourt(Tenant $tenant, User $owner, array $branches): void
+    {
+        if (($tenant->features['fuel'] ?? false) !== true) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $openShift = app(OpenForecourtShiftAction::class);
+        $closeShift = app(CloseForecourtShiftAction::class);
+        $delivery = app(RecordFuelDeliveryAction::class);
+        $reprice = app(ChangeFuelPriceAction::class);
+        $sale = app(CreateSaleAction::class);
+        $openTill = app(OpenCashSessionAction::class);
+        $closeTill = app(CloseCashSessionAction::class);
+        $day = app(CloseBusinessDayAction::class);
+
+        // ── What a tank holds ───────────────────────────────────────
+        // Made here and not in the catalogue because a product is only FUEL
+        // once a tank holds it — `ChangeFuelPriceAction` asks exactly that
+        // question before it will reprice anything.
+        $grades = [];
+        foreach ([['Petrol', 268.50], ['High Speed Diesel', 276.00], ['Hi-Octane', 311.00]] as [$name, $price]) {
+            $grades[$name] = Product::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'type' => 'product',
+                'name' => $name,
+                'price' => $price,
+                'cost' => round($price * 0.955, 2),
+                'unit' => 'Litre',
+                // Litres are not whole things. `each` would refuse 7.449.
+                'sold_by' => 'weight',
+                'track_inventory' => true,
+                'stock_quantity' => 0,
+                'is_active' => true,
+            ]);
+        }
+
+        $plant = 0;
+        $shifts = 0;
+        $closed = 0;
+        $deliveries = 0;
+        $rung = 0;
+        /** @var array<string, int> $why */
+        $why = [];
+
+        foreach ($branches as $b => $branch) {
+            app(BranchContext::class)->set($branch);
+
+            /** @var array<string, FuelTank> $tanks */
+            $tanks = [];
+            foreach ($grades as $name => $product) {
+                // The second site has no Hi-Octane — a real difference
+                // between two forecourts of the same company, and the thing
+                // that makes "every tank has to be dipped" mean something
+                // other than "the same three tanks everywhere".
+                if ($b > 0 && $name === 'Hi-Octane') {
+                    continue;
+                }
+
+                $tank = FuelTank::withoutTenancy()->create([
+                    'tenant_id' => $tenant->id,
+                    'branch_id' => $branch->id,
+                    'product_id' => $product->id,
+                    'name' => 'Tank '.(count($tanks) + 1).' — '.$name,
+                    'capacity_litres' => 30000,
+                    'current_dip_litres' => random_int(9000, 16000),
+                    // Fuel below the suction pipe cannot be sold and must not
+                    // be counted as stock on hand.
+                    'dead_stock_litres' => 300,
+                    'is_active' => true,
+                ]);
+                /**
+                 * FUEL IN THE GROUND IS FUEL ON THE BOOKS.
+                 *
+                 * The tank was given an opening dip and the product was left
+                 * at zero, so the first 128 fuel lines were refused for want
+                 * of stock — and `priceIt()` swallowed the reason, which is
+                 * how "could not price the fuel line" came to stand for
+                 * "there is no petrol in this shop". A station that has
+                 * fourteen thousand litres underground has fourteen thousand
+                 * litres to sell, and the two numbers start life equal.
+                 */
+                DB::table('branch_stock')->insert([
+                    'id' => (string) Str::uuid7(),
+                    'tenant_id' => $tenant->id,
+                    'branch_id' => $branch->id,
+                    'product_id' => $product->id,
+                    'quantity' => $tank->current_dip_litres,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $tanks[$name] = $tank;
+                $plant++;
+            }
+
+            /**
+             * A STICK READS MILLIMETRES, AND ONLY ONE TANK IS CHARTED.
+             *
+             * Charting every tank would hide the branch the close action
+             * actually has to handle — a station part-way through calibrating
+             * its plant, dipping one tank in mm off the chart and the rest in
+             * litres off a paper table. Both paths are then live in the same
+             * close, which is the state no single-tank test can produce.
+             */
+            // One lookup for "which fuel does this nozzle pour", built once
+            // per branch rather than searched per sale.
+            /** @var array<string, Product> $byTank */
+            $byTank = [];
+            foreach ($tanks as $name => $t) {
+                $byTank[$t->id] = $grades[$name];
+            }
+
+            $charted = reset($tanks);
+            $points = [];
+            for ($mm = 0; $mm <= 2000; $mm += 100) {
+                $points[] = [
+                    'id' => (string) Str::uuid7(),
+                    'tenant_id' => $tenant->id,
+                    'fuel_tank_id' => $charted->id,
+                    // Not linear. An underground cylinder holds far less per
+                    // millimetre at the bottom than across its middle, and a
+                    // straight-line chart would make the interpolation look
+                    // correct when it is not being exercised at all.
+                    'litres' => round(30000 * (($mm / 2000) ** 1.35), 3),
+                    'mm' => $mm,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+            DB::table('fuel_tank_dip_points')->insert($points);
+
+            /** @var FuelNozzle[] $nozzles */
+            $nozzles = [];
+            foreach ([1, 2] as $n) {
+                $pump = FuelPump::withoutTenancy()->create([
+                    'tenant_id' => $tenant->id,
+                    'branch_id' => $branch->id,
+                    'name' => 'Pump '.$n,
+                    'code' => 'P'.$n,
+                    'is_active' => true,
+                ]);
+                $plant++;
+
+                foreach ($tanks as $name => $tank) {
+                    $nozzles[] = FuelNozzle::withoutTenancy()->create([
+                        'tenant_id' => $tenant->id,
+                        'fuel_pump_id' => $pump->id,
+                        'fuel_tank_id' => $tank->id,
+                        'name' => chr(64 + $n).substr($name, 0, 1),
+                        'current_reading' => random_int(100000, 900000),
+                        'is_active' => true,
+                    ]);
+                    $plant++;
+                }
+            }
+
+            $lane = Register::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'branch_id' => $branch->id,
+                'name' => 'Forecourt cabin',
+                'code' => 'FC',
+                'is_active' => true,
+            ]);
+
+            // The shop-wide figure is the sum of the branches, same as the
+            // catalogue does it — a product's own quantity is a roll-up, not
+            // a second opinion.
+            DB::update(
+                'UPDATE products p SET stock_quantity = COALESCE((SELECT SUM(bs.quantity) FROM branch_stock bs WHERE bs.product_id = p.id), 0) WHERE p.tenant_id = ?',
+                [$tenant->id],
+            );
+
+            for ($d = 14; $d >= 8; $d--) {
+                $date = now()->subDays($d)->setTime(6, 0);
+                CarbonImmutable::setTestNow($date);
+                Carbon::setTestNow($date);
+
+                try {
+                    // A TANKER ARRIVES BEFORE THE SHIFT, not during it. The
+                    // discharge moves the dip, and a delivery landing inside
+                    // an open shift is a different fixture — one worth having
+                    // and not this one.
+                    if ($d % 3 === 0) {
+                        $tank = $tanks[array_rand($tanks)];
+                        $before = (float) $tank->fresh()->current_dip_litres;
+                        $invoiced = (float) random_int(8000, 12000);
+                        // The tanker arrived SHORT. Dips beat the invoice, and
+                        // that preference is the only reason the shortfall is
+                        // visible at all.
+                        $actual = $d % 6 === 0 ? $invoiced - random_int(40, 180) : $invoiced;
+
+                        $delivery->execute($owner, [
+                            'fuel_tank_id' => $tank->id,
+                            'invoiced_litres' => $invoiced,
+                            'dip_before' => $before,
+                            'dip_after' => $before + $actual,
+                            'invoice_number' => 'PSO-'.(20000 + $d),
+                            'tanker_number' => 'LES-'.random_int(1000, 9999),
+                            'unit_cost' => round((float) $tank->product->price * 0.955, 2),
+                        ]);
+                        $deliveries++;
+                    }
+
+                    // The rate moves overnight, as it does in Pakistan on the
+                    // last day of the month — and the shift's readings
+                    // snapshot the rate in force when the shift OPENED, so a
+                    // reprice has to land between shifts to be honest.
+                    if ($d === 11) {
+                        foreach ($grades as $product) {
+                            $reprice->execute($owner, [
+                                'product_id' => $product->id,
+                                'new_price' => round((float) $product->fresh()->price + random_int(-250, 450) / 100, 2),
+                                'reason' => 'OGRA notification',
+                            ]);
+                        }
+                    }
+
+                    $shift = $openShift->execute($owner, [
+                        'branch_id' => $branch->id,
+                        'notes' => 'Day shift',
+                    ]);
+                    $shifts++;
+
+                    $day->open($owner, $branch->id);
+                    $session = $openTill->execute($owner, 5000, $lane);
+                } catch (\Throwable $e) {
+                    Carbon::setTestNow();
+                    CarbonImmutable::setTestNow();
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+
+                    continue;
+                }
+
+                // ── What the till rang, nozzle by nozzle ────────────
+                /** @var array<string, float> $soldPerNozzle */
+                $soldPerNozzle = [];
+
+                foreach ($nozzles as $nozzle) {
+                    $product = $byTank[$nozzle->fuel_tank_id];
+                    $litres = 0.0;
+
+                    foreach (range(1, random_int(9, 16)) as $k) {
+                        /**
+                         * MONEY IN, LITRES OUT — and both doors are used.
+                         *
+                         * Nobody at a pump asks for 7.449 litres; they hand
+                         * over a two-thousand-rupee note. The line may name
+                         * an `amount` and the server works the litres back
+                         * from the rate. A fixture that only ever sent
+                         * quantities would leave the door most customers
+                         * actually use completely unwalked.
+                         */
+                        $byMoney = $k % 2 === 0;
+                        $item = $byMoney
+                            ? ['product_id' => $product->id, 'amount' => (float) (random_int(5, 40) * 100)]
+                            : ['product_id' => $product->id, 'quantity' => round(random_int(300, 4000) / 100, 3)];
+
+                        $line = [
+                            'branch_id' => $branch->id,
+                            'channel' => 'walk_in',
+                            'items' => [$item],
+                            'cash_session_id' => $session->id,
+                            'created_by' => $owner->id,
+                        ];
+
+                        try {
+                            $method = $k % 5 === 0 ? 'card' : 'cash';
+                            $due = $this->priceIt($sale, $line);
+                            if ($due === null) {
+                                // Ask again WITHOUT the probe's safety net, so
+                                // the reason reaches the refusal tally. A
+                                // generic "could not price" hid 128 lines that
+                                // were really "there is no petrol in this shop".
+                                $sale->execute($line + ['payment_method' => 'cash', 'amount_paid' => 100_000_000]);
+
+                                continue;
+                            }
+
+                            $s = $sale->execute($line + [
+                                'payment_method' => $method,
+                                // A card is charged the bill; only cash can
+                                // give change back (CHANGE_WITHOUT_CASH).
+                                'amount_paid' => $method === 'cash' ? ceil($due / 100) * 100 : $due,
+                            ]);
+
+                            $rung++;
+                            // Read back rather than assumed: a line sent as
+                            // `amount` has its litres worked out by the
+                            // server, and the meter has to agree with THAT,
+                            // not with what the fixture hoped it would be.
+                            $litres += (float) $s->items()->get()->sum(
+                                fn ($i) => (float) $i->quantity * (float) ($i->unit_factor ?? 1),
+                            );
+                        } catch (\Throwable $e) {
+                            $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                        }
+                    }
+
+                    $soldPerNozzle[$nozzle->id] = round($litres, 3);
+                }
+
+                // ── The meters, and the two gaps ────────────────────
+                $readings = [];
+                /** @var array<string, float> $throughTank */
+                $throughTank = [];
+
+                foreach ($nozzles as $i => $nozzle) {
+                    $sold = $soldPerNozzle[$nozzle->id] ?? 0.0;
+
+                    // Litres pumped and tipped back into the tank to check a
+                    // hose. They moved the meter and were never sold, so a
+                    // shift that ignored them reads as theft every morning.
+                    $test = $d % 4 === 0 && $i === 0 ? 5.0 : 0.0;
+
+                    // UNBILLED AT THE PUMP. One attendant's nozzle runs a
+                    // little ahead of the till on two days of the week.
+                    $unbilled = ($d % 7 === 3 && $i === 1) ? round(random_int(100, 600) / 100, 3) : 0.0;
+
+                    $through = round($sold + $test + $unbilled, 3);
+                    $readings[] = [
+                        'fuel_nozzle_id' => $nozzle->id,
+                        'closing_reading' => round((float) $nozzle->fresh()->current_reading + $through, 3),
+                        'test_litres' => $test,
+                    ];
+                    $throughTank[$nozzle->fuel_tank_id] = round(($throughTank[$nozzle->fuel_tank_id] ?? 0) + $through - $test, 3);
+                }
+
+                // MISSING FROM THE GROUND. A different question from the one
+                // above and never added to it: one tank is a few litres light
+                // against its book stock on one day of the week.
+                $dips = [];
+                foreach ($tanks as $tank) {
+                    $fresh = $tank->fresh();
+                    $expected = max(0.0, round((float) $fresh->current_dip_litres - ($throughTank[$tank->id] ?? 0), 3));
+                    $loss = ($d % 7 === 5 && $tank->is($charted)) ? round(random_int(200, 900) / 100, 3) : 0.0;
+
+                    $dips[] = [
+                        'fuel_tank_id' => $tank->id,
+                        'closing_dip' => max(0.0, round($expected - $loss, 3)),
+                    ];
+                }
+
+                try {
+                    $closeShift->execute($owner, $shift, [
+                        'readings' => $readings,
+                        'dips' => $dips,
+                        'notes' => 'Handover',
+                    ]);
+                    $closed++;
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+
+                try {
+                    $fresh = $session->fresh();
+                    $closeTill->execute($fresh, (float) DrawerMath::for($fresh)['expected_cash'], 'Handover', $owner->id, [
+                        'declared_tenders' => DrawerMath::for($fresh)['tender_mix'],
+                    ]);
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+
+                Carbon::setTestNow();
+                CarbonImmutable::setTestNow();
+            }
+        }
+
+        app(BranchContext::class)->clear();
+        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
+
+        $this->line("  forecourt  {$plant} items of plant · {$shifts} shifts ({$closed} closed) · {$deliveries} tankers · {$rung} fuel sales");
+        foreach ($why as $message => $n) {
+            $this->line("    refused ×{$n}  ".Str::limit($message, 92));
+        }
+    }
+
+    /**
+     * PAPERWORK BEFORE A BILL — and, in a workshop, a car in a bay.
+     *
+     * Every shop in this file could sell. None of them could QUOTE, and the
+     * audit reported `sale_documents` empty on all seven — which read as a
+     * missing feature and was a missing fixture. A price given and not yet
+     * taken is a different row from a sale, and three of the nine trades here
+     * run on it.
+     *
+     * For a workshop it is more than paperwork: `sale_documents` is also the
+     * BAY BOARD. A job card is a third kind of document carrying four extra
+     * columns and one genuinely new idea — `work_status` answers *where is
+     * this car right now*, independently of whether the document is still
+     * open. A job card that is `ready` is still `open` until somebody pays,
+     * and folding the two together would lose the board.
+     *
+     * @param  Branch[]  $branches
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     * @param  Customer[]  $customers
+     */
+    private function thePaperwork(
+        Tenant $tenant,
+        string $type,
+        User $owner,
+        array $branches,
+        array $productIds,
+        array $customers,
+    ): void {
+        if (($tenant->features['documents'] ?? false) !== true || $productIds === []) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $write = app(CreateSaleDocumentAction::class);
+        $deposit = app(RecordDepositAction::class);
+        $convert = app(ConvertSaleDocumentAction::class);
+        $isWorkshop = $type === 'automotive';
+
+        $quotes = 0;
+        $layaways = 0;
+        $jobs = 0;
+        $converted = 0;
+        $cancelled = 0;
+        $vehicles = 0;
+        $claims = 0;
+        /** @var array<string, int> $why */
+        $why = [];
+
+        // ── The cars ────────────────────────────────────────────────
+        // A workshop's records are worth something only because a year later
+        // somebody can ask what was done to THIS registration. Without the
+        // vehicle the answer is a customer name and a guess.
+        /** @var CustomerVehicle[] $fleet */
+        $fleet = [];
+        if ($isWorkshop) {
+            $makes = [
+                ['Suzuki', 'Mehran', '145/80 R12'], ['Toyota', 'Corolla', '195/65 R15'],
+                ['Honda', 'City', '185/60 R15'], ['Suzuki', 'Cultus', '165/65 R14'],
+                ['Suzuki', 'Alto', '145/80 R13'], ['Toyota', 'Vitz', '175/65 R15'],
+                ['Honda', 'Civic', '215/55 R16'], ['Daihatsu', 'Mira', '155/65 R14'],
+                ['KIA', 'Picanto', '175/65 R14'], ['Changan', 'Alsvin', '195/55 R16'],
+            ];
+
+            foreach (array_slice($customers, 0, 150) as $i => $customer) {
+                [$make, $model, $tyre] = $makes[$i % count($makes)];
+                $fleet[] = CustomerVehicle::withoutTenancy()->create([
+                    'tenant_id' => $tenant->id,
+                    'customer_id' => $customer->id,
+                    'registration' => ['LEA', 'LEB', 'LZA', 'AJV'][$i % 4].'-'.random_int(1000, 9999),
+                    'make' => $make,
+                    'model' => $model,
+                    'year' => (string) random_int(2004, 2024),
+                    'colour' => ['White', 'Silver', 'Black', 'Grey', 'Blue'][$i % 5],
+                    'tyre_size' => $tyre,
+                    'engine_no' => strtoupper(Str::random(3)).random_int(100000, 999999),
+                    'chassis_no' => strtoupper(Str::random(4)).random_int(1000000, 9999999),
+                    'odometer' => random_int(18000, 240000),
+                    'odometer_at' => now()->subDays(random_int(1, 400)),
+                    'is_active' => true,
+                    'created_by' => $owner->id,
+                ]);
+                $vehicles++;
+            }
+        }
+
+        $branch = $branches[0];
+        app(BranchContext::class)->set($branch);
+
+        $complaints = [
+            'Noise from front left when braking',
+            'Car pulls to the right above 60',
+            'AC cools only when moving',
+            'Engine misfires on cold start',
+            'Clutch slipping in third',
+            'Battery flat every second morning',
+            'Steering vibration at speed',
+            'Smoke from exhaust after idling',
+        ];
+
+        foreach (range(1, 90) as $n) {
+            $customer = $customers === [] ? null : $customers[($n * 7) % count($customers)];
+            $lines = [];
+            foreach (range(1, random_int(1, 4)) as $l) {
+                $pick = $productIds[array_rand($productIds)];
+                $lines[] = [
+                    'product_id' => $pick['product_id'],
+                    'variant_id' => $pick['variant_id'],
+                    'quantity' => random_int(1, 3),
+                ];
+            }
+
+            // Two kinds for everybody, three for a workshop. The split is not
+            // decorative: a quotation takes no money and expires, a layaway
+            // must have a customer, and a job card has a car.
+            $kind = $isWorkshop
+                ? [SaleDocument::KIND_JOB_CARD, SaleDocument::KIND_JOB_CARD, SaleDocument::KIND_QUOTATION, SaleDocument::KIND_LAYAWAY][$n % 4]
+                : [SaleDocument::KIND_QUOTATION, SaleDocument::KIND_QUOTATION, SaleDocument::KIND_LAYAWAY][$n % 3];
+
+            $payload = [
+                'kind' => $kind,
+                'items' => $lines,
+                'customer_id' => $customer?->id,
+                'notes' => 'Counter',
+            ];
+
+            if ($kind === SaleDocument::KIND_JOB_CARD && $fleet !== []) {
+                $car = $fleet[($n * 3) % count($fleet)];
+                $payload += [
+                    'vehicle_id' => $car->id,
+                    // The reading when it came IN — not the one on the
+                    // invoice, which is taken when it goes out. A car in the
+                    // bay for a week with a road test has two numbers.
+                    'odometer_in' => (int) $car->odometer + random_int(50, 900),
+                    'complaint' => $complaints[$n % count($complaints)],
+                    'promised_at' => now()->addDays(random_int(1, 4))->setTime(17, 0),
+                    // A BOARD NEEDS ALL THREE COLUMNS OCCUPIED. Seeding every
+                    // card as `received` would leave two thirds of the bay
+                    // board empty and the sort between them unexercised.
+                    'work_status' => [
+                        SaleDocument::WORK_RECEIVED,
+                        SaleDocument::WORK_IN_PROGRESS,
+                        SaleDocument::WORK_READY,
+                    ][$n % 3],
+                ];
+            }
+
+            if ($kind === SaleDocument::KIND_LAYAWAY && $customer === null) {
+                continue;
+            }
+
+            /**
+             * GOODS COME OFF THE SHELF WHEN THE FIRST MONEY LANDS.
+             *
+             * A layaway is refused outright without its down payment — "This
+             * shop asks for at least 20% down" — and the first run of this
+             * phase built sixty quotations and not one layaway because the
+             * advance was being added AFTER the document was written. It is
+             * part of writing it: the deposit is what makes the arrangement
+             * an arrangement rather than a price.
+             */
+            if ($kind === SaleDocument::KIND_LAYAWAY) {
+                $payload['deposit'] = [
+                    'amount' => max(1.0, round($this->documentValue($lines) * 0.35, 2)),
+                    'method' => ['cash', 'card', 'wallet'][$n % 3],
+                    'note' => 'Advance',
+                ];
+            }
+
+            try {
+                $doc = $write->execute($payload);
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+
+                continue;
+            }
+
+            match ($kind) {
+                SaleDocument::KIND_JOB_CARD => $jobs++,
+                SaleDocument::KIND_LAYAWAY => $layaways++,
+                default => $quotes++,
+            };
+
+            // An advance against the parts the shop is about to order. A
+            // quotation takes nothing — it is a price, not an arrangement.
+            if ($kind !== SaleDocument::KIND_QUOTATION && $n % 2 === 0) {
+                try {
+                    $deposit->execute($doc, [
+                        'amount' => round((float) $doc->total * 0.3, 2),
+                        'method' => ['cash', 'card', 'wallet'][$n % 3],
+                        'note' => 'Advance',
+                    ]);
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+            }
+
+            // THE CAR IS COLLECTED. Roughly half convert, a few are
+            // cancelled, and the rest stay OPEN — which is the state the bay
+            // board and the quotation list are both drawn from, so a fixture
+            // that converted everything would leave both screens empty.
+            if ($n % 5 === 0) {
+                try {
+                    DB::table('sale_documents')->where('id', $doc->id)->update([
+                        'status' => SaleDocument::STATUS_CANCELLED,
+                        'cancelled_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    $cancelled++;
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+
+                continue;
+            }
+
+            if ($n % 2 === 1) {
+                try {
+                    $live = $doc->fresh();
+                    $due = round((float) $live->total - (float) $live->deposit_paid, 2);
+                    $convert->execute($live, [
+                        'payment_method' => 'cash',
+                        'amount_paid' => $due,
+                        'created_by' => $owner->id,
+                    ]);
+                    $converted++;
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+            }
+        }
+
+        // ── What came back under warranty ───────────────────────────
+        if ($isWorkshop) {
+            $claims = $this->warrantyDesk($tenant, $owner, $branch, $productIds, $why);
+        }
+
+        app(BranchContext::class)->clear();
+
+        $this->line(
+            "  paperwork  {$quotes} quotes · {$layaways} layaways · {$jobs} job cards"
+            .($vehicles > 0 ? " · {$vehicles} vehicles" : '')
+            ." · {$converted} became sales, {$cancelled} cancelled"
+            .($claims > 0 ? " · {$claims} warranty claims" : '')
+        );
+        foreach ($why as $message => $n) {
+            $this->line("    refused ×{$n}  ".Str::limit($message, 92));
+        }
+    }
+
+    /**
+     * WHAT WILL THESE LINES COME TO — asked of the server, not guessed.
+     *
+     * A layaway's minimum advance is a percentage of the TOTAL, which carries
+     * tax, group pricing and any ladder the shop has set. The fixture cannot
+     * work that out; only `CreateSaleDocumentAction` can, and it refuses the
+     * document if the guess is a rupee short.
+     *
+     * So a quotation is written for the same lines, read, and rolled back —
+     * the same shape as `priceIt()` at the till, and for the same reason: the
+     * price has to stay the product's answer rather than the seeder's.
+     *
+     * @param  array<int, array<string, mixed>>  $lines
+     */
+    private function documentValue(array $lines): float
+    {
+        DB::beginTransaction();
+
+        try {
+            $probe = app(CreateSaleDocumentAction::class)->execute([
+                'kind' => SaleDocument::KIND_QUOTATION,
+                'items' => $lines,
+            ]);
+
+            return round((float) $probe->total, 2);
+        } catch (\Throwable $e) {
+            return 0.0;
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
+     * A SERIAL IS THE ONLY THING A WARRANTY CAN HANG ON.
+     *
+     * A claim points at `sale_item_serials`, so this cannot be seeded by
+     * writing claim rows: the battery has to be given a serial, sold with
+     * that serial captured at the counter, and only then can it come back.
+     * Every shortcut round that would also skip the one rule worth testing —
+     * that the desk works out whether the unit was still covered from the
+     * sale, and does not take the customer's word for it.
+     *
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     * @param  array<string, int>  $why
+     */
+    private function warrantyDesk(Tenant $tenant, User $owner, Branch $branch, array $productIds, array &$why): int
+    {
+        $sale = app(CreateSaleAction::class);
+
+        // Things that carry a guarantee and a number stamped on them. Picked
+        // off the catalogue rather than created, so they already have stock,
+        // a cost and a supplier behind them.
+        $serialised = Product::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->where('track_inventory', true)
+            ->inRandomOrder()
+            ->limit(24)
+            ->get();
+
+        foreach ($serialised as $p) {
+            $p->forceFill(['tracks_serial' => true, 'warranty_months' => [6, 12, 24][random_int(0, 2)]])->save();
+        }
+
+        $claims = 0;
+        $sold = [];
+
+        foreach ($serialised as $i => $product) {
+            $serial = strtoupper(Str::random(3)).'-'.random_int(100000, 999999);
+            $line = [
+                'branch_id' => $branch->id,
+                'channel' => 'walk_in',
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'serials' => [$serial],
+                ]],
+                'created_by' => $owner->id,
+            ];
+
+            try {
+                $due = $this->priceIt($sale, $line);
+                if ($due === null) {
+                    throw new \RuntimeException('could not price the serialised line');
+                }
+                $s = $sale->execute($line + ['payment_method' => 'cash', 'amount_paid' => ceil($due / 100) * 100]);
+                $sold[] = [$s, $serial, $product];
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+            }
+        }
+
+        foreach ($sold as $i => [$s, $serial, $product]) {
+            // Only some come back. A desk where every unit sold has a claim
+            // against it is not a warranty desk, it is a recall.
+            if ($i % 3 !== 0) {
+                continue;
+            }
+
+            $row = DB::table('sale_item_serials')
+                ->where('sale_id', $s->id)
+                ->where('serial', $serial)
+                ->first();
+
+            if ($row === null) {
+                continue;
+            }
+
+            $expires = $row->warranty_expires_at;
+            // WAS IT STILL COVERED. Worked out from the sale, never asked of
+            // the customer — and deliberately false on some rows, because a
+            // desk that has only ever seen valid claims has never run the
+            // branch that matters.
+            $covered = $expires === null ? false : Carbon::parse($expires)->isFuture();
+
+            DB::table('warranty_claims')->insert([
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'branch_id' => $branch->id,
+                'sale_item_serial_id' => $row->id,
+                'serial' => $serial,
+                'product_name' => $product->name,
+                'fault' => ['Will not hold charge', 'Leaking', 'Noisy under load', 'Stopped working'][$i % 4],
+                'customer_name' => 'Walk-in',
+                'customer_phone' => '0300'.random_int(1000000, 9999999),
+                'was_under_warranty' => $covered,
+                'warranty_expires_at' => $expires,
+                'resolution' => $i % 2 === 0 ? ($covered ? 'replaced' : 'rejected') : null,
+                'resolved_at' => $i % 2 === 0 ? now() : null,
+                'resolved_by' => $i % 2 === 0 ? $owner->id : null,
+                'created_by' => $owner->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $claims++;
+        }
+
+        return $claims;
+    }
+
+    /**
+     * THE OTHER DOOR — orders that arrive without anybody walking in.
+     *
+     * The audit reported `orders` empty on every shop, which read as a dead
+     * module and was a shop that had never been switched on: `shop()` set
+     * `online_shop_enabled`, and `Tenant::sellsOnline()` wants that AND the
+     * marketplace module. The tenant's own docblock warns about this exact
+     * pair — "the module went on and the shop stayed invisible" — and the
+     * fixture walked straight into it.
+     *
+     * What this phase is really here for is the COD leg. An online order is
+     * not finished when the sale is written: a rider carried the goods out
+     * and carried the notes back, and until somebody presses Settle the
+     * shop's takings are in a pocket. Nothing in this fixture had ever
+     * produced a rider holding money.
+     *
+     * The riders here have NO APP. That is Model A, the documented design on
+     * `assignRider()`, and the shape nearly every Pakistani shop runs: a name
+     * and a phone number, the shop drives the status itself.
+     *
+     * @param  Branch[]  $branches
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     */
+    private function theOnlineDoor(Tenant $tenant, User $owner, array $branches, array $productIds): void
+    {
+        if (! $tenant->fresh()->sellsOnline() || $productIds === []) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $orders = app(OrderService::class);
+        $riders = app(RiderService::class);
+        $branch = $branches[0];
+        app(BranchContext::class)->set($branch);
+
+        /** @var Rider[] $fleet */
+        $fleet = [];
+        foreach ([['Bilal', '03001234501'], ['Usman', '03001234502'], ['Adnan', '03001234503']] as [$name, $phone]) {
+            $fleet[] = Rider::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'name' => $name,
+                'phone' => $phone,
+                'is_active' => true,
+                'created_by' => $owner->id,
+            ]);
+        }
+
+        $placed = 0;
+        $completed = 0;
+        $cancelled = 0;
+        $openAt = [];
+        /** @var array<string, int> $why */
+        $why = [];
+
+        foreach (range(1, 120) as $n) {
+            $lines = [];
+            foreach (range(1, random_int(1, 3)) as $l) {
+                $pick = $productIds[array_rand($productIds)];
+                $lines[] = [
+                    'product_id' => $pick['product_id'],
+                    'variant_id' => $pick['variant_id'],
+                    'quantity' => random_int(1, 2),
+                ];
+            }
+
+            // A COLLECTION IS NOT A DELIVERY. One in four is picked up at the
+            // counter, which is the leg with no rider, no fee and no cash in
+            // anybody's pocket — and the one most likely to be broken by a
+            // change made for the delivery leg.
+            $pickup = $n % 4 === 0;
+            $cod = $n % 3 !== 0;
+
+            try {
+                $order = $orders->place(
+                    customer: null,
+                    shop: $tenant,
+                    data: [
+                        'channel' => ['phone', 'whatsapp'][$n % 2],
+                        'customer_name' => 'Caller '.$n,
+                        'customer_phone' => '0321'.str_pad((string) (1000000 + $n), 7, '0', STR_PAD_LEFT),
+                        'fulfillment_type' => $pickup ? 'pickup' : 'delivery',
+                        'delivery_address' => $pickup ? null : 'House '.$n.', Johar Town, Lahore',
+                        'payment_method' => $cod ? 'cod' : 'paid',
+                        'items' => $lines,
+                    ],
+                    staff: $owner,
+                );
+                $placed++;
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+
+                continue;
+            }
+
+            // ONE IN SEVEN NEVER LEAVES. A shop that completed every order it
+            // ever took has no refusals to show, no released stock, and an
+            // Orders screen whose Cancelled tab is a blank page.
+            if ($n % 7 === 0) {
+                try {
+                    $orders->cancel($order, 'Customer changed their mind');
+                    $cancelled++;
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+
+                continue;
+            }
+
+            // THE BOARD NEEDS EVERY COLUMN. A fifth of the orders are parked
+            // part-way, because the Orders screen is a queue and a queue with
+            // nothing in it is not a queue.
+            $stopAt = $n % 5;
+            $path = $pickup
+                ? ['confirmed', 'preparing', 'ready', 'completed']
+                : ['confirmed', 'preparing', 'out_for_delivery', 'completed'];
+
+            if (! $pickup) {
+                try {
+                    $orders->assignRider($order, $fleet[$n % count($fleet)]);
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+            }
+
+            $walked = $stopAt === 0 ? count($path) - 1 : count($path);
+            foreach (array_slice($path, 0, $walked) as $step) {
+                try {
+                    $order = $orders->advance($order->fresh(), OrderStatus::from($step));
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                    break;
+                }
+            }
+
+            $final = $order->fresh()->status->value;
+            if ($final === 'completed') {
+                $completed++;
+            } else {
+                $openAt[$final] = ($openAt[$final] ?? 0) + 1;
+            }
+        }
+
+        // ── The money that came back on a bike ──────────────────────
+        $settled = 0;
+        $heldBack = 0;
+        $emptyHanded = 0;
+        foreach ($fleet as $i => $card) {
+            // NOT EVERY RIDER HANDS IT ALL IN. The last one is left holding
+            // the day's cash, because "nothing outstanding" is the only state
+            // the riders screen has ever been seeded in and the figure that
+            // matters is the one beside a rider who still has it.
+            if ($i === count($fleet) - 1) {
+                $heldBack++;
+
+                continue;
+            }
+
+            try {
+                $riders->settle($tenant, $card, $owner, null, 'Evening handover');
+                $settled++;
+            } catch (\Throwable $e) {
+                // A rider whose round happened to be all prepaid is holding
+                // nothing, and the server saying so is the correct answer —
+                // not a refusal worth reporting in red beside the real ones.
+                if ($e instanceof DomainException && $e->errorCode === 'RIDER_NOTHING_TO_SETTLE') {
+                    $emptyHanded++;
+
+                    continue;
+                }
+
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+            }
+        }
+
+        app(BranchContext::class)->clear();
+
+        $still = [];
+        foreach ($openAt as $status => $count) {
+            $still[] = "{$count} {$status}";
+        }
+
+        $this->line(
+            "  online     {$placed} orders · {$completed} completed · {$cancelled} cancelled"
+            .($still === [] ? '' : ' · still '.implode(', ', $still))
+            ." · {$settled} riders settled, {$heldBack} still holding"
+            .($emptyHanded > 0 ? ", {$emptyHanded} carried nothing" : '')
+        );
+        foreach ($why as $message => $n) {
+            $this->line("    refused ×{$n}  ".Str::limit($message, 92));
+        }
+    }
+
     private function theTill(Tenant $tenant, string $type, User $owner, array $branches, array $productIds): void
     {
         if (($tenant->features['pos'] ?? false) !== true || $productIds === []) {

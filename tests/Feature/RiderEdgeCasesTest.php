@@ -975,10 +975,25 @@ class RiderEdgeCasesTest extends TestCase
 
     // ── A shop with none of this ─────────────────────────────────────
 
+    /**
+     * MODEL A, ALL THE WAY THROUGH THE MONEY.
+     *
+     * This test used to assert the opposite, and its comment called the
+     * result "the honest limit of Model A: without the app there is no moment
+     * anybody recorded". That reading was wrong, and writing it down made a
+     * defect look like a design.
+     *
+     * There IS a moment, and the shop records it: the owner pressing
+     * Completed on a delivery order is the shop saying the goods reached the
+     * customer. The rider app's stamp is a better moment — it is taken at the
+     * door — but it is not the only one, and treating it as the only one left
+     * every shop that runs on a cousin with a motorbike unable to book in its
+     * own cash, for ever, on the screen built to show it.
+     *
+     * See `OrderService::complete()`.
+     */
     public function test_a_rider_card_with_no_person_behind_it_holds_cash_the_same_way(): void
     {
-        // Model A, all the way through the money. The cousin with a motorbike
-        // collects cash too, and the shop needs the same column for them.
         $cardId = $this->as($this->owner)->postJson('/api/v1/riders', ['name' => 'Cousin Asif'])
             ->assertCreated()->json('data.id');
 
@@ -989,15 +1004,23 @@ class RiderEdgeCasesTest extends TestCase
         $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/assign-rider", ['rider_id' => $cardId])->assertOk();
         $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'completed'])->assertOk();
 
-        // The shop completed it from the panel, so nothing set `delivered_at` —
-        // and cash held is measured from that. This is the honest limit of
-        // Model A: without the app there is no moment anybody recorded.
+        $total = round((float) Order::withoutTenancy()->findOrFail($order['id'])->total, 2);
+
         $this->as($this->owner)->getJson('/api/v1/riders')
             ->assertOk()
+            // No app, and that is the whole point: the card is a name, and it
+            // still holds the shop's money.
             ->assertJsonPath('data.0.has_app', false)
-            ->assertJsonPath('data.0.cash_in_hand', 0);
+            ->assertJsonPath('data.0.cash_in_hand', fn ($cash) => round((float) $cash, 2) === $total);
 
-        $this->as($this->owner)->postJson("/api/v1/riders/{$cardId}/settle")
-            ->assertStatus(422)->assertJsonPath('meta.error_code', 'RIDER_NOTHING_TO_SETTLE');
+        $settlement = $this->as($this->owner)->postJson("/api/v1/riders/{$cardId}/settle")
+            ->assertCreated()->json('data');
+
+        $this->assertSame($total, round((float) $settlement['cash_collected'], 2));
+        $this->assertSame(1, (int) $settlement['orders_count']);
+
+        // And once handed over it is not held twice.
+        $this->as($this->owner)->getJson('/api/v1/riders')
+            ->assertOk()->assertJsonPath('data.0.cash_in_hand', 0);
     }
 }

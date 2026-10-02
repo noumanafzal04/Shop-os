@@ -626,6 +626,21 @@ class CreateSaleAction
                         // Effective tax %% snapshot — tax group, else product rate,
                         // else shop default.
                         'tax_rate' => $product->effectiveTaxRate($defaultTaxRate),
+                        /**
+                         * THE RATE THIS LINE WAS ALREADY SETTLED AT.
+                         *
+                         * Only a trusted replay may send one, and only a
+                         * caller that genuinely has it per line: a sale
+                         * document snapshotted each line's own rate when the
+                         * quote was given, weeks before the catalog moved.
+                         *
+                         * Null everywhere else, including an online order,
+                         * which quotes ONE tax figure for the basket and has
+                         * no per-line rate to carry. See the blend below.
+                         */
+                        'settled_tax_rate' => $trusted && isset($item['tax_rate'])
+                            ? (float) $item['tax_rate']
+                            : null,
                     ];
                 }
 
@@ -781,8 +796,25 @@ class CreateSaleAction
                     // tax across the taxable base and stamp every line with it.
                     $taxableBase = round($subtotal - $discount, 2);
                     $blendedRate = $taxableBase > 0 ? round($tax / $taxableBase * 100, 4) : 0.0;
+
+                    /**
+                     * A BLEND IS A LAST RESORT, NOT THE RULE.
+                     *
+                     * It is right for an ORDER, which quotes one tax figure
+                     * for the whole basket and has no per-line rate to carry.
+                     * It was wrong for a converted QUOTATION, which has one
+                     * per line and had it thrown away: a wholesale quote of
+                     * tea at 18% and flour at 0% became an invoice with both
+                     * lines stamped 7.08%, the average. A later refund of the
+                     * flour then handed back tax on a zero-rated staple, the
+                     * tea line gave back less than was charged, and the tax
+                     * report grew a band nobody is registered for.
+                     *
+                     * So a line that ARRIVED with its own settled rate keeps
+                     * it, and only the lines that did not are blended.
+                     */
                     foreach ($lines as $i => $line) {
-                        $lines[$i]['tax_rate'] = $blendedRate;
+                        $lines[$i]['tax_rate'] = $line['settled_tax_rate'] ?? $blendedRate;
                     }
                 } else {
                     // Computed from each line's snapshotted effective rate — also
