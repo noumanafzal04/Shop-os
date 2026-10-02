@@ -227,3 +227,4 @@
 - [withHeader Is Sticky](shopos-withheader-is-sticky.md) — STANDING: a test proving "no header" kept sending one; 2 false refutations of a real bug
 - [The Sign Lives In The Type](shopos-sign-lives-in-the-type.md) — STANDING: 3 ledgers store +amount with direction in `type`; summing agrees with the opposite
 - [What The Fixture Proves](shopos-what-the-fixture-proves.md) — REFERENCE: 9 load-test shops, 412 audit checks, what each phase exercises
+- [e2e Checked By Nothing](shopos-e2e-checked-by-nothing.md) — STANDING: panel/e2e was in no tsconfig; a broken spec committed clean
