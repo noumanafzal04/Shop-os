@@ -7676,3 +7676,46 @@ Still empty and named rather than quietly absent: `customer_groups`,
 `product_units`, `product_barcodes`, `tax_groups`.
 
 84/84 agree · backend 2,889 tests.
+
+---
+
+## Selling at volume, and the two faults it found
+
+The audit answers arithmetic questions; this round answered a different one —
+what the shop looks like after thousands of real transactions have gone
+through the actual actions. The seeder grew seven phases (the counter, khata,
+after-the-sale, the shelf, offers, price lists, the till) and two commands now
+read the result: `loadtest:audit` asks 144 questions across seven shops,
+`loadtest:timings` times 27 screens in-process with query counts.
+
+**Change came out of thin air.** `change_due = amount_paid − due` never asked
+WHICH tender the money arrived on. A Rs 1,850 bill keyed as Rs 2,000 on a CARD
+recorded Rs 150 of cash change, and `DrawerMath` subtracts change from cash
+takings — so the drawer came up short by exactly the change nobody handed
+over. Found because the seeder, paying by card, produced negative `cash_sales`.
+The till now refuses it (`CHANGE_WITHOUT_CASH`): change can never exceed the
+cash tendered, and with no cash tender there is no change to give. A credit
+sale is exempt — its single tender IS the figure going on the book, and the
+server already refuses anything but the full due.
+
+**A report is not the whole shelf.** Stock valuation and dead stock sent every
+line — 569 rows, 685 KB — and the browser then dropped all but the first 100
+or 200, silently. The longest list a shop had read as the complete list: the
+ninth instance of *the API supports it, the screen never reads it*. The server
+sends the top 200 with `items_shown` / `items_total`; the totals are still over
+EVERY line, and the CSV export is not capped at all. The panel draws what
+arrived and says, underneath, when any were left off.
+
+Timings recorded and not optimised: valuation ~653 ms, dead stock ~670 ms. It
+is join cost, not an N+1, and an index does not move it.
+
+**Still open, stated as open:** the Day & Banking "All branches" question is
+UNPROVEN. The hypothesis was that `BusinessDayController::current()` using
+`BranchContext::id()` instead of `scopeId()` made a multi-branch shop's Today
+tab read "No day open yet." A debug dump returned `days=1`, so `scopeId()` was
+NOT null without an `X-Branch-Id` header and the hypothesis fell. The
+speculative change was reverted rather than committed half-proven. Whoever
+picks it up starts by finding out what header the panel actually sends for
+"All branches".
+
+144/144 agree · backend 2,895 tests.

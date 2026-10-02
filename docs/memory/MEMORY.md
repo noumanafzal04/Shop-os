@@ -221,3 +221,5 @@
 - [A Loss With No Price](shopos-loss-with-no-price.md) — FIXED: only a batch delete made a disposal, so a mart could never total its shrinkage
 - [One Answer To What I Owe](shopos-one-answer-what-i-owe.md) — FIXED: payables had 3 rules again; the Pay button over-allocated into short deliveries
 - [Ask Every Figure Twice](shopos-audit-every-figure-twice.md) — STANDING: loadtest:audit recomputes each figure a second way and prints which tables were empty
+- [Mobile Teal Palette](shopos-mobile-teal-palette.md) — FOR LATER: True Serve teal for the mobile app; palette B (`#03444A` primary), measured against the logo
+- [Admin Plan Model](shopos-admin-plan-model.md) — BACKLOG: pasted plans/usage/add-ons model vs ours; core rule already matches, 6 gaps

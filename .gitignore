@@ -31,3 +31,8 @@ node_modules/
 # throttle. They are credentials — they never belong in the repo.
 docs/qa/sweep/.tokens.json
 __pycache__/
+
+# Signed APKs and the palette/logo images handed over in chat. 550 MB of
+# build output that git would carry for ever — the artefact is the release,
+# not the repository.
+builds/
