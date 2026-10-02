@@ -33,12 +33,20 @@ export function useLowStock() {
     queryFn: async () => {
       const res = await inventoryService.lowStock();
 
+      const meta = res.meta as { watched?: number; shown?: number; total?: number } | undefined;
+
       return {
         rows: res.data,
         // `?? null` and not `?? 0`: an older server sends no meta at all, and
         // "zero items are watched" would put a setup message in front of a shop
         // that has set its levels perfectly well.
-        watched: (res.meta as { watched?: number } | undefined)?.watched ?? null,
+        watched: meta?.watched ?? null,
+        // How many lines the server kept and how many exist. The list is a
+        // worklist and is capped at the most urgent two hundred; a screen that
+        // did not say so would read as the whole shop. Null on an older server,
+        // which sends neither.
+        shown: meta?.shown ?? null,
+        total: meta?.total ?? null,
       };
     },
   });

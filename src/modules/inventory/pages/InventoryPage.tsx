@@ -139,6 +139,8 @@ export default function InventoryPage() {
   const lowRows = lowStock.data?.rows ?? [];
   /** How many items have a reorder level at all — see the empty state below. */
   const watched = lowStock.data?.watched ?? null;
+  const lowShown = lowStock.data?.shown ?? null;
+  const lowTotal = lowStock.data?.total ?? null;
   const rows = reorderOnly ? lowRows : products.data?.data ?? [];
   const pagination = reorderOnly ? undefined : products.data?.meta.pagination;
 
@@ -378,6 +380,19 @@ export default function InventoryPage() {
                 : watched === null
                   ? "Nothing is below its reorder level."
                   : `Nothing is below its reorder level. All ${watched} item${watched === 1 ? "" : "s"} with a reorder level are above it.`}
+          {/* THE LIST IS A WORKLIST AND IT IS CAPPED. The most urgent two
+              hundred come down; the rest arrive as these are dealt with. A
+              screen that drew 200 of 569 and said nothing would read as the
+              whole shop — which is the mistake the valuation report made. */}
+          {lowShown !== null && lowTotal !== null && lowShown < lowTotal && (
+            <>
+              {" "}
+              <span className="text-gray-400 dark:text-gray-500">
+                Showing the {lowShown.toLocaleString()} closest to running out, of {lowTotal.toLocaleString()}. Deal
+                with these and the next ones appear.
+              </span>
+            </>
+          )}
         </p>
       )}
 
