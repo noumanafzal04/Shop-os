@@ -7908,3 +7908,41 @@ being optimised — a shop imports a price list a few times a year.
 
 **Where the fixture stands: 9 shops · `loadtest:audit` 412 checks, all
 agreeing · EMPTY: nothing · 2,934 backend tests.**
+
+---
+
+## The admin plans model, closed
+
+All six gaps from the model checked on 2026-10-02 are now either built or
+stated. The first two were written up with the usage bands; these are the
+rest.
+
+**Capacity is a row.** `tenant_entitlements` — an add-on is capacity with a
+price, a temporary grant is capacity with an end date, a concession is
+capacity with neither. Added on top of the assigned limit, so a screen can
+say "assigned 10, plus 3 bought". Ending one ends it **today, inclusive**,
+and never deletes: a grant that has been billed cannot be made never to have
+existed.
+
+**The meter runs with the bill.** A shop that subscribed on the 12th now
+counts from the 12th, walked forward in whole billing periods. `addMonths`
+takes 31 January to 3 March, so it is `addMonthsNoOverflow` — otherwise a
+shop billed on the last day of the month resets on a creeping date for ever.
+
+**Retention is recorded and visible, and enforces nothing.** `plans
+.retention_months`, shown in the plan catalogue and on the shop's own page.
+Fencing the read is left as an explicit open decision, because a shop that
+cannot find last March does not think "my plan covers two years" — it thinks
+its records are lost.
+
+### What found the mistakes, again
+
+`ReachableTest` caught the entitlements work with a model, the arithmetic and
+twelve green tests and **no endpoint**. The panel's own
+`components/ui/confirm` guard caught a `window.prompt` I had reached for on
+the forecourt. And `npm run lint` caught a volume spec with one brace too
+many — which `tsc -b` could not, because **`panel/e2e/` was in no tsconfig at
+all**. That hole is closed with `tsconfig.e2e.json`; it is the same shape as
+the day `tsc --noEmit` passed a `step="any"` that `tsc -b` refused.
+
+**2,961 backend tests · 1,574 panel tests · 0 lint errors.**
