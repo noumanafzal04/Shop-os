@@ -83,6 +83,8 @@ class AuditLoadTestShops extends Command
             $this->thePointsBalance($shop);
             $this->theStandingOrdersRolled($shop);
             $this->everySerialIsOneUnit($shop);
+            $this->aVoidedSaleNeverHappened($shop);
+            $this->anExchangeIsNotARefund($shop);
 
             app(TenantContext::class)->clear();
         }
@@ -934,6 +936,143 @@ class AuditLoadTestShops extends Command
         }
     }
 
+    /**
+     * A VOIDED SALE NEVER HAPPENED, AND HAS TO LOOK LIKE IT.
+     *
+     * Three separate things must be true of a cancelled sale, and they fail
+     * in three different directions:
+     *
+     *   the STOCK went back        — or the shelf is short for ever
+     *   the KHATA charge reversed  — or a customer owes for a sale that
+     *                                never happened
+     *   it is OUT of every total   — or the day's takings include it
+     *
+     * And the rule the server enforces, stated here as an invariant: a sale
+     * with returns against it cannot also be voided. Cancel restores EVERY
+     * line, so the units and the money would both move twice.
+     */
+    private function aVoidedSaleNeverHappened(Tenant $shop): void
+    {
+        $cancelled = DB::table('sales')
+            ->where('tenant_id', $shop->id)
+            ->where('status', 'cancelled')
+            ->whereNull('deleted_at')
+            ->get();
+
+        if ($cancelled->isEmpty()) {
+            return;
+        }
+
+        $ids = $cancelled->pluck('id');
+
+        $alsoReturned = (int) DB::table('sale_returns')
+            ->where('tenant_id', $shop->id)
+            ->whereIn('sale_id', $ids)
+            ->count();
+
+        $this->holds(
+            'nothing was both refunded and voided',
+            $alsoReturned === 0,
+            $alsoReturned > 0 ? "{$alsoReturned} sales had it both ways" : $cancelled->count().' voided',
+        );
+
+        /**
+         * THE STOCK CAME BACK — and the restore is its OWN reference type.
+         *
+         * The first version of this check summed `reference_type = 'sale'`
+         * alone and reported 55 pairs "still out" on a healthy shop. The
+         * movement that puts the units back is written as
+         * `sale_cancellation` (and `sale_trade_in_reversal` for the scrap
+         * that came in as part payment), so the check was blind to exactly
+         * the half it existed to find. A detector that cannot see the
+         * remedy will always report the disease.
+         */
+        $net = DB::table('stock_movements')
+            ->where('tenant_id', $shop->id)
+            ->whereIn('reference_type', ['sale', 'sale_cancellation', 'sale_trade_in_reversal'])
+            ->whereIn('reference_id', $ids)
+            ->selectRaw('reference_id, product_id, SUM(quantity_change) AS net')
+            ->groupBy('reference_id', 'product_id')
+            ->get();
+
+        $stranded = $net->filter(fn ($r) => abs((float) $r->net) > 0.0001)->count();
+
+        $this->holds(
+            'a voided sale put every unit back',
+            $stranded === 0,
+            $stranded > 0 ? "{$stranded} product/sale pairs still out" : $net->count().' lines restored',
+        );
+
+        /**
+         * AND IT IS ON NOBODY'S BOOK — netted by TYPE, not by sign.
+         *
+         * `customer_ledger_entries.amount` is positive for a charge AND for
+         * the payment that cancels it; what it does to a balance is decided
+         * by `type`. Summing the column reported Rs 37,480 still owed on a
+         * shop that owed nothing — the second time in one day the same
+         * mistake was made on a different ledger, which is why it is written
+         * down here and not just fixed.
+         */
+        $entries = DB::table('customer_ledger_entries')
+            ->where('tenant_id', $shop->id)
+            ->whereIn('sale_id', $ids)
+            ->get(['type', 'amount']);
+
+        $stillOwed = (float) $entries->sum(
+            fn ($e) => ($e->type === 'charge' ? 1 : -1) * (float) $e->amount,
+        );
+
+        $this->same('a voided sale is on nobody’s khata', round($stillOwed, 2), 0.0);
+    }
+
+    /**
+     * AN EXCHANGE MOVES GOODS, NOT MONEY.
+     *
+     * The returned value funds the replacement, so the only cash that should
+     * cross the counter is the DIFFERENCE. The failure worth catching is a
+     * refund that paid out AND a replacement that was charged for: the
+     * customer walks away with the goods and the money.
+     */
+    private function anExchangeIsNotARefund(Tenant $shop): void
+    {
+        $credits = DB::table('sale_returns')
+            ->where('tenant_id', $shop->id)
+            ->where('refund_method', 'other')
+            ->get();
+
+        if ($credits->isEmpty()) {
+            return;
+        }
+
+        // A credit note is not a payout: it must never have been booked as
+        // cash leaving the drawer.
+        $paidOut = (int) DB::table('cash_movements')
+            ->where('tenant_id', $shop->id)
+            ->whereIn('source_id', $credits->pluck('id'))
+            ->count();
+
+        $this->holds(
+            'an exchange credit never left the drawer',
+            $paidOut === 0,
+            $paidOut > 0 ? "{$paidOut} credits paid out in cash" : $credits->count().' credits',
+        );
+
+        // Every credit funded a sale: there is a payment of method `other`
+        // for the same amount, which is the tender the exchange creates.
+        $funded = DB::table('sale_payments')
+            ->where('tenant_id', $shop->id)
+            ->where('method', 'other')
+            ->selectRaw('ROUND(SUM(amount), 2) AS total')
+            ->value('total');
+
+        $this->same(
+            'every exchange credit paid for something',
+            round((float) $credits->sum(fn ($c) => (float) $c->refund_total), 2),
+            round((float) $funded, 2),
+            0.05,
+        );
+    }
+
     private function whatIsStillEmpty(): void
     {
         $ids = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->pluck('id');
@@ -1429,13 +1568,45 @@ class AuditLoadTestShops extends Command
          */
         $earned = (int) DB::table('loyalty_entries')->where('tenant_id', $shop->id)
             ->where('type', 'earn')->sum('points');
+
+        /**
+         * INCLUDING THE VOIDED ONES, and that is the correction.
+         *
+         * This excluded cancelled sales and reported a 137-point gap on a
+         * healthy shop the first time anything was voided. A void does not
+         * delete the `earn` row — the ledger is append-only and the void
+         * APPENDS a `reverse_earn` — so the earn genuinely happened and the
+         * sale that caused it still says so in `points_earned`. Excluding
+         * the sale while keeping its ledger row compares two different
+         * populations.
+         *
+         * The reversal is checked on its own line below, which is where
+         * that question belongs.
+         */
         $onSales = (int) DB::table('sales')->where('tenant_id', $shop->id)
-            ->whereNull('deleted_at')->whereNotIn('status', ['cancelled'])->sum('points_earned');
+            ->whereNull('deleted_at')->sum('points_earned');
 
         $this->holds(
             'every point earned was earned on a sale that says so',
             $earned === $onSales,
             $earned === $onSales ? "{$earned} points" : "ledger {$earned}, sales {$onSales}",
         );
+
+        // A VOID GIVES THE POINTS BACK. Not "some reversal exists" — at
+        // least as many points clawed back as the voided sales handed out,
+        // or a customer keeps the reward for a sale that never happened.
+        $voidedPoints = (int) DB::table('sales')->where('tenant_id', $shop->id)
+            ->whereNull('deleted_at')->where('status', 'cancelled')->sum('points_earned');
+
+        if ($voidedPoints > 0) {
+            $clawed = (int) DB::table('loyalty_entries')->where('tenant_id', $shop->id)
+                ->where('type', 'reverse_earn')->sum('points');
+
+            $this->holds(
+                'a voided sale took its points back',
+                $clawed >= $voidedPoints,
+                "{$voidedPoints} voided, {$clawed} clawed back in all",
+            );
+        }
     }
 }

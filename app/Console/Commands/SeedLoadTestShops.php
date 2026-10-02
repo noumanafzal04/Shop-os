@@ -24,7 +24,9 @@ use App\Actions\Restaurant\AddTicketItemsAction;
 use App\Actions\Restaurant\FireKitchenTicketAction;
 use App\Actions\Restaurant\OpenTicketAction;
 use App\Actions\Restaurant\SettleTicketAction;
+use App\Actions\Sale\CancelSaleAction;
 use App\Actions\Sale\CreateSaleAction;
+use App\Actions\Sale\ProcessExchangeAction;
 use App\Actions\Sale\ProcessSaleReturnAction;
 use App\Actions\SaleDocument\ConvertSaleDocumentAction;
 use App\Actions\SaleDocument\CreateSaleDocumentAction;
@@ -313,7 +315,7 @@ class SeedLoadTestShops extends Command
         $this->priceLists($tenant, $productIds);
         $this->sales($tenant, $type, $owner, $branches, $productIds, $customers);
         $this->khata($tenant, $owner);
-        $this->afterTheSale($tenant, $owner, $branches);
+        $this->afterTheSale($tenant, $owner, $branches, $productIds);
         $this->theShelf($tenant, $owner, $branches, $productIds);
         // The forecourt owns the week BEFORE the till's, because one person
         // cannot hold two open shifts and the server is right to refuse it.
@@ -3148,7 +3150,7 @@ class SeedLoadTestShops extends Command
      *
      * @param  Branch[]  $branches
      */
-    private function afterTheSale(Tenant $tenant, User $owner, array $branches): void
+    private function afterTheSale(Tenant $tenant, User $owner, array $branches, array $productIds): void
     {
         $sales = Sale::withoutTenancy()
             ->where('tenant_id', $tenant->id)
@@ -3162,16 +3164,44 @@ class SeedLoadTestShops extends Command
 
         auth()->setUser($owner);
         $action = app(ProcessSaleReturnAction::class);
+        $swap = app(ProcessExchangeAction::class);
+        $void = app(CancelSaleAction::class);
         $done = 0;
+        $swapped = 0;
+        $voided = 0;
         $refunded = 0.0;
         /** @var array<string, int> $reasons */
         $reasons = [];
 
-        // Roughly one sale in twelve comes back, in whole or in part. A shop
-        // where everything is returned is as unrealistic as one where nothing
-        // is, and both hide different faults.
+        /**
+         * THREE DIFFERENT THINGS HAPPEN AFTER A SALE, AND ONLY ONE OF THEM
+         * WAS EVER SEEDED.
+         *
+         *   RETURN    money goes back out of the drawer
+         *   EXCHANGE  nothing goes back out: the credit funds a replacement,
+         *             and the customer pays or is owed only the difference
+         *   VOID      the sale never happened — every line restored, and the
+         *             server REFUSES it once anything has been returned,
+         *             because cancel restores all of them and the money and
+         *             the stock would both move twice
+         *
+         * One fate per sale, assigned here rather than by three independent
+         * modulos: a sale picked for both a return and a void would make the
+         * refusal above look like a product fault every twelfth time.
+         */
         foreach ($sales as $i => $sale) {
-            if ($i % 12 !== 0 || $sale->items->isEmpty()) {
+            if ($sale->items->isEmpty()) {
+                continue;
+            }
+
+            $fate = match (true) {
+                $i % 12 === 0 => 'return',
+                $i % 17 === 0 => 'exchange',
+                $i % 29 === 0 => 'void',
+                default => null,
+            };
+
+            if ($fate === null) {
                 continue;
             }
 
@@ -3179,12 +3209,56 @@ class SeedLoadTestShops extends Command
                 collect($branches)->firstWhere('id', $sale->branch_id) ?? $branches[0],
             );
 
+            if ($fate === 'void') {
+                // A VOID IS NOT A REFUND. The sale never happened: every line
+                // goes back on the shelf, the money is undone, and anything
+                // already returned makes it impossible — which the server
+                // says, and which this fixture must not provoke by accident.
+                try {
+                    $void->execute($sale, 'Rung in error', 'mis_keyed');
+                    $voided++;
+                } catch (\Throwable $e) {
+                    $reasons[$e->getMessage()] = ($reasons[$e->getMessage()] ?? 0) + 1;
+                }
+
+                continue;
+            }
+
             $line = $sale->items->random();
             $qty = (float) $line->quantity;
             // Half the returns are PARTIAL — the case the refund rounding rule
             // exists for, and the one a "return the whole sale" fixture never
             // reaches.
             $back = $i % 24 === 0 || $qty <= 1 ? $qty : max(1, floor($qty / 2));
+
+            if ($fate === 'exchange') {
+                // THE WRONG SIZE, SWAPPED FOR THE RIGHT ONE. The returned
+                // value funds the replacement; only the DIFFERENCE crosses
+                // the counter, in either direction. Nothing in this fixture
+                // had ever produced a sale paid for by a credit note.
+                $replacement = $productIds[array_rand($productIds)];
+
+                try {
+                    $swap->execute($sale, [
+                        'return_items' => [['sale_item_id' => $line->id, 'quantity' => $back]],
+                        'items' => [[
+                            'product_id' => $replacement['product_id'],
+                            'variant_id' => $replacement['variant_id'],
+                            'quantity' => 1,
+                        ]],
+                        // Whatever the replacement costs over the credit. A
+                        // generous tender, because the difference is the
+                        // server's answer and not the fixture's.
+                        'payments' => [['method' => 'cash', 'amount' => 500_000]],
+                        'reason' => 'Wrong size',
+                    ]);
+                    $swapped++;
+                } catch (\Throwable $e) {
+                    $reasons[$e->getMessage()] = ($reasons[$e->getMessage()] ?? 0) + 1;
+                }
+
+                continue;
+            }
 
             try {
                 $return = $action->execute($sale, [
@@ -3200,7 +3274,10 @@ class SeedLoadTestShops extends Command
 
         app(BranchContext::class)->set(null);
 
-        $this->line(sprintf('  returns    %d · %s refunded', $done, number_format($refunded, 2)));
+        $this->line(sprintf(
+            '  returns    %d · %s refunded · %d exchanged · %d voided',
+            $done, number_format($refunded, 2), $swapped, $voided,
+        ));
         arsort($reasons);
         foreach (array_slice($reasons, 0, 2, true) as $why => $n) {
             $this->line('             × '.$n.'  '.Str::limit($why, 90));
