@@ -7,6 +7,10 @@ use App\Actions\Inventory\RecordStockCountAction;
 use App\Actions\Inventory\StartStockCountAction;
 use App\Actions\Inventory\TransferStockAction;
 use App\Actions\Inventory\WriteOffStockAction;
+use App\Actions\Pos\CloseBusinessDayAction;
+use App\Actions\Pos\CloseCashSessionAction;
+use App\Actions\Pos\OpenCashSessionAction;
+use App\Actions\Pos\RecordCashMovementAction;
 use App\Actions\Purchase\CreatePurchaseOrderAction;
 use App\Actions\Purchase\ReceivePurchaseOrderAction;
 use App\Actions\Purchase\RecordSupplierPaymentAction;
@@ -17,6 +21,7 @@ use App\Models\Branch;
 use App\Models\City;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Register;
 use App\Models\Sale;
 use App\Models\StockCountItem;
 use App\Models\StockDisposal;
@@ -24,10 +29,13 @@ use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BranchContext;
+use App\Support\DrawerMath;
 use App\Support\Modules;
 use App\Support\Payable;
 use App\Support\StaffPresets;
 use App\Support\TenantContext;
+use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -236,6 +244,7 @@ class SeedLoadTestShops extends Command
         $this->khata($tenant, $owner);
         $this->afterTheSale($tenant, $owner, $branches);
         $this->theShelf($tenant, $owner, $branches, $productIds);
+        $this->theTill($tenant, $type, $owner, $branches, $productIds);
         $this->books($tenant, $owner, $branches);
 
         app(TenantContext::class)->clear();
@@ -905,6 +914,327 @@ class SeedLoadTestShops extends Command
      * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
      */
     /**
+     * WHAT A BASKET AT THIS SHOP HAS TO LOOK LIKE.
+     *
+     * Two callers ring sales — the ninety-day history and the seven days of
+     * real shifts — and the first version let the second write its own
+     * basket. It immediately produced 34 karahis with no spice level and a
+     * stack of "Minimum order quantity is 5.000" at the wholesaler: the same
+     * two rules, learned once and then not applied by the other caller.
+     *
+     * One place, so a rule the shop enforces cannot be obeyed by half the
+     * fixture.
+     *
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     * @param  array<string, array<string, string>>  $mustChoose
+     * @return array<int, array<string, mixed>>
+     */
+    private function basket(string $type, array $productIds, array $mustChoose, int $lines): array
+    {
+        $items = [];
+        foreach (range(1, $lines) as $_) {
+            $pick = $productIds[array_rand($productIds)];
+            $items[] = array_filter([
+                'product_id' => $pick['product_id'],
+                'variant_id' => $pick['variant_id'],
+                // A required modifier group refuses the line without one, and
+                // it is right to: nobody orders a karahi without saying how
+                // hot they want it.
+                'modifier_option_ids' => array_values($mustChoose[$pick['product_id']] ?? []) ?: null,
+                // A wholesale line under the minimum order quantity is
+                // refused, and it is right to: that is what a cash-and-carry
+                // IS.
+                'quantity' => $type === 'wholesale' ? random_int(5, 60) : random_int(1, 3),
+            ], fn ($v) => $v !== null);
+        }
+
+        return $items;
+    }
+
+    /**
+     * Which groups a dish cannot be ordered without, and which are optional.
+     *
+     * @return array{0: array<string, array<string, string>>, 1: array<string, array<string, string>>}
+     */
+    private function modifierRules(Tenant $tenant): array
+    {
+        $must = [];
+        $may = [];
+        foreach (
+            DB::table('modifier_groups as g')
+                ->join('modifier_options as o', 'o.modifier_group_id', '=', 'g.id')
+                ->where('g.tenant_id', $tenant->id)
+                ->where('o.is_active', true)
+                ->orderBy('o.sort_order')
+                ->get(['g.product_id', 'g.id as gid', 'g.min_select', 'o.id as oid']) as $row
+        ) {
+            // One option per GROUP, not per row — a single-select group handed
+            // three options is refused for choosing too many.
+            if ((int) $row->min_select > 0) {
+                $must[$row->product_id][$row->gid] ??= $row->oid;
+            } else {
+                $may[$row->product_id][$row->gid] ??= $row->oid;
+            }
+        }
+
+        return [$must, $may];
+    }
+
+    /**
+     * SEVEN DAYS BEHIND A REAL TILL.
+     *
+     * Every sale this command made was rung with no shift at all, so
+     * `cash_sessions` and `business_days` held nothing in any of the seven
+     * shops — and the drawer is where a shop finds out it is being robbed.
+     * `DrawerMath`, the close variance, the declared-tender comparison, the
+     * day roll-up and the banking slip had never once been computed over real
+     * trade.
+     *
+     * ── WHAT MAKES THIS WORTH THE ROWS ──────────────────────────────
+     *
+     * A drawer that always balances is a drawer nobody has tested. The close
+     * here counts SHORT on some shifts and OVER on others, by amounts a real
+     * till produces — a note miscounted, change given from a pocket — because
+     * the number that matters is the variance and a variance of zero proves
+     * only that the fixture copied the expectation into the answer.
+     *
+     * Cash movements too: petty cash out, khata collected in, a mid-shift
+     * drop to the safe. Each moves the expectation a different way, and the
+     * khata one is the daily reality that used to produce a phantom overage.
+     *
+     * @param  Branch[]  $branches
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     */
+    private function theTill(Tenant $tenant, string $type, User $owner, array $branches, array $productIds): void
+    {
+        if (($tenant->features['pos'] ?? false) !== true || $productIds === []) {
+            return;
+        }
+
+        auth()->setUser($owner);
+        $sale = app(CreateSaleAction::class);
+        $open = app(OpenCashSessionAction::class);
+        $close = app(CloseCashSessionAction::class);
+        $movement = app(RecordCashMovementAction::class);
+        $day = app(CloseBusinessDayAction::class);
+        [$mustChoose] = $this->modifierRules($tenant);
+
+        $shifts = 0;
+        $rung = 0;
+        $short = 0;
+        $over = 0;
+        $exact = 0;
+        /** @var array<string, int> $why */
+        $why = [];
+
+        foreach ($branches as $b => $branch) {
+            app(BranchContext::class)->set($branch);
+
+            $lane = Register::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'branch_id' => $branch->id,
+                'name' => 'Lane 1',
+                'code' => 'L1',
+                'is_active' => true,
+            ]);
+
+            /**
+             * SEVEN DAYS BEHIND, AND TODAY STILL RUNNING.
+             *
+             * `$d` reaches 0, and the last pass is deliberately NOT closed:
+             * a shop is trading right now, and the Day & Banking screen opens
+             * on its "Today" tab. Seeding only finished days left that tab —
+             * the one a shopkeeper actually looks at — empty in a world of
+             * ninety-one shifts, which a browser walk reported as a bug and
+             * was simply a world where nobody had come in yet.
+             *
+             * An open shift under an open day is also the state the roll-up
+             * refuses to close over, so the rule has something real to refuse.
+             */
+            for ($d = 7; $d >= 0; $d--) {
+                // ONE OPEN SHIFT PER PERSON — the server says so
+                // (SHIFT_ALREADY_OPEN), and it is right: a cashier cannot be
+                // at two tills. So today is left running on the LAST branch
+                // only; leaving it open on the first refused every shift of
+                // every branch after it.
+                $stillTrading = $d === 0 && $branch->is(end($branches));
+
+                /**
+                 * MOVE THE CLOCK, DO NOT BACKFILL THE ROWS.
+                 *
+                 * The first version opened a backdated day by hand and then
+                 * opened a shift — and `OpenCashSessionAction` opens the day
+                 * for ITSELF, on demand, with today's date, because "making
+                 * the owner remember to start the day would strand a shop at
+                 * 7am". So the shift joined today and the backdated day stood
+                 * empty with a bank deposit hanging off it. The audit called
+                 * it correctly: money banked on a day with no drawer.
+                 *
+                 * Travelling the clock makes every row downstream — the day,
+                 * the shift, the sale, the movement, the slip — agree without
+                 * a single `forceFill` after the fact, which is also the only
+                 * way the arithmetic between them stays the product's and not
+                 * the fixture's.
+                 */
+                $date = now()->subDays($d)->setTime(9, 0);
+                if (! $stillTrading) {
+                    CarbonImmutable::setTestNow($date);
+                    Carbon::setTestNow($date);
+                }
+
+                try {
+                    $book = $day->open($owner, $branch->id);
+                    $session = $open->execute($owner, 10000, $lane);
+                } catch (\Throwable $e) {
+                    Carbon::setTestNow();
+                    CarbonImmutable::setTestNow();
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+
+                    continue;
+                }
+
+                // The sales of that day, rung INTO this drawer.
+                $tookInCash = 0.0;
+                foreach (range(1, random_int(8, 14)) as $k) {
+                    $items = $this->basket($type, $productIds, $mustChoose, random_int(1, 3));
+
+                    // Cash two times in three — the mix is what makes the
+                    // declared-tender comparison mean anything. A card is
+                    // charged the BILL: only cash can give change back, and
+                    // the server refuses anything else (CHANGE_WITHOUT_CASH).
+                    $method = $type === 'wholesale'
+                        ? ($k % 3 === 0 ? 'cash' : ['card', 'bank_transfer'][$k % 2])
+                        : ($k % 3 === 0 ? ['card', 'wallet'][$k % 2] : 'cash');
+                    $line = [
+                        'branch_id' => $branch->id,
+                        'channel' => 'walk_in',
+                        'items' => $items,
+                        'cash_session_id' => $session->id,
+                        'created_by' => $owner->id,
+                    ];
+
+                    try {
+                        if ($method !== 'cash') {
+                            $due = $this->priceIt($sale, $line);
+                            if ($due === null) {
+                                throw new \RuntimeException('could not price the basket');
+                            }
+                        }
+
+                        $s = $sale->execute($line + [
+                            'payment_method' => $method,
+                            'amount_paid' => $method === 'cash' ? 250_000 : $due,
+                        ]);
+                        if ($method === 'cash') {
+                            // What actually stayed in the drawer: the bill,
+                            // less the change handed back.
+                            $tookInCash += round((float) $s->total, 2);
+                        }
+                        $rung++;
+                    } catch (\Throwable $e) {
+                        $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                    }
+                }
+
+                // Three movements that each push the expectation a different way.
+                foreach ([
+                    ['type' => 'paid_out', 'amount' => random_int(200, 1500), 'reason' => 'Tea and lunch'],
+                    ['type' => 'khata_in', 'amount' => random_int(500, 4000), 'reason' => 'Khata collected at the counter'],
+                    ['type' => 'drop', 'amount' => random_int(2000, 8000), 'reason' => 'Dropped to the safe'],
+                ] as $m) {
+                    try {
+                        $movement->execute($owner, $m, $session, false);
+                    } catch (\Throwable $e) {
+                        $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                    }
+                }
+
+                // THE COUNT. Four closes in five land on the money; the fifth
+                // is out, in both directions, by the kind of amount a real
+                // till is out by.
+                if ($stillTrading) {
+                    // Left open on purpose. No count, no close, no banking —
+                    // the cashier is still standing there.
+                    $shifts++;
+
+                    continue;
+                }
+
+                $expected = (float) DrawerMath::for($session->fresh())['expected_cash'];
+                $slip = $d % 5;
+                $counted = match ($slip) {
+                    0 => round($expected - random_int(50, 400), 2),
+                    3 => round($expected + random_int(20, 200), 2),
+                    default => $expected,
+                };
+                $slip === 0 ? $short++ : ($slip === 3 ? $over++ : $exact++);
+
+                try {
+                    $closed = $close->execute($session->fresh(), $counted, 'End of day', $owner->id, [
+                        // What the cashier says the card terminal took. Equal
+                        // to the real figure here: a declared-tender variance
+                        // is a separate fault and seeding one by accident
+                        // would make the real ones unfindable.
+                        'declared_tenders' => DrawerMath::for($session->fresh())['tender_mix'],
+                    ]);
+
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                    Carbon::setTestNow();
+                    CarbonImmutable::setTestNow();
+
+                    continue;
+                }
+
+                // Most of the cash goes to the bank; the float stays.
+                $banked = max(0, round($counted - 10000, 2));
+                if ($banked > 0) {
+                    DB::table('bank_deposits')->insert([
+                        'id' => (string) Str::uuid7(),
+                        'tenant_id' => $tenant->id,
+                        'branch_id' => $branch->id,
+                        'business_day_id' => $book->id,
+                        'amount' => $banked,
+                        'bank_name' => ['HBL', 'Meezan', 'UBL'][$d % 3],
+                        'account_label' => 'Current',
+                        'slip_number' => 'DEP-'.$date->format('ymd').'-'.($b + 1),
+                        'deposited_at' => $date->copy()->setTime(21, 30),
+                        'deposited_by' => $owner->id,
+                        'created_by' => $owner->id,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+
+                try {
+                    $day->close($owner, $book->fresh(), 'Closed off');
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+
+                Carbon::setTestNow();
+                CarbonImmutable::setTestNow();
+                $shifts++;
+            }
+        }
+
+        app(BranchContext::class)->set(null);
+        // Belt and braces: a throw anywhere above must not leave the rest of
+        // the seed running in last Tuesday.
+        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
+
+        $this->line(sprintf(
+            '  the till   %d shifts · %d sales rung in · %d counted short, %d over, %d on the money',
+            $shifts, $rung, $short, $over, $exact,
+        ));
+        arsort($why);
+        foreach (array_slice($why, 0, 3, true) as $message => $n) {
+            $this->line('             × '.$n.'  '.Str::limit($message, 80));
+        }
+    }
+
+    /**
      * THE FOUR TABLES THE AUDIT KEPT REPORTING EMPTY.
      *
      * Customer groups, pack units, extra barcodes and tax groups. Every one
@@ -1539,40 +1869,10 @@ class SeedLoadTestShops extends Command
             ->pluck('id', 'product_id')
             ->all();
 
-        /**
-         * WHAT A DISH CANNOT BE ORDERED WITHOUT.
-         *
-         * "Spice level" is min_select 1, so a karahi rung without one is
-         * refused — correctly, and 82 of the restaurant's 300 sales were. The
-         * rule was working; the seeder was ordering food the way nobody
-         * orders food. Worse, it meant NOT ONE sale in any shop ever carried
-         * a modifier, so the resolver's pricing was never exercised at volume
-         * by anything.
-         *
-         * Required groups get an option each; optional ones get one on every
-         * third dish, which is roughly how often somebody asks for extra
-         * cheese.
-         *
-         * @var array<string, array<int, string>> $mustChoose
-         */
-        $mustChoose = [];
-        $mayChoose = [];
-        foreach (
-            DB::table('modifier_groups as g')
-                ->join('modifier_options as o', 'o.modifier_group_id', '=', 'g.id')
-                ->where('g.tenant_id', $tenant->id)
-                ->where('o.is_active', true)
-                ->orderBy('o.sort_order')
-                ->get(['g.product_id', 'g.id as gid', 'g.min_select', 'o.id as oid']) as $row
-        ) {
-            // One option per GROUP, not per row — a single-select group handed
-            // three options is refused for choosing too many.
-            if ((int) $row->min_select > 0) {
-                $mustChoose[$row->product_id][$row->gid] ??= $row->oid;
-            } else {
-                $mayChoose[$row->product_id][$row->gid] ??= $row->oid;
-            }
-        }
+        // "Spice level" is min_select 1, so a karahi rung without one is
+        // refused — correctly, and 82 of the restaurant's 300 sales were.
+        // Both sale loops read the same rule now; see modifierRules().
+        [$mustChoose, $mayChoose] = $this->modifierRules($tenant);
         $skipped = 0;
         /** @var array<string, int> $reasons */
         $reasons = [];
@@ -1593,36 +1893,28 @@ class SeedLoadTestShops extends Command
              * could not be asked what branch two took.
              */
             app(BranchContext::class)->set($branch);
-            $items = [];
-            foreach (range(1, random_int(1, 5)) as $n) {
-                $pick = $productIds[array_rand($productIds)];
-                $chosen = array_values($mustChoose[$pick['product_id']] ?? []);
-                if ($n % 3 === 0) {
-                    $chosen = array_merge($chosen, array_values($mayChoose[$pick['product_id']] ?? []));
-                }
-
+            $items = $this->basket($type, $productIds, $mustChoose, random_int(1, 5));
+            foreach ($items as $n => $line) {
                 // HALF of what CAN be bought by the pack, is.
                 //
-                // Keyed on the basket, not on the line index: `$n` runs 1..5
-                // inside a basket, so a condition on it fired on a fifth of
-                // baskets and then only when that line happened to land on
-                // one of the 1-in-5 products with a pack — seven pack lines
-                // in three hundred sales, which is a path walked rather than
-                // a path tested.
-                $byThePack = $pick['variant_id'] === null
-                    && $i % 2 === 0
-                    && isset($packOf[$pick['product_id']]);
+                // Keyed on the BASKET, not on the line index: a condition on
+                // the line index fired on a fifth of baskets and then only
+                // when that line landed on one of the 1-in-5 products with a
+                // pack — seven pack lines in three hundred sales, which is a
+                // path walked rather than a path tested.
+                if (! isset($line['variant_id']) && $i % 2 === 0 && isset($packOf[$line['product_id']])) {
+                    $items[$n]['product_unit_id'] = $packOf[$line['product_id']];
+                }
 
-                $items[] = array_filter([
-                    'product_id' => $pick['product_id'],
-                    'variant_id' => $pick['variant_id'],
-                    'product_unit_id' => $byThePack ? $packOf[$pick['product_id']] : null,
-                    'modifier_option_ids' => $chosen === [] ? null : $chosen,
-                    // A wholesale basket is not a shopper's basket. Buying in
-                    // ones here would also trip every line that carries a
-                    // minimum order quantity.
-                    'quantity' => $type === 'wholesale' ? random_int(5, 60) : random_int(1, 3),
-                ], fn ($v) => $v !== null);
+                // An optional add-on on every third line — extra cheese is
+                // asked for about that often, and it is the only thing that
+                // exercises a modifier carrying a PRICE.
+                if ($n % 3 === 0 && isset($mayChoose[$line['product_id']])) {
+                    $items[$n]['modifier_option_ids'] = array_merge(
+                        $line['modifier_option_ids'] ?? [],
+                        array_values($mayChoose[$line['product_id']]),
+                    );
+                }
             }
 
             /**
@@ -1705,10 +1997,48 @@ class SeedLoadTestShops extends Command
                             : [['method' => 'credit', 'amount' => $due]],
                     ];
                 } else {
-                    $payload = $base + [
-                        'payment_method' => ['cash', 'card', 'wallet', 'bank_transfer'][$i % 4],
-                        'amount_paid' => 1_000_000,
-                    ];
+                    /**
+                     * A CARD IS CHARGED THE BILL; ONLY CASH GIVES CHANGE.
+                     *
+                     * This handed over 1,000,000 whatever the tender was, so
+                     * every card sale recorded nine hundred thousand rupees
+                     * of change — and `DrawerMath` takes change off the cash
+                     * it took, which is how ninety-one shifts ended up with
+                     * an average `cash_sales` of MINUS 2.78 million. The
+                     * server refuses that now (CHANGE_WITHOUT_CASH); the
+                     * seeder has to tender like a counter.
+                     *
+                     * Cash gets a round note above the bill, which is what a
+                     * customer hands over and the only thing that exercises
+                     * change at all. Three in four, because that is what a
+                     * shop in this market takes.
+                     */
+                    // A MANDI TRADER DOES NOT PAY IN NOTES. A wholesale
+                    // basket runs to two hundred thousand rupees, and the
+                    // fifty-thousand note below was refused for being less
+                    // than the total — correctly. Flip the mix there: three
+                    // in four go by bank, which is how that trade settles.
+                    $byCard = $type === 'wholesale' ? $i % 4 !== 0 : $i % 4 === 0;
+                    if ($byCard) {
+                        $due = $this->priceIt($action, $base);
+                        if ($due === null) {
+                            throw new \RuntimeException('could not price the basket');
+                        }
+                        $payload = $base + [
+                            'payment_method' => ['card', 'wallet', 'bank_transfer'][$i % 3],
+                            'amount_paid' => $due,
+                        ];
+                    } else {
+                        $payload = $base + [
+                            'payment_method' => 'cash',
+                            // Big enough to cover any basket this fixture
+                            // builds. The size does not distort the drawer —
+                            // `cash_sales` is tendered MINUS change, so it
+                            // lands on the bill whatever note was handed over
+                            // — it only has to be enough not to be refused.
+                            'amount_paid' => 250_000,
+                        ];
+                    }
                 }
 
                 $sale = $action->execute($payload);

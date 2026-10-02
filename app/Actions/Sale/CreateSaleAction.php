@@ -956,6 +956,65 @@ class CreateSaleAction
                     );
                 }
 
+                /**
+                 * CHANGE COMES OUT OF CASH, BECAUSE THERE IS NOWHERE ELSE.
+                 *
+                 * `change_due` is `amount_paid - due`, whatever the money
+                 * arrived as — so a sale tendered on a CARD for more than the
+                 * bill recorded change, and the cashier is told to hand back
+                 * real rupees against a card charged the exact amount.
+                 *
+                 * The product already believed this rule. The khata path has
+                 * carried it, and the reasoning, since it was written: "a
+                 * fat-fingered credit amount turns the POS into a cash
+                 * dispenser." Every word is true of a card. It was applied to
+                 * one tender type.
+                 *
+                 * And it is not only the receipt. `DrawerMath` subtracts
+                 * `change_due` across every sale in the shift from the cash it
+                 * took, so change recorded against a sale that tendered no
+                 * cash comes straight off the drawer's expectation and the
+                 * cashier is asked to explain a shortage that never happened.
+                 *
+                 * Counter only. A trusted replay — an online order, a
+                 * reservation, a settled tab — was already paid somewhere
+                 * else, and re-deciding its change here would refuse money
+                 * that has long since changed hands.
+                 */
+                $onKhata = ! empty($payments) && collect($payments)
+                    ->contains(fn ($t) => ($t['method'] ?? null) === PaymentMethod::Credit->value);
+
+                /**
+                 * …EXCEPT WHERE THE KHATA ALREADY SAYS SO, BETTER.
+                 *
+                 * A credit sale overpaid is the same fault and it already has
+                 * its own refusal, CREDIT_EXCEEDS_DUE, which names the khata
+                 * and the amount. Letting the general rule fire first replaced
+                 * a sentence a cashier can act on with one that does not
+                 * mention the book at all. Two guards over one shape: the
+                 * specific one speaks.
+                 */
+                if (! $trusted && ! $onKhata && $paymentMethod !== PaymentMethod::Credit->value) {
+                    $cashIn = ! empty($payments)
+                        ? round((float) array_sum(array_map(
+                            fn ($t) => ($t['method'] ?? null) === PaymentMethod::Cash->value ? (float) $t['amount'] : 0.0,
+                            $payments,
+                        )), 2)
+                        : ($paymentMethod === PaymentMethod::Cash->value ? $amountPaid : 0.0);
+
+                    $change = round($amountPaid - $due, 2);
+
+                    if ($change > 0.001 && $change > $cashIn + 0.001) {
+                        throw DomainException::unprocessable(
+                            $cashIn <= 0
+                                ? 'No cash was handed over, so there is no change to give — charge the bill, not more.'
+                                : 'Change cannot be more than the cash handed over ('
+                                    .number_format($cashIn, 2).').',
+                            'CHANGE_WITHOUT_CASH',
+                        );
+                    }
+                }
+
                 // ── Gap-free invoice number (locked counter row) ─────────
                 // Practice takes its numbers from a separate sequence. The real
                 // one is gap-free on purpose — a tax authority reads a hole in

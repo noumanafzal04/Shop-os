@@ -36,7 +36,23 @@ class StockReportService
      *
      * @return array<string, mixed>
      */
-    public function valuation(string $tenantId, ?string $branchId = null): array
+    /**
+     * HOW MANY LINES A SCREEN IS SENT.
+     *
+     * The totals and the category split are computed over EVERYTHING and
+     * always will be — a valuation that misses a shelf is worse than a slow
+     * one. What was being shipped as well was every line: 6,000 of them,
+     * **1.14 MB in one response** on a load-test grocery, to a screen that
+     * renders the first hundred and throws the rest away.
+     *
+     * On a shop's phone that is the difference between a report and a hang,
+     * and it grows with the catalogue. The CSV export calls the same service
+     * and passes null, because the whole list is exactly what an export is
+     * for.
+     */
+    public const SCREEN_LINES = 200;
+
+    public function valuation(string $tenantId, ?string $branchId = null, ?int $limit = self::SCREEN_LINES): array
     {
         $rows = $this->onHand($tenantId, $branchId);
 
@@ -74,11 +90,13 @@ class StockReportService
         }
 
         $items = $this->valuedItems($rows);
+        $lines = count($items);
+        $shown = $limit === null ? $items : array_slice($items, 0, $limit);
 
         return [
             'branch_scope' => $branchId,
             'totals' => [
-                'lines' => count($items),
+                'lines' => $lines,
                 'units' => round($units, 3),
                 'cost_value' => round($costValue, 2),
                 'retail_value' => round($retailValue, 2),
@@ -100,7 +118,12 @@ class StockReportService
                 ->sortByDesc('cost_value')
                 ->values()
                 ->all(),
-            'items' => $items,
+            // Said out loud rather than silently truncated: a list that stops
+            // at two hundred and does not say so is a list a shopkeeper
+            // believes is the whole shelf.
+            'items' => $shown,
+            'items_shown' => count($shown),
+            'items_total' => $lines,
         ];
     }
 
@@ -114,7 +137,7 @@ class StockReportService
      *
      * @return array<string, mixed>
      */
-    public function deadStock(string $tenantId, ?string $branchId, int $days = 90): array
+    public function deadStock(string $tenantId, ?string $branchId, int $days = 90, ?int $limit = self::SCREEN_LINES): array
     {
         $cutoff = now()->subDays($days);
 
@@ -169,18 +192,26 @@ class StockReportService
             ];
         }
 
+        // Sorted by VALUE before the cap, so the two hundred lines a screen
+        // is sent are the two hundred worth the most — the shelf holding
+        // Rs 80,000 of unsold stock, not whichever rows the query returned
+        // first.
         usort($items, fn (array $a, array $b): int => $b['value'] <=> $a['value']);
+        $lines = count($items);
+        $shown = $limit === null ? $items : array_slice($items, 0, $limit);
 
         return [
             'branch_scope' => $branchId,
             'days' => $days,
             'totals' => [
-                'lines' => count($items),
+                'lines' => $lines,
                 'units' => round($units, 3),
                 'value' => round($value, 2),
                 'never_sold' => count(array_filter($items, fn (array $i): bool => $i['last_sold_at'] === null)),
             ],
-            'items' => $items,
+            'items' => $shown,
+            'items_shown' => count($shown),
+            'items_total' => $lines,
         ];
     }
 

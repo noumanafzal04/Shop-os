@@ -239,7 +239,10 @@ class ReportController extends Controller
 
     public function exportValuation(StockReportService $stock, TenantContext $context, BranchContext $branch): StreamedResponse
     {
-        $report = $stock->valuation($context->id(), $branch->scopeId());
+        // NULL, not the screen's cap. The whole list is what an export IS,
+        // and the screen's two hundred lines are the reason this one has to
+        // say so out loud.
+        $report = $stock->valuation($context->id(), $branch->scopeId(), limit: null);
 
         return CsvExport::stream(
             'stock-valuation-'.now()->toDateString().'.csv',
@@ -257,7 +260,8 @@ class ReportController extends Controller
         BranchContext $branch,
     ): StreamedResponse {
         $days = (int) $request->query('days', 90);
-        $report = $stock->deadStock($context->id(), $branch->scopeId(), $days);
+        // NULL — see exportValuation.
+        $report = $stock->deadStock($context->id(), $branch->scopeId(), $days, limit: null);
 
         return CsvExport::stream(
             "dead-stock-{$days}days-".now()->toDateString().'.csv',

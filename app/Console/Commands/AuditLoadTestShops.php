@@ -74,6 +74,8 @@ class AuditLoadTestShops extends Command
             $this->pointsMatchTheSales($shop);
             $this->theTaxOnEveryLine($shop);
             $this->aPackIsManyOfSomething($shop);
+            $this->theDrawerAddsUp($shop);
+            $this->theDayIsTheSumOfItsShifts($shop);
 
             app(TenantContext::class)->clear();
         }
@@ -220,6 +222,179 @@ class AuditLoadTestShops extends Command
     }
 
     /**
+     * THE DRAWER ADDS UP.
+     *
+     * The close figures are FROZEN on purpose — a variance somebody accepted
+     * must not quietly change — which is exactly why they have to be checked
+     * against the rows that produced them. A frozen wrong number is wrong for
+     * ever and nothing recomputes it.
+     *
+     *   expected = float + cash sales + cash in − cash out
+     *   variance = counted − expected
+     *
+     * And `cash_sales` itself, rebuilt from the tenders: cash taken, less
+     * change handed back, less cash refunded. A khata tender is not cash and
+     * must not appear here — the drawer is physical.
+     */
+    private function theDrawerAddsUp(Tenant $shop): void
+    {
+        $sessions = DB::table('cash_sessions')
+            ->where('tenant_id', $shop->id)
+            ->where('status', 'closed')
+            ->get();
+
+        if ($sessions->isEmpty()) {
+            return;
+        }
+
+        $badExpectation = $sessions->filter(fn ($s) => abs(round(
+            (float) $s->opening_float + (float) $s->cash_sales + (float) $s->cash_in
+            - (float) $s->cash_out - (float) $s->expected_cash,
+            2,
+        )) > 0.01);
+
+        $this->holds(
+            'every drawer’s expectation is its own arithmetic',
+            $badExpectation->isEmpty(),
+            $badExpectation->isEmpty()
+                ? $sessions->count().' shifts'
+                : $badExpectation->count().' of '.$sessions->count(),
+        );
+
+        $badVariance = $sessions->filter(fn ($s) => abs(round(
+            (float) $s->counted_cash - (float) $s->expected_cash - (float) $s->variance, 2,
+        )) > 0.01);
+
+        $this->holds(
+            'every variance is counted minus expected',
+            $badVariance->isEmpty(),
+            $badVariance->isEmpty() ? '' : $badVariance->count().' of '.$sessions->count(),
+        );
+
+        // THE DENOMINATOR. A fixture where every drawer balances proves only
+        // that the expectation was copied into the count. The variance is the
+        // number a shop acts on, and it has to be able to be non-zero.
+        $moved = $sessions->filter(fn ($s) => abs((float) $s->variance) > 0.01);
+        $this->holds(
+            'some drawers did not balance, as real ones do not',
+            $moved->isNotEmpty(),
+            $moved->count().' of '.$sessions->count().' out, worst '
+                .number_format((float) $sessions->map(fn ($s) => abs((float) $s->variance))->max(), 2),
+        );
+
+        // Cash sales, rebuilt from the tenders rather than read back.
+        $wrong = [];
+        foreach ($sessions as $session) {
+            $tendered = (float) DB::table('sale_payments as p')
+                ->join('sales as s', 's.id', '=', 'p.sale_id')
+                ->where('s.cash_session_id', $session->id)
+                ->whereIn('s.status', ['completed', 'partially_refunded', 'refunded'])
+                ->where('p.method', 'cash')
+                ->sum('p.amount');
+
+            $change = (float) DB::table('sales')
+                ->where('cash_session_id', $session->id)
+                ->whereIn('status', ['completed', 'partially_refunded', 'refunded'])
+                ->sum('change_due');
+
+            $refunds = (float) DB::table('sale_returns')
+                ->where('cash_session_id', $session->id)
+                ->where('refund_method', 'cash')
+                ->sum(DB::raw('refund_total - refund_credit - refund_trade_in'));
+
+            if (abs(round($tendered - $change - $refunds - (float) $session->cash_sales, 2)) > 0.01) {
+                $wrong[] = substr((string) $session->id, 0, 8);
+            }
+        }
+
+        $this->holds(
+            'the cash a shift banked is the cash it took',
+            $wrong === [],
+            $wrong === [] ? '' : count($wrong).' of '.$sessions->count().', e.g. '.$wrong[0],
+        );
+
+        // A khata tender is a promise, not a note in the drawer — and the
+        // check above already proves it, because it rebuilds `cash_sales`
+        // from CASH tenders only. The first version of this file said so
+        // again in a `holds(..., true, ...)`, which is a line that cannot
+        // fail: an assertion on an envelope, wearing the words of a rule.
+    }
+
+    /**
+     * A DAY IS THE SUM OF ITS SHIFTS.
+     *
+     * The day roll-up is written once from the shifts' frozen figures and
+     * never recomputed — "a day signed off in March reads the same in
+     * September". Which means a day that summed wrong is wrong for ever, and
+     * only a second, independent sum can say so.
+     */
+    private function theDayIsTheSumOfItsShifts(Tenant $shop): void
+    {
+        $days = DB::table('business_days')
+            ->where('tenant_id', $shop->id)
+            ->where('status', 'closed')
+            ->get();
+
+        if ($days->isEmpty()) {
+            return;
+        }
+
+        $wrong = [];
+        foreach ($days as $day) {
+            $shifts = DB::table('cash_sessions')->where('business_day_id', $day->id)->get();
+
+            $mismatch = (int) $day->shifts_count !== $shifts->count()
+                || abs(round((float) $day->cash_sales - (float) $shifts->sum(fn ($s) => (float) $s->cash_sales), 2)) > 0.01
+                || abs(round((float) $day->opening_float - (float) $shifts->sum(fn ($s) => (float) $s->opening_float), 2)) > 0.01;
+
+            if ($mismatch) {
+                $wrong[] = (string) $day->trading_date;
+            }
+        }
+
+        $this->holds(
+            'every closed day is the sum of its own shifts',
+            $wrong === [],
+            $wrong === [] ? $days->count().' days' : count($wrong).' of '.$days->count().', e.g. '.$wrong[0],
+        );
+
+        // A day cannot close over an open shift — its totals would silently
+        // miss a whole drawer, and it is the drawer somebody is still selling
+        // from.
+        $closedOverOpen = (int) DB::table('business_days as d')
+            ->join('cash_sessions as s', 's.business_day_id', '=', 'd.id')
+            ->where('d.tenant_id', $shop->id)
+            ->where('d.status', 'closed')
+            ->where('s.status', 'open')
+            ->count();
+
+        $this->holds(
+            'no day was closed over a shift still running',
+            $closedOverOpen === 0,
+            $closedOverOpen > 0 ? "{$closedOverOpen} open shifts under a closed day" : '',
+        );
+
+        // Nothing was banked that was never counted.
+        $overBanked = [];
+        foreach ($days as $day) {
+            $banked = (float) DB::table('bank_deposits')
+                ->where('business_day_id', $day->id)->whereNull('deleted_at')->sum('amount');
+            $counted = (float) DB::table('cash_sessions')
+                ->where('business_day_id', $day->id)->sum('counted_cash');
+
+            if ($banked > $counted + 0.01) {
+                $overBanked[] = (string) $day->trading_date;
+            }
+        }
+
+        $this->holds(
+            'nothing went to the bank that was never in the drawer',
+            $overBanked === [],
+            $overBanked === [] ? '' : count($overBanked).' days',
+        );
+    }
+
+    /**
      * WHICH MODULES STILL HAVE NO ROWS ANYWHERE.
      *
      * Not a failure — plenty of these belong to one trade and the load-test
@@ -238,6 +413,7 @@ class AuditLoadTestShops extends Command
         $ids = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->pluck('id');
 
         $tables = [
+            'cash_sessions', 'business_days', 'cash_movements', 'bank_deposits', 'registers',
             'customers', 'customer_ledger_entries', 'customer_groups',
             'sale_returns', 'sale_return_items',
             'stock_counts', 'stock_count_items', 'stock_transfers', 'stock_disposals',
