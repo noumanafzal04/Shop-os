@@ -75,6 +75,50 @@ function OfflineSellingCard({ tenant }: { tenant: Tenant }) {
   const toast = useToast();
   const granted = (tenant.limits?.offline_selling ?? 0) === 1;
 
+  /**
+   * HOW LONG BLIND IS TOO LONG — the second decision, which no screen could
+   * reach either.
+   *
+   * `offline_days` has been in PlanLimits as long as `offline_selling` has,
+   * and the limits modal beside this card lists only COUNTABLE ceilings —
+   * products, storage, branches, staff, lanes. A policy measured in days is
+   * not one of those, so it fell through the same crack its neighbour did.
+   * The only way to give a shop a seven-day or a thirty-day window was to
+   * hand-write an HTTP request. That is the eighth time this console has had
+   * a setting the server obeys and nobody can press.
+   *
+   * WHAT IT DOES, precisely, because the name invites the wrong guess:
+   *
+   *   it does NOT expire the cached catalogue — that never expires
+   *   it does NOT stop the till selling
+   *   it does NOT stop anything syncing — a sale rung forty days ago still
+   *     lands, and the queue has no expiry at all
+   *
+   * It MARKS. Past this many days since the till went dark, a sale arrives
+   * flagged, and Reports → Offline can show the owner which sales were rung
+   * on a catalogue nobody had updated. Three is a starting point, not a
+   * ceiling: a shop that loses its line for a week should raise it, or every
+   * sale after Wednesday is flagged and the report stops being read.
+   */
+  const windowDays = tenant.limits?.offline_days ?? 3;
+  const [days, setDays] = useState(String(windowDays));
+
+  const saveWindow = () => {
+    const n = Number(days);
+    if (!Number.isInteger(n) || n < 1) {
+      toast.error("The window is a whole number of days, at least one.");
+
+      return;
+    }
+    extend.mutate(
+      { id: tenant.id, limits: { offline_days: n }, mode: "set" },
+      {
+        onSuccess: () => toast.success(`Sales are flagged after ${n} day${n === 1 ? "" : "s"} offline.`),
+        onError: (e) => toast.error(e instanceof Error ? e.message : "That could not be changed."),
+      },
+    );
+  };
+
   const set = (on: boolean) =>
     extend.mutate(
       { id: tenant.id, limits: { offline_selling: on ? 1 : null }, mode: "set" },
@@ -117,10 +161,40 @@ function OfflineSellingCard({ tenant }: { tenant: Tenant }) {
         )}
       </div>
 
+      {granted && (
+        <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+          <Label>Flag sales after</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="number"
+              min="1"
+              value={days}
+              onChange={(e) => setDays(e.target.value)}
+              className="max-w-[7rem]"
+            />
+            <span className="text-theme-sm text-gray-500 dark:text-gray-400">days offline</span>
+            <Button size="sm" variant="outline" disabled={extend.isPending} onClick={saveWindow}>
+              Save
+            </Button>
+          </div>
+          <p className="mt-2 max-w-xl text-theme-xs text-gray-500 dark:text-gray-400">
+            This only MARKS. It does not stop the till selling, it does not expire
+            the cached catalogue, and it never stops a sale syncing — a sale rung
+            forty days ago still lands. Past this many days since the line
+            dropped, a sale arrives flagged so Reports → Offline can show which
+            ones were rung on a catalogue nobody had updated.
+          </p>
+          <p className="mt-1 text-theme-xs text-gray-400">
+            Raise it for a shop whose line goes for a week: if everything is
+            flagged, nothing is.
+          </p>
+        </div>
+      )}
+
       <p className="mt-3 text-theme-xs text-gray-400">
         Everything else about offline needs no setup: a till registers itself,
         caches the catalog and runs the pricing comparison the first time the
-        shop opens the POS. This switch is the only decision.
+        shop opens the POS.
       </p>
     </div>
   );
