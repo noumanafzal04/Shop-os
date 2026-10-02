@@ -7825,3 +7825,38 @@ the fix is removed, which is what says it is pointed at the right thing.
 
 `loadtest:audit` now runs **279 checks**, all agreeing, with **EMPTY: nothing**
 for the first time since it was written. Backend **2,918 tests**.
+
+---
+
+## Measured, and left alone
+
+Two of the outstanding 🟠 items turned out to need nothing, and both are
+recorded here so nobody re-opens them on a hunch.
+
+**Product import at volume.** Timed through `ImportProductsAction` at three
+sizes on an empty catalogue:
+
+| Rows | Time | Queries | Per row |
+|---:|---:|---:|---:|
+| 200 | 0.4 s | 2,006 | 2.0 ms |
+| 1,000 | 1.9 s | 10,002 | 1.9 ms |
+| 3,000 | — | — | refused |
+
+It is already bounded: `ImportProductsAction::MAX_ROWS` is 2,000 and the
+refusal says so in words a merchant can act on. Two thousand rows is roughly
+four seconds and twenty thousand queries, which is acceptable for an explicit
+one-off act. Ten queries per row is high and is NOT being optimised — a shop
+imports a price list a few times a year, and the cost of making it clever is
+paid every time somebody reads the code.
+
+**Reorder → purchase order** is exercised by the fixture now and checked by
+the audit, so the earlier 🟠 is closed by evidence rather than by a change.
+
+### Still genuinely open
+
+| | |
+|---|---|
+| `pos_devices` | the offline device registry — covered by the PWA specs, never by this fixture |
+| bank offers | no fixture shop has the module |
+| reservations | **waiting on a decision** — the standing rule is "no service/appointment booking", and whether a restaurant TABLE reservation is the same thing is the user's call |
+| the two new e2e volume projects | written, never run: the panel talks to the `shopos` database and seeding it has not been authorised |
