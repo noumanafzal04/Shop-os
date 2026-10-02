@@ -224,3 +224,4 @@
 - [Mobile Teal Palette](shopos-mobile-teal-palette.md) — FOR LATER: True Serve teal for the mobile app; palette B (`#03444A` primary), measured against the logo
 - [Admin Plan Model](shopos-admin-plan-model.md) — BACKLOG: pasted plans/usage/add-ons model vs ours; core rule already matches, 6 gaps
 - [Model A & The Blend](shopos-model-a-and-the-blend.md) — 2 P0s: phone-call rider never settleable; a converted quote averaged its tax rates
+- [withHeader Is Sticky](shopos-withheader-is-sticky.md) — STANDING: a test proving "no header" kept sending one; 2 false refutations of a real bug

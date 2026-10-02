@@ -7780,3 +7780,48 @@ timestamp still wins, because it is taken at the door.
   refused for want of stock, and `priceIt()`'s catch-all reported it as
   *"could not price the fuel line"*. A swallowed refusal is a lie about what
   the server said.
+
+---
+
+## The branch that was trading while the screen said nobody was
+
+The one thing left open at the previous stop is closed, and it was real.
+
+`BranchContext::id()` is the branch being OPERATED — never null for an owner,
+because `ResolveBranch` pins them to Main when no header arrives.
+`scopeId()` is the branch being LOOKED AT, and it is null exactly when the
+owner has chosen "All branches", which is what the panel's switcher sends:
+nothing at all. `BusinessDayController::current()` asked `id()`. So a chain
+whose Main had closed and whose other two shops were mid-afternoon opened Day
+& Banking and read **"No day open yet"**, with money in three drawers and no
+branch named anywhere on the screen.
+
+**It took three measurements to believe it, and two of them were mine.**
+Calling the action directly never runs `ResolveBranch`, so the first dump
+described a context nobody had set. The second was an HTTP test in which four
+of five assertions passed — because `withHeader()` sets a DEFAULT header on
+the test case, so the test proving what happens with no header was sending
+one. `flushHeaders()`, and three failed exactly as predicted.
+
+All branches now rolls up across every branch and the response names the
+others that are trading, because "2 others" is not something an owner can act
+on. A chosen branch still answers only for itself, and staff are still pinned
+to their own — both held down by their own tests, and both still passing when
+the fix is removed, which is what says it is pointed at the right thing.
+
+### Also closed since the last entry
+
+- **Dine-in at volume.** Sixty tables, never sat at. 108 tabs, orders in
+  rounds, the kitchen fired per round, one bill in six split, and a dozen left
+  occupied — the floor a restaurant looks at is the one at eight, not at
+  closing time.
+- **Points spent.** Every row in `loyalty_entries` was an earn.
+- **The bills that come anyway.** Recurring rent, wages, electricity — some
+  seeded overdue, because that is not an error state, it is Tuesday. Building
+  them found both category tables empty, so sixty expenses a shop had been
+  filed under nothing.
+- **The reorder list** was the whole shop every time it opened: capped at the
+  200 closest to running out, and the screen says so.
+
+`loadtest:audit` now runs **279 checks**, all agreeing, with **EMPTY: nothing**
+for the first time since it was written. Backend **2,918 tests**.
