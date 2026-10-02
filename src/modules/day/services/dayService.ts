@@ -107,6 +107,13 @@ export interface DayView {
     variance: number;
   };
   banked: number;
+  /**
+   * Other branches trading right now. Empty on a single-site shop and
+   * whenever one branch has been chosen — it only has something to say in
+   * the owner's All-branches view, where "the day" means nothing until it
+   * names a counter.
+   */
+  also_trading?: Array<{ id: string; name: string | null }>;
   /** Today's takings still in the shop. Floats excluded — they stay. */
   unbanked: number;
   deposits?: BankDeposit[];

@@ -22,6 +22,7 @@ import {
 import { dayService, signerName, type BusinessDay, type DayShift } from "../services/dayService";
 import { useLanes, useShiftDay } from "../../registers/hooks/useRegisters";
 import { printHtmlDocument } from "../../../common/print";
+import { useBranchStore } from "../../../stores/branchStore";
 
 type Tab = "today" | "shifts" | "history" | "banking";
 
@@ -114,6 +115,9 @@ export default function DayPage() {
 
   const [tab, setTab] = useState<Tab>("today");
 
+  // Which branch the screen is speaking for. null = the owner's
+  // All-branches view, which is the case this screen used to get wrong.
+  const activeBranchId = useBranchStore((st) => st.activeBranchId);
   const day = useCurrentDay();
   const { close, deposit } = useDayMutations();
 
@@ -287,6 +291,13 @@ export default function DayPage() {
               <p className="mt-1 text-theme-xs text-gray-400">
                 The day starts by itself when the first cashier opens a drawer — nobody has to remember to start it.
               </p>
+              {/* WHICH counter this is about. On All branches the answer now
+                  spans every shop, so "no day open" genuinely means nobody is
+                  trading anywhere; on a chosen branch it means that branch.
+                  Without this line the two read identically. */}
+              <p className="mt-2 text-theme-xs text-gray-400">
+                {activeBranchId ? "At the branch you have selected." : "At any of your branches."}
+              </p>
             </div>
           ) : (
             <>
@@ -303,6 +314,20 @@ export default function DayPage() {
                       {view.day.branch?.name ?? "Main"} · opened {clock(view.day.opened_at)}
                       {signerName(view.day.opened_by) && ` by ${signerName(view.day.opened_by)}`}
                     </p>
+                    {/* ONE COUNTER'S FIGURES, WITH OTHERS STILL RUNNING.
+                        On All branches this screen shows a single day, and
+                        every number under it belongs to that one branch. An
+                        owner reading them without being told the other shops
+                        are also trading would read them as the whole business.
+                        Named, not counted — "2 others" is not something you
+                        can act on. */}
+                    {(view.also_trading ?? []).length > 0 && (
+                      <p className="mt-1 text-theme-xs text-gray-400">
+                        Also trading right now: {(view.also_trading ?? []).map((b) => b.name ?? "—").join(", ")}. The
+                        figures below are {view.day.branch?.name ?? "this branch"} only — pick a branch at the top to
+                        see another.
+                      </p>
+                    )}
                   </div>
                   {canManage && (
                     <Button size="sm" onClick={() => closeModal.openModal()} disabled={close.isPending}>
