@@ -956,7 +956,12 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Where you named the men, the closed shift carries a Handover table: each attendant's litres and what they come to, straight off their own meters. That is the figure you count their cash against, the same evening." },
       { type: "note", text: "The unbilled litres are never split between attendants. A till sale doesn't record which nozzle it came from, so that gap belongs to the station as a whole — a per-man share of it would be a guess, and you couldn't stand behind it if the man denied it." },
       { type: "note", text: "Assigning nobody is normal. A one-man pump has nothing to assign, and the shift opens and closes exactly the same either way." },
-      { type: "h", text: "Dipping in millimetres" },
+      { type: "h", text: "Opened at the wrong station" },
+      { type: "p", text: "Press Opened by mistake. The shift is cancelled, every meter and every tank go back exactly where they stood, and you can start the real one straight away." },
+      { type: "note", text: "Only while nothing has been sold on it. The moment a litre goes out of a nozzle there is a real reconciliation owed, and the shift has to be closed properly \u2014 the station is told so, with the litres." },
+      { type: "note", text: "Same if a tanker was booked into one of these tanks during the shift: the dips have moved, and putting them back would un-receive fuel you are holding." },
+      { type: "warn", text: "Before this, a shift opened in error blocked the whole forecourt until somebody closed it \u2014 which meant typing a closing reading for every nozzle and a dip for every tank, for a shift where nothing happened. Those invented figures then sat in the month\u2019s fuel report for good. A cancelled shift keeps its number and says who cancelled it and why, so there is no unexplained gap either." },
+            { type: "h", text: "Dipping in millimetres" },
       { type: "p", text: "A dipstick reads a depth, not litres \u2014 and an underground tank lying on its side holds a very different amount per millimetre at the bottom, in the middle and near the top. So the honest conversion is your own tank\u2019s calibration chart, the printed table that came with it." },
       { type: "steps", items: [
         "Tanks & pumps \u2192 the tank \u2192 the \u201cNo dip chart\u201d link beside it.",

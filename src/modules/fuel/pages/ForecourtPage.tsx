@@ -38,7 +38,7 @@ export default function ForecourtPage() {
   const current = useCurrentShift();
   const [historyPage, setHistoryPage] = useState(1);
   const history = useShifts({ status: "closed", page: historyPage });
-  const { openShift, closeShift } = useFuelMutations();
+  const { openShift, closeShift, cancelShift } = useFuelMutations();
 
   const shift = current.data ?? null;
   const [starting, setStarting] = useState(false);
@@ -72,6 +72,40 @@ export default function ForecourtPage() {
         {!shift && !current.isLoading && (
           <Button size="sm" onClick={() => setStarting(true)} disabled={openShift.isPending}>
             {openShift.isPending ? "Opening…" : "Start shift"}
+          </Button>
+        )}
+        {/* OPENED BY MISTAKE.
+            One forecourt, one open shift — so a shift started at the wrong
+            station blocks the whole place until it is ended, and the only
+            way to end it used to be to CLOSE it: a closing reading for every
+            nozzle and a dip for every tank, for a shift where nothing
+            happened. Managers invented those figures, and the invented
+            reconciliation stayed in the month's fuel report.
+
+            Beside Close and not instead of it, because the server refuses
+            this the moment a litre has been sold. */}
+        {shift && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={cancelShift.isPending}
+            onClick={async () => {
+              const reason = window.prompt(
+                "Cancel this shift? The meters go back exactly where they were.\n\n" +
+                  "Only possible while nothing has been sold on it. Why was it opened?",
+                "Opened by mistake",
+              );
+              if (reason === null) return;
+
+              try {
+                const res = await cancelShift.mutateAsync({ id: shift.id, reason: reason.trim() || undefined });
+                toast.success(`Shift ${res.data.number} cancelled — the meters are back where they were.`);
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Could not cancel the shift");
+              }
+            }}
+          >
+            {cancelShift.isPending ? "Cancelling…" : "Opened by mistake"}
           </Button>
         )}
       </div>

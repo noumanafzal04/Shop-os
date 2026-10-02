@@ -109,7 +109,10 @@ export interface ForecourtDip {
 export interface ForecourtShift {
   id: string;
   number: string;
-  status: "open" | "closed";
+  status: "open" | "closed" | "cancelled";
+  /** Set only on an abandoned shift — who walked away from it, and why. */
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
   branch_id: string | null;
   branch?: { id: string; name: string };
   opened_at: string;
@@ -256,6 +259,16 @@ export const fuelService = {
   shift: (id: string) => apiGet<ForecourtShift>(`/fuel/shifts/${id}`),
   openShift: (body: Record<string, unknown> = {}) => apiPost<ForecourtShift>("/fuel/shifts", body),
   closeShift: (id: string, body: CloseShiftInput) => apiPost<ForecourtShift>(`/fuel/shifts/${id}/close`, body),
+  /**
+   * Abandon a shift opened by mistake.
+   *
+   * Carries no figures, and that is the point: closing SETTLES a shift,
+   * cancelling says it never happened and winds the meters back. Asking for
+   * closing readings in order to say "there were none" is the thing it
+   * exists to avoid. The server refuses the moment a litre has been sold.
+   */
+  cancelShift: (id: string, reason?: string) =>
+    apiPost<ForecourtShift>(`/fuel/shifts/${id}/cancel`, reason ? { reason } : {}),
 
   deliveries: (params: { page?: number } = {}) => apiGet<FuelDelivery[]>("/fuel/deliveries", { params }),
   createDelivery: (body: Record<string, unknown>) => apiPost<FuelDelivery>("/fuel/deliveries", body),

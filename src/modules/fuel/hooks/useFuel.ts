@@ -111,6 +111,11 @@ export function useFuelMutations() {
       onSuccess: invalidate,
     }),
 
+    cancelShift: useMutation({
+      mutationFn: ({ id, reason }: { id: string; reason?: string }) => fuelService.cancelShift(id, reason),
+      onSuccess: invalidate,
+    }),
+
     createDelivery: useMutation({ mutationFn: fuelService.createDelivery, onSuccess: invalidate }),
     createPrice: useMutation({ mutationFn: fuelService.createPrice, onSuccess: invalidate }),
   };
