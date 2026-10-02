@@ -31,6 +31,7 @@ class Plan extends Model
         'max_products',
         'max_storage_mb',
         'max_orders_month',
+        'retention_months',
         'is_active',
         'is_custom',
     ];
@@ -44,6 +45,7 @@ class Plan extends Model
             'max_products' => 'integer',
             'max_storage_mb' => 'integer',
             'max_orders_month' => 'integer',
+            'retention_months' => 'integer',
         ];
     }
 

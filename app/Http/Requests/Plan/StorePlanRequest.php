@@ -27,6 +27,9 @@ class StorePlanRequest extends FormRequest
             'max_products' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'max_storage_mb' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'max_orders_month' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            // Months, so eighteen is sayable. Null = no limit, which is what
+            // every plan had before the column existed and what it keeps.
+            'retention_months' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1200'],
             'is_active' => ['sometimes', 'boolean'],
             'is_custom' => ['sometimes', 'boolean'],
         ];

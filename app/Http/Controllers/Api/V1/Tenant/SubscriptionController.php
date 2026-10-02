@@ -36,6 +36,17 @@ class SubscriptionController extends Controller
                 'billing_period_months' => $plan->billing_period_months,
                 'grace_period_days' => $plan->grace_period_days,
                 'is_custom' => $plan->is_custom,
+                /**
+                 * HOW FAR BACK THIS SHOP CAN LOOK, in months. Null = no
+                 * limit, which is what every plan gives until somebody sets
+                 * one.
+                 *
+                 * Stated here because the promise used to live entirely in
+                 * whatever a salesperson said on the phone — and because
+                 * ARCHIVE IS NOT DELETE: a shop is entitled to know what
+                 * its window is before it ever meets it.
+                 */
+                'retention_months' => $plan->retention_months,
             ],
             'state' => $tenant->subscriptionState(),
             'subscription_ends_at' => $tenant->subscription_ends_at?->toIso8601String(),

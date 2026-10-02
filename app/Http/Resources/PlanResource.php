@@ -27,6 +27,8 @@ class PlanResource extends JsonResource
                 'products' => $this->max_products,
                 'storage_mb' => $this->max_storage_mb,
                 'orders_month' => $this->max_orders_month,
+                // How far back this plan lets a shop look. Null = no limit.
+                'retention_months' => $this->retention_months,
             ],
             'is_active' => $this->is_active,
             // A bespoke deal for one business rather than a rung on the ladder.
