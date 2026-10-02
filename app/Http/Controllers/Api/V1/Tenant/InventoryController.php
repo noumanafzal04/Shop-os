@@ -68,6 +68,9 @@ class InventoryController extends Controller
         return ApiResponse::paginated($movements);
     }
 
+    /** How many reorder lines one screen is given. See `lowStock()`. */
+    public const REORDER_LINES = 200;
+
     /**
      * Everything at or below its low-stock threshold.
      *
@@ -96,9 +99,30 @@ class InventoryController extends Controller
         // exactly why nobody met it. The size also matters on its own terms: a
         // rail is low because the Large ran out, and "order shirts" is not
         // something a buyer can act on.
-        $products = LowStock::apply(Product::query(), $branchId)
+        /**
+         * THE MOST URGENT TWO HUNDRED, AND A COUNT OF THE REST.
+         *
+         * This was unbounded. On a load-test grocery it answered with 569
+         * rows and 685 KB — every one of them carrying its sizes and a
+         * supplier lookup — for a screen a buyer works down from the top.
+         *
+         * Capped rather than paginated, and the distinction is about what
+         * the screen is FOR: a reorder list is a worklist, not an archive.
+         * The buyer deals with what is most nearly out, raises the orders,
+         * and the list refreshes with the next ones already on it. There is
+         * no page two of a job that shortens as you do it.
+         *
+         * `orderBy('stock_quantity')` is what makes the cap honest — the two
+         * hundred kept are the two hundred closest to empty, not the first
+         * two hundred by id.
+         */
+        $query = LowStock::apply(Product::query(), $branchId);
+        $total = (clone $query)->toBase()->getCountForPagination();
+
+        $products = $query
             ->with(['category:id,name', 'variants'])
             ->orderBy('stock_quantity')
+            ->limit(self::REORDER_LINES)
             ->get();
 
         // …and WHO to buy each one from.
@@ -139,6 +163,13 @@ class InventoryController extends Controller
         // emptiness with a number from a different rule.
         $watched = LowStock::watched(Product::query())->count();
 
-        return ApiResponse::ok($products, meta: ['watched' => $watched]);
+        return ApiResponse::ok($products, meta: [
+            'watched' => $watched,
+            // What is on the screen, and what exists. Different numbers mean
+            // the screen has to say so — see the valuation report, where the
+            // same silence made 100 of 569 holdings read as all of them.
+            'shown' => $products->count(),
+            'total' => $total,
+        ]);
     }
 }
