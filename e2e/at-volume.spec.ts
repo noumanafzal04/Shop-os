@@ -138,7 +138,6 @@ function walk(screen: Screen): void {
     }
   });
 }
-}
 
 const WHICH = process.env.E2E_VOLUME_SHOP ?? "grocery";
 const LIST: Record<string, Screen[]> = {

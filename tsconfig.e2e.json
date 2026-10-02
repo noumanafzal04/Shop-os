@@ -1,0 +1,40 @@
+{
+  /*
+   * THE BROWSER TESTS WERE CHECKED BY NOTHING.
+   *
+   * `tsc -b` covered `src` and `vite.config.ts`. `e2e/` was in neither, so a
+   * spec with an unbalanced brace typechecked clean, committed clean, and
+   * would only have been found by running Playwright — which nobody does for
+   * a project that needs a seeded database.
+   *
+   * That is exactly the gap `tsc -b` was adopted to close on the app side:
+   * `tsc --noEmit` once passed a `step="any"` the project build refused. The
+   * same lesson, one directory to the left.
+   */
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo",
+    "target": "ES2022",
+    // DOM.Iterable because a spec's page.evaluate runs in a BROWSER, where
+    // `for (const b of document.querySelectorAll(...))` is ordinary code.
+    // Without it three existing specs fail to typecheck for a reason that
+    // is not true where they run.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["e2e", "playwright.config.ts"]
+}
