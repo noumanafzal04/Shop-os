@@ -68,3 +68,26 @@ index does not move it. The cap takes the transfer size down, not the query.
 `src/modules/expenses/components/StockReportTabs.test.tsx` (the line that
 admits it). Both mutation-checked: forcing the notice to always render fails
 the "says nothing when every line is on screen" case.
+
+---
+
+## The reorder list, same question, different answer
+
+**2026-10-02, the same day.** `/inventory/low-stock` was also unbounded — 569
+rows and 685 KB on the load-test grocery, every row carrying its sizes and a
+supplier lookup.
+
+It is capped at **200** rather than paginated, and the distinction is about
+what the screen is for. A valuation is an archive you export; a reorder list
+is a **worklist**. The buyer deals with what is most nearly out, raises the
+orders, and the list refreshes with the next ones already on it. There is no
+page two of a job that shortens as you do it.
+
+What makes the cap honest is `orderBy('stock_quantity')`: the two hundred kept
+are the two hundred **closest to empty**, not the first two hundred by id.
+`tests/Feature/TheReorderListIsAWorklistTest.php` holds that down with one
+genuinely empty shelf created last among 250 merely-low ones — remove the
+ordering and that one test fails while the other three still pass.
+
+`meta.shown` / `meta.total` sit beside the existing `meta.watched`, which
+answers a different question and is still counted over the whole shop.
