@@ -44,7 +44,10 @@ class Supplier extends BaseModel
     public function scopeWithOutstanding(Builder $query): Builder
     {
         return $query
-            ->withSum(['purchaseOrders as po_total' => fn ($q) => Payable::billable($q)], 'total')
+            // What ARRIVED, not what was ordered — see Payable::AMOUNT and
+            // the migration that added it. Billing the order meant a shop was
+            // shown a debt for goods still in a van.
+            ->withSum(['purchaseOrders as po_total' => fn ($q) => Payable::billable($q)], Payable::AMOUNT)
             ->withSum('payments as paid_total', 'amount');
     }
 

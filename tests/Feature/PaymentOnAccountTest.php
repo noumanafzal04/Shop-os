@@ -70,12 +70,33 @@ class PaymentOnAccountTest extends TestCase
             ->assertCreated()->json('data.id');
     }
 
-    private function po(string $supplierId, float $cost, int $qty = 1, string $status = 'ordered', string $date = '2026-07-01'): array
+    private function po(string $supplierId, float $cost, int $qty = 1, string $status = 'ordered', string $date = '2026-07-01', bool $delivered = true): array
     {
-        return $this->as($this->owner)->postJson('/api/v1/purchase-orders', [
+        $po = $this->as($this->owner)->postJson('/api/v1/purchase-orders', [
             'supplier_id' => $supplierId, 'order_date' => $date, 'status' => $status,
             'items' => [['product_id' => $this->product->id, 'quantity' => $qty, 'unit_cost' => $cost]],
         ])->assertCreated()->json('data');
+
+        /**
+         * AND THE GOODS ARRIVE.
+         *
+         * This file is about WHERE a payment lands — oldest order first, with
+         * no order picker on the button. It is not about when an order becomes
+         * a bill, and it used to leave every order undelivered because nothing
+         * made it matter.
+         *
+         * It matters now: a shop owes for what arrived, so an order still on
+         * the truck is not an open bill and a payment cannot be allocated into
+         * it. Receiving here keeps this file's own subject intact and makes
+         * the fixture a shop that actually took delivery.
+         */
+        if ($delivered && $status !== 'draft') {
+            $this->as($this->owner)
+                ->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [])
+                ->assertOk();
+        }
+
+        return $po;
     }
 
     /** What the Pay button sends: an amount and a method. */
@@ -256,10 +277,15 @@ class PaymentOnAccountTest extends TestCase
     public function test_paying_for_an_order_that_is_then_cancelled_leaves_the_money_visible(): void
     {
         $supplier = $this->supplier();
-        $po = $this->po($supplier, cost: 12000);
+        // NOT delivered: the point of this case is cancelling, and goods you
+        // have already taken in cannot be cancelled — the server refuses that,
+        // correctly. A supplier paid in advance of a delivery that is then
+        // called off is the real shape here.
+        $po = $this->po($supplier, cost: 12000, delivered: false);
 
         $this->pay($supplier, 5000, ['purchase_order_id' => $po['id']])->assertCreated();
-        $this->assertSame(7000.0, $this->outstanding($supplier));
+        // Nothing has arrived, so nothing is owed — the 5,000 is money AHEAD.
+        $this->assertSame(-5000.0, $this->outstanding($supplier));
 
         $this->as($this->owner)->postJson("/api/v1/purchase-orders/{$po['id']}/cancel", [
             'reason_code' => 'wrong_item', 'reason' => 'Sent the wrong brand',

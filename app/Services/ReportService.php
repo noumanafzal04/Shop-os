@@ -382,11 +382,17 @@ class ReportService
             ->whereBetween('purchase_orders.order_date', [$fromStart, $toEnd]);
 
         $ordered = (float) (clone $base)->sum('total');
+        // What is actually OWED is billed on delivery, not on the order. The
+        // two are different questions and this report answers both: ordered
+        // value is what the shop committed to, outstanding is what it owes
+        // today. They used to be the same number minus payments, which billed
+        // the shop for every undelivered line. See Payable::AMOUNT.
+        $received = (float) (clone $base)->sum(Payable::AMOUNT);
         $paid = (float) (clone $base)->sum('amount_paid');
 
         $bySupplier = (clone $base)
             ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
-            ->selectRaw('COALESCE(suppliers.name, "Unknown") as supplier, COUNT(*) as orders, SUM(purchase_orders.total) as total, SUM(purchase_orders.total - purchase_orders.amount_paid) as outstanding')
+            ->selectRaw('COALESCE(suppliers.name, "Unknown") as supplier, COUNT(*) as orders, SUM(purchase_orders.total) as total, SUM(purchase_orders.'.Payable::AMOUNT.' - purchase_orders.amount_paid) as outstanding')
             ->groupBy('supplier')
             ->orderByDesc('total')
             ->get()
@@ -403,7 +409,7 @@ class ReportService
                 'orders' => (clone $base)->count(),
                 'ordered_value' => round($ordered, 2),
                 'paid' => round($paid, 2),
-                'outstanding' => round($ordered - $paid, 2),
+                'outstanding' => round($received - $paid, 2),
             ],
             'by_supplier' => $bySupplier,
         ];

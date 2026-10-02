@@ -227,6 +227,19 @@ class ReceivePurchaseOrderAction
             $po->forceFill([
                 'status' => $fullyReceived ? PurchaseStatus::Received : PurchaseStatus::PartiallyReceived,
                 'received_at' => $fullyReceived ? now() : $po->received_at,
+                /**
+                 * WHAT THE SHOP NOW OWES FOR, kept beside what it ordered.
+                 *
+                 * `total` is the order and never moves — the supplier holds a
+                 * copy of that document. This is the bill, and it grows only
+                 * as goods actually arrive. Recomputed from the lines rather
+                 * than added to, so a correction to a line and a replay of
+                 * this action both land on the same figure.
+                 */
+                'received_total' => round(
+                    $po->items->sum(fn ($i) => (float) $i->quantity_received * (float) $i->unit_cost),
+                    2,
+                ),
             ])->save();
 
             return $po->load('items', 'supplier');

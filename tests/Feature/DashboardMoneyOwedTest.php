@@ -150,6 +150,13 @@ class DashboardMoneyOwedTest extends TestCase
             'order_date' => now()->toDateString(),
             'subtotal' => $total,
             'total' => $total,
+            /**
+             * AND THE GOODS CAME. This file asks which orders are a bill —
+             * a draft is a shopping list, a cancelled one is nothing — not
+             * how much of each arrived. A shop owes for what was delivered,
+             * so a fixture meant to BE a debt has to have taken delivery.
+             */
+            'received_total' => $status === 'cancelled' ? 0 : $total,
             'amount_paid' => $paid,
         ]);
     }

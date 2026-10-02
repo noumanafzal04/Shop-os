@@ -211,6 +211,10 @@ class PurchasingTest extends TestCase
         $supplierId = $this->makeSupplier();
         $po = $this->makePO($supplierId, qty: 20, cost: 100); // total 2000
 
+        // The goods arrive. A shop owes for what was delivered, so an order
+        // nothing has come against is not yet a bill.
+        $this->actingAsUser($this->owner)->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [])->assertOk();
+
         $this->actingAsUser($this->owner)->postJson("/api/v1/suppliers/{$supplierId}/payments", [
             'amount' => 500, 'method' => 'cash', 'purchase_order_id' => $po['id'],
         ])->assertCreated();

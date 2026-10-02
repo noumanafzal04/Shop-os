@@ -21,6 +21,16 @@ use Illuminate\Database\Eloquent\Builder;
 final class Payable
 {
     /**
+     * The column that IS the bill.
+     *
+     * `total` is what was ordered; this is what arrived. Named once so the
+     * supplier card, the dashboard, the purchases report and the payment
+     * allocator cannot drift apart again — which is how this question came to
+     * have three answers the first time.
+     */
+    public const AMOUNT = 'received_total';
+
+    /**
      * Orders that are a real debt: placed, and not cancelled.
      *
      * @param  Builder<PurchaseOrder>  $query
@@ -48,7 +58,10 @@ final class Payable
     {
         return self::billable(PurchaseOrder::query())
             ->where('supplier_id', $supplierId)
-            ->whereColumn('amount_paid', '<', 'total')
+            // Open against what ARRIVED. An order still on the truck owes
+            // nothing, so a payment must not be allocated into it — that is
+            // money handed over for stock the shop has not seen.
+            ->whereColumn('amount_paid', '<', self::AMOUNT)
             ->orderBy('order_date')
             ->orderBy('po_number');
     }

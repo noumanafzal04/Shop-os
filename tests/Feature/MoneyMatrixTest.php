@@ -190,15 +190,29 @@ class MoneyMatrixTest extends TestCase
                 ];
             },
 
-            'supplier · a new order is owed' => function (): array {
+            /**
+             * THE DELIVERY IS OWED, NOT THE ORDER.
+             *
+             * This case used to place an order and expect the debt to move by
+             * its full value. That was the rule until a shop was found carrying
+             * Rs 45.6M of payables against goods that had never arrived — an
+             * order still on the truck is a commitment, not a bill, and the Pay
+             * button would allocate money into it.
+             *
+             * The money moves when the goods do. Placing the order is setup
+             * now; receiving it is the act under test.
+             */
+            'supplier · a delivery is owed' => function (): array {
                 $s = $this->supplier();
+                $po = $this->as()->postJson('/api/v1/purchase-orders', [
+                    'supplier_id' => $s, 'order_date' => now()->toDateString(), 'status' => 'ordered',
+                    'items' => [['product_id' => $this->product->id, 'quantity' => 1, 'unit_cost' => 7500]],
+                ])->assertCreated()->json('data');
 
                 return [
                     'before' => $this->owedToSupplier($s),
-                    'run' => fn (): TestResponse => $this->as()->postJson('/api/v1/purchase-orders', [
-                        'supplier_id' => $s, 'order_date' => now()->toDateString(), 'status' => 'ordered',
-                        'items' => [['product_id' => $this->product->id, 'quantity' => 1, 'unit_cost' => 7500]],
-                    ]),
+                    'run' => fn (): TestResponse => $this->as()
+                        ->postJson("/api/v1/purchase-orders/{$po['id']}/receive", []),
                     'after' => fn (): float => $this->owedToSupplier($s),
                     'delta' => 7500.0,
                 ];

@@ -646,10 +646,13 @@ class DashboardService
      */
     private function payable(Tenant $tenant): array
     {
+        // OWED FOR WHAT ARRIVED. This read `total` — the ordered value — so
+        // the figure on the owner's dashboard included goods still on a van.
+        // See Payable::AMOUNT.
         $row = Payable::billable(PurchaseOrder::withoutTenancy())
             ->where('tenant_id', $tenant->id)
-            ->whereColumn('amount_paid', '<', 'total')
-            ->selectRaw('COALESCE(SUM(total - amount_paid), 0) as owed, COUNT(DISTINCT supplier_id) as accounts')
+            ->whereColumn('amount_paid', '<', Payable::AMOUNT)
+            ->selectRaw('COALESCE(SUM('.Payable::AMOUNT.' - amount_paid), 0) as owed, COUNT(DISTINCT supplier_id) as accounts')
             ->toBase()
             ->first();
 

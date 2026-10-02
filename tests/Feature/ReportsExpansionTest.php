@@ -93,6 +93,11 @@ class ReportsExpansionTest extends TestCase
             'supplier_id' => $supplierId, 'order_date' => now()->toDateString(), 'status' => 'ordered',
             'items' => [['product_id' => $this->product->id, 'quantity' => 10, 'unit_cost' => 50]],
         ])->json('data'); // total 500
+
+        // The goods arrive. A shop owes for what was delivered, so an order
+        // nothing has come against is not yet a bill.
+        $this->actingAsUser($this->owner)->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [])->assertOk();
+
         $this->actingAsUser($this->owner)->postJson("/api/v1/suppliers/{$supplierId}/payments", [
             'amount' => 200, 'purchase_order_id' => $po['id'],
         ])->assertCreated();

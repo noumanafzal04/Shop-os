@@ -164,6 +164,10 @@ class MartTenantWalkthroughTest extends TestCase
             'items' => [['product_id' => $rice->id, 'quantity' => 20, 'unit_cost' => 1800]],
         ])->assertCreated()->json('data');
 
+        // The wholesaler's van arrives and the rice is counted in. Until it
+        // does the shop owes nothing — an order on the road is not a bill.
+        $this->as($owner)->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [])->assertOk();
+
         // Nothing paid yet: the whole 36,000 is owed.
         $this->assertEquals(36000, $this->as($owner)->getJson("/api/v1/suppliers/{$supplier}")->json('data.outstanding'));
 
