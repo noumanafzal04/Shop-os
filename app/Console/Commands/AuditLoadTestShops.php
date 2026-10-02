@@ -9,6 +9,7 @@ use App\Support\Payable;
 use App\Support\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * ASK EVERY FIGURE TWICE, AND IN TWO DIFFERENT WAYS.
@@ -75,6 +76,8 @@ class AuditLoadTestShops extends Command
             app(TenantContext::class)->clear();
         }
 
+        $this->whatIsStillEmpty();
+
         $this->newLine();
         if ($this->wrong === []) {
             $this->info("All {$this->checks} checks agree.");
@@ -88,6 +91,50 @@ class AuditLoadTestShops extends Command
         }
 
         return self::FAILURE;
+    }
+
+    /**
+     * WHICH MODULES STILL HAVE NO ROWS ANYWHERE.
+     *
+     * Not a failure — plenty of these belong to one trade and the load-test
+     * world may not have that trade. It is the DENOMINATOR for everything
+     * above: a check against an empty table passes, and a list of checks that
+     * all passed means nothing until you know how many of them had anything
+     * to look at.
+     *
+     * This is how the gap was found in the first place. Customers, khata,
+     * returns, counts, transfers, write-offs, coupons and points were all
+     * zero across seven shops, and every screen built on them had been green
+     * for months against nothing at all.
+     */
+    private function whatIsStillEmpty(): void
+    {
+        $ids = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->pluck('id');
+
+        $tables = [
+            'customers', 'customer_ledger_entries', 'customer_groups',
+            'sale_returns', 'sale_return_items',
+            'stock_counts', 'stock_count_items', 'stock_transfers', 'stock_disposals',
+            'coupons', 'promotions', 'loyalty_entries',
+            'product_units', 'product_barcodes', 'tax_groups',
+            'suppliers', 'purchase_orders', 'supplier_payments',
+            'expenses', 'incomes', 'stock_movements', 'product_batches',
+        ];
+
+        $empty = [];
+        $filled = [];
+        foreach ($tables as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+            $n = (int) DB::table($table)->whereIn('tenant_id', $ids)->count();
+            $n === 0 ? $empty[] = $table : $filled[] = "{$table}:{$n}";
+        }
+
+        $this->newLine();
+        $this->info('── What the audit had to look at');
+        $this->line('  filled  '.implode('  ', $filled));
+        $this->line('  EMPTY   '.($empty === [] ? 'nothing' : implode('  ', $empty)));
     }
 
     /** Two figures that must be the same, to the paisa. */
@@ -147,8 +194,10 @@ class AuditLoadTestShops extends Command
             ->whereNull('po.deleted_at')
             ->sum(DB::raw('ROUND(i.quantity_received * i.unit_cost, 2)'));
 
+        // `supplier_payments` is a hard-delete table — a payment is a fact,
+        // not a draft — so there is no deleted_at to filter on.
         $paid = (float) DB::table('supplier_payments')
-            ->where('tenant_id', $shop->id)->whereNull('deleted_at')->sum('amount');
+            ->where('tenant_id', $shop->id)->sum('amount');
 
         // Per supplier, because an advance to one must not cancel a debt to
         // another — the app clamps each account at zero and so must this.
@@ -168,7 +217,6 @@ class AuditLoadTestShops extends Command
             ->selectSub(
                 DB::table('supplier_payments as p')
                     ->whereColumn('p.supplier_id', 's.id')
-                    ->whereNull('p.deleted_at')
                     ->selectRaw('COALESCE(SUM(p.amount), 0)'),
                 'paid',
             )
@@ -177,10 +225,39 @@ class AuditLoadTestShops extends Command
 
         $this->same('owed to suppliers', $app, $perSupplier);
 
-        // And the dashboard must agree with the suppliers screen. Two screens
-        // answering "what do I owe" differently is how the original fault
-        // stayed invisible for so long.
-        $dash = (float) (app(DashboardService::class)->summary($shop, 'monthly')['payable']['outstanding'] ?? 0);
+        /**
+         * AND THE DASHBOARD MUST AGREE WITH THE SUPPLIERS SCREEN.
+         *
+         * They do not compute it the same way, deliberately. The dashboard
+         * sums `received_total - amount_paid` PER ORDER; the suppliers screen
+         * sums what arrived and subtracts EVERY payment to that supplier,
+         * including one that landed on no order at all — a van arrives, cash
+         * changes hands, nobody raises a PO.
+         *
+         * They should still land on the same number, because an on-account
+         * payment is allocated into the open orders. Where they diverge, one
+         * of two true things is happening: a supplier is in ADVANCE (paid
+         * past every open order, which the dashboard clamps per order and the
+         * screen clamps per account), or the allocator has stopped doing its
+         * job — and the second is the fault that let a shop pay twice.
+         *
+         * Two screens answering "what do I owe" with different numbers is
+         * exactly how the original payables fault stayed invisible, so it is
+         * worth one check of its own.
+         */
+        // `money_owed`, not `stats` — the first version of this line read a
+        // key that does not exist, got null, and reported the dashboard as
+        // saying 0.00 on every shop with suppliers. A check that cannot find
+        // its subject must not report a clean zero, so the key is asserted
+        // before it is compared.
+        $owed = app(DashboardService::class)->forTenant($shop)['money_owed'] ?? null;
+        if (! is_array($owed) || ! isset($owed['payable']['total'])) {
+            $this->wrong[] = 'the dashboard no longer has a money_owed.payable.total to compare';
+            $this->checks++;
+
+            return;
+        }
+        $dash = (float) $owed['payable']['total'];
         $this->same('…and the dashboard says the same', $dash, $app, 1.0);
 
         $this->line(sprintf(
@@ -453,11 +530,27 @@ class AuditLoadTestShops extends Command
     }
 
     /**
-     * POINTS ARE EARNED ON SALES AND SPENT ON SALES, AND NOWHERE ELSE.
+     * POINTS: THE BALANCE AGAINST ITS OWN LEDGER.
      *
-     * A customer's points balance is another running total. If it does not
-     * equal earned minus redeemed across their sales, somebody is being given
-     * or denied a discount they did not earn.
+     * `customers.loyalty_points` is a running total, like the khata balance,
+     * and `loyalty_entries` is the record it is supposed to agree with.
+     *
+     * ── THE FIRST VERSION OF THIS CHECK WAS WRONG, AND USEFULLY SO ───
+     *
+     * It summed `points_earned - points_redeemed` off the SALES and reported
+     * three customers adrift. Both halves of that were mistakes, and reading
+     * what the rows actually said is what found them:
+     *
+     *   · it filtered `status = completed`, so a sale that had been partly
+     *     refunded was left out of the sum entirely — "from sales = 0" for a
+     *     customer with a balance of 9;
+     *   · a refund does not rewrite `sales.points_earned`. It appends a
+     *     `reverse_earn` to the ledger, which is right — the sale DID earn 48
+     *     points and 39 of them were handed back.
+     *
+     * So the sale row is a snapshot of what was earned at the counter and the
+     * ledger is what the customer actually holds. Only one of those is the
+     * balance, and it is not the one the first version asked.
      */
     private function pointsMatchTheSales(Tenant $shop): void
     {
@@ -465,25 +558,48 @@ class AuditLoadTestShops extends Command
             return;
         }
 
+        // `points` is always POSITIVE and `type` carries the direction, so
+        // the sign has to be put back here rather than summed blindly.
         $rows = DB::table('customers as c')
             ->where('c.tenant_id', $shop->id)
             ->whereNull('c.deleted_at')
             ->select('c.id', 'c.name', 'c.loyalty_points')
             ->selectSub(
-                DB::table('sales as s')
-                    ->whereColumn('s.customer_id', 'c.id')
-                    ->where('s.status', 'completed')
-                    ->whereNull('s.deleted_at')
-                    ->selectRaw('COALESCE(SUM(s.points_earned - s.points_redeemed), 0)'),
-                'net_points',
+                DB::table('loyalty_entries as e')
+                    ->whereColumn('e.customer_id', 'c.id')
+                    ->selectRaw("COALESCE(SUM(CASE WHEN e.type = 'earn' OR e.type = 'reverse_redeem' THEN e.points ELSE -e.points END), 0)"),
+                'from_ledger',
             )
-            ->get()
-            ->filter(fn ($r) => (int) $r->loyalty_points !== (int) $r->net_points);
+            ->get();
+
+        $adrift = $rows->filter(fn ($r) => (int) $r->loyalty_points !== (int) $r->from_ledger);
 
         $this->holds(
-            'every points balance is what the sales earned less what they spent',
-            $rows->isEmpty(),
-            $rows->isEmpty() ? '' : $rows->count().' adrift, e.g. '.$rows->first()->name,
+            'every points balance matches its own ledger',
+            $adrift->isEmpty(),
+            $adrift->isEmpty()
+                ? $rows->filter(fn ($r) => (int) $r->loyalty_points > 0)->count().' holding points'
+                : $adrift->count().' adrift, e.g. '.$adrift->first()->name,
+        );
+
+        /**
+         * AND WHAT THE COUNTER RECORDED STILL ADDS UP.
+         *
+         * The sale rows are not the balance, but they are not free to be
+         * nonsense either: every point in the ledger that came from a sale
+         * must appear on that sale, and the gap between the two IS the
+         * refunds. Without this the check above would pass against a ledger
+         * nothing writes to.
+         */
+        $earned = (int) DB::table('loyalty_entries')->where('tenant_id', $shop->id)
+            ->where('type', 'earn')->sum('points');
+        $onSales = (int) DB::table('sales')->where('tenant_id', $shop->id)
+            ->whereNull('deleted_at')->whereNotIn('status', ['cancelled'])->sum('points_earned');
+
+        $this->holds(
+            'every point earned was earned on a sale that says so',
+            $earned === $onSales,
+            $earned === $onSales ? "{$earned} points" : "ledger {$earned}, sales {$onSales}",
         );
     }
 }

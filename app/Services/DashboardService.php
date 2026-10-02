@@ -20,7 +20,6 @@ use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\ProductBatch;
-use App\Models\PurchaseOrder;
 use App\Models\Reservation;
 use App\Models\RestaurantTicket;
 use App\Models\Rider;
@@ -646,19 +645,27 @@ class DashboardService
      */
     private function payable(Tenant $tenant): array
     {
-        // OWED FOR WHAT ARRIVED. This read `total` — the ordered value — so
-        // the figure on the owner's dashboard included goods still on a van.
-        // See Payable::AMOUNT.
-        $row = Payable::billable(PurchaseOrder::withoutTenancy())
-            ->where('tenant_id', $tenant->id)
-            ->whereColumn('amount_paid', '<', Payable::AMOUNT)
-            ->selectRaw('COALESCE(SUM('.Payable::AMOUNT.' - amount_paid), 0) as owed, COUNT(DISTINCT supplier_id) as accounts')
-            ->toBase()
-            ->first();
+        /**
+         * OWED FOR WHAT ARRIVED, NETTED PER SUPPLIER.
+         *
+         * This was two mistakes deep. It first read `total` — the ordered
+         * value — so the owner's dashboard billed them for goods still on a
+         * van. That was fixed by naming the column once (Payable::AMOUNT) and
+         * the figure was still wrong, because the RULE was still written here:
+         * summing `received_total - amount_paid` across ORDERS, skipping every
+         * order where the shop had paid MORE than arrived.
+         *
+         * An overpaid order is ordinary — pay the bill, the van is two cartons
+         * short — and those rupees are credit with that wholesaler. Dropping
+         * them made this 7% higher than the Suppliers screen on a real shop.
+         *
+         * One rule now, in Payable::owedByShop, read by all three.
+         */
+        $owed = Payable::owedByShop($tenant->id);
 
         return [
-            'total' => round((float) ($row->owed ?? 0), 2),
-            'accounts' => (int) ($row->accounts ?? 0),
+            'total' => $owed['total'],
+            'accounts' => $owed['accounts'],
         ];
     }
 

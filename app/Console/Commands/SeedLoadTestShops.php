@@ -65,6 +65,25 @@ class SeedLoadTestShops extends Command
     {
         $started = microtime(true);
 
+        /**
+         * A SEEDER THAT RUNS OUT OF MEMORY LOOKS LIKE A SCHEMA FAULT.
+         *
+         * This builds seven shops in one process and makes hundreds of
+         * thousands of queries doing it. Laravel keeps every one of them in
+         * the query log while a listener is attached, and the growth is
+         * invisible until the run dies halfway through the fourth shop with
+         * "Allowed memory size exhausted" — which it did, leaving a
+         * half-built pharmacy and an audit reporting 450 shelves adrift.
+         *
+         * That finding was the seeder's, not the product's. The log is off
+         * and the limit is raised, because this command is a fixture builder
+         * and not a request.
+         */
+        DB::connection()->disableQueryLog();
+        if ((int) ini_get('memory_limit') > 0) {
+            ini_set('memory_limit', '1024M');
+        }
+
         if ($this->option('fresh')) {
             $gone = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->get();
             foreach ($gone as $t) {
@@ -874,6 +893,39 @@ class SeedLoadTestShops extends Command
      * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
      */
     /**
+     * What this basket comes to, according to the thing that decides.
+     *
+     * Rung for real inside a transaction and then rolled back, so the invoice
+     * counter, the coupon's use, the stock movement and the customer charge
+     * all unwind. The only thing that leaves is the number.
+     *
+     * Null when the basket cannot be sold at all (out of stock, a coupon that
+     * does not apply) — the caller then falls back to a plain cash sale, the
+     * same as a cashier would.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function priceIt(CreateSaleAction $action, array $payload): ?float
+    {
+        DB::beginTransaction();
+        try {
+            // Probed as CASH, not as credit: a khata tender larger than the
+            // bill is refused ("cannot give cash change"), and the whole point
+            // here is not knowing the bill yet.
+            $probe = $action->execute($payload + [
+                'payment_method' => 'cash',
+                'amount_paid' => 100_000_000,
+            ]);
+
+            return round((float) $probe->total, 2);
+        } catch (\Throwable $e) {
+            return null;
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
      * THE OTHER SIDE OF THE MONEY LEDGER.
      *
      * The payables bug — a shop shown Rs 45.6M of debt for goods still in a
@@ -1099,13 +1151,30 @@ class SeedLoadTestShops extends Command
             }
         }
 
-        // ── TRANSFERS between branches ───────────────────────────────
-        if (count($branches) > 1) {
+        /**
+         * ── TRANSFERS between branches ───────────────────────────────
+         *
+         * A SERVICE CANNOT BE PUT IN A VAN. The first run picked from the
+         * whole catalogue and a service shop refused all six transfers with
+         * "This item does not track inventory" — true, correct, and entirely
+         * the seeder's fault. Only things that hold stock are moved.
+         */
+        $movable = Product::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('track_inventory', true)
+            ->pluck('id')
+            ->flip();
+        $shiftable = array_values(array_filter(
+            $productIds,
+            fn ($p) => $movable->has($p['product_id']),
+        ));
+
+        if (count($branches) > 1 && $shiftable !== []) {
             $moved = 0;
             foreach (range(1, 6) as $n) {
                 $items = [];
-                foreach (array_rand($productIds, min(4, count($productIds))) as $k) {
-                    $pick = $productIds[$k];
+                foreach ((array) array_rand($shiftable, min(4, count($shiftable))) as $k) {
+                    $pick = $shiftable[$k];
                     $items[] = array_filter([
                         'product_id' => $pick['product_id'],
                         'variant_id' => $pick['variant_id'],
@@ -1269,6 +1338,42 @@ class SeedLoadTestShops extends Command
         $withACoupon = 0;
         /** @var array<string, int> $couponRefusals */
         $couponRefusals = [];
+        $hasCoupons = DB::table('coupons')->where('tenant_id', $tenant->id)->exists();
+
+        /**
+         * WHAT A DISH CANNOT BE ORDERED WITHOUT.
+         *
+         * "Spice level" is min_select 1, so a karahi rung without one is
+         * refused — correctly, and 82 of the restaurant's 300 sales were. The
+         * rule was working; the seeder was ordering food the way nobody
+         * orders food. Worse, it meant NOT ONE sale in any shop ever carried
+         * a modifier, so the resolver's pricing was never exercised at volume
+         * by anything.
+         *
+         * Required groups get an option each; optional ones get one on every
+         * third dish, which is roughly how often somebody asks for extra
+         * cheese.
+         *
+         * @var array<string, array<int, string>> $mustChoose
+         */
+        $mustChoose = [];
+        $mayChoose = [];
+        foreach (
+            DB::table('modifier_groups as g')
+                ->join('modifier_options as o', 'o.modifier_group_id', '=', 'g.id')
+                ->where('g.tenant_id', $tenant->id)
+                ->where('o.is_active', true)
+                ->orderBy('o.sort_order')
+                ->get(['g.product_id', 'g.id as gid', 'g.min_select', 'o.id as oid']) as $row
+        ) {
+            // One option per GROUP, not per row — a single-select group handed
+            // three options is refused for choosing too many.
+            if ((int) $row->min_select > 0) {
+                $mustChoose[$row->product_id][$row->gid] ??= $row->oid;
+            } else {
+                $mayChoose[$row->product_id][$row->gid] ??= $row->oid;
+            }
+        }
         $skipped = 0;
         /** @var array<string, int> $reasons */
         $reasons = [];
@@ -1290,11 +1395,17 @@ class SeedLoadTestShops extends Command
              */
             app(BranchContext::class)->set($branch);
             $items = [];
-            foreach (range(1, random_int(1, 5)) as $_) {
+            foreach (range(1, random_int(1, 5)) as $n) {
                 $pick = $productIds[array_rand($productIds)];
+                $chosen = array_values($mustChoose[$pick['product_id']] ?? []);
+                if ($n % 3 === 0) {
+                    $chosen = array_merge($chosen, array_values($mayChoose[$pick['product_id']] ?? []));
+                }
+
                 $items[] = array_filter([
                     'product_id' => $pick['product_id'],
                     'variant_id' => $pick['variant_id'],
+                    'modifier_option_ids' => $chosen === [] ? null : $chosen,
                     // A wholesale basket is not a shopper's basket. Buying in
                     // ones here would also trip every line that carries a
                     // minimum order quantity.
@@ -1305,41 +1416,90 @@ class SeedLoadTestShops extends Command
             /**
              * ONE SALE IN SIX IS ON THE BOOK.
              *
-             * `payment_method: credit` against a named customer is how most of
-             * these shops actually trade, and it is the only path that moves
-             * `customers.credit_balance`. Until this existed the khata, the
-             * credit limit and every "who owes us" figure were measured
-             * against a table of zeroes.
+             * `payment_method: credit` against a named customer is the only
+             * path that moves `customers.credit_balance`. Until this existed
+             * the khata, the credit limit and every "who owes us" figure were
+             * measured against a table of zeroes.
              *
-             * `amount_paid` is what the customer actually handed over, so some
-             * of these are part-paid — the shape that catches a balance
-             * charged for the whole bill instead of the unpaid remainder.
+             * ── WHAT `amount_paid` MEANS, WHICH IS NOT WHAT IT SOUNDS LIKE ──
+             *
+             * It is the TENDER, not the cash handed over. On a credit sale the
+             * single tender is of method `credit`, so `amount_paid` is the
+             * figure that goes ON THE BOOK — and the server refuses anything
+             * under the full due (PAYMENT_INSUFFICIENT) and anything over it
+             * ("a khata sale cannot give cash change").
+             *
+             * The first version of this read it the other way round and sent
+             * 200, so EVERY credit sale in all seven shops was refused and the
+             * line read `0 on the book`. A part-payment is two tenders — cash
+             * for what crossed the counter, credit for the rest — which is
+             * what `payments[]` is for.
              */
             $debtor = $customers !== [] && $i % 6 === 0
                 ? $customers[$i % count($customers)]
                 : null;
 
-            // Every fifth basket arrives with a code. SAVE10 and FLAT200 have
-            // a minimum spend, so plenty of these are legitimately refused —
-            // which is the half of a coupon rule nothing was testing.
-            $coupon = $i % 5 === 0 ? ['SAVE10', 'FLAT200', 'WELCOME'][$i % 3] : null;
+            // Every fifth basket arrives with a code — but only where the shop
+            // HAS codes. `offers()` returns early without the promotions
+            // module, and the first run then sent sixty baskets to a shop with
+            // no coupon table and read back sixty "This coupon code is not
+            // valid" refusals: a finding about the seeder, dressed as a
+            // finding about the product.
+            $coupon = $hasCoupons && $i % 5 === 0 ? ['SAVE10', 'FLAT200', 'WELCOME'][$i % 3] : null;
+
+            $base = array_filter([
+                'branch_id' => $branch->id,
+                'channel' => 'walk_in',
+                'customer_name' => $debtor?->name ?? ['Ahmed', 'Fatima', 'Bilal', 'Ayesha', 'Usman'][$i % 5],
+                'customer_phone' => $debtor?->phone,
+                'coupon_code' => $coupon,
+                'items' => $items,
+                'created_by' => $owner->id,
+            ], fn ($v) => $v !== null);
 
             try {
-                $sale = $action->execute(array_filter([
-                    'branch_id' => $branch->id,
-                    'channel' => 'walk_in',
-                    'customer_name' => $debtor?->name ?? ['Ahmed', 'Fatima', 'Bilal', 'Ayesha', 'Usman'][$i % 5],
-                    'customer_phone' => $debtor?->phone,
-                    'coupon_code' => $coupon,
-                    'items' => $items,
-                    'payment_method' => $debtor !== null
-                        ? 'credit'
-                        : ['cash', 'card', 'wallet', 'bank_transfer'][$i % 4],
-                    // On credit the shop takes a part payment or nothing; a
-                    // cash sale is settled in full.
-                    'amount_paid' => $debtor !== null ? ($i % 12 === 0 ? 0 : 200) : 1_000_000,
-                    'created_by' => $owner->id,
-                ], fn ($v) => $v !== null));
+                if ($debtor !== null) {
+                    // THE EXACT BILL, PRICED BY THE SERVER AND THEN THROWN
+                    // AWAY.
+                    //
+                    // A khata tender must equal the due to the paisa, and only
+                    // CreateSaleAction knows what the due is — tax groups,
+                    // group pricing, the live promotion and the coupon all
+                    // move it. Working it out here would be a second pricer,
+                    // which is the thing this seeder exists NOT to test.
+                    //
+                    // So the basket is rung once inside a transaction that is
+                    // rolled back: the invoice counter, the coupon's use and
+                    // the stock all unwind with it, and what survives is the
+                    // number.
+                    $due = $this->priceIt($action, $base);
+                    if ($due === null) {
+                        throw new \RuntimeException('could not price the basket');
+                    }
+
+                    // Half of them part-paid: cash across the counter and the
+                    // rest on the book. That is the shape that catches a
+                    // balance charged for the whole bill instead of the
+                    // remainder.
+                    $onCounter = $i % 12 === 0 ? 0.0 : min(200.0, round($due / 2, 2));
+                    $payload = $base + [
+                        'payment_method' => 'credit',
+                        'amount_paid' => $due,
+                        'payments' => $onCounter > 0
+                            ? [
+                                ['method' => 'cash', 'amount' => $onCounter],
+                                ['method' => 'credit', 'amount' => round($due - $onCounter, 2)],
+                            ]
+                            : [['method' => 'credit', 'amount' => $due]],
+                    ];
+                } else {
+                    $payload = $base + [
+                        'payment_method' => ['cash', 'card', 'wallet', 'bank_transfer'][$i % 4],
+                        'amount_paid' => 1_000_000,
+                    ];
+                }
+
+                $sale = $action->execute($payload);
 
                 if ($debtor !== null) {
                     $onCredit++;

@@ -126,9 +126,17 @@ class RecordSupplierPaymentAction
         return $po;
     }
 
+    /**
+     * The ceiling is WHAT ARRIVED, not what was ordered.
+     *
+     * This read `total`, so the one door the whole payables fix was about —
+     * handing a wholesaler money for stock still in a van — was still wide
+     * open when a cashier named the order on the Pay screen. Ten sacks
+     * ordered, six delivered, and the shop could pay for ten.
+     */
     private function refuseOverpayment(PurchaseOrder $po, float $amount): void
     {
-        $due = round((float) $po->total - (float) $po->amount_paid, 2);
+        $due = round((float) $po->{Payable::AMOUNT} - (float) $po->amount_paid, 2);
 
         if ($amount - 0.001 <= $due) {
             return;
@@ -137,7 +145,9 @@ class RecordSupplierPaymentAction
         $sym = app(TenantContext::class)->get()?->currencySymbol() ?? 'Rs';
 
         throw DomainException::unprocessable(
-            "Payment exceeds the amount due on this purchase order ({$sym} ".number_format($due, 2).').',
+            $due <= 0
+                ? 'Nothing has been delivered against this order yet — pay on account instead.'
+                : "Payment exceeds what has been delivered on this order ({$sym} ".number_format($due, 2).').',
             'PAYMENT_EXCEEDS_DUE',
         );
     }
@@ -156,7 +166,13 @@ class RecordSupplierPaymentAction
                 break;
             }
 
-            $due = round((float) $po->total - (float) $po->amount_paid, 2);
+            // AGAINST THE DELIVERY, NOT THE ORDER. `openOrdersFor` already
+            // refuses to even look at an order nothing has arrived on — and
+            // this then took up to the ORDERED value out of the ones it did
+            // look at, so an on-account payment overshot every short delivery
+            // and the money went out for cartons that never came. On one
+            // load-test grocery that was Rs 5.3M spread across 24 orders.
+            $due = round((float) $po->{Payable::AMOUNT} - (float) $po->amount_paid, 2);
             if ($due <= 0) {
                 continue;
             }

@@ -176,9 +176,14 @@ class MoneyMatrixTest extends TestCase
                 ];
             },
 
+            // RECEIVED FIRST. Paying against a named order is capped at what
+            // has been DELIVERED now — an order still on the truck is paid on
+            // account, not against the docket — so a fixture that never took
+            // delivery was asking to pay for goods it had not seen.
             'supplier · paid against one order' => function (): array {
                 $s = $this->supplier();
                 $po = $this->placedOrder($s, 20000);
+                $this->as()->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [])->assertOk();
 
                 return [
                     'before' => $this->owedToSupplier($s),

@@ -283,7 +283,9 @@ class PaymentOnAccountTest extends TestCase
         // called off is the real shape here.
         $po = $this->po($supplier, cost: 12000, delivered: false);
 
-        $this->pay($supplier, 5000, ['purchase_order_id' => $po['id']])->assertCreated();
+        // ON ACCOUNT, which is what "in advance" means: naming the order is
+        // capped at what has been delivered, and nothing has.
+        $this->pay($supplier, 5000)->assertCreated();
         // Nothing has arrived, so nothing is owed — the 5,000 is money AHEAD.
         $this->assertSame(-5000.0, $this->outstanding($supplier));
 

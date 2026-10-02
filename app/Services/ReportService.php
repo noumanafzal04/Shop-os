@@ -381,15 +381,25 @@ class ReportService
             ->where('purchase_orders.tenant_id', $tenantId)
             ->whereBetween('purchase_orders.order_date', [$fromStart, $toEnd]);
 
+        // ORDERED is what the shop committed to; it is the document the
+        // supplier also holds. What is OWED is billed on delivery, not on the
+        // order — they used to be the same number minus payments, which billed
+        // the shop for every line still on a van. See Payable::AMOUNT.
         $ordered = (float) (clone $base)->sum('total');
-        // What is actually OWED is billed on delivery, not on the order. The
-        // two are different questions and this report answers both: ordered
-        // value is what the shop committed to, outstanding is what it owes
-        // today. They used to be the same number minus payments, which billed
-        // the shop for every undelivered line. See Payable::AMOUNT.
-        $received = (float) (clone $base)->sum(Payable::AMOUNT);
         $paid = (float) (clone $base)->sum('amount_paid');
 
+        /**
+         * PER SUPPLIER, AND CLAMPED THERE.
+         *
+         * Being Rs 40,000 in advance with the flour merchant does not reduce
+         * what is owed to the tea merchant. Summing the signed balances let it
+         * — which is one of the three different answers this question had.
+         *
+         * This figure is PERIOD-SCOPED and so is deliberately NOT the
+         * dashboard's: it says what is still owed on the orders placed in
+         * these dates, not what the shop owes today. Payable::owedByShop
+         * answers the second one, for everybody who asks it.
+         */
         $bySupplier = (clone $base)
             ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
             ->selectRaw('COALESCE(suppliers.name, "Unknown") as supplier, COUNT(*) as orders, SUM(purchase_orders.total) as total, SUM(purchase_orders.'.Payable::AMOUNT.' - purchase_orders.amount_paid) as outstanding')
@@ -400,8 +410,10 @@ class ReportService
                 'supplier' => $r->supplier,
                 'orders' => (int) $r->orders,
                 'total' => round((float) $r->total, 2),
-                'outstanding' => round((float) $r->outstanding, 2),
+                'outstanding' => round(max(0.0, (float) $r->outstanding), 2),
             ])->all();
+
+        $stillOwed = round(array_sum(array_column($bySupplier, 'outstanding')), 2);
 
         return [
             'period' => ['from' => $from, 'to' => $to],
@@ -409,7 +421,10 @@ class ReportService
                 'orders' => (clone $base)->count(),
                 'ordered_value' => round($ordered, 2),
                 'paid' => round($paid, 2),
-                'outstanding' => round($received - $paid, 2),
+                // The sum of the rows below, which are each clamped at zero —
+                // not $received − $paid, which nets one supplier's advance
+                // against another's debt.
+                'outstanding' => $stillOwed,
             ],
             'by_supplier' => $bySupplier,
         ];

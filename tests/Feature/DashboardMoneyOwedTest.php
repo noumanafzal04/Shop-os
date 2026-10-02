@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Customer;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -140,9 +141,23 @@ class DashboardMoneyOwedTest extends TestCase
         ]);
     }
 
+    /**
+     * A PAYMENT IS A ROW, NOT A COLUMN.
+     *
+     * This set `amount_paid` on the order and nothing else, which no code
+     * path in the app can produce: `RecordSupplierPaymentAction` is the only
+     * writer of that column and it always files a `supplier_payments` row
+     * beside it. The difference started to matter when "what do I owe" was
+     * given one definition — it reads the PAYMENTS, because money handed over
+     * with no order raised is money the shop has paid and the old reading
+     * made it invisible.
+     *
+     * So the fixture files the payment too, and the figures it asserts are
+     * once again figures the product can actually arrive at.
+     */
     private function purchase(Supplier $supplier, string $status, float $total, float $paid): PurchaseOrder
     {
-        return PurchaseOrder::withoutTenancy()->create([
+        $po = PurchaseOrder::withoutTenancy()->create([
             'tenant_id' => $this->shop->id,
             'supplier_id' => $supplier->id,
             'po_number' => 'PO-'.str_pad((string) random_int(1, 999999), 6, '0', STR_PAD_LEFT),
@@ -159,5 +174,18 @@ class DashboardMoneyOwedTest extends TestCase
             'received_total' => $status === 'cancelled' ? 0 : $total,
             'amount_paid' => $paid,
         ]);
+
+        if ($paid > 0) {
+            SupplierPayment::withoutTenancy()->create([
+                'tenant_id' => $this->shop->id,
+                'supplier_id' => $supplier->id,
+                'purchase_order_id' => $po->id,
+                'amount' => $paid,
+                'method' => 'cash',
+                'paid_at' => now(),
+            ]);
+        }
+
+        return $po;
     }
 }
