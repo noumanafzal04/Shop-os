@@ -85,6 +85,8 @@ class AuditLoadTestShops extends Command
             $this->everySerialIsOneUnit($shop);
             $this->aVoidedSaleNeverHappened($shop);
             $this->anExchangeIsNotARefund($shop);
+            $this->theCutWasTakenFairly($shop);
+            $this->theRatingIsReal($shop);
 
             app(TenantContext::class)->clear();
         }
@@ -1073,6 +1075,120 @@ class AuditLoadTestShops extends Command
         );
     }
 
+    /**
+     * THE PLATFORM BILLS FOR WHAT IT BROUGHT, AND NOTHING ELSE.
+     *
+     * Commission is charged on an ONLINE order that COMPLETED — never on a
+     * walk-in, never on a phone order the shop took itself, never on one
+     * that was cancelled. Charging any of those would bill a shop for a
+     * customer the marketplace never sent, which is the kind of invoice that
+     * ends a relationship.
+     *
+     * And the rate is a SNAPSHOT: an order already delivered keeps the
+     * number that applied on the day, whatever the platform does later.
+     */
+    private function theCutWasTakenFairly(Tenant $shop): void
+    {
+        if (! Schema::hasTable('commission_charges')) {
+            return;
+        }
+
+        $charges = DB::table('commission_charges')->where('tenant_id', $shop->id)->get();
+
+        if ($charges->isEmpty()) {
+            return;
+        }
+
+        $orders = DB::table('orders')->where('tenant_id', $shop->id)
+            ->get(['id', 'channel', 'status', 'subtotal', 'discount'])->keyBy('id');
+
+        $wrongChannel = $charges->filter(
+            fn ($c) => ($orders[$c->order_id]->channel ?? null) !== 'online',
+        )->count();
+
+        $this->holds(
+            'nothing was billed that the marketplace did not bring',
+            $wrongChannel === 0,
+            $wrongChannel > 0 ? "{$wrongChannel} charged on a counter order" : $charges->count().' charges',
+        );
+
+        $unfinished = $charges->filter(
+            fn ($c) => ($orders[$c->order_id]->status ?? null) !== 'completed',
+        )->count();
+
+        $this->holds('nothing was billed before it completed', $unfinished === 0,
+            $unfinished > 0 ? "{$unfinished} on unfinished orders" : '');
+
+        // The amount is the rate applied to the goods after discount — the
+        // delivery fee is the rider's money and is deliberately out of it,
+        // or a shop that delivers would pay more for an identical basket.
+        $adrift = $charges->filter(function ($c) use ($orders) {
+            $o = $orders[$c->order_id] ?? null;
+            if ($o === null) {
+                return true;
+            }
+            $base = round((float) $o->subtotal - (float) $o->discount, 2);
+            $expected = round($base * (float) $c->rate_percent / 100, 2);
+
+            return abs($base - (float) $c->base_amount) > 0.02
+                || abs($expected - (float) $c->amount) > 0.02;
+        })->count();
+
+        $this->holds('every charge is its own rate on its own goods', $adrift === 0,
+            $adrift > 0 ? "{$adrift} adrift" : '');
+
+        // One charge per order, for ever. Completion is retried — by a queue,
+        // by a rider tapping twice — and billing twice for one delivery is
+        // the failure a shop actually notices.
+        $twice = $charges->groupBy('order_id')->filter(fn ($g) => $g->count() > 1)->count();
+        $this->holds('no order was billed twice', $twice === 0,
+            $twice > 0 ? "{$twice} billed more than once" : '');
+    }
+
+    /**
+     * A RATING IS MADE OF REVIEWS, AND A REVIEW BELONGS TO ONE PERSON.
+     *
+     * One per customer per shop — `upsert`, not `create`, because somebody
+     * who comes back and changes their mind must replace their own star and
+     * not add a second one. A shop could otherwise be voted up or down by
+     * one determined person.
+     */
+    private function theRatingIsReal(Tenant $shop): void
+    {
+        if (! Schema::hasTable('reviews')) {
+            return;
+        }
+
+        $reviews = DB::table('reviews')->where('tenant_id', $shop->id)->get();
+
+        if ($reviews->isEmpty()) {
+            return;
+        }
+
+        $twice = $reviews->groupBy('customer_id')->filter(fn ($g) => $g->count() > 1)->count();
+        $this->holds('nobody rated this shop twice', $twice === 0,
+            $twice > 0 ? "{$twice} customers with two" : $reviews->count().' reviews');
+
+        $outOfRange = $reviews->filter(fn ($r) => (int) $r->rating < 1 || (int) $r->rating > 5)->count();
+        $this->holds('every star is between one and five', $outOfRange === 0,
+            $outOfRange > 0 ? "{$outOfRange} out of range" : '');
+
+        // A reply without a date, or a date without a reply, is half a row —
+        // and the screen draws one from the other.
+        $halfReplied = $reviews->filter(
+            fn ($r) => ($r->reply !== null) !== ($r->replied_at !== null),
+        )->count();
+
+        $this->holds('a reply and the day it was written travel together', $halfReplied === 0,
+            $halfReplied > 0 ? "{$halfReplied} half-written" : '');
+
+        // The fixture has to contain the review an owner actually has to
+        // answer. A shop whose every review is five stars has an average
+        // nobody learns anything from.
+        $unhappy = $reviews->filter(fn ($r) => (int) $r->rating <= 3)->count();
+        $this->holds('somebody was not happy', $unhappy > 0, "{$unhappy} of {$reviews->count()} at three or below");
+    }
+
     private function whatIsStillEmpty(): void
     {
         $ids = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->pluck('id');
@@ -1087,6 +1203,7 @@ class AuditLoadTestShops extends Command
             'suppliers', 'purchase_orders', 'supplier_payments',
             'fuel_tanks', 'fuel_pumps', 'fuel_nozzles', 'forecourt_shifts', 'fuel_deliveries', 'fuel_price_changes',
             'orders', 'order_items', 'riders', 'rider_settlements',
+            'customer_addresses', 'reviews', 'commission_charges',
             'sale_documents', 'customer_vehicles', 'warranty_claims',
             'product_serials', 'sale_item_serials',
             'expenses', 'incomes', 'expense_categories', 'income_categories',
@@ -1102,7 +1219,14 @@ class AuditLoadTestShops extends Command
             if (! Schema::hasTable($table)) {
                 continue;
             }
-            $n = (int) DB::table($table)->whereIn('tenant_id', $ids)->count();
+            // NOT EVERY TABLE HAS A TENANT. `customer_addresses` hangs off
+            // a marketplace USER, who shops at several shops and belongs to
+            // none of them — asking it for a tenant_id is asking the wrong
+            // question of the right table, and it crashed the whole audit at
+            // the last line rather than reporting anything.
+            $n = Schema::hasColumn($table, 'tenant_id')
+                ? (int) DB::table($table)->whereIn('tenant_id', $ids)->count()
+                : (int) DB::table($table)->count();
             $n === 0 ? $empty[] = $table : $filled[] = "{$table}:{$n}";
         }
 

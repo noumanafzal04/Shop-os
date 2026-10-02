@@ -53,11 +53,13 @@ use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\OrderService;
+use App\Services\ReviewService;
 use App\Services\RiderService;
 use App\Support\BranchContext;
 use App\Support\DrawerMath;
 use App\Support\Modules;
 use App\Support\Payable;
+use App\Support\PlatformSettings;
 use App\Support\StaffPresets;
 use App\Support\TenantContext;
 use Carbon\Carbon;
@@ -142,6 +144,24 @@ class SeedLoadTestShops extends Command
 
                 $t->forceDelete();
             }
+        }
+
+        /**
+         * THE PLATFORM HAS TO BE BILLING SOMETHING.
+         *
+         * Commission is OFF across the installation by default, which is the
+         * right default — whether the platform takes a cut is a business
+         * decision, not a seeding one. But with it off, `rateFor()` returns
+         * zero, `chargeFor()` returns null, and thirty completed marketplace
+         * orders produce an empty `commission_charges` table that reads as a
+         * broken feature.
+         *
+         * Switched on HERE and said out loud, because this is the one thing
+         * this command changes that is not a load-test row.
+         */
+        if (! PlatformSettings::get('commission_enabled')) {
+            PlatformSettings::put(['commission_enabled' => true, 'commission_rate' => 4.5]);
+            $this->warn('  platform commission switched ON at 4.5% — it was off, and the billing path cannot be exercised without it.');
         }
 
         $city = City::query()->firstOrCreate(['name' => 'Lahore'], ['is_active' => true]);
@@ -326,6 +346,7 @@ class SeedLoadTestShops extends Command
         $this->theReward($tenant, $type, $owner, $branches, $productIds);
         $this->theDiningRoom($tenant, $owner, $branches, $productIds);
         $this->theOnlineDoor($tenant, $owner, $branches, $productIds);
+        $this->theShoppers($tenant, $owner, $productIds, $city);
         $this->thePaperwork($tenant, $type, $owner, $branches, $productIds, $customers);
         $this->books($tenant, $owner, $branches);
         $this->theStandingOrders($tenant, $owner, $branches);
@@ -2598,6 +2619,178 @@ class SeedLoadTestShops extends Command
         app(BranchContext::class)->clear();
 
         $this->line("  standing   {$made} templates ({$overdue} were overdue) · {$posted} posted themselves");
+        foreach ($why as $message => $n) {
+            $this->line("    refused ×{$n}  ".Str::limit($message, 92));
+        }
+    }
+
+    /**
+     * PEOPLE WHO SHOP FROM A PHONE.
+     *
+     * Everything in this fixture so far is somebody standing at a counter or
+     * ringing the shop. A marketplace customer is a different kind of row
+     * entirely — a USER, not a `customers` record — and without one, four
+     * tables stay empty and so does the only path that bills the platform:
+     *
+     *   customer_addresses   where the rider is actually going
+     *   reviews              what the shop's rating is made of
+     *   orders.channel=online  the one channel commission is charged on
+     *   commission_charges   the platform's own revenue
+     *
+     * The counter-taken orders seeded elsewhere are `phone` and `whatsapp`,
+     * and `CommissionService` refuses them by design: if the marketplace did
+     * not bring the customer, there is no commission on the sale. So the
+     * platform's books were empty for the right reason and the wrong one —
+     * nothing had ever come through the door it bills for.
+     *
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     */
+    private function theShoppers(Tenant $tenant, User $owner, array $productIds, City $city): void
+    {
+        if (! $tenant->fresh()->sellsOnline() || $productIds === []) {
+            return;
+        }
+
+        $orders = app(OrderService::class);
+        $reviews = app(ReviewService::class);
+
+        $placed = 0;
+        $completed = 0;
+        $reviewed = 0;
+        $replied = 0;
+        $addresses = 0;
+        /** @var array<string, int> $why */
+        $why = [];
+
+        $areas = [
+            ['Home', 'House 14, Street 7, Johar Town'],
+            ['Work', 'Office 3, Main Boulevard, Gulberg'],
+            ['Mum’s', 'House 88, Block C, Model Town'],
+        ];
+
+        foreach (range(1, 40) as $n) {
+            $shopper = User::factory()->create([
+                'name' => 'Shopper '.$n.' of '.Str::limit($tenant->business_name, 14, ''),
+                'email' => Str::slug($tenant->slug)."-shopper{$n}@example.test",
+                'phone' => '0345'.str_pad((string) (1000000 + $n), 7, '0', STR_PAD_LEFT),
+            ]);
+
+            // A PHONE HAS MORE THAN ONE ADDRESS ON IT. Home and work is the
+            // ordinary case, and "which one is default" is a question that
+            // only exists once there are two.
+            foreach (array_slice($areas, 0, $n % 3 === 0 ? 2 : 1) as $k => [$label, $line]) {
+                DB::table('customer_addresses')->insert([
+                    'id' => (string) Str::uuid7(),
+                    'user_id' => $shopper->id,
+                    'label' => $label,
+                    'address' => $line,
+                    'city_id' => $city->id,
+                    'is_default' => $k === 0,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $addresses++;
+            }
+
+            auth()->setUser($shopper);
+            $lines = [];
+            foreach (range(1, random_int(1, 3)) as $l) {
+                $pick = $productIds[array_rand($productIds)];
+                $lines[] = [
+                    'product_id' => $pick['product_id'],
+                    'variant_id' => $pick['variant_id'],
+                    'quantity' => random_int(1, 2),
+                ];
+            }
+
+            try {
+                // No pin on the address. A typed address with no coordinates
+                // is deliberately NOT refused by the radius check — the shop
+                // reads it and decides — and that is the ordinary case for
+                // somebody who typed their street rather than dropping a
+                // marker.
+                $order = $orders->place(
+                    customer: $shopper,
+                    shop: $tenant,
+                    data: [
+                        'fulfillment_type' => $n % 4 === 0 ? 'pickup' : 'delivery',
+                        'delivery_address' => $n % 4 === 0 ? null : $areas[0][1],
+                        'payment_method' => $n % 3 === 0 ? 'paid' : 'cod',
+                        'items' => $lines,
+                    ],
+                    staff: null,
+                );
+                $placed++;
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+
+                continue;
+            }
+
+            auth()->setUser($owner);
+
+            // Three in four are seen through. The rest are left mid-queue,
+            // because an Orders screen whose every row is finished is a
+            // screen nobody has to work.
+            if ($n % 4 !== 1) {
+                $path = $order->fulfillment_type->value === 'pickup'
+                    ? ['confirmed', 'preparing', 'ready', 'completed']
+                    : ['confirmed', 'preparing', 'out_for_delivery', 'completed'];
+
+                foreach ($path as $step) {
+                    try {
+                        $order = $orders->advance($order->fresh(), OrderStatus::from($step));
+                    } catch (\Throwable $e) {
+                        $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                        break;
+                    }
+                }
+
+                if ($order->fresh()->status === OrderStatus::Completed) {
+                    $completed++;
+                }
+            }
+
+            // ── What they thought of it ─────────────────────────────
+            // Not everybody writes one, and the ones who do are not all
+            // delighted: a shop whose every review is five stars has an
+            // average nobody learns anything from, and the one-star replies
+            // are the part of the screen that matters.
+            if ($n % 3 === 0) {
+                try {
+                    $rating = [5, 5, 4, 3, 1][$n % 5];
+                    $review = $reviews->upsert($shopper, $tenant, [
+                        'rating' => $rating,
+                        'comment' => [
+                            5 => 'Fresh stock and quick delivery.',
+                            4 => 'Good, but the rider took a while.',
+                            3 => 'One item was missing from the bag.',
+                            1 => 'Order arrived cold and nobody answered the phone.',
+                        ][$rating] ?? null,
+                    ]);
+                    $reviewed++;
+
+                    // A SHOP THAT ANSWERS. The reply box is the whole reason
+                    // the owner can read these at all, and it had never been
+                    // used in this world.
+                    if ($rating <= 3) {
+                        $reviews->reply($review, 'Sorry about that — please call us and we will put it right.');
+                        $replied++;
+                    }
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+            }
+        }
+
+        auth()->setUser($owner);
+
+        $charged = (int) DB::table('commission_charges')->where('tenant_id', $tenant->id)->count();
+
+        $this->line(
+            "  shoppers   40 accounts · {$addresses} addresses · {$placed} online orders"
+            ." ({$completed} completed, {$charged} commissioned) · {$reviewed} reviews ({$replied} answered)"
+        );
         foreach ($why as $message => $n) {
             $this->line("    refused ×{$n}  ".Str::limit($message, 92));
         }
