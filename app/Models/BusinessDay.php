@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -100,6 +101,28 @@ class BusinessDay extends Model
             ->where('branch_id', $branchId)
             ->latest('trading_date')
             ->first();
+    }
+
+    /**
+     * EVERY COUNTER THAT IS TRADING, NEWEST FIRST.
+     *
+     * `openFor(null)` cannot answer this and must not try: it would look for
+     * a day whose `branch_id` IS NULL, which is no day at all. "All branches"
+     * is not a branch — it is a question about several, and the owner's HQ
+     * view is the one place that question is asked.
+     *
+     * Newest first for the same reason `openFor` orders that way: of the days
+     * still open, the one being traded is the latest.
+     *
+     * @return Collection<int, self>
+     */
+    public static function openAcrossTheShop(): Collection
+    {
+        return static::query()
+            ->where('status', self::STATUS_OPEN)
+            ->whereNotNull('branch_id')
+            ->latest('trading_date')
+            ->get();
     }
 
     public function isOpen(): bool

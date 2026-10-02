@@ -29,12 +29,44 @@ class BusinessDayController extends Controller
     /** The day currently trading, with its shifts as they stand right now. */
     public function current(Request $request): JsonResponse
     {
-        $day = BusinessDay::openFor($this->branch->id())
-            ?->load(['openedBy:id,name', 'branch:id,name']);
+        /**
+         * WHICH COUNTER IS THIS SCREEN ABOUT?
+         *
+         * `BranchContext` answers two different questions and this used to
+         * ask the wrong one. `id()` is the branch being OPERATED, and it is
+         * never null for an owner — `ResolveBranch` pins them to Main when no
+         * header is sent. `scopeId()` is the branch being LOOKED AT, and it
+         * is null precisely when the owner has chosen "All branches", which
+         * is what the panel's switcher sends: nothing at all.
+         *
+         * So a chain whose Main had already closed and whose other two shops
+         * were mid-afternoon opened Day & Banking and was told the day had
+         * not started. Nothing on the screen named a branch, so the only
+         * reading available to the owner was "nobody has opened the till" —
+         * on a day with money in three drawers.
+         *
+         * A branch that was CHOSEN still answers only for itself: an owner
+         * looking at Main whose Main is closed is correctly told so, and
+         * showing them another branch's drawer would be worse than nothing.
+         */
+        $open = $this->branch->scopesAll()
+            ? BusinessDay::openAcrossTheShop()
+            : collect(array_filter([BusinessDay::openFor($this->branch->id())]));
+
+        /** @var BusinessDay|null $day */
+        $day = $open->first()?->load(['openedBy:id,name', 'branch:id,name']);
 
         if ($day === null) {
             return ApiResponse::ok(null, 'No day open');
         }
+
+        // Named, because "a day" means nothing across three shops. The row
+        // already carries its branch; this says how many OTHERS are trading,
+        // so an owner reading one counter's figures knows there are more.
+        $alsoTrading = $open
+            ->reject(fn (BusinessDay $d) => $d->is($day))
+            ->map(fn (BusinessDay $d) => ['id' => $d->branch_id, 'name' => $d->branch?->name])
+            ->values();
 
         $sessions = CashSession::query()
             ->with(['user:id,name', 'register:id,name'])
@@ -73,6 +105,9 @@ class BusinessDayController extends Controller
 
         return ApiResponse::ok([
             'day' => $day,
+            // Empty on a single-site shop and on a chosen branch — the screen
+            // only has something extra to say in the HQ view.
+            'also_trading' => $alsoTrading,
             'sessions' => $rows,
             // A live roll-up so the owner can watch the day build. Deliberately
             // NOT written to the row until close — a running total that gets
