@@ -77,7 +77,6 @@ const SCREENS: Array<{ path: string; name: string }> = [
   { path: "/tenant/disposals", name: "written-off stock" },
   { path: "/tenant/branches", name: "branches" },
   { path: "/tenant/orders", name: "online orders" },
-  { path: "/tenant/documents", name: "quotes & invoices" },
   { path: "/tenant/sales/new", name: "a new sale" },
   { path: "/tenant/orders/new", name: "taking an order" },
   { path: "/tenant/income", name: "other income" },
@@ -89,7 +88,31 @@ const SCREENS: Array<{ path: string; name: string }> = [
   { path: "/tenant/activity", name: "activity" },
   { path: "/tenant/security", name: "security" },
   { path: "/tenant/subscription", name: "subscription" },
-  { path: "/tenant/bank-offers", name: "bank offers" },
+
+  // ── GONE FROM THIS LIST, AND WHY ────────────────────────────────────
+  //
+  // Both of these were here and both were measuring the DASHBOARD. The mart
+  // fixture has neither module, `RequireFeature` redirects, and nothing in
+  // this file asked where the page had ended up.
+  //
+  //   /tenant/documents    → moved to trade.chrome.spec.ts under `retail`,
+  //                          which is a shop that actually has it.
+  //
+  //   /tenant/bank-offers  → NOT MOVED, because no fixture can reach it:
+  //                          `bank_offers` is false in every trade's defaults,
+  //                          so not one of the eight sweep shops has it on.
+  //                          That screen has never been opened by a browser
+  //                          at all. A module is assigned by the platform and
+  //                          cannot be switched on from the tenant API — the
+  //                          same wall shelf.setup.ts hits with
+  //                          `offline_selling`. To cover it, grant it once:
+  //
+  //   php artisan tinker --execute='$t = App\Models\User::where("email",
+  //     "sweep-retail@qa.test")->first()->tenant; $f = $t->features;
+  //     $f["bank_offers"] = true; $t->features = $f; $t->save();'
+  //
+  //                          …then add it to trade.chrome.spec.ts under
+  //                          `retail` beside warranty claims.
   { path: "/tenant/riders", name: "riders" },
 ];
 
@@ -110,6 +133,25 @@ for (const screen of SCREENS) {
       .toBeGreaterThan(60);
     expect(size.text, `${screen.name} (${screen.path}) rendered no words`)
       .toBeGreaterThan(120);
+
+    /**
+     * STILL ON THE SCREEN IT ASKED FOR.
+     *
+     * `RequireFeature` and `RequirePermission` do not render a refusal in
+     * place — they `<Navigate to="/tenant">`. So a screen behind a module this
+     * shop does not have silently becomes the DASHBOARD, and every rule below
+     * then measures the dashboard and passes.
+     *
+     * The size denominator above cannot see it: a redirect to an EMPTY page is
+     * what that was written for, and the dashboard is not empty. Two screens
+     * in this list had been measured that way at four device sizes each, green
+     * every time, for as long as the list has existed.
+     */
+    expect(
+      new URL(page.url()).pathname,
+      `${screen.name} did not stay on ${screen.path} — a guard redirected it, so ` +
+        `every rule below would describe a different screen`,
+    ).toBe(screen.path);
 
     report(
       await everyRule(page),

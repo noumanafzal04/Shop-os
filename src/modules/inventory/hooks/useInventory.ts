@@ -131,6 +131,23 @@ export function useDisposals(filters: DisposalFilters = {}) {
   });
 }
 
+export function useWriteOffStock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: inventoryService.writeOff,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["disposals"] });
+      // STOCK AND THE SHELF TRAVEL TOGETHER. A write-off moves both, and a
+      // catalogue still showing the old figure is the cache bug this repo has
+      // written down twice — see "One Shelf, Two Caches".
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
 export function useCreditDisposal() {
   const queryClient = useQueryClient();
 

@@ -34,6 +34,11 @@ const BY_TRADE: Record<string, Array<{ path: string; name: string }>> = {
   ],
   retail: [
     { path: "/tenant/warranty", name: "warranty claims" },
+    // Quotes and invoices sat in `chrome.spec.ts`, where the MART opened it —
+    // and a mart has no `documents` module, so `RequireFeature` sent every one
+    // of those walks to the dashboard. Four device sizes, green, about the
+    // dashboard. A retail shop has it.
+    { path: "/tenant/documents", name: "quotes & invoices" },
   ],
   services: [
     { path: "/tenant/reservations", name: "reservations" },
@@ -67,6 +72,14 @@ for (const [trade, screens] of Object.entries(BY_TRADE)) {
           .toBeGreaterThan(40);
         expect(size.text, `${screen.name} (${screen.path}) rendered no words`)
           .toBeGreaterThan(60);
+
+        // STILL ON THE SCREEN IT ASKED FOR. The size check above was written
+        // for a redirect to an EMPTY page; a guard here redirects to the
+        // DASHBOARD, which is not empty and passes everything.
+        expect(
+          new URL(page.url()).pathname,
+          `${screen.name} did not stay on ${screen.path} — a guard redirected it`,
+        ).toBe(screen.path);
 
         report(
           await everyRule(page),

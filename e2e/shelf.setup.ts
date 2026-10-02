@@ -225,3 +225,36 @@ setup("the fixture shop is allowed to sell offline", async ({ request }) => {
       "$l = $t->limits ?? []; $l[\"offline_selling\"] = 1; $t->limits = $l; $t->save();'\n",
   ).toBe(true);
 });
+
+/**
+ * A LIST THAT WAS ALWAYS EMPTY, AND THE CHECKS IT SILENCED.
+ *
+ * `four-doors.spec.ts` asks whether each managing screen offers Edit and
+ * Remove. Those controls live ON A ROW, so a screen with no rows cannot be
+ * asked — and collections had no rows in this fixture, ever. Two door-checks
+ * passed on nothing.
+ *
+ * Raising the spec's allowance would have been the easy answer and the wrong
+ * one: the point of an UNJUDGED count is that it goes DOWN. One row is enough,
+ * so the fixture makes one.
+ *
+ * Idempotent: the list is read first, because a collection's name is unique
+ * per shop and a second run would otherwise fail on a constraint rather than
+ * on anything about the product.
+ */
+setup("a collection exists, so its row can be judged", async ({ request }) => {
+  const auth = ownerAuth();
+
+  const collections = await request.get(`${API}/collections`, { headers: auth });
+  expect(collections.ok(), `collections unreadable (${collections.status()})`).toBeTruthy();
+
+  if (((await collections.json()) as { data: unknown[] }).data.length > 0) {
+    return;
+  }
+
+  const made = await request.post(`${API}/collections`, {
+    headers: auth,
+    data: { name: "Everyday basics", description: "What the shop sells most of." },
+  });
+  expect(made.ok(), `could not make a collection (${made.status()}): ${await made.text()}`).toBeTruthy();
+});

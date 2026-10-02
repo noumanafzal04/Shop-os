@@ -548,6 +548,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: ["write off", "wastage", "expired", "return to supplier", "credit note", "claim", "loss"],
     body: [
       { type: "p", text: "Everything you have taken off the shelf without selling it, in two lists that are never added together." },
+      { type: "h", text: "Writing something off" },
+      { type: "p", text: "Press Write off stock, type the item's name, say how many and why. The cost comes from what you last paid for it, so the loss is valued without you working anything out." },
+      { type: "note", text: "This is the difference between Disposals and an ordinary stock adjustment. Taking three broken cartons out through Inventory \u2192 Adjust moves the stock correctly and records no money at all \u2014 so your year's wastage cannot be totalled. Write it off here instead and it carries its cost." },
+      { type: "note", text: "An item you keep in batches is written off on the BATCH, not here \u2014 Inventory \u2192 Batches \u2192 Dispose. That way the lot number, the expiry and what that particular lot cost all travel with the record, which is what a chemist needs and a single total cannot give." },
       {
         type: "table",
         head: ["Tab", "What it is"],
@@ -1398,6 +1402,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "The cash" },
       { type: "p", text: "Cash collected on delivery is recorded when the rider hands it in, not when the order was placed. The Cash held column is what each rider is currently carrying for you \u2014 delivered, paid in cash, not yet handed back. Press Settle cash to see it order by order and record what you actually took." },
       { type: "warn", text: "Settling records the money coming back to the shop. It does not pay the rider their delivery fees \u2014 that is between you and them." },
+      { type: "warn", text: "A rider carrying your cash cannot be removed. Settle with them first. Removing them would take the Cash held figure off this screen along with the Settle button, and that is the only place it is shown." },
+      { type: "h", text: "Correcting a name or a number" },
+      { type: "p", text: "Press Edit on the row. The phone number here is the one you ring when a delivery goes wrong, so it is worth keeping right \u2014 and you no longer have to remove the rider and add them again to change a spelling." },
       { type: "p", text: "A rider cannot go off duty while carrying one of your orders, and cannot mark an order delivered without the customer's code. If a customer's phone is flat, complete the order from the Online Orders screen as you always could." },
     ],
   },

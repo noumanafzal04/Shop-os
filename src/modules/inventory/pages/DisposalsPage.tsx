@@ -12,6 +12,7 @@ import { useMoney } from "../../shop/hooks/useShop";
 import { useCreditDisposal, useDisposals } from "../hooks/useInventory";
 import type { StockDisposal } from "../services/inventoryService";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
+import { WriteOffModal } from "../components/WriteOffModal";
 import { toIsoDate } from "../../../components/ui/filters";
 
 /**
@@ -55,6 +56,7 @@ export default function DisposalsPage() {
   const money = useMoney();
   const [tab, setTab] = useState<Tab>("claims");
   const [settling, setSettling] = useState<StockDisposal | null>(null);
+  const [writingOff, setWritingOff] = useState(false);
 
   const filters =
     tab === "claims"
@@ -77,12 +79,20 @@ export default function DisposalsPage() {
     <>
       <PageMeta title="Disposals | True Serve" description="Stock written off or sent back, and what is owed for it" />
 
-      <div className="mb-5">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Disposals</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Stock that left without being sold — binned, or sent back for credit.
-        </p>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Disposals</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Stock that left without being sold — binned, or sent back for credit.
+          </p>
+        </div>
+        {/* The screen said this and had no way to do it: the only writer of a
+            disposal was deleting a batch, so a shop that does not batch its
+            stock read an empty register for ever. */}
+        <Button size="sm" onClick={() => setWritingOff(true)}>+ Write off stock</Button>
       </div>
+
+      <WriteOffModal open={writingOff} onClose={() => setWritingOff(false)} />
 
       <div className="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-800">
         {TABS.map(([key, label]) => (

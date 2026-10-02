@@ -40,6 +40,19 @@ export default function RidersPage() {
   // statement query is disabled — a shop with forty riders must not ask for
   // forty statements to draw a list.
   const [settling, setSettling] = useState<string | null>(null);
+  /**
+   * WHOSE DETAILS ARE BEING CORRECTED.
+   *
+   * `PATCH /riders/{id}` has accepted a name and a phone since the module was
+   * written, and this screen never sent either — it sent `is_active` and
+   * nothing else. So a shop that typed "Blial", or kept an old number, had one
+   * way to fix it: Remove, then Add again.
+   *
+   * That is how a rider with the shop's cash on them gets deleted. The server
+   * refuses that now (RIDER_HOLDS_CASH) — but a refusal with no way to do the
+   * thing the shop actually wanted is a dead end, so this is the other half.
+   */
+  const [editing, setEditing] = useState<{ id: string; name: string; phone: string } | null>(null);
   const [paid, setPaid] = useState("");
   const [note, setNote] = useState("");
   const statement = useRiderStatement(settling);
@@ -67,6 +80,15 @@ export default function RidersPage() {
     if (!code.trim()) return;
     setError(null);
     invite.mutate(code.trim().toUpperCase(), { onSuccess: () => setCode(""), onError });
+  };
+
+  const saveDetails = () => {
+    if (editing === null || !editing.name.trim()) return;
+    setError(null);
+    update.mutate(
+      { id: editing.id, name: editing.name.trim(), phone: editing.phone.trim() || null },
+      { onSuccess: () => setEditing(null), onError },
+    );
   };
 
   const doSettle = () => {
@@ -306,6 +328,12 @@ export default function RidersPage() {
                     )}
                     <button
                       className={ROW_ACTION}
+                      onClick={() => { setError(null); setEditing({ id: r.id, name: r.name, phone: r.phone ?? "" }); }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className={ROW_ACTION}
                       onClick={() => { setError(null); update.mutate({ id: r.id, is_active: !r.is_active }, { onError }); }}
                     >
                       {r.is_active ? "Deactivate" : "Activate"}
@@ -326,6 +354,41 @@ export default function RidersPage() {
         )}
         <Pager pagination={pagination} onPage={setPage} noun="riders" />
       </div>
+
+      {/* A NAME AND A NUMBER, CORRECTED IN PLACE. */}
+      <Modal isOpen={editing !== null} onClose={() => setEditing(null)} className="max-w-md">
+        <ModalForm
+          title="Edit rider"
+          description="The number here is the one the shop rings when a delivery goes wrong."
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setEditing(null)}>
+                Cancel
+              </Button>
+              <Button onClick={saveDetails} disabled={update.isPending || !(editing?.name ?? "").trim()}>
+                {update.isPending ? "Saving…" : "Save"}
+              </Button>
+            </>
+          }
+        >
+          <div>
+            <Label htmlFor="rider-edit-name">Name</Label>
+            <Input
+              id="rider-edit-name"
+              value={editing?.name ?? ""}
+              onChange={(e) => setEditing((p) => (p === null ? p : { ...p, name: e.target.value }))}
+            />
+          </div>
+          <div>
+            <Label htmlFor="rider-edit-phone">Phone</Label>
+            <Input
+              id="rider-edit-phone"
+              value={editing?.phone ?? ""}
+              onChange={(e) => setEditing((p) => (p === null ? p : { ...p, phone: e.target.value }))}
+            />
+          </div>
+        </ModalForm>
+      </Modal>
 
       {/*
         TAKING THE CASH BACK.

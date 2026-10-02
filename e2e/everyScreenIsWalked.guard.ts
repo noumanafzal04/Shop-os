@@ -68,6 +68,28 @@ const NOT_WALKED: Record<string, string> = {
   "/tenant/setup": "completes a shop's setup — a walk must not change what it walks",
 
   /**
+   * ⚠️ NO FIXTURE CAN REACH IT — a debt, not a decision.
+   *
+   * `/tenant/bank-offers` WAS in chrome.spec.ts and passed at four device
+   * sizes for as long as that list has existed. It was measuring the
+   * DASHBOARD: `bank_offers` is false in every trade's defaults, so not one of
+   * the eight sweep shops has it, and `RequireFeature` redirects. Nothing
+   * asked where the page had ended up — the size denominator beside it was
+   * written for a redirect to an EMPTY page, and a dashboard is not empty.
+   *
+   * Both walking specs assert their own pathname now, so this cannot recur
+   * silently. The screen itself is still uncovered, and that is what this line
+   * is for. Granting the module to one sweep shop pays it off:
+   *
+   *   php artisan tinker --execute='$t = App\Models\User::where("email",
+   *     "sweep-retail@qa.test")->first()->tenant; $f = $t->features;
+   *     $f["bank_offers"] = true; $t->features = $f; $t->save();'
+   *
+   * …then move it into trade.chrome.spec.ts under `retail` and delete this.
+   */
+  "/tenant/bank-offers": "NO FIXTURE HAS THE MODULE — walked nothing but the dashboard until now",
+
+  /**
    * ⚠️ BASIC HR — placeholders, and only while they stay placeholders.
    *
    * Each renders a fixed "not built yet" notice and calls nothing. A browser

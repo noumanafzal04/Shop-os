@@ -226,6 +226,25 @@ export const inventoryService = {
    * assumed from what was claimed; the gap between the two is the figure worth
    * reading.
    */
+  /**
+   * Write something off that was never in a lot.
+   *
+   * The only writer of a disposal used to be deleting a BATCH, so every trade
+   * that does not batch its stock was given this register and no way to fill
+   * it — while the path they do use (Adjust → out, "Damaged") records a
+   * quantity and no money, because `stock_movements` has no cost column.
+   */
+  writeOff: (payload: {
+    product_id: string;
+    variant_id?: string;
+    quantity: number;
+    disposition: "written_off" | "returned_to_supplier";
+    reason: string;
+    notes?: string;
+    supplier_id?: string;
+    credit_expected?: number;
+  }) => apiPost<StockDisposal>("/inventory/disposals", payload),
+
   creditDisposal: (
     id: string,
     payload: { credit_received: number; credit_received_at: string; credit_reference?: string },

@@ -218,7 +218,10 @@ export const ordersService = {
   // riders (the shop's own delivery riders — Model A)
   riders: () => apiGet<Rider[]>("/riders"),
   createRider: (payload: { name: string; phone?: string }) => apiPost<Rider>("/riders", payload),
-  updateRider: (id: string, payload: { name?: string; phone?: string; is_active?: boolean }) =>
+  // `phone: null` CLEARS the number, which is a thing a shop does — the rider
+  // changed their SIM and has not given the new one yet. `undefined` leaves it
+  // alone. The rule behind this is `sometimes|nullable`, so both are real.
+  updateRider: (id: string, payload: { name?: string; phone?: string | null; is_active?: boolean }) =>
     apiPatch<Rider>(`/riders/${id}`, payload),
   deleteRider: (id: string) => apiDelete<null>(`/riders/${id}`),
 

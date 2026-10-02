@@ -111,7 +111,7 @@ export function useRiderMutations() {
     onSuccess: invalidate,
   });
   const update = useMutation({
-    mutationFn: ({ id, ...payload }: { id: string; name?: string; phone?: string; is_active?: boolean }) =>
+    mutationFn: ({ id, ...payload }: { id: string; name?: string; phone?: string | null; is_active?: boolean }) =>
       ordersService.updateRider(id, payload),
     onSuccess: invalidate,
   });

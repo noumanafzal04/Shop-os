@@ -37,6 +37,11 @@ const TRADE_ONLY = /trade\.chrome\.spec\.ts/;
  * anything that only breaks when `isAuthenticated` is false.
  */
 const STOREFRONT_ONLY = /market\.spec\.ts/;
+
+// "Can a shopkeeper add, change and remove one?" is not a question about
+// screen size, so this runs ONCE rather than four times. Running it per device
+// would quadruple the cost and quadruple the same answer.
+const DOORS_ONLY = /four-doors\.spec\.ts/;
 const TRADES = ["petroleum", "pharmacy", "automotive", "retail", "services", "finance"];
 
 export default defineConfig({
@@ -91,13 +96,13 @@ export default defineConfig({
     // "below xl" is on every tablet in the shop.
     {
       name: "tablet-landscape",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7) landscape"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "tablet-portrait",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/owner.json" },
     },
@@ -109,13 +114,20 @@ export default defineConfig({
     // the catalog share a screen that is 390 points wide.
     {
       name: "phone",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPhone 14"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "desktop",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY],
+      dependencies: ["shelf"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" },
+    },
+
+    {
+      name: "doors",
+      testMatch: DOORS_ONLY,
       dependencies: ["shelf"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" },
     },
