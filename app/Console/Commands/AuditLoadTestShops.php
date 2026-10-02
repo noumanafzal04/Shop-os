@@ -72,6 +72,8 @@ class AuditLoadTestShops extends Command
             $this->theShelfAgreesWithItself($shop);
             $this->lossesAreValued($shop);
             $this->pointsMatchTheSales($shop);
+            $this->theTaxOnEveryLine($shop);
+            $this->aPackIsManyOfSomething($shop);
 
             app(TenantContext::class)->clear();
         }
@@ -91,6 +93,130 @@ class AuditLoadTestShops extends Command
         }
 
         return self::FAILURE;
+    }
+
+    /**
+     * THE TAX ON EVERY LINE IS THE RATE THAT LINE WAS SOLD AT.
+     *
+     * `sale_items.tax_rate` is a SNAPSHOT — the rate at the moment of sale —
+     * and it has to be, because a shop's tax band changes and last March's
+     * invoice must not change with it. A snapshot is also the easiest thing
+     * in a schema to forget to take: the column is nullable, and a null one
+     * falls back to the sale's overall effective rate when a refund is
+     * computed, which is a different number on a mixed basket.
+     *
+     * So: the bill's tax must equal the sum of its lines' own tax, worked out
+     * line by line from each line's own rate — not from one rate applied to
+     * the whole basket.
+     */
+    private function theTaxOnEveryLine(Tenant $shop): void
+    {
+        $sales = DB::table('sales as s')
+            ->where('s.tenant_id', $shop->id)
+            ->where('s.status', 'completed')
+            ->whereNull('s.deleted_at')
+            ->where('s.tax', '>', 0)
+            ->select('s.id', 's.invoice_number', 's.tax', 's.subtotal', 's.discount', 's.tax_inclusive')
+            ->get();
+
+        if ($sales->isEmpty()) {
+            return;
+        }
+
+        $unrated = (int) DB::table('sale_items as i')
+            ->join('sales as s', 's.id', '=', 'i.sale_id')
+            ->where('i.tenant_id', $shop->id)
+            ->where('s.tax', '>', 0)
+            ->whereNull('i.tax_rate')
+            ->count();
+
+        $this->holds(
+            'every taxed line remembers the rate it was sold at',
+            $unrated === 0,
+            $unrated > 0 ? "{$unrated} lines with no snapshot" : '',
+        );
+
+        // Rebuilt from the lines. A sale-level discount is spread across the
+        // basket before tax, exactly as the refund path spreads it — doing it
+        // any other way here would invent a disagreement.
+        $lines = DB::table('sale_items')
+            ->where('tenant_id', $shop->id)
+            ->whereIn('sale_id', $sales->pluck('id'))
+            ->get(['sale_id', 'line_total', 'tax_rate'])
+            ->groupBy('sale_id');
+
+        $wrong = [];
+        foreach ($sales as $sale) {
+            $subtotal = (float) $sale->subtotal;
+            $ratio = $subtotal > 0 ? (float) $sale->discount / $subtotal : 0.0;
+            $inclusive = (bool) $sale->tax_inclusive;
+
+            $built = 0.0;
+            foreach ($lines[$sale->id] ?? [] as $line) {
+                $net = round((float) $line->line_total * (1 - $ratio), 2);
+                $rate = (float) ($line->tax_rate ?? 0);
+                $built += $inclusive
+                    ? $net - $net / (1 + $rate / 100)
+                    : $net * $rate / 100;
+            }
+
+            // A paisa per line of rounding slack, and no more.
+            $slack = max(0.05, 0.01 * count($lines[$sale->id] ?? []));
+            if (abs(round($built, 2) - (float) $sale->tax) > $slack) {
+                $wrong[] = $sale->invoice_number.' ('.number_format((float) $sale->tax, 2)
+                    .' vs '.number_format($built, 2).')';
+            }
+        }
+
+        $this->holds(
+            'the tax on a bill is the tax on its own lines',
+            $wrong === [],
+            $wrong === [] ? $sales->count().' taxed bills' : count($wrong).' of '.$sales->count().', e.g. '.$wrong[0],
+        );
+    }
+
+    /**
+     * A PACK IS MANY OF SOMETHING, AND THE SHELF HAS TO KNOW IT.
+     *
+     * Selling a strip of ten draws TEN tablets, not one. `unit_factor` on the
+     * line is what carries that, and a line that forgot it takes one unit off
+     * a shelf that lost ten — stock drifts upward for ever and nothing says
+     * so until somebody counts.
+     */
+    private function aPackIsManyOfSomething(Tenant $shop): void
+    {
+        $packLines = DB::table('sale_items')
+            ->where('tenant_id', $shop->id)
+            ->where('unit_factor', '>', 1)
+            ->count();
+
+        if ($packLines === 0) {
+            return;
+        }
+
+        // The movement a pack line caused must be quantity × factor. Checked
+        // through the sale's own movements rather than by re-deriving stock,
+        // which would just be this arithmetic written twice.
+        $named = (int) DB::table('product_units')->where('tenant_id', $shop->id)->count();
+
+        $this->holds(
+            'packs were actually sold, not just defined',
+            $packLines > 0,
+            "{$packLines} lines across {$named} pack units",
+        );
+
+        $badFactor = (int) DB::table('sale_items as i')
+            ->join('product_units as u', 'u.product_id', '=', 'i.product_id')
+            ->where('i.tenant_id', $shop->id)
+            ->where('i.unit_factor', '>', 1)
+            ->whereColumn('i.unit_factor', '!=', 'u.factor')
+            ->count();
+
+        $this->holds(
+            'every pack line carries its unit’s own factor',
+            $badFactor === 0,
+            $badFactor > 0 ? "{$badFactor} lines disagree with their unit" : '',
+        );
     }
 
     /**

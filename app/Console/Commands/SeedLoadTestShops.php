@@ -25,6 +25,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BranchContext;
 use App\Support\Modules;
+use App\Support\Payable;
 use App\Support\StaffPresets;
 use App\Support\TenantContext;
 use Illuminate\Console\Command;
@@ -228,6 +229,9 @@ class SeedLoadTestShops extends Command
         // Offers BEFORE sales, or there is nothing for a basket to pick up.
         $this->offers($tenant, $owner, $categories);
         $customers = $this->theCounter($tenant);
+        // Groups, packs, barcodes and tax bands BEFORE the till opens — a
+        // price ladder nobody climbs is a price ladder nobody tests.
+        $this->priceLists($tenant, $productIds);
         $this->sales($tenant, $type, $owner, $branches, $productIds, $customers);
         $this->khata($tenant, $owner);
         $this->afterTheSale($tenant, $owner, $branches);
@@ -839,14 +843,22 @@ class SeedLoadTestShops extends Command
                 continue;
             }
 
-            // Paid in full, in part, or not yet — all three are real, and the
-            // supplier ledger is only worth testing when it carries a balance.
-            $total = (float) $po->fresh()->total;
+            /**
+             * PAID FOR WHAT CAME, in full, in part, or not yet.
+             *
+             * This paid a share of `total` against the named order, and once
+             * the Pay screen started refusing anything past the DELIVERY —
+             * which is the whole point of that fix — every short delivery
+             * threw "Payment exceeds what has been delivered". The seeder was
+             * asking the till to do the thing the till now refuses, so it was
+             * the seeder that had to change.
+             */
+            $bill = (float) $po->fresh()->{Payable::AMOUNT};
             $share = [1.0, 0.5, 0.0][$i % 3];
-            if ($share > 0.0 && $total > 0) {
+            if ($share > 0.0 && $bill > 0) {
                 try {
                     app(RecordSupplierPaymentAction::class)->execute($supplier, [
-                        'amount' => round($total * $share, 2),
+                        'amount' => round($bill * $share, 2),
                         'method' => ['cash', 'bank_transfer'][$i % 2],
                         'purchase_order_id' => $po->id,
                     ]);
@@ -892,6 +904,176 @@ class SeedLoadTestShops extends Command
      * @param  Branch[]  $branches
      * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
      */
+    /**
+     * THE FOUR TABLES THE AUDIT KEPT REPORTING EMPTY.
+     *
+     * Customer groups, pack units, extra barcodes and tax groups. Every one
+     * of them has screens, and every one of them had zero rows in all seven
+     * load-test shops — so the whole price ladder in CreateSaleAction (group
+     * level, pack factor, tax rate, then cart / coupon / promotion / points)
+     * was only ever exercised at its simplest setting.
+     *
+     * They are not decoration. A group pins a trade customer to the wholesale
+     * list and carries a members' discount; a pack sells a strip of ten and
+     * draws ten base units off the shelf; a tax group is the rate the bill is
+     * computed on. Each is a different way for the money to come out wrong.
+     *
+     * @param  array<int, array{product_id: string, variant_id: ?string}>  $productIds
+     */
+    private function priceLists(Tenant $tenant, array $productIds): void
+    {
+        $now = now();
+
+        // ── TAX GROUPS, and the rate that is NOT the default ─────────
+        //
+        // Pakistan runs several: standard 17% / 18%, a reduced band, and
+        // zero-rated staples. A shop with one rate never catches a total
+        // computed on the wrong one.
+        $taxGroups = [];
+        foreach ([['Standard 18%', 18], ['Reduced 10%', 10], ['Zero-rated', 0]] as [$name, $rate]) {
+            $taxGroups[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'name' => $name,
+                'rate' => $rate,
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        DB::table('tax_groups')->insert($taxGroups);
+
+        // ── CUSTOMER GROUPS ──────────────────────────────────────────
+        $groups = [
+            ['Trade / wholesale', 'wholesale', 0],
+            ['Members', 'retail', 5],
+            ['Staff', 'retail', 15],
+        ];
+        $groupRows = [];
+        foreach ($groups as [$name, $level, $discount]) {
+            $groupRows[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'name' => $name,
+                'price_level' => $level,
+                'discount_percent' => $discount,
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        DB::table('customer_groups')->insert($groupRows);
+
+        // One customer in three belongs to one, so the till meets a plain
+        // walk-in, a member and a trade buyer in the same day.
+        $customers = DB::table('customers')->where('tenant_id', $tenant->id)->pluck('id');
+        foreach ($customers->chunk(200) as $chunk) {
+            foreach ($chunk->values() as $n => $id) {
+                if ($n % 3 !== 0) {
+                    continue;
+                }
+                DB::table('customers')->where('id', $id)
+                    ->update(['customer_group_id' => $groupRows[$n % count($groupRows)]['id']]);
+            }
+        }
+
+        if ($productIds === []) {
+            $this->line('  price lists '.count($taxGroups).' tax groups · '.count($groupRows).' customer groups');
+
+            return;
+        }
+
+        // ── PACKS, EXTRA BARCODES, AND A TAX GROUP PER LINE ──────────
+        //
+        // Only products that hold stock and have no sizes: a pack and a
+        // variant do not combine (a size carries its own price and stock),
+        // and CreateSaleAction says so in words.
+        /**
+         * A RATE BELONGS TO EVERY ITEM; A PACK DOES NOT.
+         *
+         * The first version asked for stock-tracked products with no sizes
+         * and used that one list for both — so a clothing shop, where every
+         * single product has sizes, got "0 items rated", and so did a
+         * restaurant and a service centre, whose items hold no stock. Tax has
+         * nothing to do with either: a kurta is taxed and so is a haircut.
+         *
+         * Packs are the narrow case. A pack and a size do not combine (a size
+         * carries its own price and stock) and CreateSaleAction says so.
+         */
+        $everything = Product::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->pluck('price', 'id');
+
+        $assigned = 0;
+        $n = 0;
+        foreach ($everything->keys()->chunk(500) as $chunk) {
+            foreach ($chunk->values() as $k => $productId) {
+                DB::table('products')->where('id', $productId)
+                    ->update(['tax_group_id' => $taxGroups[($assigned + $k) % 3]['id']]);
+            }
+            $assigned += $chunk->count();
+        }
+
+        $plain = Product::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('track_inventory', true)
+            ->whereDoesntHave('variants')
+            ->pluck('price', 'id');
+
+        $units = [];
+        $barcodes = [];
+        foreach ($plain as $productId => $price) {
+            $n++;
+
+            // One in five is also sold by the pack.
+            if ($n % 5 !== 0) {
+                continue;
+            }
+
+            $factor = [6, 10, 12, 24][$n % 4];
+            // A pack is cheaper per unit than a single — that is why anybody
+            // buys one, and it is the discount a wrong `factor` destroys.
+            $packPrice = round((float) $price * $factor * 0.92, 2);
+            $units[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'product_id' => $productId,
+                'name' => $factor >= 12 ? 'Box of '.$factor : 'Pack of '.$factor,
+                'factor' => $factor,
+                'price' => $packPrice,
+                'barcode' => 'PK'.str_pad((string) $n, 10, '0', STR_PAD_LEFT),
+                'sort_order' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            // A SECOND BARCODE ON THE SAME ITEM. Real shelves carry them —
+            // the manufacturer's and the shop's own label — and a scanner
+            // that only knows one of them sends the cashier hunting.
+            $barcodes[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'product_id' => $productId,
+                'variant_id' => null,
+                'barcode' => 'ALT'.str_pad((string) $n, 9, '0', STR_PAD_LEFT),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach (array_chunk($units, 500) as $c) {
+            DB::table('product_units')->insert($c);
+        }
+        foreach (array_chunk($barcodes, 500) as $c) {
+            DB::table('product_barcodes')->insert($c);
+        }
+
+        $this->line(sprintf(
+            '  price lists %d tax groups (%d items rated) · %d customer groups · %d packs · %d extra barcodes',
+            count($taxGroups), $assigned, count($groupRows), count($units), count($barcodes),
+        ));
+    }
+
     /**
      * What this basket comes to, according to the thing that decides.
      *
@@ -1341,6 +1523,23 @@ class SeedLoadTestShops extends Command
         $hasCoupons = DB::table('coupons')->where('tenant_id', $tenant->id)->exists();
 
         /**
+         * WHICH ITEMS COME IN A PACK.
+         *
+         * Seeding `product_units` is not the same as selling one. A pack line
+         * carries `product_unit_id`, and that is what makes the till charge
+         * the pack price and draw `factor` base units off the shelf instead
+         * of one — the arithmetic that turns a strip of ten into ten tablets
+         * gone. Rows that exist and are never rung test nothing.
+         *
+         * @var array<string, string> $packOf
+         */
+        $packOf = DB::table('product_units')
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('sort_order')
+            ->pluck('id', 'product_id')
+            ->all();
+
+        /**
          * WHAT A DISH CANNOT BE ORDERED WITHOUT.
          *
          * "Spice level" is min_select 1, so a karahi rung without one is
@@ -1402,9 +1601,22 @@ class SeedLoadTestShops extends Command
                     $chosen = array_merge($chosen, array_values($mayChoose[$pick['product_id']] ?? []));
                 }
 
+                // HALF of what CAN be bought by the pack, is.
+                //
+                // Keyed on the basket, not on the line index: `$n` runs 1..5
+                // inside a basket, so a condition on it fired on a fifth of
+                // baskets and then only when that line happened to land on
+                // one of the 1-in-5 products with a pack — seven pack lines
+                // in three hundred sales, which is a path walked rather than
+                // a path tested.
+                $byThePack = $pick['variant_id'] === null
+                    && $i % 2 === 0
+                    && isset($packOf[$pick['product_id']]);
+
                 $items[] = array_filter([
                     'product_id' => $pick['product_id'],
                     'variant_id' => $pick['variant_id'],
+                    'product_unit_id' => $byThePack ? $packOf[$pick['product_id']] : null,
                     'modifier_option_ids' => $chosen === [] ? null : $chosen,
                     // A wholesale basket is not a shopper's basket. Buying in
                     // ones here would also trip every line that carries a
