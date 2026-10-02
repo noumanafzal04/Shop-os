@@ -146,6 +146,13 @@ class OpenForecourtShiftAction
                     'product_id' => $product?->id,
                     'product_name' => $product?->name ?? '—',
                     'opening_reading' => $opening,
+                    // WHERE THE TOTALISER STOOD BEFORE THIS SHIFT CLAIMED IT.
+                    // Equal to the opening in the ordinary case; different
+                    // only when somebody keyed a figure, and that is exactly
+                    // what a cancel has to put back. Overwriting it without
+                    // recording it left a meter reading no shift accounted
+                    // for — the same leak this module exists to detect.
+                    'previous_reading' => (float) $nozzle->current_reading,
                     // WHOSE nozzle this is for the shift. Optional — a one-man
                     // pump has no assignment to make — but where it is given it
                     // is the difference between "forty litres unbilled" and
@@ -174,6 +181,7 @@ class OpenForecourtShiftAction
                     'tank_name' => $tank->name,
                     'product_id' => $tank->product_id,
                     'opening_dip' => $opening,
+                    'previous_dip' => (float) $tank->current_dip_litres,
                 ]);
 
                 if ($opening !== (float) $tank->current_dip_litres) {

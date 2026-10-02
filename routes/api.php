@@ -1079,6 +1079,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('shifts', [ForecourtShiftController::class, 'store']);
                     Route::get('shifts/{shift}', [ForecourtShiftController::class, 'show']);
                     Route::post('shifts/{shift}/close', [ForecourtShiftController::class, 'close']);
+                    // Abandon one opened by mistake. Same permission as
+                    // closing: both end a shift, and the one that ends it
+                    // WITHOUT a reconciliation is if anything the safer of
+                    // the two — it refuses the moment a litre has been sold.
+                    Route::post('shifts/{shift}/cancel', [ForecourtShiftController::class, 'cancel']);
                 });
 
                 // Goods received, so it sits with purchasing.

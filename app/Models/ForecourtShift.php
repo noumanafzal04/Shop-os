@@ -22,11 +22,22 @@ class ForecourtShift extends BaseModel
 
     public const STATUS_CLOSED = 'closed';
 
+    /**
+     * Opened by mistake and abandoned — never reconciled, and never counted.
+     *
+     * A third state rather than a delete, because the next person needs to
+     * see that somebody opened this station at 6am and walked away from it.
+     * An unexplained gap in the shift numbering is worse than a cancelled
+     * row that says who and why.
+     */
+    public const STATUS_CANCELLED = 'cancelled';
+
     protected function casts(): array
     {
         return [
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
+            'cancelled_at' => 'datetime',
             'litres_sold' => 'decimal:3',
             'test_litres' => 'decimal:3',
             'fuel_value' => 'decimal:2',

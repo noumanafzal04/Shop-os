@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Actions\Fuel\CancelForecourtShiftAction;
 use App\Actions\Fuel\CloseForecourtShiftAction;
 use App\Actions\Fuel\OpenForecourtShiftAction;
 use App\Http\Controllers\Controller;
@@ -103,6 +104,36 @@ class ForecourtShiftController extends Controller
         return ApiResponse::ok(
             $this->present($closed->load(['readings.attendant:id,name', 'dips'])),
             "Forecourt shift {$closed->number} closed",
+        );
+    }
+
+    /**
+     * Abandon a shift that should never have been opened.
+     *
+     * A separate endpoint and not a flag on `close`, because the two are
+     * different acts with different evidence. Closing SETTLES a shift — it
+     * posts litres, values, variances and stock. Cancelling says the shift
+     * never happened and puts the meters back; it carries no figures at all,
+     * and asking for closing readings in order to say "there were none"
+     * would be the thing it exists to avoid. See CancelForecourtShiftAction.
+     */
+    public function cancel(Request $request, string $id, CancelForecourtShiftAction $action): JsonResponse
+    {
+        $data = $request->validate([
+            // Not required, and deliberately so. The ordinary case is "wrong
+            // station, pressed by mistake" at six in the morning, and a
+            // mandatory box there is a box somebody types "x" into.
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        /** @var ForecourtShift $shift */
+        $shift = ForecourtShift::query()->findOrFail($id);
+
+        $cancelled = $action->execute($request->user(), $shift, $data['reason'] ?? null);
+
+        return ApiResponse::ok(
+            $this->present($cancelled->load(['readings.attendant:id,name', 'dips'])),
+            "Forecourt shift {$cancelled->number} cancelled — the meters are back where they were.",
         );
     }
 
