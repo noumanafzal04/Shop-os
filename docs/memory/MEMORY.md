@@ -215,3 +215,7 @@
 - [Shop Mints Rider Id](shopos-shop-mints-rider-id.md) — shop hands out RDR- id, rider claims it; a shop's word never reaches the platform pool
 - [Ride Palette](shopos-ride-palette.md) — 2026-09-17 direction: customer #10B981, rider #EF4444; NOT built; #EF4444 collides with danger
 - [Partner App](shopos-partner-app.md) — tenant app scaffold done, screens NOT started; wait to be told
+- [Four Doors](shopos-four-doors.md) — the CRUD browser sweep; a static URL scanner cannot see `basePath` and was deleted
+- [A Redirect Reads As A Pass](shopos-redirect-reads-as-pass.md) — STANDING: RequireFeature navigates to the dashboard, so a gated screen's walk measured the dashboard
+- [The Rider Holds The Cash](shopos-rider-holds-cash.md) — FIXED: deleting a rider took the shop's COD cash off the only screen showing it
+- [A Loss With No Price](shopos-loss-with-no-price.md) — FIXED: only a batch delete made a disposal, so a mart could never total its shrinkage

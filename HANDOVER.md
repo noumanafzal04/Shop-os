@@ -7559,3 +7559,69 @@ never reached a phone — `SMS_*` is read by `services.php` and absent from
 `.env.example`), and the Geoapify key.
 
 mobile 68 suites / 841 tests · tsc clean · eslint 0 errors.
+
+---
+
+## 2026-10-02 — Four doors, and two screens that were measuring the dashboard
+
+The ask was the plainest one yet: *"sth frontend UI py b dekhna… jaise supplier
+ko dekhna, add krna, remove krna — is trhan ki cheezain majood hai na"*. On the
+screen that manages a thing, can a person see the things, add one, change one
+and remove one?
+
+A static scanner was written for it and **deleted**. It reported two walled-up
+doors and was blind: `apiPut(\`${basePath}/${id}\`)` where `basePath` is a
+function parameter cannot be resolved by any text matcher, and that is how most
+hooks here are written. Two findings measured against almost nothing is the
+denominator problem inside the tool meant to count. `panel/e2e/four-doors.spec.ts`
+asks a browser instead — it sees the control or there is none.
+
+**Three product defects.**
+
+1. **A rider carrying the shop's cash could be removed.** `cash_in_hand` is
+   delivered-cash-not-handed-back, and the riders screen is the only place it
+   is shown. `DELETE /riders/{id}` was a plain soft delete, so the row left the
+   list and every door to that money shut at once — `index`, the statement and
+   settle all read a LIVE rider. Now `422 RIDER_HOLDS_CASH`, naming the amount.
+2. **…and the reason the wrong row got pressed.** The screen offered Settle,
+   Deactivate and Remove and no way to correct a name or a number, though
+   `PATCH /riders/{id}` has taken both since the module was written. "Fix the
+   spelling" meant remove-and-re-add. That is the **ninth** instance of *the API
+   has the door, the screen never knocks on it*. Edit is on the row now.
+3. **A shop that does not batch its stock could not value its losses.** The
+   Disposals module is on by default for a mart and its only writer was
+   `DisposeBatchAction`, reached by deleting a BATCH. The path those shops
+   really use — Adjust → out, "Damaged" — writes to `stock_movements`, which
+   has **no cost column at all**. So the register promising "stock that left
+   without being sold" stayed empty for ever and shrinkage could not be
+   totalled outside a pharmacy. `WriteOffStockAction` + `POST
+   /inventory/disposals` + a Write off stock control. Unknown cost stays NULL,
+   never zero. A lot-tracked item is refused and sent to its lot, because a
+   disposal row carries one batch number and one expiry.
+
+**And a false green worth more than any of them.** `RequireFeature` does not
+render a refusal in place — it `<Navigate to="/tenant">`. The mart fixture has
+neither `documents` nor `bank_offers`, so both of those screens in
+`chrome.spec.ts` have been **measuring the dashboard** at four device sizes,
+green every time, for as long as that list has existed. The size denominator
+beside them was written for a redirect to an *empty* page; a dashboard is not
+empty. Both walking specs assert their own pathname now. `/tenant/documents`
+moved to `trade.chrome.spec.ts` under retail; `/tenant/bank-offers` is recorded
+in `NOT_WALKED` because **no fixture shop has that module** — it is false in
+every trade's defaults, so that screen has never been opened by a browser at
+all, and the one-line grant that would fix it is written beside the entry.
+
+**The load-test seeder grew the modules it never built**: 240 customers a shop
+(a third with a khata), one sale in six on the book and part-paid, repayments,
+returns on one in twelve with half of them partial, a 400-line stock count with
+realistic shrinkage, branch transfers, 30 write-offs, six coupons including an
+expired and an exhausted one, three promotions, loyalty on. A coupon under its
+minimum spend *throws*, so a basket refused for its code is retried without it —
+which is how the shop behaves and the only way that refusal gets volume.
+
+`loadtest:audit` is the point of all of it: for every figure the product states,
+recompute it from the raw rows **by a different route** and say so when they
+disagree. Both faults that have cost a shopkeeper money were arithmetic, not
+volume, and no catalogue size would have caught either.
+
+backend 2,881 tests · panel 1,571 · tsc clean.
