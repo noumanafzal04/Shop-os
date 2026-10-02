@@ -7625,3 +7625,54 @@ disagree. Both faults that have cost a shopkeeper money were arithmetic, not
 volume, and no catalogue size would have caught either.
 
 backend 2,881 tests · panel 1,571 · tsc clean.
+
+---
+
+## 2026-10-02 (later) — The audit that asks every figure twice
+
+`loadtest:audit`: for every figure the product states, recompute it from the
+raw rows **by a different route** and say so when they disagree. 84 checks,
+seven shops at real volume. Both faults this product has shipped that cost a
+shopkeeper money were arithmetic, not volume, and no catalogue size would have
+caught either.
+
+**Three money faults, all in the same place and all found by this.**
+
+1. **"What do I owe?" had three answers again.** Naming the column once was
+   half the job; the RULE was still written three times. The dashboard netted
+   **per ORDER**, so an order paid in full that then arrived short lost its
+   credit entirely — Rs 4,374,232 too high on one grocery, on the first screen
+   an owner opens. `Payable::owedByShop()` is the one rule now: per supplier
+   (money paid to a wholesaler is money paid), clamped per supplier and never
+   across them (an advance with the flour merchant does not pay the tea
+   merchant).
+2. **The Pay button paid for goods that never arrived.** `openOrdersFor` was
+   pointed at the delivery, and `RecordSupplierPaymentAction` then took up to
+   `total - amount_paid` out of the orders it was offered. Every short delivery
+   was overshot: **Rs 5,325,848 across 24 orders** on one shop, zero after. The
+   same line guarded the named-order door, so a cashier could pay 10,000
+   against an order where 6,000 had arrived and the server said yes.
+3. **A settled short delivery read "partial" for ever.** `syncPaymentStatus()`
+   compared to `total`, so a shop that paid for the six sacks that came is
+   shown a balance it does not owe — and pays it.
+
+**Two findings the audit itself got wrong**, both caught by reading the rows
+rather than trusting the red line: it read `['stats']['payable']` where the key
+is `['money_owed']['payable']` and reported a confident fictional 0.00; and it
+summed points off the SALES filtered to `completed`, when a refund appends a
+`reverse_earn` to the ledger and leaves `sales.points_earned` alone — correctly.
+
+**And five the seeder found about itself**, each looking exactly like a product
+bug: `amount_paid` is the TENDER not the cash handed over (so every credit sale
+in all seven shops was refused); coupons attached at shops whose trade has no
+promotions module; a service shop asked to put a haircut in a van; 82 karahis
+ordered with no spice level — which meant **not one sale anywhere had ever
+carried a modifier**; and the query log exhausting memory halfway through the
+fourth shop, leaving a half-built pharmacy and an audit crying "450 of 450
+shelves adrift". Counting every refusal BY REASON is the only thing that told
+these apart from real faults.
+
+Still empty and named rather than quietly absent: `customer_groups`,
+`product_units`, `product_barcodes`, `tax_groups`.
+
+84/84 agree · backend 2,889 tests.

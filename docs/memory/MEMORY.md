@@ -219,3 +219,5 @@
 - [A Redirect Reads As A Pass](shopos-redirect-reads-as-pass.md) — STANDING: RequireFeature navigates to the dashboard, so a gated screen's walk measured the dashboard
 - [The Rider Holds The Cash](shopos-rider-holds-cash.md) — FIXED: deleting a rider took the shop's COD cash off the only screen showing it
 - [A Loss With No Price](shopos-loss-with-no-price.md) — FIXED: only a batch delete made a disposal, so a mart could never total its shrinkage
+- [One Answer To What I Owe](shopos-one-answer-what-i-owe.md) — FIXED: payables had 3 rules again; the Pay button over-allocated into short deliveries
+- [Ask Every Figure Twice](shopos-audit-every-figure-twice.md) — STANDING: loadtest:audit recomputes each figure a second way and prints which tables were empty
