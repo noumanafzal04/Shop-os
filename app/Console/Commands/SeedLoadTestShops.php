@@ -561,6 +561,23 @@ class SeedLoadTestShops extends Command
                  * "enforced on online orders", which is now the smaller claim.
                  */
                 'min_order_qty' => $type === 'wholesale' && $i % 3 === 0 ? 5 : null,
+                /**
+                 * A NUMBER STAMPED ON EACH UNIT — and a guarantee behind it.
+                 *
+                 * Batteries, headlamps, handsets. Marked HERE, before any
+                 * delivery is booked in, because `product_serials` is written
+                 * at goods-in: a product that becomes serialised afterwards
+                 * has a stock registry that can never catch up with what is
+                 * already on the shelf.
+                 *
+                 * One line in eight, in the two trades that carry them. Every
+                 * line serialised would mean typing a number for each unit of
+                 * a carton of wiper blades, which is not what anybody does.
+                 */
+                'tracks_serial' => in_array($type, ['automotive', 'retail'], true) && $i % 8 === 0,
+                'warranty_months' => in_array($type, ['automotive', 'retail'], true) && $i % 8 === 0
+                    ? [6, 12, 24][$i % 3]
+                    : null,
                 'is_active' => true,
                 'visible_in_marketplace' => true,
                 'created_at' => now(),
@@ -958,8 +975,26 @@ class SeedLoadTestShops extends Command
                 $want = $i % 4 === 0
                     ? max(1, (int) floor($item->outstanding() * 0.6))
                     : $item->outstanding();
+                /**
+                 * A NUMBER STAMPED ON EACH UNIT, REGISTERED AS IT ARRIVES.
+                 *
+                 * `product_serials` is the stock REGISTRY — what the shop
+                 * holds, by serial — and it is written here, at goods-in, and
+                 * nowhere else. The fixture used to mark its serialised lines
+                 * long AFTER every delivery had been booked, so the registry
+                 * was empty on every shop while `sale_item_serials` filled up:
+                 * units sold that had never been received.
+                 */
+                $serials = [];
+                if ($product?->tracks_serial) {
+                    foreach (range(1, (int) $want) as $u) {
+                        $serials[] = strtoupper(Str::random(3)).'-'.random_int(1000000, 9999999);
+                    }
+                }
+
                 $map[$item->id] = [
                     'quantity' => $want,
+                    'serials' => $serials,
                     'expiry_date' => $product?->requiresExpiry() ? now()->addMonths(random_int(6, 30))->toDateString() : null,
                 ];
             }
@@ -1832,23 +1867,41 @@ class SeedLoadTestShops extends Command
         // Things that carry a guarantee and a number stamped on them. Picked
         // off the catalogue rather than created, so they already have stock,
         // a cost and a supplier behind them.
+        /**
+         * THE ONES ALREADY CARDED AS SERIALISED — not a fresh set marked now.
+         *
+         * Marking products here was the fixture's own bug: `product_serials`
+         * is written at goods-in, so a product that becomes serialised after
+         * its deliveries were booked has an empty registry for ever while its
+         * sales happily record serials. Units sold that were never received.
+         * The catalogue marks them now, before the first purchase order.
+         */
         $serialised = Product::withoutTenancy()
             ->where('tenant_id', $tenant->id)
             ->where('is_active', true)
-            ->where('track_inventory', true)
+            ->where('tracks_serial', true)
             ->inRandomOrder()
             ->limit(24)
             ->get();
-
-        foreach ($serialised as $p) {
-            $p->forceFill(['tracks_serial' => true, 'warranty_months' => [6, 12, 24][random_int(0, 2)]])->save();
-        }
 
         $claims = 0;
         $sold = [];
 
         foreach ($serialised as $i => $product) {
-            $serial = strtoupper(Str::random(3)).'-'.random_int(100000, 999999);
+            // SELL A UNIT THE SHOP ACTUALLY HAS. `CreateSaleAction` checks the
+            // registry: a serial that was formally RECEIVED can only be sold
+            // if it is still in stock, so inventing one here would either be
+            // refused or — worse — quietly sell a unit nobody booked in.
+            $held = DB::table('product_serials')
+                ->where('product_id', $product->id)
+                ->where('status', 'in_stock')
+                ->value('serial');
+
+            if ($held === null) {
+                continue;
+            }
+
+            $serial = $held;
             $line = [
                 'branch_id' => $branch->id,
                 'channel' => 'walk_in',

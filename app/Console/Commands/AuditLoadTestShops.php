@@ -82,6 +82,7 @@ class AuditLoadTestShops extends Command
             $this->theDiningRoomAddsUp($shop);
             $this->thePointsBalance($shop);
             $this->theStandingOrdersRolled($shop);
+            $this->everySerialIsOneUnit($shop);
 
             app(TenantContext::class)->clear();
         }
@@ -871,6 +872,68 @@ class AuditLoadTestShops extends Command
         }
     }
 
+    /**
+     * A SERIAL IS A UNIT, AND A UNIT IS IN EXACTLY ONE PLACE.
+     *
+     * `product_serials` is the registry — what the shop received and still
+     * holds. `sale_item_serials` is what went out. The two must agree, and
+     * the way they fail is the expensive one: a unit sold that was never
+     * booked in means the registry can never be counted against the shelf
+     * again, and a warranty claim against it has no purchase to check.
+     */
+    private function everySerialIsOneUnit(Tenant $shop): void
+    {
+        if (! Schema::hasTable('product_serials') || ! Schema::hasTable('sale_item_serials')) {
+            return;
+        }
+
+        $registry = DB::table('product_serials')->where('tenant_id', $shop->id)->get();
+
+        if ($registry->isEmpty()) {
+            return;
+        }
+
+        // No serial may be registered twice for the same product — that is
+        // two units wearing one number, and neither can be told apart again.
+        $duplicated = $registry->groupBy(fn ($r) => $r->product_id.'|'.$r->serial)
+            ->filter(fn ($g) => $g->count() > 1)
+            ->count();
+
+        $this->holds('no two units wear the same number', $duplicated === 0,
+            $duplicated > 0 ? "{$duplicated} duplicated" : $registry->count().' registered');
+
+        $sold = DB::table('sale_item_serials')->where('tenant_id', $shop->id)->get();
+        $known = $registry->groupBy('product_id')->map(fn ($g) => $g->pluck('serial')->flip());
+
+        $stranger = $sold->filter(
+            fn ($s) => ! isset($known[$s->product_id]) || ! isset($known[$s->product_id][$s->serial]),
+        )->count();
+
+        $this->holds(
+            'every unit sold was a unit received',
+            $stranger === 0,
+            $stranger > 0 ? "{$stranger} of {$sold->count()} were never booked in" : $sold->count().' sold',
+        );
+
+        // A unit marked sold points at the sale that took it.
+        $orphan = $registry->filter(fn ($r) => $r->status === 'sold' && $r->sale_id === null)->count();
+        $this->holds('a unit marked sold names its sale', $orphan === 0,
+            $orphan > 0 ? "{$orphan} sold with no sale" : '');
+
+        if (Schema::hasTable('warranty_claims')) {
+            $claims = DB::table('warranty_claims')->where('tenant_id', $shop->id)->get();
+            $serialIds = DB::table('sale_item_serials')->where('tenant_id', $shop->id)->pluck('id')->flip();
+            $hanging = $claims->filter(
+                fn ($c) => $c->sale_item_serial_id !== null && ! isset($serialIds[$c->sale_item_serial_id]),
+            )->count();
+
+            if ($claims->isNotEmpty()) {
+                $this->holds('every claim hangs on a unit that was sold', $hanging === 0,
+                    $hanging > 0 ? "{$hanging} hanging" : $claims->count().' claims');
+            }
+        }
+    }
+
     private function whatIsStillEmpty(): void
     {
         $ids = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->pluck('id');
@@ -885,7 +948,8 @@ class AuditLoadTestShops extends Command
             'suppliers', 'purchase_orders', 'supplier_payments',
             'fuel_tanks', 'fuel_pumps', 'fuel_nozzles', 'forecourt_shifts', 'fuel_deliveries', 'fuel_price_changes',
             'orders', 'order_items', 'riders', 'rider_settlements',
-            'sale_documents', 'customer_vehicles', 'warranty_claims', 'sale_item_serials',
+            'sale_documents', 'customer_vehicles', 'warranty_claims',
+            'product_serials', 'sale_item_serials',
             'expenses', 'incomes', 'expense_categories', 'income_categories',
             'recurring_expenses', 'recurring_incomes',
             'restaurant_tickets', 'restaurant_ticket_items', 'kitchen_tickets', 'dining_tables',
