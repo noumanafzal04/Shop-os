@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\SaleStatus;
 use App\Enums\UserRole;
 use App\Exceptions\DomainException;
 use App\Models\Branch;
@@ -214,7 +215,22 @@ class PlanLimits
         return match ($key) {
             'products' => Product::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
             'staff' => $tenant->users()->where('role', UserRole::Staff)->count(),
+            /**
+             * COMPLETED BILLS, NOT EVERY ROW THAT WAS STARTED.
+             *
+             * This is a BILLING meter, and a cancelled sale is a mistake
+             * somebody corrected — charging a shop for it means charging
+             * them for mis-keying. Training sales were already excluded (the
+             * `not_training` global scope survives `withoutTenancy()`, which
+             * drops only the tenant scope); cancelled ones were not, so a
+             * busy counter with a clumsy evening paid for its own typos.
+             *
+             * A REFUNDED sale still counts, and that is deliberate: the sale
+             * happened, the goods went out and came back, and the system did
+             * all the work twice. The cancelled one never happened at all.
+             */
             'orders_month' => Sale::withoutTenancy()->where('tenant_id', $tenant->id)
+                ->whereNot('status', SaleStatus::Cancelled)
                 ->where('created_at', '>=', now()->startOfMonth())->count(),
             'branches' => Branch::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
             'registers' => Register::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
@@ -278,6 +294,38 @@ class PlanLimits
      *
      * @return array<int, array{key:string,label:string,owner:string,limit:int|null,baseline:int|null,extra:int|null,assigned:bool,used:int,remaining:int|null,unlimited:bool,enforced:bool}>
      */
+    /** Bands for a usage figure. See `snapshot()` for why these numbers. */
+    public const NEARING = 80;
+
+    public const CRITICAL = 90;
+
+    /**
+     * How close this shop is, as a word.
+     *
+     * `kind => policy` keys are excluded on purpose. `offline_days` reports
+     * the worst device currently out of contact, and a tablet three days out
+     * against a three-day window is not "100% of a quota used" — it is a
+     * tablet that is late. Calling it `reached` would put a billing word on
+     * an operational fact.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    private static function band(int $used, ?int $limit, array $meta): ?string
+    {
+        if ($limit === null || $limit <= 0 || ($meta['kind'] ?? 'count') !== 'count') {
+            return null;
+        }
+
+        $pct = $used / $limit * 100;
+
+        return match (true) {
+            $pct >= 100 => 'reached',
+            $pct >= self::CRITICAL => 'critical',
+            $pct >= self::NEARING => 'nearing',
+            default => 'ok',
+        };
+    }
+
     public static function snapshot(Tenant $tenant): array
     {
         $tenant->loadMissing('plan');
@@ -303,6 +351,32 @@ class PlanLimits
                 'remaining' => $limit === null ? null : max(0, $limit - $used),
                 'unlimited' => $limit === null,
                 'enforced' => $meta['enforced'],
+                /**
+                 * HOW CLOSE, AND WHAT THAT MEANS — said once, here.
+                 *
+                 * Three of these limits are reported and NOT enforced, which
+                 * is the right call for a till (a hard stop mid-queue is the
+                 * failure the whole offline module exists to avoid) and the
+                 * wrong one for silence: a shop sailed past its ceiling and
+                 * nothing anywhere said so, on either side of the screen.
+                 *
+                 * A percentage and a band rather than a colour, because the
+                 * admin panel and the shop's own subscription page both have
+                 * to say the same thing and neither should be re-deciding
+                 * where "nearly" starts.
+                 *
+                 *   ok        under 80%
+                 *   nearing   80% and over — worth a word
+                 *   critical  90% and over — worth a call
+                 *   reached   at or past the ceiling
+                 *
+                 * `null` on an unlimited resource. Not 0, which would read as
+                 * "nothing used" on a screen that sorts by it.
+                 */
+                'percent' => ($limit === null || $limit <= 0)
+                    ? null
+                    : min(999, (int) round($used / $limit * 100)),
+                'band' => self::band($used, $limit, $meta),
             ];
         })->values()->all();
     }
