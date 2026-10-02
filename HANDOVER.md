@@ -7719,3 +7719,64 @@ picks it up starts by finding out what header the panel actually sends for
 "All branches".
 
 144/144 agree · backend 2,895 tests.
+
+---
+
+## The two trades with no shop, and the rider nobody could pay in
+
+The load-test world had seven shops. It had no filling station, no workshop,
+no online order and no quotation — so the forecourt reconciliation, the bay
+board, the COD leg and `sale_documents` had never met a thousand rows between
+them. `loadtest:audit` had been reporting those tables empty for weeks, and
+the natural reading was "feature not built". It was not.
+
+**`orders` was empty because the shop was never switched on.** `shop()` set
+`online_shop_enabled`, and `Tenant::sellsOnline()` wants that AND the
+marketplace module, which no trade's defaults turn on. The tenant model's own
+docblock warns about this exact pair — *"the module went on and the shop
+stayed invisible"* — and the fixture walked straight into it.
+
+**Khokhar Filling Station** (two sites) and **Rahat Auto Workshop** now sit
+beside the other seven. The forecourt runs days 14 → 8, clear of the till's
+week, because one person cannot hold two open shifts. Its gaps are seeded on
+purpose and separately — litres tested back into the tank, one nozzle ahead of
+the till, one tank light against its book stock — because a forecourt where
+everything agrees proves the module runs and nothing about whether it can see
+anything. The workshop has 80 cars, 45 job cards across all three columns of
+the board, and a warranty desk built the only honest way: serial on the part,
+serial captured at the counter, and only then can it come back.
+
+### What the fixture found about the product
+
+**A rider with no app could never be settled.** `OrderService::assignRider()`
+documents Model A — *"no rider app; the shop drives the status"*, which is how
+nearly every Pakistani shop runs. But exactly one line in the codebase wrote
+`orders.delivered_at`, and it was inside the rider APP's deliver endpoint. Two
+things read that column: the **Cash held** figure on the riders screen, and
+`settle()`. So those shops completed every delivery from the panel, left the
+column null, and watched the screen say Rs 0 beside a boy carrying the day's
+takings — while Settle answered "This rider is not holding any cash for you",
+for ever.
+
+Four existing tests covered this money. All four built a rider with the app.
+One of them asserted the broken behaviour and explained it away in a comment
+as *"the honest limit of Model A"*. It was not a limit: pressing Completed on
+a delivery IS the shop recording that the goods arrived. That test now asserts
+the money is there and settleable, with the old comment replaced by why it was
+wrong.
+
+A pickup is still never stamped — nobody carried it — and the rider app's own
+timestamp still wins, because it is taken at the door.
+
+### Also
+
+- The audit gained `theForecourtAddsUp`, `theCashOnTheBike` and
+  `theBayBoard`, the strongest being the defect as an invariant: *no completed
+  delivery is still waiting to be called delivered.*
+- `at-volume.spec.ts` grew Orders and Riders, plus two new projects
+  (`volume-petrol`, `volume-workshop`) for the forecourt and the bay board.
+- One fixture fault worth recording because it is the third of its kind this
+  quarter: fuel in the ground was not fuel on the books, 128 lines were
+  refused for want of stock, and `priceIt()`'s catch-all reported it as
+  *"could not price the fuel line"*. A swallowed refusal is a lie about what
+  the server said.
