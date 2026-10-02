@@ -10,6 +10,7 @@ import { useMoney } from "../../shop/hooks/useShop";
 import { useCurrentShift, useFuelMutations, useShifts, useFuelTanks } from "../hooks/useFuel";
 import { StartShiftModal } from "../components/StartShiftModal";
 import type { ForecourtDip, ForecourtReading, ForecourtShift } from "../services/fuelService";
+import { useConfirm } from "../../../components/ui/confirm";
 
 /** A totaliser rolls at 999999.999 and starts again — mirrors FuelNozzle::ROLLOVER_AT. */
 const ROLLOVER_AT = 1_000_000;
@@ -35,6 +36,7 @@ function litresBetween(opening: number, closing: number): number {
 export default function ForecourtPage() {
   const money = useMoney();
   const toast = useToast();
+  const confirm = useConfirm();
   const current = useCurrentShift();
   const [historyPage, setHistoryPage] = useState(1);
   const history = useShifts({ status: "closed", page: historyPage });
@@ -90,11 +92,25 @@ export default function ForecourtPage() {
             variant="outline"
             disabled={cancelShift.isPending}
             onClick={async () => {
-              const reason = window.prompt(
-                "Cancel this shift? The meters go back exactly where they were.\n\n" +
-                  "Only possible while nothing has been sold on it. Why was it opened?",
-                "Opened by mistake",
-              );
+              /* ASKED IN THE PRODUCT'S OWN VOICE. The first version of this
+                 reached for window.prompt, and the guard in
+                 components/ui/confirm caught it: a grey operating-system box
+                 in the middle of the forecourt reads as a fault, cannot
+                 carry a tone, and puts its buttons in the platform's order
+                 rather than ours.
+
+                 The reason is OPTIONAL, so null and "" are different
+                 answers — dismissed, versus confirmed and left blank. */
+              const reason = await confirm({
+                title: "Cancel this shift?",
+                message:
+                  "Every meter and every tank go back exactly where they were, and you can start the real "
+                  + "shift straight away. Only possible while nothing has been sold on this one.",
+                confirmLabel: "Cancel the shift",
+                cancelLabel: "Leave it running",
+                tone: "danger",
+                input: { label: "Why", placeholder: "Opened by mistake", initial: "Opened by mistake" },
+              });
               if (reason === null) return;
 
               try {
