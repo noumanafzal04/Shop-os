@@ -48,6 +48,22 @@ const Loading = () => (
 );
 
 /**
+ * The screen is not the whole shelf, and it has to say so.
+ *
+ * A shop with 569 lines got 200 of them and no hint that the other 369
+ * existed — the longest holdings read like the complete list. The totals
+ * above every one of these tables are over EVERYTHING; only the rows are
+ * capped, and the CSV is not capped at all.
+ */
+export const ShowingSome = ({ shown, total }: { shown: number; total: number }) =>
+  shown >= total ? null : (
+    <p className="border-t border-gray-100 px-5 py-3 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+      Showing the top {shown.toLocaleString()} of {total.toLocaleString()} lines. The totals above cover all of them, and
+      Export CSV writes every one.
+    </p>
+  );
+
+/**
  * What actually pays.
  *
  * A shop's best-selling line and its most profitable line are frequently not
@@ -240,7 +256,7 @@ export function ValuationTab() {
                 </tr>
               </thead>
               <tbody>
-                {(data?.items ?? []).slice(0, 100).map((row) => (
+                {(data?.items ?? []).map((row) => (
                   <tr key={`${row.product_id}-${row.variant_id ?? ""}`} className="border-b border-gray-50 last:border-0 dark:border-gray-800/60">
                     <td className="px-5 py-2.5">
                       <span className="text-gray-800 dark:text-white/90">{row.name}</span>
@@ -260,6 +276,7 @@ export function ValuationTab() {
                 ))}
               </tbody>
             </table>
+            <ShowingSome shown={data?.items_shown ?? 0} total={data?.items_total ?? 0} />
           </div>
         )}
       </div>
@@ -329,7 +346,7 @@ export function DeadStockTab() {
                 </tr>
               </thead>
               <tbody>
-                {(data?.items ?? []).slice(0, 200).map((row) => (
+                {(data?.items ?? []).map((row) => (
                   <tr key={`${row.product_id}-${row.sku ?? ""}`} className="border-b border-gray-50 last:border-0 dark:border-gray-800/60">
                     <td className="px-5 py-2.5">
                       <span className="text-gray-800 dark:text-white/90">{row.name}</span>
@@ -356,6 +373,7 @@ export function DeadStockTab() {
                 ))}
               </tbody>
             </table>
+            <ShowingSome shown={data?.items_shown ?? 0} total={data?.items_total ?? 0} />
           </div>
         )}
       </div>

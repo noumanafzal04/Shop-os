@@ -42,6 +42,12 @@ const STOREFRONT_ONLY = /market\.spec\.ts/;
 // screen size, so this runs ONCE rather than four times. Running it per device
 // would quadruple the cost and quadruple the same answer.
 const DOORS_ONLY = /four-doors\.spec\.ts/;
+
+// The screens at the size a REAL shop is — six thousand products, 1,440
+// customers, ninety-one closed shifts. Its own sign-in, because every other
+// fixture here is a twenty-eight-product sweep shop, and almost everything
+// works at twenty-eight rows.
+const VOLUME_ONLY = /at-volume\.spec\.ts/;
 const TRADES = ["petroleum", "pharmacy", "automotive", "retail", "services", "finance"];
 
 export default defineConfig({
@@ -96,13 +102,13 @@ export default defineConfig({
     // "below xl" is on every tablet in the shop.
     {
       name: "tablet-landscape",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7) landscape"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "tablet-portrait",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/owner.json" },
     },
@@ -114,15 +120,23 @@ export default defineConfig({
     // the catalog share a screen that is 390 points wide.
     {
       name: "phone",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPhone 14"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "desktop",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" },
+    },
+
+    { name: "volume-setup", testMatch: /volume\.setup\.ts/ },
+    {
+      name: "volume",
+      testMatch: VOLUME_ONLY,
+      dependencies: ["volume-setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/volume.json" },
     },
 
     {

@@ -272,6 +272,9 @@ export interface ValuationReport {
     uncosted_units: number;
   };
   by_category: Array<{ category: string; units: number; cost_value: number; retail_value: number }>;
+  /** Rows actually sent. The totals above are over EVERY line, not just these. */
+  items_shown: number;
+  items_total: number;
   items: Array<{
     product_id: string;
     variant_id: string | null;
@@ -289,6 +292,9 @@ export interface DeadStockReport {
   branch_scope: string | null;
   days: number;
   totals: { lines: number; units: number; value: number; never_sold: number };
+  /** Rows actually sent. The totals above are over EVERY line, not just these. */
+  items_shown: number;
+  items_total: number;
   items: Array<{
     product_id: string;
     name: string;

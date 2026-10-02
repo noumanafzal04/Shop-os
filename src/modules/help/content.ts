@@ -741,6 +741,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Press F9 to take payment. Five tenders sit across the top: Cash, Card, Wallet, Khata and Split. Cash amounts are suggested in notes that actually exist." },
       { type: "p", text: "Wallet is money that arrives on a phone — JazzCash, Easypaisa, SadaPay, a Raast transfer. Take it as its own tender rather than as Card or Transfer: it is the only way your shift close can tell you what the wallet app should be showing. You can type the transaction number beside the amount when you split a bill, and it prints on the receipt." },
       { type: "note", text: "A wallet payment is NOT in your drawer, so it never changes the cash you are expected to count. At close you declare the wallet total separately and get its own over-or-short figure, next to the card one." },
+      { type: "note", text: "Change comes out of cash, and only out of cash. A bill of Rs 1,850 paid by card is Rs 1,850 on the card — keying Rs 2,000 there is refused, because the till would owe Rs 150 in notes that nobody handed over, and your drawer would be short by exactly that at close. Pay part in notes and the change can never be more than the notes." },
       { type: "note", text: "Split a bill across as many of these as you need — half in notes and half on the phone is one sale with two lines, not two sales. Add a line for each way the customer pays." },
       { type: "note", text: "Your till can start on Wallet instead of Cash if that is what your shop mostly takes. Settings → POS → Default payment method." },
       {
@@ -1965,6 +1966,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
       ] },
       { type: "warn", text: "Those last two are never added together, and there is no combined figure. One says talk to somebody; the other says call an engineer. A single number covering both would hide which of the two you are looking at." },
       { type: "note", text: "By attendant shows litres pumped and nothing else. A sale at the till does not record which nozzle it came out of, so a shortfall belongs to the station and cannot honestly be pinned on one person." },
+      { type: "h", text: "Long lists, and the file" },
+      { type: "p", text: "Stock value and Dead stock show the biggest lines first and stop at 200 — a shop with four thousand products would otherwise wait on a page nobody scrolls to the end of. When there are more, the table says so underneath, with both numbers." },
+      { type: "note", text: "The figures at the top are never capped. They are worked out over every line you hold, not over the 200 on screen — and Export CSV writes all of them, so the file you hand your accountant is complete even when the screen is not." },
       { type: "note", text: "Shifts still open are counted separately and left out of the totals — a shift with no closing meter and no dip would read as a quiet night rather than as one not counted yet. A shift whose rate changed part-way through is marked: its litres are exact and its rupees are an approximation." },
     ],
   },
