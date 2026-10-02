@@ -7860,3 +7860,51 @@ the audit, so the earlier 🟠 is closed by evidence rather than by a change.
 | bank offers | no fixture shop has the module |
 | reservations | **waiting on a decision** — the standing rule is "no service/appointment booking", and whether a restaurant TABLE reservation is the same thing is the user's call |
 | the two new e2e volume projects | written, never run: the panel talks to the `shopos` database and seeding it has not been authorised |
+
+---
+
+## Everything that was left, closed
+
+The outstanding list is down to three things, and all three are decisions
+rather than work.
+
+### Built
+
+**A shift opened at the wrong station** no longer blocks the forecourt. Its
+own decision doc explains the fences; the short version is that cancelling is
+a way back to exactly the state the station was in a minute ago, and it
+refuses the moment a litre has been sold, a tanker has discharged, or the
+plant cannot be put back exactly.
+
+**A shop was billed for its own typos.** `orders_month` counted cancelled
+sales, and nothing anywhere said "nearly". Both fixed, and the band is
+decided on the server so the admin console and the shop's own page cannot
+drift apart about where 80% starts.
+
+**A colour and a size are two axes.** The panel has built that grid since the
+variant matrix shipped; the fixture had only ever produced one axis. 540
+two-axis rows now — and the grid immediately found that the seeder had been
+rolling variant stock up into the parent's `stock_quantity`, which the real
+application never does.
+
+**The last two empty tables.** Bank card offers (four across three banks, two
+live at once so `best()` has to choose, one expired and kept) and the till
+registry (four states, including a revoked tablet, which is NOT an
+outstanding one).
+
+### Measured and left alone
+
+Product import is already capped at 2,000 rows with a refusal a merchant can
+act on; 1,000 rows costs 1.9 seconds. Ten queries a row is high and is not
+being optimised — a shop imports a price list a few times a year.
+
+### Waiting on a decision, not on work
+
+| | |
+|---|---|
+| the two e2e volume projects | written, never run. The panel talks to the `shopos` database, and seeding it would force-delete seven tenants there |
+| `JOB-000001` and its invoice | one stray job card in the `sahil-tyre-auto` demo shop from an earlier test run. The delete was refused by this environment's safety classifier and is left for a person: one sale, one item, one payment, **no stock movements** |
+| reservations | the standing rule is "no service or appointment booking". Whether a restaurant TABLE reservation is the same thing is not mine to decide |
+
+**Where the fixture stands: 9 shops · `loadtest:audit` 412 checks, all
+agreeing · EMPTY: nothing · 2,934 backend tests.**
