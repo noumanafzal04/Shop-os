@@ -2,10 +2,14 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Purchase\CreatePurchaseOrderAction;
+use App\Actions\Purchase\ReceivePurchaseOrderAction;
+use App\Actions\Purchase\RecordSupplierPaymentAction;
 use App\Actions\Sale\CreateSaleAction;
 use App\Models\Branch;
 use App\Models\City;
 use App\Models\Product;
+use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BranchContext;
@@ -54,6 +58,23 @@ class SeedLoadTestShops extends Command
             $gone = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->get();
             foreach ($gone as $t) {
                 $this->line("  removing {$t->business_name}");
+
+                /**
+                 * ORDER MATTERS ON THE WAY OUT.
+                 *
+                 * `purchase_orders.supplier_id` is ON DELETE RESTRICT — a
+                 * supplier with orders against it cannot be removed, and the
+                 * cascade from `tenants` therefore stops dead. Clear the rows
+                 * that hold a restricted reference first.
+                 *
+                 * The app itself never meets this: a shop is SOFT-deleted
+                 * there, and only this command force-deletes. Written down so
+                 * the next person does not read the failure as a schema bug.
+                 */
+                foreach (['supplier_payments', 'purchase_order_items', 'purchase_orders', 'suppliers'] as $table) {
+                    DB::table($table)->where('tenant_id', $t->id)->delete();
+                }
+
                 $t->forceDelete();
             }
         }
@@ -173,6 +194,7 @@ class SeedLoadTestShops extends Command
         if (! empty($spec['dining'])) {
             $this->diningRoom($tenant, $branches, $productIds);
         }
+        $this->supplyChain($tenant, $type, $owner, $branches);
         $this->sales($tenant, $type, $owner, $branches, $productIds);
         $this->books($tenant, $owner, $branches);
 
@@ -654,6 +676,159 @@ class SeedLoadTestShops extends Command
         DB::table('incomes')->insert($inRows);
 
         $this->line('  books      '.count($rows).' expenses · '.count($inRows).' other income');
+    }
+
+    /**
+     * WHERE THE STOCK CAME FROM, AND WHAT IS STILL OWED FOR IT.
+     *
+     * Every test so far has sold goods that appeared on the shelf by magic.
+     * A real shop's stock arrives on a purchase order, is counted in against
+     * a delivery note, and is paid for later — and each of those is money or
+     * quantity that can be got wrong.
+     *
+     * Orders go through the REAL actions, not inserts: receiving blends the
+     * moving average cost and writes stock movements, and the supplier balance
+     * is the thing the Pay screen once failed to settle at all. A seeder that
+     * wrote these rows itself would be testing its own arithmetic.
+     *
+     * @param  Branch[]  $branches
+     */
+    private function supplyChain(Tenant $tenant, string $type, User $owner, array $branches): void
+    {
+        if (($tenant->features['purchasing'] ?? false) !== true) {
+            return;
+        }
+
+        /**
+         * A SIZED PRODUCT HOLDS NO STOCK OF ITS OWN, so a purchase order for
+         * the parent is refused — correctly — and a clothing shop would end up
+         * with forty suppliers and no deliveries. Buy the SIZE.
+         */
+        $sellable = DB::table('product_variants')
+            ->join('products', 'products.id', '=', 'product_variants.product_id')
+            ->where('product_variants.tenant_id', $tenant->id)
+            ->whereNull('product_variants.deleted_at')
+            ->inRandomOrder()->limit(400)
+            ->get([
+                'product_variants.product_id as id',
+                'product_variants.id as variant_id',
+                'product_variants.cost as cost',
+                'product_variants.price as price',
+            ]);
+
+        if ($sellable->isEmpty()) {
+            $sellable = Product::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('track_inventory', true)
+                ->whereDoesntHave('variants')
+                ->inRandomOrder()->limit(400)
+                ->get(['id', 'cost', 'price'])
+                ->map(fn ($p) => (object) ['id' => $p->id, 'variant_id' => null, 'cost' => $p->cost, 'price' => $p->price]);
+        }
+
+        if ($sellable->isEmpty()) {
+            return;
+        }
+
+        $houses = ['Metro', 'Imtiaz', 'Al-Fatah', 'Chase', 'Naheed', 'Greenland', 'Bismillah', 'Madina', 'Faisal', 'Shaheen'];
+        $suppliers = [];
+        foreach (range(0, 39) as $i) {
+            $suppliers[] = Supplier::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'name' => $houses[$i % 10].' '.['Traders', 'Distributors', 'Enterprises', 'Agency'][intdiv($i, 10)],
+                'phone' => '+9230099'.str_pad((string) $i, 5, '0', STR_PAD_LEFT),
+                'is_active' => true,
+            ]);
+        }
+
+        app(BranchContext::class)->set($branches[0]);
+
+        $made = ['draft' => 0, 'ordered' => 0, 'received' => 0, 'part' => 0];
+        $paid = 0;
+        /** @var array<string,int> $why — a silent catch hid the cause twice already. */
+        $why = [];
+
+        foreach (range(0, 119) as $i) {
+            $supplier = $suppliers[$i % count($suppliers)];
+            $lines = $sellable->random(random_int(3, 12))->map(fn ($p) => array_filter([
+                'product_id' => $p->id,
+                'variant_id' => $p->variant_id,
+                'quantity' => random_int(10, 200),
+                'unit_cost' => round((float) ($p->cost ?? max(1, (float) $p->price * 0.7)), 2),
+            ], fn ($v) => $v !== null))->values()->all();
+
+            try {
+                $po = app(CreatePurchaseOrderAction::class)->execute([
+                    'supplier_id' => $supplier->id,
+                    'order_date' => now()->subDays(random_int(1, 89))->toDateString(),
+                    'status' => 'ordered',
+                    'items' => $lines,
+                ]);
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+
+                continue;
+            }
+
+            // A fifth stay open — a shop always has deliveries it is waiting on,
+            // and an outstanding-orders screen with nothing in it proves nothing.
+            if ($i % 5 === 0) {
+                $made['ordered']++;
+
+                continue;
+            }
+
+            $po->load('items');
+            $map = [];
+            foreach ($po->items as $item) {
+                $product = $item->product_id !== null ? Product::withoutTenancy()->find($item->product_id) : null;
+                // A SHORT DELIVERY IS NORMAL. Every fourth order arrives
+                // incomplete; a chain where everything lands in full never
+                // exercises `outstanding()` or the partially-received state.
+                $want = $i % 4 === 0
+                    ? max(1, (int) floor($item->outstanding() * 0.6))
+                    : $item->outstanding();
+                $map[$item->id] = [
+                    'quantity' => $want,
+                    'expiry_date' => $product?->requiresExpiry() ? now()->addMonths(random_int(6, 30))->toDateString() : null,
+                ];
+            }
+
+            try {
+                app(ReceivePurchaseOrderAction::class)->execute($po, $map);
+                $made[$i % 4 === 0 ? 'part' : 'received']++;
+            } catch (\Throwable $e) {
+                $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+
+                continue;
+            }
+
+            // Paid in full, in part, or not yet — all three are real, and the
+            // supplier ledger is only worth testing when it carries a balance.
+            $total = (float) $po->fresh()->total;
+            $share = [1.0, 0.5, 0.0][$i % 3];
+            if ($share > 0.0 && $total > 0) {
+                try {
+                    app(RecordSupplierPaymentAction::class)->execute($supplier, [
+                        'amount' => round($total * $share, 2),
+                        'method' => ['cash', 'bank_transfer'][$i % 2],
+                        'purchase_order_id' => $po->id,
+                    ]);
+                    $paid++;
+                } catch (\Throwable $e) {
+                    $why[$e->getMessage()] = ($why[$e->getMessage()] ?? 0) + 1;
+                }
+            }
+        }
+
+        app(BranchContext::class)->set(null);
+
+        $this->line('  suppliers  '.count($suppliers));
+        $this->line('  purchases  '.array_sum($made)." ({$made['received']} received, {$made['part']} short, {$made['ordered']} awaiting) · {$paid} paid");
+        arsort($why);
+        foreach (array_slice($why, 0, 3, true) as $msg => $n) {
+            $this->line('             × '.$n.'  '.Str::limit($msg, 95));
+        }
     }
 
     private function flush(array &$products, array &$variants, array &$stock, array &$batches): void
