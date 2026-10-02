@@ -1210,6 +1210,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
       },
       {
         type: "note",
+        text: "A quote freezes the tax as well as the price. Each line keeps the rate it was quoted at \u2014 so a basket with one taxed item and one zero-rated staple bills exactly as it was quoted, prints the right rate against each, and refunds the right amount if one of them comes back. Until now the invoice carried one averaged rate across every line, which was a few paisa out on the bill and the wrong figure entirely on a return.",
+      },
+      {
+        type: "note",
         text: "Only a quote goes out of date. A quote carries the number of days you set in Settings and shows as expired after that; goods on advance carry your collect-by window. A workshop job card has neither — it has the time you promised the car back, and nothing else.",
       },
     ],
@@ -1402,6 +1406,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "If nobody takes an order within a few minutes we tell you it is still waiting. It stays on offer, and you can hand it to one of your own riders at any point." },
       { type: "h", text: "The cash" },
       { type: "p", text: "Cash collected on delivery is recorded when the rider hands it in, not when the order was placed. The Cash held column is what each rider is currently carrying for you \u2014 delivered, paid in cash, not yet handed back. Press Settle cash to see it order by order and record what you actually took." },
+      { type: "note", text: "This works the same whether or not your rider uses the app. The Cash held figure used to appear only for riders on the app \u2014 if you drove the order to Completed yourself, the delivery was never recorded as having happened, so the screen said Rs 0 for a boy with the day\u2019s takings in his pocket and Settle refused. Pressing Completed on a delivery IS the delivery now, whoever pressed it." },
       { type: "warn", text: "Settling records the money coming back to the shop. It does not pay the rider their delivery fees \u2014 that is between you and them." },
       { type: "warn", text: "A rider carrying your cash cannot be removed. Settle with them first. Removing them would take the Cash held figure off this screen along with the Settle button, and that is the only place it is shown." },
       { type: "h", text: "Correcting a name or a number" },

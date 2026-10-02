@@ -18,9 +18,16 @@ import { test as setup, expect, type Page } from "@playwright/test";
  * failed without them would be red on every machine that had not run the
  * seeder. The skip says which command to run.
  */
-const OWNER = process.env.E2E_VOLUME_OWNER ?? "grocery@loadtest.test";
+/**
+ * WHICH of the load-test shops. The grocery is the big one and the default;
+ * the filling station and the workshop are separate TENANTS with their own
+ * owners, so each needs its own sign-in and its own saved state — a project
+ * that reused the grocery's would be asking a grocery for its bay board.
+ */
+const SHOP = process.env.E2E_VOLUME_SHOP ?? "grocery";
+const OWNER = process.env.E2E_VOLUME_OWNER ?? `${SHOP}@loadtest.test`;
 const PASSWORD = process.env.E2E_VOLUME_PASSWORD ?? "password";
-const STATE = "e2e/.auth/volume.json";
+const STATE = `e2e/.auth/volume-${SHOP}.json`;
 
 async function signIn(page: Page): Promise<boolean> {
   await page.goto("/signin");
@@ -43,7 +50,7 @@ async function signIn(page: Page): Promise<boolean> {
 
 setup.setTimeout(90_000);
 
-setup("sign in to a shop with six thousand products", async ({ page }) => {
+setup(`sign in to the ${SHOP} load-test shop`, async ({ page }) => {
   const landed = await signIn(page);
 
   setup.skip(

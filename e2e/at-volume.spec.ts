@@ -47,6 +47,31 @@ const SCREENS: Screen[] = [
   { path: "/tenant/cashbook", name: "the cashbook", rows: false },
   { path: "/tenant/ledger", name: "the ledger", rows: false },
   { path: "/tenant/reports", name: "reports", rows: false, budget: 10 },
+  // The other door. Both of these were empty on every load-test shop until
+  // the fixture switched the marketplace module on beside the flag — so
+  // neither screen had ever been looked at with a real queue on it.
+  { path: "/tenant/orders", name: "online orders", rows: true },
+  { path: "/tenant/riders", name: "riders · cash held", rows: true },
+];
+
+/**
+ * The two trades that had no load-test shop at all until today. They are a
+ * DIFFERENT TENANT, so they get their own sign-in and their own project —
+ * putting them in the list above would have asked a grocery for its bay
+ * board.
+ */
+const FORECOURT: Screen[] = [
+  { path: "/tenant/fuel", name: "the forecourt", rows: false, budget: 8 },
+  { path: "/tenant/fuel/deliveries", name: "tanker deliveries", rows: true },
+  { path: "/tenant/fuel/setup", name: "tanks & pumps", rows: false },
+  { path: "/tenant/day", name: "day & banking · forecourt", rows: true },
+];
+
+const WORKSHOP: Screen[] = [
+  { path: "/tenant/workshop", name: "the bay board", rows: false, budget: 8 },
+  { path: "/tenant/documents", name: "quotes & job cards", rows: true },
+  { path: "/tenant/warranty", name: "warranty claims", rows: true },
+  { path: "/tenant/customers", name: "customers · with cars", rows: true, search: "Khan" },
 ];
 
 const DEFAULT_BUDGET = 6;
@@ -63,7 +88,7 @@ async function rowCount(page: Page): Promise<number> {
   });
 }
 
-for (const screen of SCREENS) {
+function walk(screen: Screen): void {
   test(`${screen.name} — arrives, pages and searches`, async ({ page }) => {
     const started = Date.now();
     await page.goto(screen.path);
@@ -113,3 +138,13 @@ for (const screen of SCREENS) {
     }
   });
 }
+}
+
+const WHICH = process.env.E2E_VOLUME_SHOP ?? "grocery";
+const LIST: Record<string, Screen[]> = {
+  grocery: SCREENS,
+  petrol: FORECOURT,
+  workshop: WORKSHOP,
+};
+
+for (const screen of LIST[WHICH] ?? SCREENS) walk(screen);

@@ -136,7 +136,33 @@ export default defineConfig({
       name: "volume",
       testMatch: VOLUME_ONLY,
       dependencies: ["volume-setup"],
-      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/volume.json" },
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/volume-grocery.json" },
+    },
+
+    /**
+     * THE FORECOURT AND THE BAY, AT VOLUME.
+     *
+     * Separate tenants, so separate sign-ins and separate saved state. They
+     * are NOT in the default run: each needs its own `E2E_VOLUME_SHOP`
+     * environment, and running them demands the load-test world be seeded.
+     *
+     *   E2E_VOLUME_SHOP=petrol   npx playwright test --project=volume-petrol
+     *   E2E_VOLUME_SHOP=workshop npx playwright test --project=volume-workshop
+     */
+    { name: "volume-petrol-setup", testMatch: /volume\.setup\.ts/ },
+    {
+      name: "volume-petrol",
+      testMatch: VOLUME_ONLY,
+      dependencies: ["volume-petrol-setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/volume-petrol.json" },
+    },
+
+    { name: "volume-workshop-setup", testMatch: /volume\.setup\.ts/ },
+    {
+      name: "volume-workshop",
+      testMatch: VOLUME_ONLY,
+      dependencies: ["volume-workshop-setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/volume-workshop.json" },
     },
 
     {
