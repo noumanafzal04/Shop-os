@@ -16,6 +16,7 @@ import { useCommission, useSummary } from "../hooks/useMoney";
 import type { Period, Summary } from "../services/moneyService";
 import type { MoneyStackParamList } from "../../../navigation/types";
 import { ScreenHeader } from "../../../common/components/ScreenHeader";
+import { BRAND } from "../../../common/brand";
 
 /**
  * WHAT THE SHOP MADE.
@@ -76,7 +77,7 @@ export function MoneyScreen() {
             style={s.rowCard}
           >
             <View style={s.rowBody}>
-              <Text style={s.rowLabel}>CartZe commission</Text>
+              <Text style={s.rowLabel}>{BRAND.family} commission</Text>
               <Text style={s.rowMeta}>
                 {commission.rate}% of online orders
                 {commission.rate_is_yours ? " · your rate" : ""}
@@ -86,6 +87,27 @@ export function MoneyScreen() {
             <ChevronRightIcon size={18} color={c.textMuted} />
           </Touchable>
         ) : null}
+
+        {/*
+          THE LEDGER, reached from the figures that summarise it.
+
+          A total nobody can open is a number somebody has to trust. "Rs
+          84,300 this month" and no way to see the sales behind it is the
+          shape of a report people stop believing — so the summary is the
+          door to the list, which is where it was always going to be looked
+          for.
+        */}
+        <Touchable
+          onPress={() => nav.navigate("Sales")}
+          accessibilityRole="button"
+          style={s.rowCard}
+        >
+          <View style={s.rowBody}>
+            <Text style={s.rowLabel}>All sales</Text>
+            <Text style={s.rowMeta}>Every bill, newest first</Text>
+          </View>
+          <ChevronRightIcon size={18} color={c.textMuted} />
+        </Touchable>
 
         <AppButton
           title="Record an expense"

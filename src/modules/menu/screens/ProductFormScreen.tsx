@@ -20,6 +20,7 @@ import {
   NOT_ON_A_PHONE,
   type NewVariant,
 } from "../services/catalogService";
+import { BRAND } from "../../../common/brand";
 
 /**
  * ADD AN ITEM, FROM BEHIND THE COUNTER.
@@ -221,7 +222,7 @@ export function ProductFormScreen() {
         <View style={s.blocked}>
           <Text style={s.blockedTitle}>This shop does not sell items</Text>
           <Text style={s.blockedBody}>
-            Adding to the menu needs the products module switched on for your shop. Your CartZe web
+            Adding to the menu needs the products module switched on for your shop. Your {BRAND.family} web
             panel is where that happens.
           </Text>
         </View>
@@ -513,7 +514,7 @@ export function ProductFormScreen() {
         />
 
         <Text style={s.foot}>
-          Tax groups, pack sizes, scale codes, recipes and per-branch prices are set in the CartZe
+          Tax groups, pack sizes, scale codes, recipes and per-branch prices are set in the {BRAND.family}
           web panel.
         </Text>
       </KeyboardScreen>

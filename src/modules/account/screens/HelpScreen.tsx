@@ -127,7 +127,7 @@ const TOPICS: Topic[] = [
     permission: "reports.view",
   },
   {
-    q: "What is the CartZe commission?",
+    q: `What is the ${BRAND.family} commission?`,
     a: `A share of what the marketplace sold for you, on ONLINE orders only. A walk-in at the till and a phone order you took yourself are sales ${BRAND.family} had no part in, and are never charged. Every charge is listed with the order it came from and the rate at the time, so you can check the total rather than take it on trust.`,
     permission: "reports.view",
   },

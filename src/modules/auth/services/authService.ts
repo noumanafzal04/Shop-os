@@ -1,6 +1,7 @@
-import { apiGet, apiPost } from "@cartze/core/api/client";
+import { apiGet, apiPost, apiPut } from "@cartze/core/api/client";
 import type { ApiEnvelope } from "@cartze/core/types/api";
 import type { LoginPayload, SessionUser } from "../../../types/session";
+import { BRAND } from "../../../common/brand";
 
 /**
  * Signing in, for a shop.
@@ -35,7 +36,7 @@ export const authService = {
       // Named so a shopkeeper can recognise it in the panel's device list and
       // revoke the right one. "api" — the server's default — tells them
       // nothing.
-      device_name: "CartZe Partner",
+      device_name: BRAND.name,
     });
   },
 
@@ -49,5 +50,44 @@ export const authService = {
    */
   async me(): Promise<ApiEnvelope<SessionUser>> {
     return apiGet<SessionUser>("/auth/me");
+  },
+
+  /**
+   * Your own name and contact details.
+   *
+   * `name` is required by the server and the other two are nullable, so a
+   * blank box means "remove it" rather than "leave it alone" — which is why
+   * the screen sends `null` for an empty field instead of omitting the key.
+   * Omitting it would be the same request as sending the old value on some
+   * validators and a removal on others, and guessing which is how a phone
+   * number disappears.
+   *
+   * CHANGING AN EMAIL OR A PHONE DROPS ITS VERIFIED MARK. The server does
+   * that (`AuthController::updateProfile`), and the screen has to say so
+   * before the button is pressed rather than after.
+   */
+  async updateProfile(profile: {
+    name: string;
+    email: string | null;
+    phone: string | null;
+  }): Promise<ApiEnvelope<SessionUser>> {
+    return apiPut<SessionUser>("/auth/profile", profile);
+  },
+
+  /**
+   * `password_confirmation` is sent because the server's rule is `confirmed`,
+   * which looks for exactly that key. The screen has the second box anyway —
+   * a password nobody can see is one worth typing twice — so this costs
+   * nothing and a mismatch is caught before the round trip.
+   *
+   * EVERY OTHER SESSION IS LOGGED OUT by this call. Said on the screen, not
+   * discovered on the till five minutes later.
+   */
+  async changePassword(current: string, next: string): Promise<ApiEnvelope<null>> {
+    return apiPost<null>("/auth/password/change", {
+      current_password: current,
+      password: next,
+      password_confirmation: next,
+    });
   },
 };

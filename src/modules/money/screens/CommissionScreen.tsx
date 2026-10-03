@@ -10,6 +10,7 @@ import { money } from "@cartze/core/format";
 import { CoinsIcon } from "@cartze/core/ui/icons";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { useCommission } from "../hooks/useMoney";
+import { BRAND } from "../../../common/brand";
 
 /**
  * WHAT THIS SHOP OWES THE PLATFORM, AND THE ORDERS BEHIND IT.
@@ -35,7 +36,7 @@ export function CommissionScreen() {
 
   return (
     <SafeScreen edges={["top"]}>
-      <ScreenHeader title="CartZe commission" onBack={() => nav.goBack()} />
+      <ScreenHeader title={`${BRAND.family} commission`} onBack={() => nav.goBack()} />
 
       {isLoading && !data ? (
         <View style={s.body}>
@@ -66,7 +67,7 @@ export function CommissionScreen() {
 
           <Text style={s.note}>
             Commission applies to online orders only. A walk-in at the till and a phone order you
-            took yourself are sales CartZe had no part in.
+            took yourself are sales {BRAND.family} had no part in.
           </Text>
 
           {data.charges.length === 0 ? (

@@ -29,6 +29,10 @@ export const fs = require("fs") as {
 export const path = require("path") as {
   join(...parts: string[]): string;
   resolve(...parts: string[]): string;
+  /** A path relative to another — so a guard can REPORT a readable name
+   *  rather than the machine's absolute one, which differs per developer
+   *  and makes a failure message unsearchable. */
+  relative(from: string, to: string): string;
 };
 
 /** This project's root — one directory above `__tests__`. */

@@ -60,7 +60,7 @@ export function SignInScreen() {
       if (e instanceof ApiError) {
         setError(e.firstFieldError() ?? e.message);
       } else {
-        setError("Could not reach CartZe. Check your connection and try again.");
+        setError(`Could not reach ${BRAND.family}. Check your connection and try again.`);
       }
     } finally {
       setBusy(false);
@@ -77,7 +77,7 @@ export function SignInScreen() {
 
         <Text style={s.title}>Sign in to your shop</Text>
         <Text style={s.lede}>
-          Use the same email or phone and password you use on the CartZe web panel.
+          Use the same email or phone and password you use on the {BRAND.family} web panel.
         </Text>
 
         <View style={s.form}>

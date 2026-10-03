@@ -11,6 +11,7 @@ import { toast } from "@cartze/core/ui/toast";
 import { ApiError } from "@cartze/core/types/api";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { useExpenseCategories, useRecordExpense } from "../hooks/useMoney";
+import { BRAND } from "../../../common/brand";
 
 /**
  * WHAT WAS SPENT, WRITTEN DOWN WHERE IT HAPPENED.
@@ -98,7 +99,7 @@ export function ExpenseEntryScreen() {
           </View>
         ) : (
           <Text style={s.quiet}>
-            No expense categories yet. Add one in the CartZe web panel first — an expense has to
+            No expense categories yet. Add one in the {BRAND.family} web panel first — an expense has to
             land somewhere.
           </Text>
         )}

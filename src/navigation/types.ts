@@ -48,11 +48,33 @@ export type MenuStackParamList = {
   Collections: undefined;
 };
 
-/** The figures, with commission and expense entry behind them. */
+/**
+ * The figures, with commission, expense entry and the LEDGER behind them.
+ *
+ * Sales sit under Money rather than beside Orders on purpose. The Orders tab
+ * is about what has to HAPPEN — four stages, counts, a delivery with no
+ * rider. A finished sale is a number, and the questions asked of it are
+ * money questions: what did we take, who paid, was any of it handed back.
+ */
 export type MoneyStackParamList = {
   MoneyHome: undefined;
   Commission: undefined;
   ExpenseEntry: undefined;
+  Sales: undefined;
+  SaleDetail: { id: string };
+};
+
+/**
+ * The ledger's own params, named separately from the stack that holds them.
+ *
+ * `SalesScreen` and `SaleDetailScreen` type their navigation against this
+ * rather than against `MoneyStackParamList`, so moving the ledger to a tab of
+ * its own later is a change to one line here instead of to every screen that
+ * pushes a route.
+ */
+export type SalesStackParamList = {
+  Sales: undefined;
+  SaleDetail: { id: string };
 };
 
 /**
@@ -67,6 +89,10 @@ export type AccountStackParamList = {
   Shop: undefined;
   Hours: undefined;
   Help: undefined;
+  /** Your own name, contact details and password — not the shop's. */
+  Profile: undefined;
+  /** What happened while the app was shut. */
+  Notifications: undefined;
 };
 
 export type RootStackParamList = {

@@ -17,6 +17,7 @@ import { BoxIcon } from "@cartze/core/ui/icons";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { useProduct, useSoldOut, useUpdateProduct } from "../hooks/useCatalog";
 import type { MenuStackParamList } from "../../../navigation/types";
+import { BRAND } from "../../../common/brand";
 
 /**
  * ONE ITEM, AND THE THREE THINGS A PHONE SHOULD CHANGE.
@@ -181,7 +182,7 @@ export function ProductDetailScreen() {
           />
 
           <Text style={s.foot}>
-            Categories, variants, stock and photos are edited in the CartZe web panel.
+            Categories, variants, stock and photos are edited in the {BRAND.family} web panel.
           </Text>
         </KeyboardScreen>
       ) : null}

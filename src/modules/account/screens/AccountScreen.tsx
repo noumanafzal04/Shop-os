@@ -7,6 +7,7 @@ import { Touchable } from "@cartze/core/ui/Touchable";
 import { confirm } from "@cartze/core/ui/confirm";
 import {
   BadgeCheckIcon,
+  BellIcon,
   ChevronRightIcon,
   GearIcon,
   LifeBuoyIcon,
@@ -87,6 +88,36 @@ export function AccountScreen() {
               </Text>
             </View>
           </View>
+        </View>
+
+        {/*
+          YOU, BEFORE THE SHOP.
+
+          Both rows are about the PERSON holding the phone, so neither is
+          permission-gated: everybody may fix the spelling of their own name
+          and everybody has notifications. The shop's settings below are a
+          different question with a different answer.
+        */}
+        <Text style={s.sectionTitle}>You</Text>
+        <View style={s.card}>
+          <Touchable
+            onPress={() => nav.navigate("Profile")}
+            accessibilityRole="button"
+            style={s.row}
+          >
+            <PersonIcon size={20} color={c.textSecondary} />
+            <Text style={s.rowLabel}>Your details</Text>
+            <ChevronRightIcon size={18} color={c.textMuted} />
+          </Touchable>
+          <Touchable
+            onPress={() => nav.navigate("Notifications")}
+            accessibilityRole="button"
+            style={s.row}
+          >
+            <BellIcon size={20} color={c.textSecondary} />
+            <Text style={s.rowLabel}>Notifications</Text>
+            <ChevronRightIcon size={18} color={c.textMuted} />
+          </Touchable>
         </View>
 
         <Text style={s.sectionTitle}>Shop</Text>

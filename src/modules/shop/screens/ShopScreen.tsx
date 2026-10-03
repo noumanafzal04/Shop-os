@@ -17,6 +17,7 @@ import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/t
 import { useSaveSettings, useShopSettings } from "../hooks/useShop";
 import type { ShopSettings } from "../services/shopService";
 import type { AccountStackParamList } from "../../../navigation/types";
+import { BRAND } from "../../../common/brand";
 
 /**
  * HOW THIS SHOP TAKES ORDERS.
@@ -127,7 +128,7 @@ export function ShopScreen() {
             <View style={s.rule} />
             <Toggle
               label="Delivery"
-              hint="You or a CartZe rider takes it to them"
+              hint={`You or a ${BRAND.family} rider takes it to them`}
               value={form.delivery_enabled ?? true}
               onChange={(v) => set("delivery_enabled", v)}
             />
