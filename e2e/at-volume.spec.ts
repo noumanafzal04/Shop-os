@@ -76,13 +76,30 @@ const WORKSHOP: Screen[] = [
 
 const DEFAULT_BUDGET = 6;
 
+/**
+ * HOW MANY RECORDS THIS SCREEN IS SHOWING.
+ *
+ * It counted table rows and nothing else, which made it blind to every
+ * screen built as a list — and it reported those as EMPTY rather than as
+ * unmeasurable. The warranty desk, on a shop holding seven units, failed
+ * with "showed no rows, in a shop that has the data": a finding about this
+ * function, stated as a finding about the product.
+ *
+ * A screen that renders records as a list says so with `data-rows`. Being
+ * told beats guessing at a selector: `ul li` would have counted every
+ * navigation menu on the page.
+ */
 async function rowCount(page: Page): Promise<number> {
   return page.evaluate(() => {
     const bodies = Array.from(document.querySelectorAll("tbody"));
     let rows = 0;
     for (const b of bodies) rows += b.querySelectorAll("tr").length;
     // An empty table still renders one row saying "Nothing here".
-    if (rows === 1 && (bodies[0]?.querySelector("tr")?.querySelectorAll("td").length ?? 0) <= 1) return 0;
+    if (rows === 1 && (bodies[0]?.querySelector("tr")?.querySelectorAll("td").length ?? 0) <= 1) rows = 0;
+
+    for (const list of Array.from(document.querySelectorAll("[data-rows]"))) {
+      rows += list.children.length;
+    }
 
     return rows;
   });

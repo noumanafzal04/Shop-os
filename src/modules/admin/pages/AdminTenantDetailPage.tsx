@@ -692,6 +692,31 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
   );
 }
 
+/**
+ * THE ADD-ONS THAT ARE ACTUALLY SOLD.
+ *
+ * A shop on Basic that needs five staff should not be pushed onto Standard
+ * to get two of them. That is the entire argument for add-ons — and it only
+ * works if the price of an extra staff account is the SAME price next week
+ * and for the shop next door.
+ *
+ * Granting capacity was three free-text boxes, so it was not. The list below
+ * is what the sales conversation actually offers; the boxes underneath still
+ * take anything, because the reason a per-tenant grant exists at all is the
+ * deal that is not on a list.
+ *
+ * Priced per billing period, like the plan they sit on top of — a monthly
+ * shop pays this monthly, an annual one annually, and nobody has to divide.
+ */
+const ADD_ONS: ReadonlyArray<{ key: string; label: string; quantity: number; price: number }> = [
+  { key: "staff", label: "+1 staff login", quantity: 1, price: 400 },
+  { key: "registers", label: "+1 checkout lane", quantity: 1, price: 600 },
+  { key: "branches", label: "+1 branch", quantity: 1, price: 1500 },
+  // Sold as a pack rather than per bill: nobody buys 1 transaction, and a
+  // per-unit price on a meter this large reads as a threat.
+  { key: "orders_month", label: "+5,000 bills a month", quantity: 5000, price: 750 },
+];
+
 /** Admin-only editor for a tenant's business type + category (owners can't). */
 /**
  * CAPACITY SOLD OR GIVEN — the add-on, the temporary grant, the concession.
@@ -853,6 +878,48 @@ function CapacityCard({ tenant }: { tenant: Tenant }) {
         </p>
 
         <div className="space-y-4">
+          {/* THE USUAL ONES, PRICED.
+              Granting capacity was three free-text boxes, which meant the
+              price of an extra staff account was whatever the admin on duty
+              remembered — and the shop next door was quoted something else.
+              These are the list; the boxes underneath still take anything,
+              because the whole reason the override exists is the deal that
+              is not on the list. */}
+          <div>
+            <Label>Usual add-ons</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {ADD_ONS.map((pack) => {
+                const picked =
+                  form.limit_key === pack.key
+                  && form.quantity === String(pack.quantity)
+                  && form.unit_price === String(pack.price);
+
+                return (
+                  <button
+                    key={pack.label}
+                    type="button"
+                    onClick={() => setForm((f) => ({
+                      ...f,
+                      limit_key: pack.key,
+                      quantity: String(pack.quantity),
+                      unit_price: String(pack.price),
+                    }))}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      picked
+                        ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
+                        : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
+                    }`}
+                  >
+                    <div className="text-sm font-medium text-gray-800 dark:text-white/90">{pack.label}</div>
+                    <div className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                      Rs {pack.price.toLocaleString()} each, per billing period
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div>
             <Label htmlFor="grant-key">What</Label>
             <Select

@@ -49,9 +49,21 @@ type Tab = (typeof TABS)[number]["key"];
  * Two screens, because a counter asks two different questions: "what is this
  * unit?" when somebody hands one over, and "what are we still holding?" when
  * somebody comes back asking for theirs.
+ *
+ * ── Which of the two it opens on ────────────────────────────────────────
+ *
+ * Holding, and it used to be Lookup. A shop with seven units on the bench
+ * opened the warranty desk and was shown an empty search box: the only thing
+ * on screen was a question, and the seven customers' goods it was responsible
+ * for appeared nowhere until somebody found the second tab.
+ *
+ * Lookup is an ACTION — it needs a serial in somebody's hand, and it is one
+ * click away. Holding is a STATE, and a screen should open on what is true
+ * rather than on a blank field. The same reason the bay board does not open
+ * on a search.
  */
 export default function WarrantyLookupPage() {
-  const [tab, setTab] = useState<Tab>("lookup");
+  const [tab, setTab] = useState<Tab>("holding");
 
   return (
     <>
@@ -349,7 +361,15 @@ function HoldingTab() {
             : "No claims match."}
         </p>
       ) : (
-        <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+        /* `data-rows` says "these are this screen's records".
+           Not decoration: the volume suite asks every screen whether it is
+           showing anything at a real shop's size, and it could only count
+           TABLE rows — so the warranty desk, on a shop holding seven units,
+           reported as empty. That was a finding about the probe, stated as a
+           finding about the product. A screen declares its own rows rather
+           than being guessed at by a selector, because `ul li` would have
+           counted the navigation menu. */
+        <ul data-rows className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
           {rows.map((c) => (
             <ClaimRow
               key={c.id}

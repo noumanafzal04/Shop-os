@@ -86,7 +86,7 @@ export interface Tenant {
   phone: string | null;
   business_category: string | null;
   city?: { id: string; name: string };
-  plan?: { id: string; name: string; code: string };
+  plan?: { id: string; name: string; code: string; price?: string | number };
   online_shop_enabled: boolean;
   features?: Record<string, boolean>;
   /** What this shop was assigned: branches, staff, lanes, plus any extension. */
@@ -95,6 +95,12 @@ export interface Tenant {
   default_modules?: Record<string, boolean>;
   /** Live usage vs effective limit — present on the tenant detail view only. */
   limits_usage?: LimitUsage[];
+  /**
+   * How big this shop is. On the LIST only, where the detail view's full
+   * usage snapshot would be fifteen rounds of counting per page.
+   */
+  branches_count?: number;
+  users_count?: number;
   status: "active" | "suspended";
   setup_completed: boolean;
   /** A shop handed out by "Try the demo". Never a real business. */

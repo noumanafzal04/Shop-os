@@ -368,6 +368,7 @@ export default function AdminTenantsPage() {
                 <th className="px-6 py-3 font-medium">Type</th>
                 <th className="px-6 py-3 font-medium">City</th>
                 <th className="px-6 py-3 font-medium">Plan</th>
+                <th className="px-6 py-3 font-medium">Size</th>
                 <th className="px-6 py-3 font-medium">Renews</th>
                 <th className="px-6 py-3 font-medium">Payment</th>
               </tr>
@@ -376,7 +377,7 @@ export default function AdminTenantsPage() {
               {tenants.isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={6} className="px-6 py-4">
+                    <td colSpan={7} className="px-6 py-4">
                       <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
                     </td>
                   </tr>
@@ -425,10 +426,32 @@ export default function AdminTenantsPage() {
                     <td className="px-6 py-4">{t.city?.name ?? "—"}</td>
                     <td className="px-6 py-4">
                       {t.plan?.name ?? <span className="text-gray-400">no plan</span>}
+                      {t.plan?.price != null && (
+                        <div className="text-theme-xs tabular-nums text-gray-400">
+                          Rs {Number(t.plan.price).toLocaleString()}
+                        </div>
+                      )}
                       {t.online_shop_enabled && (
                         <Badge size="sm" color="info">
                           online
                         </Badge>
+                      )}
+                    </td>
+                    {/* WHAT "STANDARD" ACTUALLY MEANS FOR THIS SHOP.
+                        The list said what every business pays and nothing
+                        about what any of them IS — so the first question of
+                        every support call and every plan change needed the
+                        detail page open. Users excludes nobody: the owner is
+                        a login too, and saying "6 logins" avoids the argument
+                        about whether the owner counts as staff. */}
+                    <td className="px-6 py-4 text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
+                      {t.branches_count === undefined ? (
+                        "—"
+                      ) : (
+                        <>
+                          {t.branches_count} branch{t.branches_count === 1 ? "" : "es"}
+                          <div>{t.users_count ?? 0} login{t.users_count === 1 ? "" : "s"}</div>
+                        </>
                       )}
                     </td>
                     <td className="px-6 py-4 text-theme-xs tabular-nums">{dueLabel(t)}</td>
